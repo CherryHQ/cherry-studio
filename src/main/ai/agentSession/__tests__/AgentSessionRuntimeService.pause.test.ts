@@ -1,8 +1,14 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toAgentRuntimeSegmentId } from '../../runtime/types'
 import { AgentConnectionManager } from '../AgentConnectionManager'
-import { createAgentConnectionResourceState } from '../agentConnectionResourceState'
+import {
+  AgentConnectionResourceEventType,
+  type AgentConnectionResourceState,
+  createAgentConnectionResourceState,
+  transitionAgentConnectionResource
+} from '../agentConnectionResourceState'
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -12,8 +18,10 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+type TestTurn = { turnId: string }
+
 type ManagerInternals = {
-  entries: Map<string, { resources: ReturnType<typeof createAgentConnectionResourceState> }>
+  entries: Map<string, { resources: AgentConnectionResourceState<TestTurn, never> }>
   connectionStarts: Map<string, { id: string; promise: Promise<boolean> }>
   sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
   inFlightBackgroundFlowFlushes: Map<Promise<void>, string>
@@ -41,7 +49,7 @@ describe('AgentConnectionManager pause / drainInFlight', () => {
     'does not represent Conversation-owned %s work in the resource registry',
     (target) => {
       const manager = new AgentConnectionManager()
-      const state = createAgentConnectionResourceState()
+      const state = createAgentConnectionResourceState<TestTurn, never>()
       internals(manager).entries.set('session-1', { resources: state })
       const hold = manager.pause(target)
 
@@ -140,7 +148,9 @@ describe('AgentConnectionManager pause / drainInFlight', () => {
 
   it('drops idle connection work for a session closed while paused', async () => {
     const manager = new AgentConnectionManager()
-    internals(manager).entries.set('session-1', { resources: createAgentConnectionResourceState() })
+    internals(manager).entries.set('session-1', {
+      resources: createAgentConnectionResourceState<TestTurn, never>()
+    })
     const close = vi.spyOn(manager, 'closeSession').mockImplementation(async (sessionId) => {
       internals(manager).entries.delete(sessionId)
     })
@@ -154,9 +164,13 @@ describe('AgentConnectionManager pause / drainInFlight', () => {
 
   it('lists connection state-machine work without treating an idle session as active', () => {
     const manager = new AgentConnectionManager()
-    internals(manager).entries.set('idle', { resources: createAgentConnectionResourceState() })
+    internals(manager).entries.set('idle', { resources: createAgentConnectionResourceState<TestTurn, never>() })
     internals(manager).entries.set('live', {
-      resources: createAgentConnectionResourceState({ turnId: 'turn-1' } as never)
+      resources: transitionAgentConnectionResource(createAgentConnectionResourceState<TestTurn, never>(), {
+        type: AgentConnectionResourceEventType.BeginTurn,
+        turn: { turnId: 'turn-1' },
+        segmentId: toAgentRuntimeSegmentId('segment-1')
+      }).state
     })
 
     expect(manager.listActiveWork()).toEqual([

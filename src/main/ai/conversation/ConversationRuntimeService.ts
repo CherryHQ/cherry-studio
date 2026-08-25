@@ -62,6 +62,8 @@ import type {
 import type { MessageRuntimeSpan } from '@shared/data/types/message'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
+import type { AgentRuntimeRedirectId, AgentRuntimeRedirectReceipt, AgentRuntimeSegmentId } from '../runtime/types'
+import { AgentRuntimeRedirectReceiptKind } from '../runtime/types'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../streamManager'
 import {
   agentChatContextProvider,
@@ -100,7 +102,7 @@ import {
   type ReservedExecutionIdentity
 } from './ConversationActor'
 import { ConversationAdmissionError } from './ConversationAdmissionError'
-import { ConversationBindingRegistry } from './ConversationBindingRegistry'
+import { AgentRedirectBindingPhase, ConversationBindingRegistry } from './ConversationBindingRegistry'
 import { ConversationExecutionResourcePort } from './ConversationExecutionResourcePort'
 import type {
   ConversationPresentationPort,
@@ -125,6 +127,7 @@ import type {
   ConversationExecutionPlan,
   ConversationInput,
   ConversationOutcome,
+  ConversationRedirectInput,
   ConversationState,
   ConversationTransition
 } from './conversationState'
@@ -286,10 +289,14 @@ export class ConversationRuntimeService extends BaseService {
           logger.warn('Conversation successor admission failed', { conversation: conversationRefKey(ref), error })
         })
       },
-      scheduleNextStep: (ref, turnId, input) => {
-        void this.scheduleCommittedStep(ref, turnId, input).catch((error) => {
-          this.deleteCommittedInput(input.id)
-          this.actorFor(ref).failStep(turnId, input.id, serializeError(error))
+      scheduleNextStep: (ref, turnId, inputs) => {
+        void this.scheduleCommittedStep(ref, turnId, inputs).catch((error) => {
+          for (const input of inputs) this.deleteCommittedInput(input.id)
+          this.actorFor(ref).failStep(
+            turnId,
+            inputs.map(({ id }) => id),
+            serializeError(error)
+          )
           logger.warn('Conversation step admission failed', { conversation: conversationRefKey(ref), turnId, error })
         })
       },
@@ -549,14 +556,27 @@ export class ConversationRuntimeService extends BaseService {
     return this.actorFor(ref).resolveInteraction(toConversationInteractionId(approvalId)).rejection === undefined
   }
 
-  enqueueAgentUndelivered(sessionId: string, userMessageId: string): void {
+  acceptAgentRedirects(
+    sessionId: string,
+    redirectIds: readonly AgentRuntimeRedirectId[],
+    segmentId: AgentRuntimeSegmentId
+  ): void {
     const ref: ConversationRef = { kind: ConversationKind.Agent, id: sessionId }
-    const resourceEntry = this.bindings.findAgentDelivery(ref, userMessageId)
-    if (!resourceEntry) {
-      logger.warn('Undelivered Agent steer lost its Conversation input', { sessionId, userMessageId })
+    const entries = redirectIds.map((redirectId) => this.bindings.findAgentRedirect(ref, redirectId))
+    if (entries.some((entry) => entry === undefined)) {
+      logger.warn('Delivered Agent steer lost its Conversation input', { sessionId, redirectIds })
       return
     }
-    this.actorFor(ref).rejectRedirectedInput(toConversationInputId(resourceEntry[0]))
+    const transition = this.actorFor(ref).acceptRedirects(redirectIds, segmentId)
+    if (transition.rejection) return
+    for (const entry of entries) {
+      if (entry) this.bindings.markAgentSegment(entry[0], segmentId)
+    }
+  }
+
+  enqueueAgentUndelivered(sessionId: string, redirectIds: readonly AgentRuntimeRedirectId[]): void {
+    const ref: ConversationRef = { kind: ConversationKind.Agent, id: sessionId }
+    this.actorFor(ref).rejectUndeliveredRedirects(redirectIds)
   }
 
   startAgentAutonomous(sessionId: string, headless?: boolean): boolean {
@@ -1595,53 +1615,80 @@ export class ConversationRuntimeService extends BaseService {
   private scheduleCommittedStep(
     ref: ConversationRef,
     turnId: ConversationTurnId,
-    input: ConversationInput
+    inputs: readonly ConversationInput[]
   ): Promise<void> {
     return this.actorFor(ref).enqueue(ConversationAdmissionOperationKind.RuntimeContinuation, async (operation) => {
       if (this.isWriteQuiesced) return
-      const resource = this.bindings.input(input.id)
-      const presentation = this.presentation.inputBinding(input.id)
-      if (!resource || !presentation) throw new Error(`Conversation step resource is missing: ${input.id}`)
+      const entries = inputs.map((input) => ({
+        input,
+        resource: this.bindings.input(input.id),
+        presentation: this.presentation.inputBinding(input.id)
+      }))
+      if (entries.length === 0) throw new Error('Conversation step batch is empty')
+      const first = entries[0]
+      if (!first?.resource || !first.presentation) throw new Error('Conversation step resource is missing')
       const initial = this.inspect(ref)
       if (initial.phase !== ConversationPhase.Running || initial.turn.id !== turnId) return
       let committed: CommittedConversationIntent
       let historyProvider: ConversationHistoryPort
       let admission: Extract<ConversationHistoryCommitReservation, { kind: ConversationHistoryCommitKind.NextStep }>
-      if (resource.agentSegment) {
-        if (ref.kind !== ConversationKind.Agent) throw new Error('Only Agent Conversations support native segments')
+      const segmentId =
+        first.resource.agentRedirect?.phase === AgentRedirectBindingPhase.Delivered
+          ? first.resource.agentRedirect.segmentId
+          : undefined
+      if (segmentId) {
+        if (
+          ref.kind !== ConversationKind.Agent ||
+          entries.some(
+            (entry) =>
+              entry.resource?.agentRedirect?.phase !== AgentRedirectBindingPhase.Delivered ||
+              entry.resource.agentRedirect.segmentId !== segmentId
+          )
+        ) {
+          throw new Error('Agent segment batch changed its exact runtime identity')
+        }
         const intent = application.get('AgentConnectionManager').describeConversationContinuation(ref.id)
-        admission = this.actorFor(ref).reserveStep(turnId, input, [intent.modelId])
+        if (intent.segmentId !== segmentId) throw new Error('Agent continuation segment was superseded')
+        admission = this.actorFor(ref).reserveStep(turnId, inputs, [intent.modelId])
         historyProvider = agentChatContextProvider
         committed = agentChatContextProvider.commitRuntimeIntent(intent)
       } else {
         const provider = this.providerFor(ref)
         historyProvider = provider
-        const validation = await provider.validateIntent(resource.request, { hasLiveStream: false }, operation.signal)
+        if (entries.length !== 1) throw new Error('Only exact Agent segments support batched Conversation steps')
+        const validation = await provider.validateIntent(
+          first.resource.request,
+          { hasLiveStream: false },
+          operation.signal
+        )
         operation.assertCurrent()
         if (this.isWriteQuiesced) return
         const current = this.inspect(ref)
         if (current.phase !== ConversationPhase.Running || current.turn.id !== turnId) return
-        admission = this.actorFor(ref).reserveStep(turnId, input, validation.executionModelIds)
+        admission = this.actorFor(ref).reserveStep(turnId, inputs, validation.executionModelIds)
         committed = provider.commitIntent(validation, { hasLiveStream: false })
       }
+      const listeners = entries.flatMap((entry) =>
+        entry.presentation ? [entry.presentation.subscriber, ...(entry.presentation.extraListeners ?? [])] : []
+      )
       const plans = this.installCommittedExecutions(
         ref,
         turnId,
         committed,
         historyProvider,
-        [presentation.subscriber, ...(presentation.extraListeners ?? [])],
+        listeners,
         this.presentation.turn(ref, turnId)?.listeners,
         admission.executions
       )
       const turn = this.presentation.turn(ref, turnId)
       if (!turn) throw new Error('Conversation step projection is missing')
       for (const { projection } of plans) turn.executions.set(projection.id, projection)
-      for (const listener of [presentation.subscriber, ...(presentation.extraListeners ?? [])]) {
+      for (const listener of listeners) {
         turn.listeners.set(listener.id, listener)
       }
       const transition = this.actorFor(ref).commitStep(
         turnId,
-        input.id,
+        inputs.map(({ id }) => id),
         plans.map(({ plan }) => plan)
       )
       if (transition.rejection) {
@@ -1651,7 +1698,7 @@ export class ConversationRuntimeService extends BaseService {
         }
         throw new Error(`Committed Conversation step was rejected: ${transition.rejection}`)
       }
-      this.deleteCommittedInput(input.id)
+      for (const input of inputs) this.deleteCommittedInput(input.id)
     })
   }
 
@@ -1990,22 +2037,30 @@ export class ConversationRuntimeService extends BaseService {
     }
   }
 
-  private redirectAgentInput(ref: ConversationRef, input: ConversationInput): boolean {
-    if (ref.kind !== ConversationKind.Agent) return false
+  private redirectAgentInput(ref: ConversationRef, input: ConversationRedirectInput): AgentRuntimeRedirectReceipt {
+    const rejected = (): AgentRuntimeRedirectReceipt => ({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId: input.redirect.id
+    })
+    if (ref.kind !== ConversationKind.Agent) return rejected()
     const resource = this.bindings.input(input.id)
     const message = resource?.request.agentDeliveryMessage
-    if (!message || resource.request.trigger !== ConversationOpenTrigger.SubmitMessage) return false
-    const redirected = application.get('AgentConnectionManager').redirectConversationInput(ref.id, message, {
-      headless: resource.request.headless,
-      reasoningEffort: resource.request.reasoningEffort,
-      fastMode: resource.request.fastMode,
-      messageSnapshot:
-        resource.validation?.kind === ConversationHistoryAdapterKind.Agent
-          ? resource.validation.agent.messageSnapshot
-          : undefined
-    })
-    if (redirected) this.bindings.markAgentSegment(input.id)
-    return redirected
+    if (!message || resource.request.trigger !== ConversationOpenTrigger.SubmitMessage) return rejected()
+    const receipt = application
+      .get('AgentConnectionManager')
+      .redirectConversationInput(ref.id, input.redirect.id, message, {
+        headless: resource.request.headless,
+        reasoningEffort: resource.request.reasoningEffort,
+        fastMode: resource.request.fastMode,
+        messageSnapshot:
+          resource.validation?.kind === ConversationHistoryAdapterKind.Agent
+            ? resource.validation.agent.messageSnapshot
+            : undefined
+      })
+    if (receipt.kind === AgentRuntimeRedirectReceiptKind.Queued) {
+      this.bindings.bindAgentRedirect(input.id, receipt.redirectId)
+    }
+    return receipt
   }
 
   private deleteCommittedInput(inputId: ConversationInput['id']): void {

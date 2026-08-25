@@ -18,6 +18,7 @@ import {
 import type { Span } from '@opentelemetry/api'
 import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
 
+import type { AgentRuntimeRedirectReceipt } from '../runtime/types'
 import type {
   AbortConversationExecutionEffect,
   ConversationRuntimeCheckpoint,
@@ -28,7 +29,7 @@ import type {
 } from './conversationPorts'
 
 export interface ConversationExecutionDriverControl {
-  redirect(effect: RedirectConversationInputEffect): boolean
+  redirect(effect: RedirectConversationInputEffect): AgentRuntimeRedirectReceipt
 }
 
 export interface ConversationExecutionDriver {
@@ -45,7 +46,7 @@ export interface ConversationExecutionDriver {
     span: Span | undefined,
     messages: unknown[]
   ): void
-  redirect(effect: RedirectConversationInputEffect): boolean
+  redirect(effect: RedirectConversationInputEffect): AgentRuntimeRedirectReceipt
   suspend(driver: ConversationExecutionDriverBinding, effect: SuspendConversationExecutionEffect): boolean
   resumeSuspended(driver: ConversationExecutionDriverBinding, effect: ResumeSuspendedConversationExecutionEffect): void
   discardRuntimeBuffer(driver: ConversationExecutionDriverBinding, effect: DiscardConversationRuntimeBufferEffect): void
@@ -109,6 +110,7 @@ export class ConversationExecutionDriverRegistry implements ConversationExecutio
             userMessage: descriptor.userMessage,
             assistantMessageId: descriptor.outputNodeId,
             runtimeTurnId: descriptor.runtimeTurnId,
+            segmentId: descriptor.segmentId,
             ...(descriptor.sourceTurnId ? { sourceTurnId: descriptor.sourceTurnId } : {}),
             ...(descriptor.messageSnapshot ? { messageSnapshot: descriptor.messageSnapshot } : {}),
             ...(descriptor.traceId ? { traceId: descriptor.traceId } : {})
@@ -163,8 +165,9 @@ export class ConversationExecutionDriverRegistry implements ConversationExecutio
     })
   }
 
-  redirect(effect: RedirectConversationInputEffect): boolean {
-    return this.control?.redirect(effect) === true
+  redirect(effect: RedirectConversationInputEffect): AgentRuntimeRedirectReceipt {
+    if (!this.control) throw new Error('Conversation execution redirect control is unavailable')
+    return this.control.redirect(effect)
   }
 
   suspend(driver: ConversationExecutionDriverBinding, effect: SuspendConversationExecutionEffect): boolean {

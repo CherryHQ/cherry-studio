@@ -28,6 +28,8 @@ import {
   type ConversationTerminalPersistenceResult,
   ConversationTerminalPersistenceResultKind
 } from '../../conversation'
+import { ConversationRedirectPhase } from '../../conversation/conversationState'
+import { AgentRuntimeRedirectReceiptKind, toAgentRuntimeRedirectId, toAgentRuntimeSegmentId } from '../../runtime/types'
 
 const chat = { kind: ConversationKind.Chat, id: 'topic-1' } as const
 const agent = { kind: ConversationKind.Agent, id: 'session-1' } as const
@@ -115,7 +117,10 @@ describe('legacy AiStreamManager behavior on Conversation owners', () => {
       execution: {
         start: vi.fn((effect, sink) => sinks.set(effect.executionId, sink)),
         requestYield: vi.fn(),
-        redirect: vi.fn(() => true),
+        redirect: vi.fn((effect) => ({
+          kind: AgentRuntimeRedirectReceiptKind.Queued,
+          redirectId: effect.input.redirect.id
+        })),
         resume: vi.fn(),
         suspend: vi.fn(() => false),
         resumeSuspended: vi.fn(),
@@ -287,27 +292,40 @@ describe('legacy AiStreamManager behavior on Conversation owners', () => {
     ])
   })
 
-  it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
+  it('claims contiguous Chat follow-ups as one ordered successor batch', async () => {
     open()
     runtime.commitInput(chat, input('user-2'))
     runtime.commitInput(chat, input('user-3'))
     sinks.get(toConversationExecutionId('one'))?.terminal({ kind: ConversationOutcomeKind.Success })
 
     await vi.waitFor(() => expect(ports.scheduleNextTurn).toHaveBeenCalledOnce())
-    expect(ports.scheduleNextTurn).toHaveBeenCalledWith(chat, input('user-2'))
+    expect(ports.scheduleNextTurn).toHaveBeenCalledWith(chat, [input('user-2'), input('user-3')])
   })
 
   it('keeps an accepted Agent redirect owned until the exact next step commits', async () => {
     open(agent, [{ ...execution('one'), driver: ConversationExecutionDriverKind.Agent }])
     runtime.commitInput(agent, input('user-2'), { runtimeCanRedirect: true })
+    actorFor(agent).acceptRedirects([toAgentRuntimeRedirectId('user-2')], toAgentRuntimeSegmentId('segment-user-2'))
     sinks.get(toConversationExecutionId('one'))?.terminal({ kind: ConversationOutcomeKind.Success })
 
     await vi.waitFor(() => expect(ports.scheduleNextStep).toHaveBeenCalledOnce())
-    expect(runtime.inspect(agent).inbox.nextStep).toEqual([input('user-2')])
+    expect(runtime.inspect(agent).inbox.nextStep).toEqual([
+      {
+        ...input('user-2'),
+        redirect: {
+          id: toAgentRuntimeRedirectId('user-2'),
+          phase: ConversationRedirectPhase.Delivered,
+          segmentId: toAgentRuntimeSegmentId('segment-user-2')
+        }
+      }
+    ])
   })
 
   it('moves a rejected Agent redirect to the durable NextTurn queue', () => {
-    vi.mocked(ports.execution.redirect).mockReturnValue(false)
+    vi.mocked(ports.execution.redirect).mockImplementation((effect) => ({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId: effect.input.redirect.id
+    }))
     open(agent, [{ ...execution('one'), driver: ConversationExecutionDriverKind.Agent }])
     runtime.commitInput(agent, input('user-2'), { runtimeCanRedirect: true })
 

@@ -48,17 +48,24 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeRedirectInput,
+  AgentRuntimeRedirectReceipt,
+  AgentRuntimeSegmentId,
+  AgentRuntimeSteerDelivery,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
 } from '../types'
 import {
+  AgentRuntimeAutonomousState,
   AgentRuntimeEventType,
   AgentRuntimeMessageAssociation,
   AgentRuntimeReconcileResult,
+  AgentRuntimeRedirectReceiptKind,
   AgentSessionUsageCaptureOwner,
-  AiRuntimeCapability
+  AiRuntimeCapability,
+  toAgentRuntimeSegmentId
 } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
@@ -357,7 +364,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
    *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
-  private steerBoundaryPending?: AgentRuntimeUserInput[]
+  private steerBoundaryPending?: AgentRuntimeSteerDelivery
+  private activeSegmentId?: AgentRuntimeSegmentId
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -366,6 +374,27 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
+  }
+
+  private emitChunk(chunk: Extract<AgentRuntimeEvent, { type: AgentRuntimeEventType.Chunk }>['chunk']): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, segmentId: this.activeSegmentId, chunk })
+  }
+
+  private emitTurnComplete(): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete, segmentId: this.activeSegmentId })
+  }
+
+  private emitError(error: unknown): void {
+    if (!this.activeSegmentId) {
+      logger.error(
+        'Claude Code runtime failed without an active segment',
+        error instanceof Error ? error : new Error(String(error))
+      )
+      return
+    }
+    this.eventQueue.push({ type: AgentRuntimeEventType.Error, segmentId: this.activeSegmentId, error })
   }
 
   async start(): Promise<this> {
@@ -451,11 +480,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {
       this.steerHolder.onInjected = (inputs) => {
-        this.steerBoundaryPending = inputs
+        const sourceSegmentId = this.activeSegmentId
+        if (!sourceSegmentId || inputs.length === 0) return
+        const delivery: AgentRuntimeSteerDelivery = {
+          redirects: inputs,
+          sourceSegmentId,
+          successorSegmentId: toAgentRuntimeSegmentId(crypto.randomUUID())
+        }
+        this.steerBoundaryPending = delivery
         // Reserve the host continuation synchronously before the hook returns. A gateway-backed
         // subprocess can issue its next provider request before the later `message_start` reaches
         // this query loop, so the async `steer-boundary` event is too late for request correlation.
-        this.input.onSteerInjected?.(inputs)
+        this.input.onSteerInjected?.(delivery)
       }
     }
     void this.runQueryLoop()
@@ -472,6 +508,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.activeSegmentId = input.segmentId
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -486,7 +523,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.push(sdkMessage)
   }
 
-  redirect(input: AgentRuntimeUserInput): boolean {
+  redirect(input: AgentRuntimeRedirectInput): AgentRuntimeRedirectReceipt {
+    const rejected = (): AgentRuntimeRedirectReceipt => ({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId: input.redirectId
+    })
     // The hook can only inject text (`extractSteerText` drops everything else), so accept a steer only
     // when every part is one we know survives that reduction — fail closed on anything new rather than
     // silently swallowing it. `data-knowledge-scope` qualifies because the host's fold gate has already
@@ -498,11 +539,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const canInject = input.message.data?.parts?.every(isInjectableSteerPart) ?? true
     // A steer is only injectable into a running turn. The adapter lives for the whole connection,
     // so its turn flag — not its existence — reports whether one is open.
-    if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject) return false
+    if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject || this.activeSegmentId !== input.segmentId) {
+      return rejected()
+    }
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
-    return true
+    return { kind: AgentRuntimeRedirectReceiptKind.Queued, redirectId: input.redirectId }
   }
 
   async reconcile(input: {
@@ -670,7 +713,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.parent_tool_use_id == null
         ) {
           this.commitPendingInvocations()
-          this.eventQueue.push({ type: AgentRuntimeEventType.SteerBoundary, inputs: this.steerBoundaryPending })
+          this.activeSegmentId = this.steerBoundaryPending.successorSegmentId
+          this.eventQueue.push({ type: AgentRuntimeEventType.SteerDelivered, ...this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
         }
 
@@ -706,7 +750,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
+          this.emitTurnComplete()
         }
       }
     } catch (error) {
@@ -733,9 +777,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
       this.teardownSession()
-      this.eventQueue.push(
-        salvaged ? { type: AgentRuntimeEventType.TurnComplete } : { type: AgentRuntimeEventType.Error, error }
-      )
+      if (salvaged) this.emitTurnComplete()
+      else this.emitError(error)
     } finally {
       this.settlePendingInvocations()
       this.query = undefined
@@ -776,10 +819,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = undefined
     // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
     // recovered turn like any other data part.
-    this.eventQueue.push({
-      type: AgentRuntimeEventType.Chunk,
-      chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
-    })
+    this.emitChunk({ type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} })
     this.sdkInputQueue.close()
     this.sdkInputQueue = new SdkInputQueue()
     if (this.lastSdkUserMessage) {
@@ -798,10 +838,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       sessionId: this.input.sessionId,
       streamOptions: {} as never,
       sink: {
-        enqueue: (chunk) => this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk })
+        enqueue: (chunk) => this.emitChunk(chunk)
       },
       statusSink: {
         emit: (event) => {
+          if (
+            event.type === AgentRuntimeEventType.AutonomousTurnState &&
+            event.state === AgentRuntimeAutonomousState.Started
+          ) {
+            this.activeSegmentId = event.segmentId
+          }
           // Mirror `getSupportedCommands`: host-managed commands never reach the catalog, whether it
           // arrives at init or as a mid-session `commands_changed` push.
           if (event.type === 'supported-commands') {
@@ -821,8 +867,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private emitPendingSteersAsUndelivered(): void {
     const undelivered = this.steerHolder?.pending.splice(0) ?? []
-    if (undelivered.length > 0)
-      this.eventQueue.push({ type: AgentRuntimeEventType.SteerUndelivered, inputs: undelivered })
+    const sourceSegmentId = undelivered[0]?.segmentId
+    if (sourceSegmentId) {
+      this.eventQueue.push({
+        type: AgentRuntimeEventType.SteerUndelivered,
+        redirectIds: undelivered.map(({ redirectId }) => redirectId),
+        sourceSegmentId
+      })
+    }
   }
 
   private bindApprovalEmitter(): void {
@@ -830,16 +882,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.approvalEmitter.emit = (request) =>
       this.eventQueue.push({ type: AgentRuntimeEventType.ToolApprovalRequest, request })
     this.approvalEmitter.emitInput = (request) =>
-      this.eventQueue.push({
-        type: AgentRuntimeEventType.Chunk,
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: request.toolCallId,
-          toolName: request.toolName,
-          input: request.input,
-          providerExecuted: true,
-          dynamic: true
-        }
+      this.emitChunk({
+        type: 'tool-input-available',
+        toolCallId: request.toolCallId,
+        toolName: request.toolName,
+        input: request.input,
+        providerExecuted: true,
+        dynamic: true
       })
   }
 
@@ -868,12 +917,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {
     if (!usage) return
-    this.eventQueue.push({
-      type: AgentRuntimeEventType.Chunk,
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
-      }
+    this.emitChunk({
+      type: 'message-metadata',
+      messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
     })
   }
 

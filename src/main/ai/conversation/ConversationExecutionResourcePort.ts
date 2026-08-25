@@ -1,5 +1,6 @@
 import type { ConversationRef, ConversationTurnId } from '@shared/ai/conversation'
 
+import type { AgentRuntimeRedirectReceipt } from '../runtime/types'
 import type { AiExecutionManager, AiExecutionResourceDescriptor } from './AiExecutionManager'
 import type {
   AbortConversationExecutionEffect,
@@ -36,7 +37,7 @@ export class ConversationExecutionResourcePort implements ConversationExecutionP
     this.manager.requestYield(conversation, turnId)
   }
 
-  redirect(effect: RedirectConversationInputEffect): boolean {
+  redirect(effect: RedirectConversationInputEffect): AgentRuntimeRedirectReceipt {
     return this.manager.redirect(effect)
   }
 

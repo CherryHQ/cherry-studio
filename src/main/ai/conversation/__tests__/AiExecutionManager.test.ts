@@ -14,6 +14,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { AgentRuntimeRedirectReceiptKind } from '../../runtime/types'
 import {
   type ConversationExecutionDriverBinding,
   ConversationExecutionDriverBindingKind,
@@ -105,8 +106,8 @@ class TestExecutionDriver implements ConversationExecutionDriver {
 
   annotateTelemetry(): void {}
 
-  redirect(): boolean {
-    return false
+  redirect(effect: Parameters<ConversationExecutionDriver['redirect']>[0]) {
+    return { kind: AgentRuntimeRedirectReceiptKind.Rejected, redirectId: effect.input.redirect.id }
   }
 
   suspend(driver: ConversationExecutionDriverBinding): boolean {

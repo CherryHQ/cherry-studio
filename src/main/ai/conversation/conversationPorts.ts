@@ -8,6 +8,7 @@ import type {
 } from '@shared/ai/conversation'
 import type { SerializedError } from '@shared/types/error'
 
+import type { AgentRuntimeRedirectReceipt } from '../runtime/types'
 import type {
   ConversationEffect,
   ConversationInput,
@@ -121,7 +122,7 @@ export interface ConversationExecutionSink {
 export interface ConversationExecutionPort {
   start(effect: StartConversationExecutionEffect, sink: ConversationExecutionSink): void
   requestYield(conversation: ConversationRef, turnId: ConversationTurnId): void
-  redirect(effect: RedirectConversationInputEffect): boolean
+  redirect(effect: RedirectConversationInputEffect): AgentRuntimeRedirectReceipt
   resume(effect: ResumeConversationExecutionEffect): void
   suspend(effect: SuspendConversationExecutionEffect): boolean
   resumeSuspended(effect: ResumeSuspendedConversationExecutionEffect): void
@@ -141,7 +142,11 @@ export interface ConversationRuntimePortSet {
   readonly execution: ConversationExecutionPort
   readonly presentation: ConversationPresentationPort
   scheduleNextTurn(conversation: ConversationRef, inputs: readonly ConversationInput[]): void
-  scheduleNextStep(conversation: ConversationRef, turnId: ConversationTurnId, input: ConversationInput): void
+  scheduleNextStep(
+    conversation: ConversationRef,
+    turnId: ConversationTurnId,
+    inputs: readonly ConversationInput[]
+  ): void
   dropInputs(conversation: ConversationRef, inputs: readonly ConversationInput[]): void
   scheduleRuntimeTurn(
     conversation: ConversationRef,

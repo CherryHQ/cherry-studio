@@ -33,6 +33,8 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import { applyTurnOutputAttributes } from '../observability'
+import type { AgentRuntimeRedirectReceipt } from '../runtime/types'
+import { AgentRuntimeRedirectReceiptKind } from '../runtime/types'
 import type {
   ConversationExecutionContext,
   ConversationExecutionDriverBinding,
@@ -262,9 +264,11 @@ export class AiExecutionManager implements ConversationExecutionPort {
     )
   }
 
-  redirect(effect: RedirectConversationInputEffect): boolean {
+  redirect(effect: RedirectConversationInputEffect): AgentRuntimeRedirectReceipt {
     const resource = this.resources.get(this.key(effect.conversation, effect.turnId, effect.executionId))
-    return resource ? this.drivers.redirect(effect) : false
+    return resource
+      ? this.drivers.redirect(effect)
+      : { kind: AgentRuntimeRedirectReceiptKind.Rejected, redirectId: effect.input.redirect.id }
   }
 
   resume(effect: ResumeConversationExecutionEffect): void {

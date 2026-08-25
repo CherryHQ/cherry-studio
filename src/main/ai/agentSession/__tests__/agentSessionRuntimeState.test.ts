@@ -1,6 +1,12 @@
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { describe, expect, it } from 'vitest'
 
-import type { AgentRuntimeConnection } from '../../runtime/types'
+import {
+  type AgentRuntimeConnection,
+  type AgentRuntimeRedirectInput,
+  toAgentRuntimeRedirectId,
+  toAgentRuntimeSegmentId
+} from '../../runtime/types'
 import {
   AgentAutonomousGenerationState,
   AgentAutonomousResourceOwnership,
@@ -8,6 +14,7 @@ import {
   AgentConnectionOccupancyKind,
   AgentConnectionResourceEventType,
   AgentConnectionResourceKind,
+  type AgentConnectionResourceState,
   AgentDriverOutcomeKind,
   AgentStreamResourcePhase,
   createAgentConnectionResourceState,
@@ -25,6 +32,58 @@ type Reservation = { id: string }
 const turn = (id: string): Turn => ({ id })
 const reservation = (id: string): Reservation => ({ id })
 const chunk = (text: string) => ({ type: 'text-delta' as const, id: 'text-1', delta: text })
+const sourceSegmentId = toAgentRuntimeSegmentId('segment-source')
+const successorSegmentId = toAgentRuntimeSegmentId('segment-successor')
+const autonomousSegmentId = toAgentRuntimeSegmentId('segment-autonomous')
+const staleSegmentId = toAgentRuntimeSegmentId('segment-stale')
+
+function message(id: string): AgentSessionMessageEntity {
+  return {
+    id,
+    sessionId: 'session-1',
+    role: 'user',
+    data: { parts: [{ type: 'text', text: id }] },
+    status: 'success',
+    modelId: null,
+    messageSnapshot: null,
+    stats: null,
+    searchableText: id,
+    runtimeResumeToken: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }
+}
+
+const queuedRedirect: AgentRuntimeRedirectInput = {
+  redirectId: toAgentRuntimeRedirectId('redirect-1'),
+  segmentId: sourceSegmentId,
+  message: message('redirect-message-1')
+}
+
+function stateWithTurn(current: Turn): AgentConnectionResourceState<Turn, Reservation> {
+  return transitionAgentConnectionResource(createAgentConnectionResourceState<Turn, Reservation>(), {
+    type: AgentConnectionResourceEventType.BeginTurn,
+    turn: current,
+    segmentId: sourceSegmentId
+  }).state
+}
+
+function queueRedirect(state: AgentConnectionResourceState<Turn, Reservation>) {
+  return transitionAgentConnectionResource(state, {
+    type: AgentConnectionResourceEventType.RedirectQueued,
+    redirect: queuedRedirect
+  }).state
+}
+
+function crossSteerBoundary(state: AgentConnectionResourceState<Turn, Reservation>) {
+  return transitionAgentConnectionResource(state, {
+    type: AgentConnectionResourceEventType.SteerBoundary,
+    redirectIds: [queuedRedirect.redirectId],
+    sourceSegmentId,
+    successorSegmentId,
+    headless: false
+  })
+}
 
 enum RemovedLaunchTarget {
   QueuedTurn = 'queued-turn',
@@ -36,7 +95,7 @@ enum RemovedLaunchTarget {
 describe('agentSessionRuntimeState owner migration', () => {
   it('is false with no entry and true while a turn is live', () => {
     const idle = createAgentConnectionResourceState<Turn, Reservation>()
-    const live = createAgentConnectionResourceState<Turn, Reservation>(turn('user-1'))
+    const live = stateWithTurn(turn('user-1'))
 
     expect(hasAgentConnectionResources(idle)).toBe(false)
     expect(hasAgentConnectionResources(live)).toBe(true)
@@ -44,13 +103,14 @@ describe('agentSessionRuntimeState owner migration', () => {
 
   it('is false once a turn settles with no queued follow-ups', () => {
     const current = turn('user-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = stateWithTurn(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: current
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -70,7 +130,8 @@ describe('agentSessionRuntimeState owner migration', () => {
 
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.BeginTurn,
-      turn: current
+      turn: current,
+      segmentId: sourceSegmentId
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -80,6 +141,7 @@ describe('agentSessionRuntimeState owner migration', () => {
 
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -93,18 +155,16 @@ describe('agentSessionRuntimeState owner migration', () => {
 
   it('stays true mid-roll, when chunks are buffered for the continuation turn', () => {
     const current = turn('user-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = stateWithTurn(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: current
     }).state
+    state = queueRedirect(state)
+    state = crossSteerBoundary(state).state
     state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.SteerBoundary,
-      inputs: [],
-      headless: false
-    }).state
-    state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.BufferChunk,
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: successorSegmentId,
       chunk: chunk('continued')
     }).state
 
@@ -116,7 +176,7 @@ describe('agentSessionRuntimeState owner migration', () => {
   })
 
   it('models a normal turn without retaining the Conversation-owned follow-up queue', () => {
-    const state = createAgentConnectionResourceState<Turn, Reservation>(turn('user-1'))
+    const state = stateWithTurn(turn('user-1'))
 
     expect(state.generation).toMatchObject({ kind: AgentConnectionResourceKind.Turn, turn: { id: 'user-1' } })
     expect('queue' in state).toBe(false)
@@ -125,7 +185,7 @@ describe('agentSessionRuntimeState owner migration', () => {
 
   it('tracks stream and delivery phases inside the normal turn resource', () => {
     const current = turn('user-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = stateWithTurn(current)
 
     expect(state.generation).toMatchObject({
       kind: AgentConnectionResourceKind.Turn,
@@ -151,7 +211,7 @@ describe('agentSessionRuntimeState owner migration', () => {
 
   it('waits for Conversation terminal persistence before a completed turn resource becomes idle', () => {
     const current = turn('user-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = stateWithTurn(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: current
@@ -159,6 +219,7 @@ describe('agentSessionRuntimeState owner migration', () => {
 
     const runtimeCompleted = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     })
     expect(runtimeCompleted.state.generation).toMatchObject({
@@ -185,9 +246,10 @@ describe('agentSessionRuntimeState owner migration', () => {
 
   it('latches a terminal event until an unopened normal stream can receive it', () => {
     const current = turn('user-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = stateWithTurn(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Error, error: 'early failure' }
     }).state
 
@@ -215,14 +277,16 @@ describe('agentSessionRuntimeState owner migration', () => {
 
   it('keeps the first terminal outcome while an unopened stream is waiting to attach', () => {
     const current = turn('user-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = stateWithTurn(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Error, error: 'first failure' }
     }).state
 
     const duplicate = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     })
 
@@ -235,7 +299,7 @@ describe('agentSessionRuntimeState owner migration', () => {
   it('reserves the gateway continuation before ingress and reuses it when A2 opens', () => {
     const original = turn('assistant-1')
     const continuation = turn('assistant-2')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(original)
+    let state = stateWithTurn(original)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: original
@@ -244,13 +308,11 @@ describe('agentSessionRuntimeState owner migration', () => {
       type: AgentConnectionResourceEventType.ReserveSteer,
       reservation: reservation('reserved-2')
     }).state
+    state = queueRedirect(state)
+    state = crossSteerBoundary(state).state
     state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.SteerBoundary,
-      inputs: [],
-      headless: false
-    }).state
-    state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.BufferChunk,
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: successorSegmentId,
       chunk: chunk('continued')
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -288,18 +350,16 @@ describe('agentSessionRuntimeState owner migration', () => {
   it('latches a steer completion that arrives before the continuation stream opens', () => {
     const original = turn('assistant-1')
     const continuation = turn('assistant-2')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(original)
+    let state = stateWithTurn(original)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: original
     }).state
-    state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.SteerBoundary,
-      inputs: [],
-      headless: false
-    }).state
+    state = queueRedirect(state)
+    state = crossSteerBoundary(state).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: successorSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -333,18 +393,21 @@ describe('agentSessionRuntimeState owner migration', () => {
     let state = createAgentConnectionResourceState<Turn, Reservation>()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Started
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnCreated,
       turn: receiveOnly
     }).state
     state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.BufferChunk,
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: autonomousSegmentId,
       chunk: chunk('done')
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: autonomousSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -367,15 +430,17 @@ describe('agentSessionRuntimeState owner migration', () => {
 
   it('keeps deferred foreground ownership out of the connection resource', () => {
     const foreground = turn('foreground')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(foreground)
+    let state = stateWithTurn(foreground)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId,
       contextTurn: foreground
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Finished
+      state: AgentAutonomousGenerationState.Finished,
+      segmentId: autonomousSegmentId
     }).state
 
     expect(state.generation).toMatchObject({
@@ -390,10 +455,11 @@ describe('agentSessionRuntimeState owner migration', () => {
   it('does not replace a running receive-only resource while Conversation restores foreground', () => {
     const foreground = turn('foreground')
     const receiveOnly = turn('wake')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(foreground)
+    let state = stateWithTurn(foreground)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId,
       contextTurn: foreground
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -407,7 +473,8 @@ describe('agentSessionRuntimeState owner migration', () => {
 
     const invalid = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.BeginTurn,
-      turn: foreground
+      turn: foreground,
+      segmentId: sourceSegmentId
     })
     expect(invalid.state).toBe(state)
     expect(invalid.effects).toEqual([
@@ -415,21 +482,16 @@ describe('agentSessionRuntimeState owner migration', () => {
     ])
   })
 
-  it('drops a chunk with an explicit invalid-transition effect when no buffer owns it', () => {
-    const state = createAgentConnectionResourceState<Turn, Reservation>(turn('user-1'))
+  it('ignores a chunk from a stale segment without mutating the live turn', () => {
+    const state = stateWithTurn(turn('user-1'))
     const result = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.BufferChunk,
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: staleSegmentId,
       chunk: chunk('orphan')
     })
 
     expect(result.state).toBe(state)
-    expect(result.effects).toEqual([
-      {
-        type: AgentConnectionResourceEventType.LogInvalidTransition,
-        event: AgentConnectionResourceEventType.BufferChunk,
-        state: AgentConnectionResourceKind.Turn
-      }
-    ])
+    expect(result.effects).toEqual([])
   })
 
   it('keeps duplicate autonomous and background occupancy events idempotent', () => {
@@ -446,11 +508,13 @@ describe('agentSessionRuntimeState owner migration', () => {
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Started
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
     const duplicateAutonomous = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Started
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     })
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionOccupancy,
@@ -570,7 +634,8 @@ describe('agentSessionRuntimeState owner migration', () => {
     let state = createAgentConnectionResourceState<Turn, Reservation>()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Started
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnCreated,
@@ -586,7 +651,8 @@ describe('agentSessionRuntimeState owner migration', () => {
     let state = createAgentConnectionResourceState<Turn, Reservation>()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Started
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnCreated,
@@ -594,7 +660,8 @@ describe('agentSessionRuntimeState owner migration', () => {
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Finished
+      state: AgentAutonomousGenerationState.Finished,
+      segmentId: autonomousSegmentId
     }).state
 
     expect(state.generation).toMatchObject({
@@ -608,10 +675,11 @@ describe('agentSessionRuntimeState owner migration', () => {
   it('keeps a deferred user turn in Conversation state, never in the receive-only resource', () => {
     const foreground = turn('user')
     const receiveOnly = turn('wake')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(foreground)
+    let state = stateWithTurn(foreground)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId,
       contextTurn: foreground
     }).state
     state = transitionAgentConnectionResource(state, {

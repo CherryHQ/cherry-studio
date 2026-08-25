@@ -44,7 +44,13 @@ import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
-import { AgentRuntimeAutonomousState, type AgentRuntimeEvent, AgentRuntimeEventType } from '../types'
+import {
+  AgentRuntimeAutonomousState,
+  type AgentRuntimeEvent,
+  AgentRuntimeEventType,
+  type AgentRuntimeSegmentId,
+  toAgentRuntimeSegmentId
+} from '../types'
 import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
@@ -496,6 +502,7 @@ export class ClaudeCodeStreamAdapter {
   private turnActive = false
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
   private autonomousTurn = false
+  private autonomousSegmentId?: AgentRuntimeSegmentId
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
@@ -652,9 +659,11 @@ export class ClaudeCodeStreamAdapter {
       }
       // Parentless content with no turn open is Claude waking the main agent after background work.
       // Translate that SDK protocol into the runtime-neutral receive-only contract.
+      this.autonomousSegmentId = toAgentRuntimeSegmentId(crypto.randomUUID())
       this.statusSink.emit({
         type: AgentRuntimeEventType.AutonomousTurnState,
-        state: AgentRuntimeAutonomousState.Started
+        state: AgentRuntimeAutonomousState.Started,
+        segmentId: this.autonomousSegmentId
       })
       this.beginTurn()
       this.autonomousTurn = true
@@ -679,10 +688,14 @@ export class ClaudeCodeStreamAdapter {
         this.turnActive = false
         if (this.autonomousTurn) {
           this.autonomousTurn = false
-          this.statusSink.emit({
-            type: AgentRuntimeEventType.AutonomousTurnState,
-            state: AgentRuntimeAutonomousState.Finished
-          })
+          if (this.autonomousSegmentId) {
+            this.statusSink.emit({
+              type: AgentRuntimeEventType.AutonomousTurnState,
+              state: AgentRuntimeAutonomousState.Finished,
+              segmentId: this.autonomousSegmentId
+            })
+          }
+          this.autonomousSegmentId = undefined
         }
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':

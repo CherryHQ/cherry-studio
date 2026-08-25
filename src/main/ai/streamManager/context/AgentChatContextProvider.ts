@@ -338,6 +338,7 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
       userMessage: intent.userMessage,
       outputNodeId: assistantMessage.id,
       runtimeTurnId: intent.runtimeTurnId,
+      segmentId: intent.segmentId,
       sourceTurnId: intent.sourceTurnId,
       messageSnapshot: intent.messageSnapshot,
       traceId: intent.traceId

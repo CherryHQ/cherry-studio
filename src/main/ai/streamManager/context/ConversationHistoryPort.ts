@@ -19,6 +19,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 
 import type { ConversationRuntimeCheckpoint } from '../../conversation'
+import type { AgentRuntimeSegmentId } from '../../runtime/types'
 import type { AiStreamRequest } from '../../types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '../types'
 import type { MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
@@ -130,6 +131,7 @@ export type ConversationExecutionPreparationDescriptor =
       readonly userMessage: AgentSessionMessageEntity
       readonly outputNodeId: string
       readonly runtimeTurnId: string
+      readonly segmentId: AgentRuntimeSegmentId
       readonly sourceTurnId?: string
       readonly messageSnapshot?: MessageSnapshot
       readonly traceId?: string

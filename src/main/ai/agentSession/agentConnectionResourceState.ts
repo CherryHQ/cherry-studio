@@ -1,13 +1,17 @@
 import type { UIMessageChunk } from 'ai'
 
-import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
+import type {
+  AgentRuntimeConnection,
+  AgentRuntimeRedirectId,
+  AgentRuntimeRedirectInput,
+  AgentRuntimeSegmentId
+} from '../runtime/types'
 
 export enum AgentConnectionResourceEventType {
   AutonomousTurnCleared = 'autonomous-turn-cleared',
   AutonomousTurnCreated = 'autonomous-turn-created',
   AutonomousTurnState = 'autonomous-turn-state',
   BeginTurn = 'begin-turn',
-  BufferChunk = 'buffer-chunk',
   ClearSteerReservation = 'clear-steer-reservation',
   CompactionInterrupted = 'compaction-interrupted',
   ConnectionConnected = 'connection-connected',
@@ -17,17 +21,21 @@ export enum AgentConnectionResourceEventType {
   ConnectionStarted = 'connection-started',
   ContinuationTurnCreated = 'continuation-turn-created',
   DeliverBuffer = 'deliver-buffer',
+  DeliverChunk = 'deliver-chunk',
   FlushTransition = 'flush-transition',
   LogInvalidTransition = 'log-invalid-transition',
   ReleaseBackgroundWaiter = 'release-background-waiter',
+  RedirectQueued = 'redirect-queued',
   ReserveSteer = 'reserve-steer',
   Reset = 'reset',
   DriverTerminal = 'driver-terminal',
   CloseTurnStream = 'close-turn-stream',
   SteerBoundary = 'steer-boundary',
+  SteerUndelivered = 'steer-undelivered',
   TurnSentToConnection = 'turn-sent-to-connection',
   TurnStreamOpened = 'turn-stream-opened',
-  TurnReleased = 'turn-released'
+  TurnReleased = 'turn-released',
+  RuntimeChunk = 'runtime-chunk'
 }
 
 export enum AgentDriverOutcomeKind {
@@ -112,17 +120,21 @@ export type AgentGenerationResourceState<TTurn, TReservation> =
   | {
       kind: AgentConnectionResourceKind.Turn
       turn: TTurn
+      segmentId: AgentRuntimeSegmentId
       stream: AgentStreamResourcePhase
       delivery: AgentConnectionDeliveryPhase
+      redirects: readonly AgentRuntimeRedirectInput[]
       reservation?: TReservation
       driverOutcome?: AgentDriverOutcome
     }
   | {
       kind: AgentConnectionResourceKind.SteerTransition
       sourceTurn: TTurn
+      sourceSegmentId: AgentRuntimeSegmentId
+      successorSegmentId: AgentRuntimeSegmentId
       sourceStream: AgentStreamResourcePhase.AwaitingRelease | AgentStreamResourcePhase.Released
       continuationTurn?: TTurn
-      inputs: AgentRuntimeUserInput[]
+      redirects: readonly AgentRuntimeRedirectInput[]
       headless: boolean
       reservation?: TReservation
       buffer: UIMessageChunk[]
@@ -131,6 +143,7 @@ export type AgentGenerationResourceState<TTurn, TReservation> =
     }
   | {
       kind: AgentConnectionResourceKind.AutonomousTurn
+      segmentId: AgentRuntimeSegmentId
       turn?: TTurn
       contextTurn?: TTurn
       ownership: AgentAutonomousResourceOwnership
@@ -149,15 +162,29 @@ export type AgentConnectionResourceEvent<TTurn, TReservation> =
   | {
       type: AgentConnectionResourceEventType.BeginTurn
       turn: TTurn
+      segmentId: AgentRuntimeSegmentId
       stream?: AgentStreamResourcePhase
       delivery?: AgentConnectionDeliveryPhase
     }
+  | { type: AgentConnectionResourceEventType.RedirectQueued; redirect: AgentRuntimeRedirectInput }
   | { type: AgentConnectionResourceEventType.ReserveSteer; reservation: TReservation }
   | { type: AgentConnectionResourceEventType.ClearSteerReservation }
-  | { type: AgentConnectionResourceEventType.SteerBoundary; inputs: AgentRuntimeUserInput[]; headless: boolean }
+  | {
+      type: AgentConnectionResourceEventType.SteerBoundary
+      redirectIds: readonly AgentRuntimeRedirectId[]
+      sourceSegmentId: AgentRuntimeSegmentId
+      successorSegmentId: AgentRuntimeSegmentId
+      headless: boolean
+    }
+  | {
+      type: AgentConnectionResourceEventType.SteerUndelivered
+      redirectIds: readonly AgentRuntimeRedirectId[]
+      sourceSegmentId: AgentRuntimeSegmentId
+    }
   | {
       type: AgentConnectionResourceEventType.AutonomousTurnState
       state: AgentAutonomousGenerationState
+      segmentId: AgentRuntimeSegmentId
       contextTurn?: TTurn
     }
   | { type: AgentConnectionResourceEventType.AutonomousTurnCleared }
@@ -165,8 +192,12 @@ export type AgentConnectionResourceEvent<TTurn, TReservation> =
   | { type: AgentConnectionResourceEventType.ContinuationTurnCreated; turn: TTurn }
   | { type: AgentConnectionResourceEventType.TurnStreamOpened; turn: TTurn }
   | { type: AgentConnectionResourceEventType.TurnSentToConnection; turn: TTurn }
-  | { type: AgentConnectionResourceEventType.BufferChunk; chunk: UIMessageChunk }
-  | { type: AgentConnectionResourceEventType.DriverTerminal; outcome: AgentDriverOutcome }
+  | { type: AgentConnectionResourceEventType.RuntimeChunk; segmentId: AgentRuntimeSegmentId; chunk: UIMessageChunk }
+  | {
+      type: AgentConnectionResourceEventType.DriverTerminal
+      segmentId: AgentRuntimeSegmentId
+      outcome: AgentDriverOutcome
+    }
   | { type: AgentConnectionResourceEventType.FlushTransition }
   | { type: AgentConnectionResourceEventType.TurnReleased; turnId: string; turn: TTurn; status: AgentDriverOutcomeKind }
   | {
@@ -190,6 +221,7 @@ export type AgentConnectionResourceEvent<TTurn, TReservation> =
 
 export type AgentConnectionResourceEffect<TTurn> =
   | { type: AgentConnectionResourceEventType.DeliverBuffer; turn: TTurn; chunks: UIMessageChunk[] }
+  | { type: AgentConnectionResourceEventType.DeliverChunk; turn: TTurn; chunk: UIMessageChunk }
   | { type: AgentConnectionResourceEventType.CloseTurnStream; turn: TTurn; outcome: AgentDriverOutcome }
   | { type: AgentConnectionResourceEventType.ReleaseBackgroundWaiter; connection?: AgentRuntimeConnection }
   /** A connection died while a compaction occupied it — its projected status must leave `compacting`. */
@@ -201,18 +233,18 @@ export interface AgentConnectionResourceTransition<TTurn, TReservation> {
   effects: AgentConnectionResourceEffect<TTurn>[]
 }
 
-export function createAgentConnectionResourceState<TTurn, TReservation>(
-  turn?: TTurn
-): AgentConnectionResourceState<TTurn, TReservation> {
+const MAX_PENDING_SEGMENT_CHUNKS = 10_000
+
+function appendPendingChunk(chunks: readonly UIMessageChunk[], chunk: UIMessageChunk): UIMessageChunk[] {
+  return [...chunks.slice(-(MAX_PENDING_SEGMENT_CHUNKS - 1)), chunk]
+}
+
+export function createAgentConnectionResourceState<TTurn, TReservation>(): AgentConnectionResourceState<
+  TTurn,
+  TReservation
+> {
   return {
-    generation: turn
-      ? {
-          kind: AgentConnectionResourceKind.Turn,
-          turn,
-          stream: AgentStreamResourcePhase.Unopened,
-          delivery: AgentConnectionDeliveryPhase.Pending
-        }
-      : { kind: AgentConnectionResourceKind.Idle },
+    generation: { kind: AgentConnectionResourceKind.Idle },
     connection: { kind: AgentConnectionResourceKind.Disconnected }
   }
 }
@@ -255,8 +287,28 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
           generation: {
             kind: AgentConnectionResourceKind.Turn,
             turn: event.turn,
+            segmentId: event.segmentId,
             stream: event.stream ?? AgentStreamResourcePhase.Unopened,
-            delivery: event.delivery ?? AgentConnectionDeliveryPhase.Pending
+            delivery: event.delivery ?? AgentConnectionDeliveryPhase.Pending,
+            redirects: []
+          }
+        },
+        effects: []
+      }
+    case AgentConnectionResourceEventType.RedirectQueued:
+      if (
+        state.generation.kind !== AgentConnectionResourceKind.Turn ||
+        state.generation.segmentId !== event.redirect.segmentId ||
+        state.generation.redirects.some(({ redirectId }) => redirectId === event.redirect.redirectId)
+      ) {
+        return invalid(state, event)
+      }
+      return {
+        state: {
+          ...state,
+          generation: {
+            ...state.generation,
+            redirects: [...state.generation.redirects, event.redirect]
           }
         },
         effects: []
@@ -270,12 +322,14 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
       }
     case AgentConnectionResourceEventType.ClearSteerReservation:
       if (state.generation.kind === AgentConnectionResourceKind.Turn && state.generation.reservation) {
-        const { turn, stream, delivery, driverOutcome } = state.generation
+        const { turn, segmentId, stream, delivery, redirects, driverOutcome } = state.generation
         const generation: AgentGenerationResourceState<TTurn, TReservation> = {
           kind: AgentConnectionResourceKind.Turn,
           turn,
+          segmentId,
           stream,
           delivery,
+          redirects,
           ...(driverOutcome ? { driverOutcome } : {})
         }
         return { state: { ...state, generation }, effects: [] }
@@ -284,19 +338,30 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
     case AgentConnectionResourceEventType.SteerBoundary:
       if (
         state.generation.kind !== AgentConnectionResourceKind.Turn ||
-        state.generation.stream !== AgentStreamResourcePhase.Open
+        state.generation.stream !== AgentStreamResourcePhase.Open ||
+        state.generation.segmentId !== event.sourceSegmentId
       )
         return invalid(state, event)
+      const source = state.generation
+      const delivered: AgentRuntimeRedirectInput[] = []
+      for (const redirectId of event.redirectIds) {
+        const redirect = source.redirects.find((candidate) => candidate.redirectId === redirectId)
+        if (!redirect) return invalid(state, event)
+        delivered.push(redirect)
+      }
+      if (delivered.length === 0) return invalid(state, event)
       return {
         state: {
           ...state,
           generation: {
             kind: AgentConnectionResourceKind.SteerTransition,
-            sourceTurn: state.generation.turn,
+            sourceTurn: source.turn,
+            sourceSegmentId: event.sourceSegmentId,
+            successorSegmentId: event.successorSegmentId,
             sourceStream: AgentStreamResourcePhase.AwaitingRelease,
-            inputs: event.inputs,
+            redirects: delivered,
             headless: event.headless,
-            ...(state.generation.reservation ? { reservation: state.generation.reservation } : {}),
+            ...(source.reservation ? { reservation: source.reservation } : {}),
             buffer: [],
             stream: AgentStreamResourcePhase.Unopened
           }
@@ -304,11 +369,34 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
         effects: [
           {
             type: AgentConnectionResourceEventType.CloseTurnStream,
-            turn: state.generation.turn,
+            turn: source.turn,
             outcome: { status: AgentDriverOutcomeKind.Success }
           }
         ]
       }
+    case AgentConnectionResourceEventType.SteerUndelivered: {
+      if (
+        state.generation.kind !== AgentConnectionResourceKind.Turn ||
+        state.generation.segmentId !== event.sourceSegmentId
+      ) {
+        return { state, effects: [] }
+      }
+      const undelivered = new Set(event.redirectIds)
+      const generation = state.generation
+      if (event.redirectIds.some((redirectId) => !generation.redirects.some((r) => r.redirectId === redirectId))) {
+        return { state, effects: [] }
+      }
+      return {
+        state: {
+          ...state,
+          generation: {
+            ...generation,
+            redirects: generation.redirects.filter(({ redirectId }) => !undelivered.has(redirectId))
+          }
+        },
+        effects: []
+      }
+    }
     case AgentConnectionResourceEventType.AutonomousTurnState: {
       if (event.state === AgentAutonomousGenerationState.Started) {
         if (state.generation.kind === AgentConnectionResourceKind.AutonomousTurn) return { state, effects: [] }
@@ -318,6 +406,7 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
             ...state,
             generation: {
               kind: AgentConnectionResourceKind.AutonomousTurn,
+              segmentId: event.segmentId,
               ...(event.contextTurn ? { contextTurn: event.contextTurn } : {}),
               ownership: AgentAutonomousResourceOwnership.Active,
               buffer: [],
@@ -327,7 +416,12 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
           effects: []
         }
       }
-      if (state.generation.kind !== AgentConnectionResourceKind.AutonomousTurn) return { state, effects: [] }
+      if (
+        state.generation.kind !== AgentConnectionResourceKind.AutonomousTurn ||
+        state.generation.segmentId !== event.segmentId
+      ) {
+        return { state, effects: [] }
+      }
       return {
         state: {
           ...state,
@@ -408,25 +502,69 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
         state: { ...state, generation: { ...state.generation, delivery: AgentConnectionDeliveryPhase.Sent } },
         effects: []
       }
-    case AgentConnectionResourceEventType.BufferChunk:
-      if (
-        (state.generation.kind !== AgentConnectionResourceKind.SteerTransition &&
-          state.generation.kind !== AgentConnectionResourceKind.AutonomousTurn) ||
-        state.generation.stream !== AgentStreamResourcePhase.Unopened ||
-        state.generation.driverOutcome
-      ) {
-        return invalid(state, event)
+    case AgentConnectionResourceEventType.RuntimeChunk: {
+      const generation = state.generation
+      if (generation.kind === AgentConnectionResourceKind.Turn) {
+        if (
+          generation.segmentId !== event.segmentId ||
+          generation.stream !== AgentStreamResourcePhase.Open ||
+          generation.driverOutcome
+        ) {
+          return { state, effects: [] }
+        }
+        return {
+          state,
+          effects: [{ type: AgentConnectionResourceEventType.DeliverChunk, turn: generation.turn, chunk: event.chunk }]
+        }
       }
-      return {
-        state: {
-          ...state,
-          generation: { ...state.generation, buffer: [...state.generation.buffer, event.chunk] }
-        },
-        effects: []
+      if (generation.kind === AgentConnectionResourceKind.SteerTransition) {
+        if (generation.successorSegmentId !== event.segmentId || generation.driverOutcome) return { state, effects: [] }
+        if (generation.stream === AgentStreamResourcePhase.Open && generation.continuationTurn) {
+          return {
+            state,
+            effects: [
+              {
+                type: AgentConnectionResourceEventType.DeliverChunk,
+                turn: generation.continuationTurn,
+                chunk: event.chunk
+              }
+            ]
+          }
+        }
+        if (generation.stream !== AgentStreamResourcePhase.Unopened) return { state, effects: [] }
+        return {
+          state: {
+            ...state,
+            generation: { ...generation, buffer: appendPendingChunk(generation.buffer, event.chunk) }
+          },
+          effects: []
+        }
       }
+      if (generation.kind === AgentConnectionResourceKind.AutonomousTurn) {
+        if (generation.segmentId !== event.segmentId || generation.driverOutcome) return { state, effects: [] }
+        if (generation.stream === AgentStreamResourcePhase.Open && generation.turn) {
+          return {
+            state,
+            effects: [
+              { type: AgentConnectionResourceEventType.DeliverChunk, turn: generation.turn, chunk: event.chunk }
+            ]
+          }
+        }
+        if (generation.stream !== AgentStreamResourcePhase.Unopened) return { state, effects: [] }
+        return {
+          state: {
+            ...state,
+            generation: { ...generation, buffer: appendPendingChunk(generation.buffer, event.chunk) }
+          },
+          effects: []
+        }
+      }
+      return { state, effects: [] }
+    }
     case AgentConnectionResourceEventType.DriverTerminal: {
       const generation = state.generation
       if (generation.kind === AgentConnectionResourceKind.Turn) {
+        if (generation.segmentId !== event.segmentId) return { state, effects: [] }
         if (generation.stream === AgentStreamResourcePhase.Unopened) {
           if (generation.driverOutcome) return { state, effects: [] }
           return {
@@ -445,6 +583,7 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
         return { state, effects: [] }
       }
       if (generation.kind === AgentConnectionResourceKind.SteerTransition) {
+        if (generation.successorSegmentId !== event.segmentId) return { state, effects: [] }
         if (generation.stream === AgentStreamResourcePhase.Unopened) {
           if (generation.driverOutcome) return { state, effects: [] }
           return {
@@ -467,6 +606,7 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
         return { state, effects: [] }
       }
       if (generation.kind === AgentConnectionResourceKind.AutonomousTurn) {
+        if (generation.segmentId !== event.segmentId) return { state, effects: [] }
         if (generation.stream === AgentStreamResourcePhase.Unopened) {
           if (generation.driverOutcome) return { state, effects: [] }
           return { state: { ...state, generation: { ...generation, driverOutcome: event.outcome } }, effects: [] }
@@ -494,8 +634,10 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
             generation: {
               kind: AgentConnectionResourceKind.Turn,
               turn: generation.turn,
+              segmentId: generation.segmentId,
               stream: AgentStreamResourcePhase.AwaitingRelease,
               delivery: generation.delivery,
+              redirects: generation.redirects,
               ...(generation.reservation ? { reservation: generation.reservation } : {})
             }
           },
@@ -522,10 +664,12 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
             generation: {
               kind: AgentConnectionResourceKind.Turn,
               turn: generation.continuationTurn,
+              segmentId: generation.successorSegmentId,
               stream: generation.driverOutcome
                 ? AgentStreamResourcePhase.AwaitingRelease
                 : AgentStreamResourcePhase.Open,
-              delivery: AgentConnectionDeliveryPhase.Sent
+              delivery: AgentConnectionDeliveryPhase.Sent,
+              redirects: []
             }
           },
           effects: [
@@ -747,6 +891,21 @@ export function getAgentCurrentStreamResource<TTurn, TReservation>(
       return state.generation.turn
     case AgentConnectionResourceKind.Idle:
       return state.generation.lastTurn
+  }
+}
+
+export function getAgentCurrentSegmentId<TTurn, TReservation>(
+  state: AgentConnectionResourceState<TTurn, TReservation>
+): AgentRuntimeSegmentId | undefined {
+  switch (state.generation.kind) {
+    case AgentConnectionResourceKind.Turn:
+      return state.generation.segmentId
+    case AgentConnectionResourceKind.SteerTransition:
+      return state.generation.successorSegmentId
+    case AgentConnectionResourceKind.AutonomousTurn:
+      return state.generation.segmentId
+    case AgentConnectionResourceKind.Idle:
+      return undefined
   }
 }
 

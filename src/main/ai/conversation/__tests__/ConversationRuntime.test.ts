@@ -15,6 +15,7 @@ import {
 } from '@shared/ai/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentRuntimeRedirectReceiptKind, toAgentRuntimeRedirectId, toAgentRuntimeSegmentId } from '../../runtime/types'
 import {
   ConversationActor,
   ConversationAdmissionOperationKind,
@@ -80,7 +81,10 @@ describe('ConversationRuntime', () => {
       execution: {
         start: vi.fn((_effect, sink) => sinks.push(sink)),
         requestYield: vi.fn(),
-        redirect: vi.fn(() => true),
+        redirect: vi.fn((effect) => ({
+          kind: AgentRuntimeRedirectReceiptKind.Queued,
+          redirectId: effect.input.redirect.id
+        })),
         resume: vi.fn(),
         suspend: vi.fn(() => false),
         resumeSuspended: vi.fn(),
@@ -197,7 +201,10 @@ describe('ConversationRuntime', () => {
   })
 
   it('keeps a rejected Agent redirect as a future turn owned by the aggregate', () => {
-    vi.mocked(ports.execution.redirect).mockReturnValue(false)
+    vi.mocked(ports.execution.redirect).mockImplementation((effect) => ({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId: effect.input.redirect.id
+    }))
     open(agent)
     actorFor(agent).commitInput(
       {
@@ -225,6 +232,7 @@ describe('ConversationRuntime', () => {
       },
       { runtimeCanRedirect: true }
     )
+    actorFor(agent).acceptRedirects([toAgentRuntimeRedirectId('user-2')], toAgentRuntimeSegmentId('segment-user-2'))
     sinks[0]?.terminal({ kind: ConversationOutcomeKind.Success })
 
     await vi.waitFor(() => expect(ports.scheduleNextStep).toHaveBeenCalledOnce())

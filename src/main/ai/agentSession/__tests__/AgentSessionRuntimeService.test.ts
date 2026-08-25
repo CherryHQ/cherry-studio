@@ -45,6 +45,7 @@ const services = vi.hoisted(() => {
       openAgentActivity: vi.fn(() => 'activity-1'),
       closeAgentActivity: vi.fn(),
       abort: vi.fn(),
+      acceptAgentRedirects: vi.fn(),
       resolveAgentInteraction: vi.fn(),
       enqueueAgentUndelivered: vi.fn(),
       startAgentAutonomous: vi.fn(() => true)
@@ -72,9 +73,13 @@ import {
   AgentRuntimeEventType,
   AgentRuntimeMessageAssociation,
   AgentRuntimeReconcileResult,
+  type AgentRuntimeRedirectInput,
+  AgentRuntimeRedirectReceiptKind,
   type AgentRuntimeUserInput,
   AgentSessionUsageCaptureOwner,
-  AiRuntimeCapability
+  AiRuntimeCapability,
+  toAgentRuntimeRedirectId,
+  toAgentRuntimeSegmentId
 } from '../../runtime/types'
 import { agentChatContextProvider } from '../../streamManager'
 import { toolApprovalRegistry } from '../../toolApproval/ToolApprovalRegistry'
@@ -86,10 +91,12 @@ import {
   AgentConnectionOccupancyKind,
   AgentConnectionResourceEventType,
   AgentConnectionResourceKind,
+  type AgentConnectionResourceState,
   AgentDriverOutcomeKind,
   AgentStreamResourcePhase,
   createAgentConnectionResourceState,
   getAgentConnectionOccupancy,
+  getAgentCurrentSegmentId,
   getAgentCurrentStreamResource,
   getAgentLiveStreamResource,
   hasAgentCompactionResource,
@@ -106,6 +113,19 @@ type Reservation = { id: string }
 
 const turn = (id: string): Turn => ({ id, abortController: new AbortController() })
 const chunk = (text: string) => ({ type: 'text-delta' as const, id: 'text-1', delta: text })
+const sourceSegmentId = toAgentRuntimeSegmentId('segment-source')
+const successorSegmentId = toAgentRuntimeSegmentId('segment-successor')
+const autonomousSegmentId = toAgentRuntimeSegmentId('segment-autonomous')
+
+function resourceState(current?: Turn): AgentConnectionResourceState<Turn, Reservation> {
+  const state = createAgentConnectionResourceState<Turn, Reservation>()
+  if (!current) return state
+  return transitionAgentConnectionResource(state, {
+    type: AgentConnectionResourceEventType.BeginTurn,
+    turn: current,
+    segmentId: sourceSegmentId
+  }).state
+}
 const neverRuntimeEvents = (): AsyncIterable<AgentRuntimeEvent> => ({
   [Symbol.asyncIterator]: () => ({
     next: () => new Promise<IteratorResult<AgentRuntimeEvent>>(() => {})
@@ -132,11 +152,27 @@ const closableRuntimeEvents = () => {
   }
 }
 const input = (text: string): AgentRuntimeUserInput => ({
+  segmentId: sourceSegmentId,
   message: {
     id: `message-${text}`,
     data: { parts: [{ type: 'text', text }] }
   } as AgentRuntimeUserInput['message']
 })
+
+const redirectInput = (id: string, text = id): AgentRuntimeRedirectInput => ({
+  ...input(text),
+  redirectId: toAgentRuntimeRedirectId(id)
+})
+
+function queueRedirectResource(
+  state: AgentConnectionResourceState<Turn, Reservation>,
+  redirect: AgentRuntimeRedirectInput
+): AgentConnectionResourceState<Turn, Reservation> {
+  return transitionAgentConnectionResource(state, {
+    type: AgentConnectionResourceEventType.RedirectQueued,
+    redirect
+  }).state
+}
 const userMessage = (id: string, knowledgeBaseIds: string[] = []) =>
   ({
     id,
@@ -158,7 +194,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
   })
 
   it('keeps connection resources separate from Conversation-owned input queues', () => {
-    const state = createAgentConnectionResourceState<Turn, Reservation>(turn('turn-1'))
+    const state = resourceState(turn('turn-1'))
 
     expect(state.generation.kind).toBe(AgentConnectionResourceKind.Turn)
     expect('queue' in state).toBe(false)
@@ -329,7 +365,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('tracks unopened, open, and sent phases for the exact turn', () => {
     const current = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = resourceState(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: current
@@ -349,13 +385,14 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('does not evict a turn until Conversation terminal persistence releases it', () => {
     const current = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = resourceState(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: current
     }).state
     const terminal = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     })
 
@@ -373,9 +410,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('latches an early terminal until the stream is available', () => {
     const current = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = resourceState(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Error, error: 'early' }
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -397,13 +435,15 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('keeps the first terminal outcome when duplicate driver callbacks race', () => {
     const current = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = resourceState(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Error, error: 'first' }
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
 
@@ -441,6 +481,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     }
     const entry = internals.entries.get('session-1')!
     const current = getAgentCurrentStreamResource(entry.resources)!
+    const currentSegmentId = getAgentCurrentSegmentId(entry.resources)!
     const controller = { enqueue: vi.fn(), error: vi.fn(), close: vi.fn() }
     current.controller = controller
     entry.resources = transitionAgentConnectionResource(entry.resources, {
@@ -449,9 +490,14 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     }).state
     const runtimeError = new Error('runtime boom')
 
-    internals.handleRuntimeEvent.call(manager, entry, { type: AgentRuntimeEventType.Error, error: runtimeError })
+    internals.handleRuntimeEvent.call(manager, entry, {
+      type: AgentRuntimeEventType.Error,
+      segmentId: currentSegmentId,
+      error: runtimeError
+    })
     internals.handleRuntimeEvent.call(manager, entry, {
       type: AgentRuntimeEventType.Chunk,
+      segmentId: currentSegmentId,
       chunk: { type: 'text-delta', id: 'text-1', delta: 'late' }
     })
 
@@ -489,6 +535,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     }
     const entry = internals.entries.get('session-1')!
     const current = getAgentCurrentStreamResource(entry.resources)!
+    const currentSegmentId = getAgentCurrentSegmentId(entry.resources)!
     const controller = { enqueue: vi.fn(), error: vi.fn(), close: vi.fn() }
     current.controller = controller
     entry.resources = transitionAgentConnectionResource(entry.resources, {
@@ -499,6 +546,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
     internals.handleRuntimeEvent.call(manager, entry, {
       type: AgentRuntimeEventType.Chunk,
+      segmentId: currentSegmentId,
       chunk: runtimeChunk
     })
 
@@ -517,26 +565,34 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       userMessage: userMessage('user-1')
     })
     const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-    let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+    let resources = entry.resources as ReturnType<typeof resourceState>
     const current = getAgentCurrentStreamResource(resources)!
+    const currentSegmentId = getAgentCurrentSegmentId(resources)!
     resources = transitionAgentConnectionResource(resources, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: current
     }).state
     resources = transitionAgentConnectionResource(resources, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: currentSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
     entry.resources = resources
     manager.releaseTurnResource('session-1', AgentDriverOutcomeKind.Success, handle.turnId)
     const handleRuntimeError = (
-      manager as unknown as { handleRuntimeError: (currentEntry: typeof entry, error: unknown) => void }
+      manager as unknown as {
+        handleRuntimeError: (
+          currentEntry: typeof entry,
+          segmentId: ReturnType<typeof toAgentRuntimeSegmentId>,
+          error: unknown
+        ) => void
+      }
     ).handleRuntimeError.bind(manager)
     const abort = Object.assign(new Error('aborted'), { name: 'AbortError' })
     const failure = new Error('runtime failed')
 
-    handleRuntimeError(entry, abort)
-    handleRuntimeError(entry, failure)
+    handleRuntimeError(entry, currentSegmentId, abort)
+    handleRuntimeError(entry, currentSegmentId, failure)
 
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'Agent runtime connection ended without an active turn',
@@ -551,7 +607,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
   it('rejects a stale turn release without evicting the live turn', () => {
     const current = turn('turn-1')
     const stale = turn('turn-old')
-    const state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    const state = resourceState(current)
     const result = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnReleased,
       turnId: stale.id,
@@ -567,14 +623,18 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('closes the source segment before admitting a steer continuation', () => {
     const source = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(source)
+    const redirect = redirectInput('redirect-follow-up', 'follow-up')
+    let state = resourceState(source)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: source
     }).state
+    state = queueRedirectResource(state, redirect)
     const boundary = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.SteerBoundary,
-      inputs: [input('follow-up')],
+      redirectIds: [redirect.redirectId],
+      sourceSegmentId,
+      successorSegmentId,
       headless: false
     })
 
@@ -591,18 +651,23 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
   it('rolls the turn at a steer-boundary: finalises A1a, opens A2 without re-sending, replays buffered chunks', () => {
     const source = turn('turn-1')
     const continuation = turn('turn-2')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(source)
+    const redirect = redirectInput('redirect-continued')
+    let state = resourceState(source)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: source
     }).state
+    state = queueRedirectResource(state, redirect)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.SteerBoundary,
-      inputs: [],
+      redirectIds: [redirect.redirectId],
+      sourceSegmentId,
+      successorSegmentId,
       headless: false
     }).state
     state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.BufferChunk,
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: successorSegmentId,
       chunk: chunk('continued')
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -634,14 +699,18 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('abandons a steer transition when its source terminal is not successful', () => {
     const source = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(source)
+    const redirect = redirectInput('redirect-abandoned')
+    let state = resourceState(source)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.TurnStreamOpened,
       turn: source
     }).state
+    state = queueRedirectResource(state, redirect)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.SteerBoundary,
-      inputs: [],
+      redirectIds: [redirect.redirectId],
+      sourceSegmentId,
+      successorSegmentId,
       headless: false
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -656,7 +725,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('clears an unused gateway continuation reservation when the turn ends before a boundary', () => {
     const current = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = resourceState(current)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ReserveSteer,
       reservation: { id: 'reservation-1' }
@@ -710,30 +779,38 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       })
       const entry = (
         manager as unknown as {
-          entries: Map<string, { resources: ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>> }>
+          entries: Map<string, { resources: ReturnType<typeof resourceState> }>
           handleRuntimeEvent: (
-            current: { resources: ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>> },
+            current: { resources: ReturnType<typeof resourceState> },
             event: AgentRuntimeEvent
           ) => void
         }
       ).entries.get('session-1')!
       const source = getAgentCurrentStreamResource(entry.resources)!
+      const currentSegmentId = getAgentCurrentSegmentId(entry.resources)!
       entry.resources = transitionAgentConnectionResource(entry.resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
         turn: source
+      }).state
+      const redirect: AgentRuntimeRedirectInput = {
+        redirectId: toAgentRuntimeRedirectId('redirect-steer'),
+        segmentId: currentSegmentId,
+        message: userMessage('steer', options.steerKnowledge),
+        headless: options.steerHeadless
+      }
+      entry.resources = transitionAgentConnectionResource(entry.resources, {
+        type: AgentConnectionResourceEventType.RedirectQueued,
+        redirect
       }).state
       ;(
         manager as unknown as {
           handleRuntimeEvent: (current: typeof entry, event: AgentRuntimeEvent) => void
         }
       ).handleRuntimeEvent(entry, {
-        type: AgentRuntimeEventType.SteerBoundary,
-        inputs: [
-          {
-            message: userMessage('steer', options.steerKnowledge),
-            headless: options.steerHeadless
-          }
-        ]
+        type: AgentRuntimeEventType.SteerDelivered,
+        redirects: [redirect],
+        sourceSegmentId: currentSegmentId,
+        successorSegmentId
       })
       return manager.describeConversationContinuation('session-1')
     }
@@ -776,7 +853,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       expect(continuation.knowledgeBaseIds).toEqual(['source-kb'])
     })
 
-    it('inherits the rolled turn knowledge scope when the continuation has no steer message', () => {
+    it('inherits the rolled turn knowledge scope when the delivered redirect has no knowledge scope', () => {
       const manager = new AgentConnectionManager()
       manager.prepareTurnResources({
         conversation: { kind: ConversationKind.Agent, id: 'session-1' },
@@ -787,17 +864,28 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         userMessage: userMessage('source', ['source-kb'])
       })
       const internals = manager as unknown as {
-        entries: Map<string, { resources: ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>> }>
+        entries: Map<string, { resources: ReturnType<typeof resourceState> }>
       }
       const entry = internals.entries.get('session-1')!
       const source = getAgentCurrentStreamResource(entry.resources)!
+      const currentSegmentId = getAgentCurrentSegmentId(entry.resources)!
       entry.resources = transitionAgentConnectionResource(entry.resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
         turn: source
       }).state
+      const redirect: AgentRuntimeRedirectInput = {
+        ...redirectInput('redirect-no-scope'),
+        segmentId: currentSegmentId
+      }
+      entry.resources = transitionAgentConnectionResource(entry.resources, {
+        type: AgentConnectionResourceEventType.RedirectQueued,
+        redirect
+      }).state
       entry.resources = transitionAgentConnectionResource(entry.resources, {
         type: AgentConnectionResourceEventType.SteerBoundary,
-        inputs: [],
+        redirectIds: [redirect.redirectId],
+        sourceSegmentId: currentSegmentId,
+        successorSegmentId,
         headless: false
       }).state
 
@@ -807,9 +895,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('replays an autonomous terminal that arrives before the receive-only turn is created', () => {
     const autonomous = turn('autonomous-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
+      segmentId: autonomousSegmentId,
       state: AgentAutonomousGenerationState.Started
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -817,11 +906,13 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       turn: autonomous
     }).state
     state = transitionAgentConnectionResource(state, {
-      type: AgentConnectionResourceEventType.BufferChunk,
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: autonomousSegmentId,
       chunk: chunk('autonomous')
     }).state
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: autonomousSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -843,15 +934,17 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
   })
 
   it('keeps autonomous ownership active until the runtime release fact arrives', () => {
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
+      segmentId: autonomousSegmentId,
       state: AgentAutonomousGenerationState.Started
     }).state
     expect(isAgentAutonomousResourceActive(state)).toBe(true)
 
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
+      segmentId: autonomousSegmentId,
       state: AgentAutonomousGenerationState.Finished
     }).state
     expect(state.generation).toMatchObject({ ownership: AgentAutonomousResourceOwnership.Released })
@@ -859,13 +952,15 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
   })
 
   it('does not let a foreground turn overwrite an autonomous generation resource', () => {
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
+      segmentId: autonomousSegmentId,
       state: AgentAutonomousGenerationState.Started
     }).state
     const result = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.BeginTurn,
+      segmentId: sourceSegmentId,
       turn: turn('foreground')
     })
 
@@ -893,7 +988,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
       } satisfies AgentRuntimeConnection
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const current = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -933,7 +1028,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
       handle(
         entry,
-        { type: AgentRuntimeEventType.AutonomousTurnState, state: AgentRuntimeAutonomousState.Started },
+        {
+          type: AgentRuntimeEventType.AutonomousTurnState,
+          segmentId: autonomousSegmentId,
+          state: AgentRuntimeAutonomousState.Started
+        },
         connection
       )
 
@@ -945,7 +1044,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
       handle(
         entry,
-        { type: AgentRuntimeEventType.AutonomousTurnState, state: AgentRuntimeAutonomousState.Started },
+        {
+          type: AgentRuntimeEventType.AutonomousTurnState,
+          segmentId: autonomousSegmentId,
+          state: AgentRuntimeAutonomousState.Started
+        },
         connection
       )
 
@@ -957,7 +1060,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
       handle(
         entry,
-        { type: AgentRuntimeEventType.AutonomousTurnState, state: AgentRuntimeAutonomousState.Started },
+        {
+          type: AgentRuntimeEventType.AutonomousTurnState,
+          segmentId: autonomousSegmentId,
+          state: AgentRuntimeAutonomousState.Started
+        },
         connection
       )
 
@@ -967,7 +1074,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('fences a connection result by its exact attempt id', () => {
     const connection = {} as AgentRuntimeConnection
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionStarted,
       connectionAttemptId: 'connect-1'
@@ -989,7 +1096,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('scopes background and compaction occupancy to the connected resource', () => {
     const connection = {} as AgentRuntimeConnection
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionStarted,
       connectionAttemptId: 'connect-1'
@@ -1014,7 +1121,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('closes connection-scoped occupancy together on disconnect', () => {
     const connection = {} as AgentRuntimeConnection
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionStarted,
       connectionAttemptId: 'connect-1'
@@ -1098,7 +1205,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
   it('does not let a stale disconnect tear down a replacement connection', () => {
     const current = {} as AgentRuntimeConnection
     const stale = {} as AgentRuntimeConnection
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionStarted,
       connectionAttemptId: 'connect-1'
@@ -1125,7 +1232,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       finishClose = resolve
     })
     const connection = { close: vi.fn(() => closing) } as unknown as AgentRuntimeConnection
-    let resources = createAgentConnectionResourceState<Turn, Reservation>()
+    let resources = resourceState()
     resources = transitionAgentConnectionResource(resources, {
       type: AgentConnectionResourceEventType.ConnectionStarted,
       connectionAttemptId: 'connect-1'
@@ -1171,7 +1278,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('waits for background work to release before rebuilding for a fresh turn', () => {
     const connection = {} as AgentRuntimeConnection
-    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    let state = resourceState()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionStarted,
       connectionAttemptId: 'connect-1'
@@ -1207,7 +1314,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
   it('derives liveness and current resource from the state machine', () => {
     const current = turn('turn-1')
-    let state = createAgentConnectionResourceState<Turn, Reservation>(current)
+    let state = resourceState(current)
 
     expect(getAgentCurrentStreamResource(state)).toBe(current)
     expect(getAgentLiveStreamResource(state)).toBe(current)
@@ -1274,9 +1381,15 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     const manager = new AgentConnectionManager()
     const foreground = turn('foreground')
     const autonomous = turn('autonomous')
-    let resources = createAgentConnectionResourceState<Turn, never>(foreground)
+    let resources = createAgentConnectionResourceState<Turn, never>()
+    resources = transitionAgentConnectionResource(resources, {
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn: foreground,
+      segmentId: sourceSegmentId
+    }).state
     resources = transitionAgentConnectionResource(resources, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
+      segmentId: autonomousSegmentId,
       state: AgentAutonomousGenerationState.Started,
       contextTurn: foreground
     }).state
@@ -1378,7 +1491,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const entry = (
         manager as unknown as { entries: Map<string, { resources: unknown; usageCapture?: unknown }> }
       ).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -1498,7 +1611,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     const installEntry = (manager: AgentConnectionManager) => {
       const entry = {
         conversation: { kind: ConversationKind.Agent, id: 'session-1' } as const,
-        resources: createAgentConnectionResourceState<Turn, Reservation>()
+        resources: resourceState()
       }
       const internals = manager as unknown as {
         entries: Map<string, typeof entry>
@@ -1538,7 +1651,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const { entry, handle } = installEntry(manager)
       services.sharedValues.set(AGENT_SESSION_API_RETRY_CACHE_KEY('session-1'), { status: 'retrying' })
 
-      handle(entry, { type: AgentRuntimeEventType.Chunk, chunk: chunk('resumed') })
+      handle(entry, { type: AgentRuntimeEventType.Chunk, segmentId: sourceSegmentId, chunk: chunk('resumed') })
 
       expect(services.sharedValues.get(AGENT_SESSION_API_RETRY_CACHE_KEY('session-1'))).toEqual({ status: 'idle' })
     })
@@ -1548,7 +1661,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const { entry, handle } = installEntry(manager)
       services.sharedValues.set(AGENT_SESSION_API_RETRY_CACHE_KEY('session-1'), { status: 'retrying' })
 
-      handle(entry, { type: AgentRuntimeEventType.TurnComplete })
+      handle(entry, { type: AgentRuntimeEventType.TurnComplete, segmentId: sourceSegmentId })
 
       expect(services.sharedValues.get(AGENT_SESSION_API_RETRY_CACHE_KEY('session-1'))).toEqual({ status: 'idle' })
     })
@@ -1557,7 +1670,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const { entry, handle } = installEntry(manager)
 
-      handle(entry, { type: AgentRuntimeEventType.Chunk, chunk: chunk('ordinary') })
+      handle(entry, { type: AgentRuntimeEventType.Chunk, segmentId: sourceSegmentId, chunk: chunk('ordinary') })
 
       expect(services.cache.setShared).not.toHaveBeenCalledWith(AGENT_SESSION_API_RETRY_CACHE_KEY('session-1'), {
         status: 'idle'
@@ -1654,7 +1767,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const entry = {
         conversation: { kind: ConversationKind.Agent, id: 'session-1' } as const,
-        resources: createAgentConnectionResourceState<Turn, Reservation>()
+        resources: resourceState()
       }
       const internals = manager as unknown as {
         entries: Map<string, typeof entry>
@@ -1672,8 +1785,8 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const closeSession = vi.spyOn(manager, 'closeSession').mockResolvedValue(undefined)
       const entries = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries
-      entries.set('idle', { resources: createAgentConnectionResourceState<Turn, Reservation>() })
-      entries.set('busy', { resources: createAgentConnectionResourceState<Turn, Reservation>(turn('turn-1')) })
+      entries.set('idle', { resources: resourceState() })
+      entries.set('busy', { resources: resourceState(turn('turn-1')) })
 
       manager.releaseIdleConnection('busy')
       manager.releaseIdleConnection('idle')
@@ -1695,7 +1808,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current),
         ...connectionOverrides
       } satisfies AgentRuntimeConnection
-      let resources = createAgentConnectionResourceState<Turn, Reservation>()
+      let resources = resourceState()
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
         connectionAttemptId: 'connect-1'
@@ -1750,7 +1863,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const { entry, handle } = installConnectedEntry(manager)
       handle(entry, { type: AgentRuntimeEventType.CompactionStart })
 
-      handle(entry, { type: AgentRuntimeEventType.Error, error: new Error('connection lost') })
+      handle(entry, {
+        type: AgentRuntimeEventType.Error,
+        segmentId: sourceSegmentId,
+        error: new Error('connection lost')
+      })
 
       expect(manager.hasBusySessions()).toBe(false)
       expect(services.sharedValues.get(AGENT_SESSION_COMPACTION_CACHE_KEY('session-1'))).toEqual({ status: 'idle' })
@@ -2018,7 +2135,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       sessionId: string,
       connection: AgentRuntimeConnection
     ) => {
-      let resources = createAgentConnectionResourceState<Turn, Reservation>()
+      let resources = resourceState()
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
         connectionAttemptId: `connect-${sessionId}`
@@ -2234,7 +2351,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         }
       ).entries.get('session-1')!
       entry.lastResumeToken = options.resumeToken
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -2258,7 +2375,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         manager as unknown as {
           handleRuntimeEvent: (current: typeof entry, event: AgentRuntimeEvent) => void
         }
-      ).handleRuntimeEvent(entry, { type: AgentRuntimeEventType.TurnComplete })
+      ).handleRuntimeEvent(entry, { type: AgentRuntimeEventType.TurnComplete, segmentId: sourceSegmentId })
       manager.releaseTurnResource('session-1', AgentDriverOutcomeKind.Success, handle.turnId)
       return { connection, entry, handle }
     }
@@ -2353,7 +2470,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
       } satisfies AgentRuntimeConnection
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const firstTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -2374,6 +2491,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       }).state
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.DriverTerminal,
+        segmentId: sourceSegmentId,
         outcome: { status: AgentDriverOutcomeKind.Success }
       }).state
       entry.resources = resources
@@ -2483,7 +2601,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
       } satisfies AgentRuntimeConnection
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
         connectionAttemptId: 'connect-1'
@@ -2520,7 +2638,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
       } satisfies AgentRuntimeConnection
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
         connectionAttemptId: 'connect-1'
@@ -2611,8 +2729,15 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         traceId: 'a'.repeat(32)
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const sourceTurn = getAgentCurrentStreamResource(resources)!
+      const currentSegmentId = getAgentCurrentSegmentId(resources)!
+      const redirect: AgentRuntimeRedirectInput = {
+        redirectId: toAgentRuntimeRedirectId('redirect-trace-refresh'),
+        segmentId: currentSegmentId,
+        message: userMessage('user-2'),
+        systemReminder: true
+      }
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
         turn: sourceTurn
@@ -2631,8 +2756,14 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         turn: sourceTurn
       }).state
       resources = transitionAgentConnectionResource(resources, {
+        type: AgentConnectionResourceEventType.RedirectQueued,
+        redirect
+      }).state
+      resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.SteerBoundary,
-        inputs: [{ message: userMessage('user-2'), systemReminder: true }],
+        redirectIds: [redirect.redirectId],
+        sourceSegmentId: currentSegmentId,
+        successorSegmentId,
         headless: false
       }).state
       entry.resources = resources
@@ -2679,7 +2810,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         traceId: 'a'.repeat(32)
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const firstTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -2696,17 +2827,16 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       }).state
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.DriverTerminal,
+        segmentId: sourceSegmentId,
         outcome: { status: AgentDriverOutcomeKind.Success }
       }).state
       entry.resources = resources
       manager.releaseTurnResource('session-1', AgentDriverOutcomeKind.Success, first.turnId)
-      entry.resources = transitionAgentConnectionResource(
-        entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>,
-        {
-          type: AgentConnectionResourceEventType.AutonomousTurnState,
-          state: AgentAutonomousGenerationState.Started
-        }
-      ).state
+      entry.resources = transitionAgentConnectionResource(entry.resources as ReturnType<typeof resourceState>, {
+        type: AgentConnectionResourceEventType.AutonomousTurnState,
+        segmentId: autonomousSegmentId,
+        state: AgentAutonomousGenerationState.Started
+      }).state
       const intent = manager.describeConversationAutonomous('session-1', true)
       const activating = manager.activateConversationRuntimeTurn(intent, new AbortController().signal)
       await vi.waitFor(() => expect(connection.refreshTraceContext).toHaveBeenCalledOnce())
@@ -2728,7 +2858,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     })
 
     const installIdle = (manager: AgentConnectionManager, current: AgentRuntimeConnection) => {
-      let resources = createAgentConnectionResourceState<Turn, Reservation>()
+      let resources = resourceState()
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
         connectionAttemptId: 'connect-1'
@@ -2837,7 +2967,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const entry = (
         manager as unknown as { entries: Map<string, { agentId: string; agentType: string; resources: unknown }> }
       ).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -2924,7 +3054,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         userMessage: input('user-1').message
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -2963,8 +3093,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
           entries: Map<string, { resources: unknown; modelId: string; agentId: string; agentType: string }>
         }
       ).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const source = getAgentCurrentStreamResource(resources)!
+      const currentSegmentId = getAgentCurrentSegmentId(resources)!
+      const redirect = { ...redirectInput('redirect-model-change'), segmentId: currentSegmentId }
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
         turn: source
@@ -2979,8 +3111,14 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         connection: current
       }).state
       resources = transitionAgentConnectionResource(resources, {
+        type: AgentConnectionResourceEventType.RedirectQueued,
+        redirect
+      }).state
+      resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.SteerBoundary,
-        inputs: [],
+        redirectIds: [redirect.redirectId],
+        sourceSegmentId: currentSegmentId,
+        successorSegmentId,
         headless: false
       }).state
       entry.resources = resources
@@ -3023,8 +3161,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const entry = (
         manager as unknown as { entries: Map<string, { resources: unknown; modelId: string }> }
       ).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
+      const currentSegmentId = getAgentCurrentSegmentId(resources)!
+      const redirect = { ...redirectInput('redirect-reentry'), segmentId: currentSegmentId }
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
         turn: currentTurn
@@ -3043,8 +3183,14 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         turn: currentTurn
       }).state
       resources = transitionAgentConnectionResource(resources, {
+        type: AgentConnectionResourceEventType.RedirectQueued,
+        redirect
+      }).state
+      resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.SteerBoundary,
-        inputs: [],
+        redirectIds: [redirect.redirectId],
+        sourceSegmentId: currentSegmentId,
+        successorSegmentId,
         headless: false
       }).state
       entry.resources = resources
@@ -3072,7 +3218,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         userMessage: input('user-1').message
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -3120,7 +3266,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         userMessage: input('user-1').message
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -3204,7 +3350,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         agentId: 'agent-1',
         agentType: 'test-runtime',
         modelId: 'provider::model',
-        resources: createAgentConnectionResourceState<Turn, Reservation>()
+        resources: resourceState()
       }
       ;(manager as unknown as { entries: Map<string, typeof entry> }).entries.set('session-1', entry)
       const connecting = (
@@ -3256,7 +3402,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         agentId: 'agent-1',
         agentType: 'test-runtime',
         modelId: 'provider::model',
-        resources: createAgentConnectionResourceState<Turn, Reservation>()
+        resources: resourceState()
       }
       ;(manager as unknown as { entries: Map<string, typeof entry> }).entries.set('session-1', entry)
       const ensure = (
@@ -3299,7 +3445,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         userMessage: input('user-1').message
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -3375,7 +3521,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         userMessage: userMessage('user-1', options.knowledgeBaseIds)
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const turnResource = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -3493,7 +3639,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         ...(options.stopTask ? { stopTask: options.stopTask } : {})
       } satisfies AgentRuntimeConnection
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
         connectionAttemptId: 'connect-1'
@@ -3694,14 +3840,14 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const { entry } = install(manager)
       const nextTurn = turn('foreground-2')
-      entry.resources = transitionAgentConnectionResource(
-        entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>,
-        { type: AgentConnectionResourceEventType.Reset }
-      ).state
-      entry.resources = transitionAgentConnectionResource(
-        entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>,
-        { type: AgentConnectionResourceEventType.BeginTurn, turn: nextTurn }
-      ).state
+      entry.resources = transitionAgentConnectionResource(entry.resources as ReturnType<typeof resourceState>, {
+        type: AgentConnectionResourceEventType.Reset
+      }).state
+      entry.resources = transitionAgentConnectionResource(entry.resources as ReturnType<typeof resourceState>, {
+        type: AgentConnectionResourceEventType.BeginTurn,
+        segmentId: sourceSegmentId,
+        turn: nextTurn
+      }).state
       const publish = (
         manager as unknown as {
           publishBackgroundFlowParts: (
@@ -3820,7 +3966,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         agentId: 'agent-1',
         agentType: 'test-runtime',
         modelId: 'provider::model',
-        resources: createAgentConnectionResourceState<Turn, Reservation>()
+        resources: resourceState()
       }
       const internals = manager as unknown as {
         entries: Map<string, typeof entry>
@@ -3937,7 +4083,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         userMessage: input('user-1').message
       })
       const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)! as Turn & {
         turnId: string
         controller?: { enqueue: (value: unknown) => void }
@@ -3985,7 +4131,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         headless?: boolean
         fastMode?: boolean
         knowledgeBaseIds?: string[]
-        redirectResult?: boolean
+        redirectResult?: AgentRuntimeRedirectReceiptKind
         boundKnowledgeBaseIds?: string[]
       } = {}
     ) => {
@@ -4002,7 +4148,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         headless: options.headless,
         fastMode: options.fastMode
       })
-      const redirect = vi.fn().mockReturnValue(options.redirectResult ?? true)
+      const redirect = vi.fn((input: AgentRuntimeRedirectInput) => ({
+        kind: options.redirectResult ?? AgentRuntimeRedirectReceiptKind.Queued,
+        redirectId: input.redirectId
+      }))
       const currentConnection = {
         events: neverRuntimeEvents(),
         send: vi.fn(),
@@ -4013,7 +4162,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const entry = (
         manager as unknown as { entries: Map<string, { modelId: string; resources: unknown }> }
       ).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof createAgentConnectionResourceState<Turn, Reservation>>
+      let resources = entry.resources as ReturnType<typeof resourceState>
       const currentTurn = getAgentCurrentStreamResource(resources)!
       if (options.open !== false) {
         resources = transitionAgentConnectionResource(resources, {
@@ -4043,32 +4192,47 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     it('queues a normal live turn follow-up while its stream is unopened', () => {
       const manager = new AgentConnectionManager()
       const { redirect } = install(manager, { open: false })
+      const redirectId = toAgentRuntimeRedirectId('redirect-unopened')
 
-      expect(manager.redirectConversationInput('session-1', userMessage('user-2'))).toBe(false)
+      expect(manager.redirectConversationInput('session-1', redirectId, userMessage('user-2'))).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Rejected,
+        redirectId
+      })
       expect(redirect).not.toHaveBeenCalled()
     })
 
     it('queues an interactive follow-up instead of steering it into a headless-owned turn', () => {
       const manager = new AgentConnectionManager()
       const { redirect } = install(manager, { headless: true })
+      const redirectId = toAgentRuntimeRedirectId('redirect-headless-owner')
 
-      expect(manager.redirectConversationInput('session-1', userMessage('user-2'))).toBe(false)
+      expect(manager.redirectConversationInput('session-1', redirectId, userMessage('user-2'))).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Rejected,
+        redirectId
+      })
       expect(redirect).not.toHaveBeenCalled()
     })
 
     it('queues headless input instead of inheriting a live interactive turn', () => {
       const manager = new AgentConnectionManager()
       const { redirect } = install(manager)
+      const redirectId = toAgentRuntimeRedirectId('redirect-headless-input')
 
-      expect(manager.redirectConversationInput('session-1', userMessage('user-2'), { headless: true })).toBe(false)
+      expect(
+        manager.redirectConversationInput('session-1', redirectId, userMessage('user-2'), { headless: true })
+      ).toEqual({ kind: AgentRuntimeRedirectReceiptKind.Rejected, redirectId })
       expect(redirect).not.toHaveBeenCalled()
     })
 
     it('queues a steer whose effective knowledge scope differs from the live turn', () => {
       const manager = new AgentConnectionManager()
       const { redirect } = install(manager, { knowledgeBaseIds: ['kb-1'] })
+      const redirectId = toAgentRuntimeRedirectId('redirect-knowledge-mismatch')
 
-      expect(manager.redirectConversationInput('session-1', userMessage('user-2', ['kb-2']))).toBe(false)
+      expect(manager.redirectConversationInput('session-1', redirectId, userMessage('user-2', ['kb-2']))).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Rejected,
+        redirectId
+      })
       expect(redirect).not.toHaveBeenCalled()
     })
 
@@ -4076,18 +4240,26 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const { currentConnection, entry, handle, redirect } = install(manager, {
         knowledgeBaseIds: ['kb-1'],
-        redirectResult: false
+        redirectResult: AgentRuntimeRedirectReceiptKind.Rejected
       })
       const followUp = userMessage('user-2', ['kb-1'])
+      const redirectId = toAgentRuntimeRedirectId('redirect-runtime-rejected')
 
-      expect(manager.redirectConversationInput('session-1', followUp)).toBe(false)
+      expect(manager.redirectConversationInput('session-1', redirectId, followUp)).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Rejected,
+        redirectId
+      })
       expect(redirect).toHaveBeenCalledOnce()
       expect(currentConnection.close).not.toHaveBeenCalled()
       ;(
         manager as unknown as {
           handleRuntimeEvent: (current: typeof entry, event: AgentRuntimeEvent, owner: AgentRuntimeConnection) => void
         }
-      ).handleRuntimeEvent(entry, { type: AgentRuntimeEventType.TurnComplete }, currentConnection)
+      ).handleRuntimeEvent(
+        entry,
+        { type: AgentRuntimeEventType.TurnComplete, segmentId: sourceSegmentId },
+        currentConnection
+      )
       manager.releaseTurnResource('session-1', AgentDriverOutcomeKind.Success, handle.turnId)
 
       const successor = manager.prepareTurnResources({
@@ -4108,7 +4280,9 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
       await expect(reader.read()).resolves.toMatchObject({ done: false, value: { type: 'start' } })
       await vi.waitFor(() =>
-        expect(currentConnection.send).toHaveBeenCalledWith({ message: followUp, systemReminder: false })
+        expect(currentConnection.send).toHaveBeenCalledWith(
+          expect.objectContaining({ message: followUp, systemReminder: false })
+        )
       )
       expect(currentConnection.close).not.toHaveBeenCalled()
 
@@ -4119,8 +4293,12 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     it('queues a follow-up when its Fast selection differs from the live turn', () => {
       const manager = new AgentConnectionManager()
       const { redirect } = install(manager, { fastMode: true })
+      const redirectId = toAgentRuntimeRedirectId('redirect-fast-mismatch')
 
-      expect(manager.redirectConversationInput('session-1', userMessage('user-2'))).toBe(false)
+      expect(manager.redirectConversationInput('session-1', redirectId, userMessage('user-2'))).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Rejected,
+        redirectId
+      })
       expect(redirect).not.toHaveBeenCalled()
     })
 
@@ -4128,13 +4306,15 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const { redirect } = install(manager, { knowledgeBaseIds: ['kb-1', 'kb-2'] })
       const followUp = userMessage('user-2', ['kb-2', 'kb-1'])
+      const redirectId = toAgentRuntimeRedirectId('redirect-reordered-knowledge')
 
-      expect(manager.redirectConversationInput('session-1', followUp)).toBe(true)
-      expect(redirect).toHaveBeenCalledExactlyOnceWith({
-        message: followUp,
-        systemReminder: true,
-        messageSnapshot: undefined
+      expect(manager.redirectConversationInput('session-1', redirectId, followUp)).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Queued,
+        redirectId
       })
+      expect(redirect).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ redirectId, message: followUp, systemReminder: true })
+      )
     })
 
     it('lets a static Agent binding override different composer selections for steer matching', () => {
@@ -4144,8 +4324,12 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         boundKnowledgeBaseIds: ['kb-bound']
       })
       const followUp = userMessage('user-2', ['kb-2'])
+      const redirectId = toAgentRuntimeRedirectId('redirect-bound-knowledge')
 
-      expect(manager.redirectConversationInput('session-1', followUp)).toBe(true)
+      expect(manager.redirectConversationInput('session-1', redirectId, followUp)).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Queued,
+        redirectId
+      })
       expect(redirect).toHaveBeenCalledOnce()
     })
 
@@ -4153,14 +4337,16 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const { currentTurn, redirect } = install(manager)
       const followUp = userMessage('user-2')
+      const redirectId = toAgentRuntimeRedirectId('redirect-live')
 
-      expect(manager.redirectConversationInput('session-1', followUp)).toBe(true)
-
-      expect(redirect).toHaveBeenCalledExactlyOnceWith({
-        message: followUp,
-        systemReminder: true,
-        messageSnapshot: undefined
+      expect(manager.redirectConversationInput('session-1', redirectId, followUp)).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Queued,
+        redirectId
       })
+
+      expect(redirect).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ redirectId, message: followUp, systemReminder: true })
+      )
       expect(
         getAgentCurrentStreamResource(
           (manager as unknown as { entries: Map<string, { resources: never }> }).entries.get('session-1')!.resources
@@ -4172,13 +4358,15 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const { redirect } = install(manager)
       const followUp = userMessage('user-2')
+      const redirectId = toAgentRuntimeRedirectId('redirect-reminder')
 
-      expect(manager.redirectConversationInput('session-1', followUp)).toBe(true)
-      expect(redirect).toHaveBeenCalledExactlyOnceWith({
-        message: followUp,
-        systemReminder: true,
-        messageSnapshot: undefined
+      expect(manager.redirectConversationInput('session-1', redirectId, followUp)).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Queued,
+        redirectId
       })
+      expect(redirect).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ redirectId, message: followUp, systemReminder: true })
+      )
     })
 
     it('freezes a redirected steer-boundary continuation with the follow-up snapshot', () => {
@@ -4190,8 +4378,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         name: 'Agent after edit',
         model: { id: 'model', name: 'Model after edit', provider: 'provider' }
       }
+      const redirectId = toAgentRuntimeRedirectId('redirect-snapshot-delivered')
 
-      expect(manager.redirectConversationInput('session-1', followUp, { messageSnapshot: followUpSnapshot })).toBe(true)
+      expect(
+        manager.redirectConversationInput('session-1', redirectId, followUp, { messageSnapshot: followUpSnapshot })
+      ).toEqual({ kind: AgentRuntimeRedirectReceiptKind.Queued, redirectId })
       const redirected = redirect.mock.calls[0][0]
       ;(
         manager as unknown as {
@@ -4199,7 +4390,12 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         }
       ).handleRuntimeEvent(
         entry,
-        { type: AgentRuntimeEventType.SteerBoundary, inputs: [redirected] },
+        {
+          type: AgentRuntimeEventType.SteerDelivered,
+          redirects: [redirected],
+          sourceSegmentId: redirected.segmentId,
+          successorSegmentId
+        },
         currentConnection
       )
 
@@ -4215,8 +4411,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         name: 'Agent after edit',
         model: { id: 'model', name: 'Model after edit', provider: 'provider' }
       }
+      const redirectId = toAgentRuntimeRedirectId('redirect-snapshot-undelivered')
 
-      expect(manager.redirectConversationInput('session-1', followUp, { messageSnapshot: followUpSnapshot })).toBe(true)
+      expect(
+        manager.redirectConversationInput('session-1', redirectId, followUp, { messageSnapshot: followUpSnapshot })
+      ).toEqual({ kind: AgentRuntimeRedirectReceiptKind.Queued, redirectId })
       const redirected = redirect.mock.calls[0][0]
       ;(
         manager as unknown as {
@@ -4224,20 +4423,28 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         }
       ).handleRuntimeEvent(
         entry,
-        { type: AgentRuntimeEventType.SteerUndelivered, inputs: [redirected] },
+        {
+          type: AgentRuntimeEventType.SteerUndelivered,
+          redirectIds: [redirected.redirectId],
+          sourceSegmentId: redirected.segmentId
+        },
         currentConnection
       )
 
       expect(redirected.messageSnapshot).toEqual(followUpSnapshot)
-      expect(services.conversation.enqueueAgentUndelivered).toHaveBeenCalledExactlyOnceWith('session-1', 'user-2')
+      expect(services.conversation.enqueueAgentUndelivered).toHaveBeenCalledExactlyOnceWith('session-1', [redirectId])
     })
 
     it('queues follow-ups instead of redirecting them into a stale-model live connection', () => {
       const manager = new AgentConnectionManager()
       const { entry, redirect } = install(manager)
       entry.modelId = 'provider::new-model'
+      const redirectId = toAgentRuntimeRedirectId('redirect-stale-model')
 
-      expect(manager.redirectConversationInput('session-1', userMessage('user-2'))).toBe(false)
+      expect(manager.redirectConversationInput('session-1', redirectId, userMessage('user-2'))).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Rejected,
+        redirectId
+      })
       expect(redirect).not.toHaveBeenCalled()
     })
 
@@ -4245,6 +4452,16 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const manager = new AgentConnectionManager()
       const { currentConnection, entry } = install(manager)
       const followUp = userMessage('user-2', ['kb-1'])
+      const redirected: AgentRuntimeRedirectInput = {
+        redirectId: toAgentRuntimeRedirectId('redirect-ended-before-injection'),
+        segmentId: getAgentCurrentSegmentId(entry.resources as ReturnType<typeof resourceState>)!,
+        message: followUp,
+        systemReminder: true
+      }
+      entry.resources = transitionAgentConnectionResource(entry.resources as ReturnType<typeof resourceState>, {
+        type: AgentConnectionResourceEventType.RedirectQueued,
+        redirect: redirected
+      }).state
 
       ;(
         manager as unknown as {
@@ -4254,12 +4471,15 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         entry,
         {
           type: AgentRuntimeEventType.SteerUndelivered,
-          inputs: [{ message: followUp, systemReminder: true }]
+          redirectIds: [redirected.redirectId],
+          sourceSegmentId: redirected.segmentId
         },
         currentConnection
       )
 
-      expect(services.conversation.enqueueAgentUndelivered).toHaveBeenCalledExactlyOnceWith('session-1', 'user-2')
+      expect(services.conversation.enqueueAgentUndelivered).toHaveBeenCalledExactlyOnceWith('session-1', [
+        redirected.redirectId
+      ])
     })
   })
 

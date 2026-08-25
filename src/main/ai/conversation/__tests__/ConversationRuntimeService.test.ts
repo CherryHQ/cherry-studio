@@ -24,6 +24,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentRuntimeRedirectReceiptKind, toAgentRuntimeRedirectId } from '../../runtime/types'
 import type {
   ConversationExecutionContext,
   ConversationExecutionDriverBinding,
@@ -58,6 +59,8 @@ import {
   ConversationRunMode,
   ConversationRuntimeService as RuntimeConversationRuntimeService
 } from '..'
+import { AgentRedirectBindingPhase } from '../ConversationBindingRegistry'
+import { type ConversationRedirectInput, ConversationRedirectPhase } from '../conversationState'
 
 type ConversationHistoryPort = Omit<RuntimeConversationHistoryPort, 'persistTerminal' | 'prepareExecutionContext'>
 
@@ -310,8 +313,8 @@ class TestExecutionDriver implements ConversationExecutionDriver {
 
   annotateTelemetry(): void {}
 
-  redirect(): boolean {
-    return false
+  redirect(effect: Parameters<ConversationExecutionDriver['redirect']>[0]) {
+    return { kind: AgentRuntimeRedirectReceiptKind.Rejected, redirectId: effect.input.redirect.id }
   }
 
   suspend(): boolean {
@@ -553,7 +556,8 @@ describe('ConversationRuntimeService', () => {
   it('passes the committed follow-up snapshot across the Agent redirect owner boundary', () => {
     const service = new ConversationRuntimeService({ providers: [] })
     const agentRef = { kind: ConversationKind.Agent, id: 'session-1' } as const
-    const inputId = 'input-2'
+    const inputId = toConversationInputId('input-2')
+    const redirectId = toAgentRuntimeRedirectId('redirect-2')
     const followUpSnapshot = {
       id: 'agent-1',
       name: 'Agent after edit',
@@ -579,51 +583,72 @@ describe('ConversationRuntimeService', () => {
     }
     const internals = service as unknown as {
       bindings: {
-        setInput: (inputId: string, binding: typeof committedInput) => void
-        input: (inputId: string) => (typeof committedInput & { agentSegment?: boolean }) | undefined
+        setInput: (id: typeof inputId, binding: typeof committedInput) => void
+        input: (id: typeof inputId) =>
+          | (typeof committedInput & {
+              agentRedirect: {
+                phase: AgentRedirectBindingPhase.Queued
+                redirectId: typeof redirectId
+              }
+            })
+          | undefined
       }
-      redirectAgentInput: (currentRef: typeof agentRef, input: { id: string }) => boolean
+      redirectAgentInput: (
+        currentRef: typeof agentRef,
+        input: ConversationRedirectInput
+      ) => {
+        kind: AgentRuntimeRedirectReceiptKind.Queued
+        redirectId: typeof redirectId
+      }
     }
     internals.bindings.setInput(inputId, committedInput)
-    services.agentConnection.redirectConversationInput.mockReturnValueOnce(true)
+    services.agentConnection.redirectConversationInput.mockReturnValueOnce({
+      kind: AgentRuntimeRedirectReceiptKind.Queued,
+      redirectId
+    })
 
-    expect(internals.redirectAgentInput(agentRef, { id: inputId })).toBe(true)
+    const input: ConversationRedirectInput = {
+      id: inputId,
+      historyNodeId: deliveryMessage.id,
+      provenance: ConversationInputProvenance.Renderer,
+      responder: ConversationResponderKind.Interactive,
+      redirect: { id: redirectId, phase: ConversationRedirectPhase.Queued }
+    }
+
+    expect(internals.redirectAgentInput(agentRef, input)).toEqual({
+      kind: AgentRuntimeRedirectReceiptKind.Queued,
+      redirectId
+    })
 
     expect(services.agentConnection.redirectConversationInput).toHaveBeenCalledExactlyOnceWith(
       'session-1',
+      redirectId,
       deliveryMessage,
       expect.objectContaining({ messageSnapshot: followUpSnapshot })
     )
-    expect(internals.bindings.input(inputId)?.agentSegment).toBe(true)
+    expect(internals.bindings.input(inputId)?.agentRedirect).toEqual({
+      phase: AgentRedirectBindingPhase.Queued,
+      redirectId
+    })
   })
 
-  it('requeues an undelivered Agent input only in the session that owns its durable row', () => {
+  it('routes an undelivered Agent redirect only to its exact Conversation actor', () => {
     const service = new ConversationRuntimeService({ providers: [] })
     const firstRef = { kind: ConversationKind.Agent, id: 'session-1' } as const
     const secondRef = { kind: ConversationKind.Agent, id: 'session-2' } as const
-    const committedInput = (conversation: { readonly kind: ConversationKind.Agent; readonly id: string }) => ({
-      request: {
-        trigger: ConversationOpenTrigger.SubmitMessage,
-        conversation,
-        userMessageParts: [],
-        agentDeliveryMessage: { id: 'shared-row-id' }
-      } as unknown as MainDispatchRequest
-    })
     const internals = service as unknown as {
-      bindings: {
-        setInput: (inputId: string, binding: ReturnType<typeof committedInput>) => void
-      }
       actorFor: (ref: { readonly kind: ConversationKind.Agent; readonly id: string }) => {
-        rejectRedirectedInput: (inputId: string) => unknown
+        rejectUndeliveredRedirects: (redirectIds: readonly ReturnType<typeof toAgentRuntimeRedirectId>[]) => unknown
       }
     }
-    internals.bindings.setInput('input-session-1', committedInput(firstRef))
-    internals.bindings.setInput('input-session-2', committedInput(secondRef))
-    const reject = vi.spyOn(internals.actorFor(secondRef), 'rejectRedirectedInput')
+    const rejectFirst = vi.spyOn(internals.actorFor(firstRef), 'rejectUndeliveredRedirects')
+    const rejectSecond = vi.spyOn(internals.actorFor(secondRef), 'rejectUndeliveredRedirects')
+    const redirectId = toAgentRuntimeRedirectId('redirect-session-2')
 
-    service.enqueueAgentUndelivered('session-2', 'shared-row-id')
+    service.enqueueAgentUndelivered('session-2', [redirectId])
 
-    expect(reject).toHaveBeenCalledExactlyOnceWith('input-session-2')
+    expect(rejectFirst).not.toHaveBeenCalled()
+    expect(rejectSecond).toHaveBeenCalledExactlyOnceWith([redirectId])
   })
 
   it('acknowledges the durable skeleton before asynchronous execution preparation finishes', async () => {
@@ -1771,7 +1796,10 @@ describe('ConversationRuntimeService', () => {
     const active = controlledStream()
     const successor = controlledStream()
     const subscriber = listener()
-    const commitBatchIntent = vi.fn((_validations: readonly ValidatedConversationIntent[]) => committed(false))
+    const commitBatchIntent = vi.fn((validations: readonly ValidatedConversationIntent[]) => {
+      if (validations.length === 0) throw new Error('batch commit requires validated inputs')
+      return committed(false)
+    })
     const provider: ConversationHistoryPort = {
       name: 'test-chat',
       isPersistentConversation: true,

@@ -45,7 +45,7 @@ export enum AgentRuntimeEventType {
   ResumeToken = 'resume-token',
   TurnComplete = 'turn-complete',
   SteerUndelivered = 'steer-undelivered',
-  SteerBoundary = 'steer-boundary',
+  SteerDelivered = 'steer-delivered',
   CompactionStart = 'compaction-start',
   CompactionComplete = 'compaction-complete',
   CompactionError = 'compaction-error',
@@ -64,6 +64,29 @@ export enum AgentRuntimeAutonomousState {
   Started = 'started',
   Finished = 'finished'
 }
+
+declare const agentRuntimeSegmentIdBrand: unique symbol
+declare const agentRuntimeRedirectIdBrand: unique symbol
+
+export type AgentRuntimeSegmentId = string & { readonly [agentRuntimeSegmentIdBrand]: true }
+export type AgentRuntimeRedirectId = string & { readonly [agentRuntimeRedirectIdBrand]: true }
+
+export function toAgentRuntimeSegmentId(value: string): AgentRuntimeSegmentId {
+  return value as AgentRuntimeSegmentId
+}
+
+export function toAgentRuntimeRedirectId(value: string): AgentRuntimeRedirectId {
+  return value as AgentRuntimeRedirectId
+}
+
+export enum AgentRuntimeRedirectReceiptKind {
+  Queued = 'queued',
+  Rejected = 'rejected'
+}
+
+export type AgentRuntimeRedirectReceipt =
+  | { readonly kind: AgentRuntimeRedirectReceiptKind.Queued; readonly redirectId: AgentRuntimeRedirectId }
+  | { readonly kind: AgentRuntimeRedirectReceiptKind.Rejected; readonly redirectId: AgentRuntimeRedirectId }
 
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
@@ -119,10 +142,11 @@ export interface AgentRuntimeConnectInput {
    * before the SDK can issue its next provider request to reserve the continuation correlation;
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
-  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  onSteerInjected?: (delivery: AgentRuntimeSteerDelivery) => void
 }
 
 export interface AgentRuntimeUserInput {
+  segmentId: AgentRuntimeSegmentId
   message: AgentSessionMessageEntity
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
@@ -131,6 +155,16 @@ export interface AgentRuntimeUserInput {
    *  `steer-boundary`/`steer-undelivered`). Opaque to drivers. */
   headless?: boolean
   messageSnapshot?: MessageSnapshot
+}
+
+export interface AgentRuntimeRedirectInput extends AgentRuntimeUserInput {
+  redirectId: AgentRuntimeRedirectId
+}
+
+export interface AgentRuntimeSteerDelivery {
+  readonly redirects: readonly AgentRuntimeRedirectInput[]
+  readonly sourceSegmentId: AgentRuntimeSegmentId
+  readonly successorSegmentId: AgentRuntimeSegmentId
 }
 
 /**
@@ -150,7 +184,7 @@ export type AgentRuntimeToolApprovalRequest = AgentRuntimeToolApprovalRequestBas
   ({ lifetime: AgentApprovalLifetime.ExecutionBound } | { lifetime: AgentApprovalLifetime.SessionMessage })
 
 export type AgentRuntimeEvent =
-  | { type: AgentRuntimeEventType.Chunk; chunk: UIMessageChunk }
+  | { type: AgentRuntimeEventType.Chunk; segmentId: AgentRuntimeSegmentId; chunk: UIMessageChunk }
   | { type: AgentRuntimeEventType.ToolApprovalRequest; request: AgentRuntimeToolApprovalRequest }
   | {
       type: AgentRuntimeEventType.Usage
@@ -177,15 +211,19 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: AgentRuntimeEventType.ResumeToken; token: string }
-  | { type: AgentRuntimeEventType.TurnComplete }
+  | { type: AgentRuntimeEventType.TurnComplete; segmentId: AgentRuntimeSegmentId }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
-  | { type: AgentRuntimeEventType.SteerUndelivered; inputs: AgentRuntimeUserInput[] }
+  | {
+      type: AgentRuntimeEventType.SteerUndelivered
+      redirectIds: readonly AgentRuntimeRedirectId[]
+      sourceSegmentId: AgentRuntimeSegmentId
+    }
   /** A steer was injected mid-turn (PreToolUse hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn. */
-  | { type: AgentRuntimeEventType.SteerBoundary; inputs: AgentRuntimeUserInput[] }
+  | ({ type: AgentRuntimeEventType.SteerDelivered } & AgentRuntimeSteerDelivery)
   | { type: AgentRuntimeEventType.CompactionStart; trigger?: AgentSessionCompactionTrigger }
   | { type: AgentRuntimeEventType.CompactionComplete; anchor?: AgentSessionCompactionAnchorData }
   | { type: AgentRuntimeEventType.CompactionError; error: string }
@@ -212,8 +250,12 @@ export type AgentRuntimeEvent =
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
    *  transfers generation ownership and asks the host to open a receive-only transcript turn;
    *  `finished` releases ownership after the SDK result, independently from turn completion. */
-  | { type: AgentRuntimeEventType.AutonomousTurnState; state: AgentRuntimeAutonomousState }
-  | { type: AgentRuntimeEventType.Error; error: unknown }
+  | {
+      type: AgentRuntimeEventType.AutonomousTurnState
+      state: AgentRuntimeAutonomousState
+      segmentId: AgentRuntimeSegmentId
+    }
+  | { type: AgentRuntimeEventType.Error; segmentId: AgentRuntimeSegmentId; error: unknown }
 
 /**
  * Verdict of {@link AgentRuntimeConnection.reconcile}.
@@ -247,7 +289,7 @@ export interface AgentRuntimeConnection {
    * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
    * host always queues.
    */
-  redirect?(input: AgentRuntimeUserInput): boolean
+  redirect?(input: AgentRuntimeRedirectInput): AgentRuntimeRedirectReceipt
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for

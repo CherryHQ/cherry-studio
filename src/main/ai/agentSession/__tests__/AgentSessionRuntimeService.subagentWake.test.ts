@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { toAgentRuntimeSegmentId } from '../../runtime/types'
 import {
   AgentAutonomousGenerationState,
   AgentConnectionOccupancyKind,
@@ -23,8 +24,10 @@ describe('subagent settlement wake (incident replay)', () => {
       { type: 'text-delta', id: 'wake-text', delta: ' part 3' },
       { type: 'text-end', id: 'wake-text' }
     ] as const
+    const foregroundSegmentId = toAgentRuntimeSegmentId('segment-foreground')
+    const wakeSegmentId = toAgentRuntimeSegmentId('segment-wake')
 
-    let state = createAgentConnectionResourceState<Turn, never>(foreground)
+    let state = createAgentConnectionResourceState<Turn, never>()
     const effects: unknown[] = []
     const apply = (event: Parameters<typeof transitionAgentConnectionResource<Turn, never>>[1]) => {
       const result = transitionAgentConnectionResource(state, event)
@@ -32,6 +35,11 @@ describe('subagent settlement wake (incident replay)', () => {
       effects.push(...result.effects)
     }
     const connection = {} as never
+    apply({
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn: foreground,
+      segmentId: foregroundSegmentId
+    })
     apply({
       type: AgentConnectionResourceEventType.ConnectionStarted,
       connectionAttemptId: 'connect-1'
@@ -49,11 +57,13 @@ describe('subagent settlement wake (incident replay)', () => {
     apply({
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
+      segmentId: wakeSegmentId,
       contextTurn: foreground
     })
     for (const chunk of chunks) {
       apply({
-        type: AgentConnectionResourceEventType.BufferChunk,
+        type: AgentConnectionResourceEventType.RuntimeChunk,
+        segmentId: wakeSegmentId,
         chunk
       })
     }
@@ -75,11 +85,13 @@ describe('subagent settlement wake (incident replay)', () => {
     })
     apply({
       type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: wakeSegmentId,
       outcome: { status: AgentDriverOutcomeKind.Success }
     })
     apply({
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Finished
+      state: AgentAutonomousGenerationState.Finished,
+      segmentId: wakeSegmentId
     })
     expect(state.generation).toMatchObject({
       kind: AgentConnectionResourceKind.AutonomousTurn,

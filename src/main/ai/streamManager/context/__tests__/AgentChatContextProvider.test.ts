@@ -5,7 +5,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { AiRuntimeCapability } from '@main/ai/runtime/types'
+import { AiRuntimeCapability, toAgentRuntimeSegmentId } from '@main/ai/runtime/types'
 import { AgentSessionDeliveryReplyPolicy, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import { ConversationKind, ConversationOpenTrigger, ConversationOutcomeKind } from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -730,7 +730,8 @@ describe('AgentChatContextProvider', () => {
         updatedAt: '2026-01-01T00:00:00.000Z'
       },
       assistantMessageId: ASSISTANT_ID,
-      runtimeTurnId: 'runtime-turn-1'
+      runtimeTurnId: 'runtime-turn-1',
+      segmentId: toAgentRuntimeSegmentId('segment-autonomous')
     })
 
     expect(
@@ -778,6 +779,7 @@ describe('AgentChatContextProvider', () => {
       },
       assistantMessageId: ASSISTANT_ID,
       runtimeTurnId: 'runtime-turn-2',
+      segmentId: toAgentRuntimeSegmentId('segment-continuation'),
       sourceTurnId: 'runtime-turn-1'
     }
     const saveError = new Error('assistant skeleton transaction failed')

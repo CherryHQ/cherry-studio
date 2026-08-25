@@ -8,6 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ConversationEffectType } from '../../conversation'
+import { toAgentRuntimeSegmentId } from '../../runtime/types'
 import { AgentConnectionManager } from '../AgentConnectionManager'
 import {
   AgentAutonomousGenerationState,
@@ -111,10 +112,18 @@ describe('AgentConnectionManager backup quiescence', () => {
     const manager = new AgentConnectionManager()
     const foreground = { turnId: 'foreground-turn' }
     const autonomous = { turnId: 'autonomous-turn' }
-    let resources = createAgentConnectionResourceState<typeof foreground, never>(foreground)
+    const foregroundSegmentId = toAgentRuntimeSegmentId('segment-foreground')
+    const autonomousSegmentId = toAgentRuntimeSegmentId('segment-autonomous')
+    let resources = createAgentConnectionResourceState<typeof foreground, never>()
+    resources = transitionAgentConnectionResource(resources, {
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn: foreground,
+      segmentId: foregroundSegmentId
+    }).state
     resources = transitionAgentConnectionResource(resources, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId,
       contextTurn: foreground
     }).state
     resources = transitionAgentConnectionResource(resources, {
@@ -194,7 +203,14 @@ describe('AgentConnectionManager backup quiescence', () => {
     const manager = new AgentConnectionManager()
     const conversation = { kind: ConversationKind.Agent, id: 'session-1' } as const
     const foreground = { turnId: 'runtime-turn-1', activeToolIds: new Set<string>() }
-    const resources = createAgentConnectionResourceState<typeof foreground, never>(foreground)
+    const resources = transitionAgentConnectionResource(
+      createAgentConnectionResourceState<typeof foreground, never>(),
+      {
+        type: AgentConnectionResourceEventType.BeginTurn,
+        turn: foreground,
+        segmentId: toAgentRuntimeSegmentId('segment-foreground')
+      }
+    ).state
     const internals = manager as unknown as {
       entries: Map<
         string,

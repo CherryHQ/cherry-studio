@@ -19,6 +19,9 @@ import {
 } from '@shared/ai/conversation'
 import type { SerializedError } from '@shared/types/error'
 
+import type { AgentRuntimeRedirectId, AgentRuntimeSegmentId } from '../runtime/types'
+import { toAgentRuntimeRedirectId } from '../runtime/types'
+
 export enum ConversationResponderKind {
   Interactive = 'interactive',
   Headless = 'headless'
@@ -77,7 +80,9 @@ export enum ConversationCommandType {
   ExecutionRestarted = 'execution-restarted',
   ExecutionFirstChunk = 'execution-first-chunk',
   ExecutionStartFailed = 'execution-start-failed',
-  RedirectAccepted = 'redirect-accepted',
+  RedirectQueued = 'redirect-queued',
+  RedirectDelivered = 'redirect-delivered',
+  RedirectUndelivered = 'redirect-undelivered',
   RedirectRejected = 'redirect-rejected',
   InteractionOpened = 'interaction-opened',
   InteractionCompleted = 'interaction-completed',
@@ -152,13 +157,33 @@ export interface ConversationProfile {
   readonly kind: ConversationKind
 }
 
-export interface ConversationInput {
+interface ConversationInputBase {
   readonly id: ConversationInputId
   readonly historyNodeId: string
   readonly provenance: ConversationInputProvenance
   readonly responder: ConversationResponderKind
   readonly batchKey?: string | null
 }
+
+export enum ConversationRedirectPhase {
+  Queued = 'queued',
+  Delivered = 'delivered'
+}
+
+export type ConversationDirectInput = ConversationInputBase & { readonly redirect?: never }
+export type ConversationRedirectInput = ConversationInputBase & {
+  readonly redirect:
+    | {
+        readonly id: AgentRuntimeRedirectId
+        readonly phase: ConversationRedirectPhase.Queued
+      }
+    | {
+        readonly id: AgentRuntimeRedirectId
+        readonly phase: ConversationRedirectPhase.Delivered
+        readonly segmentId: AgentRuntimeSegmentId
+      }
+}
+export type ConversationInput = ConversationDirectInput | ConversationRedirectInput
 
 export interface ConversationInbox {
   readonly nextTurn: readonly ConversationInput[]
@@ -320,7 +345,7 @@ export type ConversationEffect =
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.RedirectInput
       readonly executionId: ConversationExecutionId
-      readonly input: ConversationInput
+      readonly input: ConversationRedirectInput
     })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ResumeExecution
@@ -366,7 +391,7 @@ export type ConversationEffect =
     })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ScheduleNextStep
-      readonly input: ConversationInput
+      readonly inputs: readonly ConversationInput[]
     })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.DropInputs
@@ -445,13 +470,13 @@ export type ConversationCommand =
   | {
       readonly type: ConversationCommandType.StepCommitted
       readonly turnId: ConversationTurnId
-      readonly inputId: ConversationInputId
+      readonly inputIds: readonly ConversationInputId[]
       readonly executions: readonly ConversationExecutionPlan[]
     }
   | {
       readonly type: ConversationCommandType.StepFailed
       readonly turnId: ConversationTurnId
-      readonly inputId: ConversationInputId
+      readonly inputIds: readonly ConversationInputId[]
       readonly error: SerializedError
       readonly turnTerminalEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
@@ -483,9 +508,20 @@ export type ConversationCommand =
       readonly persistenceEffectId: ConversationEffectId
     }
   | {
-      readonly type: ConversationCommandType.RedirectAccepted
+      readonly type: ConversationCommandType.RedirectQueued
       readonly turnId: ConversationTurnId
       readonly inputId: ConversationInputId
+    }
+  | {
+      readonly type: ConversationCommandType.RedirectDelivered
+      readonly turnId: ConversationTurnId
+      readonly redirectIds: readonly AgentRuntimeRedirectId[]
+      readonly segmentId: AgentRuntimeSegmentId
+    }
+  | {
+      readonly type: ConversationCommandType.RedirectUndelivered
+      readonly turnId: ConversationTurnId
+      readonly redirectIds: readonly AgentRuntimeRedirectId[]
     }
   | {
       readonly type: ConversationCommandType.RedirectRejected
@@ -957,6 +993,31 @@ const nextTurnBatch = (inbox: ConversationInbox): readonly ConversationInput[] =
   return batch
 }
 
+const withoutRedirect = (input: ConversationInput): ConversationInput => ({
+  id: input.id,
+  historyNodeId: input.historyNodeId,
+  provenance: input.provenance,
+  responder: input.responder,
+  batchKey: input.batchKey
+})
+
+const deliveredStepBatch = (inbox: ConversationInbox): readonly ConversationInput[] => {
+  const first = inbox.nextStep[0]
+  if (!first?.redirect || first.redirect.phase !== ConversationRedirectPhase.Delivered) return []
+  const batch: ConversationInput[] = []
+  for (const input of inbox.nextStep) {
+    if (
+      !input.redirect ||
+      input.redirect.phase !== ConversationRedirectPhase.Delivered ||
+      input.redirect.segmentId !== first.redirect.segmentId
+    ) {
+      break
+    }
+    batch.push(input)
+  }
+  return batch
+}
+
 const settleTurn = (
   state: Extract<ConversationState, { phase: ConversationPhase.Running | ConversationPhase.Stopping }>,
   turnTerminalEffectId: ConversationEffectId,
@@ -966,7 +1027,7 @@ const settleTurn = (
   if (!allExecutionsSettled(state.turn) || state.turn.interactions.size > 0) return unchanged(state)
   const outcome = settledTurnOutcome(state.turn)
   const durability = settledTurnDurability(state.turn)
-  const pendingInputs = [...state.inbox.nextTurn, ...state.inbox.nextStep]
+  const pendingInputs = [...state.inbox.nextTurn, ...state.inbox.nextStep.map(withoutRedirect)]
   const shouldDropInputs =
     state.profile.kind === ConversationKind.Chat && outcome.kind !== ConversationOutcomeKind.Success
   const retainedNextTurn = shouldDropInputs ? [] : pendingInputs
@@ -1110,12 +1171,19 @@ export function transitionConversation(state: ConversationState, command: Conver
         state.turn.responder === ConversationResponderKind.Interactive &&
         running !== undefined
       if (canRedirect && command.redirectEffectId) {
+        const redirectInput: ConversationRedirectInput = {
+          ...command.input,
+          redirect: {
+            id: toAgentRuntimeRedirectId(command.input.id),
+            phase: ConversationRedirectPhase.Queued
+          }
+        }
         return {
           state: {
             ...state,
-            inbox: { ...state.inbox, nextStep: [...state.inbox.nextStep, command.input] }
+            inbox: { ...state.inbox, nextStep: [...state.inbox.nextStep, redirectInput] }
           },
-          events: [{ type: ConversationEventType.InputEnqueued, input: command.input }],
+          events: [{ type: ConversationEventType.InputEnqueued, input: redirectInput }],
           effects: [
             {
               type: ConversationEffectType.RedirectInput,
@@ -1123,7 +1191,7 @@ export function transitionConversation(state: ConversationState, command: Conver
               turnId: state.turn.id,
               effectId: command.redirectEffectId,
               executionId: running.id,
-              input: command.input
+              input: redirectInput
             }
           ]
         }
@@ -1271,7 +1339,8 @@ export function transitionConversation(state: ConversationState, command: Conver
         return unchanged(state, ConversationCommandRejection.Stale)
       }
       if (
-        state.inbox.nextStep[0]?.id !== command.inputId ||
+        command.inputIds.length === 0 ||
+        command.inputIds.some((inputId, index) => state.inbox.nextStep[index]?.id !== inputId) ||
         command.executions.length === 0 ||
         !allExecutionsSettled(state.turn)
       ) {
@@ -1296,7 +1365,7 @@ export function transitionConversation(state: ConversationState, command: Conver
           ...state,
           inbox: {
             ...state.inbox,
-            nextStep: state.inbox.nextStep.filter((input) => input.id !== command.inputId)
+            nextStep: state.inbox.nextStep.slice(command.inputIds.length)
           },
           turn: { ...turn, executions }
         },
@@ -1319,7 +1388,11 @@ export function transitionConversation(state: ConversationState, command: Conver
       if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
         return unchanged(state, ConversationCommandRejection.Stale)
       }
-      if (state.inbox.nextStep[0]?.id !== command.inputId || !allExecutionsSettled(state.turn)) {
+      if (
+        command.inputIds.length === 0 ||
+        command.inputIds.some((inputId, index) => state.inbox.nextStep[index]?.id !== inputId) ||
+        !allExecutionsSettled(state.turn)
+      ) {
         return unchanged(state, ConversationCommandRejection.Stale)
       }
       return settleTurn(
@@ -1327,7 +1400,7 @@ export function transitionConversation(state: ConversationState, command: Conver
           ...state,
           inbox: {
             ...state.inbox,
-            nextStep: state.inbox.nextStep.filter((input) => input.id !== command.inputId)
+            nextStep: state.inbox.nextStep.slice(command.inputIds.length)
           },
           turn: { ...state.turn, terminalOverride: { kind: ConversationOutcomeKind.Error, error: command.error } }
         },
@@ -1485,7 +1558,7 @@ export function transitionConversation(state: ConversationState, command: Conver
       }
     }
 
-    case ConversationCommandType.RedirectAccepted:
+    case ConversationCommandType.RedirectQueued:
     case ConversationCommandType.RedirectRejected: {
       if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
         return unchanged(state, ConversationCommandRejection.Stale)
@@ -1493,7 +1566,7 @@ export function transitionConversation(state: ConversationState, command: Conver
       const index = state.inbox.nextStep.findIndex((input) => input.id === command.inputId)
       if (index < 0) return unchanged(state, ConversationCommandRejection.Stale)
       const input = state.inbox.nextStep[index]
-      if (command.type === ConversationCommandType.RedirectAccepted) {
+      if (command.type === ConversationCommandType.RedirectQueued) {
         return unchanged(state)
       }
       return {
@@ -1501,10 +1574,69 @@ export function transitionConversation(state: ConversationState, command: Conver
           ...state,
           inbox: {
             nextStep: state.inbox.nextStep.toSpliced(index, 1),
-            nextTurn: [...state.inbox.nextTurn, input]
+            nextTurn: [...state.inbox.nextTurn, withoutRedirect(input)]
           }
         },
         events: [{ type: ConversationEventType.InputEnqueued, input }],
+        effects: []
+      }
+    }
+
+    case ConversationCommandType.RedirectDelivered: {
+      if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const deliveredIds = new Set(command.redirectIds)
+      if (
+        command.redirectIds.length === 0 ||
+        command.redirectIds.some(
+          (redirectId) =>
+            !state.inbox.nextStep.some(
+              (input) => input.redirect?.phase === ConversationRedirectPhase.Queued && input.redirect.id === redirectId
+            )
+        )
+      ) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      return {
+        state: {
+          ...state,
+          inbox: {
+            ...state.inbox,
+            nextStep: state.inbox.nextStep.map((input): ConversationInput => {
+              if (!input.redirect || !deliveredIds.has(input.redirect.id)) return input
+              return {
+                ...input,
+                redirect: {
+                  id: input.redirect.id,
+                  phase: ConversationRedirectPhase.Delivered,
+                  segmentId: command.segmentId
+                }
+              }
+            })
+          }
+        },
+        events: [],
+        effects: []
+      }
+    }
+
+    case ConversationCommandType.RedirectUndelivered: {
+      if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const undelivered = new Set(command.redirectIds)
+      const matched = state.inbox.nextStep.filter((input) => input.redirect && undelivered.has(input.redirect.id))
+      if (matched.length !== command.redirectIds.length) return unchanged(state, ConversationCommandRejection.Stale)
+      return {
+        state: {
+          ...state,
+          inbox: {
+            nextStep: state.inbox.nextStep.filter((input) => !input.redirect || !undelivered.has(input.redirect.id)),
+            nextTurn: [...state.inbox.nextTurn, ...matched.map(withoutRedirect)]
+          }
+        },
+        events: matched.map((input) => ({ type: ConversationEventType.InputEnqueued, input: withoutRedirect(input) })),
         effects: []
       }
     }
@@ -1985,12 +2117,12 @@ export function transitionConversation(state: ConversationState, command: Conver
           effects: terminalEffects
         }
       }
-      const nextStepInput = next.inbox.nextStep[0]
+      const nextStepInputs = deliveredStepBatch(next.inbox)
       if (
         command.type === ConversationCommandType.PersistenceSucceeded &&
         next.phase === ConversationPhase.Running &&
         next.profile.kind === ConversationKind.Agent &&
-        nextStepInput &&
+        nextStepInputs.length > 0 &&
         command.scheduleStepEffectId &&
         allExecutionsSettled(next.turn) &&
         next.turn.interactions.size === 0
@@ -2010,7 +2142,7 @@ export function transitionConversation(state: ConversationState, command: Conver
               conversation: state.ref,
               turnId: state.turn.id,
               effectId: command.scheduleStepEffectId,
-              input: nextStepInput
+              inputs: nextStepInputs
             },
             {
               type: ConversationEffectType.PublishExecutionTerminal,
@@ -2378,8 +2510,8 @@ export function transitionConversation(state: ConversationState, command: Conver
       ) {
         return unchanged(state, ConversationCommandRejection.Busy)
       }
-      const input = state.inbox.nextStep[0]
-      if (!input) return unchanged(state, ConversationCommandRejection.Stale)
+      const inputs = deliveredStepBatch(state.inbox)
+      if (inputs.length === 0) return unchanged(state, ConversationCommandRejection.Stale)
       return {
         state,
         events: [],
@@ -2389,7 +2521,7 @@ export function transitionConversation(state: ConversationState, command: Conver
             conversation: state.ref,
             turnId: state.turn.id,
             effectId: command.scheduleEffectId,
-            input
+            inputs
           }
         ]
       }

@@ -18,6 +18,7 @@ import {
 } from '@shared/ai/conversation'
 import { describe, expect, it } from 'vitest'
 
+import { toAgentRuntimeRedirectId, toAgentRuntimeSegmentId } from '../../runtime/types'
 import {
   ConversationCommandType,
   ConversationEffectType,
@@ -38,6 +39,8 @@ const agent = { kind: ConversationKind.Agent, id: 'session-1' } as const
 const turn = toConversationTurnId('turn-1')
 const execution = toConversationExecutionId('execution-1')
 const effect = (id: string) => toConversationEffectId(id)
+const segmentId = toAgentRuntimeSegmentId('segment-2')
+const redirectId = (id: string) => toAgentRuntimeRedirectId(id)
 const input = (id: string, responder = ConversationResponderKind.Interactive) => ({
   id: toConversationInputId(id),
   historyNodeId: id,
@@ -90,6 +93,15 @@ function persistSuccess(state: ReturnType<typeof open>['state']) {
     scheduleEffectId: effect('schedule-1'),
     scheduleStepEffectId: effect('schedule-step-1')
   })
+}
+
+function deliverRedirect(state: ReturnType<typeof open>['state'], inputId: string) {
+  return transitionConversation(state, {
+    type: ConversationCommandType.RedirectDelivered,
+    turnId: turn,
+    redirectIds: [redirectId(inputId)],
+    segmentId
+  }).state
 }
 
 function runtimePreemptedState(responder = ConversationResponderKind.Interactive) {
@@ -502,7 +514,7 @@ describe('Conversation state', () => {
     )
   })
 
-  it('drains multiple follow-ups in FIFO order after an autonomous wake and its deferred turn', () => {
+  it('claims multiple compatible follow-ups as one ordered batch after an autonomous wake', () => {
     const runtime = runtimePreemptedState()
     const first = input('user-2')
     const second = input('user-3')
@@ -529,7 +541,7 @@ describe('Conversation state', () => {
     const foregroundDurable = persistSuccess(state)
     expect(foregroundDurable.state.inbox.nextTurn).toEqual([first, second])
     expect(foregroundDurable.effects).toContainEqual(
-      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [first] })
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [first, second] })
     )
 
     const nextTurnId = toConversationTurnId('turn-2')
@@ -537,7 +549,7 @@ describe('Conversation state', () => {
     state = transitionConversation(foregroundDurable.state, {
       type: ConversationCommandType.TurnCommitted,
       inputId: first.id,
-      inputIds: [first.id],
+      inputIds: [first.id, second.id],
       turnId: nextTurnId,
       turnKind: ConversationTurnKind.Submit,
       anchorNodeId: first.historyNodeId,
@@ -560,7 +572,7 @@ describe('Conversation state', () => {
       outcome: { kind: ConversationOutcomeKind.Success },
       persistenceEffectId: effect('persist-2')
     }).state
-    const secondScheduled = transitionConversation(state, {
+    const settled = transitionConversation(state, {
       type: ConversationCommandType.PersistenceSucceeded,
       turnId: nextTurnId,
       executionId: nextExecutionId,
@@ -573,9 +585,9 @@ describe('Conversation state', () => {
       scheduleStepEffectId: effect('schedule-step-2')
     })
 
-    expect(secondScheduled.state.inbox.nextTurn).toEqual([second])
-    expect(secondScheduled.effects).toContainEqual(
-      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [second] })
+    expect(settled.state.inbox.nextTurn).toEqual([])
+    expect(settled.effects).not.toContainEqual(
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn })
     )
   })
 
@@ -966,11 +978,7 @@ describe('Conversation state', () => {
       runtimeCanRedirect: true,
       redirectEffectId: effect('redirect-1')
     }).state
-    state = transitionConversation(state, {
-      type: ConversationCommandType.RedirectAccepted,
-      turnId: turn,
-      inputId: toConversationInputId('user-2')
-    }).state
+    state = deliverRedirect(state, 'user-2')
 
     const durable = persistSuccess(state)
     expect(durable.state.phase).toBe(ConversationPhase.Running)
@@ -982,7 +990,7 @@ describe('Conversation state', () => {
     const continued = transitionConversation(durable.state, {
       type: ConversationCommandType.StepCommitted,
       turnId: turn,
-      inputId: toConversationInputId('user-2'),
+      inputIds: [toConversationInputId('user-2')],
       executions: [
         {
           id: toConversationExecutionId('execution-2'),
@@ -1007,17 +1015,13 @@ describe('Conversation state', () => {
       runtimeCanRedirect: true,
       redirectEffectId: effect('redirect-steer')
     }).state
-    state = transitionConversation(state, {
-      type: ConversationCommandType.RedirectAccepted,
-      turnId: turn,
-      inputId: toConversationInputId('steer-input')
-    }).state
+    state = deliverRedirect(state, 'steer-input')
     state = persistSuccess(state).state
 
     const committed = transitionConversation(state, {
       type: ConversationCommandType.StepCommitted,
       turnId: turn,
-      inputId: toConversationInputId('steer-input'),
+      inputIds: [toConversationInputId('steer-input')],
       executions: [
         {
           id: toConversationExecutionId('steer-execution'),
@@ -1047,11 +1051,7 @@ describe('Conversation state', () => {
       runtimeCanRedirect: true,
       redirectEffectId: effect('redirect-step')
     }).state
-    state = transitionConversation(state, {
-      type: ConversationCommandType.RedirectAccepted,
-      turnId: turn,
-      inputId: toConversationInputId('step-input')
-    }).state
+    state = deliverRedirect(state, 'step-input')
     state = persistSuccess(state).state
 
     const kicked = transitionConversation(state, {
@@ -1063,7 +1063,7 @@ describe('Conversation state', () => {
       expect.objectContaining({
         type: ConversationEffectType.ScheduleNextStep,
         turnId: turn,
-        input: input('step-input')
+        inputs: [expect.objectContaining({ id: toConversationInputId('step-input') })]
       })
     ])
   })
@@ -1076,11 +1076,7 @@ describe('Conversation state', () => {
       runtimeCanRedirect: true,
       redirectEffectId: effect('redirect-step')
     }).state
-    state = transitionConversation(state, {
-      type: ConversationCommandType.RedirectAccepted,
-      turnId: turn,
-      inputId: toConversationInputId('step-input')
-    }).state
+    state = deliverRedirect(state, 'step-input')
     state = persistSuccess(state).state
     state = transitionConversation(state, {
       type: ConversationCommandType.InputCommitted,
@@ -1090,7 +1086,7 @@ describe('Conversation state', () => {
     const failed = transitionConversation(state, {
       type: ConversationCommandType.StepFailed,
       turnId: turn,
-      inputId: toConversationInputId('step-input'),
+      inputIds: [toConversationInputId('step-input')],
       error: { name: 'Error', message: 'step commit failed', stack: null },
       turnTerminalEffectId: effect('step-terminal'),
       quiescenceEffectId: effect('step-quiescence'),
@@ -1116,17 +1112,13 @@ describe('Conversation state', () => {
       runtimeCanRedirect: true,
       redirectEffectId: effect('redirect-step')
     }).state
-    state = transitionConversation(state, {
-      type: ConversationCommandType.RedirectAccepted,
-      turnId: turn,
-      inputId: toConversationInputId('step-input')
-    }).state
+    state = deliverRedirect(state, 'step-input')
     state = persistSuccess(state).state
 
     const failed = transitionConversation(state, {
       type: ConversationCommandType.StepFailed,
       turnId: turn,
-      inputId: toConversationInputId('step-input'),
+      inputIds: [toConversationInputId('step-input')],
       error: { name: 'Error', message: 'assistant skeleton transaction failed', stack: null },
       turnTerminalEffectId: effect('step-terminal'),
       quiescenceEffectId: effect('step-quiescence'),
@@ -1851,11 +1843,7 @@ describe('Conversation state', () => {
       runtimeCanRedirect: true,
       redirectEffectId: effect('redirect')
     }).state
-    state = transitionConversation(state, {
-      type: ConversationCommandType.RedirectAccepted,
-      turnId: turn,
-      inputId: toConversationInputId('redirected')
-    }).state
+    state = deliverRedirect(state, 'redirected')
     state = transitionConversation(state, {
       type: ConversationCommandType.ExecutionTerminal,
       turnId: turn,

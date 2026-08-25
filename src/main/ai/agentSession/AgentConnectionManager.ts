@@ -73,9 +73,13 @@ import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeRedirectId,
+  AgentRuntimeRedirectInput,
+  AgentRuntimeRedirectReceipt,
+  AgentRuntimeSegmentId,
+  AgentRuntimeSteerDelivery,
   AgentRuntimeToolApprovalRequest,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../runtime/types'
 import {
@@ -84,7 +88,9 @@ import {
   AgentRuntimeEventType,
   AgentRuntimeMessageAssociation,
   AgentRuntimeReconcileResult,
-  AgentSessionUsageCaptureOwner
+  AgentRuntimeRedirectReceiptKind,
+  AgentSessionUsageCaptureOwner,
+  toAgentRuntimeSegmentId
 } from '../runtime/types'
 import type { StreamListener, StreamPausedResult } from '../streamManager'
 import { agentMessageInteractionCoordinator } from '../toolApproval/AgentMessageInteractionCoordinator'
@@ -104,6 +110,7 @@ import {
   AgentDriverOutcomeKind,
   createAgentConnectionResourceState,
   getAgentConnectionResource,
+  getAgentCurrentSegmentId,
   getAgentCurrentStreamResource,
   getAgentLiveStreamResource,
   hasAgentCompactionResource,
@@ -202,6 +209,7 @@ export interface AgentConversationRuntimeTurnIntent {
   readonly userMessage: AgentSessionMessageEntity
   readonly assistantMessageId: string
   readonly runtimeTurnId: string
+  readonly segmentId: AgentRuntimeSegmentId
   readonly sourceTurnId?: string
   readonly messageSnapshot?: MessageSnapshot
   readonly traceId?: string
@@ -213,6 +221,7 @@ interface SuspendedConversationTurn {
   readonly executionId: ConversationExecutionId
   readonly suspendEffectId: ConversationEffectId
   readonly runtimeTurnId: string
+  readonly segmentId: AgentRuntimeSegmentId
   readonly turn: AgentTurnStreamResource
 }
 
@@ -220,7 +229,12 @@ interface SuspendedConversationTurn {
 export interface AgentConversationResultSink {
   abort(ref: AgentConversationRef, reason: string): boolean
   resolveAgentInteraction(sessionId: string, approvalId: string): boolean
-  enqueueAgentUndelivered(sessionId: string, userMessageId: string): void
+  acceptAgentRedirects(
+    sessionId: string,
+    redirectIds: readonly AgentRuntimeRedirectId[],
+    segmentId: AgentRuntimeSegmentId
+  ): void
+  enqueueAgentUndelivered(sessionId: string, redirectIds: readonly AgentRuntimeRedirectId[]): void
   startAgentAutonomous(sessionId: string): boolean
   releaseAgentRuntimeOwnership(sessionId: string, suspendEffectId: ConversationEffectId): void
   openAgentActivity(
@@ -234,6 +248,7 @@ export interface AgentConversationResultSink {
 
 type AgentTurnStreamResource = {
   turnId: string
+  segmentId: AgentRuntimeSegmentId
   /** True when the user message arrived as a steer — delivery wraps it in a system-reminder. */
   systemReminder?: boolean
   assistantMessageId: string
@@ -467,6 +482,9 @@ export class AgentConnectionManager extends BaseService {
       case AgentConnectionResourceEventType.DeliverBuffer:
         for (const chunk of effect.chunks) this.enqueueTurnChunk(entry, effect.turn, chunk)
         break
+      case AgentConnectionResourceEventType.DeliverChunk:
+        this.enqueueTurnChunk(entry, effect.turn, effect.chunk)
+        break
       case AgentConnectionResourceEventType.CloseTurnStream: {
         // The resource remains awaiting release until Conversation has durably committed terminal state.
         if (effect.outcome.status === AgentDriverOutcomeKind.Error) {
@@ -506,6 +524,7 @@ export class AgentConnectionManager extends BaseService {
     const existing = this.entries.get(input.conversation.id)
     const turn: AgentTurnStreamResource = {
       turnId,
+      segmentId: toAgentRuntimeSegmentId(turnId),
       assistantMessageId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
@@ -530,7 +549,11 @@ export class AgentConnectionManager extends BaseService {
       existing.agentType = input.agentType
       existing.modelId = input.modelId
       existing.messageSnapshot = messageSnapshot
-      this.applyResourceEvent(existing, { type: AgentConnectionResourceEventType.BeginTurn, turn })
+      this.applyResourceEvent(existing, {
+        type: AgentConnectionResourceEventType.BeginTurn,
+        turn,
+        segmentId: turn.segmentId
+      })
       this.applyResourceEvent(existing, { type: AgentConnectionResourceEventType.ClearSteerReservation })
 
       return { turnId }
@@ -551,7 +574,11 @@ export class AgentConnectionManager extends BaseService {
       resources: createAgentConnectionResourceState()
     }
     this.entries.set(input.conversation.id, entry)
-    this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.BeginTurn, turn })
+    this.applyResourceEvent(entry, {
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn,
+      segmentId: turn.segmentId
+    })
 
     return { turnId }
   }
@@ -599,11 +626,13 @@ export class AgentConnectionManager extends BaseService {
       executionId: effect.executionId,
       suspendEffectId: effect.effectId,
       runtimeTurnId,
+      segmentId: turn.segmentId,
       turn
     })
     this.applyResourceEvent(entry, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
+      segmentId: toAgentRuntimeSegmentId(crypto.randomUUID()),
       contextTurn: turn
     })
     this.closeTurn(turn)
@@ -633,7 +662,8 @@ export class AgentConnectionManager extends BaseService {
     this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.AutonomousTurnCleared })
     this.applyResourceEvent(entry, {
       type: AgentConnectionResourceEventType.BeginTurn,
-      turn: suspended.turn
+      turn: suspended.turn,
+      segmentId: suspended.segmentId
     })
     this.suspendedConversationTurns.delete(effect.suspendEffectId)
     return { kind: AgentConversationResourceEffectResultKind.Applied, effectId: effect.effectId }
@@ -718,12 +748,13 @@ export class AgentConnectionManager extends BaseService {
     }
   }
 
-  private reserveSteerContinuation(entry: AgentConnectionEntry, inputs: AgentRuntimeUserInput[]): void {
+  private reserveSteerContinuation(entry: AgentConnectionEntry, delivery: AgentRuntimeSteerDelivery): void {
     if (!this.isCurrentEntry(entry) || entry.usageCapture?.owner !== AgentSessionUsageCaptureOwner.ProviderCalls) return
     const turn = this.currentTurn(entry)
-    const steerMessage = inputs[0]?.message
+    const steerMessage = delivery.redirects[0]?.message
     if (
       !turn ||
+      turn.segmentId !== delivery.sourceSegmentId ||
       !this.isTurnLive(entry, turn) ||
       !steerMessage ||
       (entry.resources.generation.kind === AgentConnectionResourceKind.Turn && entry.resources.generation.reservation)
@@ -731,7 +762,7 @@ export class AgentConnectionManager extends BaseService {
       return
     }
 
-    const messageSnapshot = inputs[0]?.messageSnapshot ?? entry.messageSnapshot
+    const messageSnapshot = delivery.redirects[0]?.messageSnapshot ?? entry.messageSnapshot
     this.applyResourceEvent(entry, {
       type: AgentConnectionResourceEventType.ReserveSteer,
       reservation: {
@@ -932,15 +963,17 @@ export class AgentConnectionManager extends BaseService {
         // rather than an out-of-band mutation the busy/live queries cannot see.
         this.applyResourceEvent(entry, {
           type: AgentConnectionResourceEventType.DriverTerminal,
+          segmentId: turn.segmentId,
           outcome: { status: AgentDriverOutcomeKind.Paused }
         })
       }
     })
   }
 
-  /** Resource-plane redirect; the ConversationActor owns fallback queueing when this returns false. */
+  /** Resource-plane redirect; queued only means the runtime accepted the input for a later boundary. */
   redirectConversationInput(
     sessionId: string,
+    redirectId: AgentRuntimeRedirectId,
     message: AgentSessionMessageEntity,
     opts: {
       headless?: boolean
@@ -949,10 +982,14 @@ export class AgentConnectionManager extends BaseService {
       fastMode?: boolean
       messageSnapshot?: MessageSnapshot
     } = {}
-  ): boolean {
+  ): AgentRuntimeRedirectReceipt {
+    const rejected = (): AgentRuntimeRedirectReceipt => ({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId
+    })
     const entry = this.entries.get(sessionId)
     const turn = entry ? this.currentTurn(entry) : undefined
-    if (!entry || !turn || opts.headless === true || turn.headless === true) return false
+    if (!entry || !turn || opts.headless === true || turn.headless === true) return rejected()
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const serviceTier = opts.serviceTier ?? 'standard'
     const fastMode = opts.fastMode === true
@@ -968,18 +1005,28 @@ export class AgentConnectionManager extends BaseService {
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
       )
     ) {
-      return false
+      return rejected()
     }
-    return (
-      this.isTurnLive(entry, turn) &&
-      hasOpenAgentStreamResource(entry.resources, turn) &&
-      isAgentTurnSentToConnection(entry.resources, turn) &&
-      this.currentConnection(entry)?.redirect?.({
-        message,
-        systemReminder: true,
-        messageSnapshot: opts.messageSnapshot
-      }) === true
-    )
+    if (
+      !this.isTurnLive(entry, turn) ||
+      !hasOpenAgentStreamResource(entry.resources, turn) ||
+      !isAgentTurnSentToConnection(entry.resources, turn)
+    ) {
+      return rejected()
+    }
+    const redirect: AgentRuntimeRedirectInput = {
+      redirectId,
+      segmentId: turn.segmentId,
+      message,
+      systemReminder: true,
+      messageSnapshot: opts.messageSnapshot
+    }
+    const receipt = this.currentConnection(entry)?.redirect?.(redirect) ?? rejected()
+    if (receipt.kind === AgentRuntimeRedirectReceiptKind.Queued && receipt.redirectId === redirectId) {
+      this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.RedirectQueued, redirect })
+      return receipt
+    }
+    return rejected()
   }
 
   /** Release only the exact stream resource named by Conversation's persisted terminal result. */
@@ -1606,7 +1653,7 @@ export class AgentConnectionManager extends BaseService {
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
+      onSteerInjected: (delivery) => this.reserveSteerContinuation(entry, delivery)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.conversation.id)
@@ -1655,7 +1702,8 @@ export class AgentConnectionManager extends BaseService {
       }
     } catch (error) {
       if (this.isCurrentEntry(entry) && this.currentConnection(entry) === connection) {
-        this.handleRuntimeError(entry, error)
+        const segmentId = getAgentCurrentSegmentId(entry.resources)
+        if (segmentId) this.handleRuntimeError(entry, segmentId, error)
       }
     }
   }
@@ -1674,19 +1722,11 @@ export class AgentConnectionManager extends BaseService {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)
-        // During a transition A1a is closed, or the receive-only stream is not open yet. Buffer the
-        // chunks so the Conversation-owned successor stream can replay them in order.
-        const generation = entry.resources.generation
-        const turn = this.currentTurn(entry)
-        if (
-          generation.kind === AgentConnectionResourceKind.SteerTransition ||
-          (generation.kind === AgentConnectionResourceKind.AutonomousTurn &&
-            !hasOpenAgentStreamResource(entry.resources, turn))
-        ) {
-          this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.BufferChunk, chunk: event.chunk })
-          break
-        }
-        if (turn?.controller && this.isTurnLive(entry, turn)) this.enqueueTurnChunk(entry, turn, event.chunk)
+        this.applyResourceEvent(entry, {
+          type: AgentConnectionResourceEventType.RuntimeChunk,
+          segmentId: event.segmentId,
+          chunk: event.chunk
+        })
         break
       }
       case AgentRuntimeEventType.ToolApprovalRequest:
@@ -1695,20 +1735,29 @@ export class AgentConnectionManager extends BaseService {
       case AgentRuntimeEventType.Usage:
         this.recordRuntimeUsage(entry, event.invocation)
         break
-      case AgentRuntimeEventType.SteerBoundary:
-        // The model is about to emit its post-steer assistant message. Finalise the pre-steer parts as
-        // A1a, then buffer the continuation until the Conversation owner opens A2.
-        // A responder exists if the pre-steer turn was interactive or any injected steer came from one.
+      case AgentRuntimeEventType.SteerDelivered:
+        // The exact runtime boundary, not enqueue timing, decides which redirects form this segment.
         this.applyResourceEvent(entry, {
           type: AgentConnectionResourceEventType.SteerBoundary,
-          inputs: event.inputs,
-          headless: this.currentTurn(entry)?.headless === true && event.inputs.every((input) => input.headless === true)
+          redirectIds: event.redirects.map(({ redirectId }) => redirectId),
+          sourceSegmentId: event.sourceSegmentId,
+          successorSegmentId: event.successorSegmentId,
+          headless:
+            this.currentTurn(entry)?.headless === true && event.redirects.every((input) => input.headless === true)
         })
+        this.conversationResults.acceptAgentRedirects(
+          entry.conversation.id,
+          event.redirects.map(({ redirectId }) => redirectId),
+          event.successorSegmentId
+        )
         break
       case AgentRuntimeEventType.SteerUndelivered:
-        for (const input of event.inputs) {
-          this.conversationResults.enqueueAgentUndelivered(entry.conversation.id, input.message.id)
-        }
+        this.applyResourceEvent(entry, {
+          type: AgentConnectionResourceEventType.SteerUndelivered,
+          redirectIds: event.redirectIds,
+          sourceSegmentId: event.sourceSegmentId
+        })
+        this.conversationResults.enqueueAgentUndelivered(entry.conversation.id, event.redirectIds)
         break
       case AgentRuntimeEventType.CompactionStart:
         this.handleCompactionStart(entry, event.trigger)
@@ -1744,7 +1793,7 @@ export class AgentConnectionManager extends BaseService {
         break
       case AgentRuntimeEventType.AutonomousTurnState: {
         if (event.state === AgentRuntimeAutonomousState.Finished) {
-          this.handleAutonomousGenerationFinished(entry, connection)
+          this.handleAutonomousGenerationFinished(entry, event.segmentId, connection)
           break
         }
         // Runtime-generated content is already streaming. The autonomous generation state buffers
@@ -1758,6 +1807,7 @@ export class AgentConnectionManager extends BaseService {
           this.applyResourceEvent(entry, {
             type: AgentConnectionResourceEventType.AutonomousTurnState,
             state: AgentAutonomousGenerationState.Started,
+            segmentId: event.segmentId,
             contextTurn: turn
           })
           this.clearIdleTimer(entry)
@@ -1771,12 +1821,13 @@ export class AgentConnectionManager extends BaseService {
         }
         this.applyResourceEvent(entry, {
           type: AgentConnectionResourceEventType.DriverTerminal,
+          segmentId: event.segmentId,
           outcome: { status: AgentDriverOutcomeKind.Success }
         })
         this.refreshContextUsage(entry)
         break
       case AgentRuntimeEventType.Error:
-        this.handleRuntimeError(entry, event.error)
+        this.handleRuntimeError(entry, event.segmentId, event.error)
         break
     }
   }
@@ -2269,13 +2320,15 @@ export class AgentConnectionManager extends BaseService {
 
   private handleAutonomousGenerationFinished(
     entry: AgentConnectionEntry,
+    segmentId: AgentRuntimeSegmentId,
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const preemptionId = this.suspendedConversationTurnForSession(entry.conversation.id)?.suspendEffectId
     this.applyResourceEvent(entry, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
-      state: AgentAutonomousGenerationState.Finished
+      state: AgentAutonomousGenerationState.Finished,
+      segmentId
     })
     if (preemptionId) this.conversationResults.releaseAgentRuntimeOwnership(entry.conversation.id, preemptionId)
     if (!this.isSessionBusy(entry.conversation.id)) {
@@ -2303,21 +2356,15 @@ export class AgentConnectionManager extends BaseService {
   }
 
   private handleToolApprovalRequest(entry: AgentConnectionEntry, request: AgentRuntimeToolApprovalRequest): void {
-    const turn = this.currentTurn(entry)
     if (request.lifetime === AgentApprovalLifetime.ExecutionBound) {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
       }
-      if (
-        entry.resources.generation.kind === AgentConnectionResourceKind.SteerTransition ||
-        (entry.resources.generation.kind === AgentConnectionResourceKind.AutonomousTurn &&
-          !hasOpenAgentStreamResource(entry.resources, turn))
-      ) {
-        this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.BufferChunk, chunk })
-      } else if (turn?.controller && this.isTurnLive(entry, turn)) {
-        this.enqueueTurnChunk(entry, turn, chunk)
+      const segmentId = getAgentCurrentSegmentId(entry.resources)
+      if (segmentId) {
+        this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.RuntimeChunk, segmentId, chunk })
       } else {
         logger.warn('Live tool approval request lost its turn stream', {
           sessionId: entry.conversation.id,
@@ -2365,10 +2412,12 @@ export class AgentConnectionManager extends BaseService {
       active: false
     })
     if (entry.resources.generation.kind === AgentConnectionResourceKind.AutonomousTurn) {
+      const segmentId = entry.resources.generation.segmentId
       const preemptionId = this.suspendedConversationTurnForSession(entry.conversation.id)?.suspendEffectId
       this.applyResourceEvent(entry, {
         type: AgentConnectionResourceEventType.AutonomousTurnState,
-        state: AgentAutonomousGenerationState.Finished
+        state: AgentAutonomousGenerationState.Finished,
+        segmentId
       })
       if (preemptionId) this.conversationResults.releaseAgentRuntimeOwnership(entry.conversation.id, preemptionId)
     }
@@ -2377,7 +2426,7 @@ export class AgentConnectionManager extends BaseService {
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.conversation.id), {})
   }
 
-  private handleRuntimeError(entry: AgentConnectionEntry, error: unknown): void {
+  private handleRuntimeError(entry: AgentConnectionEntry, segmentId: AgentRuntimeSegmentId, error: unknown): void {
     this.clearApiRetry(entry)
     this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.ClearSteerReservation })
     if (hasAgentCompactionResource(entry.resources)) {
@@ -2393,6 +2442,7 @@ export class AgentConnectionManager extends BaseService {
     ) {
       this.applyResourceEvent(entry, {
         type: AgentConnectionResourceEventType.DriverTerminal,
+        segmentId,
         outcome: { status: AgentDriverOutcomeKind.Error, error }
       })
     } else if (isAbortError(error)) {
@@ -2413,6 +2463,7 @@ export class AgentConnectionManager extends BaseService {
     this.clearApiRetry(entry)
     await this.refreshTurnTraceContext(entry, turn)
     await this.currentConnection(entry)?.send({
+      segmentId: turn.segmentId,
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
@@ -2486,6 +2537,7 @@ export class AgentConnectionManager extends BaseService {
       userMessage: createSyntheticUserMessage(entry.conversation.id),
       assistantMessageId: uuidv7(),
       runtimeTurnId: crypto.randomUUID(),
+      segmentId: entry.resources.generation.segmentId,
       messageSnapshot: entry.messageSnapshot,
       traceId: entry.sessionTraceId
     }
@@ -2499,7 +2551,7 @@ export class AgentConnectionManager extends BaseService {
     }
     if (transition.continuationTurn) throw new Error(`Steer continuation already opened for session ${sessionId}`)
     const reservation = transition.reservation
-    const steerMessage = transition.inputs[0]?.message ?? createSyntheticUserMessage(entry.conversation.id)
+    const steerMessage = transition.redirects[0]?.message ?? createSyntheticUserMessage(entry.conversation.id)
     return {
       kind: AgentConversationRuntimeTurnKind.NativeContinuation,
       conversation: entry.conversation,
@@ -2513,11 +2565,12 @@ export class AgentConnectionManager extends BaseService {
       userMessage: steerMessage,
       assistantMessageId: reservation?.assistantMessageId ?? uuidv7(),
       runtimeTurnId: crypto.randomUUID(),
+      segmentId: transition.successorSegmentId,
       sourceTurnId: transition.sourceTurn.turnId,
       messageSnapshot:
         reservation?.userMessageId === steerMessage.id
           ? reservation.messageSnapshot
-          : (transition.inputs[0]?.messageSnapshot ?? entry.messageSnapshot),
+          : (transition.redirects[0]?.messageSnapshot ?? entry.messageSnapshot),
       traceId: entry.sessionTraceId
     }
   }
@@ -2540,13 +2593,15 @@ export class AgentConnectionManager extends BaseService {
       generation.kind !== AgentConnectionResourceKind.SteerTransition ||
       generation.continuationTurn ||
       generation.sourceTurn.turnId !== intent.sourceTurnId ||
-      generation.inputs[0]?.message.id !== intent.userMessage.id
+      generation.successorSegmentId !== intent.segmentId ||
+      generation.redirects[0]?.message.id !== intent.userMessage.id
     ) {
       throw new Error(`Native continuation intent was superseded for session ${intent.conversation.id}`)
     }
 
     const turn: AgentTurnStreamResource = {
       turnId: intent.runtimeTurnId,
+      segmentId: intent.segmentId,
       assistantMessageId: intent.assistantMessageId,
       userMessage: intent.userMessage,
       modelId: intent.modelId,

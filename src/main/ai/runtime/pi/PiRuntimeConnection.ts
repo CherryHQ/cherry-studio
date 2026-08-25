@@ -42,6 +42,9 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeRedirectInput,
+  AgentRuntimeRedirectReceipt,
+  AgentRuntimeSegmentId,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
@@ -50,7 +53,9 @@ import {
   AgentRuntimeEventType,
   AgentRuntimeMessageAssociation,
   AgentRuntimeReconcileResult,
-  AgentSessionUsageCaptureOwner
+  AgentRuntimeRedirectReceiptKind,
+  AgentSessionUsageCaptureOwner,
+  toAgentRuntimeSegmentId
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
 import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
@@ -86,7 +91,7 @@ const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
   )
 )
 interface PendingSteer {
-  input: AgentRuntimeUserInput
+  input: AgentRuntimeRedirectInput
 }
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
@@ -96,8 +101,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly providerSpans = new Set<Span>()
   private readonly toolSpans = new Map<string, Span>()
   private readonly adapter = new PiStreamAdapter({
-    enqueue: (chunk) => this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk })
+    enqueue: (chunk) => this.emitChunk(chunk)
   })
+  private activeSegmentId?: AgentRuntimeSegmentId
   private session?: AgentSession
   private mcpBridge?: PiMcpToolBridge
   private unsubscribe?: () => void
@@ -135,6 +141,27 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
+  }
+
+  private emitChunk(chunk: Extract<AgentRuntimeEvent, { type: AgentRuntimeEventType.Chunk }>['chunk']): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, segmentId: this.activeSegmentId, chunk })
+  }
+
+  private emitError(error: unknown): void {
+    if (!this.activeSegmentId) {
+      logger.error(
+        'pi runtime failed without an active segment',
+        error instanceof Error ? error : new Error(String(error))
+      )
+      return
+    }
+    this.eventQueue.push({ type: AgentRuntimeEventType.Error, segmentId: this.activeSegmentId, error })
+  }
+
+  private emitTurnComplete(): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete, segmentId: this.activeSegmentId })
   }
 
   async start(): Promise<this> {
@@ -364,9 +391,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   send(input: AgentRuntimeUserInput): void {
+    this.activeSegmentId = input.segmentId
     const session = this.session
     if (!session) {
-      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error('pi session is not started') })
+      this.emitError(new Error('pi session is not started'))
       return
     }
     const rawContent = buildAgentUserContent(input.message)
@@ -390,7 +418,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           this.manualCompactInFlight = false
           if (this.closed) return
           logger.error('pi compact failed', error as Error)
-          this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
+          this.emitError(error)
         }
       )
       return
@@ -408,9 +436,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
   }
 
-  redirect(input: AgentRuntimeUserInput): boolean {
+  redirect(input: AgentRuntimeRedirectInput): AgentRuntimeRedirectReceipt {
+    const rejected = (): AgentRuntimeRedirectReceipt => ({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId: input.redirectId
+    })
     const session = this.session
-    if (!session?.isStreaming) return false
+    if (!session?.isStreaming || this.activeSegmentId !== input.segmentId) return rejected()
 
     // buildAgentUserContent intentionally flattens attachments to absolute paths for filesystem agents;
     // pi's native image channel stays unused until Cherry models multimodal agent attachments end-to-end.
@@ -421,9 +453,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.removePendingSteer(pending)
       if (this.closed) return
       logger.error('pi steer failed', error as Error)
-      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
+      this.emitError(error)
     })
-    return true
+    return { kind: AgentRuntimeRedirectReceiptKind.Queued, redirectId: input.redirectId }
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
@@ -529,7 +561,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     if (isUserMessageStart(event) && this.pendingSteers.length > 0) {
       const delivered = this.takeDeliveredSteers()
-      if (delivered.length > 0) this.eventQueue.push({ type: AgentRuntimeEventType.SteerBoundary, inputs: delivered })
+      const sourceSegmentId = this.activeSegmentId
+      if (delivered.length > 0 && sourceSegmentId) {
+        const successorSegmentId = toAgentRuntimeSegmentId(randomUUID())
+        const delivery = { redirects: delivered, sourceSegmentId, successorSegmentId }
+        this.input.onSteerInjected?.(delivery)
+        this.activeSegmentId = successorSegmentId
+        this.eventQueue.push({ type: AgentRuntimeEventType.SteerDelivered, ...delivery })
+      }
     }
 
     this.adapter.handleEvent(event)
@@ -577,15 +616,22 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (undelivered.length > 0) {
       // pi does not drain its steering queue when a run ends. The host owns re-queuing.
       this.session?.clearQueue()
-      this.eventQueue.push({ type: AgentRuntimeEventType.SteerUndelivered, inputs: undelivered })
+      const sourceSegmentId = undelivered[0]?.segmentId
+      if (sourceSegmentId) {
+        this.eventQueue.push({
+          type: AgentRuntimeEventType.SteerUndelivered,
+          redirectIds: undelivered.map(({ redirectId }) => redirectId),
+          sourceSegmentId
+        })
+      }
     }
     if (error || this.lastStopReason === 'error') {
       const failure = error instanceof Error ? error : new Error(this.lastAgentError ?? 'pi agent turn failed')
       logger.error('pi prompt failed', failure)
-      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: failure })
+      this.emitError(failure)
     } else {
       this.emitContextUsage()
-      this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
+      this.emitTurnComplete()
     }
     this.lastStopReason = undefined
     this.lastAgentError = undefined
@@ -725,10 +771,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // clearing the flag here makes the later reject handler a no-op.
       if (this.manualCompactInFlight) {
         this.manualCompactInFlight = false
-        this.eventQueue.push({
-          type: AgentRuntimeEventType.Error,
-          error: new Error(event.errorMessage ?? 'pi compaction aborted')
-        })
+        this.emitError(new Error(event.errorMessage ?? 'pi compaction aborted'))
         return
       }
       // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
@@ -751,10 +794,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed) return
     if (!this.manualCompactInFlight) return
     this.manualCompactInFlight = false
-    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
+    this.emitTurnComplete()
   }
 
-  private takeDeliveredSteers(): AgentRuntimeUserInput[] {
+  private takeDeliveredSteers(): AgentRuntimeRedirectInput[] {
     const mode = this.session?.steeringMode ?? 'one-at-a-time'
     const count = mode === 'all' ? this.pendingSteers.length : 1
     return this.pendingSteers.splice(0, count).map((pending) => pending.input)

@@ -7,6 +7,7 @@ import {
   type ConversationTurnId
 } from '@shared/ai/conversation'
 
+import { AgentRuntimeRedirectReceiptKind } from '../runtime/types'
 import {
   ConversationExecutionAbortResultKind,
   type ConversationExecutionSink,
@@ -81,15 +82,18 @@ export class ConversationEffectExecutor {
         ports.execution.requestYield(effect.conversation, effect.turnId)
         return
 
-      case ConversationEffectType.RedirectInput:
+      case ConversationEffectType.RedirectInput: {
+        const receipt = ports.execution.redirect(effect)
         this.dispatch({
-          type: ports.execution.redirect(effect)
-            ? ConversationCommandType.RedirectAccepted
-            : ConversationCommandType.RedirectRejected,
+          type:
+            receipt.kind === AgentRuntimeRedirectReceiptKind.Queued
+              ? ConversationCommandType.RedirectQueued
+              : ConversationCommandType.RedirectRejected,
           turnId: effect.turnId,
           inputId: effect.input.id
         })
         return
+      }
 
       case ConversationEffectType.ResumeExecution:
         try {
@@ -223,7 +227,7 @@ export class ConversationEffectExecutor {
         return
 
       case ConversationEffectType.ScheduleNextStep:
-        ports.scheduleNextStep(effect.conversation, effect.turnId, effect.input)
+        ports.scheduleNextStep(effect.conversation, effect.turnId, effect.inputs)
         return
 
       case ConversationEffectType.DropInputs:

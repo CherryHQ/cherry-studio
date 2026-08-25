@@ -40,6 +40,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeSegmentId,
   AgentRuntimeTraceContext,
   AgentSessionUsageCapture
 } from '../types'
@@ -49,7 +50,8 @@ import {
   AgentRuntimeEventType,
   AgentRuntimeMessageAssociation,
   AgentRuntimeReconcileResult,
-  AgentSessionUsageCaptureOwner
+  AgentSessionUsageCaptureOwner,
+  toAgentRuntimeSegmentId
 } from '../types'
 import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './compositionBuilder'
 import { DshBridgeServer } from './DshBridgeServer'
@@ -96,7 +98,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
       this.subagents.noteMainChunk(chunk)
-      this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk })
+      this.emitChunk(chunk)
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
     onTurnEnd: (reason) => this.handleTurnEnd(reason),
@@ -104,8 +106,17 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     onApiRetry: (retry) => this.eventQueue.push({ type: AgentRuntimeEventType.ApiRetry, retry }),
     onAutonomousTurnState: (state) => {
       // Reconcile treats a goal round like any live turn: policy swaps wait for idle.
-      if (state === AgentRuntimeAutonomousState.Started) this.markTurnActive()
-      this.eventQueue.push({ type: AgentRuntimeEventType.AutonomousTurnState, state })
+      if (state === AgentRuntimeAutonomousState.Started) {
+        this.activeSegmentId = toAgentRuntimeSegmentId(randomUUID())
+        this.markTurnActive()
+      }
+      if (this.activeSegmentId) {
+        this.eventQueue.push({
+          type: AgentRuntimeEventType.AutonomousTurnState,
+          state,
+          segmentId: this.activeSegmentId
+        })
+      }
     },
     onPlanMode: (active) => this.handlePlanModeFold(active)
   })
@@ -118,6 +129,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private subscription?: NotificationSubscription
   private compositionPath?: string
   private resumeToken?: string
+  private activeSegmentId?: AgentRuntimeSegmentId
   private closed = false
   private turnActive = false
   /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
@@ -157,6 +169,27 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.subagents = new DshSubagentCoordinator(input.sessionId, this.buildSubagentSink())
   }
 
+  private emitChunk(chunk: Extract<AgentRuntimeEvent, { type: AgentRuntimeEventType.Chunk }>['chunk']): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, segmentId: this.activeSegmentId, chunk })
+  }
+
+  private emitTurnComplete(): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete, segmentId: this.activeSegmentId })
+  }
+
+  private emitError(error: unknown): void {
+    if (!this.activeSegmentId) {
+      logger.error(
+        'dsh runtime failed without an active segment',
+        error instanceof Error ? error : new Error(String(error))
+      )
+      return
+    }
+    this.eventQueue.push({ type: AgentRuntimeEventType.Error, segmentId: this.activeSegmentId, error })
+  }
+
   /** Bridge-socket events. A stream-presented approval whose `tool/call` has not landed yet would
    *  truncate the turn accumulator instead of showing a card, so materialize its tool part first. */
   private emitBridgeEvent(event: AgentRuntimeEvent): void {
@@ -183,7 +216,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         // accumulator tolerates orphans; the turn stream's does not (it dies
         // silently and the whole turn persists empty).
         if (turnToken !== null && turnToken === this.turnEpoch && this.turnActive) {
-          this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk })
+          this.emitChunk(chunk)
         } else {
           this.eventQueue.push({ type: AgentRuntimeEventType.BackgroundFlowChunk, rootToolCallId, chunk })
         }
@@ -192,10 +225,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (this.closed) return
         this.eventQueue.push({ type: AgentRuntimeEventType.BackgroundTaskEvent, data })
         if (this.turnActive) {
-          this.eventQueue.push({
-            type: AgentRuntimeEventType.Chunk,
-            chunk: { type: 'data-agent-task-event', id: `task-${data.taskId}-${edgeId}`, data }
-          })
+          this.emitChunk({ type: 'data-agent-task-event', id: `task-${data.taskId}-${edgeId}`, data })
         }
       },
       emitTasks: (tasks) => {
@@ -403,9 +433,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
+    this.activeSegmentId = input.segmentId
     const bridge = this.bridge
     if (!bridge) {
-      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error('dsh session is not started') })
+      this.emitError(new Error('dsh session is not started'))
       return
     }
     const rawContent = buildAgentUserContent(input.message)
@@ -429,7 +460,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.adapter.abortTurn()
       if (this.closed) return
       logger.error('dsh prompt failed', error as Error)
-      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
+      this.emitError(error)
     }
   }
 
@@ -687,7 +718,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       if (this.closed) return
       logger.error('dsh notification stream failed', error as Error)
-      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
+      this.emitError(error)
       this.eventQueue.close()
     }
   }
@@ -709,7 +740,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.turnActive = false
       if (this.closed) return true
       logger.error('dsh command dispatch failed', error as Error)
-      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
+      this.emitError(error)
       return true
     }
     if (!outcome.handled) {
@@ -718,16 +749,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
     if (outcome.text) this.pushCommandOutput(outcome.text)
     this.turnActive = false
-    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
+    this.emitTurnComplete()
     return true
   }
 
   /** Command outcomes are host-fabricated assistant text — they never reach the model. */
   private pushCommandOutput(text: string): void {
     const id = `dsh-command-${randomUUID()}`
-    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk: { type: 'text-start', id } })
-    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk: { type: 'text-delta', id, delta: text } })
-    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk: { type: 'text-end', id } })
+    this.emitChunk({ type: 'text-start', id })
+    this.emitChunk({ type: 'text-delta', id, delta: text })
+    this.emitChunk({ type: 'text-end', id })
   }
 
   private handleTurnEnd(reason: TurnEndReason): void {
@@ -736,21 +767,21 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     switch (reason.kind) {
       case 'completed':
       case 'max-tokens':
-        this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
+        this.emitTurnComplete()
         return
       case 'aborted':
       case 'interrupted':
         // Arrives only during teardown/cancel — the host is already settling this turn.
-        this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
+        this.emitTurnComplete()
         return
       case 'error': {
         const message = reason.error.message.trim() || 'dsh agent turn failed'
-        this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error(message) })
+        this.emitError(new Error(message))
         return
       }
       default:
         // 'blocked' and merge-extended kinds fail loud rather than stranding the host turn.
-        this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error(`dsh turn ended: ${reason.kind}`) })
+        this.emitError(new Error(`dsh turn ended: ${reason.kind}`))
     }
   }
 

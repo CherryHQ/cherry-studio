@@ -7,6 +7,7 @@ import {
   type ConversationTurnId
 } from '@shared/ai/conversation'
 
+import type { AgentRuntimeRedirectId, AgentRuntimeSegmentId } from '../runtime/types'
 import type {
   CommittedConversationExecution,
   ConversationHistoryPort,
@@ -15,13 +16,31 @@ import type {
   ValidatedConversationIntent
 } from '../streamManager'
 
-export interface CommittedConversationInputBinding {
+interface CommittedConversationInputBindingBase {
   readonly request: MainDispatchRequest
   readonly validation?: ValidatedConversationIntent
   readonly historyRowId?: string
-  readonly agentSegment?: boolean
   readonly agentAutonomous?: boolean
 }
+
+export enum AgentRedirectBindingPhase {
+  Queued = 'queued',
+  Delivered = 'delivered'
+}
+
+type AgentRedirectBinding =
+  | {
+      readonly phase: AgentRedirectBindingPhase.Queued
+      readonly redirectId: AgentRuntimeRedirectId
+    }
+  | {
+      readonly phase: AgentRedirectBindingPhase.Delivered
+      readonly redirectId: AgentRuntimeRedirectId
+      readonly segmentId: AgentRuntimeSegmentId
+    }
+
+export type CommittedConversationInputBinding = CommittedConversationInputBindingBase &
+  ({ readonly agentRedirect?: never } | { readonly agentRedirect: AgentRedirectBinding })
 
 export interface ConversationExecutionBinding {
   readonly history: ConversationHistoryPort
@@ -62,9 +81,28 @@ export class ConversationBindingRegistry {
     return this.inputs.get(inputId)
   }
 
-  markAgentSegment(inputId: ConversationInputId): void {
+  bindAgentRedirect(inputId: ConversationInputId, redirectId: AgentRuntimeRedirectId): void {
     const binding = this.inputs.get(inputId)
-    if (binding) this.inputs.set(inputId, { ...binding, agentSegment: true })
+    if (binding) {
+      this.inputs.set(inputId, {
+        ...binding,
+        agentRedirect: { phase: AgentRedirectBindingPhase.Queued, redirectId }
+      })
+    }
+  }
+
+  markAgentSegment(inputId: ConversationInputId, segmentId: AgentRuntimeSegmentId): void {
+    const binding = this.inputs.get(inputId)
+    if (binding?.agentRedirect) {
+      this.inputs.set(inputId, {
+        ...binding,
+        agentRedirect: {
+          phase: AgentRedirectBindingPhase.Delivered,
+          redirectId: binding.agentRedirect.redirectId,
+          segmentId
+        }
+      })
+    }
   }
 
   findAgentDelivery(
@@ -75,6 +113,16 @@ export class ConversationBindingRegistry {
       ([, binding]) =>
         conversationRefsEqual(binding.request.conversation, ref) &&
         binding.request.agentDeliveryMessage?.id === userMessageId
+    )
+  }
+
+  findAgentRedirect(
+    ref: ConversationRef,
+    redirectId: AgentRuntimeRedirectId
+  ): [ConversationInputId, CommittedConversationInputBinding] | undefined {
+    return [...this.inputs].find(
+      ([, binding]) =>
+        conversationRefsEqual(binding.request.conversation, ref) && binding.agentRedirect?.redirectId === redirectId
     )
   }
 

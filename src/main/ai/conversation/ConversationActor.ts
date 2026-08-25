@@ -16,6 +16,7 @@ import {
 } from '@shared/ai/conversation'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import type { AgentRuntimeRedirectId, AgentRuntimeSegmentId } from '../runtime/types'
 import { ConversationAdmissionError } from './ConversationAdmissionError'
 import { ConversationEffectExecutor } from './ConversationEffectExecutor'
 import type { ConversationPortResolver, ConversationRuntimeIdFactory } from './conversationPorts'
@@ -94,7 +95,7 @@ export type ConversationHistoryCommitReservation =
   | {
       readonly kind: ConversationHistoryCommitKind.NextStep
       readonly turnId: ConversationTurnId
-      readonly inputId: ConversationInput['id']
+      readonly inputIds: readonly ConversationInput['id'][]
       readonly executions: readonly ReservedExecutionIdentity[]
     }
   | {
@@ -390,17 +391,17 @@ export class ConversationActor {
 
   reserveStep(
     turnId: ConversationTurnId,
-    input: ConversationInput,
+    inputs: readonly ConversationInput[],
     executionModelIds: readonly UniqueModelId[]
   ): Extract<ConversationHistoryCommitReservation, { kind: ConversationHistoryCommitKind.NextStep }> {
     const executions = this.reserveExecutionIdentities(executionModelIds)
     this.assertPreview({
       type: ConversationCommandType.StepCommitted,
       turnId,
-      inputId: input.id,
+      inputIds: inputs.map(({ id }) => id),
       executions: this.provisionalExecutionPlans(executions)
     })
-    return { kind: ConversationHistoryCommitKind.NextStep, turnId, inputId: input.id, executions }
+    return { kind: ConversationHistoryCommitKind.NextStep, turnId, inputIds: inputs.map(({ id }) => id), executions }
   }
 
   reserveInteraction(
@@ -652,18 +653,22 @@ export class ConversationActor {
 
   commitStep(
     turnId: ConversationTurnId,
-    inputId: ConversationInputId,
+    inputIds: readonly ConversationInputId[],
     executions: readonly ConversationExecutionPlan[]
   ): ConversationTransition {
-    return this.commit({ type: ConversationCommandType.StepCommitted, turnId, inputId, executions })
+    return this.commit({ type: ConversationCommandType.StepCommitted, turnId, inputIds, executions })
   }
 
-  failStep(turnId: ConversationTurnId, inputId: ConversationInputId, error: ReturnType<typeof serializeError>) {
+  failStep(
+    turnId: ConversationTurnId,
+    inputIds: readonly ConversationInputId[],
+    error: ReturnType<typeof serializeError>
+  ) {
     const ids = this.ids()
     return this.commit({
       type: ConversationCommandType.StepFailed,
       turnId,
-      inputId,
+      inputIds,
       error,
       turnTerminalEffectId: ids.effect(),
       quiescenceEffectId: ids.effect(),
@@ -763,6 +768,32 @@ export class ConversationActor {
           ? this.state.turn.id
           : toConversationTurnId('stale-redirect-result'),
       inputId
+    })
+  }
+
+  acceptRedirects(
+    redirectIds: readonly AgentRuntimeRedirectId[],
+    segmentId: AgentRuntimeSegmentId
+  ): ConversationTransition {
+    return this.commit({
+      type: ConversationCommandType.RedirectDelivered,
+      turnId:
+        this.state.phase === ConversationPhase.Running
+          ? this.state.turn.id
+          : toConversationTurnId('stale-redirect-delivery'),
+      redirectIds,
+      segmentId
+    })
+  }
+
+  rejectUndeliveredRedirects(redirectIds: readonly AgentRuntimeRedirectId[]): ConversationTransition {
+    return this.commit({
+      type: ConversationCommandType.RedirectUndelivered,
+      turnId:
+        this.state.phase === ConversationPhase.Running
+          ? this.state.turn.id
+          : toConversationTurnId('stale-redirect-undelivered'),
+      redirectIds
     })
   }
 
