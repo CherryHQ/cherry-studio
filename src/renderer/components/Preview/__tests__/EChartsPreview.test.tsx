@@ -72,6 +72,7 @@ describe('EChartsPreview', () => {
     })
     mocks.theme.theme = 'light'
     resizeCallback = undefined
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 640, height: 256 } as DOMRect)
     vi.stubGlobal(
       'ResizeObserver',
       vi.fn().mockImplementation((callback: ResizeObserverCallback) => {
@@ -84,11 +85,30 @@ describe('EChartsPreview', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   const advanceDebounce = async () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300)
+    })
+  }
+
+  const getChartContainer = () => document.querySelector('.echarts') as HTMLElement
+
+  const stubContainerSize = (width: number, height: number) => {
+    const container = getChartContainer()
+    if (container) {
+      vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ width, height } as DOMRect)
+    }
+  }
+
+  const fireResize = (width: number, height: number) => {
+    act(() => {
+      resizeCallback?.(
+        [{ contentRect: { width, height } } as unknown as ResizeObserverEntry],
+        mocks.resizeObserver as unknown as ResizeObserver
+      )
     })
   }
 
@@ -172,15 +192,89 @@ describe('EChartsPreview', () => {
     expect(mocks.chart.dispose).toHaveBeenCalledTimes(1)
   })
 
-  it('calls chart.resize when ResizeObserver fires', async () => {
+  it('calls chart.resize when ResizeObserver reports positive dimensions', async () => {
     render(<EChartsPreview>{validOption}</EChartsPreview>)
     await advanceDebounce()
 
-    act(() => {
-      resizeCallback?.([], mocks.resizeObserver as unknown as ResizeObserver)
-    })
+    fireResize(640, 256)
 
     expect(mocks.chart.resize).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not initialize the chart in a zero-sized container', async () => {
+    render(<EChartsPreview>{validOption}</EChartsPreview>)
+    stubContainerSize(0, 0)
+    await advanceDebounce()
+
+    expect(mocks.init).not.toHaveBeenCalled()
+    expect(mocks.chart.setOption).not.toHaveBeenCalled()
+  })
+
+  it('initializes the chart with the latest ready option when the container transitions from zero to positive size', async () => {
+    const { rerender } = render(<EChartsPreview>{validOption}</EChartsPreview>)
+    stubContainerSize(0, 0)
+    await advanceDebounce()
+
+    expect(mocks.init).not.toHaveBeenCalled()
+
+    const updatedOption = JSON.stringify({ series: [{ data: [5, 6], type: 'line' }] })
+    rerender(<EChartsPreview>{updatedOption}</EChartsPreview>)
+    await advanceDebounce()
+
+    expect(mocks.init).not.toHaveBeenCalled()
+
+    fireResize(640, 256)
+
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+    expect(mocks.chart.setOption).toHaveBeenCalledWith(JSON.parse(updatedOption), true)
+  })
+
+  it('calls resize on subsequent positive-size ResizeObserver notifications without re-initializing', async () => {
+    render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
+    fireResize(640, 256)
+    fireResize(800, 400)
+
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+    expect(mocks.chart.resize).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not initialize the chart when ResizeObserver reports zero dimensions', async () => {
+    render(<EChartsPreview>{validOption}</EChartsPreview>)
+    stubContainerSize(0, 0)
+    await advanceDebounce()
+
+    fireResize(0, 0)
+
+    expect(mocks.init).not.toHaveBeenCalled()
+    expect(mocks.chart.resize).not.toHaveBeenCalled()
+  })
+
+  it('does not re-initialize with a stale option after invalid JSON follows a valid render', async () => {
+    const { rerender } = render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+
+    // Simulate the container becoming hidden and dispose the instance via a theme change.
+    stubContainerSize(0, 0)
+    mocks.theme.theme = 'dark'
+    rerender(<EChartsPreview enableToolbar>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
+    // The disposed chart should not be re-initialized while the container has no size.
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+
+    // Now replace the valid option with invalid JSON while still hidden.
+    rerender(<EChartsPreview enableToolbar>{'{invalid'}</EChartsPreview>)
+    await advanceDebounce()
+
+    expect(screen.getByText('Invalid JSON configuration')).toBeInTheDocument()
+
+    // Becoming visible again must not resurrect the previous valid option.
+    fireResize(640, 256)
+
+    expect(mocks.init).toHaveBeenCalledTimes(1)
   })
 
   it('does not surface JSON parse errors while streaming', async () => {

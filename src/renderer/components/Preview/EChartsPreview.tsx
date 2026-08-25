@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { EChartsCoreOption } from 'echarts'
 import * as echarts from 'echarts'
@@ -8,6 +9,8 @@ import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 
+const logger = loggerService.withContext('EChartsPreview')
+
 const EChartsPreview = ({
   children,
   enableToolbar = false,
@@ -17,11 +20,24 @@ const EChartsPreview = ({
   const { theme } = useTheme()
   const { t } = useTranslation()
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const optionRef = useRef<EChartsCoreOption | null>(null)
   const wasStreamingRef = useRef(isStreaming)
+
+  const renderChartOption = useCallback(
+    (container: HTMLDivElement, option: EChartsCoreOption) => {
+      if (!chartRef.current) {
+        chartRef.current = echarts.init(container, theme === 'dark' ? 'dark' : undefined, { renderer: 'svg' })
+      }
+
+      chartRef.current.setOption(option, true)
+    },
+    [theme]
+  )
 
   const renderChart = useCallback(
     async (content: string, container: HTMLDivElement) => {
       if (!content) {
+        optionRef.current = null
         return
       }
 
@@ -36,16 +52,20 @@ const EChartsPreview = ({
       try {
         option = JSON.parse(content) as EChartsCoreOption
       } catch {
+        optionRef.current = null
         throw new Error(t('code_block.preview.invalid_json'))
       }
 
-      if (!chartRef.current) {
-        chartRef.current = echarts.init(container, theme === 'dark' ? 'dark' : undefined, { renderer: 'svg' })
+      optionRef.current = option
+
+      const { width, height } = container.getBoundingClientRect()
+      if (!chartRef.current && (width === 0 || height === 0)) {
+        return
       }
 
-      chartRef.current.setOption(option, true)
+      renderChartOption(container, option)
     },
-    [isStreaming, t, theme]
+    [isStreaming, t, renderChartOption]
   )
 
   const { containerRef, error, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
@@ -68,21 +88,66 @@ const EChartsPreview = ({
     }
   }, [theme])
 
+  // Resize the chart when the container size changes.
+  // because ECharts does not automatically detect container size changes.
   useEffect(() => {
-    if (!containerRef.current) {
+    const container = containerRef.current
+    if (!container) {
       return
+    }
+
+    const initChartIfReady = (width: number, height: number) => {
+      if (width === 0 || height === 0) {
+        return
+      }
+
+      const option = optionRef.current
+      if (!option || chartRef.current) {
+        return
+      }
+
+      try {
+        renderChartOption(container, option)
+      } catch (error) {
+        logger.error(
+          'Failed to initialize chart on container resize',
+          error instanceof Error ? error : new Error(String(error))
+        )
+      }
     }
 
     let resizeObserver: ResizeObserver | null = null
     if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => chartRef.current?.resize())
-      resizeObserver.observe(containerRef.current)
+      const { width, height } = container.getBoundingClientRect()
+      initChartIfReady(width, height)
+
+      resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0]
+        if (!entry) {
+          return
+        }
+
+        const { width, height } = entry.contentRect
+        if (width === 0 || height === 0) {
+          return
+        }
+
+        if (!chartRef.current) {
+          initChartIfReady(width, height)
+        } else {
+          // Resize the chart when the container size changes.
+          // because ECharts does not automatically detect container size changes.
+          chartRef.current.resize()
+        }
+      })
+
+      resizeObserver.observe(container)
     }
 
     return () => {
       resizeObserver?.disconnect()
     }
-  }, [containerRef])
+  }, [containerRef, renderChartOption])
 
   return (
     <ImagePreviewLayout
