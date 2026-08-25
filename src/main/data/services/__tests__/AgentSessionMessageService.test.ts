@@ -986,6 +986,25 @@ describe('AgentSessionMessageService', () => {
     ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
   })
 
+  it('preserves turnOptions when a data patch sends only parts', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'answer' }], turnOptions: { reasoningEffort: 'high', fastMode: true } }
+      }
+    })
+
+    const updated = agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'edited' }] }
+    })
+
+    expect(updated.data.parts).toEqual([{ type: 'text', text: 'edited' }])
+    expect(updated.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+  })
+
   it('replaces parts on the original assistant row', () => {
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -1189,7 +1208,10 @@ describe('AgentSessionMessageService', () => {
     expect(result.nextCursor).toBeUndefined()
   })
 
-  it('keeps searchable_text and FTS index in sync from message data', async () => {
+  it('indexes text parts but excludes reasoning, and keeps the FTS index in sync', async () => {
+    // Privacy guard: `reasoning` parts hold the model's hidden chain-of-thought, which the session
+    // UI does not render. They must never reach `searchable_text` (which global-search snippets
+    // show verbatim) nor the FTS index. Only `text` parts are searchable.
     await dbh.db.insert(agentSessionMessageTable).values({
       id: USER_MESSAGE_ID,
       sessionId: SESSION_ID,
@@ -1207,7 +1229,17 @@ describe('AgentSessionMessageService', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
-    expect(inserted.searchableText).toBe('hello\nthinking')
+    expect(inserted.searchableText).toBe('hello')
+
+    const helloMatches = dbh.sqlite
+      .prepare(
+        `SELECT m.id
+            FROM agent_session_message m
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
+            WHERE agent_session_message_fts MATCH ?`
+      )
+      .all('hello') as Array<{ id: string }>
+    expect(helloMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
 
     const thinkingMatches = dbh.sqlite
       .prepare(
@@ -1217,7 +1249,7 @@ describe('AgentSessionMessageService', () => {
             WHERE agent_session_message_fts MATCH ?`
       )
       .all('thinking') as Array<{ id: string }>
-    expect(thinkingMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
+    expect(thinkingMatches).toHaveLength(0)
 
     await dbh.db
       .update(agentSessionMessageTable)

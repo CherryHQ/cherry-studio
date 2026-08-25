@@ -282,7 +282,7 @@ semantics and emits the corresponding public `data-ui` `part:*` tokens without r
 Existing renderer code, application tests, and custom themes that use `data-slot` continue to work; new selectors can
 use the generated semantic layer. The application-level token grammar, stability tiers, maintained anchors, and
 selector rules are defined by the
-[UI Semantic Contract](../../docs/references/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
+[UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
 are public selectors; inferred roles are best-effort discovery coordinates.
 
 ## Directory Structure
@@ -307,7 +307,7 @@ icons/                  # Raw icon assets for code generation
 
 ## Naming Conventions
 
-All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/naming-conventions.md`](../../docs/references/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
+All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/architecture/naming-conventions.md`](../../docs/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
 
 Examples:
 

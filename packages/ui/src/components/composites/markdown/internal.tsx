@@ -12,6 +12,8 @@ import { type ReactElement, useCallback, useMemo } from 'react'
 import remarkAlert from 'remark-github-blockquote-alert'
 import {
   type AnimateOptions,
+  Block,
+  type BlockProps,
   type Components,
   defaultRehypePlugins,
   defaultRemarkPlugins,
@@ -33,26 +35,43 @@ import {
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
 
+function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
+  const markdownCtx = useMemo(() => ({ content }), [content])
+
+  return (
+    <MarkdownBlockContext value={markdownCtx}>
+      <Block content={content} {...props} />
+    </MarkdownBlockContext>
+  )
+}
+
 interface ResolvedDefaultRehypePlugins {
   raw: Pluggable
   sanitizeFn: Pluggable
   sanitizeSchema: MarkdownSanitizeSchema
-  harden: Pluggable
+  hardenFn: Pluggable
+  hardenOptions: Record<string, unknown>
 }
 
 function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
   const plugins = defaultRehypePlugins as Partial<Record<string, unknown>>
   const sanitize = plugins.sanitize
+  const harden = plugins.harden
 
-  if (!plugins.raw || !plugins.harden || !Array.isArray(sanitize) || sanitize.length < 2) {
+  if (!plugins.raw || !harden || !Array.isArray(sanitize) || sanitize.length < 2) {
     throw new Error('Unexpected Streamdown defaultRehypePlugins shape')
   }
+
+  // Streamdown ships `harden` as [plugin, options]; tolerate a bare plugin so a minor
+  // upstream release cannot turn this into a render-time throw.
+  const [hardenFn, hardenOptions] = Array.isArray(harden) ? harden : [harden, undefined]
 
   return {
     raw: plugins.raw as Pluggable,
     sanitizeFn: sanitize[0] as Pluggable,
     sanitizeSchema: sanitize[1] as MarkdownSanitizeSchema,
-    harden: plugins.harden as Pluggable
+    hardenFn: hardenFn as Pluggable,
+    hardenOptions: (hardenOptions ?? {}) as Record<string, unknown>
   }
 }
 
@@ -101,14 +120,16 @@ export function MarkdownCore({
   }, [extraRemarkPlugins])
 
   const rehypePlugins = useMemo(() => {
-    const { raw, sanitizeFn, sanitizeSchema, harden } = resolveDefaultRehypePlugins()
+    const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
     const result: Pluggable[] = [raw]
     result.push(
       [sanitizeFn, extendedSchema] as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
       [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
-      harden,
+      // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
+      // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
+      [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
     if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
@@ -135,6 +156,7 @@ export function MarkdownCore({
     <MarkdownBlockContext value={markdownCtx}>
       <div className={['markdown', className].filter(Boolean).join(' ')}>
         <Streamdown
+          BlockComponent={MarkdownBlock}
           mode={mode}
           plugins={plugins}
           rehypePlugins={rehypePlugins}

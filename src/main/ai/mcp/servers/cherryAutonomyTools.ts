@@ -133,7 +133,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: NOTIFY_TOOL_NAME,
   description:
-    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu forward any file; WeChat images only; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
+    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -150,10 +150,9 @@ const NOTIFY_TOOL: Tool = {
         type: 'string',
         description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
       }
-    },
-    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
-    // the trimmed values (empty strings must still be rejected).
-    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
+    }
+    // ponytail: no root anyOf — some providers (xAI) reject union root schemas; the handler
+    // enforces "message or file_path" on the trimmed values anyway.
   }
 }
 

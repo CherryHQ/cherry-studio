@@ -1,3 +1,10 @@
+---
+description: Renderer DataApi usage - useQuery, useMutation, useInfiniteQuery hooks and data change notifications
+sources:
+  - src/renderer/data/hooks/useDataApi.ts
+  - src/renderer/data/DataApiService.ts
+---
+
 # DataApi in Renderer
 
 This guide covers how to use the DataApi system in React components and the renderer process.

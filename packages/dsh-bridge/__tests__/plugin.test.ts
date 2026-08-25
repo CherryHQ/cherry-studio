@@ -5,7 +5,9 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import type { UserQuestionProvider } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { apply } from '../src/plugin'
@@ -86,7 +88,8 @@ const openParams = {
     readTools: [],
     editTools: [],
     autoApprovedTools: [],
-    approvalRequiredTools: []
+    approvalRequiredTools: [],
+    nonBypassableApprovalTools: []
   },
   tools: []
 }
@@ -144,6 +147,66 @@ describe('cherry bridge plugin', () => {
 
     const toolCall = host.requests.find((entry) => entry.method === 'tool/call')
     expect(toolCall?.params).toMatchObject({ sessionId: 'session-1', name: 'echo', args: { value: 1 } })
+  })
+
+  it('correlates a plan review with the newest matching exit_plan_mode call', async () => {
+    const host = await startHost()
+    const plan = '# Revised plan'
+    const agent = {
+      id: 'session-1',
+      session: {
+        events: [
+          {
+            type: 'tool/call',
+            data: { callId: 'exit-plan-call-1', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
+          },
+          {
+            type: 'tool/call',
+            data: { callId: 'exit-plan-call-2', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
+          }
+        ]
+      }
+    } as unknown as Agent
+    let provider: UserQuestionProvider | undefined
+    const registerProvider = vi.fn((candidate: UserQuestionProvider) => {
+      provider = candidate
+      return () => undefined
+    })
+    const effect = vi.fn((factory: () => unknown) => {
+      const disposer = factory()
+      if (typeof disposer === 'function') cleanup.push(disposer as () => void)
+      return () => undefined
+    })
+    const ctx = makeContext({
+      agents: { resume: vi.fn(), create: vi.fn(), get: vi.fn(() => agent) },
+      userQuestions: { registerProvider },
+      effect
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!provider) throw new Error('user-questions provider was not registered')
+
+    const answer = provider.ask({
+      agent,
+      questions: [
+        {
+          id: 'plan-review',
+          question: 'Approve?',
+          detail: plan,
+          options: [{ label: 'Approve' }],
+          intent: { kind: 'plan-review', approve: 'Approve' }
+        }
+      ]
+    })
+    await expect
+      .poll(() => host.requests.find((request) => request.method === 'question/ask'))
+      .toMatchObject({
+        params: { sessionId: 'session-1', callId: 'exit-plan-call-2' }
+      })
+    await expect(answer).resolves.toEqual({})
   })
 
   it('rejects an unknown method instead of answering it', async () => {
