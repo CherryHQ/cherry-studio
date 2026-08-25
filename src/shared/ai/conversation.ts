@@ -33,6 +33,13 @@ export enum ConversationInputTarget {
   NextStep = 'next-step'
 }
 
+/** Renderer mutations against the process-local Conversation inbox. */
+export enum ConversationInboxMutationKind {
+  Remove = 'remove',
+  Reorder = 'reorder',
+  SetPaused = 'set-paused'
+}
+
 /** Stable terminal outcome selected before persistence. */
 export enum ConversationOutcomeKind {
   Success = 'success',

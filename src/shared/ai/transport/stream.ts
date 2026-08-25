@@ -1,5 +1,6 @@
 import type { UIMessageChunk } from 'ai'
 
+import type { CacheComposerAttachment, CacheComposerSerializedToken } from '../../data/cache/cacheValueTypes'
 import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
@@ -9,6 +10,8 @@ import type {
   ConversationAttachStatus,
   ConversationBlockReason,
   ConversationExecutionAttachState,
+  ConversationInboxMutationKind,
+  ConversationInputTarget,
   ConversationOpenMode,
   ConversationOpenTrigger,
   ConversationStatus,
@@ -95,12 +98,8 @@ export interface ComposerChatTarget {
 export interface ComposerQueuedMessagePayload {
   text: string
   userMessageParts: CherryMessagePart[]
-  /**
-   * Composer attachments held for this queued draft. Loosely typed here (the
-   * concrete `ComposerAttachment` lives in the renderer); main ignores it — only
-   * the renderer queue (re-edit/restore + send-time part build) reads it.
-   */
-  attachments?: Array<Record<string, unknown>>
+  /** Composer attachments held for re-editing this queued draft. */
+  attachments?: CacheComposerAttachment[]
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   /** Canonical reasoning selection captured with this queued draft. */
@@ -112,6 +111,32 @@ export interface ComposerQueuedMessagePayload {
   /** Chat-only target snapshot. Agent-session queues leave this unset. */
   chatTarget?: ComposerChatTarget
 }
+
+export interface ComposerQueuedDraftSnapshot {
+  text: string
+  tokens: CacheComposerSerializedToken[]
+}
+
+export interface ConversationInboxPresentation {
+  draft: ComposerQueuedDraftSnapshot
+  payload: ComposerQueuedMessagePayload
+}
+
+export interface ConversationInboxItem {
+  id: ConversationInputId
+  presentation: ConversationInboxPresentation
+}
+
+export interface ConversationInboxSnapshot {
+  revision: number
+  paused: boolean
+  items: ConversationInboxItem[]
+}
+
+export type ConversationInboxMutation =
+  | { kind: ConversationInboxMutationKind.Remove; inputId: ConversationInputId }
+  | { kind: ConversationInboxMutationKind.Reorder; inputIds: ConversationInputId[] }
+  | { kind: ConversationInboxMutationKind.SetPaused; paused: boolean }
 
 /**
  * Per-Conversation stream state entry — stored under the shared
@@ -130,6 +155,7 @@ export interface ConversationStatusSnapshotEntry {
   activeExecutions: ConversationExecutionProjection[]
   awaitingInteractionExecutions: ConversationExecutionProjection[]
   lastCompletedAt?: number
+  inboxRevision: number
 }
 
 type AiStreamRegenerateTarget =
@@ -192,12 +218,20 @@ export interface PromptStreamAbortRequest {
  * call site (passing `userMessageParts` to a regenerate, omitting
  * `parentAnchorId` from a continue, etc).
  */
+export type ConversationActorInputRequest =
+  | { inputTarget?: never; inboxPresentation?: never }
+  | {
+      inputTarget: ConversationInputTarget.NextTurn
+      inboxPresentation: ConversationInboxPresentation
+    }
+  | { inputTarget: ConversationInputTarget.NextStep; inboxPresentation?: never }
+
 export type AiStreamOpenRequest = {
   conversation: ConversationRef
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
 } & (
-  | {
+  | ({
       /** Brand-new user turn: create the user msg + N assistant placeholders. */
       trigger: ConversationOpenTrigger.SubmitMessage
       /**
@@ -218,7 +252,7 @@ export type AiStreamOpenRequest = {
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
-    }
+    } & ConversationActorInputRequest)
   | ({
       /** Re-run the assistant under an existing user msg. */
       trigger: ConversationOpenTrigger.RegenerateMessage

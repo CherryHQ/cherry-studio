@@ -49,6 +49,7 @@ function open(ref: ConversationRef = chat) {
   return transitionConversation(createConversationState(ref), {
     type: ConversationCommandType.TurnCommitted,
     inputId: toConversationInputId('user-1'),
+    inputIds: [toConversationInputId('user-1')],
     turnId: turn,
     turnKind: ConversationTurnKind.Submit,
     anchorNodeId: 'user-1',
@@ -185,6 +186,7 @@ describe('Conversation state', () => {
     let state = transitionConversation(createConversationState(agent), {
       type: ConversationCommandType.TurnCommitted,
       inputId: toConversationInputId('user-1'),
+      inputIds: [toConversationInputId('user-1')],
       turnId: turn,
       turnKind: ConversationTurnKind.Submit,
       anchorNodeId: 'user-1',
@@ -254,6 +256,7 @@ describe('Conversation state', () => {
     const opened = transitionConversation(createConversationState(chat), {
       type: ConversationCommandType.TurnCommitted,
       inputId: toConversationInputId('user-1'),
+      inputIds: [toConversationInputId('user-1')],
       turnId: turn,
       turnKind: ConversationTurnKind.Submit,
       anchorNodeId: 'user-1',
@@ -526,7 +529,7 @@ describe('Conversation state', () => {
     const foregroundDurable = persistSuccess(state)
     expect(foregroundDurable.state.inbox.nextTurn).toEqual([first, second])
     expect(foregroundDurable.effects).toContainEqual(
-      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, input: first })
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [first] })
     )
 
     const nextTurnId = toConversationTurnId('turn-2')
@@ -534,6 +537,7 @@ describe('Conversation state', () => {
     state = transitionConversation(foregroundDurable.state, {
       type: ConversationCommandType.TurnCommitted,
       inputId: first.id,
+      inputIds: [first.id],
       turnId: nextTurnId,
       turnKind: ConversationTurnKind.Submit,
       anchorNodeId: first.historyNodeId,
@@ -571,7 +575,7 @@ describe('Conversation state', () => {
 
     expect(secondScheduled.state.inbox.nextTurn).toEqual([second])
     expect(secondScheduled.effects).toContainEqual(
-      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, input: second })
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [second] })
     )
   })
 
@@ -767,12 +771,13 @@ describe('Conversation state', () => {
     expect(settled.state.phase).toBe(ConversationPhase.Idle)
     expect(settled.state.inbox.nextTurn).toEqual([input('user-2')])
     expect(settled.effects).toContainEqual(
-      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, input: input('user-2') })
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [input('user-2')] })
     )
 
     const successor = transitionConversation(settled.state, {
       type: ConversationCommandType.TurnCommitted,
       inputId: toConversationInputId('user-2'),
+      inputIds: [toConversationInputId('user-2')],
       turnId: toConversationTurnId('turn-2'),
       turnKind: ConversationTurnKind.Submit,
       anchorNodeId: 'user-2',
@@ -789,6 +794,46 @@ describe('Conversation state', () => {
     })
     expect(successor.rejection).toBeUndefined()
     expect(successor.state.inbox.nextTurn).toEqual([])
+  })
+
+  it('claims the contiguous same-profile prefix as one successor turn', () => {
+    const first = { ...input('user-2'), batchKey: 'profile-a' }
+    const second = { ...input('user-3'), batchKey: 'profile-a' }
+    const third = { ...input('user-4'), batchKey: 'profile-b' }
+    let state = open().state
+    for (const queued of [first, second, third]) {
+      state = transitionConversation(state, {
+        type: ConversationCommandType.InputCommitted,
+        input: queued,
+        runtimeCanRedirect: false
+      }).state
+    }
+
+    const settled = persistSuccess(state)
+    expect(settled.effects).toContainEqual(
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [first, second] })
+    )
+    const successor = transitionConversation(settled.state, {
+      type: ConversationCommandType.TurnCommitted,
+      inputId: first.id,
+      inputIds: [first.id, second.id],
+      turnId: toConversationTurnId('turn-batch'),
+      turnKind: ConversationTurnKind.Submit,
+      anchorNodeId: first.historyNodeId,
+      responder: ConversationResponderKind.Interactive,
+      executions: [
+        {
+          id: toConversationExecutionId('execution-batch'),
+          outputNodeId: 'assistant-batch',
+          driver: ConversationExecutionDriverKind.Chat,
+          modelId: 'provider::model',
+          startEffectId: effect('run-batch')
+        }
+      ]
+    })
+
+    expect(successor.rejection).toBeUndefined()
+    expect(successor.state.inbox.nextTurn).toEqual([third])
   })
 
   it('keeps a follow-up queued while the completed turn is awaiting persistence', () => {
@@ -850,7 +895,7 @@ describe('Conversation state', () => {
     expect(durable.effects).toContainEqual(
       expect.objectContaining({
         type: ConversationEffectType.ScheduleNextTurn,
-        input: input('user-2'),
+        inputs: [input('user-2')],
         effectId: effect('schedule-1')
       })
     )
@@ -909,7 +954,7 @@ describe('Conversation state', () => {
     expect(dropped.state.inbox.nextTurn).toEqual([second])
     expect(dropped.effects).toEqual([
       expect.objectContaining({ type: ConversationEffectType.DropInputs, inputs: [first] }),
-      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, input: second })
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [second] })
     ])
   })
 
@@ -1058,7 +1103,7 @@ describe('Conversation state', () => {
       expect.objectContaining({
         type: ConversationEffectType.ScheduleNextTurn,
         effectId: effect('schedule-next-turn'),
-        input: input('next-turn-input')
+        inputs: [input('next-turn-input')]
       })
     )
   })
@@ -1467,6 +1512,7 @@ describe('Conversation state', () => {
     let state = transitionConversation(createConversationState(chat), {
       type: ConversationCommandType.TurnCommitted,
       inputId: toConversationInputId('user-1'),
+      inputIds: [toConversationInputId('user-1')],
       turnId: turn,
       turnKind: ConversationTurnKind.Submit,
       anchorNodeId: 'user-1',
@@ -1539,6 +1585,7 @@ describe('Conversation state', () => {
       let state = transitionConversation(createConversationState(chat), {
         type: ConversationCommandType.TurnCommitted,
         inputId: toConversationInputId('user-1'),
+        inputIds: [toConversationInputId('user-1')],
         turnId: turn,
         turnKind: ConversationTurnKind.Submit,
         anchorNodeId: 'user-1',
@@ -1831,7 +1878,7 @@ describe('Conversation state', () => {
 
     expect(abandoned.state.inbox).toEqual({ nextStep: [], nextTurn: [input('redirected')] })
     expect(abandoned.effects).toContainEqual(
-      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, input: input('redirected') })
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, inputs: [input('redirected')] })
     )
   })
 

@@ -70,6 +70,7 @@ export type ConversationHistoryCommitReservation =
   | {
       readonly kind: ConversationHistoryCommitKind.FreshTurn
       readonly inputId: ConversationInput['id']
+      readonly inputIds: readonly ConversationInput['id'][]
       readonly turnId: ConversationTurnId
       readonly turnKind: ConversationTurnKind
       readonly executions: readonly ReservedExecutionIdentity[]
@@ -212,6 +213,8 @@ export class ConversationActor {
   private stopOperation?: ConversationStopOperation
   private epoch = 0
   private nextSequence = 0
+  private inboxRevisionValue = 0
+  private inboxPausedValue = false
 
   constructor(
     readonly conversation: ConversationRef,
@@ -306,6 +309,14 @@ export class ConversationActor {
     return this.state
   }
 
+  get inboxRevision(): number {
+    return this.inboxRevisionValue
+  }
+
+  get inboxPaused(): boolean {
+    return this.inboxPausedValue
+  }
+
   reserveDispatch(admission: ConversationDispatchAdmission): ConversationDispatchCommitReservation {
     if (this.state.phase === ConversationPhase.Idle) {
       return this.reserveFreshTurn({
@@ -325,7 +336,8 @@ export class ConversationActor {
       id: inputId,
       historyNodeId: `admission:${inputId}`,
       provenance: ConversationInputProvenance.Renderer,
-      responder: admission.responder
+      responder: admission.responder,
+      batchKey: null
     }
     const reservation = {
       kind: ConversationHistoryCommitKind.NextInput,
@@ -348,22 +360,32 @@ export class ConversationActor {
     readonly turnKind: ConversationTurnKind
     readonly anchorNodeId: string | null
     readonly responder: ConversationResponderKind
-    readonly input?: ConversationInput
+    readonly inputs?: readonly ConversationInput[]
   }): Extract<ConversationHistoryCommitReservation, { kind: ConversationHistoryCommitKind.FreshTurn }> {
     if (options.executionModelIds.length < 1) throw new Error('Conversation turn must reserve at least one execution')
     const turnId = this.ids().turn()
-    const inputId = options.input?.id ?? this.ids().input()
+    const inputs = options.inputs ?? []
+    const inputId = inputs[0]?.id ?? this.ids().input()
+    const inputIds = inputs.length > 0 ? inputs.map((input) => input.id) : [inputId]
     const executions = this.reserveExecutionIdentities(options.executionModelIds)
     this.assertPreview({
       type: ConversationCommandType.TurnCommitted,
       inputId,
+      inputIds,
       turnId,
       turnKind: options.turnKind,
       anchorNodeId: options.anchorNodeId,
-      responder: options.input?.responder ?? options.responder,
+      responder: inputs[0]?.responder ?? options.responder,
       executions: this.provisionalExecutionPlans(executions)
     })
-    return { kind: ConversationHistoryCommitKind.FreshTurn, inputId, turnId, turnKind: options.turnKind, executions }
+    return {
+      kind: ConversationHistoryCommitKind.FreshTurn,
+      inputId,
+      inputIds,
+      turnId,
+      turnKind: options.turnKind,
+      executions
+    }
   }
 
   reserveStep(
@@ -478,8 +500,10 @@ export class ConversationActor {
   }
 
   commit(command: ConversationCommand): ConversationTransition {
+    const previousInbox = this.state.inbox
     const transition = transitionConversation(this.state, command)
     this.state = transition.state
+    if (transition.state.inbox !== previousInbox) this.inboxRevisionValue += 1
     this.effectExecutor?.reconcileDeferredEffects()
     if (
       !transition.rejection &&
@@ -510,18 +534,21 @@ export class ConversationActor {
   }
 
   openTurn(
-    input: ConversationInput,
+    inputs: readonly ConversationInput[],
     executions: readonly ConversationExecutionPlan[],
     options: { turnId?: ConversationTurnId; turnKind?: ConversationTurnKind; anchorNodeId?: string | null } = {}
   ): ConversationTransition {
     const ids = this.ids()
+    const first = inputs[0]
+    if (!first) throw new Error('Conversation turn requires an input')
     return this.commit({
       type: ConversationCommandType.TurnCommitted,
-      inputId: input.id,
+      inputId: first.id,
+      inputIds: inputs.map((entry) => entry.id),
       turnId: options.turnId ?? ids.turn(),
       turnKind: options.turnKind ?? ConversationTurnKind.Submit,
       anchorNodeId: options.anchorNodeId ?? null,
-      responder: input.responder,
+      responder: first.responder,
       executions
     })
   }
@@ -554,6 +581,28 @@ export class ConversationActor {
       scheduleEffectId: ids.effect(),
       quiescenceEffectId: ids.effect()
     })
+  }
+
+  removeInput(inputId: ConversationInputId): ConversationTransition {
+    const ids = this.ids()
+    return this.commit({
+      type: ConversationCommandType.InputRemoved,
+      inputId,
+      dropEffectId: ids.effect(),
+      scheduleEffectId: ids.effect(),
+      quiescenceEffectId: ids.effect()
+    })
+  }
+
+  reorderInputs(inputIds: readonly ConversationInputId[]): ConversationTransition {
+    return this.commit({ type: ConversationCommandType.InboxReordered, inputIds })
+  }
+
+  setInboxPaused(paused: boolean): void {
+    if (this.inboxPausedValue === paused) return
+    this.inboxPausedValue = paused
+    this.inboxRevisionValue += 1
+    if (!paused) this.kickInbox()
   }
 
   requestRuntimePreemption(input: ConversationInput): ConversationTransition {
@@ -738,6 +787,7 @@ export class ConversationActor {
   }
 
   kickInbox(): ConversationTransition {
+    if (this.inboxPausedValue) return { state: this.state, events: [], effects: [] }
     return this.commit({ type: ConversationCommandType.KickInbox, scheduleEffectId: this.ids().effect() })
   }
 

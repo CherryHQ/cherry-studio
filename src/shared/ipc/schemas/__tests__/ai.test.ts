@@ -1,4 +1,4 @@
-import { ConversationKind } from '@shared/ai/conversation'
+import { ConversationInputTarget, ConversationKind } from '@shared/ai/conversation'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
@@ -96,6 +96,43 @@ describe('ai.stream.open IPC schema', () => {
         mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
       }).success
     ).toBe(false)
+  })
+
+  it('requires a complete presentation for an Actor-owned NextTurn input', () => {
+    const base = {
+      trigger: 'submit-message',
+      conversation,
+      userMessageParts: [{ type: 'text', text: 'queued' }],
+      inputTarget: ConversationInputTarget.NextTurn
+    }
+    expect(openStream.safeParse(base).success).toBe(false)
+    expect(
+      openStream.safeParse({
+        ...base,
+        inboxPresentation: {
+          draft: { text: 'queued', tokens: [] },
+          payload: { text: 'queued', userMessageParts: base.userMessageParts }
+        }
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects presentation state on direct and NextStep submits', () => {
+    const inboxPresentation = {
+      draft: { text: 'steer', tokens: [] },
+      payload: { text: 'steer', userMessageParts: [{ type: 'text', text: 'steer' }] }
+    }
+    for (const inputTarget of [undefined, ConversationInputTarget.NextStep]) {
+      expect(
+        openStream.safeParse({
+          trigger: 'submit-message',
+          conversation,
+          userMessageParts: [{ type: 'text', text: 'steer' }],
+          inputTarget,
+          inboxPresentation
+        }).success
+      ).toBe(false)
+    }
   })
 
   it('rejects combining in-place retry with live reply-group append', () => {

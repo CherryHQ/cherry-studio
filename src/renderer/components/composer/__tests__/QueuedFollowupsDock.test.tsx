@@ -1,3 +1,4 @@
+import { toConversationInputId } from '@shared/ai/conversation'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
 import type * as ReactI18next from 'react-i18next'
@@ -136,7 +137,7 @@ describe('QueuedFollowupsDock', () => {
       <QueuedFollowupsDock
         items={[
           {
-            id: 'link-only',
+            id: toConversationInputId('link-only'),
             draft: {
               text: url,
               tokens: [
@@ -174,7 +175,7 @@ describe('QueuedFollowupsDock', () => {
       <QueuedFollowupsDock
         items={[
           {
-            id: 'stale-token',
+            id: toConversationInputId('stale-token'),
             draft: {
               text,
               tokens: [

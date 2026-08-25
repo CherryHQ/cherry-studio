@@ -93,6 +93,18 @@ export interface CreateUserMessageWithPlaceholdersResult {
   placeholders: Message[]
 }
 
+export interface CreateUserMessageBatchWithPlaceholdersInput {
+  topicId: string
+  parentId?: string | null
+  users: Array<{ id?: string; data: MessageData; modelId?: UniqueModelId }>
+  placeholders: AssistantPlaceholder[]
+}
+
+export interface CreateUserMessageBatchWithPlaceholdersResult {
+  userMessages: Message[]
+  placeholders: Message[]
+}
+
 /**
  * Preview length for tree nodes
  */
@@ -1479,6 +1491,99 @@ export class MessageService {
       return { userMessage, placeholders }
     })
     return result
+  }
+
+  createUserMessageBatchWithPlaceholders(
+    input: CreateUserMessageBatchWithPlaceholdersInput
+  ): CreateUserMessageBatchWithPlaceholdersResult {
+    if (input.users.length === 0) throw DataApiErrorFactory.validation({ users: ['must not be empty'] })
+    return application.get('DbService').withWriteTx((tx) => {
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1).all()
+      if (!topic) throw DataApiErrorFactory.notFound('Topic', input.topicId)
+
+      let parentId = input.parentId ?? this.getRootMessageIdTx(tx, input.topicId)
+      if (input.parentId) {
+        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, input.parentId)).limit(1).all()
+        if (!parent) throw DataApiErrorFactory.notFound('Message', input.parentId)
+        if (parent.topicId !== input.topicId) {
+          throw DataApiErrorFactory.invalidOperation('create message batch', 'Parent message does not belong to topic')
+        }
+      }
+
+      const userMessages: Message[] = []
+      let latestActivityAt = 0
+      for (const user of input.users) {
+        const createdAt = Date.now()
+        const [row] = tx
+          .insert(messageTable)
+          .values({
+            ...(user.id ? { id: user.id } : {}),
+            topicId: input.topicId,
+            parentId,
+            role: 'user',
+            data: user.data,
+            status: 'success',
+            modelId: user.modelId,
+            createdAt,
+            updatedAt: createdAt
+          })
+          .returning()
+          .all()
+        replaceChatMessageFileRefsTx(tx, row.id, user.data)
+        const message = rowToMessage(row)
+        userMessages.push(message)
+        parentId = message.id
+        latestActivityAt = Math.max(latestActivityAt, createdAt)
+      }
+
+      const placeholders: Message[] = []
+      for (const placeholder of input.placeholders) {
+        const createdAt = Date.now()
+        const [row] = tx
+          .insert(messageTable)
+          .values({
+            ...(placeholder.id ? { id: placeholder.id } : {}),
+            topicId: input.topicId,
+            parentId,
+            role: placeholder.role,
+            data: placeholder.data,
+            status: placeholder.status ?? 'pending',
+            modelId: placeholder.modelId,
+            messageSnapshot: placeholder.messageSnapshot,
+            createdAt,
+            updatedAt: createdAt
+          })
+          .returning()
+          .all()
+        replaceChatMessageFileRefsTx(tx, row.id, placeholder.data)
+        placeholders.push(rowToMessage(row))
+        latestActivityAt = Math.max(latestActivityAt, createdAt)
+      }
+
+      const changedIds = [...userMessages, ...placeholders].map(({ id }) => id)
+      const activeNodeId = placeholders.at(-1)?.id ?? userMessages.at(-1)?.id
+      if (activeNodeId)
+        getDataService('TopicService').setActiveNodeTx(tx, input.topicId, activeNodeId, { assumeValid: true })
+      if (latestActivityAt > 0) {
+        const topicService = getDataService('TopicService')
+        topicService.advanceLastActivityAtTx(tx, input.topicId, latestActivityAt)
+        topicService.addReadModelEffects(tx.effects, [input.topicId], 'projection')
+      }
+      tx.effects.add({
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId: input.topicId },
+        entityIds: changedIds
+      })
+      tx.effects.add({
+        endpoint: '/topics/:topicId/tree',
+        routeParams: { topicId: input.topicId },
+        entityIds: changedIds
+      })
+      tx.effects.add({ endpoint: '/topics', kind: 'projection', entityIds: [input.topicId] })
+      tx.effects.add({ endpoint: '/topics/:id', routeParams: { id: input.topicId }, entityIds: [input.topicId] })
+      return { userMessages, placeholders }
+    })
   }
 
   private isAwaitingInputLeafTx(tx: DbOrTx, message: Message): boolean {

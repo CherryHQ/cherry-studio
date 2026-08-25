@@ -1,9 +1,12 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import {
+  ConversationInboxMutationKind,
+  ConversationInputTarget,
   ConversationKind,
   ConversationOpenTrigger,
   ConversationTargetMode,
   toConversationExecutionId,
+  toConversationInputId,
   toConversationTurnId
 } from '@shared/ai/conversation'
 import type {
@@ -42,7 +45,9 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import { ComposerMessageTokenKindSchema } from '@shared/data/types/uiParts'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { AbsoluteFilePathSchema, FileTypeSchema } from '@shared/types/file'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
@@ -174,6 +179,76 @@ const mentionedModelIdsSchema = z
   })
   .optional()
 
+const conversationInboxPresentationSchema = z.strictObject({
+  draft: z.strictObject({
+    text: z.string(),
+    tokens: z.array(
+      z.strictObject({
+        id: z.string(),
+        kind: z.union([ComposerMessageTokenKindSchema, z.literal('promptVariable')]),
+        label: z.string(),
+        icon: z.string().optional(),
+        description: z.string().optional(),
+        promptText: z.string().optional(),
+        payload: z.unknown().optional(),
+        index: z.number().int().nonnegative(),
+        textOffset: z.number().int().nonnegative()
+      })
+    )
+  }),
+  payload: z.strictObject({
+    text: z.string(),
+    userMessageParts: z.array(z.custom<CherryMessagePart>()),
+    attachments: z
+      .array(
+        z.strictObject({
+          fileTokenSourceId: z.string().min(1),
+          path: AbsoluteFilePathSchema.optional(),
+          name: z.string(),
+          origin_name: z.string(),
+          ext: z.string(),
+          size: z.number().nonnegative(),
+          type: FileTypeSchema,
+          composerFileKind: z.literal('pasted-text').optional()
+        })
+      )
+      .optional(),
+    mentionedModels: z.array(UniqueModelIdSchema).optional(),
+    reasoningEffort: ReasoningEffortOptionSchema.optional(),
+    serviceTier: ServiceTierSelectionSchema.optional(),
+    fastMode: z.boolean().optional(),
+    chatTarget: z
+      .strictObject({
+        parentAnchorId: z.string().nullable(),
+        mode: z.enum(ConversationTargetMode)
+      })
+      .optional()
+  })
+})
+
+const conversationInboxSnapshotSchema = z.strictObject({
+  revision: z.number().int().nonnegative(),
+  paused: z.boolean(),
+  items: z.array(
+    z.strictObject({
+      id: z.string().min(1).transform(toConversationInputId),
+      presentation: conversationInboxPresentationSchema
+    })
+  )
+})
+
+const aiStreamSubmitShape = {
+  trigger: z.literal(ConversationOpenTrigger.SubmitMessage),
+  parentAnchorId: z.string().optional(),
+  userMessageParts: z.array(z.custom<CherryMessagePart>()),
+  targetMode: z.enum(ConversationTargetMode).optional(),
+  retryMessageId: z.never().optional(),
+  appendToLiveGroupMessageId: z.never().optional(),
+  reasoningEffort: ReasoningEffortOptionSchema.optional(),
+  serviceTier: ServiceTierSelectionSchema.optional(),
+  fastMode: z.boolean().optional()
+}
+
 const conversationRefSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal(ConversationKind.Chat), id: z.string().min(1) }),
   z.strictObject({ kind: z.literal(ConversationKind.Agent), id: z.string().min(1) })
@@ -245,15 +320,19 @@ export const aiRequestSchemas = {
       }),
       z.union([
         z.object({
-          trigger: z.literal(ConversationOpenTrigger.SubmitMessage),
-          parentAnchorId: z.string().optional(),
-          userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          targetMode: z.enum(ConversationTargetMode).optional(),
-          retryMessageId: z.never().optional(),
-          appendToLiveGroupMessageId: z.never().optional(),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          serviceTier: ServiceTierSelectionSchema.optional(),
-          fastMode: z.boolean().optional()
+          ...aiStreamSubmitShape,
+          inputTarget: z.never().optional(),
+          inboxPresentation: z.never().optional()
+        }),
+        z.object({
+          ...aiStreamSubmitShape,
+          inputTarget: z.literal(ConversationInputTarget.NextTurn),
+          inboxPresentation: conversationInboxPresentationSchema
+        }),
+        z.object({
+          ...aiStreamSubmitShape,
+          inputTarget: z.literal(ConversationInputTarget.NextStep),
+          inboxPresentation: z.never().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
@@ -288,6 +367,27 @@ export const aiRequestSchemas = {
   'ai.stream.abort': defineRoute({
     input: z.strictObject({ conversation: conversationRefSchema }),
     output: z.void()
+  }),
+  'ai.conversation.inbox.get': defineRoute({
+    input: z.strictObject({ conversation: conversationRefSchema }),
+    output: conversationInboxSnapshotSchema
+  }),
+  'ai.conversation.inbox.mutate': defineRoute({
+    input: z.strictObject({
+      conversation: conversationRefSchema,
+      mutation: z.discriminatedUnion('kind', [
+        z.strictObject({
+          kind: z.literal(ConversationInboxMutationKind.Remove),
+          inputId: z.string().min(1).transform(toConversationInputId)
+        }),
+        z.strictObject({
+          kind: z.literal(ConversationInboxMutationKind.Reorder),
+          inputIds: z.array(z.string().min(1).transform(toConversationInputId))
+        }),
+        z.strictObject({ kind: z.literal(ConversationInboxMutationKind.SetPaused), paused: z.boolean() })
+      ])
+    }),
+    output: conversationInboxSnapshotSchema
   }),
   'ai.prompt.abort': defineRoute({
     input: z.strictObject({ streamId: z.string().min(1) }) satisfies z.ZodType<PromptStreamAbortRequest>,

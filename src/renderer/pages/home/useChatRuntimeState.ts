@@ -28,8 +28,13 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
-import { ConversationKind, ConversationOpenTrigger, ConversationTargetMode } from '@shared/ai/conversation'
-import type { AiStreamOpenRequest, ComposerChatTarget } from '@shared/ai/transport'
+import {
+  ConversationInputTarget,
+  ConversationKind,
+  ConversationOpenTrigger,
+  ConversationTargetMode
+} from '@shared/ai/conversation'
+import type { AiStreamOpenRequest, ComposerChatTarget, ConversationActorInputRequest } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
@@ -50,7 +55,7 @@ export interface ChatTurnInput {
     serviceTier?: ServiceTierSelection
     fastMode?: boolean
     chatTarget?: ComposerChatTarget
-  }
+  } & ConversationActorInputRequest
 }
 
 export interface TopicBranchLiveContribution {
@@ -260,13 +265,20 @@ export function useChatRuntimeState({
         serviceTier: options?.serviceTier,
         ...(options?.fastMode ? { fastMode: true as const } : {})
       }
+      const actorInput: ConversationActorInputRequest =
+        options?.inputTarget === ConversationInputTarget.NextTurn
+          ? { inputTarget: options.inputTarget, inboxPresentation: options.inboxPresentation }
+          : options?.inputTarget === ConversationInputTarget.NextStep
+            ? { inputTarget: options.inputTarget }
+            : {}
 
       return {
         ...requestOptions,
         trigger: ConversationOpenTrigger.SubmitMessage,
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
-        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
+        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {}),
+        ...actorInput
       }
     },
     []

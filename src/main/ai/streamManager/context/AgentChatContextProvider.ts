@@ -543,6 +543,82 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
     return this.commitPersistedIntent(persisted)
   }
 
+  commitBatchIntent(
+    validations: readonly ValidatedConversationIntent[],
+    context: ConversationIntentValidationContext
+  ): CommittedConversationIntent {
+    if (validations.length === 1) return this.commitIntent(validations[0], context)
+    if (context.hasLiveStream || validations.length === 0) throw new Error('Agent batch requires an idle Conversation')
+    const entries = validations.map((validation) => {
+      if (validation.kind !== ConversationHistoryAdapterKind.Agent) {
+        throw new Error('Agent batch contains another history adapter')
+      }
+      return validation.agent
+    })
+    const first = entries[0]
+    if (!first) throw new Error('Agent batch is empty')
+    if (
+      entries.some(
+        (entry) =>
+          entry.sessionId !== first.sessionId ||
+          entry.agentId !== first.agentId ||
+          entry.agentUpdatedAt !== first.agentUpdatedAt ||
+          entry.uniqueModelId !== first.uniqueModelId ||
+          entry.reasoningEffort !== first.reasoningEffort ||
+          entry.serviceTier !== first.serviceTier ||
+          entry.fastMode !== first.fastMode ||
+          entry.headless !== first.headless ||
+          entry.deliveryMessage !== undefined
+      )
+    ) {
+      throw new Error('Agent batch profile changed before commit')
+    }
+
+    const persisted = application.get('DbService').withWriteTx((tx) => {
+      const assistantMessageId = uuidv7()
+      const savedMessages = agentSessionMessageService.saveMessagesTx(
+        tx,
+        {
+          sessionId: first.sessionId,
+          messages: [
+            ...entries.map((entry) => ({
+              id: entry.userMessageId,
+              role: 'user' as const,
+              status: 'success' as const,
+              data: { parts: entry.userMessageParts }
+            })),
+            {
+              id: assistantMessageId,
+              role: 'assistant' as const,
+              status: 'pending' as const,
+              data: { parts: [] },
+              modelId: first.uniqueModelId,
+              messageSnapshot: first.messageSnapshot
+            }
+          ]
+        },
+        { id: first.agentId, updatedAt: first.agentUpdatedAt, model: first.uniqueModelId, type: first.agentType }
+      )
+      const userMessages = savedMessages.filter(
+        (message): message is AgentSessionMessageEntity & { role: 'user' } => message.role === 'user'
+      )
+      const lastUser = userMessages.at(-1)
+      if (!lastUser) throw new Error('Agent batch did not commit a user row')
+      const runtimeUser = {
+        ...lastUser,
+        data: { parts: userMessages.flatMap((message) => message.data.parts ?? []) }
+      }
+      return {
+        validated: first,
+        assistantMessageId,
+        traceId: agentSessionService.ensureTraceIdTx(tx, first.sessionId),
+        userMessage: runtimeUser,
+        savedMessages
+      } satisfies PersistedAgentDispatch
+    })
+    return this.commitPersistedIntent(persisted)
+  }
+
   async prepareExecutionContext(
     descriptor: ConversationExecutionPreparationDescriptor,
     signal: AbortSignal

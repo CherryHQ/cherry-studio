@@ -412,6 +412,10 @@ export interface ConversationHistoryPort {
     validation: ValidatedConversationIntent,
     context: ConversationIntentValidationContext
   ): CommittedConversationIntent
+  commitBatchIntent?(
+    validations: readonly ValidatedConversationIntent[],
+    context: ConversationIntentValidationContext
+  ): CommittedConversationIntent
   prepareExecutionContext(
     descriptor: ConversationExecutionPreparationDescriptor,
     signal: AbortSignal,

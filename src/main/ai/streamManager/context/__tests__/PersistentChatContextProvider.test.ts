@@ -170,6 +170,38 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     })
   })
 
+  it('commits a same-profile inbox batch as a user chain with one assistant execution', async () => {
+    const context = { hasLiveStream: false }
+    const validations = await Promise.all(
+      ['follow-up B', 'follow-up C'].map((text) =>
+        provider.validateIntent(
+          {
+            trigger: ConversationOpenTrigger.SubmitMessage,
+            conversation,
+            parentAnchorId: 'a1',
+            userMessageParts: [{ type: 'text', text }]
+          },
+          context,
+          new AbortController().signal
+        )
+      )
+    )
+
+    const committed = provider.commitBatchIntent(validations, context)
+    const execution = committed.executions[0]
+    if (!execution) throw new Error('Expected one Chat execution')
+    const prepared = await provider.prepareExecutionContext(execution.preparation, new AbortController().signal)
+
+    expect(committed.reservedMessages.map(({ role }) => role)).toEqual(['user', 'user', 'assistant'])
+    expect(committed.executions).toHaveLength(1)
+    expect(flatten(prepared.models[0]?.request.messages ?? [])).toEqual([
+      { role: 'user', text: 'first question' },
+      { role: 'assistant', text: PARTIAL },
+      { role: 'user', text: 'follow-up B' },
+      { role: 'user', text: 'follow-up C' }
+    ])
+  })
+
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {
     // Steering: renderer's `activeNodeId` (the streaming/paused assistant row) is sent as
     // `parentAnchorId`, so the new user message is parented on the paused row.

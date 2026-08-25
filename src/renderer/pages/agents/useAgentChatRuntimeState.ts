@@ -20,7 +20,12 @@ import { ipcApi } from '@renderer/ipc'
 import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
-import { ConversationKind, ConversationOpenTrigger, conversationRefKey } from '@shared/ai/conversation'
+import {
+  ConversationInputTarget,
+  ConversationKind,
+  ConversationOpenTrigger,
+  conversationRefKey
+} from '@shared/ai/conversation'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
@@ -183,14 +188,24 @@ export function useAgentChatRuntimeState({
     (
       input: AgentTurnInput,
       target: { conversation: { kind: ConversationKind.Agent; id: string } }
-    ): AiStreamOpenRequest => ({
-      trigger: ConversationOpenTrigger.SubmitMessage,
-      conversation: target.conversation,
-      userMessageParts: getAgentTurnParts(input),
-      reasoningEffort: input.options?.body?.reasoningEffort,
-      serviceTier: input.options?.body?.serviceTier,
-      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
-    }),
+    ): AiStreamOpenRequest => {
+      const body = input.options?.body
+      const actorInput =
+        body?.inputTarget === ConversationInputTarget.NextTurn
+          ? { inputTarget: body.inputTarget, inboxPresentation: body.inboxPresentation }
+          : body?.inputTarget === ConversationInputTarget.NextStep
+            ? { inputTarget: body.inputTarget }
+            : {}
+      return {
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation: target.conversation,
+        userMessageParts: getAgentTurnParts(input),
+        reasoningEffort: body?.reasoningEffort,
+        serviceTier: body?.serviceTier,
+        ...actorInput,
+        ...(body?.fastMode === true ? { fastMode: true } : {})
+      }
+    },
     []
   )
   const { send } = useConversationTurnController<

@@ -650,7 +650,8 @@ describe('HistoryRecordsView agent mode', () => {
       cacheService.setShared('conversation.statuses.agent:session-beta', {
         status: ConversationStatus.Streaming,
         activeExecutions: [],
-        awaitingInteractionExecutions: []
+        awaitingInteractionExecutions: [],
+        inboxRevision: 0
       })
     })
 

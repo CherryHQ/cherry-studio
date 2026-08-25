@@ -69,6 +69,8 @@ export enum ConversationCommandType {
   TurnCommitted = 'turn-committed',
   InputCommitted = 'input-committed',
   InputDropped = 'input-dropped',
+  InputRemoved = 'input-removed',
+  InboxReordered = 'inbox-reordered',
   StepCommitted = 'step-committed',
   StepFailed = 'step-failed',
   ExecutionsAdded = 'executions-added',
@@ -155,6 +157,7 @@ export interface ConversationInput {
   readonly historyNodeId: string
   readonly provenance: ConversationInputProvenance
   readonly responder: ConversationResponderKind
+  readonly batchKey?: string | null
 }
 
 export interface ConversationInbox {
@@ -359,7 +362,7 @@ export type ConversationEffect =
     })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ScheduleNextTurn
-      readonly input: ConversationInput
+      readonly inputs: readonly ConversationInput[]
     })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ScheduleNextStep
@@ -406,6 +409,7 @@ export type ConversationCommand =
   | {
       readonly type: ConversationCommandType.TurnCommitted
       readonly inputId: ConversationInputId
+      readonly inputIds: readonly ConversationInputId[]
       readonly turnId: ConversationTurnId
       readonly turnKind: ConversationTurnKind
       readonly anchorNodeId: string | null
@@ -426,6 +430,17 @@ export type ConversationCommand =
       readonly dropEffectId: ConversationEffectId
       readonly scheduleEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.InputRemoved
+      readonly inputId: ConversationInputId
+      readonly dropEffectId: ConversationEffectId
+      readonly scheduleEffectId: ConversationEffectId
+      readonly quiescenceEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.InboxReordered
+      readonly inputIds: readonly ConversationInputId[]
     }
   | {
       readonly type: ConversationCommandType.StepCommitted
@@ -930,6 +945,18 @@ const settledTurnDurability = (turn: ConversationTurn): ConversationTerminalDura
     ? ConversationTerminalDurability.DeferredRecovery
     : ConversationTerminalDurability.Durable
 
+const nextTurnBatch = (inbox: ConversationInbox): readonly ConversationInput[] => {
+  const first = inbox.nextTurn[0]
+  if (!first) return []
+  if (first.batchKey === null) return [first]
+  const batch: ConversationInput[] = []
+  for (const input of inbox.nextTurn) {
+    if (input.batchKey !== first.batchKey) break
+    batch.push(input)
+  }
+  return batch
+}
+
 const settleTurn = (
   state: Extract<ConversationState, { phase: ConversationPhase.Running | ConversationPhase.Stopping }>,
   turnTerminalEffectId: ConversationEffectId,
@@ -943,8 +970,8 @@ const settleTurn = (
   const shouldDropInputs =
     state.profile.kind === ConversationKind.Chat && outcome.kind !== ConversationOutcomeKind.Success
   const retainedNextTurn = shouldDropInputs ? [] : pendingInputs
-  const nextInput = retainedNextTurn[0]
-  const shouldSchedule = nextInput !== undefined && state.phase !== ConversationPhase.Stopping
+  const scheduledInputs = nextTurnBatch({ nextTurn: retainedNextTurn, nextStep: [] })
+  const shouldSchedule = scheduledInputs.length > 0 && state.phase !== ConversationPhase.Stopping
   const quiescent = !shouldSchedule && !hasQuiescenceBlockingActivity(state)
   const nextState: ConversationState = {
     ref: state.ref,
@@ -973,13 +1000,13 @@ const settleTurn = (
       effectId: scheduleEffectId,
       inputs: pendingInputs
     })
-  } else if (shouldSchedule && nextInput && scheduleEffectId) {
+  } else if (shouldSchedule && scheduleEffectId) {
     effects.push({
       type: ConversationEffectType.ScheduleNextTurn,
       conversation: state.ref,
       turnId: state.turn.id,
       effectId: scheduleEffectId,
-      input: nextInput
+      inputs: scheduledInputs
     })
   } else if (quiescent) {
     effects.push({
@@ -1004,8 +1031,12 @@ export function transitionConversation(state: ConversationState, command: Conver
     case ConversationCommandType.TurnCommitted: {
       if (state.phase !== ConversationPhase.Idle) return unchanged(state, ConversationCommandRejection.Busy)
       if (command.executions.length === 0) return unchanged(state, ConversationCommandRejection.Invalid)
-      const queuedInput = state.inbox.nextTurn[0]
-      if (queuedInput && queuedInput.id !== command.inputId) {
+      const inputIds = command.inputIds
+      const queuedInputs = state.inbox.nextTurn.slice(0, inputIds.length)
+      if (
+        queuedInputs.length > 0 &&
+        (queuedInputs.length !== inputIds.length || queuedInputs.some((input, index) => input.id !== inputIds[index]))
+      ) {
         return unchanged(state, ConversationCommandRejection.Stale)
       }
       const executions = new Map<ConversationExecutionId, ConversationExecution>()
@@ -1033,7 +1064,10 @@ export function transitionConversation(state: ConversationState, command: Conver
           ...state,
           phase: ConversationPhase.Running,
           runMode: ConversationRunMode.Foreground,
-          inbox: queuedInput ? { ...state.inbox, nextTurn: state.inbox.nextTurn.slice(1) } : state.inbox,
+          inbox:
+            queuedInputs.length > 0
+              ? { ...state.inbox, nextTurn: state.inbox.nextTurn.slice(queuedInputs.length) }
+              : state.inbox,
           turn
         },
         events: [
@@ -1124,8 +1158,8 @@ export function transitionConversation(state: ConversationState, command: Conver
       const [dropped, ...nextTurn] = state.inbox.nextTurn
       if (!dropped) return unchanged(state, ConversationCommandRejection.Stale)
       const next = { ...state, inbox: { ...state.inbox, nextTurn } }
-      const nextInput = nextTurn[0]
-      const quiescent = !nextInput && !hasQuiescenceBlockingActivity(next)
+      const scheduledInputs = nextTurnBatch(next.inbox)
+      const quiescent = scheduledInputs.length === 0 && !hasQuiescenceBlockingActivity(next)
       return {
         state: next,
         events: [
@@ -1140,14 +1174,14 @@ export function transitionConversation(state: ConversationState, command: Conver
             effectId: command.dropEffectId,
             inputs: [dropped]
           },
-          ...(nextInput
+          ...(scheduledInputs.length > 0
             ? [
                 {
                   type: ConversationEffectType.ScheduleNextTurn as const,
                   conversation: state.ref,
                   turnId: command.turnId,
                   effectId: command.scheduleEffectId,
-                  input: nextInput
+                  inputs: scheduledInputs
                 }
               ]
             : quiescent
@@ -1162,6 +1196,74 @@ export function transitionConversation(state: ConversationState, command: Conver
               : [])
         ]
       }
+    }
+
+    case ConversationCommandType.InputRemoved: {
+      const index = state.inbox.nextTurn.findIndex((input) => input.id === command.inputId)
+      if (index < 0) return unchanged(state, ConversationCommandRejection.Stale)
+      const removed = state.inbox.nextTurn[index]
+      if (!removed) return unchanged(state, ConversationCommandRejection.Stale)
+      const nextTurn = state.inbox.nextTurn.filter((input) => input.id !== command.inputId)
+      const next = { ...state, inbox: { ...state.inbox, nextTurn } }
+      const scheduledInputs = state.phase === ConversationPhase.Idle && index === 0 ? nextTurnBatch(next.inbox) : []
+      const quiescent =
+        state.phase === ConversationPhase.Idle &&
+        scheduledInputs.length === 0 &&
+        state.inbox.nextStep.length === 0 &&
+        !hasQuiescenceBlockingActivity(next)
+      return {
+        state: next,
+        events: [
+          { type: ConversationEventType.InputDropped, input: removed },
+          ...(quiescent ? ([{ type: ConversationEventType.ConversationQuiesced }] as const) : [])
+        ],
+        effects: [
+          {
+            type: ConversationEffectType.DropInputs,
+            conversation: state.ref,
+            turnId: state.lastTurnId ?? toConversationTurnId('inbox-remove'),
+            effectId: command.dropEffectId,
+            inputs: [removed]
+          },
+          ...(scheduledInputs.length > 0
+            ? [
+                {
+                  type: ConversationEffectType.ScheduleNextTurn as const,
+                  conversation: state.ref,
+                  turnId: state.lastTurnId ?? toConversationTurnId('inbox-remove'),
+                  effectId: command.scheduleEffectId,
+                  inputs: scheduledInputs
+                }
+              ]
+            : quiescent
+              ? [
+                  {
+                    type: ConversationEffectType.PublishQuiescence as const,
+                    conversation: state.ref,
+                    turnId: state.lastTurnId ?? toConversationTurnId('inbox-remove'),
+                    effectId: command.quiescenceEffectId
+                  }
+                ]
+              : [])
+        ]
+      }
+    }
+
+    case ConversationCommandType.InboxReordered: {
+      if (command.inputIds.length !== state.inbox.nextTurn.length) {
+        return unchanged(state, ConversationCommandRejection.Invalid)
+      }
+      const inputs = new Map(state.inbox.nextTurn.map((input) => [input.id, input]))
+      const nextTurn = command.inputIds.flatMap((inputId) => {
+        const input = inputs.get(inputId)
+        if (!input) return []
+        inputs.delete(inputId)
+        return [input]
+      })
+      if (inputs.size > 0 || nextTurn.length !== command.inputIds.length) {
+        return unchanged(state, ConversationCommandRejection.Invalid)
+      }
+      return { state: { ...state, inbox: { ...state.inbox, nextTurn } }, events: [], effects: [] }
     }
 
     case ConversationCommandType.StepCommitted: {
@@ -2252,8 +2354,8 @@ export function transitionConversation(state: ConversationState, command: Conver
 
     case ConversationCommandType.KickInbox: {
       if (state.phase === ConversationPhase.Idle) {
-        const input = state.inbox.nextTurn[0]
-        if (!input) return unchanged(state, ConversationCommandRejection.Stale)
+        const inputs = nextTurnBatch(state.inbox)
+        if (inputs.length === 0) return unchanged(state, ConversationCommandRejection.Stale)
         return {
           state,
           events: [],
@@ -2263,7 +2365,7 @@ export function transitionConversation(state: ConversationState, command: Conver
               conversation: state.ref,
               turnId: state.lastTurnId ?? toConversationTurnId('inbox-kick'),
               effectId: command.scheduleEffectId,
-              input
+              inputs
             }
           ]
         }

@@ -111,12 +111,14 @@ describe('ConversationRuntime', () => {
 
   function open(ref: ConversationRef = chat) {
     return actorFor(ref).openTurn(
-      {
-        id: toConversationInputId('user-1'),
-        historyNodeId: 'user-1',
-        provenance: ConversationInputProvenance.Renderer,
-        responder: ConversationResponderKind.Interactive
-      },
+      [
+        {
+          id: toConversationInputId('user-1'),
+          historyNodeId: 'user-1',
+          provenance: ConversationInputProvenance.Renderer,
+          responder: ConversationResponderKind.Interactive
+        }
+      ],
       [
         {
           id: toConversationExecutionId('execution-1'),
@@ -340,12 +342,14 @@ describe('ConversationRuntime', () => {
     await vi.waitFor(() => expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Idle))
 
     actorFor(chat).openTurn(
-      {
-        id: toConversationInputId('user-2'),
-        historyNodeId: 'user-2',
-        provenance: ConversationInputProvenance.Renderer,
-        responder: ConversationResponderKind.Interactive
-      },
+      [
+        {
+          id: toConversationInputId('user-2'),
+          historyNodeId: 'user-2',
+          provenance: ConversationInputProvenance.Renderer,
+          responder: ConversationResponderKind.Interactive
+        }
+      ],
       [
         {
           id: toConversationExecutionId('execution-2'),

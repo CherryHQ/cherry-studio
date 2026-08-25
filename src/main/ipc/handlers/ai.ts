@@ -188,6 +188,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.stream.abort': async ({ conversation }) => {
     await application.get('ConversationRuntimeService').stop(conversation, 'user-requested').completed
   },
+  'ai.conversation.inbox.get': async ({ conversation }) =>
+    application.get('ConversationRuntimeService').inboxSnapshot(conversation),
+  'ai.conversation.inbox.mutate': async ({ conversation, mutation }) =>
+    application.get('ConversationRuntimeService').mutateInbox(conversation, mutation),
   'ai.prompt.abort': async ({ streamId }) => {
     application.get('PromptStreamManager').abort(streamId, 'user-requested')
   },

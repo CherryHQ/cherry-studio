@@ -56,7 +56,7 @@ describe('legacy AiStreamManager behavior on Conversation owners', () => {
       nextInput: ReturnType<typeof input>,
       executions: readonly ConversationExecutionPlan[],
       options: Parameters<ConversationActor['openTurn']>[2]
-    ) => actorFor(ref).openTurn(nextInput, executions, options),
+    ) => actorFor(ref).openTurn([nextInput], executions, options),
     commitInput: (
       ref: ConversationRef,
       nextInput: ReturnType<typeof input>,

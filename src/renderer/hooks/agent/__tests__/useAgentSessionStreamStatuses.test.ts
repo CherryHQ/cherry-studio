@@ -24,7 +24,8 @@ const makeEntry = (status: ConversationStatus, lastCompletedAt: number): Convers
   status,
   activeExecutions: [],
   awaitingInteractionExecutions: [],
-  lastCompletedAt
+  lastCompletedAt,
+  inboxRevision: 0
 })
 
 beforeEach(() => {

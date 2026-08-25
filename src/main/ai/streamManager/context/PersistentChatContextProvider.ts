@@ -28,7 +28,8 @@ import {
   ConversationKind,
   ConversationOpenTrigger,
   ConversationOutcomeKind,
-  type ConversationRef
+  type ConversationRef,
+  ConversationTargetMode
 } from '@shared/ai/conversation'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -574,6 +575,123 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
             ]
           : []),
         { kind: ConversationPostCommitTaskKind.RegisterTraceFlush, conversationId: req.conversation.id }
+      ]
+    }
+  }
+
+  commitBatchIntent(
+    validations: readonly ValidatedConversationIntent[],
+    context: ConversationIntentValidationContext
+  ): CommittedConversationIntent {
+    if (validations.length === 1) return this.commitIntent(validations[0], context)
+    if (context.hasLiveStream || validations.length === 0) throw new Error('Chat batch requires an idle Conversation')
+    const entries = validations.map((validation) => {
+      if (
+        validation.kind !== ConversationHistoryAdapterKind.PersistentChat ||
+        validation.request.trigger !== ConversationOpenTrigger.SubmitMessage
+      ) {
+        throw new Error('Chat batch contains a non-submit validation')
+      }
+      return { ...validation, request: validation.request }
+    })
+    const first = entries[0]
+    if (!first) throw new Error('Chat batch is empty')
+    const topicId = first.request.conversation.id
+    const modelIds = first.executionModelIds.join('\0')
+    if (
+      entries.some(
+        (entry) =>
+          entry.request.conversation.id !== topicId ||
+          entry.executionModelIds.join('\0') !== modelIds ||
+          entry.assistantId !== first.assistantId ||
+          entry.request.targetMode === ConversationTargetMode.ReservedBranch
+      )
+    ) {
+      throw new Error('Chat batch profile changed before commit')
+    }
+
+    const models = first.resolvedModels
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: first.request.reasoningEffort,
+      serviceTier: first.request.serviceTier,
+      fastMode: first.request.fastMode === true
+    }
+    const assistantIdentity = resolveAssistantIdentity(first.assistantId)
+    const committed = messageService.createUserMessageBatchWithPlaceholders({
+      topicId,
+      parentId: first.request.parentAnchorId,
+      users: entries.map((entry) => ({
+        data: { parts: entry.request.userMessageParts },
+        modelId: entry.inputModelId
+      })),
+      placeholders: models.map((model) => ({
+        role: 'assistant',
+        data: { parts: [], turnOptions },
+        status: 'pending',
+        modelId: model.id,
+        messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
+      }))
+    })
+    const anchor = committed.userMessages.at(-1)
+    if (!anchor) throw new Error('Chat batch did not commit a user row')
+    const contextSettingsOverride = resolveAssistantContextOverride(first.assistantId)
+    const traceId = topicService.ensureTraceId(topicId)
+    const preparation: ConversationExecutionPreparationDescriptor = {
+      kind: ConversationExecutionPreparationKind.PersistentChat,
+      conversation: first.request.conversation,
+      models,
+      outputNodeIds: committed.placeholders.map(({ id }) => id),
+      historyAnchorId: anchor.id,
+      assistantId: first.assistantId,
+      contextSettingsOverride,
+      turnOptions,
+      knowledgeBaseIds: getKnowledgeBaseIdsFromParts(anchor.data.parts ?? []),
+      steerReminder: false
+    }
+    const shouldAutoName = !first.request.parentAnchorId
+    return {
+      conversation: first.request.conversation,
+      input: { historyNodeId: anchor.id },
+      executions: models.map((model, index) => {
+        const placeholder = committed.placeholders[index]
+        if (!placeholder) throw new Error('Chat batch returned fewer placeholders than models')
+        return {
+          modelId: model.id,
+          outputNodeId: placeholder.id,
+          preparation,
+          preparationIndex: index,
+          persistence: {
+            kind: ConversationTerminalPersistenceKind.PersistentChat,
+            topicId,
+            modelId: model.id,
+            assistantMessageId: placeholder.id,
+            turnOptions,
+            contextSettingsOverride
+          },
+          telemetry: {
+            kind: ConversationTelemetryKind.Chat,
+            topicId,
+            trigger: ConversationOpenTrigger.SubmitMessage,
+            traceId,
+            modelId: model.id,
+            modelName: model.name ?? model.id
+          },
+          driver: { kind: ConversationExecutionDriverBindingKind.Chat }
+        }
+      }),
+      reservedMessages: [...committed.userMessages, ...committed.placeholders].map(toReservedUIMessage),
+      activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+      postCommitTasks: [
+        ...(shouldAutoName
+          ? [
+              {
+                kind: ConversationPostCommitTaskKind.RenameChatFromFirstUser as const,
+                topicId,
+                userMessageId: committed.userMessages[0]?.id ?? anchor.id
+              }
+            ]
+          : []),
+        { kind: ConversationPostCommitTaskKind.RegisterTraceFlush, conversationId: topicId }
       ]
     }
   }

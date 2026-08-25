@@ -211,6 +211,40 @@ describe('AgentChatContextProvider', () => {
     ])
   })
 
+  it('commits a same-profile inbox batch as two user rows and one runtime execution', async () => {
+    const provider = new AgentChatContextProvider()
+    const context = { hasLiveStream: false }
+    const validations = await Promise.all(
+      ['follow-up B', 'follow-up C'].map((text) =>
+        provider.validateIntent(
+          request({ userMessageParts: [{ type: 'text', text }] }),
+          context,
+          new AbortController().signal
+        )
+      )
+    )
+
+    const committed = provider.commitBatchIntent(validations, context)
+
+    expect(committed.reservedMessages.map(({ role }) => role)).toEqual(['user', 'user', 'assistant'])
+    expect(committed.executions).toHaveLength(1)
+    const preparation = committed.executions[0]?.preparation
+    expect(preparation?.kind).toBe('agent-fresh')
+    if (preparation?.kind !== 'agent-fresh') throw new Error('Expected Agent fresh preparation')
+    expect(preparation.userMessage.data.parts?.flatMap((part) => (part.type === 'text' ? [part.text] : []))).toEqual([
+      'follow-up B',
+      'follow-up C'
+    ])
+    expect(
+      dbh.db
+        .select({ role: agentSessionMessageTable.role })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+        .all()
+        .map(({ role }) => role)
+    ).toEqual(['user', 'user', 'assistant'])
+  })
+
   it('prepares live inject without creating a new runtime turn or assistant placeholder', async () => {
     const provider = new AgentChatContextProvider()
     const { validation, committed } = await validateAndCommit(provider, request(), { hasLiveStream: true })

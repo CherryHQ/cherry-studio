@@ -6,6 +6,7 @@ import {
   ConversationContinuationTrigger,
   ConversationExecutionAttachState,
   ConversationExecutionPhase,
+  ConversationInputTarget,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
@@ -108,6 +109,20 @@ function request(text = 'hello'): MainDispatchRequest {
     trigger: ConversationOpenTrigger.SubmitMessage,
     conversation: ref,
     userMessageParts: [{ type: 'text', text }]
+  }
+}
+
+function queuedRequest(text: string): MainDispatchRequest {
+  const userMessageParts = [{ type: 'text' as const, text }]
+  return {
+    trigger: ConversationOpenTrigger.SubmitMessage,
+    conversation: ref,
+    userMessageParts,
+    inputTarget: ConversationInputTarget.NextTurn,
+    inboxPresentation: {
+      draft: { text, tokens: [] },
+      payload: { text, userMessageParts }
+    }
   }
 }
 
@@ -1715,6 +1730,79 @@ describe('ConversationRuntimeService', () => {
     expect(contexts).toEqual([false, true])
   })
 
+  it('keeps an accepted NextTurn input in Actor memory until the turn boundary commits its row', async () => {
+    const active = controlledStream()
+    const successor = controlledStream()
+    const subscriber = listener()
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateIntent: vi.fn(async (currentRequest, context) => validation(currentRequest, context.hasLiveStream)),
+      commitIntent: vi.fn((currentValidation) => committed(currentValidation.context.hasLiveStream))
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(
+        vi.fn().mockResolvedValueOnce(active.stream).mockResolvedValueOnce(successor.stream)
+      )
+    })
+
+    await service.dispatch(subscriber, request('active'))
+    await expect(service.dispatch(subscriber, queuedRequest('queued'))).resolves.toMatchObject({
+      mode: ConversationOpenMode.Injected,
+      reservedMessages: []
+    })
+
+    expect(provider.commitIntent).toHaveBeenCalledOnce()
+    expect(service.inboxSnapshot(ref).items).toEqual([
+      expect.objectContaining({ presentation: expect.objectContaining({ draft: { text: 'queued', tokens: [] } }) })
+    ])
+
+    active.controller.close()
+    await vi.waitFor(() => expect(provider.commitIntent).toHaveBeenCalledTimes(2))
+    expect(service.inboxSnapshot(ref).items).toEqual([])
+
+    successor.controller.close()
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+  })
+
+  it('claims a same-profile NextTurn prefix in one History batch commit', async () => {
+    const active = controlledStream()
+    const successor = controlledStream()
+    const subscriber = listener()
+    const commitBatchIntent = vi.fn((_validations: readonly ValidatedConversationIntent[]) => committed(false))
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateIntent: vi.fn(async (currentRequest, context) => validation(currentRequest, context.hasLiveStream)),
+      commitIntent: vi.fn((currentValidation) => committed(currentValidation.context.hasLiveStream)),
+      commitBatchIntent
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(
+        vi.fn().mockResolvedValueOnce(active.stream).mockResolvedValueOnce(successor.stream)
+      )
+    })
+
+    await service.dispatch(subscriber, request('active'))
+    await service.dispatch(subscriber, queuedRequest('B'))
+    await service.dispatch(subscriber, queuedRequest('C'))
+    expect(provider.commitIntent).toHaveBeenCalledOnce()
+    expect(service.inboxSnapshot(ref).items.map(({ presentation }) => presentation.draft.text)).toEqual(['B', 'C'])
+
+    active.controller.close()
+    await vi.waitFor(() => expect(commitBatchIntent).toHaveBeenCalledOnce())
+    expect(commitBatchIntent.mock.calls[0]?.[0]).toHaveLength(2)
+    expect(provider.commitIntent).toHaveBeenCalledOnce()
+    expect(service.inboxSnapshot(ref).items).toEqual([])
+
+    successor.controller.close()
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+  })
+
   it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
     const first = controlledStream()
     const second = controlledStream()
@@ -2456,12 +2544,14 @@ describe('ConversationRuntimeService', () => {
     const discard = vi.spyOn(internals.executionResources, 'discardRuntimeBuffer').mockImplementation(() => {})
     const actor = internals.actorFor(conversation)
     actor.openTurn(
-      {
-        id: toConversationInputId('foreground-input'),
-        historyNodeId: 'foreground-input',
-        provenance: ConversationInputProvenance.Renderer,
-        responder: ConversationResponderKind.Interactive
-      },
+      [
+        {
+          id: toConversationInputId('foreground-input'),
+          historyNodeId: 'foreground-input',
+          provenance: ConversationInputProvenance.Renderer,
+          responder: ConversationResponderKind.Interactive
+        }
+      ],
       [
         {
           id: toConversationExecutionId('foreground-execution'),
