@@ -10,7 +10,6 @@ import {
   type QuickPanelOpenOptions
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -20,7 +19,7 @@ import type { ListPromptsQueryParams } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 import { Plus, Settings, Zap } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -32,6 +31,11 @@ interface Props {
 
 const logger = loggerService.withContext('QuickPhrasesButton')
 const PROMPT_QUERY_SWR_OPTIONS = { keepPreviousData: false } as const
+const PromptEditDialog = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
+    default: module.PromptEditDialog
+  }))
+)
 
 const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -275,15 +279,18 @@ const QuickPhrasesModal = ({
 }: Pick<
   ReturnType<typeof useQuickPhrasesToolController>,
   'defaultVisibility' | 'handleAddModalSave' | 'isAddModalOpen' | 'isCreatingPrompt' | 'closeAddModal'
->) => (
-  <PromptEditDialog
-    open={isAddModalOpen}
-    defaultVisibility={defaultVisibility}
-    saving={isCreatingPrompt}
-    onSave={handleAddModalSave}
-    onCancel={closeAddModal}
-  />
-)
+>) =>
+  isAddModalOpen ? (
+    <Suspense fallback={null}>
+      <PromptEditDialog
+        open={isAddModalOpen}
+        defaultVisibility={defaultVisibility}
+        saving={isCreatingPrompt}
+        onSave={handleAddModalSave}
+        onCancel={closeAddModal}
+      />
+    </Suspense>
+  ) : null
 
 export const QuickPhrasesToolRuntime = (props: Props) => {
   const controller = useQuickPhrasesToolController(props)
