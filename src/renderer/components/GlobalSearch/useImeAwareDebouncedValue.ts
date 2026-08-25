@@ -1,3 +1,4 @@
+import type { CompositionEvent } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
@@ -16,6 +17,9 @@ export const GLOBAL_SEARCH_QUERY_DEBOUNCE_MS = 200
  *   committed value is frozen so romanization intermediates ("nihao" while
  *   typing 你好) never reach the search backend; confirming candidates via
  *   `compositionend` flushes the final text immediately, with no extra wait.
+ *   The final text is read from the composition event's own target because
+ *   some engines emit `compositionend` before the matching change event, at
+ *   which point the controlled `value` prop still holds the intermediate.
  * - Clearing the input (`''`) commits synchronously so stale results reset
  *   without waiting one debounce window.
  *
@@ -30,18 +34,13 @@ export function useImeAwareDebouncedValue(
   committedValue: string
   compositionHandlers: {
     onCompositionStart: () => void
-    onCompositionEnd: () => void
+    onCompositionEnd: (event: CompositionEvent<HTMLInputElement>) => void
   }
 } {
   const [committedValue, setCommittedValue] = useState(value)
   const isComposingRef = useRef(false)
-  // Latest value as seen by effects; read by onCompositionEnd because some
-  // engines emit `compositionend` before the final change event.
-  const latestValueRef = useRef(value)
 
   useEffect(() => {
-    latestValueRef.current = value
-
     if (value === '') {
       setCommittedValue('')
       return
@@ -57,9 +56,12 @@ export function useImeAwareDebouncedValue(
     isComposingRef.current = true
   }, [])
 
-  const handleCompositionEnd = useCallback(() => {
+  const handleCompositionEnd = useCallback((event: CompositionEvent<HTMLInputElement>) => {
     isComposingRef.current = false
-    setCommittedValue(latestValueRef.current)
+    // Some engines emit `compositionend` before the final change event, so
+    // the controlled `value` can still hold the romanization intermediate
+    // here; commit the input's actual DOM value instead.
+    setCommittedValue(event.currentTarget.value.trim())
   }, [])
 
   return {
