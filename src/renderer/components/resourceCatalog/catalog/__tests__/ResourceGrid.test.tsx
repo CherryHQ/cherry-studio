@@ -409,7 +409,7 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
   }
 }
 
-function createAgentResource(): ResourceItem {
+function createAgentResource(raw: Partial<Extract<ResourceItem, { type: 'agent' }>['raw']> = {}): ResourceItem {
   return {
     id: 'agent-1',
     type: 'agent',
@@ -418,7 +418,7 @@ function createAgentResource(): ResourceItem {
     avatar: 'A',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
+    raw: raw as Extract<ResourceItem, { type: 'agent' }>['raw']
   }
 }
 
@@ -839,6 +839,14 @@ describe('ResourceGrid card actions', () => {
     await user.click(screen.getByRole('button', { name: '删除' }))
 
     expect(onDelete).toHaveBeenCalledWith(resource)
+  })
+
+  it('hides delete for protected builtin agents', () => {
+    const resource = createAgentResource({ configuration: { builtin_role: 'support' } })
+
+    render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete: vi.fn() })} />)
+
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
   })
 
   it('shows only one assistant group in the compact card layout', () => {

@@ -26,14 +26,40 @@ describe('useAgentMutationsById', () => {
     })
   })
 
-  it('refreshes agent list and details after scoped mutations', () => {
+  it('patches through DataApi and deletes through IpcApi', () => {
     renderHook(() => useAgentMutationsById('agent-1'))
 
     expect(useMutationMock).toHaveBeenCalledWith('PATCH', '/agents/agent-1', {
       refresh: expect.any(Function)
     })
-    expect(useMutationMock).toHaveBeenCalledWith('DELETE', '/agents/agent-1', {
-      refresh: ['/agents', '/agents/*', '/pins']
+    expect(useMutationMock).not.toHaveBeenCalledWith('DELETE', expect.anything(), expect.anything())
+  })
+
+  it('deletes through IpcApi then invalidates agent caches', async () => {
+    ipcRequestMock.mockResolvedValue({ deleted: true })
+    invalidateMock.mockResolvedValue(undefined)
+    const { result } = renderHook(() => useAgentMutationsById('agent-1'))
+
+    await act(async () => {
+      await result.current.deleteAgent()
+    })
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.delete', {
+      agentId: 'agent-1',
+      deleteSessions: false
+    })
+    expect(invalidateMock).toHaveBeenCalledWith('/agents')
+    expect(invalidateMock).toHaveBeenCalledWith('/agent-sessions')
+    expect(invalidateMock).toHaveBeenCalledWith('/pins')
+  })
+
+  it('keeps a committed deletion successful when cache refresh fails', async () => {
+    ipcRequestMock.mockResolvedValue({ deleted: true })
+    invalidateMock.mockRejectedValueOnce(new Error('revalidation failed'))
+    const { result } = renderHook(() => useAgentMutationsById('agent-1'))
+
+    await act(async () => {
+      await expect(result.current.deleteAgent()).resolves.toBeUndefined()
     })
   })
 
