@@ -1,11 +1,14 @@
 const DEFAULT_RUBBER_BAND_OPTIONS = {
   resistance: 0.25,
   maxOverdrag: 12,
+  physicalLeftInset: 0,
+  physicalRightInset: 0,
   leftInset: 0,
   rightInset: 0
 }
 
 type RubberBandOptions = Partial<typeof DEFAULT_RUBBER_BAND_OPTIONS>
+type HorizontalRect = Pick<DOMRectReadOnly, 'left' | 'width'>
 
 const getRubberBandOffset = (
   overflow: number,
@@ -23,23 +26,27 @@ const getRubberBandOffset = (
 
 export const applyHorizontalRubberBandTranslateX = (
   translateX: number,
-  draggedRect: DOMRectReadOnly,
+  draggedRect: HorizontalRect,
   boundaryRect: DOMRectReadOnly,
   options: RubberBandOptions = {}
 ): number => {
-  const { resistance, maxOverdrag, leftInset, rightInset } = { ...DEFAULT_RUBBER_BAND_OPTIONS, ...options }
+  const { resistance, maxOverdrag, physicalLeftInset, physicalRightInset, leftInset, rightInset } = {
+    ...DEFAULT_RUBBER_BAND_OPTIONS,
+    ...options
+  }
 
-  const hardMinX = boundaryRect.left - draggedRect.left
-  const hardMaxX = boundaryRect.right - draggedRect.left - draggedRect.width
-  const rawMinX = boundaryRect.left + leftInset - draggedRect.left
-  const rawMaxX = boundaryRect.right - rightInset - draggedRect.left - draggedRect.width
+  const hardMinX = boundaryRect.left + physicalLeftInset - draggedRect.left
+  const hardMaxX = boundaryRect.right - physicalRightInset - draggedRect.left - draggedRect.width
+  const rawMinX = boundaryRect.left + physicalLeftInset + leftInset - draggedRect.left
+  const rawMaxX = boundaryRect.right - physicalRightInset - rightInset - draggedRect.left - draggedRect.width
 
   if (rawMaxX < rawMinX) {
     // Safe area collapsed (insets exceed available width). Fall back to a hard
     // physical-bounds clamp so the tab cannot fly off-screen with no resistance.
-    if (hardMaxX < hardMinX) return translateX
-    if (translateX < hardMinX) return hardMinX
-    if (translateX > hardMaxX) return hardMaxX
+    const physicalMinX = Math.min(hardMinX, hardMaxX)
+    const physicalMaxX = Math.max(hardMinX, hardMaxX)
+    if (translateX < physicalMinX) return physicalMinX
+    if (translateX > physicalMaxX) return physicalMaxX
     return translateX
   }
 

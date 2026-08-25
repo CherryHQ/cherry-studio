@@ -11,6 +11,19 @@ const TAB_GAP = 6
 const TAB_DRAG_SAFE_INSET = 16
 
 type DragMode = 'pending' | 'reorder' | 'detach'
+type HorizontalRect = Pick<DOMRectReadOnly, 'left' | 'width'>
+
+const getElementLayoutRect = (element: HTMLElement): HorizontalRect => {
+  const rect = element.getBoundingClientRect()
+  const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
+
+  return { left: rect.left - translateX, width: rect.width }
+}
+
+const getRightInsetWidth = (boundaryRect: DOMRectReadOnly | null, insetElement: HTMLElement | null): number => {
+  if (!boundaryRect || !insetElement) return 0
+  return Math.max(0, boundaryRect.right - insetElement.getBoundingClientRect().left) + TAB_GAP
+}
 
 interface DragState {
   tabId: string
@@ -65,7 +78,7 @@ export function useTabDrag({
     tabType: 'normal' as 'pinned' | 'normal',
     detachedCreated: false,
     tabClosed: false,
-    originalRects: new Map<string, DOMRectReadOnly>(),
+    originalRects: new Map<string, HorizontalRect>(),
     boundaryRect: null as DOMRectReadOnly | null,
     leftInsetWidth: 0,
     rightInsetWidth: 0,
@@ -129,8 +142,10 @@ export function useTabDrag({
         }
 
         return applyHorizontalRubberBandTranslateX(translateX, draggedRect, boundaryRect, {
-          leftInset: TAB_DRAG_SAFE_INSET + leftInsetWidth,
-          rightInset: TAB_DRAG_SAFE_INSET + rightInsetWidth
+          physicalLeftInset: leftInsetWidth,
+          physicalRightInset: rightInsetWidth,
+          leftInset: TAB_DRAG_SAFE_INSET,
+          rightInset: TAB_DRAG_SAFE_INSET
         })
       }
 
@@ -159,17 +174,19 @@ export function useTabDrag({
       const index = list.findIndex((t) => t.id === tab.id)
       const tabList = tabListRef.current
       const leftInsetWidth = tabList ? Number.parseFloat(window.getComputedStyle(tabList).paddingLeft) || 0 : 0
-      const rightInsetWidth = rightInsetRef.current?.getBoundingClientRect().width ?? 0
+      const boundaryRect = tabList?.getBoundingClientRect() ?? null
+      const rightInsetWidth = getRightInsetWidth(boundaryRect, rightInsetRef.current)
 
       const target = e.currentTarget as HTMLElement
       target.setPointerCapture(e.pointerId)
 
       // Store original positions of all tabs
-      const originalRects = new Map<string, DOMRectReadOnly>()
+      const originalRects = new Map<string, HorizontalRect>()
       for (const t of list) {
         const el = tabRefs.current.get(t.id)
         if (el) {
-          originalRects.set(t.id, el.getBoundingClientRect())
+          const rect = el.getBoundingClientRect()
+          originalRects.set(t.id, { left: rect.left, width: rect.width })
         }
       }
 
@@ -182,10 +199,9 @@ export function useTabDrag({
         detachedCreated: false,
         tabClosed: false,
         originalRects,
-        boundaryRect: tabList?.getBoundingClientRect() ?? null,
+        boundaryRect,
         leftInsetWidth,
-        // Reserve the sticky right-side button plus the visual gap before applying right-edge rubber-band overdrag.
-        rightInsetWidth: rightInsetWidth > 0 ? rightInsetWidth + TAB_GAP : 0,
+        rightInsetWidth,
         grabOffsetX: e.screenX - window.screenX,
         grabOffsetY: e.screenY - window.screenY
       }
@@ -216,13 +232,17 @@ export function useTabDrag({
       if (e.pointerId !== dragRef.current.pointerId) return
 
       dragRef.current.currentX = e.clientX
-      // Refresh live bounds so resizing and sticky-button changes do not leave stale drag geometry.
-      const liveBoundary = tabListRef.current?.getBoundingClientRect()
-      if (liveBoundary) {
-        dragRef.current.boundaryRect = liveBoundary
+      // Refresh live geometry so resizing and sticky-button changes do not leave stale drag bounds.
+      const liveTabList = tabListRef.current
+      if (liveTabList) {
+        dragRef.current.boundaryRect = liveTabList.getBoundingClientRect()
+        dragRef.current.leftInsetWidth = Number.parseFloat(window.getComputedStyle(liveTabList).paddingLeft) || 0
       }
-      const liveRightInsetWidth = rightInsetRef.current?.getBoundingClientRect().width ?? 0
-      dragRef.current.rightInsetWidth = liveRightInsetWidth > 0 ? liveRightInsetWidth + TAB_GAP : 0
+      const draggedElement = tabRefs.current.get(dragState.tabId)
+      if (draggedElement) {
+        dragRef.current.originalRects.set(dragState.tabId, getElementLayoutRect(draggedElement))
+      }
+      dragRef.current.rightInsetWidth = getRightInsetWidth(dragRef.current.boundaryRect, rightInsetRef.current)
       const deltaX = e.clientX - dragRef.current.startX
       const deltaY = e.clientY - dragRef.current.startY
 

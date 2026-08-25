@@ -104,4 +104,13 @@ describe('applyHorizontalRubberBandTranslateX', () => {
     expect(applyHorizontalRubberBandTranslateX(-50, wideDraggedRect, narrowBoundaryRect, opts)).toBe(0)
     expect(applyHorizontalRubberBandTranslateX(100, wideDraggedRect, narrowBoundaryRect, opts)).toBe(40)
   })
+
+  it('clamps between physical-edge alignments when the dragged item is wider than the boundary', () => {
+    const narrowBoundaryRect = createRect(0, 200)
+    const wideDraggedRect = createRect(0, 240)
+
+    expect(applyHorizontalRubberBandTranslateX(-500, wideDraggedRect, narrowBoundaryRect)).toBe(-40)
+    expect(applyHorizontalRubberBandTranslateX(-20, wideDraggedRect, narrowBoundaryRect)).toBe(-20)
+    expect(applyHorizontalRubberBandTranslateX(500, wideDraggedRect, narrowBoundaryRect)).toBe(0)
+  })
 })
