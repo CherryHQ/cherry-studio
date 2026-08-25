@@ -47,9 +47,12 @@ export function selectBudgetCandidates<T>(
     for (const part of candidate.parts) selectedPartKeys.add(part.key)
   }
 
+  const sourceRepresentatives: DiagnosticBudgetCandidate<T>[] = []
   for (const kind of ['logs', 'traces', 'chatRecords'] as const) {
-    trySelect(sortedCandidates.find((candidate) => candidate.kind === kind))
+    const representative = sortedCandidates.find((candidate) => candidate.kind === kind)
+    if (representative) sourceRepresentatives.push(representative)
   }
+  for (const candidate of sourceRepresentatives.sort(newestFirst)) trySelect(candidate)
   for (const candidate of sortedCandidates) trySelect(candidate)
 
   return {

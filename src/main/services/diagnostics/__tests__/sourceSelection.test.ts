@@ -45,6 +45,17 @@ describe('diagnostic source budget selection', () => {
     expect(result.omitted).toEqual([olderLog])
   })
 
+  it('tries each source representative in global newest-first order when they cannot all fit', () => {
+    const olderLog = candidate('log', 'logs', 10, 40)
+    const newerTrace = candidate('trace', 'traces', 20, 30)
+    const newestChat = candidate('chat', 'chatRecords', 30, 30)
+
+    const result = selectBudgetCandidates([olderLog, newerTrace, newestChat], 60)
+
+    expect(result.selected).toEqual([newestChat.item, newerTrace.item])
+    expect(result.omitted).toEqual([olderLog.item])
+  })
+
   it('counts a shared topic only once when selecting chat records', () => {
     const topic = { archiveName: 'chats/topics.jsonl', bytes: 10, data: Buffer.alloc(10), key: 'topic:1' } as const
     const older: ChatRecordCandidate = {
