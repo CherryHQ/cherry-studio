@@ -172,6 +172,20 @@ const aiStreamRegenerateShape = {
   fastMode: z.boolean().optional()
 }
 
+const aiStreamRetryShape = {
+  ...aiStreamRegenerateShape,
+  trigger: z.literal(ConversationOpenTrigger.RetryMessage),
+  retryMessageId: z.string().min(1),
+  appendToLiveGroupMessageId: z.never().optional()
+}
+
+const aiStreamAppendModelShape = {
+  ...aiStreamRegenerateShape,
+  trigger: z.literal(ConversationOpenTrigger.AppendModel),
+  appendToLiveGroupMessageId: z.string().min(1),
+  retryMessageId: z.never().optional()
+}
+
 const mentionedModelIdsSchema = z
   .array(UniqueModelIdSchema)
   .refine((modelIds) => new Set(modelIds).size === modelIds.length, {
@@ -315,39 +329,40 @@ export const aiRequestSchemas = {
     // (main persists it), so its items are `z.custom<CherryMessagePart>()`.
     input: z.intersection(
       z.object({
-        conversation: conversationRefSchema,
-        mentionedModelIds: mentionedModelIdsSchema
+        conversation: conversationRefSchema
       }),
       z.union([
         z.object({
           ...aiStreamSubmitShape,
+          mentionedModelIds: mentionedModelIdsSchema,
           inputTarget: z.never().optional(),
           inboxPresentation: z.never().optional()
         }),
         z.object({
           ...aiStreamSubmitShape,
+          mentionedModelIds: mentionedModelIdsSchema,
           inputTarget: z.literal(ConversationInputTarget.NextTurn),
           inboxPresentation: conversationInboxPresentationSchema
         }),
         z.object({
           ...aiStreamSubmitShape,
+          mentionedModelIds: mentionedModelIdsSchema,
           inputTarget: z.literal(ConversationInputTarget.NextStep),
           inboxPresentation: z.never().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
-          retryMessageId: z.string().min(1),
+          mentionedModelIds: mentionedModelIdsSchema,
+          retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional()
         }),
         z.object({
-          ...aiStreamRegenerateShape,
-          retryMessageId: z.never().optional(),
-          appendToLiveGroupMessageId: z.string().min(1)
+          ...aiStreamRetryShape,
+          mentionedModelIds: z.tuple([UniqueModelIdSchema])
         }),
         z.object({
-          ...aiStreamRegenerateShape,
-          retryMessageId: z.never().optional(),
-          appendToLiveGroupMessageId: z.never().optional()
+          ...aiStreamAppendModelShape,
+          mentionedModelIds: z.tuple([UniqueModelIdSchema])
         })
       ])
     ),

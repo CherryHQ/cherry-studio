@@ -488,45 +488,51 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
-    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
-    failedAssistant.metadata.modelId = 'provider::model-a'
-    failedAssistant.metadata.turnOptions = { serviceTier: 'fast' }
-    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
-    const activeExecution = {
-      turnId: 'turn-2',
-      executionId: 'execution-2',
-      modelId: 'provider::model-a',
-      outputNodeId: 'a1'
-    }
-    const reservedMessage = {
-      ...failedAssistant,
-      parts: [],
-      metadata: { ...failedAssistant.metadata, status: 'pending' }
-    }
-    streamOpen.mockResolvedValueOnce({
-      mode: 'started',
-      reservedMessages: [reservedMessage],
-      activeExecutions: [activeExecution]
-    })
-    const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+  it.each(['error', 'paused'] as const)(
+    'retries a %s assistant in place through Main and seeds the fresh attempt identity',
+    async (status) => {
+      const terminalAssistant = uiMsg('a1', 'assistant', 'u1', false, status)
+      terminalAssistant.metadata.modelId = 'provider::model-a'
+      terminalAssistant.metadata.turnOptions = { serviceTier: 'fast' }
+      terminalAssistant.parts = [{ type: 'data-error', data: { message: status } }]
+      const activeExecution = {
+        turnId: 'turn-2',
+        executionId: 'execution-2',
+        modelId: 'provider::model-a',
+        outputNodeId: 'a1'
+      }
+      const reservedMessage = {
+        ...terminalAssistant,
+        parts: [],
+        metadata: { ...terminalAssistant.metadata, status: 'pending' }
+      }
+      streamOpen.mockResolvedValueOnce({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
+        activeExecutions: [activeExecution]
+      })
+      const { actions, regenerate, seedReservedMessages } = renderActions([
+        uiMsg('u1', 'user', 'vroot'),
+        terminalAssistant
+      ])
 
-    await actions.regenerate('a1')
+      await actions.regenerate('a1')
 
-    expect(regenerate).not.toHaveBeenCalled()
-    expect(streamOpen).toHaveBeenCalledWith({
-      trigger: 'regenerate-message',
-      conversation: { kind: 'chat', id: 't1' },
-      parentAnchorId: 'u1',
-      retryMessageId: 'a1',
-      mentionedModelIds: ['provider::model-a'],
-      serviceTier: 'fast'
-    })
-    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
-      activeExecutions: [activeExecution],
-      activeNodeDecision: undefined
-    })
-  })
+      expect(regenerate).not.toHaveBeenCalled()
+      expect(streamOpen).toHaveBeenCalledWith({
+        trigger: 'retry-message',
+        conversation: { kind: 'chat', id: 't1' },
+        parentAnchorId: 'u1',
+        retryMessageId: 'a1',
+        mentionedModelIds: ['provider::model-a'],
+        serviceTier: 'fast'
+      })
+      expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
+        activeExecutions: [activeExecution],
+        activeNodeDecision: undefined
+      })
+    }
+  )
 
   it('keeps successful non-text assistants on the ordinary regenerate path', async () => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
@@ -575,7 +581,7 @@ describe('useChatWriteActions — regenerate', () => {
 
     expect(regenerate).not.toHaveBeenCalled()
     expect(streamOpen).toHaveBeenCalledWith({
-      trigger: 'regenerate-message',
+      trigger: 'append-model',
       conversation: { kind: 'chat', id: 't1' },
       parentAnchorId: 'u1',
       appendToLiveGroupMessageId: 'a1',

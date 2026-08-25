@@ -145,7 +145,7 @@ describe('IpcChatTransport', () => {
   const topicId = 'topic-1'
   const conversation = { kind: ConversationKind.Chat, id: topicId } as const
   const baseOptions = {
-    trigger: ConversationOpenTrigger.SubmitMessage,
+    trigger: ConversationOpenTrigger.SubmitMessage as const,
     chatId: topicId,
     messageId: undefined,
     messages: [] as CherryUIMessage[],

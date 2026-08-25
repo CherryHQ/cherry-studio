@@ -61,7 +61,9 @@ Agent branching is disabled. The common history API still exposes a tree: the Ag
 | idle submit | preview Submit turn, commit skeleton, install Running/Starting | start one or more executions | open ack; exact execution terminal |
 | active Chat submit | preview and commit NextTurn; request stateless driver yield | persist user row; stop at clean step boundary | current terminal persisted; successor committed |
 | active Agent submit | choose NextStep redirect or NextTurn fallback | redirect connection or retain FIFO input | redirected/rejected/undelivered |
-| regenerate or append model | preview Regenerate/append at exact tree anchor | commit replacement or sibling skeleton | open ack; exact execution terminal |
+| regenerate | preview Regenerate at the replacement tree anchor | commit a new sibling skeleton | open ack; exact execution terminal |
+| retry failed or paused model | preview exact execution retry | reset the same assistant row and start one model | open ack; exact execution terminal |
+| append model | require the selected reply group to remain live through commit | add one sibling execution without moving the active branch | open ack; exact execution terminal |
 | first provider chunk | move execution to Active | publish streaming status | none |
 | later provider chunks | no control transition | ring append and listener broadcast | none |
 | provider terminal | select immutable outcome and enter Persisting | persist final snapshot | durable/deferred/failed |

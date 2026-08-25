@@ -94,15 +94,8 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
     }
     const req = validation.request
     const ctx = context
-    if (req.trigger === 'regenerate-message') {
-      throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
-    }
-    if (req.trigger === 'continue-conversation') {
-      throw new Error('continue-conversation is not supported for temporary chats (immutable append-only)')
-    }
-    if (req.trigger === 'steer-continuation') {
-      // Never reached: steers are only enqueued for persistent topics (provider-gated in dispatch).
-      throw new Error('steer-continuation is not supported for temporary chats')
+    if (req.trigger !== ConversationOpenTrigger.SubmitMessage) {
+      throw new Error(`${req.trigger} is not supported for temporary chats (immutable append-only)`)
     }
     // Temporary chats have no steer queue, so a busy submit can't be absorbed. Refuse it here rather
     // than letting `send()` take the inject branch and silently discard the models (the message would

@@ -746,7 +746,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: ConversationOpenTrigger.RegenerateMessage,
+        trigger: ConversationOpenTrigger.AppendModel,
         conversation,
         parentAnchorId: 'u1',
         appendToLiveGroupMessageId: 'a2',
@@ -795,7 +795,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: ConversationOpenTrigger.RegenerateMessage,
+        trigger: ConversationOpenTrigger.AppendModel,
         conversation,
         parentAnchorId: 'u1',
         appendToLiveGroupMessageId: 'a1',
@@ -834,7 +834,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: ConversationOpenTrigger.RegenerateMessage,
+          trigger: ConversationOpenTrigger.AppendModel,
           conversation,
           parentAnchorId: 'u1',
           appendToLiveGroupMessageId: 'a2',
@@ -865,7 +865,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: ConversationOpenTrigger.RegenerateMessage,
+          trigger: ConversationOpenTrigger.RetryMessage,
           conversation,
           parentAnchorId: 'u1',
           retryMessageId: 'a2',
@@ -909,7 +909,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: ConversationOpenTrigger.RegenerateMessage,
+          trigger: ConversationOpenTrigger.AppendModel,
           conversation,
           parentAnchorId: 'u1',
           appendToLiveGroupMessageId: 'a3',
@@ -930,7 +930,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: ConversationOpenTrigger.RegenerateMessage,
+          trigger: ConversationOpenTrigger.AppendModel,
           conversation,
           parentAnchorId: 'u1',
           appendToLiveGroupMessageId: 'missing-assistant',
@@ -956,7 +956,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         provider.prepareDispatch(
           makeSubscriber(),
           {
-            trigger: ConversationOpenTrigger.RegenerateMessage,
+            trigger: ConversationOpenTrigger.AppendModel,
             conversation,
             parentAnchorId: 'u1',
             appendToLiveGroupMessageId: 'a1',

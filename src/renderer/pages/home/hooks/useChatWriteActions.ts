@@ -322,7 +322,7 @@ export function useChatWriteActions(params: Params): Result {
 
       if (canRetryInPlace) {
         const ack = await ipcApi.request('ai.stream.open', {
-          trigger: ConversationOpenTrigger.RegenerateMessage,
+          trigger: ConversationOpenTrigger.RetryMessage,
           conversation: { kind: ConversationKind.Chat, id: topic.id },
           parentAnchorId,
           retryMessageId: target.id,
@@ -338,11 +338,11 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       // The message toolbar's @ picker is an explicit request to add the selected model to this
-      // reply group. Main decides atomically whether the group is still live: live groups append a
-      // new execution without moving activeNodeId; settled groups use the ordinary regenerate path.
+      // reply group. Main atomically verifies that the exact group is still live before appending
+      // a new execution without moving activeNodeId.
       if (target?.role === 'assistant' && parentAnchorId && options?.modelId) {
         const ack = await ipcApi.request('ai.stream.open', {
-          trigger: ConversationOpenTrigger.RegenerateMessage,
+          trigger: ConversationOpenTrigger.AppendModel,
           conversation: { kind: ConversationKind.Chat, id: topic.id },
           parentAnchorId,
           appendToLiveGroupMessageId: target.id,

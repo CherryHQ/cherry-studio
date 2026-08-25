@@ -158,14 +158,6 @@ export interface ConversationStatusSnapshotEntry {
   inboxRevision: number
 }
 
-type AiStreamRegenerateTarget =
-  /** Reset and retry one failed assistant row in place. */
-  | { retryMessageId: string; appendToLiveGroupMessageId?: never }
-  /** Append one model response to the selected live reply group. */
-  | { retryMessageId?: never; appendToLiveGroupMessageId: string }
-  /** Ordinary regeneration creates a sibling response. */
-  | { retryMessageId?: never; appendToLiveGroupMessageId?: never }
-
 /** Stream ended. */
 export interface StreamDonePayload {
   conversation: ConversationRef
@@ -228,8 +220,6 @@ export type ConversationActorInputRequest =
 
 export type AiStreamOpenRequest = {
   conversation: ConversationRef
-  /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
-  mentionedModelIds?: UniqueModelId[]
 } & (
   | ({
       /** Brand-new user turn: create the user msg + N assistant placeholders. */
@@ -246,6 +236,8 @@ export type AiStreamOpenRequest = {
       targetMode?: ComposerChatTarget['mode']
       retryMessageId?: never
       appendToLiveGroupMessageId?: never
+      /** Composer-selected request models; persistent non-live sends may fan out. */
+      mentionedModelIds?: UniqueModelId[]
       /** Canonical reasoning selection captured when the composer submitted. */
       reasoningEffort?: ReasoningEffortOption
       /** Canonical provider request tier captured when the composer submitted. */
@@ -253,20 +245,50 @@ export type AiStreamOpenRequest = {
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
     } & ConversationActorInputRequest)
-  | ({
+  | {
       /** Re-run the assistant under an existing user msg. */
       trigger: ConversationOpenTrigger.RegenerateMessage
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
       targetMode?: never
+      retryMessageId?: never
+      appendToLiveGroupMessageId?: never
+      /** Composer-selected models for the new sibling response. */
+      mentionedModelIds?: UniqueModelId[]
       /** Canonical reasoning selection captured for this regenerated turn. */
       reasoningEffort?: ReasoningEffortOption
       /** Canonical provider request tier captured for this regenerated turn. */
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this regenerated turn. */
       fastMode?: boolean
-    } & AiStreamRegenerateTarget)
+    }
+  | {
+      /** Reset and retry one failed or paused assistant row in place. */
+      trigger: ConversationOpenTrigger.RetryMessage
+      parentAnchorId: string
+      retryMessageId: string
+      appendToLiveGroupMessageId?: never
+      userMessageParts?: never
+      targetMode?: never
+      mentionedModelIds: [UniqueModelId]
+      reasoningEffort?: ReasoningEffortOption
+      serviceTier?: ServiceTierSelection
+      fastMode?: boolean
+    }
+  | {
+      /** Add one model execution to the exact live reply group. */
+      trigger: ConversationOpenTrigger.AppendModel
+      parentAnchorId: string
+      appendToLiveGroupMessageId: string
+      retryMessageId?: never
+      userMessageParts?: never
+      targetMode?: never
+      mentionedModelIds: [UniqueModelId]
+      reasoningEffort?: ReasoningEffortOption
+      serviceTier?: ServiceTierSelection
+      fastMode?: boolean
+    }
 )
 
 /**

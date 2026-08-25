@@ -93,7 +93,9 @@ export enum ConversationAdmissionReason {
 /** Public command accepted by the Conversation IPC boundary. */
 export enum ConversationOpenTrigger {
   SubmitMessage = 'submit-message',
-  RegenerateMessage = 'regenerate-message'
+  RegenerateMessage = 'regenerate-message',
+  RetryMessage = 'retry-message',
+  AppendModel = 'append-model'
 }
 
 /** Main-only history continuations translated into Conversation commands. */

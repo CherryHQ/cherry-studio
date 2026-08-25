@@ -1387,7 +1387,7 @@ describe('ConversationRuntimeService', () => {
       isPersistentConversation: true,
       canHandle: () => true,
       validateIntent: vi.fn(async (currentRequest, context) => {
-        if (currentRequest.trigger === ConversationOpenTrigger.RegenerateMessage) {
+        if (currentRequest.trigger === ConversationOpenTrigger.RetryMessage) {
           return {
             ...validation(currentRequest, true),
             executionModelIds: [modelId],
@@ -1403,7 +1403,7 @@ describe('ConversationRuntimeService', () => {
         return { ...validation(currentRequest, context.hasLiveStream), executionModelIds: [modelId, secondModelId] }
       }),
       commitIntent: vi.fn((currentValidation) => {
-        const isRetry = currentValidation.request.trigger === ConversationOpenTrigger.RegenerateMessage
+        const isRetry = currentValidation.request.trigger === ConversationOpenTrigger.RetryMessage
         const models = isRetry
           ? [{ modelId, outputNodeId: 'assistant-1', seedFromEmpty: true }]
           : [
@@ -1429,7 +1429,7 @@ describe('ConversationRuntimeService', () => {
               ...modelOptions,
               request: {
                 chatId: ref.id,
-                trigger: ConversationOpenTrigger.RegenerateMessage,
+                trigger: ConversationOpenTrigger.RegenerateMessage as const,
                 uniqueModelId: currentModelId,
                 messageId: outputNodeId,
                 messages: []
@@ -1465,7 +1465,7 @@ describe('ConversationRuntimeService', () => {
     })
 
     const restarted = await service.dispatch(subscriber, {
-      trigger: ConversationOpenTrigger.RegenerateMessage,
+      trigger: ConversationOpenTrigger.RetryMessage,
       conversation: ref,
       parentAnchorId: 'user-1',
       retryMessageId: 'assistant-1',
@@ -1500,7 +1500,7 @@ describe('ConversationRuntimeService', () => {
       isPersistentConversation: true,
       canHandle: () => true,
       validateIntent: vi.fn(async (currentRequest, context) => {
-        if (currentRequest.trigger === ConversationOpenTrigger.RegenerateMessage) {
+        if (currentRequest.trigger === ConversationOpenTrigger.RetryMessage) {
           return {
             ...validation(currentRequest, true),
             inputModelId: retriedModelId,
@@ -1517,7 +1517,7 @@ describe('ConversationRuntimeService', () => {
         return validation(currentRequest, context.hasLiveStream)
       }),
       commitIntent: vi.fn((currentValidation) => {
-        const isRetry = currentValidation.request.trigger === ConversationOpenTrigger.RegenerateMessage
+        const isRetry = currentValidation.request.trigger === ConversationOpenTrigger.RetryMessage
         const currentModelId = isRetry ? retriedModelId : modelId
         const outputNodeId = isRetry ? 'assistant-b' : 'assistant-1'
         return committedModels({
@@ -1556,7 +1556,7 @@ describe('ConversationRuntimeService', () => {
 
     const initial = await service.dispatch(subscriber, request())
     const appended = await service.dispatch(subscriber, {
-      trigger: ConversationOpenTrigger.RegenerateMessage,
+      trigger: ConversationOpenTrigger.RetryMessage,
       conversation: ref,
       parentAnchorId: 'user-1',
       retryMessageId: 'assistant-b',

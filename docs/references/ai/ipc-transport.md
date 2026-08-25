@@ -37,6 +37,12 @@ therefore cannot overtake an unfinished Main Stop.
 |---|---|
 | `SubmitMessage` | exact Conversation, user parts, optional tree anchor, models and reasoning |
 | `RegenerateMessage` | exact Conversation and replacement tree anchor |
+| `RetryMessage` | exact failed or paused assistant row and its single model |
+| `AppendModel` | exact live reply-group anchor and one new model |
+
+Retry and append are distinct commands rather than optional regenerate fields.
+Main rejects a stale append if the selected reply group settles before commit;
+it never changes the request into an ordinary regeneration.
 
 The resulting `AiStreamOpenResponse` includes its mode, reserved durable rows,
 active execution projections, and active-node decision. `StreamDispatchService`

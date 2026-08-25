@@ -2,6 +2,7 @@ import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspa
 import { BaseService } from '@main/core/lifecycle'
 import {
   ConversationActiveNodeMove,
+  ConversationAdmissionReason,
   ConversationBlockReason,
   ConversationContinuationTrigger,
   ConversationKind,
@@ -381,7 +382,7 @@ describe('ConversationRuntimeService.dispatch — steer and ownership', () => {
     expect(open).not.toHaveBeenCalled()
   })
 
-  it('advances the reserved assistant when a live-group append settles during validation', async () => {
+  it('rejects a live-group append when the group settles during validation', async () => {
     const ref = { kind: ConversationKind.Chat, id: 'topic-append' } as const
     const first = controlledStream()
     const second = controlledStream()
@@ -391,16 +392,16 @@ describe('ConversationRuntimeService.dispatch — steer and ownership', () => {
     })
     const history = provider(() => true, {
       validate: async (req, context) => {
-        if (req.trigger === ConversationOpenTrigger.RegenerateMessage) await appendValidation
+        if (req.trigger === ConversationOpenTrigger.AppendModel) await appendValidation
         return validation(req, context.hasLiveStream, [MODEL_B])
       },
       commit: (current, context) => committed(current.request, context.hasLiveStream, current.executionModelIds)
     })
-    const { runtime } = service([history], [first, second])
+    const { runtime, open } = service([history], [first, second])
 
     await runtime.dispatch(listener(), request(ref))
     const append = runtime.dispatch(listener(), {
-      trigger: ConversationOpenTrigger.RegenerateMessage,
+      trigger: ConversationOpenTrigger.AppendModel,
       conversation: ref,
       parentAnchorId: 'user-1',
       appendToLiveGroupMessageId: 'assistant-1',
@@ -411,10 +412,8 @@ describe('ConversationRuntimeService.dispatch — steer and ownership', () => {
     await vi.waitFor(() => expect(runtime.inspect(ref).phase).toBe(ConversationPhase.Idle))
     finishAppendValidation()
 
-    await expect(append).resolves.toMatchObject({
-      mode: ConversationOpenMode.Started,
-      activeNodeDecision: { move: ConversationActiveNodeMove.Advance }
-    })
-    second.controller.close()
+    await expect(append).rejects.toMatchObject({ reason: ConversationAdmissionReason.TargetNotInLiveGroup })
+    expect(history.commitIntent).toHaveBeenCalledOnce()
+    expect(open).toHaveBeenCalledOnce()
   })
 })

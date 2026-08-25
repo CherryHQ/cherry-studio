@@ -274,6 +274,9 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     signal.throwIfAborted()
     assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
     const topic = topicService.getById(req.conversation.id)
+    if (req.trigger === ConversationOpenTrigger.AppendModel && !ctx.hasLiveStream) {
+      throw new ConversationAdmissionError(ConversationAdmissionReason.TargetNotInLiveGroup)
+    }
     const selectedModelId = 'mentionedModelIds' in req ? req.mentionedModelIds?.[0] : undefined
     let assistantId = topic?.assistantId
     let resolvedDefaultModelId: UniqueModelId | undefined
@@ -300,7 +303,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
       const modelId = (userMessage.modelId ?? defaultModelId()) as UniqueModelId
       inputModelId = modelId
       resolvedModels = resolveModels([modelId], modelId)
-    } else if (req.trigger === ConversationOpenTrigger.RegenerateMessage && req.retryMessageId) {
+    } else if (req.trigger === ConversationOpenTrigger.RetryMessage) {
       const target = messageService.getById(req.retryMessageId)
       const modelId = (target.modelId ?? defaultModelId()) as UniqueModelId
       inputModelId = modelId
@@ -310,9 +313,13 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
       resolvedModels = resolveModels(req.mentionedModelIds, inputModelId)
     }
     let liveExecutionMutation
-    if (ctx.hasLiveStream && req.trigger === ConversationOpenTrigger.RegenerateMessage) {
+    if (
+      ctx.hasLiveStream &&
+      (req.trigger === ConversationOpenTrigger.RetryMessage || req.trigger === ConversationOpenTrigger.AppendModel)
+    ) {
       const parentNodeId = req.parentAnchorId
-      const outputNodeId = req.retryMessageId ?? req.appendToLiveGroupMessageId
+      const outputNodeId =
+        req.trigger === ConversationOpenTrigger.RetryMessage ? req.retryMessageId : req.appendToLiveGroupMessageId
       if (!parentNodeId || !outputNodeId) {
         throw new ConversationAdmissionError(ConversationAdmissionReason.ConversationBusy)
       }
@@ -339,7 +346,10 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
         throw new ConversationAdmissionError(ConversationAdmissionReason.TargetNotInLiveGroup)
       }
       liveExecutionMutation = {
-        kind: req.retryMessageId ? ConversationExecutionMutationKind.Retry : ConversationExecutionMutationKind.Append,
+        kind:
+          req.trigger === ConversationOpenTrigger.RetryMessage
+            ? ConversationExecutionMutationKind.Retry
+            : ConversationExecutionMutationKind.Append,
         outputNodeId,
         parentNodeId,
         siblingsGroupId,
@@ -371,25 +381,26 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     const assistantId = validation.assistantId
     // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
     // sibling position, descendants, and the topic's active branch remain untouched.
-    if (req.trigger === 'regenerate-message' && req.retryMessageId) {
+    if (req.trigger === ConversationOpenTrigger.RetryMessage) {
       return this.commitAssistantRetry(req, assistantId, validation.resolvedModels)
     }
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
-    if (req.trigger === 'continue-conversation') {
+    if (req.trigger === ConversationContinuationTrigger.ContinueInteraction) {
       return this.commitContinueDispatch(req, assistantId, validation.resolvedModels)
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
     // assistant placeholder under that user row (no new user row), single model.
-    if (req.trigger === 'steer-continuation') {
+    if (req.trigger === ConversationContinuationTrigger.ContinueSteer) {
       return this.commitSteerContinuation(req, assistantId, validation.resolvedModels)
     }
 
     const defaultModelId = validation.inputModelId
-    const hasExplicitReservedTarget = req.trigger === 'submit-message' && req.targetMode === 'reserved-branch'
+    const hasExplicitReservedTarget =
+      req.trigger === ConversationOpenTrigger.SubmitMessage && req.targetMode === ConversationTargetMode.ReservedBranch
     const reservedBranchId =
-      req.trigger === 'submit-message' &&
+      req.trigger === ConversationOpenTrigger.SubmitMessage &&
       req.parentAnchorId &&
       (hasExplicitReservedTarget ||
         (req.targetMode === undefined && messageService.isAwaitingInputLeaf(req.parentAnchorId, req.conversation.id)))
@@ -400,7 +411,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
       throw new Error("'reserved-branch' target requires parentAnchorId")
     }
 
-    if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+    if (ctx.hasLiveStream && req.trigger === ConversationOpenTrigger.SubmitMessage) {
       // A reserved branch belongs to another tree path and must never be injected as a steer
       // into the topic's running turn. Renderer queues it until idle; this synchronous check
       // is the main-process race backstop and performs no writes on rejection.
@@ -438,7 +449,8 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     }
 
     // 3. Models (single or multi)
-    const isRegenerate = req.trigger === 'regenerate-message'
+    const isRegenerate =
+      req.trigger === ConversationOpenTrigger.RegenerateMessage || req.trigger === ConversationOpenTrigger.AppendModel
     const models = validation.resolvedModels
     const liveExecutionMutation = validation.liveExecutionMutation
     const liveGroupSourceAnchorMessageId =
@@ -461,11 +473,12 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
       liveExecutionMutation?.siblingsGroupId ??
       resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
     const assistantIdentity = resolveAssistantIdentity(assistantId)
-    const plannedUserMessageId = req.trigger === 'submit-message' ? (reservedBranchId ?? uuidv7()) : req.parentAnchorId
+    const plannedUserMessageId =
+      req.trigger === ConversationOpenTrigger.SubmitMessage ? (reservedBranchId ?? uuidv7()) : req.parentAnchorId
 
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
     const userMessageInput =
-      req.trigger === 'submit-message'
+      req.trigger === ConversationOpenTrigger.SubmitMessage
         ? reservedBranchId
           ? ({
               mode: 'fill-reserved' as const,
@@ -697,11 +710,11 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
   }
 
   private commitAssistantRetry(
-    req: Extract<MainDispatchRequest, { trigger: 'regenerate-message' }>,
+    req: Extract<MainDispatchRequest, { trigger: ConversationOpenTrigger.RetryMessage }>,
     assistantId: string | undefined,
     resolvedModels: readonly Model[]
   ): CommittedConversationIntent {
-    const target = messageService.getById(req.retryMessageId as string)
+    const target = messageService.getById(req.retryMessageId)
     if (target.role !== 'assistant') {
       throw new Error(`'retryMessageId' must identify an assistant message (got '${target.role}')`)
     }
@@ -1291,7 +1304,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
   ): AiStreamRequest {
     return {
       chatId: topicId,
-      trigger: 'submit-message',
+      trigger: ConversationOpenTrigger.SubmitMessage,
       assistantId,
       uniqueModelId,
       messages: history,

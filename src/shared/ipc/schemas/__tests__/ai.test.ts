@@ -66,7 +66,7 @@ describe('ai.stream.open IPC schema', () => {
   it('accepts an explicit failed assistant row for in-place retry', () => {
     expect(
       openStream.parse({
-        trigger: 'regenerate-message',
+        trigger: 'retry-message',
         conversation,
         parentAnchorId: 'user-1',
         retryMessageId: 'assistant-failed',
@@ -78,13 +78,28 @@ describe('ai.stream.open IPC schema', () => {
   it('preserves an explicit live reply-group append target', () => {
     expect(
       openStream.parse({
-        trigger: 'regenerate-message',
+        trigger: 'append-model',
         conversation,
         parentAnchorId: 'user-1',
         appendToLiveGroupMessageId: 'assistant-source',
         mentionedModelIds: ['anthropic::claude-sonnet']
       })
     ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
+
+  it('requires exactly one model for execution-scoped actions', () => {
+    const actions = [
+      { trigger: 'retry-message', retryMessageId: 'assistant-failed' },
+      { trigger: 'append-model', appendToLiveGroupMessageId: 'assistant-source' }
+    ]
+
+    for (const action of actions) {
+      const base = { ...action, conversation, parentAnchorId: 'user-1' }
+      expect(openStream.safeParse(base).success).toBe(false)
+      expect(
+        openStream.safeParse({ ...base, mentionedModelIds: ['openai::gpt-4o', 'anthropic::claude-sonnet'] }).success
+      ).toBe(false)
+    }
   })
 
   it('rejects duplicate mentioned model ids before dispatch', () => {
@@ -135,16 +150,15 @@ describe('ai.stream.open IPC schema', () => {
     }
   })
 
-  it('rejects combining in-place retry with live reply-group append', () => {
+  it('rejects action fields on an ordinary regeneration', () => {
     const combined = {
       trigger: 'regenerate-message',
       conversation,
       parentAnchorId: 'user-1',
-      retryMessageId: 'assistant-failed',
       appendToLiveGroupMessageId: 'assistant-source'
     } as const
 
-    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    // @ts-expect-error action fields require their exact trigger in the shared request contract
     const invalidRequest: AiStreamOpenRequest = combined
 
     expect(openStream.safeParse(invalidRequest).success).toBe(false)

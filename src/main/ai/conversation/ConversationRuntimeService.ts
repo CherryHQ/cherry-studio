@@ -418,11 +418,16 @@ export class ConversationRuntimeService extends BaseService {
         throw new ConversationAdmissionError(ConversationAdmissionReason.ConversationBusy)
       }
       const hasLiveStream = state.phase === ConversationPhase.Running
+      if (request.trigger === ConversationOpenTrigger.AppendModel && !hasLiveStream) {
+        throw new ConversationAdmissionError(ConversationAdmissionReason.TargetNotInLiveGroup)
+      }
       const liveMutation =
         validation.kind === ConversationHistoryAdapterKind.PersistentChat ? validation.liveExecutionMutation : undefined
       const reservation = this.actorFor(ref).reserveDispatch({
         turnKind:
-          request.trigger === ConversationOpenTrigger.RegenerateMessage
+          request.trigger === ConversationOpenTrigger.RegenerateMessage ||
+          request.trigger === ConversationOpenTrigger.RetryMessage ||
+          request.trigger === ConversationOpenTrigger.AppendModel
             ? ConversationTurnKind.Regenerate
             : ConversationTurnKind.Submit,
         anchorNodeId: 'parentAnchorId' in request ? (request.parentAnchorId ?? null) : null,
@@ -1019,7 +1024,10 @@ export class ConversationRuntimeService extends BaseService {
     provider: ConversationHistoryPort
   ): AiStreamOpenResponse {
     this.assertCommittedConversation(ref, committed)
-    if (request.trigger === ConversationOpenTrigger.RegenerateMessage) {
+    if (
+      request.trigger === ConversationOpenTrigger.RetryMessage ||
+      request.trigger === ConversationOpenTrigger.AppendModel
+    ) {
       if (ref.kind !== ConversationKind.Chat) {
         throw new Error('Only Chat may mutate executions on an active Conversation')
       }
