@@ -249,6 +249,11 @@ describe('Model drawers', () => {
     // No capability multi-select here — only the routing choice.
     expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
     const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(
+      screen.getByRole('img', {
+        name: 'settings.models.add.preferred_endpoint.label: settings.models.add.preferred_endpoint.tooltip'
+      })
+    ).toBeInTheDocument()
     expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai' })).toBeChecked()
 
     await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))

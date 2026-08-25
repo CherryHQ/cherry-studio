@@ -4013,6 +4013,7 @@
   "settings.models.add.model_name.placeholder": "例如 GPT-5.5",
   "settings.models.add.model_type.label": "模型類型",
   "settings.models.add.preferred_endpoint.label": "首選端點",
+  "settings.models.add.preferred_endpoint.tooltip": "選擇此模型傳送請求時優先使用的 API 端點。不同端點支援的功能可能不同，請參考服務商文件。",
   "settings.models.add.purpose.chat.description": "使用供應商的文字 API",
   "settings.models.add.purpose.chat.label": "聊天",
   "settings.models.add.purpose.chat_protocol": "聊天通訊協定",
