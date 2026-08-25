@@ -163,6 +163,20 @@ describe('collectErrorLogRecords', () => {
     expect(scan.records.at(-1)?.message).toBe(`flood ${MAX_SCAN_RECORDS + overflow - 1}`)
   })
 
+  it('orders rotated shards numerically, so the tenth is newer than the second', async () => {
+    const inRange = now - 5 * 60 * 1_000
+    for (const shard of ['', '.2', '.10']) {
+      await writeFile(
+        path.join(logsDir, logFileName(now, shard)),
+        logLine({ timestamp: localTimestamp(inRange), level: 'error', message: `shard${shard || '.0'}` })
+      )
+    }
+
+    const scan = await collectErrorLogRecords(logsDir, range)
+
+    expect(scan.records.map((record) => record.message)).toEqual(['shard.0', 'shard.2', 'shard.10'])
+  })
+
   it('keeps reading newer shards after an older one fills the cap', async () => {
     const inRange = now - 5 * 60 * 1_000
     let older = ''

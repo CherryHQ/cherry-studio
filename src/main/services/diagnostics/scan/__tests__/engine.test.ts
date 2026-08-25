@@ -58,9 +58,11 @@ describe('diagnose', () => {
 
   it('matches warn and error by default but honors an explicit levels gate', () => {
     expect(diagnose([record({ level: 'warn' })], { rules: [rule({ id: 'chat-any-level' })] })).toHaveLength(1)
-    expect(
-      diagnose([record({ level: 'warn' })], { rules: [rule({ id: 'chat-error-only', levels: ['error'] })] })
-    ).toHaveLength(0)
+
+    const errorOnly = [rule({ id: 'chat-error-only', levels: ['error'] })]
+    // both directions: a gate that rejected every level would still pass the negative case alone
+    expect(diagnose([record({ level: 'error' })], { rules: errorOnly })).toHaveLength(1)
+    expect(diagnose([record({ level: 'warn' })], { rules: errorOnly })).toHaveLength(0)
   })
 
   it('lets one record feed several rules and sorts findings by count then id', () => {

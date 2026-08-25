@@ -45,7 +45,7 @@ The trap runs the other way too. `provider-rate-limited`'s positive fixture deli
 
 ## Every anchor alternative needs an observed error behind it
 
-`too many requests` — the literal HTTP 429 reason phrase, obviously correct on paper — scored **0 true positives and 2 false positives** across 13k real error lines and 1.8k user bug reports. Both hits were the phrase quoted inside an upstream site's abuse-block prose. It was removed; `\b429\b` and `rate.?limit` already carry every real throttle.
+`too many requests` — the literal HTTP 429 reason phrase, obviously correct on paper — scored **0 true positives and 2 false positives** across 13k real error lines and 1.8k user bug reports. Both hits were the phrase quoted inside an upstream site's abuse-block prose. It was removed; a status-qualified `429` and `rate.?limit` already carry every real throttle.
 
 Speculative alternatives are not free: they only ever fire on the cases you did not think about. Add the branch when a real log shows the phrasing, and land the fixture line that proves it.
 
@@ -73,7 +73,7 @@ Negative fixtures are the regression net. When a false positive turns up in the 
 
 - the id is kebab-case and prefixed with its domain
 - ids are unique across all domains
-- the rule has at least one anchor
+- the rule has a non-empty `devMessage` and at least one anchor
 - no anchor or exclude carries a `g` or `y` flag, whose `lastIndex` persists across `.test()` calls and silently misses matches
 
 The domain set in `../types.ts` is closed. A rule fitting none of the six is a reason to discuss the domain, not to stretch an existing one.

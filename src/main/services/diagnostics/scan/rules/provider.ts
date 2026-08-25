@@ -19,7 +19,9 @@ export const providerRules: readonly ScanRule[] = [
     domain: 'provider',
     attribution: 'user-fixable',
     devMessage: 'A provider rejected the request over billing (402): the account is out of balance, quota, or credits.',
-    anchors: [/\b402\b|payment required|insufficient (?:balance|quota|credits?)|余额不足/i]
+    anchors: [
+      /(?:status(?:Code)?["\s:]{0,4}|\bHTTP[ /]?)402\b|payment required|insufficient (?:balance|quota|credits?)|余额不足/i
+    ]
   },
   {
     id: 'provider-rate-limited',
@@ -28,7 +30,7 @@ export const providerRules: readonly ScanRule[] = [
     devMessage: 'A provider throttled the request (429); retrying after a delay or rotating keys usually resolves it.',
     // No bare `too many requests`: real throttles always carry 429 or "rate limit" too, while the
     // bare phrase only ever arrived quoted inside an upstream site's abuse-block prose.
-    anchors: [/\b429\b|rate.?limit(?:ed|s)?\b/i],
+    anchors: [/(?:status(?:Code)?["\s:]{0,4}|\bHTTP[ /]?)429\b|rate.?limit(?:ed|s)?\b/i],
     exclude: [/rate.?limits? (?:raised|increased)/i]
   },
   {

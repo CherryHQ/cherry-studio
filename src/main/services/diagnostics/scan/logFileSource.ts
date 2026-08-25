@@ -70,6 +70,12 @@ function isInRange(timestampMs: number, range: DiagnosticTimeRange): boolean {
   return timestampMs >= range.fromMs && timestampMs <= range.toMs
 }
 
+/** `app-error.2026-08-20.log.2` splits into its date-ordered base and its numeric shard index. */
+function shardKey(fileName: string): readonly [string, number] {
+  const match = /^(.*\.log)\.(\d+)$/.exec(fileName)
+  return match ? [match[1], Number(match[2])] : [fileName, 0]
+}
+
 /**
  * Reads every `app-error.*.log` file overlapping the range into LogRecords.
  * `logsDir` is injected (rather than resolved via `@application`) so tests can
@@ -110,7 +116,13 @@ export async function collectErrorLogRecords(logsDir: string, range: DiagnosticT
         logMayOverlapRange(entry.name, range)
     )
     .map((entry) => entry.name)
-    .sort()
+    // Rotation creates each shard with the next index, so read them in numeric order: a plain
+    // sort puts `.log.10` before `.log.2` and lets older shards evict newer records from the ring.
+    .sort((a, b) => {
+      const [baseA, shardA] = shardKey(a)
+      const [baseB, shardB] = shardKey(b)
+      return baseA === baseB ? shardA - shardB : baseA < baseB ? -1 : 1
+    })
 
   for (const fileName of fileNames) {
     let snapshot

@@ -1,2 +1,0 @@
-{"level":"error","message":"Agent session tool rejected: SESSION_TOOL_FORBIDDEN in scheduled turn","module":"AgentSessionMessageService","process":"main","timestamp":"2026-08-20 13:00:00"}
-{"level":"error","message":"Cron creation failed: JOB_SCHEDULE_NAME_CONFLICT","module":"JobManager","process":"main","timestamp":"2026-08-20 13:01:00"}

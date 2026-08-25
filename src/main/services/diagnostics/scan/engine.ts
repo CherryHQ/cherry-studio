@@ -29,7 +29,6 @@ function matches(rule: ScanRule, record: LogRecord, text: string): boolean {
   if (rule.modules && record.module !== undefined && !moduleMatches(record.module, rule.modules)) return false
   if (!rule.anchors.every((anchor) => anchor.test(text))) return false
   if (rule.exclude?.some((pattern) => pattern.test(text))) return false
-  if (rule.where && !rule.where(record)) return false
   return true
 }
 

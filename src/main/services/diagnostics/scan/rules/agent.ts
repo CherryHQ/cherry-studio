@@ -1,12 +1,6 @@
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
-
 import type { ScanRule } from '../types'
 
-// SSOT: AGENT_SESSION_DELIVERY_ERROR_CODES in @main/data/services/AgentSessionMessageService —
-// importing it would drag the whole data layer into this module graph, so the literal is repeated here.
-const SESSION_TOOL_FORBIDDEN = 'SESSION_TOOL_FORBIDDEN'
-
-/** Agent runtime failures: silent runtimes, CLI adapters, tool loops, session policies. */
+/** Agent runtime failures: silent runtimes, CLI adapters, tool loops. */
 export const agentRules: readonly ScanRule[] = [
   {
     id: 'agent-runtime-no-response',
@@ -31,13 +25,5 @@ export const agentRules: readonly ScanRule[] = [
     devMessage:
       'The tool-call loop aborted (ToolLoopTerminalError / missing tool output); a tool result was lost or the loop guard fired too early.',
     anchors: [/ToolLoopTerminalError|No tool output found/i]
-  },
-  {
-    id: 'agent-policy-rejected',
-    domain: 'agent',
-    attribution: 'user-fixable',
-    devMessage:
-      'An agent operation was rejected by session or scheduling policy (session tools forbidden in this turn, or a schedule name conflict).',
-    anchors: [new RegExp(`${SESSION_TOOL_FORBIDDEN}|${JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT}`)]
   }
 ]

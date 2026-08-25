@@ -9,7 +9,6 @@
  *  3. `anchors` — every regex must match the haystack (`message\nstack\ndetail`). Express OR
  *     inside a single regex with `|`.
  *  4. `exclude` — any match vetoes the rule.
- *  5. `where` — escape hatch for the rare compound condition regexes cannot express.
  * Multiple rules may match the same record; each aggregates independently.
  */
 
@@ -57,7 +56,6 @@ export interface ScanRule {
   readonly modules?: readonly string[]
   readonly anchors: readonly RegExp[]
   readonly exclude?: readonly RegExp[]
-  readonly where?: (record: LogRecord) => boolean
 }
 
 export interface FindingEvidence {
