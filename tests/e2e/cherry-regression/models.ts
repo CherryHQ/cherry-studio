@@ -10,7 +10,10 @@ async function closeOpenSettingsDrawer(page: Page): Promise<void> {
   const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]:visible').first()
   if (!(await drawer.isVisible().catch(() => false))) return
 
-  await drawer.getByRole('button', { name: 'Close', exact: true }).click()
+  await page.keyboard.press('Escape')
+  if (await drawer.isVisible().catch(() => false)) {
+    await drawer.getByRole('button', { name: 'Close', exact: true }).click()
+  }
   await expect(drawer).toBeHidden()
 }
 
@@ -22,7 +25,7 @@ export async function openSettingsSection(page: Page, section: string): Promise<
     .filter({ hasText: section })
     .first()
   if (!(await sectionButton.isVisible().catch(() => false))) {
-    await page.locator('#app-sidebar').getByRole('button', { name: 'Settings', exact: true }).click()
+    await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
   }
   await sectionButton.click()
 }

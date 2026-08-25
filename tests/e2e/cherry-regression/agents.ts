@@ -24,21 +24,22 @@ export async function createAgent(
   }
 
   await page.getByRole('button', { name: 'Add Agent', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Name', exact: true }).fill(options.name)
-  await page.getByText(options.runtime, { exact: true }).click()
+  const dialog = page.getByRole('dialog').last()
+  await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(options.name)
+  await dialog.getByLabel('Runtime mode').getByText(options.runtime, { exact: true }).click()
   if (options.permission) {
-    const permission = page.getByRole('combobox').last()
+    const permission = dialog.getByRole('combobox', { name: 'Permission mode', exact: true })
     await permission.click()
-    await page.getByRole('option', { name: options.permission, exact: true }).click()
+    await dialog.getByText(options.permission, { exact: true }).last().click()
   }
-  await page.getByRole('button', { name: 'Model', exact: true }).click()
-  const search = page.getByPlaceholder(/Search/i).last()
+  await dialog.getByRole('button', { name: 'Model', exact: true }).click()
+  const search = dialog.getByPlaceholder(/Search/i).last()
   await search.fill(app.config.cherryIn.chatModel)
   await page.getByRole('option').filter({ hasText: app.config.cherryIn.chatModel }).first().click()
-  await page.getByRole('button', { name: 'Next', exact: true }).click()
-  await page.getByRole('button', { name: 'Next', exact: true }).click()
-  await page.getByRole('button', { name: 'Next', exact: true }).click()
-  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByText(options.name, { exact: true }).first()).toBeVisible()
 }
 

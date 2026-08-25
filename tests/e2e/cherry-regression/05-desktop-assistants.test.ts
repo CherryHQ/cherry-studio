@@ -16,8 +16,10 @@ async function configureQuickAssistant(page: Parameters<typeof dismissOnboarding
   if ((await defaultModel.getAttribute('aria-checked')) !== 'true') await defaultModel.click()
   await page.getByRole('button', { name: 'Go to model settings', exact: true }).click()
   await page.locator('[data-selector-shell-root="true"]:visible > button').first().click()
-  await page.getByTestId('model-selector-search').fill(model)
-  await page.getByRole('option').filter({ hasText: model }).filter({ hasText: CUSTOM_CHAT_PROVIDER }).click()
+  const modelSelector = page.getByTestId('model-selector-content')
+  await modelSelector.getByTestId('model-selector-search').fill(model)
+  await expect(modelSelector.getByText(CUSTOM_CHAT_PROVIDER, { exact: true })).toBeVisible()
+  await modelSelector.getByRole('option').filter({ hasText: model }).first().click()
 
   await page.getByRole('button', { name: 'Keyboard Shortcuts', exact: true }).click()
   await page.getByRole('button', { name: 'Search', exact: true }).click()
@@ -60,12 +62,10 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await ensureCustomChatProvider(app, page)
   await openSettingsSection(page, 'Default Model')
   await page.locator('[data-selector-shell-root="true"]:visible > button').first().click()
-  await page.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
-  await page
-    .getByRole('option')
-    .filter({ hasText: app.config.customProvider.chatModel })
-    .filter({ hasText: CUSTOM_CHAT_PROVIDER })
-    .click()
+  const modelSelector = page.getByTestId('model-selector-content')
+  await modelSelector.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
+  await expect(modelSelector.getByText(CUSTOM_CHAT_PROVIDER, { exact: true })).toBeVisible()
+  await modelSelector.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
 
   await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
   await page.evaluate(async () => {

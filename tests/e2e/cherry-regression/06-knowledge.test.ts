@@ -23,7 +23,9 @@ test('[K-01] 配置嵌入服务商并创建知识库 @knowledge-import', async (
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await selectSidebarApp(page, 'Knowledge Base')
-  await expect(page.getByText(KNOWLEDGE_NAME, { exact: true })).toBeVisible()
+  await expect(
+    page.locator('[data-ui="knowledge.navigation"]').getByText(KNOWLEDGE_NAME, { exact: true })
+  ).toBeVisible()
 })
 
 test('[K-02] 基于知识库问答并验证引用 @knowledge-qa', async ({ app, mainWindow: page }) => {

@@ -60,7 +60,7 @@ async function generateAndSaveImage(
 
   await selectSidebarApp(page, 'Chat')
   await selectSidebarApp(page, 'Paintings')
-  await expect(page.getByText(IMAGE_PROMPT, { exact: true })).toBeVisible()
+  await expect(page.getByText(IMAGE_PROMPT, { exact: true }).last()).toBeVisible()
 }
 
 test('[P-01] 使用 Gemini 模型生成图片 @image-generation', async ({ app, mainWindow: page }) => {

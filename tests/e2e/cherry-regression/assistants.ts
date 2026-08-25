@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 
 import type { RegressionApp } from './app'
 import { expect } from './fixture'
+import { selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider } from './models'
 
 export const CUSTOM_ASSISTANT = 'Cherry Regression Assistant 31415'
@@ -9,6 +10,7 @@ export const CUSTOM_ASSISTANT = 'Cherry Regression Assistant 31415'
 export async function ensureCustomAssistant(app: RegressionApp, page: Page): Promise<void> {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
+  await selectSidebarApp(page, 'Chat')
 
   if (
     !(await page

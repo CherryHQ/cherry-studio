@@ -113,7 +113,7 @@ jobs:
         include:
           - runner: macos-latest
             platform: macos
-          - runner: windows-latest
+          - runner: windows-2022
             platform: windows
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360

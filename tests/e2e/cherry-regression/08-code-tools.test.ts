@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 import type { RegressionApp } from './app'
 import { expect, test } from './fixture'
@@ -13,12 +13,15 @@ async function openCodeTool(page: Page, name: string): Promise<void> {
 }
 
 async function configureTool(page: Page, model: string, provider?: string): Promise<void> {
-  let configure = page.getByRole('button', { name: 'Configure', exact: true }).first()
+  const codeView = page.locator('[data-ui="code.view"]:visible').first()
+  let configure = codeView.getByRole('button', { name: 'Configure', exact: true }).first()
+  let providerCard: Locator | undefined
   if (provider) {
-    const providerName = page.getByText(provider, { exact: true }).first()
-    const providerCard = providerName.locator(
+    const providerName = codeView.getByText(provider, { exact: true }).first()
+    providerCard = providerName.locator(
       'xpath=ancestor::div[contains(@class, "group") and .//button[normalize-space()="Configure"]][1]'
     )
+    await providerCard.scrollIntoViewIfNeeded()
     await providerCard.hover()
     configure = providerCard.getByRole('button', { name: 'Configure', exact: true })
     await expect(configure).toBeVisible()
@@ -33,7 +36,7 @@ async function configureTool(page: Page, model: string, provider?: string): Prom
   if (await search.isVisible().catch(() => false)) await search.fill(model)
   await page.getByRole('option').filter({ hasText: model }).first().click()
   await dialog.getByRole('button', { name: 'Save', exact: true }).click()
-  const enable = page.getByRole('button', { name: 'Enable', exact: true })
+  const enable = (providerCard ?? codeView).getByRole('button', { name: 'Enable', exact: true }).first()
   if (await enable.isVisible().catch(() => false)) await enable.click()
 }
 

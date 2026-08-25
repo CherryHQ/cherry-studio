@@ -10,6 +10,8 @@ export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Pr
   await openSettingsSection(page, 'Model Provider')
   await page.getByTestId('provider-list-item-cherryin').click()
   const authorize = page.getByRole('button', { name: 'Authorize with CherryIN', exact: true })
+  const logout = page.getByRole('button', { name: 'Logout', exact: true })
+  await expect(authorize.or(logout).first()).toBeVisible({ timeout: 60_000 })
   if (await authorize.isVisible().catch(() => false)) {
     await page.evaluate(() => {
       const original = window.open
@@ -40,7 +42,7 @@ export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Pr
     })
     await sendProtocolUrlToOwnedApp(app.record, callback)
   }
-  await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible({ timeout: 3 * 60_000 })
+  await expect(logout).toBeVisible({ timeout: 3 * 60_000 })
 }
 
 export async function addCherryInModel(page: Page, model: string, tab?: string): Promise<void> {
@@ -55,7 +57,6 @@ export async function addCherryInModel(page: Page, model: string, tab?: string):
   if (tab) {
     const tabLocator = page.getByRole('tab', { name: new RegExp(tab, 'i') })
     if (await tabLocator.isVisible().catch(() => false)) await tabLocator.click()
-    else await page.getByText(tab, { exact: true }).click()
   }
   await page.getByPlaceholder('Search models').fill(model)
   await expect(page.getByText(model, { exact: true })).toBeVisible()

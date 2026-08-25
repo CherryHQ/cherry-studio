@@ -30,5 +30,11 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
     await page.getByRole('button', { name: 'Back', exact: true }).first().click()
     await expect(page.getByRole('button', { name: 'Chat', exact: true }).first()).toBeVisible()
   }
-  await page.getByRole('button', { name, exact: true }).first().click()
+  const sidebarButton = page.getByRole('button', { name, exact: true }).first()
+  if (await sidebarButton.isVisible().catch(() => false)) {
+    await sidebarButton.click()
+  } else {
+    await openLaunchpad(page)
+    await page.locator('button').filter({ hasText: name }).last().click()
+  }
 }
