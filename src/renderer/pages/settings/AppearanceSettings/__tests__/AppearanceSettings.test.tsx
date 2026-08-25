@@ -356,22 +356,11 @@ describe('AppearanceSettings selectors', () => {
     ])
   })
 
-  it('offers all three navigation layouts and reflects the combined selection', () => {
-    MockUsePreferenceUtils.setPreferenceValue('ui.navigation.layout', 'both')
+  it('keeps experimental navigation layout controls out of appearance settings', () => {
     render(<AppearanceSettings />)
 
-    expect(screen.getByRole('button', { name: 'settings.appearance.navigation_layout.both' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(screen.getByRole('button', { name: 'settings.appearance.navigation_layout.sidebar' })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    )
-    expect(screen.getByRole('button', { name: 'settings.appearance.navigation_layout.tabs' })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    )
+    expect(screen.queryByText('settings.lab.navigation_layout.title')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.lab.navigation_layout.both' })).not.toBeInTheDocument()
   })
 
   it('routes each list position row to its own module preference', async () => {

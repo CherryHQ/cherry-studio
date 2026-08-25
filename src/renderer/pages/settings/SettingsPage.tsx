@@ -21,6 +21,7 @@ import {
   Crop,
   FileBox,
   FileCode,
+  FlaskConical,
   HardDrive,
   Info,
   Package,
@@ -246,6 +247,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.dependencies.title')}
                 active={isActive('/settings/dependencies')}
                 onClick={() => go('/settings/dependencies')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<FlaskConical />}
+                label={t('settings.lab.title')}
+                active={isActive('/settings/lab')}
+                onClick={() => go('/settings/lab')}
               />
               <MenuItem
                 className={settingsSubmenuItemClassName}

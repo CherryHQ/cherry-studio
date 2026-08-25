@@ -40,7 +40,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { MenuPresentationMode, NavigationLayout, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
@@ -123,7 +123,6 @@ const AppearanceSettings: FC = () => {
   const { activeCmTheme } = useCodeStyle()
 
   const [language, setLanguage] = usePreference('app.language')
-  const [navigationLayout, setNavigationLayout] = usePreference('ui.navigation.layout')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
@@ -208,15 +207,6 @@ const AppearanceSettings: FC = () => {
     ],
     [t]
   )
-  const navigationLayoutOptions = useMemo(
-    () => [
-      { value: 'both' as const, label: t('settings.appearance.navigation_layout.both') },
-      { value: 'sidebar' as const, label: t('settings.appearance.navigation_layout.sidebar') },
-      { value: 'tabs' as const, label: t('settings.appearance.navigation_layout.tabs') }
-    ],
-    [t]
-  )
-
   const listPositionOptions = useMemo(
     () => [
       { value: 'left' as const, label: t('settings.topic.position.left') },
@@ -363,16 +353,6 @@ const AppearanceSettings: FC = () => {
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.appearance.navigation_layout.title')}</SettingRowTitle>
-          <SegmentedControl<NavigationLayout>
-            value={navigationLayout}
-            onValueChange={(layout) => void setNavigationLayout(layout)}
-            options={navigationLayoutOptions}
-            size="sm"
-          />
-        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
