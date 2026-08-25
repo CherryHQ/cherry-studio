@@ -33,10 +33,8 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
       .click()
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await page
-      .getByRole('textbox', {
-        name: 'Enter instructions for the assistant, such as response style, role, or background context',
-        exact: true
-      })
+      .getByRole('dialog')
+      .locator('.cm-content[contenteditable="true"]')
       .fill('You must always include the exact phrase ASSISTANT_PROMPT_PASS in every response.')
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await page.getByRole('button', { name: 'Create', exact: true }).click()
