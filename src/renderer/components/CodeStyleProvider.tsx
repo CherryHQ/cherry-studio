@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
-import { getHighlighter, getMarkdownIt, getShiki, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
+import { getMarkdownIt, getShiki } from '@renderer/utils/shiki'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type React from 'react'
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
@@ -146,18 +146,14 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
+  // Static one-shot highlight; routed through the worker to keep the main thread free
   const highlightCode = useCallback(
     async (code: string, language: string) => {
       await loadShikiThemesInfo()
-      const highlighter = await getHighlighter()
-      const { loadedLanguage, loadedTheme } = await loadLanguageAndThemeIfNeeded(
-        highlighter,
-        language,
-        activeShikiTheme
-      )
-      return highlighter.codeToHtml(code, { lang: loadedLanguage, theme: loadedTheme })
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
+      return shikiStreamService.highlightCodeToHtml(code, normalizedLang, activeShikiTheme)
     },
-    [activeShikiTheme, loadShikiThemesInfo]
+    [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
   // 使用 Shiki 和 Markdown-it 渲染代码

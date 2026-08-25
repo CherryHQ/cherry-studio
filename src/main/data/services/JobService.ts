@@ -13,7 +13,7 @@ import {
   type JobStatus,
   TERMINAL_JOB_STATUSES
 } from '@shared/data/api/schemas/jobs'
-import { and, asc, count, desc, eq, inArray, lte, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, lte, type SQL, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobService')
 
@@ -26,6 +26,29 @@ export interface JobListFilter {
   parentId?: string
   limit?: number
   offset?: number
+}
+
+type TerminalJobStatus = (typeof TERMINAL_JOB_STATUSES)[number]
+
+export type JobScheduleRunState =
+  | { kind: 'running' }
+  | { kind: 'unfinished' }
+  | { kind: 'terminal'; status: TerminalJobStatus; finishedAt: number }
+
+type ActiveJobScheduleRow = {
+  scheduleId: string
+  /** SQLite `EXISTS` yields 0 | 1. */
+  running: number
+}
+
+type TerminalJobScheduleRunStateRow = {
+  scheduleId: string
+  status: JobStatus
+  finishedAt: number
+}
+
+function isTerminalJobStatus(status: JobStatus): status is TerminalJobStatus {
+  return TERMINAL_JOB_STATUSES.some((terminalStatus) => terminalStatus === status)
 }
 
 /**
@@ -133,6 +156,80 @@ export class JobService {
       .limit(limit)
       .all()
     return rows.map((r) => this.rowToSnapshot(r))
+  }
+
+  /** Batch schedule-level state read for list projections. */
+  getRunStatesByScheduleIds(type: string, scheduleIds: readonly string[]): Map<string, JobScheduleRunState> {
+    const uniqueScheduleIds = [...new Set(scheduleIds)]
+    if (uniqueScheduleIds.length === 0) return new Map()
+
+    const db = this.getDb()
+    const requestedSchedules = () =>
+      sql`WITH requested_schedules(schedule_id) AS (VALUES ${sql.join(
+        uniqueScheduleIds.map((scheduleId) => sql`(${scheduleId})`),
+        sql`, `
+      )})`
+    const terminalStatuses = sql.join(
+      TERMINAL_JOB_STATUSES.map((status) => sql`${status}`),
+      sql`, `
+    )
+
+    // Active rows have finished_at=NULL; the composite index makes each EXISTS
+    // a single seek even with an unbounded pending backlog.
+    const activeRows = db.all<ActiveJobScheduleRow>(sql`
+      ${requestedSchedules()}
+      SELECT
+        requested.schedule_id AS "scheduleId",
+        EXISTS (
+          SELECT 1
+          FROM job INDEXED BY job_schedule_id_finished_at_idx
+          WHERE job.schedule_id = requested.schedule_id
+            AND job.finished_at IS NULL
+            AND job.type = ${type}
+            AND job.status = 'running'
+        ) AS "running"
+      FROM requested_schedules AS requested
+      WHERE EXISTS (
+        SELECT 1
+        FROM job INDEXED BY job_schedule_id_finished_at_idx
+        WHERE job.schedule_id = requested.schedule_id
+          AND job.finished_at IS NULL
+          AND job.type = ${type}
+      )
+    `)
+
+    const terminalRows = db.all<TerminalJobScheduleRunStateRow>(sql`
+      ${requestedSchedules()}
+      SELECT
+        requested.schedule_id AS "scheduleId",
+        terminal.status,
+        terminal.finished_at AS "finishedAt"
+      FROM requested_schedules AS requested
+      JOIN job AS terminal ON terminal.id = (
+        SELECT candidate.id
+        FROM job AS candidate INDEXED BY job_schedule_id_finished_at_idx
+        WHERE candidate.schedule_id = requested.schedule_id
+          AND candidate.finished_at IS NOT NULL
+          AND candidate.status IN (${terminalStatuses})
+          AND candidate.type = ${type}
+        ORDER BY candidate.finished_at DESC
+        LIMIT 1
+      )
+    `)
+
+    const runningByScheduleId = new Map(activeRows.map((row) => [row.scheduleId, row.running === 1]))
+    const terminalByScheduleId = new Map(terminalRows.map((row) => [row.scheduleId, row]))
+
+    return new Map(
+      uniqueScheduleIds.flatMap((scheduleId): Array<[string, JobScheduleRunState]> => {
+        const running = runningByScheduleId.get(scheduleId)
+        if (running !== undefined) return [[scheduleId, { kind: running ? 'running' : 'unfinished' }]]
+
+        const terminal = terminalByScheduleId.get(scheduleId)
+        if (!terminal || !isTerminalJobStatus(terminal.status)) return []
+        return [[scheduleId, { kind: 'terminal', status: terminal.status, finishedAt: terminal.finishedAt }]]
+      })
+    )
   }
 
   // ---------------- Write (non-tx thin wrappers over Tx versions) ----------------
