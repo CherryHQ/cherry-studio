@@ -1,4 +1,5 @@
 import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
+import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
@@ -260,7 +261,10 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByLabelText('settings.dependencies.installSettings.title')).toBeInTheDocument()
   })
 
-  it('lets the user install the BabelDOC Stream dependency', async () => {
+  // A name-only install lets main resolve `latest`, which a lagging PyPI mirror
+  // answers with a build Cherry's progress parser predates — flagged outdated by
+  // the very next availability check, at the cost of a second full download.
+  it('installs the BabelDOC Stream dependency at its pinned version, never latest', async () => {
     setSnapshots({
       'babeldoc-stream': {
         name: 'babeldoc-stream',
@@ -273,7 +277,12 @@ describe('EnvironmentDependencies', () => {
 
     fireEvent.click(within(card).getByRole('button', { name: 'settings.mcp.install' }))
 
-    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'babeldoc-stream' }))
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({
+        name: 'babeldoc-stream',
+        targetVersion: BABELDOC_MINIMUM_VERSION
+      })
+    )
   })
 
   it('keeps a system preset display-only, never shadowing it with a managed copy', async () => {

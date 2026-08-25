@@ -30,6 +30,7 @@ const VIRTUAL_OVERSCAN = 10
 export function FileTree(props: FileTreeProps) {
   const {
     nodes,
+    ariaLabel,
     expandedIds,
     defaultExpandedIds,
     onExpandedChange,
@@ -110,9 +111,13 @@ export function FileTree(props: FileTreeProps) {
     />
   )
 
-  if (!showSearch) {
-    return tree
-  }
+  const accessibleTree = (
+    <div role="tree" aria-label={ariaLabel} className="h-full min-h-0">
+      {tree}
+    </div>
+  )
+
+  if (!showSearch) return accessibleTree
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -142,7 +147,7 @@ export function FileTree(props: FileTreeProps) {
         </div>
         {searchToolbar}
       </div>
-      <div className="min-h-0 flex-1">{tree}</div>
+      <div className="min-h-0 flex-1">{accessibleTree}</div>
     </div>
   )
 }

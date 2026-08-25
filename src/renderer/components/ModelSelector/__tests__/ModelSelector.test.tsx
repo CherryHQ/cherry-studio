@@ -160,7 +160,7 @@ const provider: Provider = {
   name: 'OpenAI',
   apiKeys: [],
   authType: 'api-key',
-  apiFeatures: {} as Provider['apiFeatures'],
+  reportsActualCost: false,
   settings: {} as Provider['settings'],
   isEnabled: true
 } as Provider
@@ -250,6 +250,38 @@ describe('ModelSelector', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('shows the provider and model identifier when a model name needs disambiguation', () => {
+    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
+      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+      modelIdentifier: 'gpt-4-variant-a',
+      showIdentifier: true
+    })
+    const listItems: FlatListItem[] = [
+      {
+        key: 'provider-openai',
+        type: 'group',
+        title: 'OpenAI',
+        groupKind: 'provider',
+        provider,
+        canNavigateToSettings: true
+      },
+      item
+    ]
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems, modelItems: [item] }))
+
+    render(
+      <ModelSelector
+        multiple={false}
+        open
+        trigger={<button type="button">Open</button>}
+        value={item.model}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/OpenAI · gpt-4-variant-a/)).toBeInTheDocument()
   })
 
   it('selects a model and closes the selector in single-select mode', async () => {

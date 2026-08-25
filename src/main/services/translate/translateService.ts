@@ -173,8 +173,9 @@ export class TranslateService {
       ? text
       : preferenceService
           .get('feature.translate.model_prompt')
-          .replaceAll('{{target_language}}', targetLanguage.value)
-          .replaceAll('{{text}}', text)
+          .replaceAll(/{{target_language}}|{{text}}/g, (placeholder) =>
+            placeholder === '{{target_language}}' ? targetLanguage.value : text
+          )
 
     return { uniqueModelId, content }
   }

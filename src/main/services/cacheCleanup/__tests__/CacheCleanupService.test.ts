@@ -41,7 +41,9 @@ vi.mock('electron', () => ({
     getLocale: vi.fn(() => 'en-US'),
     getPath: vi.fn(() => '/mock/path'),
     getPreferredSystemLanguages: vi.fn(() => ['en-US']),
-    getVersion: vi.fn(() => '1.0.0')
+    getVersion: vi.fn(() => '1.0.0'),
+    isPackaged: false,
+    setAppLogsPath: vi.fn()
   },
   session: {
     defaultSession,

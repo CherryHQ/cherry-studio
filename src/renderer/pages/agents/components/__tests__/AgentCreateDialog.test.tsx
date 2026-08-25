@@ -10,6 +10,7 @@ const wizardValues = {
   avatar: '🤖',
   name: 'New',
   agentType: 'claude-code' as const,
+  permissionMode: 'auto' as const,
   modelId: 'p::m',
   description: 'desc',
   prompt: 'Agent instructions',
@@ -69,7 +70,7 @@ describe('AgentCreateDialog', () => {
         instructions: 'Agent instructions',
         knowledgeBaseIds: ['kb-1'],
         skillIds: ['skill-a', 'skill-b'],
-        configuration: { avatar: '🤖', permission_mode: 'default' }
+        configuration: { avatar: '🤖', permission_mode: 'auto' }
       })
     )
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))

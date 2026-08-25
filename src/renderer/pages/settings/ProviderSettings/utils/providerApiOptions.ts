@@ -11,15 +11,15 @@ function isOpenAIOptionsProvider(provider: Provider): boolean {
 }
 
 export function getProviderApiOptionsVisibility(provider: Provider) {
-  const showApiFeatureSettings = !isSystemProvider(provider)
+  const showDialectSettings = !isSystemProvider(provider)
   const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider)
   const isOpenAIProvider = isOpenAIOptionsProvider(provider)
 
   return {
     isOpenAIProvider,
     isSupportAnthropicPromptCache,
-    showApiFeatureSettings,
-    hasVisibleApiOptions: showApiFeatureSettings || isSupportAnthropicPromptCache
+    showDialectSettings,
+    hasVisibleApiOptions: showDialectSettings || isSupportAnthropicPromptCache
   }
 }
 

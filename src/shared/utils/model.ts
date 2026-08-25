@@ -205,11 +205,17 @@ export const isAnthropicModel = (model: Model): boolean =>
 export const isGeminiModel = (model: Model): boolean =>
   VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model)))
 
-/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
-export const isGemini3Model = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
+/**
+ * Check if a raw model id is Gemini 3 series. The `*-latest` aliases resolve to
+ * Gemini 3, so an id-substring check alone misses them.
+ */
+export const isGemini3ModelId = (modelId: string): boolean => {
+  const id = getLowerBaseModelName(modelId)
   return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
 }
+
+/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
+export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
 
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>

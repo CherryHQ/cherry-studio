@@ -269,6 +269,7 @@ describe('useResourceLibrary', () => {
           id: 'prompt-filtered',
           title: '日报模板',
           content: '今日完成 ${task}',
+          visibility: 'global',
           orderKey: 'b',
           createdAt: '2026-04-27T00:00:00.000Z',
           updatedAt: '2026-04-27T00:00:00.000Z'

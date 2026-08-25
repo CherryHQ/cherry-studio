@@ -21,6 +21,7 @@ import { rtkRewrite } from '@main/utils/rtk'
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
+import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
@@ -57,6 +58,8 @@ export interface ClaudeCodeHookContext {
   builtinRole: string | undefined
   /** Cherry-owned MCP servers mounted for this session. */
   mountedServers: ReadonlySet<string>
+  /** Loaded plugin directories by manifest name; indexed once per session. */
+  pluginDirectories: ReadonlyMap<string, string>
   agentsMdLoader: AgentsMdLoader
 }
 
@@ -81,6 +84,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       permissionMode: snapshot?.getPermissionMode(),
       builtinRole: ctx.builtinRole,
       mountedServers: ctx.mountedServers,
+      pluginDirectories: ctx.pluginDirectories,
       cwd,
       agentDataPath,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
@@ -97,6 +101,22 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
         permissionDecisionReason: decision.reason
       }
     }
+  }
+
+  // Advisory half of the skill dependency check (the blocking half is a guard rule): an unresolved
+  // dependency that cannot be *proven* absent is surfaced to the model so it reports the failure
+  // instead of substituting unrelated output.
+  const skillDependencyAdvisoryHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const event = input as Record<string, unknown>
+    if (String(event.tool_name ?? '') !== SKILL_TOOL_NAME) return {}
+    const skillName = (event.tool_input as Record<string, unknown> | undefined)?.skill
+    if (typeof skillName !== 'string' || !skillName) return {}
+
+    const { warning } = await checkSkillRuntimeDependencies(skillName, cwd, ctx.pluginDirectories)
+    if (!warning) return {}
+    logger.debug('Skill declares unresolved runtime dependencies', { sessionId, skillName, warning })
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: warning } }
   }
 
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
@@ -173,7 +193,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   }
 
   return {
-    PreToolUse: [{ hooks: [toolGuardHook, agentsMdHook, rtkRewriteHook, steerHook] }],
+    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook] }]
   }

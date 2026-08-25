@@ -349,7 +349,10 @@ describe('create_agent', () => {
     const server = new AssistantServer()
     const result = await (
       server as unknown as {
-        createAgent: (args: Record<string, string>) => Promise<{ content: Array<{ text: string }> }>
+        createAgent: (args: Record<string, string>) => Promise<{
+          content: Array<{ text: string }>
+          structuredContent: unknown
+        }>
       }
     ).createAgent({
       name: ' Reviewer ',
@@ -370,7 +373,14 @@ describe('create_agent', () => {
       }
     })
     expect(mocks.modelGetByKey).toHaveBeenCalledWith('anthropic', 'claude-sonnet')
-    expect(result.content[0].text).toContain('agent-created')
+    const output = {
+      ok: true,
+      agentId: 'agent-created',
+      name: 'Reviewer',
+      model: 'anthropic::claude-sonnet'
+    }
+    expect(result.structuredContent).toEqual(output)
+    expect(JSON.parse(result.content[0].text)).toEqual(output)
   })
 
   it("defaults to Cherry Assistant's current model when model is omitted", async () => {

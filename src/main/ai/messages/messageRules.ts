@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto'
 
-import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
+import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
@@ -109,13 +109,35 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
 }
 
 /**
+ * Drop tool parts still parked on an unanswered approval card.
+ *
+ * A turn that ends `awaiting-approval` persists its `approval-requested` parts, and
+ * `convertToModelMessages` turns those into a `tool-call` with no tool result —
+ * `ignoreIncompleteToolCalls` only covers `input-streaming`/`input-available`. Once the
+ * card is abandoned (app restart, branch switch) every later turn replays that dangling
+ * call and strict providers reject it (DeepSeek Responses: "No tool output found for tool
+ * call …", #17936). `approval-responded` is kept: the continue-conversation turn replays
+ * exactly that to resume execution.
+ */
+export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[] {
+  return messages.map((message) => {
+    if (!message.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) return message
+    return {
+      ...message,
+      parts: message.parts.filter((part) => !isToolUIPart(part) || part.state !== 'approval-requested')
+    } as T
+  })
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * make legacy v1 tool names wire-legal → strip media the model can't accept → convert,
- * dropping incomplete tool calls that would otherwise dangle without a result → gate media
- * inside tool-result outputs by `toolResultCaps` (wire-aware, see
+ * make legacy v1 tool names wire-legal → strip media the model can't accept → drop tool
+ * calls parked on an unanswered approval → convert, dropping incomplete tool calls that
+ * would otherwise dangle without a result → gate media inside tool-result outputs by
+ * `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
  * left by drops → placeholder any turn that still converted to empty content. See #16195.
  */
@@ -126,7 +148,7 @@ export async function toModelMessages(
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
   const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
-  const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
+  const shaped = dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))

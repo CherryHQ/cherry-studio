@@ -2,6 +2,8 @@ export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from 
 export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimeline'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'
+export { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResult'
+export { CreateAgentToolInline } from './CreateAgentTool'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'

@@ -14,9 +14,11 @@ import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
+import { remarkLiteralAutolinkFix } from './plugins/remarkLiteralAutolinkFix'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
-const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
+const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix]
+const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkHtmlArtifact]
 const EMPTY_CITATION_REGISTRY = new Map()
 const MAX_ANIMATED_CONTENT_LENGTH = 64 * 1024
 const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
@@ -72,7 +74,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
     [chatComponents, components]
   )
   const footnoteLabel = t('common.footnotes')
-  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
+  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : REMARK_PLUGINS
 
   const renderer = hasStreamedRef.current ? (
     <StreamingMarkdown

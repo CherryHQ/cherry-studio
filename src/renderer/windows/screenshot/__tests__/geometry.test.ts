@@ -4,12 +4,14 @@ import { createElement } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { OcrTextOverlay } from '../components/OcrTextOverlay'
+import { Toolbar } from '../components/Toolbar'
 import { mergeLine } from '../hooks/useOcr'
+import type { SelectionRect } from '../types'
 import { buildAnnotation, isSignificantAnnotation } from '../utils/annotation'
 import { findWindowAtPoint } from '../utils/findWindowAtPoint'
 
 function makeWindow(overrides: Partial<DetectedWindow>): DetectedWindow {
-  return { title: 'w', appName: 'app', x: 0, y: 0, width: 100, height: 100, ...overrides }
+  return { title: 'w', x: 0, y: 0, width: 100, height: 100, ...overrides }
 }
 
 describe('findWindowAtPoint', () => {
@@ -111,6 +113,39 @@ describe('isSignificantAnnotation', () => {
       ({ type: 'text', color: '#000', fontSize: 20, position: { x: 0, y: 0 }, content }) as const
     expect(isSignificantAnnotation(text(''))).toBe(false)
     expect(isSignificantAnnotation(text('a'))).toBe(true)
+  })
+})
+
+describe('Toolbar placement', () => {
+  const noop = () => {}
+  const actions = {
+    activeTool: null,
+    canUndo: false,
+    canRedo: false,
+    onToolChange: noop,
+    onUndo: noop,
+    onRedo: noop,
+    onOk: noop,
+    onSave: noop,
+    onCancel: noop
+  }
+
+  function renderToolbar(selection: SelectionRect, logicalHeight: number) {
+    const { container } = render(createElement(Toolbar, { selection, logicalHeight, ...actions }))
+    return container.firstElementChild as HTMLElement
+  }
+
+  it('keeps the toolbar on screen when the selection covers the whole display', () => {
+    // Neither below (no room left) nor above (the selection starts at y=0) fits, and these
+    // are the only controls a full-screen capture has — off-screen means Esc or nothing.
+    const top = Number.parseFloat(renderToolbar({ x: 0, y: 0, width: 1440, height: 900 }, 900).style.top)
+    expect(top).toBeGreaterThanOrEqual(0)
+    // 80 = toolbar + gap + property panel, the stack the toolbar reserves room for.
+    expect(top + 80).toBeLessThanOrEqual(900)
+  })
+
+  it('hangs below a selection that has room underneath it', () => {
+    expect(renderToolbar({ x: 0, y: 0, width: 400, height: 300 }, 900).style.top).toBe('308px')
   })
 })
 

@@ -83,6 +83,17 @@ const toolInvokePart = (name: string, output: unknown): CherryMessagePart =>
     output
   }) as never
 
+/** pi runs every tool through code mode, so the part is always `tool_call` with the target in its input. */
+const piToolCallPart = (name: string, output: unknown): CherryMessagePart =>
+  ({
+    type: 'dynamic-tool',
+    toolName: 'tool_call',
+    toolCallId: 'c6',
+    state: 'output-available',
+    input: { name, params: { query: 'q' } },
+    output
+  }) as never
+
 const sourceUrlPart = (n: number, url: string, title?: string): CherryMessagePart =>
   ({ type: 'source-url', sourceId: `citation-${n}`, url, title }) as never
 
@@ -117,6 +128,16 @@ describe('resolveMessageCitations', () => {
   it('resolves deferred tool_invoke parts by inner tool name', () => {
     const mc = resolveMessageCitations([toolInvokePart('web_search', webResults('t9k'))])
     expect(mc.byId.get('t9k-2')).toMatchObject({ number: 2, url: 'https://b.com/y' })
+  })
+
+  it('resolves pi tool_call parts by the cherry-tools target in its input', () => {
+    const mc = resolveMessageCitations([piToolCallPart('mcp__cherry-tools__web_search', webResults('bcef647b'))])
+    expect(mc.byId.get('bcef647b-1')).toMatchObject({ number: 1, url: 'https://a.com/x', type: 'websearch' })
+  })
+
+  it('ignores pi tool_call parts targeting a third-party MCP server', () => {
+    const mc = resolveMessageCitations([piToolCallPart('mcp__exa__web_search', webResults('bcef647b'))])
+    expect(mc.all).toHaveLength(0)
   })
 
   it('resolves citations from the skeleton of a bare entities envelope (cold load)', () => {

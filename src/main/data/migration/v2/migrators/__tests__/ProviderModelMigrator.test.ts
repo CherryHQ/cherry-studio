@@ -162,6 +162,24 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
+    it('skips providers whose upstream services have retired', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('github', [{ id: 'openai/gpt-4o' }]),
+            { ...makeProvider('github-copy'), presetProviderId: 'github' },
+            makeProvider('openai')
+          ]
+        }
+      })
+
+      const result = await migrator.prepare(migrationContext)
+
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(1)
+      expect(result.warnings).toContain('Skipped 2 retired provider(s)')
+    })
+
     it('returns an error ID when preparation fails', async () => {
       const cause = new Error('redux state unreadable')
       const migrationContext = {
@@ -451,8 +469,7 @@ describe('ProviderModelMigrator', () => {
               reasoningFormat: { type: 'openai-responses' }
             }
           },
-          defaultChatEndpoint: 'openai-chat-completions',
-          apiFeatures: { serviceTier: false }
+          defaultChatEndpoint: 'openai-chat-completions'
         }
       ]
 
@@ -490,7 +507,6 @@ describe('ProviderModelMigrator', () => {
       // used https://api.openai.com, so the legacy proxy remains user-owned.
       expect(endpointConfigs).toEqual({ 'openai-responses': { baseUrl: 'https://my-proxy.com/v1' } })
       // Final-v1-equal values are not frozen into the row...
-      expect(providerRow.apiFeatures).toBeNull()
       expect(providerRow.defaultChatEndpoint).toBeNull()
       // ...and the runtime read supplies current catalog facts.
       const runtime = providerService.getByProviderId('openai')
@@ -498,11 +514,10 @@ describe('ProviderModelMigrator', () => {
         'https://api.openai.com/v1'
       )
       expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://my-proxy.com/v1')
-      expect(runtime.apiFeatures.serviceTier).toBe(false)
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
-    it('stores only a changed API feature from a post-migration v1 provider snapshot', async () => {
+    it('stores only a changed endpoint dialect from a post-migration v1 provider snapshot', async () => {
       registryFixtures.providers = [
         {
           id: 'openai',
@@ -522,9 +537,9 @@ describe('ProviderModelMigrator', () => {
               enabled: true,
               isSystem: true,
               apiHost: 'https://api.openai.com',
-              isNotSupportArrayContent: true,
-              isNotSupportDeveloperRole: false,
-              isNotSupportStreamOptions: false,
+              isNotSupportArrayContent: false,
+              isNotSupportDeveloperRole: true,
+              isNotSupportStreamOptions: true,
               models: []
             }
           ]
@@ -540,23 +555,25 @@ describe('ProviderModelMigrator', () => {
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'openai'))
 
-      expect(providerRow.apiFeatures).toEqual({ arrayContent: false })
+      expect(providerRow.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.dialect).toEqual({
+        developerRole: false
+      })
     })
 
     it.each([
       {
         scenario: 'untouched',
         isSupportDeveloperRole: false,
-        expectedApiFeatures: null
+        expectedDialect: undefined
       },
       {
         scenario: 'user-enabled Developer Role',
         isSupportDeveloperRole: true,
-        expectedApiFeatures: { developerRole: true }
+        expectedDialect: { developerRole: true }
       }
     ])(
-      'projects $scenario post-132 custom Azure API features against the custom-provider baseline',
-      async ({ isSupportDeveloperRole, expectedApiFeatures }) => {
+      'projects $scenario post-132 custom Azure dialect against the custom-provider baseline',
+      async ({ isSupportDeveloperRole, expectedDialect }) => {
         registryFixtures.providers = [{ id: 'azure-openai', name: 'Azure OpenAI', endpointConfigs: {} }]
         const providerId = '0196f996-34fc-7e3f-96d0-10b7f55fd6c8'
         const migrationContext = createContext(dbh.db, {
@@ -590,7 +607,7 @@ describe('ProviderModelMigrator', () => {
           .from(userProviderTable)
           .where(eq(userProviderTable.providerId, providerId))
         expect(providerRow.presetProviderId).toBe('azure-openai')
-        expect(providerRow.apiFeatures).toEqual(expectedApiFeatures)
+        expect(providerRow.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toEqual(expectedDialect)
       }
     )
 
@@ -610,8 +627,7 @@ describe('ProviderModelMigrator', () => {
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'custom-provider'))
-      // No registry baseline applied — apiFeatures stays null (transformProvider default)
-      expect(providerRow.apiFeatures).toBeNull()
+      expect(providerRow.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toBeUndefined()
     })
 
     it('promotes a v1 custom provider logo from dexie settings into a WebP file_entry', async () => {

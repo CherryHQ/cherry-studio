@@ -66,6 +66,8 @@ export class DeepSeekHarnessService extends BaseService {
   private stoppingChild: ChildProcess | null = null
   private runningPermissionMode: DeepSeekHarnessPermissionMode | undefined
   private readonly startupAbortControllers = new Set<AbortController>()
+  // Bumped by every setStatus broadcast; request paths use it to detect no-op completions.
+  private statusTransitionId = 0
 
   protected async onStop(): Promise<void> {
     await this.stop()
@@ -73,6 +75,20 @@ export class DeepSeekHarnessService extends BaseService {
 
   getStatus(): { status: DeepSeekHarnessStatus; url?: string } {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
+  }
+
+  /** Single status-transition point: assign, then broadcast; same-value calls are not transitions. */
+  private setStatus(status: DeepSeekHarnessStatus, options?: { force?: boolean }): void {
+    if (!options?.force && this.status === status) return
+    this.status = status
+    this.statusTransitionId++
+    try {
+      application.get('IpcApiService').broadcast('deepseek_harness.status_changed', this.getStatus())
+    } catch (err) {
+      // A lost broadcast is corrected by the next transition or a request-completion
+      // rebroadcast; it must never abort the transition itself.
+      logger.warn('Failed to broadcast DeepSeek Harness status change', err as Error)
+    }
   }
 
   async start(
@@ -92,6 +108,7 @@ export class DeepSeekHarnessService extends BaseService {
           this.runningPermissionMode === input.permissionMode
         ) {
           const runningChild = this.child
+          const transitionBefore = this.statusTransitionId
           try {
             const { receipt } = await this.syncConfig(input)
             if (
@@ -107,6 +124,9 @@ export class DeepSeekHarnessService extends BaseService {
                   : 'DeepSeek Harness exited while updating its configuration'
               )
             }
+            // Idempotent success broadcasts nothing on its own — rebroadcast so a
+            // renderer that missed an earlier event is corrected by this request.
+            if (this.statusTransitionId === transitionBefore) this.setStatus('running', { force: true })
             return { success: true, url: this.url }
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to update DeepSeek Harness configuration'
@@ -120,8 +140,8 @@ export class DeepSeekHarnessService extends BaseService {
 
         let receipt: DeepSeekHarnessConfigReceipt | undefined
         try {
-          this.status = 'starting'
           this.url = undefined
+          this.setStatus('starting')
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
@@ -141,17 +161,19 @@ export class DeepSeekHarnessService extends BaseService {
           if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
             throw new Error('DeepSeek Harness exited immediately after becoming ready')
           }
-          this.status = 'running'
           this.url = url
+          this.setStatus('running')
           this.runningPermissionMode = input.permissionMode
           return { success: true, url }
         } catch (error) {
+          // Terminal state first: the cleanup-driven termination handler must not
+          // broadcast 'stopped' for a failed launch on its way to 'error'.
+          this.url = undefined
+          this.setStatus('error')
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
           })
           if (receipt) await this.rollbackLaunchConfig(receipt)
-          this.status = 'error'
-          this.url = undefined
           const message = error instanceof Error ? error.message : 'Failed to start DeepSeek Harness'
           return { success: false, message: sanitizeDiagnostic(message) }
         }
@@ -164,10 +186,13 @@ export class DeepSeekHarnessService extends BaseService {
   async stop(): Promise<void> {
     for (const startup of this.startupAbortControllers) startup.abort()
     await this.operationMutex.runExclusive(async () => {
+      const transitionBefore = this.statusTransitionId
       await this.stopOwnedProcessLocked()
-      this.status = 'stopped'
       this.url = undefined
       this.runningPermissionMode = undefined
+      this.setStatus('stopped')
+      // A no-op stop (already stopped) still confirms the terminal state to the renderer.
+      if (this.statusTransitionId === transitionBefore) this.setStatus('stopped', { force: true })
     })
   }
 
@@ -278,7 +303,7 @@ export class DeepSeekHarnessService extends BaseService {
     child.once('exit', handleTermination)
     child.once('close', handleTermination)
     child.on('error', (error) => {
-      if (this.child === child && this.status === 'running') this.status = 'error'
+      if (this.child === child && this.status === 'running') this.setStatus('error')
       logger.warn('Managed DeepSeek Harness process error', { message: sanitizeDiagnostic(error.message) })
     })
 
@@ -296,11 +321,13 @@ export class DeepSeekHarnessService extends BaseService {
     this.runningPermissionMode = undefined
     if (this.stoppingChild === child) {
       this.stoppingChild = null
-      this.status = 'stopped'
+      // A teardown that began after the state already left starting/running (failed-launch
+      // cleanup sets 'error' first) must not revive 'stopped'.
+      if (this.status === 'starting' || this.status === 'running') this.setStatus('stopped')
       return
     }
     if (this.status === 'starting' || this.status === 'running') {
-      this.status = 'error'
+      this.setStatus('error')
       logger.warn('Managed DeepSeek Harness process exited unexpectedly', { code, signal })
     }
   }

@@ -120,6 +120,7 @@ Encoders consume this result. They do not perform model/provider detection thems
 | Budget limits and model default | Model reasoning metadata | Generated model data |
 | Endpoint protocol and adapter | Provider `endpointConfigs` | Generated `providers.json` |
 | Wire encoding | Endpoint/format profile | Provider registry and main memory only |
+| Standard Responses summary compatibility override | Endpoint dialect | User-provider endpoint delta |
 | Native-protocol generational dialect | `reasoning.wireDialect` (creator `reasoningFamilies`) | Generated `models.json`; **not** persisted on the runtime row |
 | Exact provider-model capability/wire exception | `ProviderModelOverride.reasoningContracts[endpoint]` | Generated `provider-models.json` |
 | User's default selection | Assistant settings | DataApi/SQLite |
@@ -175,6 +176,11 @@ Request-time resolution first determines the effective endpoint, then applies th
 2. the provider endpoint's inline `reasoningFormat.wire`;
 3. the exhaustive global default for `reasoningFormat.type`, resolved through `selectFormatWire(profile, dialect)`.
 
+After that precedence resolves the base wire, an explicit endpoint dialect override may add or remove the standard
+OpenAI Responses `reasoning.summary` operation. This is a boolean compatibility fact, not a user-authored wire:
+the target and accepted values remain closed in the registry. It exists for self-hosted and custom gateways whose
+Responses implementation cannot be known from the preset alone.
+
 Only step 3 consults model data, and only to choose between that format's `wire` and its optional `budgetWire`;
 steps 1 and 2 still win outright, so a provider can always override a dialect it disagrees with. A format without a
 `budgetWire` ignores the dialect entirely, which keeps step 3 a pure protocol default for every other format.
@@ -189,7 +195,8 @@ fields override their intrinsic counterparts individually. This lets an endpoint
 without putting provider protocol facts on the creator model.
 
 Unknown/custom models may still receive intrinsic controls from model-ID enrichment, but their requests use only the
-endpoint's standard protocol. Non-standard fields require a registry contract or explicit custom parameters.
+endpoint's standard protocol. Non-standard fields require a registry contract or explicit custom parameters; the
+standard Responses summary field remains off unless its endpoint explicitly opts in.
 
 ## Registry generation contract
 

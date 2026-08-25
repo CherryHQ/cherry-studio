@@ -12,6 +12,7 @@ const runtimeMockState = vi.hoisted(() => ({
   notifyWheelIntent: vi.fn(),
   scrollByWheel: vi.fn(() => true),
   markUserInput: vi.fn(),
+  hasRecentUserScrollIntent: vi.fn(() => false),
   beginScrollbarDrag: vi.fn(),
   endScrollbarDrag: vi.fn(),
   onWheel: vi.fn(),
@@ -92,6 +93,7 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       notifyWheelIntent: runtimeMockState.notifyWheelIntent,
       scrollByWheel: runtimeMockState.scrollByWheel,
       markUserInput: runtimeMockState.markUserInput,
+      hasRecentUserScrollIntent: runtimeMockState.hasRecentUserScrollIntent,
       beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
       endScrollbarDrag: runtimeMockState.endScrollbarDrag,
       shift: runtimeMockState.shift,
@@ -124,6 +126,7 @@ describe('MessageVirtualList', () => {
     runtimeMockState.notifyWheelIntent.mockClear()
     runtimeMockState.scrollByWheel.mockClear()
     runtimeMockState.markUserInput.mockClear()
+    runtimeMockState.hasRecentUserScrollIntent.mockClear()
     runtimeMockState.beginScrollbarDrag.mockClear()
     runtimeMockState.endScrollbarDrag.mockClear()
     runtimeMockState.onWheel.mockClear()

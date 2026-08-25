@@ -1,8 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
+import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
+import type { DidNavigateInPageEvent, DidStartNavigationEvent, IpcMessageEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,18 +20,22 @@ const WebviewContainer = memo(
     url,
     onSetRefCallback,
     onLoadedCallback,
-    onNavigateCallback
+    onNavigateCallback,
+    onFocusChange
   }: {
     appid: string
     url: string
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
     onNavigateCallback: (appid: string, url: string) => void
+    /** Reported to the pool, which owns the `webview.focused` context key for all panes. */
+    onFocusChange?: (appid: string, focused: boolean) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const { t } = useTranslation()
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
     const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
+
     const handleRef = useCallback(
       (element: WebviewTag | null) => {
         onSetRefCallback(appid, element)
@@ -109,6 +114,25 @@ const WebviewContainer = memo(
         loadCallbackFired = false
       }
 
+      // Replay the guest's keydown on the host window so the normal keybinding
+      // resolution sees it; `target` identifies which webview it came from.
+      const handleGuestKeydown = (event: IpcMessageEvent) => {
+        if (event.channel !== MINI_APP_KEYDOWN_CHANNEL) return
+
+        const payload = event.args[0] as MiniAppKeyPayload | undefined
+        if (!payload?.isTrusted || document.activeElement !== webview) return
+
+        const replayed = new KeyboardEvent('keydown', { ...payload, cancelable: true })
+        Object.defineProperty(replayed, 'target', { get: () => webview })
+        window.dispatchEvent(replayed)
+      }
+
+      const handleFocus = () => onFocusChange?.(appid, true)
+      const handleBlur = () => onFocusChange?.(appid, false)
+
+      webview.addEventListener('ipc-message', handleGuestKeydown)
+      webview.addEventListener('focus', handleFocus)
+      webview.addEventListener('blur', handleBlur)
       webview.addEventListener('did-start-navigation', handleStartNavigation)
       webview.addEventListener('dom-ready', handleDomReady)
       webview.addEventListener('did-finish-load', handleLoaded)
@@ -120,6 +144,9 @@ const WebviewContainer = memo(
 
       return () => {
         clearLoadCallbackTimer()
+        webview.removeEventListener('ipc-message', handleGuestKeydown)
+        webview.removeEventListener('focus', handleFocus)
+        webview.removeEventListener('blur', handleBlur)
         webview.removeEventListener('did-start-navigation', handleStartNavigation)
         webview.removeEventListener('dom-ready', handleDomReady)
         webview.removeEventListener('did-finish-load', handleLoaded)
@@ -130,42 +157,44 @@ const WebviewContainer = memo(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
 
-    // Setup keyboard shortcuts handler for print and save
-    useIpcOn('webview.search_hotkey_pressed', async (payload) => {
-      // Get webviewId when event is triggered
-      const webviewId = webviewRef.current?.getWebContentsId()
+    // Print / save-as-HTML for the guest page. Not renderer commands — they act on
+    // this webview, so they key off the replayed event's target instead.
+    useEffect(() => {
+      const handleShortcut = async (event: KeyboardEvent) => {
+        if (event.target !== webviewRef.current) return
+        if (!event.ctrlKey && !event.metaKey) return
 
-      // Only handle events for this webview
-      if (!webviewId || payload.webviewId !== webviewId) return
+        const key = event.key.toLowerCase()
+        if (key !== 'p' && key !== 's') return
 
-      const key = payload.key?.toLowerCase()
-      const isModifier = payload.control || payload.meta
+        const webviewId = webviewRef.current?.getWebContentsId()
+        if (!webviewId) return
 
-      if (!isModifier || !key) return
-
-      try {
-        if (key === 'p') {
-          // Print to PDF
-          logger.info(`Printing webview ${appid} to PDF`)
-          const filePath = await ipcApi.request('webview.print_to_pdf', { webviewId })
-          if (filePath) {
-            toast.success(t('miniApp.shortcut.pdf_saved', { path: filePath }))
-            logger.info(`PDF saved to: ${filePath}`)
+        try {
+          if (key === 'p') {
+            logger.info(`Printing webview ${appid} to PDF`)
+            const filePath = await ipcApi.request('webview.print_to_pdf', { webviewId })
+            if (filePath) {
+              toast.success(t('miniApp.shortcut.pdf_saved', { path: filePath }))
+              logger.info(`PDF saved to: ${filePath}`)
+            }
+          } else {
+            logger.info(`Saving webview ${appid} as HTML`)
+            const filePath = await ipcApi.request('webview.save_as_html', { webviewId })
+            if (filePath) {
+              toast.success(t('miniApp.shortcut.html_saved', { path: filePath }))
+              logger.info(`HTML saved to: ${filePath}`)
+            }
           }
-        } else if (key === 's') {
-          // Save as HTML
-          logger.info(`Saving webview ${appid} as HTML`)
-          const filePath = await ipcApi.request('webview.save_as_html', { webviewId })
-          if (filePath) {
-            toast.success(t('miniApp.shortcut.html_saved', { path: filePath }))
-            logger.info(`HTML saved to: ${filePath}`)
-          }
+        } catch (error) {
+          logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
+          toast.error(t('miniApp.shortcut.failed', { message: (error as Error).message }))
         }
-      } catch (error) {
-        logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
-        toast.error(t('miniApp.shortcut.failed', { message: (error as Error).message }))
       }
-    })
+
+      window.addEventListener('keydown', handleShortcut)
+      return () => window.removeEventListener('keydown', handleShortcut)
+    }, [appid, t])
 
     // Update webview settings when they change
     useEffect(() => {

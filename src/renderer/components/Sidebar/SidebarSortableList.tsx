@@ -10,7 +10,7 @@ import { useCallback, useRef } from 'react'
 const DRAG_CLICK_SUPPRESS_MS = 250
 
 /** Wrap a click handler so it is ignored right after that item was dragged. */
-export type SidebarClickGuard = (item: unknown, handler: () => void) => () => void
+export type SidebarClickGuard = <E = void>(item: unknown, handler?: (event: E) => void) => (event: E) => void
 
 interface SidebarSortableListProps<T> {
   items: T[]
@@ -46,9 +46,9 @@ export function SidebarSortableList<T>({
   }, [])
 
   const guardClick = useCallback<SidebarClickGuard>(
-    (item, handler) => () => {
+    (item, handler) => (event) => {
       if (String(item) === draggedItemIdRef.current && Date.now() < suppressClickUntilRef.current) return
-      handler()
+      handler?.(event)
     },
     []
   )

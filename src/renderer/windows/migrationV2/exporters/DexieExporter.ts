@@ -32,8 +32,14 @@ const REQUIRED_TABLES = [
 // Optional tables that may not exist in older versions
 const OPTIONAL_TABLES = ['settings', 'translate_history', 'quick_phrases', 'translate_languages']
 
-function isIrrecoverableRecord(error: unknown): error is DOMException {
-  return error instanceof DOMException && error.name === 'NotReadableError'
+/** Chromium's text for a large value whose backing file is gone; Dexie re-wraps it out of DOMException. */
+const LOST_LARGE_VALUE = 'Failed to read large IndexedDB value'
+
+// Two shapes for the same lost backing file: a NotReadableError DOMException, or an
+// UnknownError carrying the text above — matched by shape since neither type survives Dexie.
+function isIrrecoverableRecord(error: unknown): boolean {
+  const { name, message } = Object(error) as { name?: unknown; message?: unknown }
+  return name === 'NotReadableError' || (typeof message === 'string' && message.includes(LOST_LARGE_VALUE))
 }
 
 class JsonExportWriter {

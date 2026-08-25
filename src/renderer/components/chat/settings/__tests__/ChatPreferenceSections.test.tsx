@@ -59,7 +59,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
+  useCodeStyleThemeCatalog: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({

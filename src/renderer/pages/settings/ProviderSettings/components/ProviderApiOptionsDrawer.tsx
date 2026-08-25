@@ -6,8 +6,9 @@ import {
   ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
   ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD
 } from '@shared/ai/anthropicCache'
-import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
-import { isAnthropicSupportedProvider } from '@shared/utils/provider'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { EndpointDialect, Provider } from '@shared/data/types/provider'
+import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,10 +23,10 @@ interface ProviderApiOptionsDrawerProps {
   onClose: () => void
 }
 
-type ApiFeatureKey = keyof RuntimeApiFeatures
+type DialectKey = keyof EndpointDialect
 
 interface ApiOption {
-  key: ApiFeatureKey
+  key: DialectKey
   label: string
   help: string
 }
@@ -66,6 +67,11 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
 
+  const endpointType = provider?.defaultChatEndpoint ?? undefined
+  const dialect = provider
+    ? resolveEndpointDialect(provider, endpointType)
+    : { streamOptions: true, developerRole: false, reasoningSummary: false }
+
   const cacheControl = provider?.settings?.cacheControl
   const cacheTokenThreshold =
     cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
@@ -95,14 +101,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         help: t('settings.provider.api.options.stream_options.help')
       },
       {
-        key: 'serviceTier',
-        label: t('settings.provider.api.options.service_tier.label'),
-        help: t('settings.provider.api.options.service_tier.help')
-      },
-      {
-        key: 'verbosity',
-        label: t('settings.provider.api.options.verbosity.label'),
-        help: t('settings.provider.api.options.verbosity.help')
+        key: 'reasoningSummary',
+        label: t('settings.provider.api.options.reasoning_summary.label'),
+        help: t('settings.provider.api.options.reasoning_summary.help')
       }
     ],
     [t]
@@ -114,42 +115,44 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     }
 
     const visibility = getProviderApiOptionsVisibility(provider)
-    if (!visibility.showApiFeatureSettings) {
+    if (!visibility.showDialectSettings) {
       return []
     }
 
-    const items: ApiOption[] = [
-      {
-        key: 'arrayContent',
-        label: t('settings.provider.api.options.array_content.label'),
-        help: t('settings.provider.api.options.array_content.help')
-      }
-    ]
-
-    if (visibility.isOpenAIProvider) {
-      items.push(...openAIOptions)
+    if (!visibility.isOpenAIProvider || endpointType === undefined) {
+      return []
     }
 
-    return items
-  }, [openAIOptions, provider, t])
+    if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+      return openAIOptions.filter(({ key }) => key !== 'reasoningSummary')
+    }
+    if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+      return openAIOptions.filter(({ key }) => key !== 'streamOptions')
+    }
+    return openAIOptions.filter(({ key }) => key === 'developerRole')
+  }, [endpointType, openAIOptions, provider])
 
   const handleSaveError = useCallback(() => {
     toast.error(t('settings.provider.save_failed'))
   }, [t])
 
-  const updateApiFeature = useCallback(
-    (key: ApiFeatureKey, checked: boolean) => {
-      if (!provider) {
+  const updateDialect = useCallback(
+    (key: DialectKey, checked: boolean) => {
+      if (!provider || !endpointType) {
         return
       }
-      // Send only the toggled key: main shallow-merges the stored delta and
-      // reduces against the registry baseline — echoing the full merged
-      // snapshot would mark every baseline value as a user override.
+      const endpointConfig = provider.endpointConfigs?.[endpointType] ?? {}
       updateProvider({
-        apiFeatures: { [key]: checked }
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          [endpointType]: {
+            ...endpointConfig,
+            dialect: { ...endpointConfig.dialect, [key]: checked }
+          }
+        }
       }).catch(handleSaveError)
     },
-    [handleSaveError, provider, updateProvider]
+    [endpointType, handleSaveError, provider, updateProvider]
   )
 
   const updateCacheSettings = useCallback(
@@ -225,8 +228,8 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                   action={
                     <Switch
                       id={id}
-                      checked={provider.apiFeatures[item.key]}
-                      onCheckedChange={(checked) => updateApiFeature(item.key, checked)}
+                      checked={dialect[item.key]}
+                      onCheckedChange={(checked) => updateDialect(item.key, checked)}
                     />
                   }
                 />

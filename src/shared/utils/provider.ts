@@ -11,7 +11,7 @@ import {
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
@@ -179,10 +179,6 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }
 
-export function isSupportServiceTierProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.serviceTier ?? false
-}
-
 /** Effective Fast support belongs to the provider-model pair, not either side alone. */
 export function isSupportFastMode(
   provider: Pick<Provider, 'fastMode'>,
@@ -191,20 +187,21 @@ export function isSupportFastMode(
   return provider.fastMode !== undefined && model.supportsFastMode === true
 }
 
-export function isSupportVerbosityProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.verbosity ?? false
-}
-
-export function isSupportArrayContentProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.arrayContent ?? false
-}
-
-export function isSupportDeveloperRoleProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.developerRole ?? false
-}
-
-export function isSupportStreamOptionsProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.streamOptions ?? false
+/**
+ * The dialect this host speaks on one endpoint. Declared per endpoint because
+ * the same provider may expose chat-completions and Responses with different
+ * compatibility behavior.
+ */
+export function resolveEndpointDialect(
+  provider: Pick<Provider, 'endpointConfigs'>,
+  endpointType: EndpointType | undefined
+): Required<EndpointDialect> {
+  const declared = endpointType ? provider.endpointConfigs?.[endpointType]?.dialect : undefined
+  return {
+    streamOptions: declared?.streamOptions ?? true,
+    developerRole: declared?.developerRole ?? false,
+    reasoningSummary: declared?.reasoningSummary ?? false
+  }
 }
 
 /**

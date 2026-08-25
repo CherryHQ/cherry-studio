@@ -55,8 +55,10 @@ describe('DeepSeek Harness provider support', () => {
       provider({
         id: 'api-key',
         apiKeys: [{ id: 'key', isEnabled: true }],
-        apiFeatures: { developerRole: true },
-        endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.example/v1' } }
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: {
+          'openai-responses': { baseUrl: 'https://api.example/v1', dialect: { developerRole: true } }
+        }
       }),
       provider({
         id: 'keyless',
@@ -96,19 +98,21 @@ describe('DeepSeek Harness provider support', () => {
       provider({
         id: 'openai-only-no-developer-role',
         apiKeys: [{ id: 'key', isEnabled: true }],
-        apiFeatures: { developerRole: false },
+        defaultChatEndpoint: 'openai-chat-completions',
         endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
       }),
       provider({
         id: 'openai-only-with-developer-role',
         apiKeys: [{ id: 'key', isEnabled: true }],
-        apiFeatures: { developerRole: true },
-        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://api.example/v1', dialect: { developerRole: true } }
+        }
       }),
       provider({
         id: 'no-developer-role-but-has-anthropic-fallback',
         apiKeys: [{ id: 'key', isEnabled: true }],
-        apiFeatures: { developerRole: false },
+        defaultChatEndpoint: 'openai-chat-completions',
         endpointConfigs: {
           'openai-chat-completions': { baseUrl: 'https://api.example/v1' },
           'anthropic-messages': { baseUrl: 'https://api.example/anthropic' }

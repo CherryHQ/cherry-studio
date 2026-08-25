@@ -351,12 +351,13 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   }
 })
 
-vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: ({ workdir, filePath }: { workdir: string; filePath?: string | null }) => (
-    <button type="button" onClick={() => window.api.file.openPath(`${workdir}/${filePath ?? ''}`)}>
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: ({ targetPath }: { targetPath: string }) => (
+    <button type="button" onClick={() => window.api.file.openPath(targetPath)}>
       open external preview
     </button>
-  )
+  ),
+  loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({

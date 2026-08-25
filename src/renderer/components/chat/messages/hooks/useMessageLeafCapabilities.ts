@@ -5,12 +5,10 @@ import type {
   MessageListState,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
-import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
-import { buildEditorUrl } from '@renderer/utils/editor'
 import { parseFileTypes } from '@renderer/utils/file'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { FileHandle } from '@shared/data/types/file'
@@ -33,10 +31,10 @@ const warnedFileViewPaths = new Set<string>()
 
 type MessageLeafActions = Pick<
   MessageListActions,
-  'previewFile' | 'openFile' | 'subscribeToolProgress' | 'openExternalUrl' | 'openInExternalApp'
+  'previewFile' | 'openFile' | 'subscribeToolProgress' | 'openExternalUrl'
 > &
   MessagePlatformActions
-type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved' | 'externalCodeEditors'>
+type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved'>
 
 interface MessageLeafCapabilitiesParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -132,12 +130,7 @@ export function useMessageLeafCapabilities({
     return streamingLayers.liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
   }, [historyHasMcpToolParts, partsByMessageId, streamingLayers])
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
-  const { data: externalApps } = useExternalApps()
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
-  const externalCodeEditors = useMemo(
-    () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],
-    [externalApps]
-  )
 
   const previewFile = useCallback<NonNullable<MessageListActions['previewFile']>>(
     async (file) => {
@@ -193,10 +186,6 @@ export function useMessageLeafCapabilities({
     []
   )
 
-  const openInExternalApp = useCallback<NonNullable<MessageListActions['openInExternalApp']>>((app, path) => {
-    window.open(buildEditorUrl(app, path))
-  }, [])
-
   const openExternalUrl = useCallback<NonNullable<MessageListActions['openExternalUrl']>>((url) => {
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
@@ -217,22 +206,10 @@ export function useMessageLeafCapabilities({
       openFile,
       subscribeToolProgress,
       openExternalUrl,
-      openInExternalApp,
       ...platformActions,
       getFileView,
-      isToolAutoApproved,
-      externalCodeEditors
+      isToolAutoApproved
     }),
-    [
-      externalCodeEditors,
-      getFileView,
-      isToolAutoApproved,
-      openExternalUrl,
-      openFile,
-      openInExternalApp,
-      platformActions,
-      previewFile,
-      subscribeToolProgress
-    ]
+    [getFileView, isToolAutoApproved, openExternalUrl, openFile, platformActions, previewFile, subscribeToolProgress]
   )
 }

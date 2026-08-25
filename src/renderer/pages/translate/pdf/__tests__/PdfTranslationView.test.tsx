@@ -146,7 +146,7 @@ describe('PdfTranslationView', () => {
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.checking_assets' })).toHaveAttribute(
       'aria-valuenow',
-      '1'
+      '50'
     )
     expect(screen.queryByText('translate.pdf.progress.preparing_hint')).not.toBeInTheDocument()
 
@@ -160,7 +160,7 @@ describe('PdfTranslationView', () => {
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.downloading_assets' })).toHaveAttribute(
       'aria-valuenow',
-      '2'
+      '42'
     )
 
     act(() => {

@@ -45,7 +45,6 @@ export interface ChatWriteActions {
   deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (messageIds: readonly string[]) => Promise<void>
   pause: () => void
-  clearTopicMessages: () => Promise<void>
   editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /**
    * Branch a user message: create a sibling with edited parts, make it active,

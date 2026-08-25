@@ -1,8 +1,9 @@
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { getNodeText } from '@renderer/utils/reactNodeText'
 import { Check, ChevronDown } from 'lucide-react'
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
-import { isValidElement, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SelectorOption<V = string | number> {
@@ -56,25 +57,6 @@ const placementMap: Record<
 }
 
 const isSameValue = <V extends string | number>(left: V, right: V) => left === right || String(left) === String(right)
-
-const getNodeText = (node: ReactNode): string => {
-  if (typeof node === 'string' || typeof node === 'number') {
-    return String(node)
-  }
-
-  if (Array.isArray(node)) {
-    return node.map(getNodeText).join('')
-  }
-
-  if (isValidElement<{ children?: ReactNode; 'aria-hidden'?: boolean | 'true' }>(node)) {
-    if (node.props['aria-hidden']) {
-      return ''
-    }
-    return getNodeText(node.props.children)
-  }
-
-  return ''
-}
 
 const Selector = <V extends string | number>({
   options,

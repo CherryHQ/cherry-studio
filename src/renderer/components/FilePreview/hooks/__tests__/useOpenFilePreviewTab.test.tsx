@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
+  optionalTabsContext: null as {
+    openTab: ReturnType<typeof vi.fn>
+    tabs: Array<{ id: string; metadata?: Record<string, unknown>; type: 'route'; url: string }>
+    updateTab: ReturnType<typeof vi.fn>
+  } | null,
   tabs: [] as Array<{
     id: string
     metadata?: Record<string, unknown>
@@ -15,19 +20,27 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () => mocks.optionalTabsContext,
   useTabs: () => ({ openTab: mocks.openTab, tabs: mocks.tabs, updateTab: mocks.updateTab })
 }))
 
-import { useOpenFilePreviewTab } from '../useOpenFilePreviewTab'
+import { useOpenFilePreviewTab, useOptionalOpenFilePreviewTab } from '../useOpenFilePreviewTab'
 
 beforeEach(() => {
   mocks.openTab.mockReset()
   mocks.openTab.mockReturnValue('file-preview-tab')
+  mocks.optionalTabsContext = null
   mocks.tabs.length = 0
   mocks.updateTab.mockReset()
 })
 
 describe('useOpenFilePreviewTab', () => {
+  it('is unavailable outside a tabs provider when requested optionally', () => {
+    const { result } = renderHook(() => useOptionalOpenFilePreviewTab())
+
+    expect(result.current).toBeUndefined()
+  })
+
   it('opens a canonical route that reuses the same file tab', () => {
     const { result } = renderHook(() => useOpenFilePreviewTab())
     let tabId: string | undefined

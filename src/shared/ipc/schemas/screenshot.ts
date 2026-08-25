@@ -1,4 +1,4 @@
-import type { ScreenshotResultData } from '@shared/types/screenshot'
+import type { DetectedWindow, ScreenshotResultData } from '@shared/types/screenshot'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -102,6 +102,15 @@ export const screenshotRequestSchemas = {
    */
   'screenshot.overlay_ready': defineRoute({ input: z.object({ mediaId: z.string() }), output: z.void() }),
   /**
+   * The text-annotation editor opened (`true`) or closed (`false`) on the calling overlay.
+   *
+   * macOS only in effect. The IME candidate window is placed at a fixed, low window level
+   * for a Chromium client, so an overlay sitting above the Dock and menu bar covers the
+   * candidates completely — text can be composed but nothing can be chosen. Main drops
+   * this overlay below that level while the editor is open and restores it on close.
+   */
+  'screenshot.text_editing': defineRoute({ input: z.object({ editing: z.boolean() }), output: z.void() }),
+  /**
    * OCR a region of the frozen capture. Cropping happens in main so the full-size
    * image never crosses the process boundary.
    *
@@ -130,6 +139,15 @@ export const screenshotRequestSchemas = {
 export type ScreenshotEventSchemas = {
   /** Sent to an overlay that lost the interaction, telling it to drop its selection. */
   'screenshot.reset_overlay': void
+  /**
+   * The hover-to-snap targets for this overlay's display.
+   *
+   * Pushed instead of travelling in the init data: enumerating them costs hundreds
+   * of milliseconds with a normal working set, and paying that before the overlays
+   * open made it the dominant part of the shortcut's latency. An overlay is fully
+   * usable without it — until it arrives, hovering simply snaps to the whole display.
+   */
+  'screenshot.snap_targets': { windows: DetectedWindow[] }
   /**
    * The session is over. A pooled overlay is only hidden, never unmounted, so nothing
    * else tells its renderer to let go of the decoded capture until the next session.

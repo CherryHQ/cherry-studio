@@ -1,11 +1,11 @@
-import { type Dispatch, type SetStateAction, useCallback, useState, useSyncExternalStore } from 'react'
-
-import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 import {
   getCachedMessageUiState,
   subscribeCachedMessageUiState,
   updateCachedMessageUiState
-} from '../utils/messageUiStateCache'
+} from '@renderer/services/messageUiStateCache'
+import { type Dispatch, type SetStateAction, useCallback, useState, useSyncExternalStore } from 'react'
+
+import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 
 function readExpanded(
   messageId: string | undefined,

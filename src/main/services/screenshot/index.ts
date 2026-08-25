@@ -6,6 +6,6 @@
  * The macOS permission gate deliberately lives in `@main/utils/screenCapturePermission`
  * instead: importing it through here would drag the overlay service into the caller.
  */
-export { captureAllMonitors, listMonitors, listWindows } from './screenCapture'
+export { captureAllMonitors, listMonitors } from './screenCapture'
 export { ScreenshotOverlayService } from './ScreenshotOverlayService'
 export { ScreenCaptureError, ScreenCapturePermissionError } from './types'

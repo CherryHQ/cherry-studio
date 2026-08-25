@@ -104,7 +104,9 @@ export const Toolbar = memo(function Toolbar({
   const aboveY = selection.y - TOOLBAR_HEIGHT - GAP
   const fitsBelow = belowY + totalHeight <= logicalHeight
   const isBelow = fitsBelow || aboveY < 0
-  const top = isBelow ? belowY : Math.max(0, aboveY)
+  // A full-screen selection fits on neither side; clamping covers its bottom edge, while
+  // off-screen would strand the toolbar with no way to act on the capture at all.
+  const top = isBelow ? Math.min(belowY, logicalHeight - totalHeight) : Math.max(0, aboveY)
 
   const right = selection.x + selection.width
 

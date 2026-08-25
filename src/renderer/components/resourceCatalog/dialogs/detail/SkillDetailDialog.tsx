@@ -1,16 +1,23 @@
-import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { ipcApi } from '@renderer/ipc'
+import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { InstalledSkill } from '@shared/types/skill'
-import { Clock, ToolCase } from 'lucide-react'
+import { Clock, FolderOpen, ToolCase } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { SkillFileBrowser } from './SkillFileBrowser'
 
 interface Props {
   skill: InstalledSkill | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
+
+const logger = loggerService.withContext('SkillDetailDialog')
 
 function formatDate(dateStr: string, language: string): string {
   const date = new Date(dateStr)
@@ -62,30 +69,43 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
     [clearCloseTimer, onOpenChange]
   )
 
+  const handleOpenFolder = async () => {
+    if (!skill) return
+
+    try {
+      await ipcApi.request('skill.folder.open', { skillId: skill.id })
+    } catch (error) {
+      logger.error('Failed to open skill folder', error as Error)
+      toast.error(t('library.skill_detail.open_folder_failed'))
+    }
+  }
+
   if (!skill) return null
 
   const sourceTags = skill.sourceTags ?? []
 
   return (
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-2xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-4xl">
         <DialogHeader className="pr-8">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-subtle text-warning">
-              <ToolCase size={22} strokeWidth={1.5} />
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-blue-400/10 text-blue-400 dark:bg-blue-300/10 dark:text-blue-300">
+              <ToolCase size={22} strokeWidth={1.5} className="lucide-custom" />
             </div>
-            <div className="min-w-0 pt-0.5">
+            <div className="-translate-y-px min-w-0">
               <DialogTitle className="truncate">{skill.name}</DialogTitle>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className="border-0 bg-warning-subtle px-2 py-0.5 text-warning-subtle-foreground text-xs">
+                  className="h-5 border-0 bg-info-subtle px-2 py-0 text-info-subtle-foreground text-xs">
                   {t('library.type.skill')}
                 </Badge>
-                <span className="text-foreground-tertiary text-xs">{skill.source}</span>
-                {skill.author ? <span className="text-foreground-tertiary text-xs">{skill.author}</span> : null}
+                <span className="text-foreground-tertiary text-xs leading-5">{skill.source}</span>
+                {skill.author ? (
+                  <span className="text-foreground-tertiary text-xs leading-5">{skill.author}</span>
+                ) : null}
                 {sourceTags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-foreground-tertiary text-xs">
+                  <span key={tag} className="text-foreground-tertiary text-xs leading-5">
                     {tag}
                   </span>
                 ))}
@@ -95,18 +115,28 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
         </DialogHeader>
 
         <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
-          <Badge
-            variant="secondary"
-            className="gap-1.5 border-0 bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
-            <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
-            {t('library.skill_detail.installed')}
-          </Badge>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Badge
+              variant="secondary"
+              className="gap-1.5 border-0 bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
+              <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
+              {t('library.skill_detail.installed')}
+            </Badge>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleOpenFolder()}>
+              <FolderOpen className="size-3.5" />
+              {t('library.skill_detail.open_folder')}
+            </Button>
+          </div>
           <section className="flex flex-col gap-3">
             <h3 className="font-medium text-muted-foreground text-sm">{t('library.skill_detail.description')}</h3>
             <p className="min-h-10 text-muted-foreground text-sm leading-6">
               {skill.description || t('library.skill_detail.no_description')}
             </p>
           </section>
+
+          <Separator className="bg-border-subtle" />
+
+          <SkillFileBrowser skillId={skill.id} />
 
           <Separator className="bg-border-subtle" />
 

@@ -1,4 +1,5 @@
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Prompt } from '@shared/data/types/prompt'
 import { describe, expect, it } from 'vitest'
 
 import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../assistantTransfer'
@@ -38,9 +39,22 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   }
 }
 
+function createPrompt(overrides: Partial<Prompt> = {}): Prompt {
+  return {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    title: 'Greeting',
+    content: 'Hello ${name}',
+    visibility: 'restricted',
+    orderKey: 'a0',
+    createdAt: '2026-04-20T00:00:00.000Z',
+    updatedAt: '2026-04-21T00:00:00.000Z',
+    ...overrides
+  }
+}
+
 describe('assistantTransfer', () => {
   it('serializes assistants using the legacy preset export shape', () => {
-    const content = serializeAssistantForExport(createAssistant(), '写作')
+    const content = serializeAssistantForExport(createAssistant(), [createPrompt()], '写作')
 
     expect(JSON.parse(content)).toEqual([
       {
@@ -49,9 +63,32 @@ describe('assistantTransfer', () => {
         group: ['写作'],
         prompt: 'You are helpful',
         description: '擅长写作润色',
-        regularPhrases: [],
+        regularPhrases: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440000',
+            title: 'Greeting',
+            content: 'Hello ${name}',
+            createdAt: 1776643200000,
+            updatedAt: 1776729600000,
+            order: 0
+          }
+        ],
         type: 'agent'
       }
+    ])
+  })
+
+  it('round-trips contextual prompts in binding order', () => {
+    const prompts = [
+      createPrompt({ title: 'Second in catalog, first for target', orderKey: 'z9' }),
+      createPrompt({ id: '550e8400-e29b-41d4-a716-446655440001', title: 'Next for target', orderKey: 'a0' })
+    ]
+
+    const [draft] = parseAssistantImportContent(serializeAssistantForExport(createAssistant(), prompts))
+
+    expect(draft.dto.regularPhrases).toEqual([
+      { title: 'Second in catalog, first for target', content: 'Hello ${name}' },
+      { title: 'Next for target', content: 'Hello ${name}' }
     ])
   })
 

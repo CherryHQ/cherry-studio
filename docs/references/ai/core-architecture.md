@@ -22,7 +22,8 @@ each subsystem.
 │  useChat({ id: topicId, transport: IpcChatTransport })               │
 │    ├─ sendMessages      → ipcApi.request('ai.stream.open')            │
 │    ├─ reconnectToStream → ipcApi.request('ai.stream.attach')          │
-│    └─ abort signal      → ipcApi.request('ai.stream.abort')           │
+│    ├─ abort signal      → ipcApi.request('ai.stream.abort')           │
+│    └─ stop()            → sdkStop + await ai.stream.abort             │
 │                                                                      │
 │  History:           useQuery('/topics/:topicId/messages') → DataApi   │
 │  Topic-level state: useTopicStreamStatus → shared cache              │
@@ -36,7 +37,7 @@ each subsystem.
 │    ├─ ai.stream.open   → AiStreamManager.dispatch                    │
 │    ├─ ai.stream.attach → AiStreamManager.attach                      │
 │    ├─ ai.stream.detach → AiStreamManager.detach                      │
-│    ├─ ai.stream.abort  → AiStreamManager.abort                       │
+│    ├─ ai.stream.abort  → await AiStreamManager.abortAndDrain         │
 │    └─ ai.tool.respond_approval → AiService.respondToolApproval       │
 │                                                                      │
 │  dispatch (src/main/ai/streamManager/context/dispatch.ts)            │

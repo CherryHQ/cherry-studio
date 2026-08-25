@@ -1,14 +1,12 @@
-import { EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
-import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
@@ -22,9 +20,7 @@ const logger = loggerService.withContext('NotesEditor')
 // `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
 const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 
-const CodeEditor = lazy(() =>
-  import('@renderer/components/CodeEditor').then((module) => ({ default: module.CodeEditor }))
-)
+const CodeEditor = lazy(() => import('@cherrystudio/ui/components/composites/code-editor'))
 const RichEditor = lazy(() => import('@renderer/components/RichEditor/RichEditor'))
 
 export function NotesEditorLoading({ label }: { label: string }) {
@@ -116,9 +112,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     height="100%"
                     theme={activeCmTheme}
                     fontSize={settings.fontSize}
-                    style={{
-                      height: '100%'
-                    }}
                   />
                 </div>
               ) : (
@@ -156,13 +149,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   <ActionIconButton
                     active={enableSpellCheck}
                     onClick={() => {
-                      const newValue = !enableSpellCheck
-                      void setEnableSpellCheck(newValue).catch((error) => {
+                      void setEnableSpellCheck(!enableSpellCheck).catch((error) => {
                         logger.error('Failed to update spell check preference', error as Error)
-                        toast.error(t('notes.settings.save_failed'))
-                      })
-                      void ipcApi.request('app.set_spell_check_enabled', newValue).catch((error) => {
-                        logger.error('Failed to update spell check runtime state', error as Error)
                         toast.error(t('notes.settings.save_failed'))
                       })
                     }}

@@ -248,12 +248,7 @@ export function useModelSelectorData({
         searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model, provider)))
       ])
     )
-    const duplicateNamesByProvider = new Map<string, Set<string>>(
-      sortedProviders.map((provider) => [
-        provider.id,
-        getDuplicateModelNames(tagFilteredModelsByProvider.get(provider.id) ?? [])
-      ])
-    )
+    const duplicateModelNames = getDuplicateModelNames([...tagFilteredModelsByProvider.values()].flat())
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
       const pinnedItems = pinnedIds.flatMap((modelId) => {
@@ -263,9 +258,7 @@ export function useModelSelectorData({
           return []
         }
 
-        return [
-          createModelItem(model, provider, true, duplicateNamesByProvider.get(provider.id)?.has(model.name) ?? false)
-        ]
+        return [createModelItem(model, provider, true, duplicateModelNames.has(model.name))]
       })
 
       if (pinnedItems.length > 0) {
@@ -303,7 +296,7 @@ export function useModelSelectorData({
             model,
             provider,
             showPinnedModels && pinnedIdSet.has(model.id),
-            duplicateNamesByProvider.get(provider.id)?.has(model.name) ?? false
+            duplicateModelNames.has(model.name)
           )
         )
       )

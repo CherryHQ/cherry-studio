@@ -38,9 +38,17 @@ export const handlePaste = async (
   t?: (key: string) => string
 ): Promise<boolean> => {
   try {
-    // 优先处理文本粘贴
+    const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
+    // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
+    // supported image in that case; letting the editor handle the text flavor can render a preview
+    // without ever adding an attachment to composer state.
+    const hasSupportedClipboardImage = clipboardFiles.some(
+      (file) => file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))
+    )
+
+    // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
     const clipboardText = event.clipboardData?.getData('text')
-    if (clipboardText) {
+    if (clipboardText && !hasSupportedClipboardImage) {
       // 1. 文本粘贴
       if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
         if (!supportExts.includes(PASTED_TEXT_FILE_EXTENSION)) return false
@@ -67,11 +75,11 @@ export const handlePaste = async (
       return false
     }
     // 2. 文件/图片粘贴（仅在无文本时处理）
-    if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+    if (clipboardFiles.length > 0) {
       event.preventDefault()
       const extensionSet = new Set(supportExts)
       try {
-        for (const file of event.clipboardData.files) {
+        for (const file of clipboardFiles) {
           // 使用新的API获取文件路径
           const filePath = window.api.file.getPathForFile(file)
 

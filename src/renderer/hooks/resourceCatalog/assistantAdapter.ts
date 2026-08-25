@@ -53,36 +53,25 @@ export function useAssistantMutations() {
   const { trigger: createTrigger } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
+  const { trigger: duplicateTrigger } = useMutation('POST', '/assistants/:id/duplicate', {
+    refresh: ['/assistants', '/prompts', '/prompt-bindings']
+  })
 
   const createAssistant = useCallback(
     (dto: CreateAssistantDto): Promise<Assistant> => createTrigger({ body: dto }),
     [createTrigger]
   )
 
-  /**
-   * Duplicate an assistant by re-POSTing its full state (plus a "(副本)" suffix)
-   * in a single request. The single group assignment is copied as a regular
-   * assistant column.
-   */
   const duplicateAssistant = useCallback(
     async (source: Assistant): Promise<Assistant> => {
       const duplicateName = t('library.duplicate_name', { name: source.name })
 
-      return createTrigger({
-        body: {
-          name: duplicateName,
-          prompt: source.prompt,
-          emoji: source.emoji,
-          description: source.description,
-          modelId: source.modelId,
-          settings: source.settings,
-          mcpServerIds: source.mcpServerIds,
-          knowledgeBaseIds: source.knowledgeBaseIds,
-          groupId: source.groupId
-        }
+      return duplicateTrigger({
+        params: { id: source.id },
+        body: { name: duplicateName }
       })
     },
-    [createTrigger, t]
+    [duplicateTrigger, t]
   )
 
   return { createAssistant, duplicateAssistant }

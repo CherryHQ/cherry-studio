@@ -15,24 +15,11 @@
       "ownedBy": "ai21"
     },
     {
-      "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 256000,
+      "capabilities": [],
       "id": "jamba-large-1-7",
-      "inputModalities": ["text"],
       "metadata": {},
-      "name": "AI21: Jamba Large 1.7",
-      "outputModalities": ["text"],
-      "ownedBy": "ai21",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 8
-        }
-      }
+      "name": "jamba-large-1-7",
+      "ownedBy": "ai21"
     },
     {
       "capabilities": [],
@@ -1797,7 +1784,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.04
+          "perMillionTokens": 0.055
         },
         "cacheWrite": {
           "currency": "USD",
@@ -2270,11 +2257,11 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
       "contextWindow": 1048576,
       "family": "qwen",
       "id": "qwen3-8-2-4t-a95b",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Qwen3.8 2.4T A95B",
@@ -2323,11 +2310,11 @@
         "structured-output",
         "file-input"
       ],
-      "contextWindow": 262144,
+      "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-8-27b",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 262133,
+      "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Qwen3.8 27B",
       "openWeights": true,
@@ -2336,15 +2323,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.11
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 3.3
         }
       },
       "reasoning": {
@@ -3124,7 +3111,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
@@ -5065,7 +5052,7 @@
         "structured-output",
         "file-input"
       ],
-      "contextWindow": 1000000,
+      "contextWindow": 1048576,
       "family": "ling",
       "id": "inkling-small",
       "inputModalities": ["text", "image", "audio"],
@@ -6670,26 +6657,6 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["reasoning", "structured-output"],
-      "contextWindow": 128000,
-      "id": "cogito-v2-1-671b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Deep Cogito: Cogito v2.1 671B",
-      "outputModalities": ["text"],
-      "ownedBy": "cogito",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        }
-      }
-    },
-    {
       "capabilities": ["function-call"],
       "contextWindow": 131072,
       "id": "c4ai-aya-expanse-32b",
@@ -7251,11 +7218,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.27
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 1
         }
       }
     },
@@ -7271,11 +7238,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.95
+          "perMillionTokens": 1.6500000000000001
         }
       },
       "reasoning": {
@@ -7543,6 +7510,10 @@
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -7747,21 +7718,60 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0765
+          "perMillionTokens": 0.04
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.153
+          "perMillionTokens": 0.13
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max"]
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "high", "max"]
+        "supportedEfforts": ["none", "low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "deepseek-flash",
+      "id": "deepseek-v4-flash-vision-exp",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4 Flash Vision Exp",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high", "max", "xhigh"]
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["low", "high", "max", "xhigh", "none"]
       }
     },
     {
@@ -7942,11 +7952,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.075
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.383
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
@@ -9004,15 +9010,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.075
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 0.75
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 7.5
+          "perMillionTokens": 3.75
         }
       },
       "reasoning": {
@@ -9967,7 +9973,6 @@
     },
     {
       "capabilities": ["image-generation"],
-      "contextWindow": 480,
       "family": "imagen",
       "id": "imagen-4-0-fast-generate-001",
       "imageGeneration": {
@@ -10035,7 +10040,6 @@
     },
     {
       "capabilities": ["image-generation"],
-      "contextWindow": 480,
       "family": "imagen",
       "id": "imagen-4-0-generate-001",
       "imageGeneration": {
@@ -10136,7 +10140,6 @@
     },
     {
       "capabilities": ["image-generation"],
-      "contextWindow": 480,
       "family": "imagen",
       "id": "imagen-4-0-ultra-generate-001",
       "imageGeneration": {
@@ -11108,6 +11111,7 @@
                 "default": 4.5,
                 "max": 20,
                 "min": 1,
+                "step": 0.1,
                 "type": "range"
               },
               "negativePrompt": {
@@ -11150,7 +11154,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 128000,
+      "contextWindow": 65536,
       "id": "lfm-2-5-2-6b",
       "inputModalities": ["text"],
       "metadata": {},
@@ -13380,7 +13384,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output"],
-      "contextWindow": 256000,
+      "contextWindow": 131072,
       "id": "mistral-small-3-2-24b-instruct",
       "inputModalities": ["image", "text"],
       "metadata": {},
@@ -13390,11 +13394,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09375
+          "perMillionTokens": 0.075
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.19999999999999998
         }
       }
     },
@@ -14003,6 +14007,10 @@
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -14093,11 +14101,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
@@ -14704,33 +14712,38 @@
       "family": "nemotron",
       "id": "nemotron-3-5-lightning",
       "inputModalities": ["text"],
-      "maxOutputTokens": 131072,
+      "maxOutputTokens": 32768,
       "metadata": {},
-      "name": "Nemotron 3.5 Lightning 30B",
+      "name": "Nemotron 3.5 Lightning 30B (Free)",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "nvidia",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.01
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
         "controls": [
           {
+            "kind": "budget",
+            "max": 32768,
+            "min": 1
+          },
+          {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 1
+        }
       }
     },
     {
@@ -16614,11 +16627,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 10
         }
       },
       "reasoning": {
@@ -17217,11 +17230,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 10
         }
       }
     },
@@ -17354,6 +17367,10 @@
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.007
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.07
@@ -18671,29 +18688,128 @@
     {
       "capabilities": [],
       "contextWindow": 8192,
+      "id": "hy-mt2-1-8b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Tencent: Hy-MT2-1.8B",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.044
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.17700000000000002
+        }
+      }
+    },
+    {
+      "capabilities": ["structured-output"],
+      "contextWindow": 8192,
+      "id": "hy-mt2-30b-a3b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Tencent: Hy-MT2-30B-A3B",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.074
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.295
+        }
+      }
+    },
+    {
+      "capabilities": ["structured-output"],
+      "contextWindow": 8192,
+      "id": "hy-mt2-7b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Tencent: Hy-MT2-7B",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.074
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.295
+        }
+      }
+    },
+    {
+      "capabilities": [],
+      "contextWindow": 8192,
+      "family": "Hy",
       "id": "hy-mt2-lite",
+      "inputModalities": ["text"],
       "maxOutputTokens": 4096,
       "metadata": {},
       "name": "Hunyuan MT2 Lite",
-      "ownedBy": "tencent"
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.044
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.177
+        }
+      }
     },
     {
       "capabilities": [],
       "contextWindow": 8192,
+      "family": "Hy",
       "id": "hy-mt2-plus",
+      "inputModalities": ["text"],
       "maxOutputTokens": 4096,
       "metadata": {},
       "name": "Hunyuan MT2 Plus",
-      "ownedBy": "tencent"
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.074
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.295
+        }
+      }
     },
     {
       "capabilities": [],
       "contextWindow": 8192,
+      "family": "Hy",
       "id": "hy-mt2-pro",
+      "inputModalities": ["text"],
       "maxOutputTokens": 4096,
       "metadata": {},
       "name": "Hunyuan MT2 Pro",
-      "ownedBy": "tencent"
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.074
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.295
+        }
+      }
     },
     {
       "capabilities": [],
@@ -18721,15 +18837,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.035
+          "perMillionTokens": 0.033
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.132
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.58
+          "perMillionTokens": 0.528
         }
       },
       "reasoning": {
@@ -19157,11 +19273,19 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 1048576,
       "family": "muse",
       "id": "muse-spark-1-2-contributor",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 1048576,
       "metadata": {},
       "name": "Muse Spark 1.2 Contributor",
@@ -19234,7 +19358,7 @@
       "id": "s1",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "S1",
+      "name": "S1 (Free)",
       "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
@@ -19244,7 +19368,7 @@
       "id": "s2-1-pro",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "S2.1 Pro",
+      "name": "S2.1 Pro (Free)",
       "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
@@ -19254,7 +19378,7 @@
       "id": "s2-pro",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "S2 Pro",
+      "name": "S2 Pro (Free)",
       "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
@@ -19868,7 +19992,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "grok",
       "id": "grok-4-1-fast",
@@ -19894,7 +20018,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "grok",
       "id": "grok-4-1-fast-non-reasoning",
@@ -20007,7 +20131,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 2000000,
       "family": "grok",
       "id": "grok-4-20-multi-agent-beta",
@@ -20030,15 +20154,6 @@
           "currency": "USD",
           "perMillionTokens": 2.5
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -20203,15 +20318,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.55
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 2.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 6.6
         }
       },
       "reasoning": {
@@ -20282,7 +20397,7 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Grok Imagine Image",
-      "outputModalities": ["image", "text"],
+      "outputModalities": ["image"],
       "ownedBy": "xai"
     },
     {
@@ -20947,10 +21062,6 @@
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.3
@@ -20960,26 +21071,6 @@
           "perMillionTokens": 0.9
         }
       },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 128000,
-      "family": "glm",
-      "id": "glm-4-6v-flash",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 24000,
-      "metadata": {},
-      "name": "GLM-4.6V-Flash",
-      "outputModalities": ["text"],
-      "ownedBy": "zhipu",
       "reasoning": {
         "controls": [
           {
@@ -21119,6 +21210,10 @@
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -21552,6 +21647,26 @@
       "ownedBy": "zhipu"
     },
     {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "id": "glm-latest",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Z.ai: GLM Latest",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      }
+    },
+    {
       "capabilities": ["reasoning"],
       "contextWindow": 131072,
       "id": "glm-z1",
@@ -21584,5 +21699,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "90f2173cfa6525a2"
+  "version": "0a900dcf6dab1f85"
 }

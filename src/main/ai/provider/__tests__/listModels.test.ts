@@ -10,14 +10,21 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 // HTTP call through @ai-sdk/provider-utils' getFromApi. Mock all of them at the
 // module boundary: ProviderService / VertexAiService to avoid the DB and signing,
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
-const { getRotatedApiKeyMock, getAuthConfigMock, getAuthHeadersMock, getCopilotTokenMock, aiSdkGetFromApiMock } =
-  vi.hoisted(() => ({
-    getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
-    getAuthConfigMock: vi.fn(),
-    getAuthHeadersMock: vi.fn(),
-    getCopilotTokenMock: vi.fn(),
-    aiSdkGetFromApiMock: vi.fn()
-  }))
+const {
+  getRotatedApiKeyMock,
+  getAuthConfigMock,
+  getAuthHeadersMock,
+  getCopilotTokenMock,
+  aiSdkGetFromApiMock,
+  aiSdkPostJsonToApiMock
+} = vi.hoisted(() => ({
+  getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  getAuthConfigMock: vi.fn(),
+  getAuthHeadersMock: vi.fn(),
+  getCopilotTokenMock: vi.fn(),
+  aiSdkGetFromApiMock: vi.fn(),
+  aiSdkPostJsonToApiMock: vi.fn()
+}))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
@@ -42,7 +49,8 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof AiSdkProviderUtils>()
   return {
     ...actual,
-    getFromApi: aiSdkGetFromApiMock
+    getFromApi: aiSdkGetFromApiMock,
+    postJsonToApi: aiSdkPostJsonToApiMock
   }
 })
 
@@ -53,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
+  aiSdkPostJsonToApiMock.mockResolvedValue({ value: {} })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
   aiSdkGetFromApiMock.mockResolvedValue({
     value: {
@@ -142,6 +151,51 @@ describe('listModels — Ollama capabilities', () => {
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it('reads the trained context window from /api/show so num_ctx is not left at Ollama default', async () => {
+    // /api/tags carries no context length; without this the model has no contextWindow and no
+    // num_ctx is sent, leaving Ollama to size by VRAM — 4k below 24 GiB, which an agent's tool
+    // preamble overruns on its own (#18643).
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion', 'tools'] }] }
+    })
+    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+      value: { model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 40960 } }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0]).toMatchObject({ apiModelId: 'qwen3:32b', contextWindow: 40960 })
+    expect(aiSdkPostJsonToApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'http://ollama.test:11434/api/show',
+      body: { model: 'qwen3:32b' }
+    })
+  })
+
+  it('still lists a model whose /api/show call fails', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion'] }] }
+    })
+    aiSdkPostJsonToApiMock.mockRejectedValueOnce(new Error('connection refused'))
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].contextWindow).toBeUndefined()
+  })
+
+  it('ignores a context length that does not match the reported architecture', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion'] }] }
+    })
+    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+      value: { model_info: { 'general.architecture': 'qwen3', 'llama.context_length': 8192 } }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0].contextWindow).toBeUndefined()
   })
 })
 
@@ -514,26 +568,6 @@ describe('listModels — openRouterFetcher image models', () => {
       expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
       expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
     ])
-  })
-})
-
-describe('listModels — copied preset provider routing', () => {
-  it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
-    const provider = makeProvider({
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      presetProviderId: 'github'
-    })
-    aiSdkGetFromApiMock.mockResolvedValue({
-      value: [{ id: 'openai/gpt-4o', name: 'GPT-4o', publisher: 'OpenAI' }]
-    })
-
-    const models = await listModels(provider)
-
-    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
-    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'https://models.github.ai/catalog/models'
-    })
-    expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
   })
 })
 
@@ -1008,9 +1042,9 @@ describe('listModels — ovmsFetcher config endpoint', () => {
     expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
   })
 
-  // A servable that is registered in config.json but failed to load must not be offered
-  // as a usable model.
-  it('lists only servables reporting an AVAILABLE version', async () => {
+  // All models registered in OVMS config are listed regardless of their server-side
+  // loading state, so users see every downloaded model in the model manager.
+  it('lists all configured servables regardless of loading state', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] },
@@ -1023,7 +1057,11 @@ describe('listModels — ovmsFetcher config endpoint', () => {
 
     const models = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
 
-    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'Qwen3-4B-int4-ov',
+      'FLUX.1-schnell-int4-ov',
+      'bge-base-en-v1.5-fp16-ov'
+    ])
   })
 })
 

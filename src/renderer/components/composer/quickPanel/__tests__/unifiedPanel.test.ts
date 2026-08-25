@@ -572,6 +572,49 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     )
   })
 
+  it('preserves tooltip metadata for submenu rows', () => {
+    const tooltipAnchor = createElement('span', { 'aria-label': 'warning' })
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-mode-auto',
+              kind: 'command',
+              label: 'Approve for Me',
+              icon: 'shield-alert',
+              tooltip: 'Needs a model that supports it.',
+              tooltipAnchor,
+              sources: ['popover']
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+    const permissionMode = options.list[0]
+
+    permissionMode.action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: permissionMode,
+      parentPanel: options
+    })
+
+    const submenu = vi.mocked(quickPanel.open).mock.calls[0][0]
+    expect(submenu.list[0]).toEqual(
+      expect.objectContaining({
+        tooltip: 'Needs a model that supports it.',
+        tooltipAnchor
+      })
+    )
+  })
+
   it('ignores submenu cycles while building and opening launcher items', () => {
     const cyclicParent: ComposerToolLauncher = {
       id: 'cyclic-parent',

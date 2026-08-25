@@ -71,6 +71,18 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
+
+    // Deleting an agent used to leave its schedules behind: nothing listened
+    // to onAgentDeleted, so every interval kept firing for an agent that no
+    // longer exists, each run failing with 'Agent not found'. The event fires
+    // post-commit, after the agent row is already gone.
+    this.registerDisposable(
+      agentService.onAgentDeleted(({ agentId }) => {
+        void this.deleteSchedulesForAgent(agentId).catch((error) => {
+          logger.warn('Failed to delete schedules for removed agent', { agentId, error })
+        })
+      })
+    )
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
@@ -213,6 +225,32 @@ export class AgentJobsService extends BaseService {
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
     const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
     if (deleted) logger.info('Task deleted', { taskId, agentId })
+    return deleted
+  }
+
+  /**
+   * Delete every `agent.task` schedule owned by `agentId` — the schedule-side
+   * half of agent deletion. Historical jobs keep their rows with `scheduleId`
+   * set NULL (`ON DELETE SET NULL`, same as `deleteTask`).
+   *
+   * @returns How many schedule rows were removed.
+   */
+  async deleteSchedulesForAgent(agentId: string): Promise<number> {
+    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((s) => {
+      const template = readAgentTaskJobInputTemplate(s.jobInputTemplate)
+      return template?.agentId === agentId
+    })
+
+    let deleted = 0
+    for (const schedule of schedules) {
+      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+        deleted += 1
+      }
+    }
+    if (deleted > 0) {
+      logger.info('Deleted task schedules for removed agent', { agentId, deleted })
+      agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
+    }
     return deleted
   }
 

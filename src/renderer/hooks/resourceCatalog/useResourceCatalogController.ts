@@ -1,3 +1,5 @@
+import { dataApiService } from '@data/DataApiService'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
 import type {
@@ -9,6 +11,7 @@ import type {
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Group } from '@shared/data/types/group'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -128,7 +131,12 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       const assistant = resource.raw
       try {
         const groupName = assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
-        const content = serializeAssistantForExport(assistant, groupName)
+        const bindingPath = resolveTemplate('/prompt-bindings/:targetType/:targetId', {
+          targetType: 'assistant',
+          targetId: assistant.id
+        }) as ConcreteApiPaths
+        const contextualPrompts = await dataApiService.get(bindingPath)
+        const content = serializeAssistantForExport(assistant, contextualPrompts, groupName)
 
         await window.api.file.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]

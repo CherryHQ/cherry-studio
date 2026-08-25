@@ -29,7 +29,7 @@
       },
       "default": "./dist/index.mjs"
     },
-    "./plugin": "./dist/plugin.mjs"
+    "./plugin": "./dist/runtime/cherry-bridge.mjs"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1",
@@ -75,6 +75,7 @@
     "@deepseek-ai/dsh-sandbox": "0.1.0-rc.7",
     "@deepseek-ai/dsh-sandbox-local": "0.1.0-rc.7",
     "@deepseek-ai/dsh-sandbox-policy": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-sandbox-windows-acl": "0.1.0-rc.7",
     "@deepseek-ai/dsh-scope": "0.1.0-rc.7",
     "@deepseek-ai/dsh-sdk-client": "0.1.0-rc.7",
     "@deepseek-ai/dsh-sdk-jsonrpc-demo": "0.1.0-rc.7",
@@ -112,7 +113,11 @@
     "@deepseek-ai/dsh-tools": "0.1.0-rc.7",
     "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.7",
     "@deepseek-ai/dsh-user-approval": "0.1.0-rc.7",
-    "@deepseek-ai/dsh-user-questions": "0.1.0-rc.7"
+    "@deepseek-ai/dsh-user-questions": "0.1.0-rc.7",
+    "@deepseek-ai/node-addon-landlock-run": "0.1.1",
+    "koffi": "3.1.4",
+    "node-pty": "1.2.0-beta.15",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.2",

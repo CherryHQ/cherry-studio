@@ -20,6 +20,7 @@ import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
+import { getServiceTierCatalogErrors } from '../utils/serviceTierCatalog'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
@@ -326,11 +327,13 @@ describe('catalog invariants (data/*.json)', () => {
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
   })
 
-  it('Fast transports belong only to Codex and Claude Code', () => {
-    expect(providers.filter((provider) => provider.fastMode).map((provider) => provider.id)).toEqual([
-      'claude-code',
-      'openai-codex'
-    ])
+  it('Fast transports belong only to Codex, Claude Code, and Ark', () => {
+    expect(
+      providers
+        .filter((provider) => provider.fastMode)
+        .map((provider) => provider.id)
+        .sort()
+    ).toEqual(['claude-code', 'doubao', 'openai-codex'])
   })
 
   it('Fast provider-model declarations require a provider transport', () => {
@@ -340,6 +343,10 @@ describe('catalog invariants (data/*.json)', () => {
         .filter((override) => override.supportsFastMode && !fastProviders.has(override.providerId))
         .map((override) => `${override.providerId}/${override.modelId}`)
     ).toEqual([])
+  })
+
+  it('service tier overrides only expose options mapped by their endpoints', () => {
+    expect(getServiceTierCatalogErrors(providers, providerModelOverrides)).toEqual([])
   })
 
   it('budget wire operations require an explicit budget policy', () => {

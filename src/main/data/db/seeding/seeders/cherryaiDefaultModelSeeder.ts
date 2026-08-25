@@ -51,7 +51,6 @@ function createCherryAiProviderRow(): CherryAiProviderRow {
     },
     defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     authConfig: null,
-    apiFeatures: null,
     providerSettings: null,
     isEnabled: true
   }

@@ -15,7 +15,7 @@ describe('MessageDataSchema', () => {
     expect(
       MessageDataSchema.safeParse({
         parts: [],
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        turnOptions: { reasoningEffort: 'high', fastMode: true, serviceTier: 'flex' }
       }).success
     ).toBe(true)
   })
@@ -23,5 +23,6 @@ describe('MessageDataSchema', () => {
   it('rejects invalid persisted assistant turn options', () => {
     expect(MessageDataSchema.safeParse({ parts: [], turnOptions: { reasoningEffort: 'turbo' } }).success).toBe(false)
     expect(MessageDataSchema.safeParse({ parts: [], turnOptions: { fastMode: 'true' } }).success).toBe(false)
+    expect(MessageDataSchema.safeParse({ parts: [], turnOptions: { serviceTier: 'turbo' } }).success).toBe(false)
   })
 })

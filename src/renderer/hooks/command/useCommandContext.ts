@@ -10,6 +10,7 @@ export type RendererCommandContextKey =
   | 'chat.active'
   | 'topic.exists'
   | 'input.composing'
+  | 'webview.focused'
 
 export type RegisterContextKey = (key: RendererCommandContextKey, value: ContextValue) => () => void
 

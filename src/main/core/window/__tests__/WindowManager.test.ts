@@ -933,6 +933,26 @@ describe('WindowManager', () => {
         expect(win.destroy).toHaveBeenCalled()
       })
 
+      it('skips eager warmup on boot for a pool suspended beforehand', async () => {
+        // Feature-gated pools (screenshot overlays) suspend themselves during their
+        // owner's onInit when the feature is off. Warming them anyway at onAllReady
+        // would hold a hidden window — and its renderer's memory — for the whole run,
+        // for a feature the user has switched off.
+        wm.suspendPool('eagerPooled' as never)
+
+        await wm._doAllReady()
+
+        expect(wm.getWindowsByType('eagerPooled' as never)).toHaveLength(0)
+      })
+
+      it('eagerly warms a pool that was never suspended', async () => {
+        // Negative control: without this, the assertion above would also pass if
+        // eager warmup had simply stopped working.
+        await wm._doAllReady()
+
+        expect(wm.getWindowsByType('eagerPooled' as never)).toHaveLength(1)
+      })
+
       it('resumePool() clears suspended flag', () => {
         wm.suspendPool('pooled' as never)
         wm.resumePool('pooled' as never)

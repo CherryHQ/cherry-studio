@@ -124,7 +124,8 @@ export default defineConfig({
         // preload requires explicit entry point configuration for multiple scripts
         input: {
           preload: resolve(__dirname, 'src/preload/preload.ts'),
-          simplest: resolve(__dirname, 'src/preload/simplest.ts') // Minimal preload
+          simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
+          miniApp: resolve(__dirname, 'src/preload/miniApp.ts') // MiniApp `<webview>` guests
         },
         external: ['electron'],
         output: {

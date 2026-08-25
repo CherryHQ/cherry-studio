@@ -20,8 +20,12 @@ function FilePreviewContent({ children }: { children: ReactNode }) {
     // Themed auto-hiding scrollbar (consistent with the rest of the app) for the text-like
     // previews that scroll here (markdown/text/html source). `scrollbar-gutter:auto` overrides
     // Scrollbar's default `stable` so document-viewer plugins (image/pdf/word/pptx), whose
-    // full-height child never overflows Content, don't reserve an empty gutter strip.
-    <Scrollbar data-testid="file-preview-content" className="min-h-0 flex-1 [scrollbar-gutter:auto]">
+    // full-height child never overflows Content, don't reserve an empty gutter strip. A maximized
+    // pane runs full height under the elevated composer, so the scroll end also needs its height
+    // as trailing room to clear it.
+    <Scrollbar
+      data-testid="file-preview-content"
+      className="min-h-0 flex-1 pb-[var(--chat-composer-inset,0px)] [scrollbar-gutter:auto]">
       {children}
     </Scrollbar>
   )

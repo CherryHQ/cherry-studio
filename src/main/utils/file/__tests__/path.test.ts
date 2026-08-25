@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { canWrite, isPathInside, isSameOrInside } from '../path'
+import { canWrite, isOutsidePath, isPathInside, isSameOrInside } from '../path'
 
 describe('isPathInside', () => {
   it('returns true when child is directly inside parent', () => {
@@ -66,6 +66,28 @@ describe('isSameOrInside', () => {
       expect(isSameOrInside('/Users/me/Data/Files', '/users/me/data/files')).toBe(true)
     }
   )
+})
+
+describe('isOutsidePath', () => {
+  it('rejects a relative path that walks out of the base', () => {
+    expect(isOutsidePath('..')).toBe(true)
+    expect(isOutsidePath(path.join('..', 'sibling'))).toBe(true)
+  })
+
+  it('rejects an absolute path, which ignores the base entirely', () => {
+    expect(isOutsidePath(path.resolve('/elsewhere'))).toBe(true)
+  })
+
+  it('accepts the base itself and any descendant of it', () => {
+    expect(isOutsidePath('')).toBe(false)
+    expect(isOutsidePath(path.join('nested', 'skill'))).toBe(false)
+  })
+
+  // The naive `startsWith('..')` check reads this as an escape; it is an ordinary child directory.
+  it('accepts a child whose name merely starts with two dots', () => {
+    expect(isOutsidePath('..archive')).toBe(false)
+    expect(isOutsidePath(path.join('..archive', 'SKILL.md'))).toBe(false)
+  })
 })
 
 describe('canWrite', () => {

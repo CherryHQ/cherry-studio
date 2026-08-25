@@ -49,6 +49,18 @@ export function getBinaryShimsDir(): string {
 }
 
 /**
+ * Whether `candidate` resolves inside `root` — the containment test for
+ * "is this binary one of ours". Case-insensitive on Windows, matching the
+ * filesystem, so a drive-letter or casing difference cannot smuggle a path
+ * past the check.
+ */
+export function isPathWithin(root: string, candidate: string): boolean {
+  const normalize = (value: string) => (isWin ? path.resolve(value).toLowerCase() : path.resolve(value))
+  const relative = path.relative(normalize(root), normalize(candidate))
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+/**
  * Directories that hold Cherry-managed binaries, in resolution order:
  * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
  *
@@ -78,6 +90,11 @@ export function getBinaryExecutionEnv(): Record<string, string> {
     MISE_CACHE_DIR: path.join(dataDir, 'cache'),
     MISE_STATE_DIR: path.join(dataDir, 'state'),
     MISE_SHIMS_DIR: getBinaryShimsDir(),
+    // rustup owns rust's binaries, so they live outside MISE_DATA_DIR. Both the
+    // install subprocess and every launched tool must agree on where, or the
+    // rustup proxies re-download the whole toolchain into the user's real home.
+    MISE_RUSTUP_HOME: application.getPath('feature.binary.data.isolated.rustup'),
+    MISE_CARGO_HOME: application.getPath('feature.binary.data.isolated.cargo'),
     MISE_YES: '1',
     MISE_NO_ANALYTICS: '1',
     MISE_EXPERIMENTAL: '1'

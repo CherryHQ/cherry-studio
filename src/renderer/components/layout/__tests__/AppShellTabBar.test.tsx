@@ -533,6 +533,19 @@ describe('AppShellTabBar', () => {
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
   })
 
+  it('does not offer pinning for transient mini-app tabs', () => {
+    const transientMiniAppTab = createTab('mini-app', {
+      url: '/app/mini-app/deepseek-harness',
+      metadata: { transientMiniApp: true }
+    })
+
+    renderTabBar({ tabs: [transientMiniAppTab], activeTabId: transientMiniAppTab.id, detachTab: vi.fn() })
+
+    expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
+    expect(screen.getByTestId('menu-tab.open-in-new-window')).toBeInTheDocument()
+    expect(screen.getByTestId('menu-tab.close')).toBeInTheDocument()
+  })
+
   it('allows both the last normal tab and pinned tabs to close from the menu', () => {
     const tabs = [createTab('home'), createTab('p', { isPinned: true })]
 
@@ -1293,5 +1306,11 @@ describe('getTabCapabilities', () => {
     expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, canDetach: false })).detach).toBe(
       false
     )
+  })
+
+  it('disables pinning for transient mini-app tabs', () => {
+    const transientMiniAppTab = createTab('mini-app', { metadata: { transientMiniApp: true } })
+
+    expect(getTabCapabilities(transientMiniAppTab, ctx({ normalIndex: 0 })).togglePin).toBe(false)
   })
 })

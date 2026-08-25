@@ -263,19 +263,10 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
-  const showInFolder = useCallback(
-    (path: string) => {
-      return window.api.file.showInFolder(requireWorkspaceFilePath(workspacePath, path))
-    },
+  const resolvePath = useMemo<MessageListActions['resolvePath']>(
+    () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
     [workspacePath]
   )
-
-  const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
-    const open = leafCapabilities.openInExternalApp
-    if (!open) return undefined
-
-    return (app, path) => open(app, requireWorkspaceFilePath(workspacePath, path))
-  }, [leafCapabilities.openInExternalApp, workspacePath])
 
   const abortTool = useCallback((toolId: string) => {
     return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
@@ -407,12 +398,11 @@ export function useAgentMessageListProviderValue({
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
+      resolvePath,
       openPath,
-      openInExternalApp,
       openArtifactFile,
       openCitationsPanel,
       openAgentToolFlow,
-      showInFolder,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -438,11 +428,10 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openArtifactFile,
       openAgentToolFlow,
-      openInExternalApp,
       openPath,
       respondToolApproval,
+      resolvePath,
       selectionController.actions,
-      showInFolder,
       updateRenderConfig
     ]
   )

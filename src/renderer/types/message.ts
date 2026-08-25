@@ -23,6 +23,13 @@ export type Metrics = {
   time_thinking_millsec?: number
 }
 
+export interface MessageUiState {
+  foldSelected?: boolean
+  multiModelMessageStyle?: string
+  useful?: boolean
+  disclosures?: Record<string, boolean>
+}
+
 export type LegacyMessage = {
   id: string
   assistantId: string

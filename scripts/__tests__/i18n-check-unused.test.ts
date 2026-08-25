@@ -8,7 +8,6 @@ import {
   collectUsedI18nKeysFromSource,
   createUnusedI18nResult,
   findSourceFiles,
-  flattenI18nKeys,
   type I18N,
   removeI18nKeys,
   selectKeysByGroups
@@ -25,24 +24,6 @@ function createSourceFile(code: string, filePath = 'test.tsx') {
 }
 
 describe('i18n-check-unused', () => {
-  describe('flattenI18nKeys', () => {
-    it('flattens nested locale keys into dotted keys', () => {
-      const locale: I18N = {
-        common: {
-          cancel: '取消',
-          nested: {
-            save: '保存'
-          }
-        },
-        settings: {
-          title: '设置'
-        }
-      }
-
-      expect(flattenI18nKeys(locale).sort()).toEqual(['common.cancel', 'common.nested.save', 'settings.title'])
-    })
-  })
-
   describe('collectUsedI18nKeysFromSource', () => {
     it('extracts static t, i18n.t, Trans i18nKey, key properties, and comment references', () => {
       const localeKeys = new Set([
@@ -118,27 +99,6 @@ describe('i18n-check-unused', () => {
       ])
     })
 
-    it('extracts aliased namespaces destructured from i18n translations', () => {
-      const localeKeys = new Set(['selection.name', 'tray.quit', 'tray.show_quick_assistant', 'tray.show_window'])
-      const sourceFile = createSourceFile(`
-        const i18n = getI18n()
-        const { tray: trayLocale, selection: selectionLocale } = i18n.translation
-        const menu = [
-          { label: trayLocale.show_window },
-          { label: trayLocale.show_quick_assistant },
-          { label: selectionLocale.name },
-          { label: trayLocale.quit }
-        ]
-      `)
-
-      expect([...collectUsedI18nKeysFromSource(sourceFile, localeKeys)].sort()).toEqual([
-        'selection.name',
-        'tray.quit',
-        'tray.show_quick_assistant',
-        'tray.show_window'
-      ])
-    })
-
     it('conservatively preserves keys that match static template-expression namespaces', () => {
       const localeKeys = new Set([
         'richEditor.commands.bold.description',
@@ -181,12 +141,7 @@ describe('i18n-check-unused', () => {
 
   describe('createUnusedI18nResult', () => {
     it('reports keys that are not statically referenced', () => {
-      const locale: I18N = {
-        common: {
-          cancel: '取消',
-          save: '保存'
-        }
-      }
+      const locale: I18N = { 'common.cancel': '取消', 'common.save': '保存' }
       const result = createUnusedI18nResult(locale, ['common.save'])
 
       expect(result.unusedKeys).toEqual(['common.cancel'])
@@ -210,46 +165,18 @@ describe('i18n-check-unused', () => {
   })
 
   describe('removeI18nKeys', () => {
-    it('removes selected leaf keys and prunes empty objects', () => {
+    it('removes the selected keys and leaves the rest sorted', () => {
       const locale: I18N = {
-        common: {
-          cancel: '取消',
-          save: '保存'
-        },
-        settings: {
-          nested: {
-            unused: '未使用'
-          },
-          title: '设置'
-        }
+        'settings.title': '设置',
+        'common.save': '保存',
+        'common.cancel': '取消',
+        'settings.nested.unused': '未使用'
       }
 
       expect(removeI18nKeys(locale, ['common.cancel', 'settings.nested.unused'])).toEqual({
-        common: {
-          save: '保存'
-        },
-        settings: {
-          title: '设置'
-        }
+        'common.save': '保存',
+        'settings.title': '设置'
       })
-    })
-
-    it('can be applied to multiple locale files consistently', () => {
-      const zhCN: I18N = {
-        common: {
-          cancel: '取消',
-          save: '保存'
-        }
-      }
-      const enUS: I18N = {
-        common: {
-          cancel: 'Cancel',
-          save: 'Save'
-        }
-      }
-
-      expect(removeI18nKeys(zhCN, ['common.cancel'])).toEqual({ common: { save: '保存' } })
-      expect(removeI18nKeys(enUS, ['common.cancel'])).toEqual({ common: { save: 'Save' } })
     })
   })
 })

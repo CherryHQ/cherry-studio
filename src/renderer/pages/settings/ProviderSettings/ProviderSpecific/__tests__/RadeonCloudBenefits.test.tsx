@@ -27,20 +27,19 @@ describe('RadeonCloudBenefits', () => {
 
   it('provides complete English and Chinese benefit copy', () => {
     for (const locale of [enUS, zhCN]) {
-      const benefits = locale.settings.provider.radeon_cloud.benefits
-      expect(benefits.title).toBeTruthy()
-      expect(benefits.description).toBeTruthy()
-      expect(benefits.cta).toBeTruthy()
+      expect(locale['settings.provider.radeon_cloud.benefits.title']).toBeTruthy()
+      expect(locale['settings.provider.radeon_cloud.benefits.description']).toBeTruthy()
+      expect(locale['settings.provider.radeon_cloud.benefits.cta']).toBeTruthy()
     }
 
-    expect(enUS.settings.provider.radeon_cloud.benefits.title).toContain('$10')
-    expect(enUS.settings.provider.radeon_cloud.benefits.title).not.toContain('10M')
-    expect(enUS.settings.provider.radeon_cloud.benefits.description).toContain('10M–111M')
-    expect(enUS.settings.provider.radeon_cloud.benefits.description).toContain('model and token type')
-    expect(zhCN.settings.provider.radeon_cloud.benefits.title).toContain('每日 10 美元')
-    expect(zhCN.settings.provider.radeon_cloud.benefits.title).not.toContain('1000 万')
-    expect(zhCN.settings.provider.radeon_cloud.benefits.description).toContain('1000 万–1.11 亿')
-    expect(zhCN.settings.provider.radeon_cloud.benefits.description).toContain('模型和 Token 类型')
-    expect(zhCN.settings.provider.radeon_cloud.benefits.description).toContain('每日重置')
+    expect(enUS['settings.provider.radeon_cloud.benefits.title']).toContain('$10')
+    expect(enUS['settings.provider.radeon_cloud.benefits.title']).not.toContain('10M')
+    expect(enUS['settings.provider.radeon_cloud.benefits.description']).toContain('10M–111M')
+    expect(enUS['settings.provider.radeon_cloud.benefits.description']).toContain('model and token type')
+    expect(zhCN['settings.provider.radeon_cloud.benefits.title']).toContain('每日 10 美元')
+    expect(zhCN['settings.provider.radeon_cloud.benefits.title']).not.toContain('1000 万')
+    expect(zhCN['settings.provider.radeon_cloud.benefits.description']).toContain('1000 万–1.11 亿')
+    expect(zhCN['settings.provider.radeon_cloud.benefits.description']).toContain('模型和 Token 类型')
+    expect(zhCN['settings.provider.radeon_cloud.benefits.description']).toContain('每日重置')
   })
 })

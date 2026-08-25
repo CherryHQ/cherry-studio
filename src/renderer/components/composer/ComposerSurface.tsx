@@ -104,6 +104,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const needsRuntime =
     Boolean(props.editingState) ||
     Boolean(props.draftTokens?.length) ||
+    props.tokens.length > 0 ||
     props.text.trim().length > 0 ||
     Boolean(props.compactWhenSingleLine) ||
     props.isExpanded

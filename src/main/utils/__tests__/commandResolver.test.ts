@@ -64,6 +64,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       return parts.join('\\')
     })
 
+    vi.mocked(path.basename).mockImplementation((p) => p.split('\\').at(-1) ?? p)
+
     // Mock path.sep
     Object.defineProperty(path, 'sep', { value: '\\', writable: true })
     vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
@@ -752,6 +754,21 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
       expect(autoDiscoverGitBash()).toBeNull()
     })
+  })
+})
+
+describe('validateGitBashPath filename validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(path.resolve).mockImplementation((input) => input)
+    vi.mocked(path.basename).mockImplementation((input) => input.split('\\').at(-1) ?? input)
+  })
+
+  it('rejects the Git Bash terminal launcher', () => {
+    const launcherPath = 'C:\\PortableGit\\git-bash.exe'
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+
+    expect(validateGitBashPath(launcherPath)).toBeNull()
   })
 })
 

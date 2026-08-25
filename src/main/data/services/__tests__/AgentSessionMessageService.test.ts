@@ -1207,7 +1207,10 @@ describe('AgentSessionMessageService', () => {
     expect(result.nextCursor).toBeUndefined()
   })
 
-  it('keeps searchable_text and FTS index in sync from message data', async () => {
+  it('indexes text parts but excludes reasoning, and keeps the FTS index in sync', async () => {
+    // Privacy guard: `reasoning` parts hold the model's hidden chain-of-thought, which the session
+    // UI does not render. They must never reach `searchable_text` (which global-search snippets
+    // show verbatim) nor the FTS index. Only `text` parts are searchable.
     await dbh.db.insert(agentSessionMessageTable).values({
       id: USER_MESSAGE_ID,
       sessionId: SESSION_ID,
@@ -1225,7 +1228,17 @@ describe('AgentSessionMessageService', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
-    expect(inserted.searchableText).toBe('hello\nthinking')
+    expect(inserted.searchableText).toBe('hello')
+
+    const helloMatches = dbh.sqlite
+      .prepare(
+        `SELECT m.id
+            FROM agent_session_message m
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
+            WHERE agent_session_message_fts MATCH ?`
+      )
+      .all('hello') as Array<{ id: string }>
+    expect(helloMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
 
     const thinkingMatches = dbh.sqlite
       .prepare(
@@ -1235,7 +1248,7 @@ describe('AgentSessionMessageService', () => {
             WHERE agent_session_message_fts MATCH ?`
       )
       .all('thinking') as Array<{ id: string }>
-    expect(thinkingMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
+    expect(thinkingMatches).toHaveLength(0)
 
     await dbh.db
       .update(agentSessionMessageTable)

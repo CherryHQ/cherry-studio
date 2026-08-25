@@ -197,10 +197,16 @@ export class JobScheduleService {
   updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     const updateData: Partial<InsertJobScheduleRow> = { updatedAt: Date.now() }
     if (patch.name !== undefined) updateData.name = patch.name ?? ''
-    if (patch.trigger !== undefined) updateData.trigger = patch.trigger
+    if (patch.trigger !== undefined) {
+      updateData.trigger = patch.trigger
+      updateData.nextRun = null
+    }
     if (patch.jobInputTemplate !== undefined) updateData.jobInputTemplate = patch.jobInputTemplate
     if (patch.catchUpPolicy !== undefined) updateData.catchUpPolicy = patch.catchUpPolicy
-    if (patch.enabled !== undefined) updateData.enabled = patch.enabled
+    if (patch.enabled !== undefined) {
+      updateData.enabled = patch.enabled
+      if (!patch.enabled) updateData.nextRun = null
+    }
     if (patch.metadata !== undefined) updateData.metadata = patch.metadata
 
     const result = withSqliteErrors(
@@ -226,11 +232,9 @@ export class JobScheduleService {
   }
 
   setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): boolean {
-    const result = tx
-      .update(jobScheduleTable)
-      .set({ enabled, updatedAt: Date.now() })
-      .where(eq(jobScheduleTable.id, id))
-      .run()
+    const updateData: Partial<InsertJobScheduleRow> = { enabled, updatedAt: Date.now() }
+    if (!enabled) updateData.nextRun = null
+    const result = tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).run()
     return result.changes > 0
   }
 
@@ -251,8 +255,8 @@ export class JobScheduleService {
   /**
    * Record a fire event: set lastRun to the fire timestamp reported by the
    * caller and nextRun to the next expected fire (or null for terminal
-   * one-shot / no-more-runs). Called from the SchedulerService callback after
-   * each fire. For `once` triggers the natural-fire path passes an effective
+   * one-shot / no-more-runs). Called after automatic fires and when an overdue
+   * once trigger is consumed manually. The natural-fire path passes an effective
    * fire time clamped to no earlier than `trigger.at` (see
    * `JobManager.armSchedule`), so lastRun may exceed the wall-clock instant
    * the callback actually ran.
@@ -266,6 +270,22 @@ export class JobScheduleService {
 
   markFired(id: string, lastRun: number, nextRun: number | null): void {
     this.markFiredTx(application.get('DbService').getDb(), id, lastRun, nextRun)
+  }
+
+  setNextRunTx(tx: DbOrTx, id: string, nextRun: number | null): void {
+    tx.update(jobScheduleTable).set({ nextRun, updatedAt: Date.now() }).where(eq(jobScheduleTable.id, id)).run()
+  }
+
+  setNextRun(id: string, nextRun: number | null): void {
+    this.setNextRunTx(application.get('DbService').getDb(), id, nextRun)
+  }
+
+  setLastRunTx(tx: DbOrTx, id: string, lastRun: number): void {
+    tx.update(jobScheduleTable).set({ lastRun, updatedAt: Date.now() }).where(eq(jobScheduleTable.id, id)).run()
+  }
+
+  setLastRun(id: string, lastRun: number): void {
+    this.setLastRunTx(application.get('DbService').getDb(), id, lastRun)
   }
 
   // ---------------- Row → Entity ----------------
@@ -290,7 +310,7 @@ export class JobScheduleService {
       trigger: this.validateTrigger(row.id, row.trigger),
       jobInputTemplate: row.jobInputTemplate,
       enabled: row.enabled,
-      nextRun: row.nextRun != null ? timestampToISO(row.nextRun) : null,
+      nextRun: row.enabled && row.nextRun != null ? timestampToISO(row.nextRun) : null,
       lastRun: row.lastRun != null ? timestampToISO(row.lastRun) : null,
       catchUpPolicy: this.validateCatchUpPolicy(row.id, row.catchUpPolicy),
       metadata: row.metadata,

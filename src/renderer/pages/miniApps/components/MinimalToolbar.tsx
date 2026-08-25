@@ -9,7 +9,7 @@ import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, ExternalLink, LayoutGrid, Link, RotateCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,20 +24,39 @@ const WEBVIEW_CHECK_MAX_ATTEMPTS = 30 // Stop after ~30 seconds total
 const NAVIGATION_UPDATE_DELAY_MS = 50
 const NAVIGATION_COMPLETE_DELAY_MS = 100
 
+/** `open` splits the view in two; `close` is the split pane's way back to one. */
+export type SplitMode = 'open' | 'close'
+
 interface Props {
   app: MiniApp
   webviewRef: React.RefObject<WebviewTag | null>
   currentUrl: string | null
   onReload: () => void
   onOpenDevTools: () => void
+  splitMode: SplitMode
+  /** Whether the view is currently split, so the control reads as engaged. */
+  splitActive?: boolean
+  onSplit: () => void
 }
 
-const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
+const MinimalToolbar: FC<Props> = ({
+  app,
+  webviewRef,
+  currentUrl,
+  onReload,
+  onOpenDevTools,
+  splitMode,
+  splitActive = false,
+  onSplit
+}) => {
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
+  // While split, the primary pane's control closes the split rather than being
+  // a dead "open it again" button.
+  const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
   const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
@@ -272,6 +291,19 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
       <div className="flex items-center">
         <div className="flex items-center gap-0.5">
+          <Tooltip content={t(splitLabelKey)} placement="bottom">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onSplit}
+              className={toolbarButtonClassName({ active: splitActive })}
+              aria-label={t(splitLabelKey)}
+              aria-pressed={splitMode === 'open' ? splitActive : undefined}>
+              {splitMode === 'open' ? <Columns2 size={14} /> : <X size={14} />}
+            </Button>
+          </Tooltip>
+
           {canOpenExternalLink && (
             <Tooltip content={t('miniApp.popup.openExternal')} placement="bottom">
               <Button

@@ -220,8 +220,6 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
             onZoomIn={zoomIn}
           />
         </div>
-
-        <div aria-hidden className="hidden h-24 shrink-0 [[data-shell-maximized-overlay]_&]:block" />
       </div>
     )
   }

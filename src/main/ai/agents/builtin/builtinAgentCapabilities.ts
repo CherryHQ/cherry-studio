@@ -93,7 +93,11 @@ export function resolveMountedMcpServers(
   { channelLinked }: { channelLinked: boolean }
 ): ReadonlySet<string> {
   const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS, CHERRY_MCP_SERVER.AGENT_MEMORY])
-  if (resolveAgentCapabilities(agent).environment === 'open') mounted.add(CHERRY_MCP_SERVER.SKILLS)
+  if (resolveAgentCapabilities(agent).environment === 'open') {
+    mounted.add(CHERRY_MCP_SERVER.SKILLS)
+    // Registering an MCP server writes to the user's environment, so it rides the same axis as skills.
+    mounted.add(CHERRY_MCP_SERVER.MCP_MANAGER)
+  }
   if (hostToolsEnabled(agent, { channelLinked })) {
     mounted.add(CHERRY_MCP_SERVER.ASSISTANT)
     mounted.add(CHERRY_MCP_SERVER.ASSISTANT_FILES)

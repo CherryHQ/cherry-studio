@@ -393,12 +393,17 @@ const PdfTranslationResult = ({
 
       const roundedOverallProgress = Math.round(state.progress.overallProgress)
       const roundedStageProgress = Math.round(state.progress.stageProgress)
+      const displayProgress =
+        state.progress.stage === 'checking_assets' || state.progress.stage === 'downloading_assets'
+          ? state.progress.stageProgress
+          : state.progress.overallProgress
+      const roundedDisplayProgress = Math.round(displayProgress)
       return (
         <div className="flex h-full items-center justify-center">
           <PdfProgress
-            progress={state.progress.overallProgress}
+            progress={displayProgress}
             label={progressLabel}
-            percentLabel={t('translate.pdf.progress.percent', { progress: roundedOverallProgress })}
+            percentLabel={t('translate.pdf.progress.percent', { progress: roundedDisplayProgress })}
             valueText={t('translate.pdf.progress.value', {
               stage: progressLabel,
               overallProgress: roundedOverallProgress,

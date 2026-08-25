@@ -47,6 +47,7 @@ interface RightPanelStateMockValue {
   userOpenSeq?: number
 }
 
+const composerElevatedMock = vi.hoisted(() => ({ current: false }))
 const rightPanelStateMock = vi.hoisted(() => ({
   current: undefined as RightPanelStateMockValue | undefined
 }))
@@ -68,7 +69,8 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('../../panes/Shell', () => ({
-  useOptionalRightPanelState: () => rightPanelStateMock.current
+  useOptionalRightPanelState: () => rightPanelStateMock.current,
+  useRightPanelComposerElevated: () => composerElevatedMock.current
 }))
 
 type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
@@ -105,6 +107,7 @@ vi.mock('motion/react', () => {
 describe('ChatAppShell', () => {
   beforeEach(() => {
     rightPanelStateMock.current = undefined
+    composerElevatedMock.current = false
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 1200,
@@ -196,18 +199,27 @@ describe('ChatAppShell', () => {
     expect(overlayHost?.parentElement).toBe(chatMain?.parentElement)
   })
 
-  it('releases the center stacking context while the right panel is maximized', () => {
-    rightPanelStateMock.current = { layoutAnimationPending: false, presentationMaximized: true }
+  it.each([
+    ['the pane is maximized', true, true],
+    // A restore drops `presentationMaximized` at the click while the pane keeps covering the
+    // centre; re-trapping the composer here would sink it behind the pane for the whole retraction.
+    ['the pane is still retracting', false, true],
+    ['the pane is docked', false, false]
+  ] as const)('releases the center stacking context while %s: %s', (_label, presentationMaximized, elevated) => {
+    rightPanelStateMock.current = { layoutAnimationPending: false, presentationMaximized }
+    composerElevatedMock.current = elevated
 
     const { container } = render(
       <ChatAppShell centerClassName="transform-[translateZ(0)]" main={<div data-testid="main" />} />
     )
+    const center = container.querySelector('[data-chat-app-shell-center]')
 
-    expect(container.querySelector('[data-chat-app-shell-center]')).toHaveClass(
-      'transform-[translateZ(0)]',
-      '!transform-none',
-      '!will-change-auto'
-    )
+    expect(center).toHaveClass('transform-[translateZ(0)]')
+    if (elevated) {
+      expect(center).toHaveClass('!transform-none', '!will-change-auto')
+    } else {
+      expect(center).not.toHaveClass('!transform-none')
+    }
   })
 
   it('keeps the pane mounted when keyed center content changes', () => {

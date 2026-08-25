@@ -110,9 +110,13 @@ const useBabelDoc = (enabled: boolean) => {
     if (installing) return
     setInstalling(true)
     try {
+      // A fresh install asks for the exact version too, not `@latest`: that
+      // resolves against whichever PyPI mirror answers, and a lagging mirror
+      // hands back a build Cherry's progress parser predates — which the next
+      // availability check flags as outdated, costing a second full download.
       await ipcApi.request('binary.install_tool', {
         name: BABELDOC_TOOL_NAME,
-        ...(availability === 'outdated' ? { targetVersion: BABELDOC_MINIMUM_VERSION } : {})
+        targetVersion: BABELDOC_MINIMUM_VERSION
       })
       setAvailability('available')
     } catch (error) {
@@ -122,7 +126,7 @@ const useBabelDoc = (enabled: boolean) => {
     } finally {
       setInstalling(false)
     }
-  }, [availability, installing, t])
+  }, [installing, t])
 
   const refresh = useCallback(() => setAvailabilityRevision((revision) => revision + 1), [])
 

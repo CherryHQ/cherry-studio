@@ -19,6 +19,7 @@ Classify each reviewed module before looking for issues:
 | Shared layer | `src/shared/` | Actual cross-process demand, immutable/stateless surface, closed top level, API contracts |
 | Renderer data hooks | `src/renderer/data/`, hooks using `useQuery`, `useMutation`, cache/preference hooks | SWR keys, invalidation, optimistic updates, external store snapshots |
 | React UI | `src/renderer/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
+| Network downloads | Package-manager configuration, lockfiles, install/download code, model or binary manifests | Global and China-accelerated sources, artifact parity, source selection, integrity checks |
 | Naming / module shape | Added, renamed, or moved files/directories; new classes and barrels | Path casing, export-role naming, Service/Manager roles, promotion, barrel boundaries |
 
 ## Anti-Fragmentation Review Principles
@@ -60,6 +61,27 @@ Report these as:
   and the smaller upstream/general fix is evident.
 - **Notice** when the diff needs author confirmation about whether a capability
   should be upstreamed, generalized, or intentionally kept local.
+
+## Network Download Source Gate
+
+Every component fetched over the network during development, build,
+installation, or runtime must have both a usable global source and a usable
+China-accelerated source. This includes package-manager dependencies such as
+npm packages, runtime and toolchain binaries, offline models, and other
+downloaded assets.
+
+- For registry packages, the supported install path must work with both the
+  default global registry and a China mirror; dependency declarations do not
+  need duplicate URLs.
+- For models, binaries, and URL-addressed assets, both sources must resolve to
+  the same version and content and use the same integrity validation when one
+  is available.
+- A hard-coded single source, or a second source that no supported code or
+  configuration path can select, does not satisfy this requirement.
+
+Treat any new or changed network download that lacks either usable source as a
+**Blocker**. Do not approve or recommend merging the change until both sources
+are provided.
 
 ## Reference Routing
 

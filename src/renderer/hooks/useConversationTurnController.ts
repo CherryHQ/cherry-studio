@@ -48,7 +48,7 @@ export function useConversationTurnController<TInput, TConversation>({
   }, [scopeKey])
 
   const send = useCallback(
-    async (input: TInput): Promise<AiStreamOpenResponse | null> => {
+    async (input: TInput): Promise<boolean> => {
       const scopeEpoch = scopeEpochRef.current
       const isCurrentScope = () => scopeEpochRef.current === scopeEpoch
       let conversation: TConversation | null = null
@@ -57,7 +57,7 @@ export function useConversationTurnController<TInput, TConversation>({
         conversation = await ensureConversation(input)
         if (!conversation) {
           if (isCurrentScope()) setPhase('draft')
-          return null
+          return false
         }
 
         if (isCurrentScope()) setPhase('opening')
@@ -68,12 +68,12 @@ export function useConversationTurnController<TInput, TConversation>({
         void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
           logger.warn('Failed to refresh conversation metadata after stream open', err as Error)
         })
-        if (!isCurrentScope()) return ack
+        if (!isCurrentScope()) return ack.mode !== 'blocked'
 
         if (ack.mode === 'blocked') {
           toast.error(getStreamBlockedMessage(ack))
           if (isCurrentScope()) setPhase('ready')
-          return ack
+          return false
         }
 
         const reservedMessages = ack.reservedMessages ?? []
@@ -85,7 +85,7 @@ export function useConversationTurnController<TInput, TConversation>({
         }
 
         if (isCurrentScope()) setPhase('streaming')
-        return ack
+        return true
       } catch (err) {
         if (isCurrentScope()) {
           try {

@@ -73,6 +73,25 @@ describe('agentSessionHandlers', () => {
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
     })
+
+    it('narrows the latest lookup to one agent when agentId is given', async () => {
+      const session = { id: 'session-agent' }
+      getLatestActiveMock.mockReturnValueOnce(session)
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'agent-1' } } as never)
+      ).resolves.toEqual({ session })
+
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    })
+
+    it('rejects an empty agentId', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: '' } } as never)
+      ).rejects.toThrow()
+
+      expect(getLatestActiveMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/agent-sessions/:sessionId', () => {

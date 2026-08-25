@@ -8,9 +8,9 @@ import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
-import { redactServerKey } from '@shared/utils/redaction'
 import * as z from 'zod'
 
+import { redactCacheKey } from './mcpRedact'
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
@@ -44,15 +44,6 @@ const MCP_TOOL_OUTPUT_SCHEMA = z
     required: z.array(z.string()).optional()
   })
   .loose()
-
-// Cache keys embed the serialized server config — log them with the serverKey portion
-// redacted instead of raw (same class of leak as #18648, at debug level).
-function redactCacheKey(cacheKey: string): string {
-  const separator = cacheKey.indexOf(':')
-  return separator === -1
-    ? redactServerKey(cacheKey)
-    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
-}
 
 function withCache<T extends unknown[], R>(
   fn: (...args: T) => Promise<R>,

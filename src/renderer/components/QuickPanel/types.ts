@@ -122,6 +122,9 @@ export type QuickPanelListItem = {
   id?: string
   label: React.ReactNode | string
   description?: React.ReactNode | string
+  tooltip?: React.ReactNode | string
+  /** In-row element used as the controlled Tooltip trigger. */
+  tooltipAnchor?: React.ReactElement
   /**
    * Extra searchable text for items whose visible label/description are not
    * enough or are not plain strings. The default filter treats this as additive

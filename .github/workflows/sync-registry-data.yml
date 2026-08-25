@@ -127,17 +127,49 @@ jobs:
             '{minAppVersion: $minAppVersion, sourceAppVersion: $sourceAppVersion, revision: $revision, schemaVersion: $schema, files: {"models.json": $models, "providers.json": $providers, "provider-models.json": $providerModels}}' \
             > "$DEST/manifest.json"
 
-      - name: Commit and push if changed
+      - name: Commit if changed
         working-directory: pub
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Commits go through GraphQL rather than `git push`: GitHub signs
+          # API-authored commits, which the branch's required-signatures rule demands.
           git add "${{ steps.ver.outputs.dir }}"
           if git diff --cached --quiet; then
             echo "No catalog changes to publish."
             exit 0
           fi
-          git commit -m "chore(provider-registry): sync catalog to ${{ steps.ver.outputs.dir }}" \
-            -m "Source: ${{ github.repository }}@${{ github.sha }}
-          Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          git push origin x-files/provider-registry
+
+          REPO="${{ github.repository }}"
+          REF=$(gh api graphql \
+            -f query='query($owner:String!,$name:String!,$ref:String!){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){id target{oid}}}}' \
+            -f owner="${REPO%/*}" -f name="${REPO#*/}" -f ref="refs/heads/x-files/provider-registry")
+          REF_ID=$(jq -er '.data.repository.ref.id' <<< "$REF")
+          HEAD_OID=$(jq -er '.data.repository.ref.target.oid' <<< "$REF")
+
+          ADDITIONS=$(git diff --cached --name-only --diff-filter=ACMR \
+            | while read -r f; do
+                jq -n --arg path "$f" --arg contents "$(base64 -w0 "$f")" '{path: $path, contents: $contents}'
+              done | jq -sc .)
+          DELETIONS=$(git diff --cached --name-only --diff-filter=D | jq -Rc '{path: .}' | jq -sc .)
+
+          RESP=$(jq -n \
+            --arg refId "$REF_ID" \
+            --arg oid "$HEAD_OID" \
+            --arg headline "chore(provider-registry): sync catalog to ${{ steps.ver.outputs.dir }}" \
+            --arg body "Source: ${{ github.repository }}@${{ github.sha }}
+          Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --argjson additions "$ADDITIONS" \
+            --argjson deletions "$DELETIONS" \
+            '{query: "mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}",
+              variables: {input: {branch: {id: $refId}, expectedHeadOid: $oid,
+                                  message: {headline: $headline, body: $body},
+                                  fileChanges: {additions: $additions, deletions: $deletions}}}}' \
+            | gh api graphql --input -)
+
+          # gh does not always exit non-zero on a GraphQL `errors` payload.
+          if jq -e '.errors' <<< "$RESP" >/dev/null; then
+            echo "$RESP" >&2
+            exit 1
+          fi
+          jq -er '.data.createCommitOnBranch.commit.url' <<< "$RESP"

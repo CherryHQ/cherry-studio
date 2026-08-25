@@ -145,6 +145,30 @@ export const MistralExtension = ProviderExtension.create({
   create: async (settings) => (await import('@ai-sdk/mistral')).createMistral(settings)
 } as const satisfies ProviderExtensionConfig<MistralProviderSettings, ProviderV3, 'mistral'>)
 
+/** Local mirror of the package's unexported settings type (TS4023 otherwise). */
+export interface OpenResponsesProviderSettings {
+  /** Full POST endpoint URL (`<base>/responses`). */
+  url: string
+  /** providerOptions namespace + `provider` string prefix (`<name>.responses`). */
+  name: string
+  apiKey?: string
+  headers?: Record<string, string>
+  fetch?: typeof globalThis.fetch
+}
+
+/**
+ * Spec-neutral Responses dialect (openresponses.org) for third-party providers.
+ * NOT named `openai-responses`: that id would be picked up by `resolveProviderVariant`
+ * and silently reroute every `adapterFamily: 'openai'` responses endpoint.
+ */
+export const OpenResponsesExtension = ProviderExtension.create({
+  name: 'open-responses',
+  supportsImageGeneration: false,
+  // `url`/`name` are required and always supplied by the config builder.
+  create: async (options?: OpenResponsesProviderSettings): Promise<ProviderV3> =>
+    (await import('@ai-sdk/open-responses')).createOpenResponses(options!)
+} as const satisfies ProviderExtensionConfig<OpenResponsesProviderSettings, ProviderV3, 'open-responses'>)
+
 export const HuggingFaceExtension = ProviderExtension.create({
   name: 'huggingface',
   aliases: ['hf', 'hugging-face'] as const,
@@ -365,6 +389,7 @@ export const extensions = [
   BedrockExtension,
   PerplexityExtension,
   MistralExtension,
+  OpenResponsesExtension,
   HuggingFaceExtension,
   GatewayExtension,
   CerebrasExtension,

@@ -1,5 +1,5 @@
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
@@ -54,7 +54,7 @@ const GATEWAY = { baseUrl: 'http://127.0.0.1:23333', apiKey: GATEWAY_KEY, usageH
 const vertexProvider = {
   id: 'vertexai',
   name: 'Vertex AI',
-  apiFeatures: DEFAULT_API_FEATURES,
+  reportsActualCost: false,
   defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   endpointConfigs: {
     [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -67,7 +67,7 @@ const vertexProvider = {
 const nativeProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
-  apiFeatures: DEFAULT_API_FEATURES,
+  reportsActualCost: false,
   defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   endpointConfigs: {
     [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }

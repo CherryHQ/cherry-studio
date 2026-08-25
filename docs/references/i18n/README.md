@@ -32,36 +32,34 @@ The plugin has already been configured in the project — simply install it to g
 
 ## i18n Conventions
 
-### Use Nested Keys
+### Use Flat Keys
 
-Never use flat structures like `"add.button.tip": "Add"`. Instead, adopt a clear nested structure:
+Catalogs are flat: the whole dotted path is one literal JSON key. Never nest.
 
 ```json
-// Wrong - Flat structure
+// Correct - Flat structure
 {
   "add.button.tip": "Add",
   "delete.button.tip": "Delete"
 }
 
-// Correct - Nested structure
+// Wrong - Nested structure
 {
-  "add": {
-    "button": {
-      "tip": "Add"
-    }
-  },
-  "delete": {
-    "button": {
-      "tip": "Delete"
-    }
-  }
+  "add": { "button": { "tip": "Add" } },
+  "delete": { "button": { "tip": "Delete" } }
 }
 ```
 
-#### Why Use Nested Structure?
+Call sites are unaffected — `t('add.button.tip')` works either way. The runtime sets
+`keySeparator: false` so i18next looks the dotted key up literally instead of walking a path.
 
-1. **Natural Grouping**: Related texts are logically grouped by their context through object nesting.
-2. **Plugin Requirement**: Tools like i18n Ally require either flat or nested format to properly analyze translation files.
+#### Why Flat?
+
+1. **Greppable**: `grep '"add.button.tip"' locales/*.json` finds the key. With nesting, nothing does.
+2. **Clean merges**: one key per line, so two branches adding sibling keys never collide on shared closing braces.
+3. **Simple tooling**: the sync/check/unused scripts compare key sets directly instead of walking trees, and a key cannot be an object in one locale and a string in another.
+
+Keys are sorted lexicographically over the full dotted path, which keeps every namespace contiguous — the grouping nesting gave you, without the nesting.
 
 ### **Avoid Template Strings in `t()`**
 
@@ -192,7 +190,7 @@ pnpm i18n:remove-unused --all
 
 Cleanup updates every file in `src/renderer/i18n/locales/`.
 
-After deletion, the script prunes empty objects and sorts keys to keep the files consistent with the existing i18n format.
+After deletion, the script sorts keys to keep the files consistent with the existing i18n format.
 
 #### What Counts as Used
 

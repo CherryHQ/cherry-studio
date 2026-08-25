@@ -46,6 +46,7 @@ interface CDNMedia {
   encrypt_query_param?: string
   aes_key?: string
   encrypt_type?: number
+  full_url?: string
 }
 
 interface ImageItem {
@@ -60,14 +61,41 @@ interface ImageItem {
   hd_size?: number
 }
 
+interface VoiceItem {
+  media?: CDNMedia
+  aeskey?: string
+  encode_type?: number
+  text?: string
+}
+
+interface FileItem {
+  media?: CDNMedia
+  aeskey?: string
+  file_name?: string
+  len?: string
+}
+
+interface VideoItem {
+  media?: CDNMedia
+  aeskey?: string
+  video_size?: number
+}
+
+type DownloadableFileItem = FileItem | VoiceItem | VideoItem
+
+interface RefMessage {
+  title?: string
+  message_item?: MessageItem
+}
+
 interface MessageItem {
   type: MessageItemType
   text_item?: { text: string }
   image_item?: ImageItem
-  voice_item?: { text?: string }
-  file_item?: { file_name?: string; file_size?: number; media?: CDNMedia; aeskey?: string }
-  video_item?: unknown
-  ref_msg?: unknown
+  voice_item?: VoiceItem
+  file_item?: FileItem
+  video_item?: VideoItem
+  ref_msg?: RefMessage
 }
 
 interface WeixinMessage {
@@ -90,8 +118,8 @@ export interface IncomingMessage {
   timestamp: Date
   /** Raw image items from WeChat CDN (encrypted, need download+decrypt). */
   _imageItems?: ImageItem[]
-  /** Raw file items from WeChat CDN (encrypted, need download+decrypt). */
-  _fileItems?: Array<{ file_name?: string; file_size?: number; media?: CDNMedia; aeskey?: string }>
+  /** Raw non-image media items from WeChat CDN, normalized as workspace files. */
+  _fileItems?: Array<{ filename: string; mediaType: string; item: DownloadableFileItem }>
 }
 
 // --------------- Zod response schemas ---------------
@@ -193,17 +221,31 @@ function resolveImageAesKey(item: ImageItem): Buffer | null {
 
 // --------------- CDN download ---------------
 
+function resolveCdnDownloadUrl(media?: CDNMedia): string | null {
+  const fullUrl = media?.full_url?.trim()
+  if (fullUrl) {
+    try {
+      const url = new URL(fullUrl)
+      if (url.protocol === 'https:' && url.hostname.endsWith('.cdn.weixin.qq.com')) return url.toString()
+      logger.warn('Ignoring an untrusted WeChat CDN URL', { hostname: url.hostname })
+    } catch {
+      logger.warn('Ignoring an invalid WeChat CDN URL')
+    }
+  }
+  if (!media?.encrypt_query_param) return null
+  return `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(media.encrypt_query_param)}`
+}
+
 async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
-  const encryptQueryParam = item.media?.encrypt_query_param
-  if (!encryptQueryParam) return null
+  const url = resolveCdnDownloadUrl(item.media)
+  if (!url) return null
 
   const aesKey = resolveImageAesKey(item)
   if (!aesKey) {
-    logger.warn('Image item has encrypt_query_param but no AES key')
+    logger.warn('Image item has CDN media but no AES key')
     return null
   }
 
-  const url = `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(encryptQueryParam)}`
   const response = await net.fetch(url, { method: 'GET' })
 
   if (!response.ok) {
@@ -223,8 +265,6 @@ async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
   }
   return aesEcbDecrypt(encrypted, aesKey)
 }
-
-type FileItem = NonNullable<MessageItem['file_item']>
 
 /**
  * Parse a CDNMedia.aes_key into a raw 16-byte AES key.
@@ -250,7 +290,7 @@ function parseAesKey(aesKeyBase64: string): Buffer | null {
  * Resolve the 16-byte AES key from a file_item.
  * Priority: file_item.aeskey (hex) > file_item.media.aes_key (base64, with hex re-decode for files)
  */
-function resolveFileAesKey(item: FileItem): Buffer | null {
+function resolveFileAesKey(item: DownloadableFileItem): Buffer | null {
   if (item.aeskey) {
     return Buffer.from(item.aeskey, 'hex')
   }
@@ -260,17 +300,16 @@ function resolveFileAesKey(item: FileItem): Buffer | null {
   return null
 }
 
-async function cdnDownloadFile(item: FileItem): Promise<Buffer | null> {
-  const encryptQueryParam = item.media?.encrypt_query_param
-  if (!encryptQueryParam) return null
+async function cdnDownloadFile(item: DownloadableFileItem): Promise<Buffer | null> {
+  const url = resolveCdnDownloadUrl(item.media)
+  if (!url) return null
 
   const aesKey = resolveFileAesKey(item)
   if (!aesKey) {
-    logger.warn('File item has encrypt_query_param but no AES key')
+    logger.warn('File item has CDN media but no AES key')
     return null
   }
 
-  const url = `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(encryptQueryParam)}`
   const response = await net.fetch(url, { method: 'GET' })
 
   if (!response.ok) {
@@ -299,20 +338,25 @@ const GetUploadUrlRespSchema = z.object({
   upload_full_url: z.string().optional()
 })
 
-async function cdnUploadImage(
+enum UploadMediaType {
+  IMAGE = 1,
+  VIDEO = 2,
+  FILE = 3
+}
+
+async function cdnUploadMedia(
   baseUrl: string,
   token: string,
   uin: string,
   toUserId: string,
-  imageData: Buffer
+  data: Buffer,
+  mediaType: UploadMediaType
 ): Promise<{ downloadEncryptedQueryParam: string; aeskey: Buffer; ciphertextSize: number } | null> {
   const aeskey = randomBytes(16)
   const filekey = randomBytes(16).toString('hex')
-  const md5Hash = await import('node:crypto').then((c) => c.createHash('md5').update(imageData).digest('hex'))
-  // 先加密再请求 getuploadurl：官方（Tencent/openclaw-weixin upload.ts）的 filesize 是
-  // PKCS7 密文大小（Math.ceil((rawsize+1)/16)*16），而非明文大小。直接复用 ciphertext.length
-  // 可保证与实际上传的密文严格一致——filesize 与上传体不一致是「文件已过期/已被清理」的最可疑根因。
-  const ciphertext = aesEcbEncrypt(imageData, aeskey)
+  const md5Hash = await import('node:crypto').then((c) => c.createHash('md5').update(data).digest('hex'))
+  // Declare the ciphertext size used by the CDN, so the metadata cannot drift from the upload body.
+  const ciphertext = aesEcbEncrypt(data, aeskey)
 
   // Step 1: get upload URL
   const raw = await apiFetch(
@@ -320,9 +364,9 @@ async function cdnUploadImage(
     '/ilink/bot/getuploadurl',
     {
       filekey,
-      media_type: 1,
+      media_type: mediaType,
       to_user_id: toUserId,
-      rawsize: imageData.length,
+      rawsize: data.length,
       rawfilemd5: md5Hash,
       filesize: ciphertext.length,
       no_need_thumb: true,
@@ -526,6 +570,10 @@ async function apiSendTyping(
     base_info: buildBaseInfo()
   }
   await apiFetch(baseUrl, '/ilink/bot/sendtyping', body, token, uin, 15_000)
+}
+
+async function apiNotifyLifecycle(baseUrl: string, token: string, uin: string, event: 'start' | 'stop'): Promise<void> {
+  await apiFetch(baseUrl, `/ilink/bot/msg/notify${event}`, { base_info: buildBaseInfo() }, token, uin, 15_000)
 }
 
 async function fetchQrCode(baseUrl: string): Promise<QrCodeResponse> {
@@ -802,59 +850,64 @@ export class WeixinBot {
     }
   }
 
-  /**
-   * Download and decrypt a file from WeChat CDN.
-   * Returns { data: Buffer, filename: string } or null on failure.
-   */
-  async downloadFile(fileItem: FileItem): Promise<{ data: Buffer; filename: string } | null> {
+  /** Download and decrypt a non-image media item from WeChat CDN. */
+  async downloadFile(
+    file: NonNullable<IncomingMessage['_fileItems']>[number]
+  ): Promise<{ data: Buffer; filename: string; mediaType: string } | null> {
     try {
-      const data = await cdnDownloadFile(fileItem)
+      const data = await cdnDownloadFile(file.item)
       if (!data) return null
-      return { data, filename: fileItem.file_name ?? 'file' }
+      return { data, filename: file.filename, mediaType: file.mediaType }
     } catch (error) {
       logger.error('Failed to download WeChat file', error instanceof Error ? error : { error: String(error) })
       return null
     }
   }
 
-  /**
-   * Send an image to a user by uploading to WeChat CDN.
-   */
+  /** Send an image to a user by uploading it to the WeChat CDN. */
   async sendImage(userId: string, imageData: Buffer): Promise<void> {
-    const contextToken = this.contextTokens.get(userId)
-    if (!contextToken) {
-      logger.warn('No cached context token for sendImage, sending without context', { userId })
+    const contextToken = this.contextTokenFor(userId)
+    const uploaded = await this.uploadMedia(userId, imageData, UploadMediaType.IMAGE)
+    await this.sendMediaMessage(
+      userId,
+      {
+        type: MessageItemType.IMAGE,
+        image_item: { media: this.toCdnMedia(uploaded), mid_size: uploaded.ciphertextSize }
+      },
+      contextToken
+    )
+  }
+
+  /** Send a video as video media and every other non-image type as a file attachment. */
+  async sendFile(userId: string, filename: string, data: Buffer, mediaType: string): Promise<void> {
+    if (mediaType.startsWith('image/')) {
+      await this.sendImage(userId, data)
+      return
     }
 
-    const credentials = await this.ensureCredentials()
-    const uploaded = await cdnUploadImage(this.baseUrl, credentials.token, this.uin, userId, imageData)
-    if (!uploaded) {
-      throw new Error('Failed to upload image to WeChat CDN')
-    }
-
-    const msg = {
-      from_user_id: '',
-      to_user_id: userId,
-      client_id: randomUUID(),
-      message_type: MessageType.BOT,
-      message_state: MessageState.FINISH,
-      context_token: contextToken ?? '',
-      item_list: [
+    const contextToken = this.contextTokenFor(userId)
+    if (mediaType.startsWith('video/')) {
+      const uploaded = await this.uploadMedia(userId, data, UploadMediaType.VIDEO)
+      await this.sendMediaMessage(
+        userId,
         {
-          type: MessageItemType.IMAGE,
-          image_item: {
-            media: {
-              encrypt_query_param: uploaded.downloadEncryptedQueryParam,
-              aes_key: Buffer.from(uploaded.aeskey.toString('hex')).toString('base64'),
-              encrypt_type: 1
-            },
-            mid_size: uploaded.ciphertextSize
-          }
-        }
-      ]
+          type: MessageItemType.VIDEO,
+          video_item: { media: this.toCdnMedia(uploaded), video_size: uploaded.ciphertextSize }
+        },
+        contextToken
+      )
+      return
     }
 
-    await apiSendMessage(this.baseUrl, credentials.token, this.uin, msg)
+    const uploaded = await this.uploadMedia(userId, data, UploadMediaType.FILE)
+    await this.sendMediaMessage(
+      userId,
+      {
+        type: MessageItemType.FILE,
+        file_item: { media: this.toCdnMedia(uploaded), file_name: filename, len: String(data.length) }
+      },
+      contextToken
+    )
   }
 
   async run(): Promise<void> {
@@ -875,10 +928,18 @@ export class WeixinBot {
     this.stopped = true
     this.currentPollController?.abort()
     this.loginAbort?.abort()
+    void this.notifyStop()
   }
 
   private async runLoop(): Promise<void> {
-    await this.ensureCredentials()
+    const credentials = await this.ensureCredentials()
+    try {
+      await apiNotifyLifecycle(this.baseUrl, credentials.token, this.uin, 'start')
+    } catch (error) {
+      logger.warn('Failed to notify WeChat that the bot started', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
     logger.info('Long-poll loop started')
     let retryDelayMs = 1_000
 
@@ -958,6 +1019,60 @@ export class WeixinBot {
     await apiSendMessage(this.baseUrl, credentials.token, this.uin, buildTextMessage(userId, contextToken, text))
   }
 
+  private contextTokenFor(userId: string): string {
+    const contextToken = this.contextTokens.get(userId)
+    if (!contextToken) {
+      logger.warn('No cached context token for media, sending without context', { userId })
+    }
+    return contextToken ?? ''
+  }
+
+  private async uploadMedia(
+    userId: string,
+    data: Buffer,
+    mediaType: UploadMediaType
+  ): Promise<{ downloadEncryptedQueryParam: string; aeskey: Buffer; ciphertextSize: number }> {
+    const credentials = await this.ensureCredentials()
+    const uploaded = await cdnUploadMedia(this.baseUrl, credentials.token, this.uin, userId, data, mediaType)
+    if (!uploaded) throw new Error('Failed to upload media to WeChat CDN')
+    return uploaded
+  }
+
+  private toCdnMedia(uploaded: { downloadEncryptedQueryParam: string; aeskey: Buffer }): CDNMedia {
+    return {
+      encrypt_query_param: uploaded.downloadEncryptedQueryParam,
+      aes_key: Buffer.from(uploaded.aeskey.toString('hex')).toString('base64'),
+      encrypt_type: 1
+    }
+  }
+
+  private async sendMediaMessage(userId: string, item: MessageItem, contextToken: string): Promise<void> {
+    const credentials = await this.ensureCredentials()
+    await apiSendMessage(this.baseUrl, credentials.token, this.uin, {
+      from_user_id: '',
+      to_user_id: userId,
+      client_id: randomUUID(),
+      message_type: MessageType.BOT,
+      message_state: MessageState.FINISH,
+      context_token: contextToken,
+      item_list: [item]
+    })
+  }
+
+  private async notifyStop(): Promise<void> {
+    const credentials = this.credentials ?? (this.tokenPath ? await loadCredentials(this.tokenPath) : undefined)
+    if (!credentials) return
+    this.baseUrl = normalizeBaseUrl(credentials.baseUrl)
+
+    try {
+      await apiNotifyLifecycle(this.baseUrl, credentials.token, this.uin, 'stop')
+    } catch (error) {
+      logger.warn('Failed to notify WeChat that the bot stopped', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
   private async dispatchMessage(message: IncomingMessage): Promise<void> {
     if (this.handlers.length === 0) return
 
@@ -985,13 +1100,31 @@ export class WeixinBot {
   private toIncomingMessage(message: WeixinMessage): IncomingMessage | null {
     if (message.message_type !== MessageType.USER) return null
 
+    const hasCdnMedia = (media?: CDNMedia) => Boolean(media?.encrypt_query_param || media?.full_url)
     const imageItems = message.item_list
-      .filter((item) => item.type === MessageItemType.IMAGE && item.image_item?.media?.encrypt_query_param)
+      .filter((item) => item.type === MessageItemType.IMAGE && hasCdnMedia(item.image_item?.media))
       .map((item) => item.image_item!)
 
-    const fileItems = message.item_list
-      .filter((item) => item.type === MessageItemType.FILE && item.file_item?.media?.encrypt_query_param)
-      .map((item) => item.file_item!)
+    const fileItems = message.item_list.flatMap((item) => {
+      if (item.type === MessageItemType.FILE && item.file_item && hasCdnMedia(item.file_item.media)) {
+        return [
+          { filename: item.file_item.file_name ?? 'file', mediaType: 'application/octet-stream', item: item.file_item }
+        ]
+      }
+      if (item.type === MessageItemType.VIDEO && item.video_item && hasCdnMedia(item.video_item.media)) {
+        return [{ filename: `video-${message.message_id}.mp4`, mediaType: 'video/mp4', item: item.video_item }]
+      }
+      if (item.type === MessageItemType.VOICE && item.voice_item && hasCdnMedia(item.voice_item.media)) {
+        return [
+          {
+            filename: `voice-${message.message_id}.${voiceExtension(item.voice_item)}`,
+            mediaType: voiceMediaType(item.voice_item),
+            item: item.voice_item
+          }
+        ]
+      }
+      return []
+    })
 
     return {
       userId: message.from_user_id,
@@ -1070,25 +1203,56 @@ function detectType(items: MessageItem[]): IncomingMessage['type'] {
 }
 
 function extractText(items: MessageItem[]): string {
-  return items
-    .map((item) => {
-      switch (item.type) {
-        case MessageItemType.TEXT:
-          return item.text_item?.text ?? ''
-        case MessageItemType.IMAGE:
-          return ''
-        case MessageItemType.VOICE:
-          return item.voice_item?.text ?? '[voice]'
-        case MessageItemType.FILE:
-          return ''
-        case MessageItemType.VIDEO:
-          return '[video]'
-        default:
-          return ''
-      }
-    })
-    .filter(Boolean)
-    .join('\n')
+  return items.map(extractItemText).filter(Boolean).join('\n')
+}
+
+function extractItemText(item: MessageItem): string {
+  let text: string
+  switch (item.type) {
+    case MessageItemType.TEXT:
+      text = item.text_item?.text ?? ''
+      break
+    case MessageItemType.IMAGE:
+    case MessageItemType.FILE:
+      text = ''
+      break
+    case MessageItemType.VOICE:
+      text = item.voice_item?.text ?? '[voice]'
+      break
+    case MessageItemType.VIDEO:
+      text = '[video]'
+      break
+    default:
+      text = ''
+  }
+
+  const quoted = item.ref_msg
+    ? [item.ref_msg.title, item.ref_msg.message_item && extractItemText(item.ref_msg.message_item)]
+    : []
+  const quote = quoted.filter((value): value is string => Boolean(value)).join(' | ')
+  return quote ? `[quote: ${quote}]${text ? `\n${text}` : ''}` : text
+}
+
+function voiceExtension(item: VoiceItem): string {
+  switch (item.encode_type) {
+    case 7:
+      return 'mp3'
+    case 8:
+      return 'ogg'
+    default:
+      return 'silk'
+  }
+}
+
+function voiceMediaType(item: VoiceItem): string {
+  switch (item.encode_type) {
+    case 7:
+      return 'audio/mpeg'
+    case 8:
+      return 'audio/ogg'
+    default:
+      return 'audio/silk'
+  }
 }
 
 function detectImageMime(data: Buffer): string {

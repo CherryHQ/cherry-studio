@@ -78,7 +78,7 @@
     {
       "targetKey": "feature.local_model.hardware_acceleration.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
     },
@@ -567,7 +567,7 @@
       "description": "Command shortcut: chat.model.select (unified command system)"
     },
     {
-      "targetKey": "shortcut.chat.topic.clear",
+      "targetKey": "shortcut.topic.clear_messages",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
         "binding": [
@@ -576,8 +576,8 @@
         ],
         "enabled": true
       },
-      "status": "deleted",
-      "description": "Deleted: command removed (feature not implemented in v2)."
+      "status": "classified",
+      "description": "Command shortcut: topic.clear_messages (unified command system)"
     },
     {
       "targetKey": "shortcut.quick_assistant.toggle",

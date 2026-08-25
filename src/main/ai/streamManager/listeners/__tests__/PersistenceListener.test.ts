@@ -386,7 +386,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       topicId: 'topic-1',
       backend: new MessageServiceBackend({
         assistantMessageId: 'assistant-1',
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
       }),
       onPersistFailed: vi.fn()
     })
@@ -396,7 +396,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: {
         parts: makeFinalMessage().parts,
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
       },
       status: 'success',
       runtimeStats: undefined

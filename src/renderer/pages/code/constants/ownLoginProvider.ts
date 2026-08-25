@@ -1,4 +1,4 @@
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
+import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID } from '@shared/types/codeCli'
 
 /**
@@ -15,7 +15,7 @@ export const OWN_LOGIN_PROVIDER: Provider = {
   apiKeys: [],
   authType: 'oauth',
   authMethods: ['external-cli'],
-  apiFeatures: DEFAULT_API_FEATURES,
+  reportsActualCost: false,
   settings: DEFAULT_PROVIDER_SETTINGS,
   isEnabled: true
 }

@@ -219,6 +219,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
+  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
@@ -370,6 +372,13 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         setMiniAppShow(false)
       }
 
+      // The split pane's app is gone; leaving the pane open would replace it
+      // with a picker the user never asked for.
+      if (splitMiniAppId === appId) {
+        setSplitMiniAppId('')
+        setSplitOpen(false)
+      }
+
       clearWebviewState(appId)
 
       for (const tab of tabsContext?.tabs ?? []) {
@@ -382,8 +391,11 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     },
     [
       currentMiniAppId,
+      splitMiniAppId,
       openedOneOffMiniApp,
       setCurrentMiniAppId,
+      setSplitMiniAppId,
+      setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
@@ -501,10 +513,14 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     pinned: pinnedApps,
     openedKeepAliveMiniApps,
     currentMiniAppId,
+    splitOpen,
+    splitMiniAppId,
     miniAppShow,
     openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
+    setSplitOpen,
+    setSplitMiniAppId,
     setMiniAppShow,
     setOpenedOneOffMiniApp,
     isLoading,

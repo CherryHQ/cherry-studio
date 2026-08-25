@@ -10,7 +10,7 @@ function provider(id: string, presetProviderId?: string): Provider {
     presetProviderId,
     apiKeys: [],
     authType: 'api-key',
-    apiFeatures: {},
+    reportsActualCost: false,
     settings: {},
     isEnabled: true
   } as unknown as Provider

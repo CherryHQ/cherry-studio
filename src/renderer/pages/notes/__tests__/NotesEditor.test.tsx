@@ -25,9 +25,9 @@ vi.mock('@renderer/components/RichEditor/RichEditor', () => {
   }
 })
 
-vi.mock('@renderer/components/CodeEditor', () => {
+vi.mock('@cherrystudio/ui/components/composites/code-editor', () => {
   mocks.codeEditorEvaluations += 1
-  return { CodeEditor: () => <div data-testid="code-editor" /> }
+  return { default: () => <div data-testid="code-editor" /> }
 })
 
 vi.mock('@renderer/components/ActionIconButton', () => ({

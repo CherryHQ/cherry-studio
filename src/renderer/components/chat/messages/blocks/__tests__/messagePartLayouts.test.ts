@@ -602,6 +602,32 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.resultEntries)).toEqual([1])
   })
 
+  it('keeps a created Agent action outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'create-agent',
+          toolName: 'mcp__assistant__create_agent',
+          state: 'output-available',
+          output: {
+            content: [
+              {
+                type: 'text',
+                text: '{"ok":true,"agentId":"agent-created","name":"Reviewer","model":"anthropic::claude-sonnet"}'
+              }
+            ]
+          }
+        },
+        { type: 'text', text: 'Created successfully.' }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1, 2])
+  })
+
   it.each(GENERATED_IMAGE_RESULTS)('keeps %s outside completed history', (_label, toolName, output) => {
     const layout = projectCompletedMessageParts(
       entries([

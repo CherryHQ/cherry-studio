@@ -1,5 +1,5 @@
 import { isMac } from '@main/core/platform'
-import type { WindowBehavior, WindowQuirks } from '@main/core/window/types'
+import type { AlwaysOnTopLevel, WindowBehavior, WindowQuirks } from '@main/core/window/types'
 import { BrowserWindow } from 'electron'
 
 /**
@@ -24,11 +24,15 @@ import { BrowserWindow } from 'electron'
  * @param behavior - The declarative behavior layer, consulted for the level
  *   to re-apply under `reapplyAlwaysOnTop` (single source of truth for
  *   level/relativeLevel — see `behavior.alwaysOnTop`).
+ * @param getLevelOverride - Closure returning the runtime level override for this
+ *   window, or undefined when none is set. Re-applying the declared level would
+ *   otherwise silently undo an override on the next show.
  */
 export function applyWindowQuirks(
   window: BrowserWindow,
   quirks: WindowQuirks | undefined,
-  behavior: WindowBehavior | undefined
+  behavior: WindowBehavior | undefined,
+  getLevelOverride?: () => AlwaysOnTopLevel | undefined
 ): void {
   if (!quirks) return
 
@@ -90,12 +94,17 @@ export function applyWindowQuirks(
     // When behavior doesn't declare a level, fall back to 'floating' explicitly
     // rather than relying on Electron's internal default — this keeps the
     // re-apply call signature stable across Electron upgrades.
-    const level = behavior?.alwaysOnTop?.level ?? 'floating'
-    const relativeLevel = behavior?.alwaysOnTop?.relativeLevel
+    const declaredLevel = behavior?.alwaysOnTop?.level ?? 'floating'
+    const declaredRelativeLevel = behavior?.alwaysOnTop?.relativeLevel
     const originalShow = window.show.bind(window)
     const originalShowInactive = window.showInactive.bind(window)
     const reapply = () => {
       if (window.isDestroyed()) return
+      // Read at fire time, not at patch time: the override is set long after this runs.
+      const override = getLevelOverride?.()
+      const level = override ?? declaredLevel
+      // An override replaces the declared offset rather than stacking onto it.
+      const relativeLevel = override !== undefined ? undefined : declaredRelativeLevel
       // Pass relativeLevel only when declared — avoids polluting the call
       // site with a trailing `undefined` that changes spy signatures.
       if (relativeLevel !== undefined) {

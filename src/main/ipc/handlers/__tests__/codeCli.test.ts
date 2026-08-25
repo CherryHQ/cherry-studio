@@ -1,3 +1,4 @@
+import { codeCliRequestSchemas } from '@shared/ipc/schemas/codeCli'
 import { CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,7 @@ import { codeCliHandlers } from '../codeCli'
 const codeCliService = {
   run: vi.fn(),
   writeConfigFiles: vi.fn(),
+  readConfigFiles: vi.fn(),
   getAvailableTerminalsForPlatform: vi.fn()
 }
 
@@ -66,6 +68,41 @@ describe('codeCliHandlers', () => {
 
       expect(codeCliService.run).toHaveBeenCalledWith(input)
       expect(result).toEqual({ success: true })
+    })
+  })
+
+  describe('code_cli.read_config', () => {
+    it('delegates targets to CodeCliService.readConfigFiles and wraps the files', async () => {
+      const files = [{ target: 'claude-settings' as const, path: '/home/u/.claude/settings.json', content: '{}\n' }]
+      codeCliService.readConfigFiles.mockResolvedValue(files)
+
+      const result = await codeCliHandlers['code_cli.read_config']({ targets: ['claude-settings'] }, ctx)
+
+      expect(codeCliService.readConfigFiles).toHaveBeenCalledWith(['claude-settings'])
+      expect(result).toEqual({ files })
+    })
+
+    it('propagates non-ENOENT read errors to the router error model instead of swallowing them', async () => {
+      codeCliService.readConfigFiles.mockRejectedValue(Object.assign(new Error('EACCES'), { code: 'EACCES' }))
+
+      await expect(codeCliHandlers['code_cli.read_config']({ targets: ['codex-auth'] }, ctx)).rejects.toThrow('EACCES')
+    })
+  })
+
+  describe('code_cli.read_config schema', () => {
+    it('rejects a target outside the enum allow-list', () => {
+      const parsed = codeCliRequestSchemas['code_cli.read_config'].input.safeParse({
+        targets: ['claude-settings', '/etc/passwd']
+      })
+      expect(parsed.success).toBe(false)
+    })
+
+    it('deduplicates repeated targets, keeping the first occurrence order', () => {
+      const parsed = codeCliRequestSchemas['code_cli.read_config'].input.safeParse({
+        targets: ['claude-settings', 'codex-config', 'claude-settings']
+      })
+      expect(parsed.success).toBe(true)
+      if (parsed.success) expect(parsed.data.targets).toEqual(['claude-settings', 'codex-config'])
     })
   })
 

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="back" x1="24" y1="10" x2="53" y2="39" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A9F4CF"/>
+      <stop offset="1" stop-color="#65E5AD"/>
+    </linearGradient>
+    <linearGradient id="front" x1="12" y1="18" x2="45" y2="51" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#68E9AE"/>
+      <stop offset=".55" stop-color="#38D99A"/>
+      <stop offset="1" stop-color="#20C78F"/>
+    </linearGradient>
+    <linearGradient id="depth" x1="17" y1="34" x2="40" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20BE89" stop-opacity="0"/>
+      <stop offset="1" stop-color="#15AB80" stop-opacity=".34"/>
+    </linearGradient>
+  </defs>
+  <path d="M29 9h15a9 9 0 0 1 9 9v8a9 9 0 0 1-9 9h-4l-7 5v-5h-4a9 9 0 0 1-9-9v-8a9 9 0 0 1 9-9Z" fill="url(#back)"/>
+  <path d="M13 25a9 9 0 0 1 9-9h14a9 9 0 0 1 9 9v9a9 9 0 0 1-9 9h-6l-10 8v-8.2A9 9 0 0 1 13 34v-9Z" fill="url(#front)"/>
+  <path d="M20 42.8C31.7 41.8 39.9 36.7 45 27v7a9 9 0 0 1-9 9h-6l-10 8v-8.2Z" fill="url(#depth)"/>
+  <path d="M16 25a6 6 0 0 1 6-6h10.5C25 20.5 19.4 24.1 16 29.8V25Z" fill="#fff" fill-opacity=".2"/>
+</svg>

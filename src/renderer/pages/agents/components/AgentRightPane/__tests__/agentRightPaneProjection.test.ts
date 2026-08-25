@@ -131,6 +131,74 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  it('keeps a foreground task result when its lifecycle event is present', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Repository review complete'
+    )
+    const started = {
+      type: 'data-agent-task-event',
+      data: {
+        event: 'started',
+        taskId: 'task-1',
+        toolUseId: 'root',
+        status: 'in_progress',
+        title: 'Explore the repo'
+      }
+    } as unknown as CherryMessagePart
+    const parts = [selected, started]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      { type: 'text', text: 'Repository review complete' }
+    ])
+  })
+
+  it('hides a legacy background launch receipt without borrowing task status', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Async agent launched successfully. Internal id: task-1; output_file: /tmp/task-1.output'
+    )
+    const parts = [selected, textPart('child agent text', 'root')]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+    const assistantParts = projection.partsByMessageId['root:agent-flow-assistant'] as Array<{ text?: string }>
+
+    expect(assistantParts.map((part) => part.text).filter(Boolean)).toEqual(['child agent text'])
+    expect(JSON.stringify(assistantParts)).not.toContain('Async agent launched successfully')
+    expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
+  })
+
+  it.each(['async_launched', 'remote_launched'] as const)(
+    'hides a structured %s receipt without borrowing task status',
+    (status) => {
+      const selected = toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Explore the repo' },
+        { status, agentId: 'internal-agent-id' }
+      )
+      const parts = [selected, textPart('child agent text', 'root')]
+
+      const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+      const assistantParts = projection.partsByMessageId['root:agent-flow-assistant']
+
+      expect(assistantParts).toEqual([expect.objectContaining({ type: 'text', text: 'child agent text' })])
+      expect(JSON.stringify(assistantParts)).not.toContain('internal-agent-id')
+    }
+  )
+
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Run the subagent' }),
