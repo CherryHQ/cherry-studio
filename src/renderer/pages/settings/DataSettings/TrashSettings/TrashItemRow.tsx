@@ -10,11 +10,20 @@ interface TrashItemRowProps {
   item: TrashItem
   retentionDays: number
   isRestoring: boolean
+  /** Any row in this section has a mutation in flight — they share one instance. */
+  isSectionBusy?: boolean
   onRestore: (item: TrashItem) => void
   onDelete: (item: TrashItem) => void
 }
 
-const TrashItemRow: FC<TrashItemRowProps> = ({ item, retentionDays, isRestoring, onRestore, onDelete }) => {
+const TrashItemRow: FC<TrashItemRowProps> = ({
+  item,
+  retentionDays,
+  isRestoring,
+  isSectionBusy = false,
+  onRestore,
+  onDelete
+}) => {
   const { t } = useTranslation()
 
   const deletedTime = formatDeletedTime(item.deletedAt)
@@ -22,15 +31,15 @@ const TrashItemRow: FC<TrashItemRowProps> = ({ item, retentionDays, isRestoring,
   const daysRemaining = computeDaysRemaining(item.deletedAt, retentionDays)
 
   return (
-    <div className="flex min-h-9 items-center gap-2 border-border-muted border-b last:border-b-0">
+    <div className="flex min-h-9 items-center gap-2 border-border border-b last:border-b-0">
       <span className="min-w-0 flex-1 truncate text-foreground text-sm">
         {item.name || t('settings.data.trash.unnamed')}
       </span>
-      <span className="shrink-0 text-foreground-muted text-xs" title={deletedAtLabel} aria-label={deletedAtLabel}>
+      <span className="shrink-0 text-muted-foreground text-xs" title={deletedAtLabel} aria-label={deletedAtLabel}>
         {deletedTime}
       </span>
       {daysRemaining !== null && (
-        <span className="shrink-0 text-foreground-muted text-xs">
+        <span className="shrink-0 text-muted-foreground text-xs">
           {'· '}
           {daysRemaining === 0
             ? t('settings.data.trash.days_remaining_expired')
@@ -43,9 +52,10 @@ const TrashItemRow: FC<TrashItemRowProps> = ({ item, retentionDays, isRestoring,
         <Button
           variant="ghost"
           size="icon-sm"
-          className="text-foreground-muted hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground"
           aria-label={t('settings.data.trash.restore.label')}
           loading={isRestoring}
+          disabled={isSectionBusy && !isRestoring}
           onClick={() => onRestore(item)}>
           {!isRestoring && <ArchiveRestore size={16} />}
         </Button>
@@ -54,9 +64,9 @@ const TrashItemRow: FC<TrashItemRowProps> = ({ item, retentionDays, isRestoring,
         <Button
           variant="ghost"
           size="icon-sm"
-          className="text-foreground-muted hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive"
           aria-label={t('settings.data.trash.permanent_delete.label')}
-          disabled={isRestoring}
+          disabled={isRestoring || isSectionBusy}
           onClick={() => onDelete(item)}>
           <Trash2 size={16} />
         </Button>

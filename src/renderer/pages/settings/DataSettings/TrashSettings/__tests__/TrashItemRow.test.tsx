@@ -39,6 +39,32 @@ describe('TrashItemRow', () => {
     expect(onDelete).not.toHaveBeenCalled()
   })
 
+  it('blocks a second row from mutating while another row in the section is in flight', () => {
+    const onRestore = vi.fn()
+    const onDelete = vi.fn()
+    render(
+      <TrashItemRow
+        item={{ id: 'topic-2', name: 'Other topic', deletedAt: NOW }}
+        retentionDays={30}
+        isRestoring={false}
+        isSectionBusy
+        onRestore={onRestore}
+        onDelete={onDelete}
+      />
+    )
+
+    // The section shares one mutation instance — a click here would clobber the in-flight one.
+    const restoreButton = screen.getByRole('button', { name: 'settings.data.trash.restore.label' })
+    const deleteButton = screen.getByRole('button', { name: 'settings.data.trash.permanent_delete.label' })
+    expect(restoreButton).toBeDisabled()
+    expect(deleteButton).toBeDisabled()
+
+    fireEvent.click(restoreButton)
+    fireEvent.click(deleteButton)
+    expect(onRestore).not.toHaveBeenCalled()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it('distinguishes expired items from items with less than one day remaining', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW)
     const commonProps = {

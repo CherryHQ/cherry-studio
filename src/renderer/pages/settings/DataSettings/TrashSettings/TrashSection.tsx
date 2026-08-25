@@ -53,7 +53,7 @@ const TrashSection: FC<TrashSectionProps> = ({
     <SettingGroup>
       {isLoading ? (
         <div className="flex min-h-16 items-center justify-center">
-          <Loader size={16} className="animate-spin text-foreground-muted" />
+          <Loader size={16} className="animate-spin text-muted-foreground" />
         </div>
       ) : error ? (
         <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ const TrashSection: FC<TrashSectionProps> = ({
       ) : (
         <>
           {items.length === 0 ? (
-            <div className="text-foreground-muted text-sm">{t('settings.data.trash.empty.section')}</div>
+            <div className="text-muted-foreground text-sm">{t('settings.data.trash.empty.section')}</div>
           ) : (
             items.map((item) => (
               <TrashItemRow
@@ -73,6 +73,9 @@ const TrashSection: FC<TrashSectionProps> = ({
                 item={item}
                 retentionDays={retentionDays}
                 isRestoring={pendingRestoreId === item.id}
+                // One mutation instance backs every row, so a second in-flight action would
+                // share and clobber its state — freeze the whole section until this one lands.
+                isSectionBusy={pendingRestoreId !== null}
                 onRestore={onRestore}
                 onDelete={onDelete}
               />
@@ -90,7 +93,7 @@ const TrashSection: FC<TrashSectionProps> = ({
               <Button variant="ghost" size="sm" disabled={!pagination.hasPrev} onClick={pagination.onPrevPage}>
                 {t('settings.data.trash.page_prev')}
               </Button>
-              <span className="text-foreground-muted text-xs">
+              <span className="text-muted-foreground text-xs">
                 {pagination.page}/{Math.max(pagination.totalPages, pagination.page)}
               </span>
               <Button variant="ghost" size="sm" disabled={!pagination.hasNext} onClick={pagination.onNextPage}>

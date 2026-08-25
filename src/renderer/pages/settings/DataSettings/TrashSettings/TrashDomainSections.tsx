@@ -62,7 +62,9 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
   )
 
   const restoreMutation = useMutation('POST', '/topics/:id/restore', { refresh: ['/topics', '/topics/*'] })
-  const deleteMutation = useMutation('DELETE', '/topics/:id', { refresh: ['/topics', '/topics/*'] })
+  // Purge refreshes the list only — revalidating `/topics/:id` would fetch a row that is
+  // gone and cache the 404 in SWR.
+  const deleteMutation = useMutation('DELETE', '/topics/:id', { refresh: ['/topics'] })
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)
@@ -137,7 +139,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
           deleteSessions: false,
           permanent: true
         })
-        await invalidate(['/agents', '/agents/*'])
+        await invalidate(['/agents'])
       })
     )
 
@@ -197,7 +199,8 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays
     onRequestDelete(item, (target) =>
       runAction('permanent_delete', async () => {
         await ipcApi.request('ai.agent.session.delete', { sessionIds: [target.id], permanent: true })
-        await invalidate(['/agent-sessions', '/agent-sessions/*', '/agents/*'])
+        // `/agents/*` stays: the parent agent survives and its session counts change.
+        await invalidate(['/agent-sessions', '/agents/*'])
       })
     )
 
@@ -246,7 +249,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({ retentionDa
   const restoreMutation = useMutation('POST', '/assistants/:id/restore', {
     refresh: ['/assistants', '/assistants/*']
   })
-  const deleteMutation = useMutation('DELETE', '/assistants/:id', { refresh: ['/assistants', '/assistants/*'] })
+  const deleteMutation = useMutation('DELETE', '/assistants/:id', { refresh: ['/assistants'] })
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)
@@ -308,7 +311,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({ retentionDay
   )
 
   const restoreMutation = useMutation('POST', '/paintings/:id/restore', { refresh: ['/paintings', '/paintings/*'] })
-  const deleteMutation = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings', '/paintings/*'] })
+  const deleteMutation = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings'] })
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)
@@ -361,8 +364,10 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, o
     [entries]
   )
 
-  // Files DataApi is read-only — restore/purge go through File IPC.
+  // Files DataApi is read-only — restore/purge go through File IPC. Purge skips the by-id
+  // paths: the entry is gone and revalidating it would cache the 404.
   const invalidateFiles = () => invalidate(['/files/entries', '/files/entries/*'])
+  const invalidatePurgedFiles = () => invalidate(['/files/entries'])
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)
@@ -380,7 +385,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, o
     onRequestDelete(item, (target) =>
       runAction('permanent_delete', async () => {
         await ipcApi.request('file.batch_permanent_delete', { ids: [target.id] })
-        await invalidateFiles()
+        await invalidatePurgedFiles()
       })
     )
 
