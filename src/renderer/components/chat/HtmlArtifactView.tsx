@@ -65,10 +65,11 @@ interface HtmlArtifactViewProps {
   onSave?: (html: string) => void
   editable?: boolean
   /**
-   * Drives the safety gate: only a whole `document` can be promoted to an interactive webview,
-   * and only after consent. A `fragment` embedded in prose always stays in the script-less
-   * preview frame, so it needs no gate. Defaults to `document` — a missing classification must
-   * fail closed.
+   * Drives the INLINE safety gate: only a whole `document` can be promoted to the inline
+   * interactive webview, and only after consent; a `fragment` embedded in prose always
+   * stays in the script-less inline frame. The maximize popup tiers by content alone
+   * (see HtmlArtifactPopupOutlet) — an active fragment opens the webview there. Defaults
+   * to `document` — a missing classification must fail closed.
    */
   kind?: HtmlArtifactKind
   /** Purely presentational: caps the height and hides the toolbar / code view while generating. */
