@@ -4013,6 +4013,7 @@
   "settings.models.add.model_name.placeholder": "Ví dụ: GPT-5.5",
   "settings.models.add.model_type.label": "Loại mô hình",
   "settings.models.add.preferred_endpoint.label": "Điểm cuối ưu tiên",
+  "settings.models.add.preferred_endpoint.tooltip": "Chọn điểm cuối API mà mô hình này nên ưu tiên khi gửi yêu cầu. Các khả năng được hỗ trợ có thể khác nhau; hãy xem tài liệu của nhà cung cấp.",
   "settings.models.add.purpose.chat.description": "Sử dụng API văn bản của nhà cung cấp",
   "settings.models.add.purpose.chat.label": "Trò chuyện",
   "settings.models.add.purpose.chat_protocol": "Giao thức trò chuyện",

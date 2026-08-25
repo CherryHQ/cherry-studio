@@ -1,4 +1,4 @@
-import { Input } from '@cherrystudio/ui'
+import { InfoTooltip, Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
@@ -56,6 +56,8 @@ export function ModelBasicFields({
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
   const preferredEndpointLabelId = useId()
+  const preferredEndpointLabel = t('settings.models.add.preferred_endpoint.label')
+  const preferredEndpointTooltip = t('settings.models.add.preferred_endpoint.tooltip')
   const showPreferredEndpoint =
     (preferredEndpointOptions?.length ?? 0) > 0 &&
     preferredEndpointType != null &&
@@ -147,11 +149,20 @@ export function ModelBasicFields({
 
       {showPreferredEndpoint && (
         <ProviderField
-          title={t('settings.models.add.preferred_endpoint.label')}
+          title={preferredEndpointLabel}
           titleId={preferredEndpointLabelId}
           titleClassName={drawerClasses.fieldTitle}
           layout={layout}
-          className={drawerClasses.field}>
+          className={drawerClasses.field}
+          action={
+            <InfoTooltip
+              content={preferredEndpointTooltip}
+              iconProps={{
+                className: 'cursor-help text-foreground-tertiary',
+                'aria-label': `${preferredEndpointLabel}: ${preferredEndpointTooltip}`
+              }}
+            />
+          }>
           <div data-testid="provider-settings-model-preferred-endpoint-field">
             <ModelPreferredEndpointSelect
               value={preferredEndpointType}

@@ -4013,6 +4013,7 @@
   "settings.models.add.model_name.placeholder": "De ex. GPT-5.5",
   "settings.models.add.model_type.label": "Tip model",
   "settings.models.add.preferred_endpoint.label": "Endpoint preferat",
+  "settings.models.add.preferred_endpoint.tooltip": "Selectați endpointul API pe care acest model trebuie să îl prefere pentru solicitări. Funcționalitățile acceptate pot varia; consultați documentația furnizorului.",
   "settings.models.add.purpose.chat.description": "Folosește API-ul de text al furnizorului",
   "settings.models.add.purpose.chat.label": "Chat",
   "settings.models.add.purpose.chat_protocol": "Protocol de chat",

@@ -4013,6 +4013,7 @@
   "settings.models.add.model_name.placeholder": "Por ejemplo, GPT-5.5",
   "settings.models.add.model_type.label": "Tipo de Modelo",
   "settings.models.add.preferred_endpoint.label": "Punto final preferido",
+  "settings.models.add.preferred_endpoint.tooltip": "Selecciona el endpoint de API que este modelo debe priorizar para las solicitudes. Las funciones compatibles pueden variar; consulta la documentación del proveedor.",
   "settings.models.add.purpose.chat.description": "Use la API de texto del proveedor",
   "settings.models.add.purpose.chat.label": "Chat",
   "settings.models.add.purpose.chat_protocol": "Protocolo de chat",
