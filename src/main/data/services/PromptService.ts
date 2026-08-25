@@ -323,6 +323,15 @@ export class PromptService {
     logger.info('Purged prompt bindings for target', { targetType, targetId })
   }
 
+  /** Bulk form for retention purges — bindings are polymorphic, so no FK reclaims them. */
+  purgeForTargetsTx(tx: Pick<DbType, 'delete'>, targetType: PromptBindingTargetType, targetIds: string[]): void {
+    if (targetIds.length === 0) return
+    tx.delete(promptBindingTable)
+      .where(and(eq(promptBindingTable.targetType, targetType), inArray(promptBindingTable.targetId, targetIds)))
+      .run()
+    logger.info('Purged prompt bindings for targets', { targetType, count: targetIds.length })
+  }
+
   update(id: string, dto: UpdatePromptDto): Prompt {
     const { prompt, clearedBindings } = application.get('DbService').withWriteTx((tx) => {
       const existing = tx

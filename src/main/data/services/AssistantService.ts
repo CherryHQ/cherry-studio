@@ -655,6 +655,8 @@ export class AssistantDataService {
     const [row] = tx.delete(assistantTable).where(eq(assistantTable.id, id)).returning({ id: assistantTable.id }).all()
     if (!row) return false
     pinService.purgeForEntityTx(tx, 'assistant', id)
+    // Purging a live assistant skips the archive path, so its bindings are still here.
+    promptService.purgeForTargetTx(tx, 'assistant', id)
     return true
   }
 
@@ -685,6 +687,8 @@ export class AssistantDataService {
     if (ids.length === 0) return ids
 
     pinService.purgeForEntitiesTx(tx, 'assistant', ids)
+    // Rows archived before this release were soft-deleted without a binding purge.
+    promptService.purgeForTargetsTx(tx, 'assistant', ids)
     tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()
     return ids
   }
