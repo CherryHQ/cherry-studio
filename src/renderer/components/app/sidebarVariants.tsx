@@ -111,7 +111,7 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
       renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
       isActive: (active) => active.activeTabId === app.appId,
       onOpen: () => ctx.openMiniApp(app.appId),
-      onOpenNewTab: () => ctx.openMiniApp(app.appId, { inNewTab: true }),
+      onOpenNewTab: () => ctx.openMiniApp(app.appId),
       contextMenuItems: [
         {
           type: 'item',
@@ -122,6 +122,25 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
       ]
     }
   }
+}
+
+/** A conversation tab carrying an entity-ownership tag (see `openConversationTab`). */
+export interface ConversationEntryTag {
+  type: 'agent' | 'assistant'
+  entityId: string
+}
+
+/**
+ * Whether a tab belongs to this entity — the single "is this entity's conversation
+ * open" signal shared by the active-state highlight and the click handler. A tab
+ * is tagged with its owning entity at open time (its URL is rewritten to
+ * sessionId/topicId by the route interceptor, so the URL cannot carry the entity
+ * id back). Route tabs opened from a conversation history (history link, search)
+ * have no tag and never highlight.
+ */
+export function isTabForConversationEntry(tab: unknown, entry: ConversationEntryTag): boolean {
+  const metadata = (tab as { metadata?: { conversationEntry?: ConversationEntryTag } } | null)?.metadata
+  return metadata?.conversationEntry?.type === entry.type && metadata.conversationEntry.entityId === entry.entityId
 }
 
 const agentVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 'agent' }>> = {
@@ -142,9 +161,10 @@ const agentVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type
           ctx.defaultModelId,
           ENTITY_ICON_PIXEL_SIZE[iconSize]
         ),
-      // Active-state highlight stays on the built-in agents app entry; this row
-      // only navigates the conversation the interceptor resolves.
-      isActive: () => false,
+      // A pinned entity highlights while any of its conversation tabs is open,
+      // matching the click behavior below (open tab → activate, none → create).
+      isActive: (active) =>
+        active.tabs?.some((tab) => isTabForConversationEntry(tab, { type: 'agent', entityId: agent.id })) ?? false,
       onOpen: () => ctx.openAgent(agent.id),
       onOpenNewTab: () => ctx.openAgent(agent.id, { inNewTab: true }),
       contextMenuItems: [
@@ -177,8 +197,10 @@ const assistantVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { 
           ctx.defaultModelId,
           ENTITY_ICON_PIXEL_SIZE[iconSize]
         ),
-      // Active-state highlight stays on the built-in assistants app entry.
-      isActive: () => false,
+      // Same shared "is this entity open" signal as the agent variant.
+      isActive: (active) =>
+        active.tabs?.some((tab) => isTabForConversationEntry(tab, { type: 'assistant', entityId: assistant.id })) ??
+        false,
       onOpen: () => ctx.openAssistant(assistant.id),
       onOpenNewTab: () => ctx.openAssistant(assistant.id, { inNewTab: true }),
       contextMenuItems: [

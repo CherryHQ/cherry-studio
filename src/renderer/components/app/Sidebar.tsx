@@ -35,7 +35,7 @@ import {
   UserAvatar
 } from '../Sidebar'
 import UserPopup from '../UserPopup'
-import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
+import { isTabForConversationEntry, resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
@@ -54,7 +54,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     removeAssistant,
     reorderFavorites
   } = useSidebarFavorites()
-  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
+  const { activeTab, tabs, openTab, setActiveTab } = useTabs()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const { agents } = useAgents({ enabled: agentFavoriteIds.length > 0 })
   const { assistants } = useAssistantsApi({ enabled: assistantFavoriteIds.length > 0 })
@@ -152,31 +152,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const navigateRouteTab = useCallback(
     (path: string, title: string, options?: { inNewTab?: boolean; icon?: string }) => {
-      if (options?.inNewTab) {
-        openTab(path, { forceNew: true, title, icon: options.icon })
-        return
-      }
-
-      if (activeTab?.url === path) return
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon: options?.icon })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon: options?.icon,
-          metadata: undefined
-        })
-        return
-      }
-
+      // Never reuse the current tab — the pre-existing behavior replaced it with
+      // the target route, dropping whatever conversation was open. All sidebar
+      // entries (apps, mini apps, pinned entities) open a fresh tab when their
+      // target isn't already the active one.
       openTab(path, { forceNew: true, title, icon: options?.icon })
     },
-    [activeTab, openTab, updateTab]
+    [openTab]
   )
 
   const handleNavigate = useCallback(
@@ -215,7 +197,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
-    (appId: string, options?: { inNewTab?: boolean }) => {
+    (appId: string) => {
       const app = openableMiniAppById.get(appId)
       if (!app) return
 
@@ -231,28 +213,55 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const title = app.nameKey ? t(app.nameKey) : app.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = app.logoSrc ?? app.logo
-      navigateRouteTab(path, title, { ...options, icon })
+      // Never reuse the current tab for a not-yet-open mini app — always open a
+      // fresh one, matching how pinned agents/assistants behave.
+      openTab(path, { forceNew: true, title, icon })
     },
-    [activeTab, navigateRouteTab, openableMiniAppById, setActiveTab, t, tabs]
+    [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs]
   )
 
-  // Pinned entities reuse tabs like mini apps do; the route interceptor turns the
-  // `agentId` / `assistantId` param into that entity's most recent conversation.
+  // Pinned entities find-and-activate an open tab or open a fresh one, sharing the
+  // same "already open" signal as the active-state highlight. The route interceptor
+  // turns the `agentId` / `assistantId` param into that entity's most recent
+  // conversation, so each entity tab is tagged with its owning entity at open time
+  // instead of relying on the URL (which loses the entity id on rewrite).
+  const openConversationTab = useCallback(
+    (type: 'agent' | 'assistant', entityId: string, title: string, inNewTab?: boolean) => {
+      if (!inNewTab) {
+        const existingTab = tabs.find((tab) => isTabForConversationEntry(tab, { type, entityId }))
+        if (existingTab) {
+          setActiveTab(existingTab.id)
+          return
+        }
+      }
+      const path =
+        type === 'agent'
+          ? `/app/agents?agentId=${encodeURIComponent(entityId)}`
+          : `/app/chat?assistantId=${encodeURIComponent(entityId)}`
+      openTab(path, {
+        forceNew: true,
+        title,
+        metadata: { conversationEntry: { type, entityId } }
+      })
+    },
+    [openTab, setActiveTab, tabs]
+  )
+
   const handleOpenAgentTab = useCallback(
     (agentId: string, options?: { inNewTab?: boolean }) => {
       const agent = installedAgents.get(agentId)
       if (!agent) return
-      navigateRouteTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, options)
+      openConversationTab('agent', agentId, agent.name, options?.inNewTab)
     },
-    [installedAgents, navigateRouteTab]
+    [installedAgents, openConversationTab]
   )
   const handleOpenAssistantTab = useCallback(
     (assistantId: string, options?: { inNewTab?: boolean }) => {
       const assistant = installedAssistants.get(assistantId)
       if (!assistant) return
-      navigateRouteTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name, options)
+      openConversationTab('assistant', assistantId, assistant.name, options?.inNewTab)
     },
-    [installedAssistants, navigateRouteTab]
+    [installedAssistants, openConversationTab]
   )
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
@@ -354,7 +363,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
     entries,
-    active: { activeItem, activeTabId: activeMiniAppId },
+    active: { activeItem, activeTabId: activeMiniAppId, tabs },
     title: sidebarUser.name,
     logo: sidebarLogo,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
