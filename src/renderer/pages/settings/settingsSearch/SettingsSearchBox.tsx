@@ -24,6 +24,9 @@ const SettingsSearchBox = () => {
   const isSearchPage = location.pathname === '/settings/search'
   const urlQuery = isSearchPage && typeof search.q === 'string' ? search.q : ''
   const [value, setValue] = useState(urlQuery)
+  // Tracks the previous input value across effect passes — distinguishes a
+  // user-initiated clear from a deep-link seed still in flight
+  const prevValueRef = useRef(value)
   // A deep link lands on the search page with the URL already on the history
   // stack, so the first debounced navigate must replace, not push
   const hasPushedRef = useRef(isSearchPage)
@@ -56,10 +59,12 @@ const SettingsSearchBox = () => {
 
   useEffect(() => {
     const trimmed = value.trim()
+    const wasNonEmpty = prevValueRef.current.trim().length > 0
+    prevValueRef.current = value
     if (!trimmed) {
-      // Cleared the box while viewing results: leave rather than showing a
-      // stale list under an empty input
-      if (isSearchPage) {
+      // Guard: a deep-link dispatch lands with the seed setValue still in
+      // flight (value reads '' for one pass); only a real user clear may go back.
+      if (isSearchPage && wasNonEmpty) {
         if (router.history.canGoBack()) router.history.back()
         else void navigate({ to: '/settings/general' })
       }
