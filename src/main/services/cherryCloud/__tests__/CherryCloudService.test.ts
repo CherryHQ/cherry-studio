@@ -64,7 +64,7 @@ vi.mock('electron', () => ({
   shell: { openExternal: mocks.openExternal }
 }))
 
-vi.mock('../loopbackCallback', () => ({
+vi.mock('../CherryCloudLoopbackCallback', () => ({
   CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
 

@@ -14,6 +14,7 @@ import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
 
+import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
 import {
   accountSnapshotSchema,
   cloudModelListSchema,
@@ -22,7 +23,6 @@ import {
   refreshProductSessionResponseSchema
 } from './contracts'
 import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from './crypto'
-import { CherryCloudLoopbackCallback } from './loopbackCallback'
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'

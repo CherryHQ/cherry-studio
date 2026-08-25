@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { CherryCloudLoopbackCallback } from '../loopbackCallback'
+import { CherryCloudLoopbackCallback } from '../CherryCloudLoopbackCallback'
 
 describe('CherryCloudLoopbackCallback', () => {
   let receiver: CherryCloudLoopbackCallback | null = null
