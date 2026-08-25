@@ -544,7 +544,8 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         symbol: 'thinking',
         parentPanel: options,
         queryAnchor: 0,
-        triggerInfo: { type: 'input', position: 0, originalText: '/think' },
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
