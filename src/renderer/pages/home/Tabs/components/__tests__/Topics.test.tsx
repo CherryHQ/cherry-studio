@@ -230,6 +230,7 @@ vi.mock('@data/hooks/useCache', async (importOriginal) => ({
   // Real hook over the globally mocked cacheService: the stream-status tests
   // seed that store via setShared and spy on its subscribe.
   useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
+  useCacheSelector: (await importOriginal<typeof UseCacheModule>()).useCacheSelector,
   useCache: (key: string) => {
     if (!cacheHookMocks.setters.has(key)) {
       cacheHookMocks.setters.set(key, (value: unknown) => {

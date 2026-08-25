@@ -402,8 +402,16 @@ export function useSharedCacheValue<K extends SharedCacheKey>(key: K): InferShar
 }
 
 // ============================================================================
-// Multi-key Selector (Shared)
+// Multi-key Selectors
 // ============================================================================
+
+/**
+ * Values tuple delivered to a `useCacheSelector` selector: same order as
+ * `keys`, with `undefined` for a physical cache miss.
+ */
+type UseCacheValues<Keys extends readonly UseCacheKey[]> = {
+  readonly [Index in keyof Keys]: Keys[Index] extends UseCacheKey ? InferUseCacheValue<Keys[Index]> | undefined : never
+}
 
 /**
  * Values tuple delivered to a `useSharedCacheSelector` selector: same order as
@@ -463,9 +471,8 @@ const CACHE_KEYS_DEP_SEPARATOR = '\u0000'
  * is private to the current concurrent render, which is the part a hand-rolled
  * ref-based cache cannot guarantee.
  *
- * File-private by design: `useSharedCacheSelector` is its only instantiation
- * today. If a memory/persist-tier aggregation need appears, add another thin
- * shell here — do not export this core ahead of that consumer.
+ * File-private by design: tier-specific selector hooks are thin shells around
+ * this core and provide the correct subscribe/read pair for their cache tier.
  */
 function useCacheKeysSelector<Values, Selection>(
   keys: readonly string[],
@@ -517,6 +524,25 @@ function useCacheKeysSelector<Values, Selection>(
   }, [stableKeys, readKey]) as () => Values
 
   return useSyncExternalStoreWithSelector(subscribe, getSnapshot, getSnapshot, selector, isEqual)
+}
+
+const subscribeMemoryKey = (key: string, onStoreChange: () => void): (() => void) =>
+  cacheService.subscribe(key, onStoreChange)
+
+const readMemoryKey = (key: string): unknown => cacheService.get(key as UseCacheKey)
+
+/**
+ * React hook for READ-ONLY aggregate observation of MULTIPLE renderer memory
+ * cache keys through a selector. Unlike `useCache`, it never writes defaults
+ * or registers a cache hook; it only re-renders when the selected result
+ * changes.
+ */
+export function useCacheSelector<const Keys extends readonly UseCacheKey[], Selection>(
+  keys: Keys,
+  selector: (values: UseCacheValues<Keys>) => Selection,
+  isEqual: (a: Selection, b: Selection) => boolean = shallowEqual
+): Selection {
+  return useCacheKeysSelector(keys, subscribeMemoryKey, readMemoryKey, selector, isEqual)
 }
 
 const subscribeSharedKey = (key: string, onStoreChange: () => void): (() => void) =>
