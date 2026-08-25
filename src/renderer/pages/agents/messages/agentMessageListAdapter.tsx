@@ -31,6 +31,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { ResponseForPath } from '@shared/data/api/paths'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -89,6 +90,7 @@ interface AgentMessageListParams {
   assistantProfile?: {
     name?: string
     avatar?: string
+    avatarValue?: AvatarValue
   }
   assistantId?: string
   isLoading: boolean

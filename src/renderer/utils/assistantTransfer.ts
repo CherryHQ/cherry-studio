@@ -12,7 +12,7 @@ export interface ImportedAssistantDraft {
 }
 
 export class AssistantTransferError extends Error {
-  constructor(public readonly code: 'invalid_format') {
+  constructor(public readonly code: 'image_avatar_not_supported' | 'invalid_format') {
     super(code)
     this.name = 'AssistantTransferError'
   }
@@ -82,8 +82,9 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
 
   const name = readString(record.name)
   const prompt = readString(record.prompt)
+  const emoji = readString(record.emoji) || '🤖'
 
-  // Match the legacy import popup: both fields must exist and be truthy.
+  // Match the legacy import popup: name and prompt must exist and be truthy.
   if (!name || !prompt) {
     throw new AssistantTransferError('invalid_format')
   }
@@ -96,7 +97,7 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
     dto: {
       name,
       prompt,
-      emoji: readString(record.emoji) || '🤖',
+      avatar: { kind: 'emoji', emoji },
       description: readString(record.description),
       settings: DEFAULT_ASSISTANT_SETTINGS,
       regularPhrases: readRegularPhrases(record.regularPhrases)
@@ -110,9 +111,13 @@ function buildExportRecord(
   prompts: readonly Prompt[],
   groupName?: string
 ): AssistantExportRecord {
+  if (assistant.avatar.kind !== 'emoji') {
+    throw new AssistantTransferError('image_avatar_not_supported')
+  }
+
   return {
     name: assistant.name,
-    emoji: assistant.emoji,
+    emoji: assistant.avatar.emoji,
     group: groupName ? [groupName] : [],
     prompt: assistant.prompt,
     description: assistant.description,

@@ -15,13 +15,9 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import { type LogoBindInput, reconcileLogoSlotTx } from '@data/services/utils/logoRef'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
-import {
-  clearSingleFileRefTx,
-  getSingleFileRefId,
-  type LogoBindInput,
-  reconcileLogoSlotTx
-} from '@data/services/utils/singleFileRef'
+import { clearSingleFileRef, getSingleFileRef } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -265,7 +261,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
   // slot → no lookup. A present id is never dangling (the ref row's
   // `file_entry_id` FK is `on delete cascade`), so letting `getUrl` throw
   // surfaces a real invariant break instead of swallowing it.
-  const logoFileId = getSingleFileRefId(providerLogoFileRefTable, row.providerId)
+  const logoFileId = getSingleFileRef(providerLogoFileRefTable, row.providerId)
 
   return {
     id: row.providerId,
@@ -871,7 +867,7 @@ class ProviderService {
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
       // the explicit clear keeps the intent local to this flow.
-      clearSingleFileRefTx(tx, providerLogoFileRefTable, providerId)
+      clearSingleFileRef(tx, providerLogoFileRefTable, providerId)
 
       const deleted = tx
         .delete(userProviderTable)

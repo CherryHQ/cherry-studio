@@ -32,7 +32,7 @@ describe('PromptService', () => {
     await dbh.db.insert(assistantTable).values({
       id,
       name: `Assistant ${id}`,
-      emoji: '🌟',
+      avatarEmoji: '🌟',
       settings: DEFAULT_ASSISTANT_SETTINGS,
       orderKey
     })

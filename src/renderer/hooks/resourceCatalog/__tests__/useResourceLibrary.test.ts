@@ -72,7 +72,7 @@ const assistantListItem = {
   id: 'assistant-1',
   name: 'Assistant',
   description: '',
-  emoji: '💬',
+  avatar: { kind: 'emoji' as const, emoji: '💬' },
   modelName: null,
   groupId: null,
   createdAt: '2026-04-27T00:00:00.000Z',
@@ -83,6 +83,7 @@ const agentListItem = {
   id: 'agent-1',
   name: 'Agent',
   description: '',
+  avatar: { kind: 'emoji' as const, emoji: '🤖' },
   configuration: {},
   model: 'anthropic::claude-sonnet-4-5',
   modelName: null,
@@ -210,14 +211,20 @@ describe('useResourceLibrary', () => {
     expect(result.current.allResources[0]?.model).toBeUndefined()
   })
 
-  it('uses the default agent avatar for blank stored agent avatars', () => {
+  it('uses the canonical agent avatar', () => {
     mocks.useAgentList.mockReturnValue(
-      listResult([{ ...agentListItem, configuration: { avatar: '   ' }, modelName: 'Claude Sonnet 4.5' }])
+      listResult([
+        {
+          ...agentListItem,
+          avatar: { kind: 'emoji', emoji: '🧰' },
+          modelName: 'Claude Sonnet 4.5'
+        }
+      ])
     )
 
     const { result } = renderResourceLibrary({ resourceType: 'agent' })
 
-    expect(result.current.allResources[0]?.avatar).toBe('🤖')
+    expect(result.current.allResources[0]?.avatar).toEqual({ kind: 'emoji', emoji: '🧰' })
   })
 
   it('does not use skill source metadata tags for resource cards', () => {

@@ -132,7 +132,7 @@ function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSna
         type: 'assistant',
         id: assistant.id,
         name: assistant.name,
-        icon: assistant.emoji
+        icon: assistant.avatar.kind === 'emoji' ? assistant.avatar.emoji : assistant.avatar.src
       }
     : undefined
 }

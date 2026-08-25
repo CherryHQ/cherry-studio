@@ -1914,6 +1914,7 @@
   "library.empty_state.no_match_title": "未找到匹配的资源",
   "library.empty_state.title": "暂无资源",
   "library.export_assistant_failed": "导出助手失败",
+  "library.export_assistant_image_avatar_unsupported": "暂不支持导出使用图片头像的助手",
   "library.group_picker.no_groups": "暂无分组",
   "library.group_sync_failed": "分组同步失败",
   "library.import_dialog.clipboard.button": "解析并导入",

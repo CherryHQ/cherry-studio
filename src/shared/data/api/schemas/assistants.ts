@@ -8,6 +8,7 @@
 import * as z from 'zod'
 
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
+import { AvatarInputSchema } from '../../types/avatar'
 import { GroupIdSchema, GroupNameSchema } from '../../types/group'
 import { PromptContentSchema, PromptTitleSchema } from '../../types/prompt'
 import type { OffsetPaginationResponse } from '../types'
@@ -30,7 +31,6 @@ import type { OrderEndpoints } from './_endpointHelpers'
 const ASSISTANT_MUTABLE_FIELDS = {
   name: true,
   prompt: true,
-  emoji: true,
   description: true,
   settings: true,
   modelId: true,
@@ -44,7 +44,10 @@ const ASSISTANT_MUTABLE_FIELDS = {
  * - `name` is required (non-empty)
  * - `mcpServerIds` / `knowledgeBaseIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
+  .partial()
+  .required({ name: true })
+  .extend({ avatar: AvatarInputSchema.optional() })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 export const DuplicateAssistantSchema = AssistantSchema.pick({ name: true })
@@ -68,10 +71,10 @@ export type ImportAssistantPhraseDto = z.infer<typeof ImportAssistantPhraseSchem
 export const ImportAssistantSchema = CreateAssistantSchema.pick({
   name: true,
   prompt: true,
-  emoji: true,
   description: true,
   settings: true
 }).extend({
+  avatar: AvatarInputSchema,
   groupName: GroupNameSchema.optional(),
   regularPhrases: z.array(ImportAssistantPhraseSchema).optional()
 })

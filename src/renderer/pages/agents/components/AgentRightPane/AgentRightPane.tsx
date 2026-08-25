@@ -59,6 +59,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -172,7 +173,7 @@ interface AgentRightPaneMeta {
   traceId?: string
   agentId?: string
   agentName?: string
-  agentAvatar?: string
+  agentAvatar?: AvatarValue
   conversationState: AgentConversationState
   workspaceId?: string
   workspacePath?: string
@@ -738,7 +739,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     assistantProfile: meta.agentName
       ? {
           name: meta.agentName,
-          avatar: meta.agentAvatar
+          avatarValue: meta.agentAvatar
         }
       : undefined,
     assistantId: meta.agentId,

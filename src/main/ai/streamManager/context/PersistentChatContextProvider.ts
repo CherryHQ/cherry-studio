@@ -96,7 +96,7 @@ function resolveRowDialect(model: Model | undefined): TokenDialect {
 function resolveAssistantIdentity(assistantId: string | undefined) {
   if (!assistantId) return undefined
   const a = assistantDataService.getById(assistantId)
-  return { id: a.id, name: a.name, emoji: a.emoji }
+  return { id: a.id, name: a.name, avatar: a.avatar }
 }
 
 /**
@@ -117,7 +117,7 @@ function resolveAssistantContextOverride(assistantId: string | undefined): Conte
 /** Author snapshot for an assistant reply: the assistant with its model nested inside. */
 function buildAssistantMessageSnapshot(
   model: Model,
-  assistant: { id: string; name: string; emoji: string } | undefined
+  assistant: { id: string; name: string; avatar: MessageSnapshot['avatar'] } | undefined
 ): MessageSnapshot | undefined {
   if (!assistant) return undefined
   return {

@@ -1914,6 +1914,7 @@
   "library.empty_state.no_match_title": "Không có tài nguyên phù hợp",
   "library.empty_state.title": "Không có tài nguyên",
   "library.export_assistant_failed": "Không thể xuất trợ lý",
+  "library.export_assistant_image_avatar_unsupported": "Chưa hỗ trợ xuất trợ lý có ảnh đại diện",
   "library.group_picker.no_groups": "Chưa có nhóm nào",
   "library.group_sync_failed": "Không đồng bộ được nhóm",
   "library.import_dialog.clipboard.button": "Phân tích cú pháp và nhập",

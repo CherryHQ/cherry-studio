@@ -110,6 +110,7 @@ vi.mock('../settingsBuilder', () => ({
 
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
 const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
+const TEST_AVATAR = { kind: 'emoji' as const, emoji: '🤖' }
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
   const preferred =
@@ -141,7 +142,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       agentId: 'agent-1',
       workspace: { type: 'user', path: '/workspace/project' }
     })
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      avatar: { kind: 'emoji', emoji: '🤖' }
+    })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
@@ -268,6 +273,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
+      avatar: TEST_AVATAR,
       knowledgeBaseIds: ['kb-bound']
     })
 
@@ -352,6 +358,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const materializedAgent = {
       id: 'agent-1',
       model: 'provider-1::model-1',
+      avatar: TEST_AVATAR,
       disabledTools: [],
       mcps: [],
       configuration: { env_vars: { FOO: '1' } }
@@ -381,6 +388,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
+      avatar: TEST_AVATAR,
       disabledTools: [],
       mcps: [],
       configuration: { builtin_role: 'assistant' }
@@ -445,6 +453,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
+      avatar: TEST_AVATAR,
       disabledTools: [],
       mcps: ['mcp-1'],
       configuration: {}
@@ -475,6 +484,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
+      avatar: TEST_AVATAR,
       planModel: 'openai::gpt-plan',
       smallModel: 'other::small'
     })
@@ -576,7 +586,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' },
       providerId: 'provider-1',
       providerName: null,
-      source: { type: 'agent', id: 'agent-1', name: null, icon: null },
+      source: { type: 'agent', id: 'agent-1', name: null, icon: '🤖' },
       frozenModels: [
         {
           modelId: 'model-1',
@@ -590,7 +600,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('routes an OpenCode Go OpenAI-compatible model through the gateway despite its Anthropic endpoint', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'opencode::deepseek-v4-pro' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'opencode::deepseek-v4-pro', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'opencode',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -620,7 +630,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it('routes a model that declares Anthropic Messages behind another dialect directly', async () => {
     // DeepSeek V4 Flash lists `openai-responses` first (in-app chat's default) and `anthropic-messages`
     // third. The Agent SDK speaks Messages natively, so it must not take the translating gateway hop.
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'deepseek::deepseek-v4-flash' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'deepseek::deepseek-v4-flash', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'deepseek',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -653,7 +663,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {
     // Without a Messages base URL there is nothing to point ANTHROPIC_BASE_URL at; falling back to the
     // effective host would post Messages bodies at an OpenAI-compatible endpoint.
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'custom::relay-model' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'custom::relay-model', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'custom',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -679,6 +689,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
+      avatar: TEST_AVATAR,
       planModel: 'provider-1::model-2',
       smallModel: 'provider-1::model-3'
     })
@@ -747,7 +758,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('injects the Ollama dummy token for direct Anthropic routing when no API key is configured', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'ollama::qwen3:14b' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'ollama::qwen3:14b', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'ollama',
       presetProviderId: 'ollama',
@@ -794,6 +805,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'openai::gpt-main',
+      avatar: TEST_AVATAR,
       planModel: 'openai::gpt-plan',
       smallModel: 'other::small'
     })
@@ -836,7 +848,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   // The gateway is never started implicitly (#18521); the caller turns this into the prompt that
   // offers to enable it, and the failed route must leave no persisted key behind.
   it('fails a gateway route instead of starting the gateway the user disabled', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'openai',
       endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
@@ -856,7 +868,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   // `!isRunning()` is not consent: the gateway is also down while binding at boot, mid-restart, or
   // after a failed activation. Prompting there would ask the user to enable what they already did.
   it('converges an enabled-but-not-yet-listening gateway instead of asking for consent again', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'openai',
       endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
@@ -874,7 +886,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
   it('bypasses the materialized API gateway host without making the rebuild baseline stale', async () => {
     const proxyUrl = 'http://remote-proxy.example:7890'
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'openai',
       endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
@@ -905,7 +917,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('carries Codex Fast through the internal gateway header', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'openai-codex',
       fastMode: { transport: 'openai-priority' },
@@ -928,7 +940,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('preserves existing Anthropic custom headers when enabling Codex Fast', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4', avatar: TEST_AVATAR })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'openai-codex',
       fastMode: { transport: 'openai-priority' },
@@ -956,6 +968,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'claude-code::sonnet',
+      avatar: TEST_AVATAR,
       planModel: 'openai::gpt-plan',
       smallModel: 'other::small'
     })
@@ -999,7 +1012,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       credentialReceipt: { attribution: 'auth', method: 'external-cli' },
       providerId: 'claude-code',
       providerName: null,
-      source: { type: 'agent', id: 'agent-1', name: null, icon: null },
+      source: { type: 'agent', id: 'agent-1', name: null, icon: '🤖' },
       frozenModels: [
         {
           modelId: 'sonnet',
@@ -1012,7 +1025,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('passes Claude Code Fast to the SDK settings builder', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::claude-opus-4-8' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'claude-code::claude-opus-4-8',
+      avatar: TEST_AVATAR
+    })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'claude-code',
       authMethods: ['external-cli'],
@@ -1039,7 +1056,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it('routes Gemini provider models through the local API gateway', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
-      model: 'gemini::gemini-2.5-pro'
+      model: 'gemini::gemini-2.5-pro',
+      avatar: TEST_AVATAR
     })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'gemini',

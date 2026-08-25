@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
-import { ImageBytesSchema } from './entityImage'
+import { IconImageBytesSchema } from './iconImage'
 
 /**
  * Profile IPC schemas — the user-profile fields owned by the main process.
@@ -20,7 +20,7 @@ import { ImageBytesSchema } from './entityImage'
 export const profileRequestSchemas = {
   'profile.set_avatar': defineRoute({
     input: z.discriminatedUnion('kind', [
-      z.strictObject({ kind: z.literal('image'), data: ImageBytesSchema }),
+      z.strictObject({ kind: z.literal('image'), data: IconImageBytesSchema }),
       z.strictObject({ kind: z.literal('emoji'), emoji: z.emoji().max(64) }),
       z.strictObject({ kind: z.literal('default') })
     ]),

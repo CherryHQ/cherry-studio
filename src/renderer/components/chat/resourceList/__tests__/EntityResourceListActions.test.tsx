@@ -28,6 +28,7 @@ const agentDataMocks = vi.hoisted(() => ({
     {
       id: 'agent-1',
       name: 'Agent 1',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       orderKey: 'a',
       configuration: {},
       model: 'anthropic::claude-sonnet-4',
@@ -250,7 +251,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
         id: 'assistant-1',
         name: 'Assistant 1',
         orderKey: 'a',
-        emoji: 'A',
+        avatar: { kind: 'emoji', emoji: '🅰️' },
         modelId: 'openai::gpt-4o',
         modelName: 'GPT-4o'
       },
@@ -258,7 +259,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
         id: 'assistant-2',
         name: 'Assistant 2',
         orderKey: 'b',
-        emoji: 'B',
+        avatar: { kind: 'emoji', emoji: '🅱️' },
         modelId: 'openai::gpt-4o',
         modelName: 'GPT-4o'
       }
@@ -391,10 +392,6 @@ vi.mock('@renderer/utils/chat/sessionListHelpers', () => ({
   sortSessionsForDisplayGroups: (sessions: unknown[]) => sessions
 }))
 
-vi.mock('@renderer/utils/agent', () => ({
-  getAgentAvatarFromConfiguration: () => 'A'
-}))
-
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
 }))
@@ -406,6 +403,7 @@ describe('classic layout entity resource list actions', () => {
       {
         id: 'agent-1',
         name: 'Agent 1',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         orderKey: 'a',
         configuration: {},
         model: 'anthropic::claude-sonnet-4',
@@ -884,6 +882,7 @@ describe('classic layout entity resource list actions', () => {
       {
         id: 'agent-1',
         name: 'Cherry Assistant',
+        avatar: { kind: 'emoji', emoji: '🍒' },
         orderKey: 'a',
         configuration: { builtin_role: 'assistant' },
         model: 'anthropic::claude-sonnet-4',

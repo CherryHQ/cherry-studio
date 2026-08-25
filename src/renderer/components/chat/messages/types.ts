@@ -13,6 +13,7 @@ import type {
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -138,6 +139,7 @@ export interface MessageErrorDiagnosisInput {
 export interface MessageUserProfile {
   name?: string
   avatar?: string
+  avatarValue?: AvatarValue
 }
 
 export interface MessageToolApprovalMatch {

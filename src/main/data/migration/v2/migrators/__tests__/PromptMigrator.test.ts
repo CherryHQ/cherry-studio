@@ -917,14 +917,14 @@ describe('PromptMigrator SQLite integration', () => {
       {
         id: assistantId,
         name: 'Default assistant',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a0'
       },
       {
         id: secondAssistantId,
         name: 'Second assistant',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a1'
       }

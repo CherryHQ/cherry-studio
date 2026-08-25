@@ -430,7 +430,7 @@ describe('ExportService', () => {
 
       expect(userMarkdown).toContain('## 🧑‍💻 User')
       expect(userMarkdown).toContain('hello user')
-      expect(assistantMarkdown).toContain('## 🤖 Assistant')
+      expect(assistantMarkdown).toContain('## Assistant')
       expect(assistantMarkdown).toContain('hi assistant')
     })
 
@@ -439,7 +439,7 @@ describe('ExportService', () => {
 
       const markdown = await messageToMarkdown(message)
 
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Parts-only content')
     })
 
@@ -448,7 +448,7 @@ describe('ExportService', () => {
       message.messageSnapshot = {
         id: 'a1',
         name: 'My Assistant',
-        emoji: '🎯',
+        avatar: { kind: 'emoji', emoji: '🎯' },
         model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
       }
 
@@ -606,7 +606,7 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a2')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Main Answer')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('<summary>common.reasoning_content</summary>')
@@ -631,7 +631,7 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a4')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
     })
@@ -640,7 +640,7 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a5')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')

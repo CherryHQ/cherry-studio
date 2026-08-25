@@ -15,8 +15,8 @@ const CHERRY_ASSISTANT_SEED = {
     default: 'Cherry Assistant',
     zh: 'Cherry 小助手'
   },
+  avatar: '🍒',
   configuration: {
-    avatar: '🍒',
     permission_mode: 'acceptEdits',
     bootstrap_completed: true,
     builtin_role: 'assistant',
@@ -48,6 +48,7 @@ export class CherryAssistantSeeder implements ISeeder {
         // The managed CherryAI model cannot run the agent runtime. Onboarding
         // assigns the user's default model when they choose one.
         model: null,
+        avatarEmoji: CHERRY_ASSISTANT_SEED.avatar,
         configuration: { ...CHERRY_ASSISTANT_SEED.configuration }
       })
 

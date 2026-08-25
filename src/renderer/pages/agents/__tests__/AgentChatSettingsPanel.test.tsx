@@ -439,17 +439,18 @@ describe('AgentChat settings panel', () => {
     expect(agentRightPanePropsMock.last?.partsByMessageId).toEqual({ 'message-1': [part] })
   })
 
-  it('normalizes blank agent avatars before passing them to the right pane', () => {
+  it('passes the canonical agent avatar to the right pane', () => {
     activeAgentMock.value = {
       id: 'agent-1',
-      name: 'Blank avatar agent',
+      name: 'Agent',
       model: 'provider::model-1',
-      configuration: { avatar: '   ' }
+      avatar: { kind: 'emoji', emoji: '🧰' },
+      configuration: {}
     }
 
     renderAgentChat()
 
-    expect(agentRightPanePropsMock.last?.agentAvatar).toBe('🤖')
+    expect(agentRightPanePropsMock.last?.agentAvatar).toEqual({ kind: 'emoji', emoji: '🧰' })
   })
 
   it('resolves session context above the composer and changes an empty session workspace from the top bar', () => {

@@ -1914,6 +1914,7 @@
   "library.empty_state.no_match_title": "Δεν υπάρχουν αντίστοιχοι πόροι",
   "library.empty_state.title": "Κανένας πόρος",
   "library.export_assistant_failed": "Αποτυχία εξαγωγής βοηθού",
+  "library.export_assistant_image_avatar_unsupported": "Η εξαγωγή βοηθών με εικόνα προφίλ δεν υποστηρίζεται ακόμη",
   "library.group_picker.no_groups": "Δεν υπάρχουν ακόμα ομάδες",
   "library.group_sync_failed": "Αποτυχία συγχρονισμού ομάδων",
   "library.import_dialog.clipboard.button": "Ανάλυση και εισαγωγή",

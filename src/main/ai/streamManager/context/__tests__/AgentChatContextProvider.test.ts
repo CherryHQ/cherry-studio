@@ -99,7 +99,8 @@ describe('AgentChatContextProvider', () => {
       name: 'My Agent',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
-      modelName: 'Claude Sonnet'
+      modelName: 'Claude Sonnet',
+      avatar: { kind: 'emoji', emoji: '🤖' }
     })
     mocks.saveMessage.mockImplementation(({ sessionId, message }) => ({
       id: message.id,
@@ -191,7 +192,7 @@ describe('AgentChatContextProvider', () => {
           messageSnapshot: {
             id: 'agent-1',
             name: 'My Agent',
-            emoji: '🤖',
+            avatar: { kind: 'emoji', emoji: '🤖' },
             model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
           }
         })
@@ -216,7 +217,7 @@ describe('AgentChatContextProvider', () => {
       messageSnapshot: {
         id: 'agent-1',
         name: 'My Agent',
-        emoji: '🤖',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
       },
       shouldAutoName: true
@@ -255,7 +256,7 @@ describe('AgentChatContextProvider', () => {
         messageSnapshot: {
           id: 'agent-1',
           name: 'My Agent',
-          emoji: '🤖',
+          avatar: { kind: 'emoji', emoji: '🤖' },
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
         reasoningEffort: 'default',
@@ -305,7 +306,7 @@ describe('AgentChatContextProvider', () => {
         messageSnapshot: {
           id: 'agent-1',
           name: 'My Agent',
-          emoji: '🤖',
+          avatar: { kind: 'emoji', emoji: '🤖' },
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
         reasoningEffort: 'default',

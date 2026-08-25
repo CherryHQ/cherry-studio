@@ -357,7 +357,7 @@ const AgentPage = () => {
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
   useTabSelfVisuals({
     title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
-    emoji: visibleAgent?.configuration?.avatar,
+    avatar: visibleAgent?.avatar,
     appId: 'agents',
     preserveVisuals: preserveTabVisuals
   })

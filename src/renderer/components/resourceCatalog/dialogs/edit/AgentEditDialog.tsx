@@ -19,6 +19,7 @@ import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -28,6 +29,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
+import { checkIconImageSize, prepareIconImageBytes } from '@renderer/utils/image'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -133,7 +135,7 @@ function getLeafTabIds(tabs: EditDialogTab[]) {
 function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
   const form = buildInitialAgentFormState(resource)
   return {
-    avatar: form.avatar || '🤖',
+    avatar: form.avatar,
     name: form.name,
     description: form.description,
     modelId: form.model || null,
@@ -251,11 +253,14 @@ function AgentEditDialogContent({
   initialTab
 }: EditDialogBaseProps & { resource: AgentDetail }) {
   const { t } = useTranslation()
+  const { setAgentAvatar } = useAvatarMutations()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [avatarImageData, setAvatarImageData] = useState<Uint8Array | null>(null)
+  const [avatarImageHidden, setAvatarImageHidden] = useState(false)
   const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
   const formBaselineRef = useRef(formBaseline)
   const failedSaveKeyRef = useRef<string | null>(null)
@@ -339,11 +344,36 @@ function AgentEditDialogContent({
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
+    setAvatarImageData(null)
+    setAvatarImageHidden(false)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
     failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource])
+
+  const handleAvatarImageDataChange = useCallback(
+    async (data: Uint8Array | null) => {
+      if (!data) {
+        setAvatarImageData(null)
+        setAvatarImageHidden(true)
+        return
+      }
+      await setAgentAvatar(resource.id, { kind: 'image', data })
+      setAvatarImageData(data)
+      setAvatarImageHidden(false)
+    },
+    [resource.id, setAgentAvatar]
+  )
+
+  const handleAvatarEmojiChange = useCallback(
+    async (emoji: string) => {
+      await setAgentAvatar(resource.id, { kind: 'emoji', emoji })
+      setAvatarImageData(null)
+      setAvatarImageHidden(true)
+    },
+    [resource.id, setAgentAvatar]
+  )
 
   // Cached skill rows may render during revalidation, but the editable skill
   // baseline must come from the authoritative projection so later toggles diff
@@ -513,6 +543,10 @@ function AgentEditDialogContent({
             patchAgentForm={patchAgentForm}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
+            avatarImageSrc={resource.avatar.kind === 'image' && !avatarImageHidden ? resource.avatar.src : undefined}
+            avatarImageData={avatarImageData}
+            onAvatarImageDataChange={handleAvatarImageDataChange}
+            onAvatarEmojiChange={handleAvatarEmojiChange}
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
@@ -563,6 +597,10 @@ function AgentBasicFields({
   patchAgentForm,
   emojiPickerOpen,
   setEmojiPickerOpen,
+  avatarImageSrc,
+  avatarImageData,
+  onAvatarImageDataChange,
+  onAvatarEmojiChange,
   onSettingsNavigate,
   caps,
   agentType
@@ -575,6 +613,10 @@ function AgentBasicFields({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  avatarImageSrc?: string
+  avatarImageData: Uint8Array | null
+  onAvatarImageDataChange: (data: Uint8Array | null) => void | Promise<void>
+  onAvatarEmojiChange: (emoji: string) => void | Promise<void>
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
@@ -589,6 +631,10 @@ function AgentBasicFields({
         emojiPickerOpen={emojiPickerOpen}
         setEmojiPickerOpen={setEmojiPickerOpen}
         portalContainer={portalContainer}
+        imageSrc={avatarImageSrc}
+        imageData={avatarImageData}
+        onImageDataChange={onAvatarImageDataChange}
+        onEmojiChange={onAvatarEmojiChange}
       />
       <TextInputField
         form={form}
@@ -664,14 +710,41 @@ function AgentAvatarNameField({
   form,
   emojiPickerOpen,
   setEmojiPickerOpen,
-  portalContainer
+  portalContainer,
+  imageSrc,
+  imageData,
+  onImageDataChange,
+  onEmojiChange
 }: {
   form: UseFormReturn<AgentEditFormValues>
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
   portalContainer: HTMLElement | null
+  imageSrc?: string
+  imageData?: Uint8Array | null
+  onImageDataChange: (data: Uint8Array | null) => void | Promise<void>
+  onEmojiChange: (emoji: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const [uploading, setUploading] = useState(false)
+
+  const handleImageSelect = async (file: File) => {
+    const sizeError = checkIconImageSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      return
+    }
+    setUploading(true)
+    try {
+      const data = await prepareIconImageBytes(file)
+      await onImageDataChange(data)
+      setEmojiPickerOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('message.error.image_process_failed'))
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <FormField
@@ -691,12 +764,25 @@ function AgentAvatarNameField({
                 <InputGroupAddon className="py-0">
                   <EmojiAvatarPicker
                     value={avatarField.value}
-                    fallback="🤖"
                     open={emojiPickerOpen}
                     onOpenChange={setEmojiPickerOpen}
-                    onChange={avatarField.onChange}
+                    onChange={async (emoji) => {
+                      try {
+                        await onEmojiChange(emoji)
+                        avatarField.onChange(emoji)
+                        await onImageDataChange(null)
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : t('common.error'))
+                      }
+                    }}
                     ariaLabel={t('library.config.dialogs.create.avatar_aria')}
                     portalContainer={portalContainer}
+                    imageSrc={imageSrc}
+                    imageData={imageData}
+                    onImageSelect={(file) => void handleImageSelect(file)}
+                    uploading={uploading}
+                    uploadLabel={t('settings.general.image_upload')}
+                    emojiLabel={t('settings.general.emoji_picker')}
                     avatarClassName="border-0"
                     avatarFontSize={18}
                   />

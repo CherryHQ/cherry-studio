@@ -9,6 +9,7 @@
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { assistantAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -23,6 +24,7 @@ import type {
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
@@ -31,8 +33,11 @@ import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { promptService } from './PromptService'
 import { topicService } from './TopicService'
+import { resolveAvatarValue, type ResolvedAvatarImage } from './utils/avatar'
+import { resolveFileEntryUrl } from './utils/fileEntryUrl'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+import { clearSingleFileRef, setSingleFileRef } from './utils/singleFileRef'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
@@ -55,11 +60,14 @@ function createEmptyRelations(): AssistantRelationIds {
 function rowToAssistant(
   row: AssistantRow,
   relations: AssistantRelationIds = createEmptyRelations(),
-  modelName: string | null = null
+  modelName: string | null = null,
+  avatarImage?: ResolvedAvatarImage
 ): Assistant {
   const clean = nullsToUndefined(row)
+  const publicRow = { ...clean }
+  delete publicRow.avatarEmoji
   return {
-    ...clean,
+    ...publicRow,
     // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
     modelId: row.modelId as UniqueModelId | null,
     groupId: row.groupId,
@@ -67,7 +75,8 @@ function rowToAssistant(
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
-    modelName
+    modelName,
+    avatar: resolveAvatarValue({ type: 'assistant', id: row.id }, row.avatarEmoji, avatarImage)
   }
 }
 
@@ -93,6 +102,21 @@ function rethrowAssistantOrderError(error: unknown): never {
 export class AssistantDataService {
   private get db() {
     return application.get('DbService').getDb()
+  }
+
+  private getAvatarImagesByAssistantIds(assistantIds: string[]): Map<string, ResolvedAvatarImage> {
+    if (assistantIds.length === 0) return new Map()
+    const rows = this.db
+      .select({
+        assistantId: assistantAvatarFileRefTable.sourceId,
+        fileEntryId: assistantAvatarFileRefTable.fileEntryId
+      })
+      .from(assistantAvatarFileRefTable)
+      .where(inArray(assistantAvatarFileRefTable.sourceId, assistantIds))
+      .all()
+    return new Map(
+      rows.map((row) => [row.assistantId, { fileId: row.fileEntryId, src: resolveFileEntryUrl(row.fileEntryId)! }])
+    )
   }
 
   private getModelNameById(db: Pick<DbType, 'select'>, modelId: string | null): string | null {
@@ -223,7 +247,8 @@ export class AssistantDataService {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
     const relations = this.getRelationIdsByAssistantIds([id])
-    return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))
+    const avatarImage = this.getAvatarImagesByAssistantIds([id]).get(id)
+    return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId), avatarImage)
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): AssistantEntitySearchItem[] {
@@ -239,7 +264,7 @@ export class AssistantDataService {
         id: assistantTable.id,
         name: assistantTable.name,
         description: assistantTable.description,
-        emoji: assistantTable.emoji,
+        avatarEmoji: assistantTable.avatarEmoji,
         updatedAt: assistantTable.updatedAt
       })
       .from(assistantTable)
@@ -248,12 +273,13 @@ export class AssistantDataService {
       .limit(query.limit)
       .all()
 
+    const avatarImages = this.getAvatarImagesByAssistantIds(rows.map((row) => row.id))
     return rows.map((row) => ({
       type: 'assistant',
       id: row.id,
       title: row.name,
       subtitle: row.description || undefined,
-      emoji: row.emoji,
+      avatar: resolveAvatarValue({ type: 'assistant', id: row.id }, row.avatarEmoji, avatarImages.get(row.id)),
       updatedAt: timestampToISO(row.updatedAt),
       target: { assistantId: row.id }
     }))
@@ -336,11 +362,13 @@ export class AssistantDataService {
       this.db,
       rows.map((row) => row.assistant.modelId)
     )
+    const avatarImages = this.getAvatarImagesByAssistantIds(assistantIds)
     const items = rows.map((row) =>
       rowToAssistant(
         row.assistant,
         relations.get(row.assistant.id),
-        row.assistant.modelId ? (modelNames.get(row.assistant.modelId) ?? null) : null
+        row.assistant.modelId ? (modelNames.get(row.assistant.modelId) ?? null) : null,
+        avatarImages.get(row.assistant.id)
       )
     )
 
@@ -361,15 +389,15 @@ export class AssistantDataService {
     const modelId = this.resolveCreateModelId(tx, dto.modelId)
     this.validateAssistantGroupTx(tx, dto.groupId)
 
-    // Split relation fields from columns. Service owns emoji/settings
+    // Split relation fields from columns. Service owns avatar/settings
     // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
     // orderKey is omitted — `insertWithOrderKey` computes the next fractional
     // key from the existing max and injects it before the DB write.
-    const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
+    const { avatar = { kind: 'emoji' as const, emoji: '🌟' }, mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
     const insertValues = {
       ...columnDto,
       modelId,
-      emoji: dto.emoji ?? '🌟',
+      avatarEmoji: avatar.kind === 'emoji' ? avatar.emoji : null,
       settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
     } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
 
@@ -377,6 +405,10 @@ export class AssistantDataService {
       pkColumn: assistantTable.id,
       scope: isNull(assistantTable.deletedAt)
     }) as AssistantRow
+
+    if (avatar.kind === 'image') {
+      setSingleFileRef(tx, assistantAvatarFileRefTable, inserted.id, avatar.fileId)
+    }
 
     this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 
@@ -397,13 +429,19 @@ export class AssistantDataService {
 
     logger.info('Created assistant', { id: row.id, name: row.name })
 
+    const avatarImage =
+      dto.avatar?.kind === 'image'
+        ? { fileId: dto.avatar.fileId, src: resolveFileEntryUrl(dto.avatar.fileId)! }
+        : undefined
+
     return rowToAssistant(
       row,
       {
         mcpServerIds: dto.mcpServerIds ?? [],
         knowledgeBaseIds: dto.knowledgeBaseIds ?? []
       },
-      modelName
+      modelName,
+      avatarImage
     )
   }
 
@@ -418,10 +456,21 @@ export class AssistantDataService {
     } = application.get('DbService').withWriteTx((tx) => {
       const { assistant: source } = this.getActiveRowWithModelNameById(id, tx)
       const relations = this.getRelationIdsByAssistantIds([id], tx).get(id) ?? createEmptyRelations()
+      const [avatarRef] = tx
+        .select({ fileId: assistantAvatarFileRefTable.fileEntryId })
+        .from(assistantAvatarFileRefTable)
+        .where(eq(assistantAvatarFileRefTable.sourceId, id))
+        .limit(1)
+        .all()
+      const sourceAvatar = resolveAvatarValue(
+        { type: 'assistant', id },
+        source.avatarEmoji,
+        avatarRef ? { fileId: avatarRef.fileId, src: resolveFileEntryUrl(avatarRef.fileId)! } : undefined
+      )
       const created = this.createTx(tx, {
         name: dto.name,
         prompt: source.prompt,
-        emoji: source.emoji,
+        avatar: sourceAvatar.kind === 'emoji' ? sourceAvatar : { kind: 'image', fileId: sourceAvatar.fileId },
         description: source.description,
         settings: source.settings,
         modelId: source.modelId as UniqueModelId | null,
@@ -438,7 +487,8 @@ export class AssistantDataService {
 
     logger.info('Duplicated assistant', { id: row.id, sourceId: id })
     if (clonedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
-    return rowToAssistant(row, relations, modelName)
+    const avatarImage = this.getAvatarImagesByAssistantIds([row.id]).get(row.id)
+    return rowToAssistant(row, relations, modelName, avatarImage)
   }
 
   /**
@@ -561,7 +611,39 @@ export class AssistantDataService {
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
 
-    return rowToAssistant(row, nextRelations, modelName)
+    const avatarImage =
+      current.avatar.kind === 'image'
+        ? { fileId: current.avatar.fileId, src: resolveFileEntryUrl(current.avatar.fileId)! }
+        : undefined
+    return rowToAssistant(row, nextRelations, modelName, avatarImage)
+  }
+
+  setAvatarImage(id: string, fileId: FileEntryId): Assistant {
+    const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
+    application.get('DbService').withWriteTx((tx) => {
+      const updated = tx
+        .update(assistantTable)
+        .set({ avatarEmoji: null, updatedAt: Date.now() })
+        .where(aliveFilter)
+        .run()
+      if (updated.changes === 0) throw DataApiErrorFactory.notFound('Assistant', id)
+      setSingleFileRef(tx, assistantAvatarFileRefTable, id, fileId)
+    })
+    return this.getById(id)
+  }
+
+  setAvatarEmoji(id: string, emoji: string): Assistant {
+    const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
+    application.get('DbService').withWriteTx((tx) => {
+      const updated = tx
+        .update(assistantTable)
+        .set({ avatarEmoji: emoji, updatedAt: Date.now() })
+        .where(aliveFilter)
+        .run()
+      if (updated.changes === 0) throw DataApiErrorFactory.notFound('Assistant', id)
+      clearSingleFileRef(tx, assistantAvatarFileRefTable, id)
+    })
+    return this.getById(id)
   }
 
   /** Move a single assistant within the active (non-deleted) assistant list. */

@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { prepareEntityImageBytes } from '@renderer/utils/image'
+import { prepareIconImageBytes } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
@@ -85,13 +85,13 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       try {
         // Normalize upload bytes inside the try: a canvas failure must surface the
         // logo error (and never fall through to the request), not throw uncaught.
-        const image =
+        const logo =
           edit.kind === 'image'
-            ? ({ kind: 'image', data: await prepareEntityImageBytes(edit.file) } as const)
+            ? ({ kind: 'image', data: await prepareIconImageBytes(edit.file) } as const)
             : edit.kind === 'key'
               ? ({ kind: 'key', key: edit.key } as const)
               : ({ kind: 'default' } as const)
-        await ipcApi.request('provider.set_logo', { providerId, image })
+        await ipcApi.request('provider.set_logo', { providerId, logo })
       } catch (error) {
         logger.error('Failed to set provider logo', error as Error)
         toast.error(t('settings.provider.logo_upload_failed'))

@@ -45,10 +45,10 @@ describe('CherrySupportSeeder', () => {
       name: 'Cherry Support',
       description: '',
       instructions: '',
-      model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+      avatarEmoji: '🧰'
     })
     expect(support.configuration).toMatchObject({
-      avatar: '🧰',
       permission_mode: 'acceptEdits',
       bootstrap_completed: true,
       builtin_role: BUILTIN_AGENT_ROLE.SUPPORT

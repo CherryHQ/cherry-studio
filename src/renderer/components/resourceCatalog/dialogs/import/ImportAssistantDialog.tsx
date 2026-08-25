@@ -175,7 +175,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       drafts = parseAssistantImportContent(content)
     } catch (error) {
       const message =
-        error instanceof AssistantTransferError
+        error instanceof AssistantTransferError && error.code === 'invalid_format'
           ? t(IMPORT_ERROR_I18N_KEYS[error.code])
           : error instanceof Error
             ? error.message

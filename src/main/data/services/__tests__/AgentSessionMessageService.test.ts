@@ -2003,6 +2003,7 @@ describe('AgentSessionMessageService', () => {
       const messageSnapshot = {
         id: 'agent-at-request-time',
         name: 'Agent at request time',
+        avatar: { kind: 'emoji' as const, emoji: '🤖' },
         model: {
           id: 'claude-sonnet',
           name: 'Claude Sonnet',

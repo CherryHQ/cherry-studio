@@ -3173,7 +3173,7 @@ function isAbortError(error: unknown): boolean {
 /**
  * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
  * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
- * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
+ * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author identity
  * stays frozen. No-op when the frozen model already is the running model.
  */
 function reconcileSnapshotModel(
@@ -3193,7 +3193,7 @@ function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined
     type: 'agent',
     id: snapshot.id,
     name: snapshot.name,
-    icon: snapshot.emoji ?? null
+    icon: snapshot.avatar.kind === 'emoji' ? snapshot.avatar.emoji : snapshot.avatar.src
   }
 }
 

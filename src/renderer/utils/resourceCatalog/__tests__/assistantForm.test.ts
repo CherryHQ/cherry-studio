@@ -10,7 +10,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     id: 'asst-1',
     name: 'Assistant',
     prompt: '',
-    emoji: '🌟',
+    avatar: { kind: 'emoji', emoji: '🌟' },
     description: '',
     settings: { ...DEFAULT_ASSISTANT_SETTINGS } as AssistantSettings,
     modelId: null,
@@ -29,7 +29,7 @@ describe('initialAssistantFormState', () => {
   it('copies columns + flattens settings into the form state', () => {
     const assistant = createAssistant({
       name: 'Demo',
-      emoji: '🧠',
+      avatar: { kind: 'emoji', emoji: '🧠' },
       description: 'd',
       prompt: 'hello',
       modelId: 'openai::gpt-5',

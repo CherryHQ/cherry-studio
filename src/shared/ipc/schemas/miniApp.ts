@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
-import { LogoImageIntentSchema } from './entityImage'
+import { SetLogoIntentSchema } from './logo'
 
 /**
  * Mini-app imperative IPC commands. `mini_app.set_logo` mirrors
@@ -10,7 +10,7 @@ import { LogoImageIntentSchema } from './entityImage'
  */
 export const miniAppRequestSchemas = {
   'mini_app.set_logo': defineRoute({
-    input: z.strictObject({ appId: z.string().min(1), image: LogoImageIntentSchema }),
+    input: z.strictObject({ appId: z.string().min(1), logo: SetLogoIntentSchema }),
     output: z.void()
   })
 }

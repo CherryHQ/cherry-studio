@@ -35,8 +35,9 @@ export interface AgentFormState {
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
 
-  // configuration.* derived fields we edit in the library UI.
+  // Dialog-only avatar draft; persisted through the avatar IPC route.
   avatar: string
+  // configuration.* derived fields we edit in the library UI.
   permissionMode: string
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
@@ -105,7 +106,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
-    avatar: asString(cfg.avatar),
+    avatar: agent?.avatar.kind === 'emoji' ? agent.avatar.emoji : '',
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
@@ -184,10 +185,6 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   const cfgPatch: AgentConfiguration = {}
   let cfgDirty = false
 
-  if (baseline.avatar !== next.avatar) {
-    cfgPatch.avatar = next.avatar
-    cfgDirty = true
-  }
   if (baseline.permissionMode !== next.permissionMode) {
     cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
     cfgDirty = true

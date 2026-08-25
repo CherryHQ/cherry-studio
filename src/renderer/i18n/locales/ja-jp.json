@@ -1914,6 +1914,7 @@
   "library.empty_state.no_match_title": "一致するリソースがありません",
   "library.empty_state.title": "リソースなし",
   "library.export_assistant_failed": "アシスタントのエクスポートに失敗しました",
+  "library.export_assistant_image_avatar_unsupported": "画像アバターを使用したアシスタントのエクスポートはまだサポートされていません",
   "library.group_picker.no_groups": "まだグループがありません",
   "library.group_sync_failed": "グループの同期に失敗しました",
   "library.import_dialog.clipboard.button": "解析してインポート",

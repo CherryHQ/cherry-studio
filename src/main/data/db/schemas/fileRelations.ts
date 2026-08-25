@@ -1,6 +1,9 @@
+import type { tempSessionSourceType } from '@shared/data/types/fileRef'
 import {
+  agentAvatarRef,
   agentSessionMessageRoles,
   agentSessionMessageSourceType,
+  assistantAvatarRef,
   chatMessageRoles,
   chatMessageSourceType,
   type FileRefSourceType,
@@ -12,12 +15,14 @@ import {
   providerLogoRef,
   translateHistoryRoles,
   translateHistorySourceType
-} from '@shared/data/types/file'
+} from '@shared/data/types/fileRef'
 import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { agentTable } from './agent'
 import { agentSessionMessageTable } from './agentSessionMessage'
+import { assistantTable } from './assistant'
 import { fileEntryTable } from './file'
 import { jobTable } from './job'
 import { messageTable } from './message'
@@ -34,7 +39,7 @@ function roleCheck(column: SQLWrapper, roles: readonly string[]) {
   return sql`${column} IN (${sqlStringList(roles)})`
 }
 
-export type PersistentFileRefSourceType = FileRefSourceType
+export type PersistentFileRefSourceType = Exclude<FileRefSourceType, typeof tempSessionSourceType>
 
 /**
  * Chat message file references.
@@ -229,8 +234,42 @@ export const miniAppLogoFileRefTable = sqliteTable(
   },
   (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]
 )
+
+export const assistantAvatarFileRefTable = sqliteTable(
+  'assistant_avatar_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => assistantTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('aafr_entry_id_idx').on(t.fileEntryId), uniqueIndex('aafr_source_id_idx').on(t.sourceId)]
+)
+
+export const agentAvatarFileRefTable = sqliteTable(
+  'agent_avatar_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('agafr_entry_id_idx').on(t.fileEntryId), uniqueIndex('agafr_source_id_idx').on(t.sourceId)]
+)
 /** The roleless single-file (logo) slot source types. */
-export type SingleFileRefSourceType = typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
+export type SingleFileRefSourceType =
+  | typeof providerLogoRef.sourceType
+  | typeof miniAppLogoRef.sourceType
+  | typeof assistantAvatarRef.sourceType
+  | typeof agentAvatarRef.sourceType
 
 /**
  * Single-file slot tables by source type — the `sourceType → table` bridge for
@@ -240,8 +279,16 @@ export type SingleFileRefSourceType = typeof providerLogoRef.sourceType | typeof
  */
 export const singleFileRefTablesBySourceType = {
   [providerLogoRef.sourceType]: providerLogoFileRefTable,
-  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
-} as const satisfies Record<SingleFileRefSourceType, typeof providerLogoFileRefTable | typeof miniAppLogoFileRefTable>
+  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable,
+  [assistantAvatarRef.sourceType]: assistantAvatarFileRefTable,
+  [agentAvatarRef.sourceType]: agentAvatarFileRefTable
+} as const satisfies Record<
+  SingleFileRefSourceType,
+  | typeof providerLogoFileRefTable
+  | typeof miniAppLogoFileRefTable
+  | typeof assistantAvatarFileRefTable
+  | typeof agentAvatarFileRefTable
+>
 
 /**
  * Every persistent source type has an association table. Intentionally has NO
@@ -264,6 +311,8 @@ export const persistentFileRefTablesBySourceType = {
   | typeof translateHistoryFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
+  | typeof assistantAvatarFileRefTable
+  | typeof agentAvatarFileRefTable
 >
 
 /**

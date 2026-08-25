@@ -1914,6 +1914,7 @@
   "library.empty_state.no_match_title": "Nu există resurse corespunzătoare",
   "library.empty_state.title": "Fără resurse",
   "library.export_assistant_failed": "Eșec la exportarea asistentului",
+  "library.export_assistant_image_avatar_unsupported": "Exportul asistenților cu avatare imagine nu este încă acceptat",
   "library.group_picker.no_groups": "Niciun grup încă",
   "library.group_sync_failed": "Nu s-au putut sincroniza grupurile",
   "library.import_dialog.clipboard.button": "Analizează și importă",

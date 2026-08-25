@@ -65,7 +65,12 @@ function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
       topicId: 'abc',
       messageId: 'assistant-message-id',
       modelId,
-      messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
+      messageSnapshot: {
+        id: 'a1',
+        name: 'A',
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+      }
     }),
     onPersistFailed
   })

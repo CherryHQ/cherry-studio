@@ -15,7 +15,7 @@ import {
   providerLogoRef,
   translateHistoryFileRefSchema,
   translateHistorySourceType
-} from '../file'
+} from '../fileRef'
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
@@ -33,13 +33,16 @@ describe('FileRefSourceType', () => {
     // The user avatar deliberately has no variant: it is persisted only in the
     // `app.user.avatar` preference (no ref table).
     expect([...allSourceTypes]).toEqual([
+      'temp_session',
       'chat_message',
       'agent_session_message',
       'painting',
       'job',
       'translate_history',
       'provider_logo',
-      'mini_app_logo'
+      'mini_app_logo',
+      'assistant_avatar',
+      'agent_avatar'
     ])
   })
 })

@@ -7,7 +7,7 @@ import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAssistantDto {
   return {
     name: values.name,
-    emoji: values.avatar,
+    avatar: { kind: 'emoji', emoji: values.avatar },
     modelId: values.modelId,
     description: values.description,
     prompt: values.prompt,
@@ -30,9 +30,7 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     instructions: values.prompt,
     ...(caps.knowledgeBases ? { knowledgeBaseIds: values.knowledgeBaseIds } : {}),
     ...(caps.skills ? { skillIds: values.skillIds } : {}),
-    configuration: {
-      avatar: values.avatar,
-      permission_mode: permissionMode
-    }
+    configuration: { permission_mode: permissionMode },
+    avatar: { kind: 'emoji', emoji: values.avatar }
   }
 }

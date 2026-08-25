@@ -142,8 +142,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       messageSnapshot: {
         id: agent.id,
         name: agent.name,
-        // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
-        emoji: agent.configuration?.avatar?.trim() || '🤖',
+        avatar: agent.avatar,
         model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),

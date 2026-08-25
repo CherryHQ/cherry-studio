@@ -7,6 +7,7 @@
  */
 
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { AvatarValueSchema } from '@shared/data/types/avatar'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
@@ -46,7 +47,6 @@ export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
   .object({
-    avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
@@ -87,14 +87,16 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     return { data: undefined, invalidKeys: ['<root>'] }
   }
-  const parsed = AgentConfigurationSchema.safeParse(raw)
+  const configuration = { ...(raw as Record<string, unknown>) }
+  delete configuration.avatar
+  const parsed = AgentConfigurationSchema.safeParse(configuration)
   if (parsed.success) return { data: parsed.data, invalidKeys: [] }
 
   const invalidKeys = Array.from(
     new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
   )
   const filtered: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(configuration)) {
     if (!invalidKeys.includes(key)) filtered[key] = value
   }
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
@@ -151,7 +153,9 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
    * Human-readable primary model name resolved from the current runtime Model
    * at read time. Edits still go through the `model` UniqueModelId field.
    */
-  modelName: z.string().nullable()
+  modelName: z.string().nullable(),
+  /** Exactly one active avatar representation. */
+  avatar: AvatarValueSchema
 })
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>

@@ -68,6 +68,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTa
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => vi.fn(),
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: [], total: 0 }],
@@ -209,7 +210,7 @@ const ASSISTANTS_RESPONSE = {
       id: ALPHA_ASSISTANT_ID,
       name: 'Alpha Assistant',
       prompt: 'Original alpha prompt',
-      emoji: 'A',
+      avatar: { kind: 'emoji', emoji: '🅰️' },
       description: 'First test assistant',
       settings: {
         temperature: 1,
@@ -239,7 +240,7 @@ const ASSISTANTS_RESPONSE = {
       id: BETA_ASSISTANT_ID,
       name: 'Beta Assistant',
       prompt: 'Original beta prompt',
-      emoji: 'B',
+      avatar: { kind: 'emoji', emoji: '🅱️' },
       description: 'Second test assistant',
       settings: {
         temperature: 1,
@@ -317,7 +318,7 @@ beforeEach(() => {
   createAssistantMock.mockResolvedValue({
     id: 'created-assistant',
     name: 'Created Assistant',
-    emoji: '💬',
+    avatar: { kind: 'emoji', emoji: '💬' },
     description: 'Created from selector',
     groupId: null
   })
@@ -455,7 +456,7 @@ describe('AssistantSelector', () => {
       expect(createAssistantMock).toHaveBeenCalledWith({
         body: {
           name: 'Created Assistant',
-          emoji: '💬',
+          avatar: { kind: 'emoji', emoji: '💬' },
           modelId: MODEL.id,
           description: 'Created from selector',
           prompt: '',

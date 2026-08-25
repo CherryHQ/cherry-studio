@@ -1,25 +1,25 @@
 import { fileTypeFromBuffer } from 'file-type'
 
-/** Target square dimension for normalized entity images (avatar / logo). */
-const ENTITY_IMAGE_DIMENSION = 128
+/** Target square dimension for normalized icon images (avatar / logo). */
+const ICON_IMAGE_DIMENSION = 128
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). */
-const MAX_ENTITY_INPUT_PIXELS = 100_000_000
+const MAX_ICON_INPUT_PIXELS = 100_000_000
 
 /**
  * Normalize arbitrary image bytes to a 128×128 cover-cropped WebP buffer — the
- * canonical on-disk form for entity images (user avatar, provider / mini-app
+ * canonical on-disk form for icon images (user avatar, provider / mini-app
  * logo). Shared by the live set-image IpcApi commands and the v1→v2 migration so
  * both paths produce an identical format. Throws on undecodable input (caller
  * decides how to react).
  */
-export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> {
+export async function transcodeToIconWebp(bytes: Uint8Array): Promise<Buffer> {
   // Delayed loading: a static import would map sharp's multi-MB libvips native library at boot.
   const sharp = (await import('sharp')).default
   // Only the first frame of an animated GIF is used — fine for a 128² entity image.
   // `failOn: 'none'` keeps slightly-malformed user images (truncated chunk, bad CRC) decodable;
   // sharp's default rejects them on a libvips warning, which varies by platform.
-  return sharp(bytes, { limitInputPixels: MAX_ENTITY_INPUT_PIXELS, failOn: 'none' })
-    .resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' })
+  return sharp(bytes, { limitInputPixels: MAX_ICON_INPUT_PIXELS, failOn: 'none' })
+    .resize(ICON_IMAGE_DIMENSION, ICON_IMAGE_DIMENSION, { fit: 'cover' })
     .webp()
     .toBuffer()
 }

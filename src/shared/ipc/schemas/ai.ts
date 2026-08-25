@@ -22,6 +22,7 @@ import {
 } from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
+import { AvatarInputSchema } from '@shared/data/types/avatar'
 import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -60,6 +61,7 @@ import { defineRoute } from '../define'
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   type: AgentEntitySchema.shape.type,
+  avatar: AvatarInputSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.

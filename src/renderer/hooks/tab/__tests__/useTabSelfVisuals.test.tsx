@@ -21,7 +21,8 @@ vi.mock('@renderer/hooks/tab/useTabsContext', () => ({
 }))
 
 vi.mock('@renderer/utils/tabIcons', () => ({
-  emojiTabIcon: (emoji?: string | null) => (emoji ? `icon:${emoji}` : undefined)
+  avatarTabIcon: (avatar?: { kind: 'emoji'; emoji: string } | { kind: 'image'; src: string }) =>
+    avatar?.kind === 'emoji' ? `icon:${avatar.emoji}` : avatar?.src
 }))
 
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
@@ -52,7 +53,7 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Topic title" emoji="spark" appId="assistants" />
+        <TabVisualsWriter title="Topic title" avatar={{ kind: 'emoji', emoji: 'spark' }} appId="assistants" />
       </TabIdProvider>
     )
 
@@ -76,7 +77,7 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Topic title" emoji="spark" appId="assistants" />
+        <TabVisualsWriter title="Topic title" avatar={{ kind: 'emoji', emoji: 'spark' }} appId="assistants" />
       </TabIdProvider>
     )
 
@@ -120,7 +121,7 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Session title" emoji="spark" appId="agents" />
+        <TabVisualsWriter title="Session title" avatar={{ kind: 'emoji', emoji: 'spark' }} appId="agents" />
       </TabIdProvider>
     )
 

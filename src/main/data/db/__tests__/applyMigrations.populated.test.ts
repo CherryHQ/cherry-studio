@@ -425,6 +425,108 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
+  it('moves existing agent and message avatars into the strict avatar columns', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const chatSnapshot = JSON.stringify({
+      id: 'assistant-avatar-migrate',
+      name: 'Cherry Assistant',
+      emoji: '🍒',
+      model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
+    })
+    const sessionSnapshotWithoutEmoji = JSON.stringify({
+      id: 'agent-avatar-migrate',
+      name: 'Cherry Support',
+      model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
+    })
+
+    sqlite
+      .prepare(
+        `INSERT INTO assistant
+          (id, name, prompt, emoji, description, settings, order_key, created_at, updated_at)
+         VALUES ('assistant-avatar-migrate', 'Cherry Assistant', '', '🍒', '', '{}', 'a0', 100, 100)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO topic
+          (id, name, assistant_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('topic-avatar-migrate', 'Topic', 'assistant-avatar-migrate', 'a0', 100, 100, 100)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO message
+          (id, parent_id, topic_id, role, data, status, siblings_group_id, created_at, updated_at)
+         VALUES
+          ('message-avatar-root', NULL, 'topic-avatar-migrate', 'root', '{"parts":[]}', 'success', 0, 100, 100),
+          ('message-avatar-reply', 'message-avatar-root', 'topic-avatar-migrate', 'assistant', '{"parts":[]}', 'success', 0, 101, 101)`
+      )
+      .run()
+    sqlite.prepare(`UPDATE message SET message_snapshot = ? WHERE id = 'message-avatar-reply'`).run(chatSnapshot)
+
+    sqlite
+      .prepare(
+        `INSERT INTO agent
+          (id, type, name, instructions, configuration, order_key, created_at, updated_at)
+         VALUES ('agent-avatar-migrate', 'claude-code', 'Cherry Support', '', '{"avatar":"🧰","permission_mode":"auto"}', 'a0', 100, 100)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-avatar-migrate', 'Workspace', '/tmp/avatar-migrate', 'user', 'a0', 100, 100)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session
+          (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-avatar-migrate', 'agent-avatar-migrate', 'Session', 'workspace-avatar-migrate', 'a0', 100, 100, 100)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message
+          (id, session_id, role, data, status, message_snapshot, created_at, updated_at)
+         VALUES ('session-message-avatar-migrate', 'session-avatar-migrate', 'assistant', '{"parts":[]}', 'success', ?, 100, 100)`
+      )
+      .run(sessionSnapshotWithoutEmoji)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const agent = sqlite
+      .prepare(`SELECT avatar_emoji, configuration FROM agent WHERE id = 'agent-avatar-migrate'`)
+      .get() as { avatar_emoji: string; configuration: string }
+    expect(agent.avatar_emoji).toBe('🧰')
+    expect(JSON.parse(agent.configuration)).toEqual({ permission_mode: 'auto' })
+    expect(sqlite.prepare(`SELECT emoji FROM assistant WHERE id = 'assistant-avatar-migrate'`).get()).toEqual({
+      emoji: '🍒'
+    })
+
+    const migratedChatSnapshot = sqlite
+      .prepare(`SELECT message_snapshot FROM message WHERE id = 'message-avatar-reply'`)
+      .pluck()
+      .get() as string
+    expect(JSON.parse(migratedChatSnapshot)).toEqual({
+      id: 'assistant-avatar-migrate',
+      name: 'Cherry Assistant',
+      avatar: { kind: 'emoji', emoji: '🍒' },
+      model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
+    })
+
+    const migratedSessionSnapshot = sqlite
+      .prepare(`SELECT message_snapshot FROM agent_session_message WHERE id = 'session-message-avatar-migrate'`)
+      .pluck()
+      .get() as string
+    expect(JSON.parse(migratedSessionSnapshot)).toEqual({
+      id: 'agent-avatar-migrate',
+      name: 'Cherry Support',
+      avatar: { kind: 'emoji', emoji: '🤖' },
+      model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
+    })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
   it('preserves populated prompts when adding visibility and bindings', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0015_chief_morgan_stark'))
     sqlite

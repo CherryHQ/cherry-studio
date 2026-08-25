@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
-import { type FileEntryId, translateHistorySourceType } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import { translateHistorySourceType } from '@shared/data/types/fileRef'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
 

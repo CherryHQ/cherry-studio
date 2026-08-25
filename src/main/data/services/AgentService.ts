@@ -2,6 +2,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -12,8 +13,11 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
+import { resolveAvatarValue, type ResolvedAvatarImage } from '@data/services/utils/avatar'
+import { resolveFileEntryUrl } from '@data/services/utils/fileEntryUrl'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import { clearSingleFileRef, setSingleFileRef } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
@@ -33,6 +37,8 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
+import type { AvatarInput } from '@shared/data/types/avatar'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
@@ -59,11 +65,13 @@ type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
+  avatar?: AvatarInput
   skillIds?: string[]
 }
 
 interface EnsureBuiltinAgentInput {
   builtinRole: BuiltinAgentRole
+  avatar: AvatarInput
   configuration: AgentConfiguration
   name: string
   preferredModelId: UniqueModelId | null
@@ -161,21 +169,18 @@ function parseConfiguration(raw: unknown, agentId: string): AgentConfiguration |
   return data
 }
 
-function getAgentAvatar(configuration: unknown): string | undefined {
-  if (!configuration || typeof configuration !== 'object') return undefined
-  const avatar = (configuration as { avatar?: unknown }).avatar
-  return typeof avatar === 'string' ? avatar : undefined
-}
-
 function rowToAgent(
   row: AgentRow,
   modelName: string | null = null,
   mcps: string[],
-  knowledgeBaseIds: string[]
+  knowledgeBaseIds: string[],
+  avatarImage?: ResolvedAvatarImage
 ): AgentEntity {
   const clean = nullsToUndefined(row)
+  const publicRow = { ...clean }
+  delete publicRow.avatarEmoji
   return {
-    ...clean,
+    ...publicRow,
     mcps,
     knowledgeBaseIds,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
@@ -185,7 +190,8 @@ function rowToAgent(
     configuration: parseConfiguration(row.configuration, row.id),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
-    modelName
+    modelName,
+    avatar: resolveAvatarValue({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImage)
   }
 }
 
@@ -253,6 +259,21 @@ export class AgentService {
   private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
+  private getAvatarImagesByAgentIds(
+    agentIds: string[],
+    database: DbOrTx = application.get('DbService').getDb()
+  ): Map<string, ResolvedAvatarImage> {
+    if (agentIds.length === 0) return new Map()
+    const rows = database
+      .select({ agentId: agentAvatarFileRefTable.sourceId, fileEntryId: agentAvatarFileRefTable.fileEntryId })
+      .from(agentAvatarFileRefTable)
+      .where(inArray(agentAvatarFileRefTable.sourceId, agentIds))
+      .all()
+    return new Map(
+      rows.map((row) => [row.agentId, { fileId: row.fileEntryId, src: resolveFileEntryUrl(row.fileEntryId)! }])
+    )
+  }
+
   /**
    * Create primitive for main-process command orchestration. The caller owns
    * non-data side effects and supplies the already-reserved id.
@@ -267,6 +288,7 @@ export class AgentService {
     }
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
+    const avatar = req.avatar ?? { kind: 'emoji' as const, emoji: '🤖' }
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
@@ -283,6 +305,7 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       disabledTools: req.disabledTools,
+      avatarEmoji: avatar.kind === 'emoji' ? avatar.emoji : null,
       configuration: req.configuration
     }
 
@@ -306,6 +329,9 @@ export class AgentService {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
           const result = this.createAgentTx(tx, id, insertData, 'first')
+          if (avatar.kind === 'image') {
+            setSingleFileRef(tx, agentAvatarFileRefTable, id, avatar.fileId)
+          }
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
             tx.insert(agentMcpServerTable)
@@ -332,7 +358,9 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
+    const avatarImage =
+      avatar.kind === 'image' ? { fileId: avatar.fileId, src: resolveFileEntryUrl(avatar.fileId)! } : undefined
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarImage)
     notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
@@ -452,8 +480,9 @@ export class AgentService {
       const modelName = existing.model
         ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
         : null
+      const avatarImage = this.getAvatarImagesByAgentIds([existing.id], tx).get(existing.id)
       return {
-        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
+        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds, avatarImage),
         created: false
       }
     }
@@ -471,8 +500,13 @@ export class AgentService {
       configuration: {
         ...input.configuration,
         builtin_role: input.builtinRole
-      }
+      },
+      avatarEmoji: input.avatar.kind === 'emoji' ? input.avatar.emoji : null
     })
+
+    if (input.avatar.kind === 'image') {
+      setSingleFileRef(tx, agentAvatarFileRefTable, agentId, input.avatar.fileId)
+    }
 
     if (!created) {
       throw DataApiErrorFactory.invalidOperation(
@@ -482,7 +516,15 @@ export class AgentService {
     }
 
     return {
-      agent: rowToAgent(created.agent, created.modelName, [], []),
+      agent: rowToAgent(
+        created.agent,
+        created.modelName,
+        [],
+        [],
+        input.avatar.kind === 'image'
+          ? { fileId: input.avatar.fileId, src: resolveFileEntryUrl(input.avatar.fileId)! }
+          : undefined
+      ),
       created: true
     }
   }
@@ -524,10 +566,11 @@ export class AgentService {
     if (!agent) return null
     const mcpsMap = fetchMcpsForAgents(database, [id])
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, [id])
+    const avatarImage = this.getAvatarImagesByAgentIds([id]).get(id)
     const modelName = agent.model
       ? (modelService.getNamesByUniqueIdsTx(database, [agent.model]).get(agent.model) ?? null)
       : null
-    return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
+    return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [], avatarImage)
   }
 
   listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
@@ -593,6 +636,7 @@ export class AgentService {
     const agentIds = result.map((row) => row.agent.id)
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const avatarImages = this.getAvatarImagesByAgentIds(agentIds)
     const modelNames = modelService.getNamesByUniqueIdsTx(
       database,
       result.map((row) => row.agent.model)
@@ -603,7 +647,8 @@ export class AgentService {
         row.agent,
         row.agent.model ? (modelNames.get(row.agent.model) ?? null) : null,
         mcpsMap.get(row.agent.id) ?? [],
-        knowledgeBasesMap.get(row.agent.id) ?? []
+        knowledgeBasesMap.get(row.agent.id) ?? [],
+        avatarImages.get(row.agent.id)
       )
     )
 
@@ -623,6 +668,7 @@ export class AgentService {
         name: agentsTable.name,
         description: agentsTable.description,
         configuration: agentsTable.configuration,
+        avatarEmoji: agentsTable.avatarEmoji,
         updatedAt: agentsTable.updatedAt
       })
       .from(agentsTable)
@@ -631,12 +677,13 @@ export class AgentService {
       .limit(options.limit)
       .all()
 
+    const avatarImages = this.getAvatarImagesByAgentIds(rows.map((row) => row.id))
     return rows.map((row) => ({
       type: 'agent',
       id: row.id,
       title: row.name,
       subtitle: getAgentDescription(row.id, row.description, row.configuration) || undefined,
-      emoji: getAgentAvatar(row.configuration),
+      avatar: resolveAvatarValue({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImages.get(row.id)),
       updatedAt: timestampToISO(row.updatedAt),
       target: { agentId: row.id }
     }))
@@ -760,6 +807,36 @@ export class AgentService {
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
     return updated
+  }
+
+  setAvatarImage(id: string, fileId: FileEntryId): AgentEntity {
+    application.get('DbService').withWriteTx((tx) => {
+      const updated = tx
+        .update(agentsTable)
+        .set({ avatarEmoji: null, updatedAt: Date.now() })
+        .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+        .run()
+      if (updated.changes === 0) throw DataApiErrorFactory.notFound('Agent', id)
+      setSingleFileRef(tx, agentAvatarFileRefTable, id, fileId)
+    })
+    const agent = this.getAgent(id)!
+    this._onAgentUpdated.fire({ agentId: id, updates: {}, agent })
+    return agent
+  }
+
+  setAvatarEmoji(id: string, emoji: string): AgentEntity {
+    application.get('DbService').withWriteTx((tx) => {
+      const updated = tx
+        .update(agentsTable)
+        .set({ avatarEmoji: emoji, updatedAt: Date.now() })
+        .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+        .run()
+      if (updated.changes === 0) throw DataApiErrorFactory.notFound('Agent', id)
+      clearSingleFileRef(tx, agentAvatarFileRefTable, id)
+    })
+    const agent = this.getAgent(id)!
+    this._onAgentUpdated.fire({ agentId: id, updates: {}, agent })
+    return agent
   }
 
   updateAgentTx(tx: DbOrTx, id: string, updateData: Partial<AgentRow>): void {
@@ -897,6 +974,7 @@ export class AgentService {
       .all()
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const avatarImages = this.getAvatarImagesByAgentIds(agentIds)
     const modelNames = modelService.getNamesByUniqueIdsTx(
       database,
       rows.map((row) => row.model)
@@ -906,7 +984,8 @@ export class AgentService {
         row,
         row.model ? (modelNames.get(row.model) ?? null) : null,
         mcpsMap.get(row.id) ?? [],
-        knowledgeBasesMap.get(row.id) ?? []
+        knowledgeBasesMap.get(row.id) ?? [],
+        avatarImages.get(row.id)
       )
       const updates: UpdateAgentDto =
         relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }

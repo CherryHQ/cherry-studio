@@ -260,7 +260,7 @@ describe('GroupService', () => {
       await dbh.db.insert(assistantTable).values({
         id: 'assistant-1',
         name: 'Assistant',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         groupId: group.id,
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a0'

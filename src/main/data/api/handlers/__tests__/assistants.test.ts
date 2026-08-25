@@ -133,6 +133,7 @@ describe('assistantHandlers', () => {
           body: {
             name: 'Imported Assistant',
             prompt: 'legacy prompt',
+            avatar: { kind: 'emoji', emoji: '🤖' },
             groupName: longGroupName
           }
         } as never)
@@ -141,6 +142,7 @@ describe('assistantHandlers', () => {
       expect(createFromImportMock).toHaveBeenCalledWith({
         name: 'Imported Assistant',
         prompt: 'legacy prompt',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         groupName: 'x'.repeat(65)
       })
     })
@@ -148,7 +150,12 @@ describe('assistantHandlers', () => {
     it('rejects fields outside the legacy import contract', async () => {
       await expect(
         assistantHandlers['/assistants:import'].POST({
-          body: { name: 'Imported Assistant', prompt: 'legacy prompt', groupId: GROUP_ID }
+          body: {
+            name: 'Imported Assistant',
+            prompt: 'legacy prompt',
+            avatar: { kind: 'emoji', emoji: '🤖' },
+            groupId: GROUP_ID
+          }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 

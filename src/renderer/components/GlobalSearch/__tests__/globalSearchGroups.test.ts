@@ -176,6 +176,7 @@ describe('globalSearchGroups', () => {
               type: 'assistant',
               id: 'assistant-1',
               title: 'Assistant',
+              avatar: { kind: 'emoji', emoji: '🤖' },
               target: { assistantId: 'assistant-1' }
             }
           ]

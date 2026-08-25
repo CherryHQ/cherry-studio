@@ -1,6 +1,7 @@
 import type { ConversationAppId } from '@renderer/types/conversation'
-import { emojiTabIcon } from '@renderer/utils/tabIcons'
+import { avatarTabIcon } from '@renderer/utils/tabIcons'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import { useEffect } from 'react'
 
 import { useCurrentTabId } from './useCurrentTab'
@@ -8,7 +9,7 @@ import { useOptionalTabsContext } from './useTabsContext'
 
 export interface TabSelfVisuals {
   title: string
-  emoji?: string | null
+  avatar?: AvatarValue
   /** Route-ownership guard: only stamp while the tab is on this app's routes. */
   appId?: ConversationAppId
   /** Keep the tab's stored title/icon while the bound conversation is still loading. */
@@ -33,7 +34,7 @@ function tabBelongsToApp(tab: Pick<Tab, 'url'>, appId: ConversationAppId): boole
  * system or the `Tab` shape. No-op without a TabsProvider / TabIdProvider
  * (tests, detached popups).
  */
-export function useTabSelfVisuals({ title, emoji, appId, preserveVisuals = false }: TabSelfVisuals): void {
+export function useTabSelfVisuals({ title, avatar, appId, preserveVisuals = false }: TabSelfVisuals): void {
   const currentTabId = useCurrentTabId()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
@@ -43,8 +44,8 @@ export function useTabSelfVisuals({ title, emoji, appId, preserveVisuals = false
     if (!currentTabId || !updateTab || !currentTab) return
     if (preserveVisuals) return
     if (appId && !tabBelongsToApp(currentTab, appId)) return
-    const icon = emojiTabIcon(emoji)
+    const icon = avatarTabIcon(avatar)
     if (currentTab.title === title && currentTab.icon === icon) return
     updateTab(currentTabId, { title, icon })
-  }, [currentTabId, currentTab, updateTab, title, emoji, appId, preserveVisuals])
+  }, [currentTabId, currentTab, updateTab, title, avatar, appId, preserveVisuals])
 }

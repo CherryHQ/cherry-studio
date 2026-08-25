@@ -82,6 +82,7 @@ describe('remapAgentPrefixIds', () => {
       messageSnapshot: {
         id: agentId,
         name: 'Test Agent',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         model: { id: 'test-model', name: 'Test Model', provider: 'test-provider' }
       }
     })
@@ -168,6 +169,7 @@ describe('remapAgentPrefixIds', () => {
         messageSnapshot: {
           id: agentId,
           name: `Agent ${index}`,
+          avatar: { kind: 'emoji', emoji: '🤖' },
           model: { id: 'test-model', name: 'Test Model', provider: 'test-provider' }
         }
       })

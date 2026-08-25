@@ -2,7 +2,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { beforeAll, describe, expect, it } from 'vitest'
 
-import { clearSingleFileRefTx, getSingleFileRefId, insertSingleFileRefTx, reconcileLogoSlotTx } from '../singleFileRef'
+import { reconcileLogoSlotTx } from '../logoRef'
+import { clearSingleFileRef, getSingleFileRef, insertSingleFileRef } from '../singleFileRef'
 
 // Test-only fixture tables standing in for two different owners' slot tables
 // (`provider_logo_file_ref` / `mini_app_logo_file_ref`). Not part of the
@@ -44,13 +45,13 @@ describe('singleFileRef', () => {
 
   describe('insert / read round-trip', () => {
     it('reads back the file id written to a slot', () => {
-      insertSingleFileRefTx(dbh.db, fxSlotA, 'owner-1', FILE_A)
+      insertSingleFileRef(dbh.db, fxSlotA, 'owner-1', FILE_A)
 
-      expect(getSingleFileRefId(fxSlotA, 'owner-1')).toBe(FILE_A)
+      expect(getSingleFileRef(fxSlotA, 'owner-1')).toBe(FILE_A)
     })
 
     it('returns null for an owner with no slot row', () => {
-      expect(getSingleFileRefId(fxSlotA, 'owner-absent')).toBeNull()
+      expect(getSingleFileRef(fxSlotA, 'owner-absent')).toBeNull()
     })
   })
 
@@ -59,58 +60,58 @@ describe('singleFileRef', () => {
   // owner's slot. These are the negative controls for that isolation.
   describe('table parameter isolates owners', () => {
     it('does not surface a row written to another table', () => {
-      insertSingleFileRefTx(dbh.db, fxSlotA, 'shared-id', FILE_A)
+      insertSingleFileRef(dbh.db, fxSlotA, 'shared-id', FILE_A)
 
-      expect(getSingleFileRefId(fxSlotA, 'shared-id')).toBe(FILE_A)
-      expect(getSingleFileRefId(fxSlotB, 'shared-id')).toBeNull()
+      expect(getSingleFileRef(fxSlotA, 'shared-id')).toBe(FILE_A)
+      expect(getSingleFileRef(fxSlotB, 'shared-id')).toBeNull()
     })
 
     it('keeps the same sourceId independent across tables', () => {
-      insertSingleFileRefTx(dbh.db, fxSlotA, 'dup-id', FILE_A)
-      insertSingleFileRefTx(dbh.db, fxSlotB, 'dup-id', FILE_B)
+      insertSingleFileRef(dbh.db, fxSlotA, 'dup-id', FILE_A)
+      insertSingleFileRef(dbh.db, fxSlotB, 'dup-id', FILE_B)
 
-      expect(getSingleFileRefId(fxSlotA, 'dup-id')).toBe(FILE_A)
-      expect(getSingleFileRefId(fxSlotB, 'dup-id')).toBe(FILE_B)
+      expect(getSingleFileRef(fxSlotA, 'dup-id')).toBe(FILE_A)
+      expect(getSingleFileRef(fxSlotB, 'dup-id')).toBe(FILE_B)
     })
 
     it('clears only the table it is given', () => {
-      insertSingleFileRefTx(dbh.db, fxSlotA, 'clear-id', FILE_A)
-      insertSingleFileRefTx(dbh.db, fxSlotB, 'clear-id', FILE_B)
+      insertSingleFileRef(dbh.db, fxSlotA, 'clear-id', FILE_A)
+      insertSingleFileRef(dbh.db, fxSlotB, 'clear-id', FILE_B)
 
-      clearSingleFileRefTx(dbh.db, fxSlotA, 'clear-id')
+      clearSingleFileRef(dbh.db, fxSlotA, 'clear-id')
 
-      expect(getSingleFileRefId(fxSlotA, 'clear-id')).toBeNull()
-      expect(getSingleFileRefId(fxSlotB, 'clear-id')).toBe(FILE_B)
+      expect(getSingleFileRef(fxSlotA, 'clear-id')).toBeNull()
+      expect(getSingleFileRef(fxSlotB, 'clear-id')).toBe(FILE_B)
     })
   })
 
-  describe('clearSingleFileRefTx', () => {
+  describe('clearSingleFileRef', () => {
     it('is a no-op on an empty slot', () => {
-      expect(() => clearSingleFileRefTx(dbh.db, fxSlotA, 'never-set')).not.toThrow()
-      expect(getSingleFileRefId(fxSlotA, 'never-set')).toBeNull()
+      expect(() => clearSingleFileRef(dbh.db, fxSlotA, 'never-set')).not.toThrow()
+      expect(getSingleFileRef(fxSlotA, 'never-set')).toBeNull()
     })
   })
 
   describe('reconcileLogoSlotTx', () => {
     it('returns null and leaves the slot untouched when input is undefined', () => {
-      insertSingleFileRefTx(dbh.db, fxSlotA, 'r-noop', FILE_A)
+      insertSingleFileRef(dbh.db, fxSlotA, 'r-noop', FILE_A)
 
       expect(reconcileLogoSlotTx(dbh.db, fxSlotA, 'r-noop', undefined)).toBeNull()
-      expect(getSingleFileRefId(fxSlotA, 'r-noop')).toBe(FILE_A)
+      expect(getSingleFileRef(fxSlotA, 'r-noop')).toBe(FILE_A)
     })
 
     it('binds a file and nulls the logo key', () => {
       const cols = reconcileLogoSlotTx(dbh.db, fxSlotA, 'r-file', { kind: 'file', fileId: FILE_A })
 
       expect(cols).toEqual({ logoKey: null })
-      expect(getSingleFileRefId(fxSlotA, 'r-file')).toBe(FILE_A)
+      expect(getSingleFileRef(fxSlotA, 'r-file')).toBe(FILE_A)
     })
 
     it('replaces an existing file without violating the unique index', () => {
       reconcileLogoSlotTx(dbh.db, fxSlotA, 'r-replace', { kind: 'file', fileId: FILE_A })
       reconcileLogoSlotTx(dbh.db, fxSlotA, 'r-replace', { kind: 'file', fileId: FILE_B })
 
-      expect(getSingleFileRefId(fxSlotA, 'r-replace')).toBe(FILE_B)
+      expect(getSingleFileRef(fxSlotA, 'r-replace')).toBe(FILE_B)
       const rows = dbh.sqlite.prepare('SELECT id FROM fx_single_file_ref_a WHERE source_id = ?').all('r-replace')
       expect(rows).toHaveLength(1)
     })
@@ -121,7 +122,7 @@ describe('singleFileRef', () => {
       const cols = reconcileLogoSlotTx(dbh.db, fxSlotA, 'r-key', { kind: 'key', key: 'icon:openai' })
 
       expect(cols).toEqual({ logoKey: 'icon:openai' })
-      expect(getSingleFileRefId(fxSlotA, 'r-key')).toBeNull()
+      expect(getSingleFileRef(fxSlotA, 'r-key')).toBeNull()
     })
 
     it('drops the ref and nulls the key for default', () => {
@@ -130,7 +131,7 @@ describe('singleFileRef', () => {
       const cols = reconcileLogoSlotTx(dbh.db, fxSlotA, 'r-default', { kind: 'default' })
 
       expect(cols).toEqual({ logoKey: null })
-      expect(getSingleFileRefId(fxSlotA, 'r-default')).toBeNull()
+      expect(getSingleFileRef(fxSlotA, 'r-default')).toBeNull()
     })
   })
 })

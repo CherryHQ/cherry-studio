@@ -349,7 +349,6 @@ export function ResourceCreateWizard({
                   <BasicInfoStep
                     form={form}
                     portalContainer={dialogContentElement}
-                    fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
                     runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}

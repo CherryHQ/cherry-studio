@@ -1,5 +1,5 @@
 /**
- * Promote a v1 inline base64 entity image (provider / mini-app logo, or user
+ * Promote a v1 inline base64 icon image (provider / mini-app logo, or user
  * avatar) into a v2 `file_entry`, returning the new file-entry id. Provider /
  * mini-app logos additionally get a single-file `file_ref` slot row; the avatar
  * deliberately does NOT — the `app.user.avatar` preference is its only
@@ -7,12 +7,12 @@
  *
  * That split is exactly why `cleanupPolicy` is a required argument here rather
  * than inherited from the DB default — see the note on
- * {@link prepareBase64ImageFileEntry}.
+ * {@link prepareBase64IconFileEntry}.
  *
  * v1 stored these as base64 data URLs (provider logos in Dexie under
  * `image://provider-<id>`, custom mini-app logos in `custom-minapps.json`, the
  * avatar under `image://avatar`). v2 keeps them on disk as normalized WebP
- * (128×128 cover-crop via `transcodeToEntityWebp`, matching the live upload
+ * (128×128 cover-crop via `transcodeToIconWebp`, matching the live upload
  * path) — so the bytes must be transcoded here, not stored raw.
  *
  * The physical file write is non-transactional — same risk model as
@@ -27,9 +27,9 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { type SingleFileRefSourceType, singleFileRefTablesBySourceType } from '@data/db/schemas/fileRelations'
 import type { DbType } from '@data/db/types'
-import { insertSingleFileRefTx } from '@data/services/utils/singleFileRef'
+import { insertSingleFileRef } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
-import { transcodeToEntityWebp } from '@main/utils/image'
+import { transcodeToIconWebp } from '@main/utils/image'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { v7 as uuidv7 } from 'uuid'
@@ -42,20 +42,20 @@ const BASE64_DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/
  * Where a prepared image came from — used for log context and the entry name.
  * Whether a ref row exists (and in which table) is the caller's concern.
  */
-export interface EntityImageDescriptor {
+export interface IconImageDescriptor {
   sourceType: string
   sourceId: string
   role: string
 }
 
 /** The single-file ref slot an image belongs to (provider/mini-app logo). */
-export interface EntityImageRef extends EntityImageDescriptor {
+export interface IconImageRef extends IconImageDescriptor {
   sourceType: SingleFileRefSourceType
 }
 
 type InsertFileEntryRow = typeof fileEntryTable.$inferInsert
 
-export interface PreparedEntityImageFile<R extends EntityImageDescriptor = EntityImageDescriptor> {
+export interface PreparedIconImageFile<R extends IconImageDescriptor = IconImageDescriptor> {
   id: FileEntryId
   physicalPath: AbsoluteFilePath
   fileEntry: InsertFileEntryRow
@@ -76,19 +76,19 @@ export interface PreparedEntityImageFile<R extends EntityImageDescriptor = Entit
  * parameter exists to prevent: the logo would survive its owner forever, with the
  * WebP on disk, and no runtime path would ever make it a cleanup candidate again.
  */
-export async function prepareBase64ImageFileEntry<R extends EntityImageDescriptor>(
+export async function prepareBase64IconFileEntry<R extends IconImageDescriptor>(
   filesDataDir: string,
   ref: R,
   value: string,
   cleanupPolicy: CleanupPolicy
-): Promise<PreparedEntityImageFile<R> | null> {
+): Promise<PreparedIconImageFile<R> | null> {
   const match = BASE64_DATA_URL_RE.exec(value)
   // Not a data URL (plain url / icon ref / emoji) — caller keeps it as-is.
   if (!match) return null
 
   let webp: Buffer
   try {
-    webp = await transcodeToEntityWebp(Buffer.from(match[2], 'base64'))
+    webp = await transcodeToIconWebp(Buffer.from(match[2], 'base64'))
   } catch (error) {
     logger.warn('Failed to transcode v1 image to WebP; dropping it', {
       sourceType: ref.sourceType,
@@ -140,21 +140,18 @@ export async function prepareBase64ImageFileEntry<R extends EntityImageDescripto
  * Insert only the prepared `file_entry` row — for images whose owner keeps no
  * ref row (the avatar: the `app.user.avatar` preference is its only copy).
  */
-export function insertPreparedImageEntryTx(tx: Pick<DbType, 'insert'>, image: PreparedEntityImageFile): void {
+export function insertPreparedIconEntryTx(tx: Pick<DbType, 'insert'>, image: PreparedIconImageFile): void {
   tx.insert(fileEntryTable).values(image.fileEntry).run()
 }
 
 /**
  * Insert only the prepared ref row (the `file_entry` is inserted separately via
- * {@link insertPreparedImageEntryTx}). Split out so a migrator can order its
+ * {@link insertPreparedIconEntryTx}). Split out so a migrator can order its
  * inserts `file_entry → owner row → ref row`: the ref's `file_entry_id` FK
  * needs the file first, and its `source_id` FK needs the owner first.
  */
-export function insertPreparedImageRefTx(
-  tx: Pick<DbType, 'insert'>,
-  image: PreparedEntityImageFile<EntityImageRef>
-): void {
-  insertSingleFileRefTx(tx, singleFileRefTablesBySourceType[image.ref.sourceType], image.ref.sourceId, image.id)
+export function insertPreparedIconRefTx(tx: Pick<DbType, 'insert'>, image: PreparedIconImageFile<IconImageRef>): void {
+  insertSingleFileRef(tx, singleFileRefTablesBySourceType[image.ref.sourceType], image.ref.sourceId, image.id)
 }
 
 /**
@@ -162,6 +159,6 @@ export function insertPreparedImageRefTx(
  * WebP to disk before its SQLite transaction; call this on the failure path so a
  * rolled-back (or never-run) transaction leaves no orphan file behind.
  */
-export async function unlinkPreparedImages(images: readonly PreparedEntityImageFile[]): Promise<void> {
+export async function unlinkPreparedIcons(images: readonly PreparedIconImageFile[]): Promise<void> {
   await Promise.all(images.map((image) => fs.unlink(image.physicalPath).catch(() => {})))
 }

@@ -1914,6 +1914,7 @@
   "library.empty_state.no_match_title": "沒有相符的資源",
   "library.empty_state.title": "尚無資源",
   "library.export_assistant_failed": "匯出助理失敗",
+  "library.export_assistant_image_avatar_unsupported": "暫不支援匯出使用圖片頭像的助理",
   "library.group_picker.no_groups": "尚無群組",
   "library.group_sync_failed": "無法同步群組",
   "library.import_dialog.clipboard.button": "解析並匯入",

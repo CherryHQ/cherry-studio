@@ -258,8 +258,8 @@ describe('AgentService', () => {
       name: 'Cherry Assistant',
       preferredModelId: TEST_MODEL_ID,
       type: 'claude-code',
+      avatar: { kind: 'emoji', emoji: '🍒' },
       configuration: {
-        avatar: '🍒',
         permission_mode: 'default' as const,
         env_vars: {}
       }
@@ -290,15 +290,16 @@ describe('AgentService', () => {
         name: 'Replacement Name',
         preferredModelId: null,
         type: 'claude-code',
-        configuration: { avatar: '🤖' }
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        configuration: {}
       })
 
       expect(second).toEqual(first)
       expect(first).toMatchObject({
         name: 'Cherry Assistant',
         model: TEST_MODEL_ID,
+        avatar: { kind: 'emoji', emoji: '🍒' },
         configuration: {
-          avatar: '🍒',
           permission_mode: 'default',
           env_vars: {},
           builtin_role: 'assistant'
@@ -378,7 +379,8 @@ describe('AgentService', () => {
         id: 'ordinary-support',
         name: 'User Agent',
         instructions: 'User instructions',
-        configuration: { builtin_role: 'support', avatar: 'U' }
+        avatarEmoji: 'U',
+        configuration: { builtin_role: 'support' }
       })
       await insertAgent({
         id: CHERRY_SUPPORT_AGENT_ID,
@@ -387,7 +389,8 @@ describe('AgentService', () => {
         instructions: 'Keep fixed instructions',
         model: TEST_MODEL_ID,
         deletedAt: Date.UTC(2026, 0, 1),
-        configuration: { avatar: 'S', heartbeat_interval: 7 }
+        avatarEmoji: 'S',
+        configuration: { heartbeat_interval: 7 }
       })
 
       const support = agentService.ensureBuiltinAgent({ ...defaults, builtinRole: 'support' })
@@ -398,7 +401,8 @@ describe('AgentService', () => {
         description: 'Keep description',
         instructions: 'Keep fixed instructions',
         model: TEST_MODEL_ID,
-        configuration: { avatar: 'S', heartbeat_interval: 7, builtin_role: 'support' }
+        avatar: { kind: 'emoji', emoji: 'S' },
+        configuration: { heartbeat_interval: 7, builtin_role: 'support' }
       })
       const [restoredRow] = dbh.db
         .select({ deletedAt: agentTable.deletedAt })
@@ -409,7 +413,8 @@ describe('AgentService', () => {
       expect(agentService.getAgent('ordinary-support')).toMatchObject({
         name: 'User Agent',
         instructions: 'User instructions',
-        configuration: { avatar: 'U' }
+        avatar: { kind: 'emoji', emoji: 'U' },
+        configuration: {}
       })
     })
   })
@@ -417,20 +422,20 @@ describe('AgentService', () => {
   describe('model updates', () => {
     it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
       const created = await insertAgent({
-        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+        configuration: { reasoning_effort: 'high' }
       })
 
       const updated = agentService.updateAgent(created.id, { model: TEST_MODEL_ID })
 
       expect(updated).toMatchObject({
         model: TEST_MODEL_ID,
-        configuration: { avatar: '🤖', reasoning_effort: 'default' }
+        configuration: { reasoning_effort: 'default' }
       })
     })
 
     it('merges a reasoning patch before normalizing it for the new model', async () => {
       const created = await insertAgent({
-        configuration: { avatar: '🤖', bootstrap_completed: true, reasoning_effort: 'low' }
+        configuration: { bootstrap_completed: true, reasoning_effort: 'low' }
       })
 
       const updated = agentService.updateAgent(created.id, {
@@ -441,7 +446,6 @@ describe('AgentService', () => {
       expect(updated).toMatchObject({
         model: TEST_MODEL_ID,
         configuration: {
-          avatar: '🤖',
           bootstrap_completed: true,
           reasoning_effort: 'default'
         }
@@ -450,7 +454,7 @@ describe('AgentService', () => {
 
     it('preserves an explicit reasoning tombstone while changing the model', async () => {
       const created = await insertAgent({
-        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+        configuration: { reasoning_effort: 'high' }
       })
 
       const updated = agentService.updateAgent(created.id, {
@@ -460,7 +464,7 @@ describe('AgentService', () => {
 
       expect(updated).toMatchObject({
         model: TEST_MODEL_ID,
-        configuration: { avatar: '🤖' }
+        configuration: {}
       })
       expect(updated?.configuration).not.toHaveProperty('reasoning_effort')
     })
@@ -469,7 +473,7 @@ describe('AgentService', () => {
   describe('configuration patches', () => {
     it('merges each patch into the latest persisted configuration', async () => {
       const created = await insertAgent({
-        configuration: { avatar: '🤖', plugin_state: 'keep-me' }
+        configuration: { plugin_state: 'keep-me' }
       })
 
       agentService.updateAgent(created.id, { configuration: { bootstrap_completed: true } })
@@ -478,7 +482,6 @@ describe('AgentService', () => {
       })
 
       expect(updated?.configuration).toEqual({
-        avatar: '🤖',
         plugin_state: 'keep-me',
         bootstrap_completed: true,
         reasoning_effort: 'high'
@@ -488,7 +491,7 @@ describe('AgentService', () => {
     it('normalizes an explicit reasoning patch against the current persisted model', async () => {
       const created = await insertAgent({
         model: TEST_MODEL_ID,
-        configuration: { avatar: '🤖', reasoning_effort: 'low' }
+        configuration: { reasoning_effort: 'low' }
       })
 
       const updated = agentService.updateAgent(created.id, {
@@ -496,14 +499,13 @@ describe('AgentService', () => {
       })
 
       expect(updated?.configuration).toEqual({
-        avatar: '🤖',
         reasoning_effort: 'default'
       })
     })
 
     it('replaces nested configuration values instead of deep-merging them', async () => {
       const created = await insertAgent({
-        configuration: { avatar: '🤖', env_vars: { A: '1', B: '2' } }
+        configuration: { env_vars: { A: '1', B: '2' } }
       })
 
       const updated = agentService.updateAgent(created.id, {
@@ -511,29 +513,35 @@ describe('AgentService', () => {
       })
 
       expect(updated?.configuration).toEqual({
-        avatar: '🤖',
         env_vars: { A: '3' }
       })
     })
 
     it('removes an explicitly undefined key while preserving omitted siblings', async () => {
       const created = await insertAgent({
-        configuration: { avatar: '🤖', heartbeat_interval: 10 }
+        configuration: { heartbeat_interval: 10 }
       })
 
       const updated = agentService.updateAgent(created.id, {
         configuration: { heartbeat_interval: undefined }
       })
 
-      expect(updated?.configuration).toEqual({ avatar: '🤖' })
+      expect(updated?.configuration).toEqual({})
     })
   })
 
   describe('builtin_role write protection', () => {
     it('does not expose a legacy Support marker on an ordinary Agent', async () => {
-      await insertAgent({ id: 'legacy-support-read', configuration: { builtin_role: 'support', avatar: 'U' } })
+      await insertAgent({
+        id: 'legacy-support-read',
+        avatarEmoji: 'U',
+        configuration: { builtin_role: 'support', avatar: 'legacy-value' }
+      })
 
-      expect(agentService.getAgent('legacy-support-read')?.configuration).toEqual({ avatar: 'U' })
+      expect(agentService.getAgent('legacy-support-read')).toMatchObject({
+        avatar: { kind: 'emoji', emoji: 'U' },
+        configuration: {}
+      })
     })
 
     it('rejects createAgent when configuration carries a builtin_role', async () => {
@@ -582,11 +590,11 @@ describe('AgentService', () => {
 
     it('preserves the builtin_role when an update omits it from configuration', async () => {
       const agentId = 'agent_builtin_preserve'
-      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant', avatar: '🍒' } })
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
-      const updated = agentService.updateAgent(agentId, { configuration: { avatar: '🅰️' } })
+      const updated = agentService.updateAgent(agentId, { configuration: { heartbeat_interval: 7 } })
       expect(updated?.configuration?.builtin_role).toBe('assistant')
-      expect(updated?.configuration?.avatar).toBe('🅰️')
+      expect(updated?.configuration?.heartbeat_interval).toBe(7)
     })
 
     it('accepts an update that carries the existing builtin_role unchanged', async () => {
@@ -594,22 +602,29 @@ describe('AgentService', () => {
       await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
       const updated = agentService.updateAgent(agentId, {
-        configuration: { builtin_role: 'assistant', avatar: '🍒' }
+        configuration: { builtin_role: 'assistant', permission_mode: 'default' }
       })
       expect(updated?.configuration?.builtin_role).toBe('assistant')
-      expect(updated?.configuration?.avatar).toBe('🍒')
+      expect(updated?.configuration?.permission_mode).toBe('default')
     })
 
     it('rejects preserving a legacy Support marker on a non-system ID', async () => {
       const agentId = 'legacy-forged-support'
-      await insertAgent({ id: agentId, configuration: { builtin_role: 'support', avatar: 'U' } })
+      await insertAgent({
+        id: agentId,
+        avatarEmoji: 'U',
+        configuration: { builtin_role: 'support', avatar: 'legacy-value' }
+      })
 
       const error = captureError(() =>
-        agentService.updateAgent(agentId, { configuration: { builtin_role: 'support', avatar: 'changed' } })
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'support', heartbeat_interval: 7 } })
       )
 
       expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
-      expect(agentService.getAgent(agentId)?.configuration).toEqual({ avatar: 'U' })
+      expect(agentService.getAgent(agentId)).toMatchObject({
+        avatar: { kind: 'emoji', emoji: 'U' },
+        configuration: {}
+      })
     })
   })
 
@@ -1541,14 +1556,14 @@ describe('AgentService', () => {
         id: 'agent_search_old',
         name: 'Needle Old Agent',
         description: 'old agent',
-        configuration: { avatar: 'A' },
+        avatarEmoji: 'A',
         updatedAt: 100
       })
       await insertAgent({
         id: 'agent_search_new',
         name: 'Needle New Agent',
         description: 'new agent',
-        configuration: { avatar: 'B' },
+        avatarEmoji: 'B',
         updatedAt: 200
       })
       await insertAgent({ id: 'agent_search_miss', name: 'Other', updatedAt: 300 })
@@ -1561,7 +1576,7 @@ describe('AgentService', () => {
           id: 'agent_search_new',
           title: 'Needle New Agent',
           subtitle: 'new agent',
-          emoji: 'B',
+          avatar: { kind: 'emoji', emoji: 'B' },
           updatedAt: '1970-01-01T00:00:00.200Z',
           target: { agentId: 'agent_search_new' }
         },
@@ -1570,7 +1585,7 @@ describe('AgentService', () => {
           id: 'agent_search_old',
           title: 'Needle Old Agent',
           subtitle: 'old agent',
-          emoji: 'A',
+          avatar: { kind: 'emoji', emoji: 'A' },
           updatedAt: '1970-01-01T00:00:00.100Z',
           target: { agentId: 'agent_search_old' }
         }

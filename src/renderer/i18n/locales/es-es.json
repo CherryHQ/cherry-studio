@@ -1914,6 +1914,7 @@
   "library.empty_state.no_match_title": "No hay recursos coincidentes",
   "library.empty_state.title": "Sin recursos",
   "library.export_assistant_failed": "Error al exportar el asistente",
+  "library.export_assistant_image_avatar_unsupported": "Aún no se admite la exportación de asistentes con avatares de imagen",
   "library.group_picker.no_groups": "Sin grupos aún",
   "library.group_sync_failed": "Error al sincronizar grupos",
   "library.import_dialog.clipboard.button": "Analizar e importar",

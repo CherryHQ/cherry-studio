@@ -8,7 +8,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  EmojiIcon,
   EmptyState,
   ReorderableList,
   Scrollbar,
@@ -17,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
@@ -27,7 +27,6 @@ import {
   usePromptMutationsById
 } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
@@ -93,21 +92,14 @@ export function PromptSettings() {
         label: assistant.name,
         group: t('common.assistant_other'),
         target: { type: 'assistant' as const, id: assistant.id },
-        icon: <EmojiIcon emoji={assistant.emoji || '💬'} size={24} fontSize={14} className="mr-0" />
+        icon: <AvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />
       })),
       ...agentData.map((agent) => ({
         value: `agent:${agent.id}`,
         label: agent.name,
         group: t('common.agent_other'),
         target: { type: 'agent' as const, id: agent.id },
-        icon: (
-          <EmojiIcon
-            emoji={getAgentAvatarFromConfiguration(agent.configuration)}
-            size={24}
-            fontSize={14}
-            className="mr-0"
-          />
-        )
+        icon: <AvatarIcon avatar={agent.avatar} size={24} fontSize={14} className="mr-0" />
       }))
     ],
     [agentData, assistantData, t]

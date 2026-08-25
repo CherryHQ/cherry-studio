@@ -717,7 +717,7 @@ describe('GlobalSearchPanel', () => {
               type: 'assistant',
               id: 'assistant-1',
               title: 'Writing Assistant',
-              emoji: '🧪',
+              avatar: { kind: 'emoji', emoji: '🧪' },
               updatedAt,
               target: { assistantId: 'assistant-1' }
             }
@@ -808,12 +808,14 @@ describe('GlobalSearchPanel', () => {
               type: 'assistant',
               id: 'assistant-1',
               title: 'Writing Assistant',
+              avatar: { kind: 'emoji', emoji: '🤖' },
               target: { assistantId: 'assistant-1' }
             },
             {
               type: 'assistant',
               id: 'assistant-2',
               title: 'Review Assistant',
+              avatar: { kind: 'emoji', emoji: '🤖' },
               target: { assistantId: 'assistant-2' }
             }
           ]
@@ -2045,6 +2047,7 @@ describe('GlobalSearchPanel', () => {
               id: 'assistant-1',
               title: 'Writing Assistant',
               subtitle: 'Assistant workspace',
+              avatar: { kind: 'emoji', emoji: '🤖' },
               target: { assistantId: 'assistant-1' }
             }
           ]
@@ -2075,6 +2078,7 @@ describe('GlobalSearchPanel', () => {
               type: 'assistant',
               id: 'assistant-1',
               title: 'Writing Assistant',
+              avatar: { kind: 'emoji', emoji: '🤖' },
               target: { assistantId: 'assistant-1' }
             }
           ]
@@ -2110,6 +2114,7 @@ describe('GlobalSearchPanel', () => {
               type: 'assistant',
               id: 'assistant-1',
               title: 'Writing Assistant',
+              avatar: { kind: 'emoji', emoji: '🤖' },
               target: { assistantId: 'assistant-1' }
             }
           ]
@@ -2142,7 +2147,6 @@ describe('GlobalSearchPanel', () => {
               type: 'knowledge-base',
               id: 'knowledge-1',
               title: 'Docs',
-              emoji: '📚',
               target: { knowledgeBaseId: 'knowledge-1' }
             }
           ]
@@ -2155,7 +2159,6 @@ describe('GlobalSearchPanel', () => {
     const input = screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')
     await user.type(input, 'docs')
     await screen.findByText('Docs')
-    expect(screen.getAllByText('📚')).not.toHaveLength(0)
     await user.keyboard('{Enter}')
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge')

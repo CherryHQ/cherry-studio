@@ -13,8 +13,8 @@ const CHERRY_SUPPORT_SEED = {
     default: 'Cherry Support',
     zh: '产品反馈'
   },
+  avatar: '🧰',
   configuration: {
-    avatar: '🧰',
     permission_mode: 'acceptEdits',
     bootstrap_completed: true,
     builtin_role: BUILTIN_AGENT_ROLE.SUPPORT,
@@ -51,6 +51,7 @@ export class CherrySupportSeeder implements ISeeder {
         description: '',
         instructions: '',
         model: assistant?.model ?? null,
+        avatarEmoji: CHERRY_SUPPORT_SEED.avatar,
         configuration: { ...CHERRY_SUPPORT_SEED.configuration }
       })
 

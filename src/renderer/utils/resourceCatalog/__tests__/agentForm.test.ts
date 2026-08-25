@@ -14,6 +14,7 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     id: 'a-1',
     type: 'claude-code',
     name: 'Agent',
+    avatar: { kind: 'emoji', emoji: '🤖' },
     description: '',
     model: 'anthropic::claude-sonnet-4-5',
     modelName: null,
@@ -58,8 +59,8 @@ describe('buildInitialAgentFormState', () => {
 
   it('lifts configuration sub-keys onto the flat form object', () => {
     const agent = createAgent({
+      avatar: { kind: 'emoji', emoji: '🚀' },
       configuration: {
-        avatar: '🚀',
         permission_mode: 'bypassPermissions',
         heartbeat_enabled: true,
         heartbeat_interval: 15,
@@ -95,7 +96,10 @@ describe('applyAgentFormPatch', () => {
 
   it('keeps other fields untouched when patching permission mode', () => {
     const draft = buildInitialAgentFormState(
-      createAgent({ configuration: { permission_mode: 'bypassPermissions', avatar: '🚀' } })
+      createAgent({
+        avatar: { kind: 'emoji', emoji: '🚀' },
+        configuration: { permission_mode: 'bypassPermissions' }
+      })
     )
     const next = applyAgentFormPatch(draft, { permissionMode: 'default' })
 
@@ -202,14 +206,14 @@ describe('diffAgentUpdate', () => {
 
   it('emits only edited configuration keys', () => {
     const agent = createAgent({
-      configuration: { avatar: '🤖', plugin_state: 'keep-me' }
+      configuration: { permission_mode: 'default', plugin_state: 'keep-me' }
     })
     const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, avatar: '🚀' }
+    const next = { ...baseline, permissionMode: 'bypassPermissions' }
 
     const result = diffAgentUpdate(baseline, next)
     // Main preserves plugin_state by merging this intent into the latest row.
-    expect(result?.dto.configuration).toEqual({ avatar: '🚀' })
+    expect(result?.dto.configuration).toEqual({ permission_mode: 'bypassPermissions' })
   })
 
   it('round-trips env_vars through the textarea format', () => {

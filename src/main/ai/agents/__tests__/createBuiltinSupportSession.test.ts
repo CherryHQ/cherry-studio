@@ -28,8 +28,8 @@ describe('createBuiltinSupportSession', () => {
     vi.clearAllMocks()
     mocks.loadInput.mockReturnValue({
       builtinRole: 'support',
+      avatar: { kind: 'emoji', emoji: '🧰' },
       configuration: {
-        avatar: '🧰',
         permission_mode: 'default',
         env_vars: {}
       },
@@ -77,6 +77,7 @@ describe('createBuiltinSupportSession', () => {
         name: 'User Agent',
         instructions: 'User instructions',
         orderKey: 'a0',
+        avatarEmoji: 'U',
         configuration: { builtin_role: 'support', avatar: 'U' }
       })
       .run()
@@ -123,6 +124,7 @@ describe('createBuiltinSupportSession', () => {
         instructions: 'Keep instructions',
         orderKey: 'a0',
         deletedAt,
+        avatarEmoji: 'U',
         configuration: { avatar: 'U' }
       })
       .run()
