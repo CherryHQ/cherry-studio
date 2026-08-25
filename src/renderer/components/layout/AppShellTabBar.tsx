@@ -1,5 +1,4 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
@@ -71,9 +70,10 @@ interface TabToneProps {
  */
 const TAB_DIVIDER_CLASS = 'h-4 w-[1.5px] bg-border/80'
 const DEFAULT_TAB_ICON_SIZE = 14
+const MINI_APP_TAB_ICON_SIZE = 25
 
-function getTabIconSize(tab: Pick<Tab, 'url'>, miniAppTabIconSize: number): number {
-  return tab.url.startsWith(MINI_APP_ROUTE_PREFIX) ? miniAppTabIconSize : DEFAULT_TAB_ICON_SIZE
+function getTabIconSize(tab: Pick<Tab, 'url'>): number {
+  return tab.url.startsWith(MINI_APP_ROUTE_PREFIX) ? MINI_APP_TAB_ICON_SIZE : DEFAULT_TAB_ICON_SIZE
 }
 
 // Pinned/normal zone split — same hairline as the per-tab divider, and it
@@ -602,7 +602,6 @@ export const AppShellTabBar = ({
   openTab
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
-  const [miniAppTabIconSize] = usePreference('feature.mini_app.tab_icon_size')
   const isMacTransparentWindow = useMacTransparentWindow()
   const tabTone = useMemo<TabToneProps>(
     () =>
@@ -945,7 +944,7 @@ export const AppShellTabBar = ({
                     }>
                     <PinnedTabButton
                       tab={tab}
-                      iconSize={getTabIconSize(tab, miniAppTabIconSize)}
+                      iconSize={getTabIconSize(tab)}
                       isActive={tab.id === activeTabId}
                       onSelect={() => handleSelectTab(tab)}
                       tone={tabTone}
@@ -1044,7 +1043,7 @@ export const AppShellTabBar = ({
                 }>
                 <NormalTabButton
                   tab={tab}
-                  iconSize={getTabIconSize(tab, miniAppTabIconSize)}
+                  iconSize={getTabIconSize(tab)}
                   isActive={tab.id === activeTabId}
                   onSelect={() => handleSelectTab(tab)}
                   onClose={(freezeWidth) => {

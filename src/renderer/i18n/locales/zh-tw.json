@@ -6039,10 +6039,6 @@
       },
       "reset_tooltip": "重設為預設值",
       "show_app": "顯示 {{name}}",
-      "tab_icon": {
-        "description": "在 20px 到 30px 之間調整已釘選和未釘選的小程式分頁圖示",
-        "title": "小程式分頁圖示大小"
-      },
       "visible": "顯示的小程式"
     },
     "model": "預設模型",

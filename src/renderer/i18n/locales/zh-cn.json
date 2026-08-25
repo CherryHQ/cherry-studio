@@ -6039,10 +6039,6 @@
       },
       "reset_tooltip": "重置为默认值",
       "show_app": "显示 {{name}}",
-      "tab_icon": {
-        "description": "在 20px 到 30px 之间调整固定和未固定的小程序标签图标",
-        "title": "小程序标签图标大小"
-      },
       "visible": "显示的小程序"
     },
     "model": "默认模型",

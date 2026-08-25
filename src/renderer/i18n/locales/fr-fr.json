@@ -6039,10 +6039,6 @@
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
       "show_app": "Afficher {{name}}",
-      "tab_icon": {
-        "description": "Régler entre 20px et 30px les icônes des onglets de mini-applications épinglés ou non",
-        "title": "Taille des icônes des onglets de mini-applications"
-      },
       "visible": "Applications visibles"
     },
     "model": "Modèle par défaut",

@@ -6039,10 +6039,6 @@
       },
       "reset_tooltip": "Reset to default",
       "show_app": "Show {{name}}",
-      "tab_icon": {
-        "description": "Adjust pinned and unpinned mini-app tab icons from 20px to 30px",
-        "title": "Mini-app tab icon size"
-      },
       "visible": "Visible Mini Apps"
     },
     "model": "Default Model",

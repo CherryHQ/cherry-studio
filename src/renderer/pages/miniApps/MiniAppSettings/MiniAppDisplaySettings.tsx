@@ -9,20 +9,17 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_MAX_KEEPALIVE = 3
-const DEFAULT_TAB_ICON_SIZE = 25
-const MAX_TAB_ICON_SIZE = 30
-const MIN_TAB_ICON_SIZE = 20
 
 /**
- * "Preferences" group of the display-settings drawer. Every item follows the
- * same title + description + control structure.
+ * "Preferences" group of the display-settings drawer: region filter, open-link
+ * external switch, and the max keep-alive slider. Every item follows the same
+ * title + description + control structure.
  */
 const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [region = 'auto', setRegion] = usePreference('feature.mini_app.region')
-  const [tabIconSize = DEFAULT_TAB_ICON_SIZE, setTabIconSize] = usePreference('feature.mini_app.tab_icon_size')
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(
@@ -77,26 +74,6 @@ const MiniAppDisplaySettings: FC = () => {
           description={t('settings.miniApps.open_link_external.description')}
           action={<Switch checked={openLinkExternal} onCheckedChange={(v) => setOpenLinkExternal(v)} />}
         />
-
-        <PageSidePanelItem
-          title={t('settings.miniApps.tab_icon.title')}
-          description={t('settings.miniApps.tab_icon.description')}>
-          <div className="flex items-center gap-3">
-            <Slider
-              className="flex-1"
-              min={MIN_TAB_ICON_SIZE}
-              max={MAX_TAB_ICON_SIZE}
-              step={1}
-              value={[tabIconSize]}
-              onValueChange={(value) => void setTabIconSize(value[0])}
-              showValueLabel
-              formatValueLabel={(value) => `${value}px`}
-              getThumbAriaLabel={() => t('settings.miniApps.tab_icon.title')}
-              getThumbAriaValueText={(value) => `${value}px`}
-            />
-            <span className="w-10 text-right text-muted-foreground text-xs">{tabIconSize}px</span>
-          </div>
-        </PageSidePanelItem>
 
         <PageSidePanelItem
           title={t('settings.miniApps.cache_title')}
