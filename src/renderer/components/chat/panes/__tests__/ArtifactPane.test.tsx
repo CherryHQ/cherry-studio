@@ -801,6 +801,27 @@ describe('ArtifactPane', () => {
     expect(screen.getByRole('button', { name: 'agent.preview_pane.quote_selection' })).toBeInTheDocument()
   })
 
+  it('drops the quote chip when the same file is refreshed', async () => {
+    // Refreshing remounts the preview plugin, so the held reference describes content that is no
+    // longer on screen and carries a fileStamp from before the refresh.
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    const onInsert = vi.fn()
+
+    render(<SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await screen.findByTestId('file-preview')
+    fireEvent.click(screen.getByTestId('report-selection'))
+    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+
+    const refreshButtons = screen.getAllByRole('button', { name: 'agent.preview_pane.refresh' })
+    fireEvent.click(refreshButtons[refreshButtons.length - 1])
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+    )
+  })
+
   it('drops the quote chip when the previewed file changes', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md', 'NOTES.md'])
     const onInsert = vi.fn()

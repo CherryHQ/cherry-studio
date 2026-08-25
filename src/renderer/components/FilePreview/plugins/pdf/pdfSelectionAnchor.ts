@@ -28,6 +28,9 @@ export function selectionToPdfAnchor(selection: Selection): { anchor: DocumentAn
   }
 
   const excerpt = clipped.toString()
+  // A selection that starts at the very end of a page and runs into the next one clips to nothing.
+  // Reporting a reference whose excerpt is empty would put a chip on screen that quotes no text.
+  if (excerpt.length === 0) return null
 
   return { anchor: { format: 'pdf', page }, excerpt }
 }
