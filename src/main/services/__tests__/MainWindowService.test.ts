@@ -148,6 +148,7 @@ interface MockBrowserWindow extends EventEmitter {
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
     reload: ReturnType<typeof vi.fn>
+    setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
   }
@@ -171,6 +172,7 @@ function createMockWindow(): MockBrowserWindow {
   win.setFullScreen = vi.fn()
   win.webContents = {
     reload: vi.fn(),
+    setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
     setWindowOpenHandler: vi.fn()
@@ -507,6 +509,24 @@ describe('MainWindowService', () => {
       expect(win.hide).not.toHaveBeenCalled()
     })
 
+    it('routes a minimized main window through showMainWindow instead of focusing it', () => {
+      // isVisible() stays true while minimized; without the isMinimized() guard the
+      // toggle would land in the focus() branch, which cannot recover a minimized
+      // window — and on Windows that window is also opacity-0 from the tray trick.
+      platformState.isWin = true
+      ;(svc as any).mainWindow = win
+      win.isMinimized.mockReturnValue(true)
+      win.isFocused.mockReturnValue(false)
+
+      svc.toggleMainWindow()
+
+      expect(win.restore).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).toHaveBeenCalledWith(1)
+      expect(win.focus).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
+      expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', true)
+    })
+
     it('keeps Dock suppression when hiding on macOS with tray-close enabled', () => {
       platformState.isMac = true
       prefValues['app.tray.on_close'] = true
@@ -516,6 +536,52 @@ describe('MainWindowService', () => {
 
       expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', false)
       expect(win.hide).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // The Windows minimize-to-tray trick sets opacity to 0 right before minimize().
+  // Restoring it must live on window-level events: taskbar clicks and Alt-Tab
+  // restore the window natively without passing through showMainWindow(), which
+  // would leave a restored-but-invisible window.
+  describe('Windows minimize-to-tray opacity restore', () => {
+    it('restores opacity when the OS restores the window (taskbar click / Alt-Tab path)', () => {
+      platformState.isWin = true
+      ;(svc as any).setupWindowEvents(win)
+
+      win.emit('restore')
+
+      expect(win.setOpacity).toHaveBeenCalledWith(1)
+    })
+
+    it('restores opacity on generic show paths (WindowManager window.show())', () => {
+      platformState.isWin = true
+      ;(svc as any).setupWindowEvents(win)
+
+      win.emit('show')
+
+      expect(win.setOpacity).toHaveBeenCalledWith(1)
+    })
+
+    it('does not touch opacity off Windows', () => {
+      ;(svc as any).setupWindowEvents(win)
+
+      win.emit('restore')
+      win.emit('show')
+
+      expect(win.setOpacity).not.toHaveBeenCalled()
+    })
+
+    it('resets opacity before restoring from showMainWindow (no transparent flash)', () => {
+      platformState.isWin = true
+      ;(svc as any).mainWindow = win
+      win.isMinimized.mockReturnValue(true)
+
+      svc.showMainWindow()
+
+      const opacityCallOrder = win.setOpacity.mock.invocationCallOrder[0]
+      const restoreCallOrder = win.restore.mock.invocationCallOrder[0]
+      expect(win.setOpacity).toHaveBeenCalledWith(1)
+      expect(opacityCallOrder).toBeLessThan(restoreCallOrder)
     })
   })
 

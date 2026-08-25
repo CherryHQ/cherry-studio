@@ -349,6 +349,21 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
+    // The Windows minimize-to-tray trick zeroes opacity to suppress the minimize
+    // animation (see the close handler in setupWindowLifecycleEvents and
+    // toggleMainWindow). Restore it on window-level events — not only in
+    // showMainWindow(): clicking the taskbar entry or Alt-Tabbing restores the
+    // natively-minimized window without ever passing through showMainWindow(),
+    // which would leave a restored-but-invisible window. 'show' additionally
+    // covers generic WindowManager paths that call window.show() directly.
+    if (isWin) {
+      const restoreOpacity = () => {
+        if (!mainWindow.isDestroyed()) mainWindow.setOpacity(1)
+      }
+      mainWindow.on('restore', restoreOpacity)
+      mainWindow.on('show', restoreOpacity)
+    }
+
     // `will-resize` only fires on Win & Mac; Linux uses `resize` instead (which
     // can cause UI flicker but is the only available signal).
     if (isLinux) {
@@ -495,8 +510,10 @@ export class MainWindowService extends BaseService {
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
-        // Restore opacity that was set to 0 during the Windows minimize-to-hide trick
-        // (see setupWindowLifecycleEvents and toggleMainWindow).
+        // Restore the opacity zeroed by the Windows minimize-to-tray trick BEFORE
+        // restore() so no transparent frame flashes during the transition. The
+        // 'restore'/'show' listeners in setupWindowEvents cover restore paths that
+        // bypass this method entirely (taskbar click, Alt-Tab).
         if (isWin) {
           mainWindow.setOpacity(1)
         }
@@ -580,7 +597,10 @@ export class MainWindowService extends BaseService {
       return
     }
 
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+    // isVisible() is true for minimized windows, but focus() cannot bring a
+    // minimized window back (and on Windows it would be opacity-0 from the tray
+    // trick) — treat minimized like hidden and fall through to showMainWindow().
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
       if (mainWindow.isFocused()) {
         // Same pattern as the close handler when the user opted into tray-close:
         // tell WM to stop counting Main toward Dock visibility BEFORE hiding.
