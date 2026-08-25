@@ -10,6 +10,7 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
+import type * as platformModule from '@main/core/platform'
 import { isWin } from '@main/core/platform'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
@@ -37,7 +38,7 @@ vi.mock('@main/utils/shellEnv', () => ({
 // Defaults to the real platform so Windows CI keeps exercising the isWin branches.
 const platformMock = vi.hoisted(() => ({ isWin: process.platform === 'win32' }))
 vi.mock('@main/core/platform', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof import('@main/core/platform')
+  const actual = (await importOriginal()) as typeof platformModule
   return {
     ...actual,
     get isWin() {
