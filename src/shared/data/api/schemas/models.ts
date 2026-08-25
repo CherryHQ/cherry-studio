@@ -33,7 +33,7 @@ export const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 const validatePreferredEndpoint = (
-  data: { endpointTypes?: EndpointType[]; preferredEndpointType?: EndpointType },
+  data: { endpointTypes?: EndpointType[]; preferredEndpointType?: EndpointType | null },
   ctx: z.RefinementCtx
 ) => {
   if (data.endpointTypes && data.preferredEndpointType && !data.endpointTypes.includes(data.preferredEndpointType)) {
@@ -67,8 +67,8 @@ const CreateModelObjectSchema = z.strictObject({
   outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
-  /** Explicit routing choice among the supported endpoint types */
-  preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).optional(),
+  /** Explicit routing choice among the supported endpoint types; `null` clears the pin. */
+  preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).nullable().optional(),
   /** Context window size */
   contextWindow: z.number().int().positive().optional(),
   /** Maximum input tokens */

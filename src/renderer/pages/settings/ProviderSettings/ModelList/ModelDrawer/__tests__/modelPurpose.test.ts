@@ -62,10 +62,10 @@ describe('getPreferredEndpointCandidates', () => {
 
   it('trusts an aggregator model that declares endpoints the provider config never lists', () => {
     expect(
-      getPreferredEndpointCandidates({ id: 'new-api', defaultChatEndpoint: undefined, endpointConfigs: undefined }, [
-        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-      ])
+      getPreferredEndpointCandidates(
+        { id: 'new-api', sharedEndpointHost: true, defaultChatEndpoint: undefined, endpointConfigs: undefined },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      )
     ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
   })
 

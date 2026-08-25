@@ -30,11 +30,10 @@ import {
   applyModelPurpose,
   getInitialChatEndpointType,
   getModelDrawerMode,
-  getPreferredEndpointCandidates,
   getProviderChatEndpointTypes,
   inferModelPurpose,
   type ModelPurposeFields,
-  type ProviderChatEndpoints
+  resolvePreferredEndpointOptions
 } from './modelPurpose'
 import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
 import type {
@@ -56,7 +55,8 @@ interface BuildPatchOverrides {
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
-  preferredEndpointType?: EndpointType
+  /** `null` clears the pin; `undefined` leaves it untouched. */
+  preferredEndpointType?: EndpointType | null
   purposeFields?: ModelPurposeFields
   classification?: ModelClassificationState
   supportsStreaming?: boolean
@@ -66,34 +66,13 @@ interface BuildPatchOverrides {
   maxOutputTokens?: string
 }
 
+/** `preferredEndpointType` widens to `null` so the drawer can clear the pin, which `Model` cannot express. */
+type ModelPatch = Omit<Partial<Model>, 'preferredEndpointType'> & { preferredEndpointType?: EndpointType | null }
+
 interface AutoSaveQueueItem {
   providerId: string
   modelId: string
-  patch: Partial<Model>
-}
-
-/**
- * Which endpoints the edit drawer offers as this model's route.
- *
- * An aggregator's `endpointTypes` is the protocol set its upstream `/models` reported for this
- * exact model, so it is the candidate list — and unlike an ordinary provider, which protocol a
- * model speaks is not implied by the provider, so it stays on screen even with one entry. Editing
- * never writes back to `endpointTypes`: that set is owned by the upstream listing, and overwriting
- * it here is what used to lose the provider's own answer. If upstream reports no set, only the
- * provider's configured chat routes are safe fallback candidates.
- */
-function resolveEditPreferredEndpointOptions(
-  provider: ProviderChatEndpoints | null | undefined,
-  mode: ModelDrawerMode,
-  endpointTypes: readonly EndpointType[]
-): readonly EndpointType[] {
-  if (!provider || mode === 'purpose') return []
-  if (mode === 'endpoint-types') {
-    return endpointTypes.length > 0 ? endpointTypes : getPreferredEndpointCandidates(provider)
-  }
-  // Elsewhere a single candidate means the provider already determines the route.
-  const candidates = getPreferredEndpointCandidates(provider, endpointTypes)
-  return candidates.length > 1 ? candidates : []
+  patch: ModelPatch
 }
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
@@ -110,7 +89,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
-  const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
+  // Tri-state: `undefined` = untouched this session, `null` = explicitly cleared, otherwise pinned.
+  const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | null | undefined>(undefined)
   const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
@@ -125,14 +105,18 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
   const defaultChatEndpoint = providerChatEndpointTypes[0]
-  const preferredEndpointOptions = resolveEditPreferredEndpointOptions(provider, mode, endpointTypes)
+  const preferredEndpointOptions = resolvePreferredEndpointOptions(provider, mode, endpointTypes)
   // State holds this session's choice only; everything else derives from the model, so the picker
   // still shows the right chip when the provider resolves after the first render.
-  const effectivePreferredEndpoint =
-    preferredEndpointType ?? (model && provider ? getModelPreferredEndpoint(model, provider) : undefined)
-  const activePreferredEndpoint =
-    preferredEndpointOptions.find((candidate) => candidate === effectivePreferredEndpoint) ??
-    preferredEndpointOptions[0]
+  const storedPreferredEndpoint =
+    preferredEndpointType === undefined ? model?.preferredEndpointType : preferredEndpointType
+  const pinnedPreferredEndpoint =
+    storedPreferredEndpoint != null && preferredEndpointOptions.includes(storedPreferredEndpoint)
+      ? storedPreferredEndpoint
+      : undefined
+  // What clearing the pin resolves to, so the inherit chip can name it rather than being a blind choice.
+  const inheritedEndpoint =
+    model && provider ? getModelPreferredEndpoint({ ...model, preferredEndpointType: undefined }, provider) : undefined
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
@@ -184,7 +168,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   )
 
   const buildPatch = useCallback(
-    (overrides?: BuildPatchOverrides): Partial<Model> => {
+    (overrides?: BuildPatchOverrides): ModelPatch => {
       if (!model) {
         return {}
       }
@@ -232,7 +216,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
               }
             : {}),
-        ...(overrides?.preferredEndpointType ? { preferredEndpointType: overrides.preferredEndpointType } : {}),
+        // `null` is a real value here (clear the pin), so test for presence, not truthiness.
+        ...(overrides != null && Object.hasOwn(overrides, 'preferredEndpointType')
+          ? { preferredEndpointType: overrides.preferredEndpointType }
+          : {}),
         ...(resolvedPurposeFields
           ? {
               capabilities: resolvedPurposeFields.capabilities,
@@ -401,10 +388,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               }}
               showEndpointType={false}
               preferredEndpointOptions={preferredEndpointOptions}
-              preferredEndpointType={activePreferredEndpoint}
+              preferredEndpointType={pinnedPreferredEndpoint}
+              inheritedEndpointType={inheritedEndpoint}
               onPreferredEndpointTypeChange={(next) => {
-                setPreferredEndpointType(next)
-                autoSave({ preferredEndpointType: next })
+                setPreferredEndpointType(next ?? null)
+                autoSave({ preferredEndpointType: next ?? null })
               }}
               modelIdDisabled
               modelIdAction={

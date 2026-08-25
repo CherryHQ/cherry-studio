@@ -7,6 +7,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
@@ -703,6 +704,15 @@ describe('ModelService.create', () => {
       ...providerRow('aionly', 'AIOnly'),
       presetProviderId: 'aionly'
     })
+    // `sharedEndpointHost` is a registry capability, and the registry files are not resolvable in
+    // this environment, so supply what production reads off the catalog for an aggregator preset.
+    const registryService = getDataService('ProviderRegistryService')
+    const displayMetadata = registryService.getProviderDisplayMetadata.bind(registryService)
+    vi.spyOn(registryService, 'getProviderDisplayMetadata').mockImplementation((providerId, presetProviderId) =>
+      presetProviderId === 'aionly'
+        ? { ...displayMetadata(providerId, presetProviderId), sharedEndpointHost: true }
+        : displayMetadata(providerId, presetProviderId)
+    )
 
     const [created] = modelService.create([
       {

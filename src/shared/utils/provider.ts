@@ -212,7 +212,10 @@ export function resolveEndpointDialect(
  * preference existed (and for registry presets whose array order encodes the same intent).
  */
 type EndpointRoutingModel = Pick<Model, 'id' | 'apiModelId' | 'endpointTypes' | 'preferredEndpointType'>
-type EndpointRoutingProvider = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs'>
+type EndpointRoutingProvider = Pick<
+  Provider,
+  'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'sharedEndpointHost'
+>
 
 function hasEndpointConfig(provider: EndpointRoutingProvider, endpointType: EndpointType): boolean {
   return provider.endpointConfigs != null && Object.hasOwn(provider.endpointConfigs, endpointType)
@@ -224,8 +227,9 @@ export function isModelEndpointTypeAvailable(
   provider: EndpointRoutingProvider,
   endpointType: EndpointType
 ): boolean {
-  // Aggregators expose all protocols through one host, so their upstream model declaration is the route contract.
-  if (model.endpointTypes?.length && isNewApiProvider(provider)) {
+  // A shared-host provider multiplexes every protocol through one URL, so its upstream `/models`
+  // listing — not `endpointConfigs` — states which endpoints a model accepts.
+  if (model.endpointTypes?.length && provider.sharedEndpointHost) {
     return model.endpointTypes.includes(endpointType)
   }
   if (!hasEndpointConfig(provider, endpointType)) return false
@@ -242,18 +246,15 @@ export function getModelPreferredEndpoint(
   provider: EndpointRoutingProvider,
   suggestedEndpointType?: EndpointType
 ): EndpointType | undefined {
-  const unavailablePreference =
-    model.preferredEndpointType && !isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)
-      ? model.preferredEndpointType
-      : undefined
-  if (model.preferredEndpointType && isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)) {
-    return model.preferredEndpointType
-  }
-  if (suggestedEndpointType && isModelEndpointTypeAvailable(model, provider, suggestedEndpointType)) {
-    return suggestedEndpointType
-  }
+  const isAvailable = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
+    endpointType != null && isModelEndpointTypeAvailable(model, provider, endpointType)
 
-  const declaredEndpoint = model.endpointTypes?.find((endpointType) => endpointType !== unavailablePreference)
+  if (isAvailable(model.preferredEndpointType)) return model.preferredEndpointType
+  if (isAvailable(suggestedEndpointType)) return suggestedEndpointType
+
+  // Every declared endpoint is screened, not just a stale preference: a declaration the provider no
+  // longer serves would pair its dialect with some other endpoint's host once `getBaseUrl` cascades.
+  const declaredEndpoint = model.endpointTypes?.find(isAvailable)
   return (
     declaredEndpoint ??
     resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ??

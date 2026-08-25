@@ -213,7 +213,12 @@ describe('Model drawers', () => {
 
     await user.click(endpointSelect)
     await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
-    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+    // The pin left the supported set, so it must not survive to the create payload.
+    expect(
+      within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
+        name: /settings\.models\.add\.preferred_endpoint\.inherit/
+      })
+    ).toBeChecked()
 
     await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-only-model')
     await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
@@ -254,7 +259,9 @@ describe('Model drawers', () => {
         name: 'settings.models.add.preferred_endpoint.label: settings.models.add.preferred_endpoint.tooltip'
       })
     ).toBeInTheDocument()
-    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai' })).toBeChecked()
+    expect(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    ).toBeChecked()
 
     await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
     await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'doubao-seed-2-1-pro')
@@ -988,8 +995,12 @@ describe('Model drawers', () => {
       within(preferredField)
         .getAllByRole('radio')
         .map((radio) => radio.getAttribute('value'))
-    ).toEqual([ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
-    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' })).toBeChecked()
+    ).toEqual(['inherit', ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    // Nothing is pinned yet, so the model inherits — the chip names where that lands today rather
+    // than showing the effective route as if it had been chosen.
+    expect(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    ).toBeChecked()
     expect(updateModelMock).not.toHaveBeenCalled()
 
     await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.anthropic' }))
@@ -1036,10 +1047,11 @@ describe('Model drawers', () => {
     // Nothing to choose, but which protocol an aggregator routes a model over is not implied by
     // the provider, so it stays on screen rather than disappearing.
     const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
-    const radios = within(preferredField).getAllByRole('radio')
-    expect(radios).toHaveLength(1)
-    expect(radios[0]).toBeChecked()
-    expect(radios[0]).toHaveAttribute('value', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    expect(
+      within(preferredField)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('value'))
+    ).toEqual(['inherit', ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 
   it('falls back to configured chat routes when an aggregator reports no endpoints', () => {
@@ -1074,9 +1086,61 @@ describe('Model drawers', () => {
     )
 
     const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
-    const radios = within(preferredField).getAllByRole('radio')
-    expect(radios).toHaveLength(1)
-    expect(radios[0]).toHaveAttribute('value', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(
+      within(preferredField)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('value'))
+    ).toEqual(['inherit', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  })
+
+  it('hands routing back to the inherited order when the pin is cleared', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="doubao"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'doubao::doubao-seed-2-1-pro',
+            providerId: 'doubao',
+            name: 'doubao-seed-2-1-pro',
+            group: 'doubao',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+            preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' })).toBeChecked()
+
+    await user.click(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    )
+
+    // Without an explicit clear the pin was permanent, so a later registry default could never apply.
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'doubao',
+      'doubao-seed-2-1-pro',
+      expect.objectContaining({ preferredEndpointType: null })
+    )
   })
 
   it('auto-saves an endpoint switch as a routing preference, leaving the supported set alone', async () => {
@@ -1118,8 +1182,11 @@ describe('Model drawers', () => {
     )
 
     const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
-    // Seeded from the effective route, which without a stored preference is `endpointTypes[0]`.
-    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai' })).toBeChecked()
+    // No stored pin, so the model inherits; the chip names where that lands rather than pretending
+    // the effective route was chosen.
+    expect(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    ).toBeChecked()
 
     await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
 

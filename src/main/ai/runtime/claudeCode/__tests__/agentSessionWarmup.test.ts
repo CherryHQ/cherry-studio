@@ -1,5 +1,5 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -113,16 +113,22 @@ vi.mock('../settingsBuilder', () => ({
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
 const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
 
+/**
+ * Mirrors `resolveEffectiveEndpoint`'s precedence, including the persisted user pin the real
+ * resolver honors. Omitting that step let a warmup regression pass here while routing changed.
+ */
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, options?: EndpointResolutionOptions) {
-  const preferredEndpointType = options?.requiredEndpointType ?? options?.suggestedEndpointType
-  const preferred =
-    preferredEndpointType &&
-    model.endpointTypes?.includes(preferredEndpointType) &&
-    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
-      ? preferredEndpointType
-      : undefined
+  const isAvailable = (endpointType: EndpointType | undefined) =>
+    endpointType != null &&
+    (model.endpointTypes?.length ? model.endpointTypes.includes(endpointType) : true) &&
+    Boolean(provider.endpointConfigs?.[endpointType]?.baseUrl)
+  const required = isAvailable(options?.requiredEndpointType) ? options?.requiredEndpointType : undefined
+  const pinned = isAvailable(model.preferredEndpointType) ? model.preferredEndpointType : undefined
+  const suggested = isAvailable(options?.suggestedEndpointType) ? options?.suggestedEndpointType : undefined
   const endpointType =
-    preferred ??
+    required ??
+    pinned ??
+    suggested ??
     model.endpointTypes?.[0] ??
     provider.defaultChatEndpoint ??
     (provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)

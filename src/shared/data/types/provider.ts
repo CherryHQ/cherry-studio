@@ -281,6 +281,14 @@ export const ProviderSchema = z.object({
    */
   authOptional: z.boolean().optional(),
   /**
+   * Registry capability: the provider multiplexes every protocol through one
+   * user-configured host (CherryIN / New API / AiOnly). Its `/models` listing is
+   * authoritative for which endpoints a model accepts, and secondary endpoint
+   * configs inherit the default endpoint's base URL rather than resolving to no
+   * host. Carried from the registry; absent ⇒ false.
+   */
+  sharedEndpointHost: z.boolean().optional(),
+  /**
    * Registry-owned currency for provider-reported costs that omit currency
    * from the wire payload. Never inferred for custom providers.
    */
