@@ -68,6 +68,25 @@ function getTrackedInputSearchText(options: {
   return options.inputSearchText
 }
 
+function getButtonTrackedSearchText(
+  text: string,
+  queryAnchor: number,
+  cursorOffset: number,
+  leftoverSuffix: string
+): string | undefined {
+  // Draft after the caret at open is leftover, not live-filter text to consume.
+  if (leftoverSuffix.length === 0) {
+    return text.slice(queryAnchor, cursorOffset)
+  }
+
+  const afterAnchor = text.slice(queryAnchor)
+  if (!afterAnchor.endsWith(leftoverSuffix)) {
+    return undefined
+  }
+
+  return afterAnchor.slice(0, afterAnchor.length - leftoverSuffix.length)
+}
+
 interface Props {
   inputAdapter?: QuickPanelInputAdapter
 }
@@ -111,6 +130,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const [inputSearchText, setInputSearchText] = useState('')
   const queryAnchorRef = useRef<number | undefined>(undefined)
+  const leftoverSuffixRef = useRef('')
+  const consumableSearchQueryRef = useRef('')
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
@@ -187,6 +208,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       prevSymbolRef.current = ''
       prevSearchTextRef.current = ''
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
+      consumableSearchQueryRef.current = ''
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
@@ -257,9 +280,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const text = inputAdapter.getText()
     if (ctx.triggerInfo?.type === 'button') {
-      if (!activeSearchQuery) return
-      const queryEnd = queryAnchor + activeSearchQuery.length
-      if (text.slice(queryAnchor, queryEnd) !== activeSearchQuery) return
+      const searchQuery = consumableSearchQueryRef.current
+      if (!searchQuery) return
+      const queryEnd = queryAnchor + searchQuery.length
+      if (text.slice(queryAnchor, queryEnd) !== searchQuery) return
       inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryEnd })
       return
     }
@@ -267,7 +291,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
     if (cursorOffset <= queryAnchor) return
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
+  }, [ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
 
   const getCurrentPanelOptions = useCallback(
     (defaultIndex?: number): QuickPanelOpenOptions => ({
@@ -455,7 +479,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    const nextSearchText =
+      ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
+        ? getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current)
+        : text.slice(queryAnchor, cursorOffset)
+    if (nextSearchText === undefined) return
+
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
@@ -480,6 +509,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     )
   }, [
     closePanel,
+    ctx.consumeQueryOnDismiss,
     ctx.initialSearchText,
     ctx.triggerInfo?.type,
     inputAdapter,
@@ -493,6 +523,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     if (!inputAdapter) {
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
       setInputSearchText('')
       return
     }
@@ -509,7 +540,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     queryAnchorRef.current = queryAnchor
+    // Text after the caret is leftover draft, not a live filter for later consume.
+    leftoverSuffixRef.current =
+      ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' ? text.slice(cursorOffset) : ''
     if (!isTrackedInputPanel) {
+      leftoverSuffixRef.current = ''
       setInputSearchText('')
       inputAdapter.focus()
       return
@@ -525,7 +560,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    const nextSearchText =
+      ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
+        ? (getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current) ?? '')
+        : text.slice(queryAnchor, cursorOffset)
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
@@ -552,6 +590,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     return inputAdapter.subscribeInput?.((event) => {
       if (event?.isComposing) return
+      // Token insertion is leftover composer content, not live-filter typing.
+      if (event?.cause === 'state-sync') return
       updateSearchFromInput()
     })
   }, [
@@ -563,12 +603,19 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.triggerInfo?.position,
     ctx.triggerInfo?.type,
     ctx.trackInputQuery,
+    ctx.consumeQueryOnDismiss,
     closePanel,
     inputAdapter,
     inputTriggerSymbol,
     isTrackedInputPanel,
     updateSearchFromInput
   ])
+
+  useLayoutEffect(() => {
+    if (!ctx.isVisible) return
+    // Snapshot only while visible so a batched resume keystroke cannot widen dismiss consume.
+    consumableSearchQueryRef.current = activeSearchQuery
+  }, [activeSearchQuery, ctx.isVisible])
 
   useEffect(() => {
     if (ctx.isVisible) return
@@ -582,6 +629,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const timer = setTimeout(() => {
       setInputSearchText('')
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
+      consumableSearchQueryRef.current = ''
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined

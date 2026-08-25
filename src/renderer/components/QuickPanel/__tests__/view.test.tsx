@@ -176,6 +176,42 @@ function CaptureQuickPanel({ onCapture }: { onCapture: (context: QuickPanelConte
   return null
 }
 
+function createMutableTrackedInput(initialText = '', initialCursor = initialText.length) {
+  let text = initialText
+  let cursorOffset = initialCursor
+  const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+  const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+    text = `${text.slice(0, from)}${text.slice(to)}`
+    cursorOffset = from
+  })
+  const inputAdapter: QuickPanelInputAdapter = {
+    getText: () => text,
+    getCursorOffset: () => cursorOffset,
+    insertText: vi.fn(),
+    deleteTriggerRange,
+    focus: vi.fn(),
+    subscribeInput: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }
+  }
+
+  return {
+    deleteTriggerRange,
+    inputAdapter,
+    getText: () => text,
+    setText: (nextText: string, nextCursor = nextText.length) => {
+      text = nextText
+      cursorOffset = nextCursor
+    },
+    emitInput: () => {
+      listeners.forEach((listener) => listener({ cause: 'user-input' }))
+    }
+  }
+}
+
 function ImmediateOpenDispatchHarness({ onHandled }: { onHandled: (handled: boolean) => void }) {
   const { dispatchKeyDown, open, registerKeyDownHandler } = useQuickPanel()
 
@@ -859,6 +895,163 @@ describe('QuickPanelView', () => {
 
     expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
     expect(text).toBe('X')
+  })
+
+  it('does not consume the first resume character typed in the same tick as dismiss', async () => {
+    // Bug: updateSearchFromInput and KB close-on-next-input run in one input event, so
+    // dismiss consume widens to include the resume character and deletes it.
+    const action = vi.fn()
+    const input = createMutableTrackedInput('card')
+    let closePanel: QuickPanelContextType['close'] | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={input.inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(input.getText()).toBe('card')
+
+    const unsubscribe = input.inputAdapter.subscribeInput?.(() => {
+      closePanel?.('knowledge_base_input_resumed')
+    })
+    input.setText('cardX')
+    act(() => {
+      input.emitInput()
+    })
+    unsubscribe?.()
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(input.getText()).toBe('X')
+  })
+
+  it('does not consume slash leftover draft after a later content edit', async () => {
+    // Bug: after slash-trigger deletion the view reconstructs queryAnchor at 0, so a later
+    // leftover edit becomes slice(0, cursor) and dismiss deletes the leftover draft.
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const leftover = 'hello world'
+    const input = createMutableTrackedInput(leftover, 0)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={input.inputAdapter}
+          items={[{ id: 'prompt', label: 'Prompt 1', icon: 'zap', action }]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Prompt 1')
+
+    input.setText(`${leftover}!`)
+    act(() => {
+      input.emitInput()
+    })
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(input.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(input.getText()).toBe(`${leftover}!`)
+  })
+
+  it('consumes only a caret-typed live filter when leftover draft stays after it', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const leftover = 'hello world'
+    const input = createMutableTrackedInput(leftover, 0)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={input.inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    expect(screen.getByText('Other note')).toBeInTheDocument()
+
+    input.setText(`card${leftover}`, 'card'.length)
+    act(() => {
+      input.emitInput()
+    })
+
+    await waitFor(() => expect(screen.queryByText('Other note')).not.toBeInTheDocument())
+    expect(screen.getByText('Card note')).toBeInTheDocument()
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(input.getText()).toBe(leftover)
+  })
+
+  it('consumes a live filter on outside click without deleting leftover draft', async () => {
+    const action = vi.fn()
+    const leftover = 'hello world'
+    const input = createMutableTrackedInput(`card${leftover}`, 'card'.length)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={input.inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(input.deleteTriggerRange).not.toHaveBeenCalled()
+
+    act(() => {
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(input.getText()).toBe(leftover)
   })
 
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；

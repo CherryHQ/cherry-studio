@@ -7,7 +7,7 @@ import {
   useQuickPanel
 } from '@renderer/components/QuickPanel'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React, { useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -225,10 +225,65 @@ describe('KnowledgeBaseToolRuntime QuickPanel integration', () => {
     expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     expect(input.adapter.deleteTriggerRange).toHaveBeenCalledTimes(1)
 
-    input.adapter.insertText(' ')
+    const textBeforeResume = input.adapter.getText()
+    act(() => {
+      input.adapter.insertText(' ')
+    })
 
     await waitFor(() => {
       expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
     })
+    expect(input.adapter.getText()).toBe(`${textBeforeResume} `)
+  })
+
+  it('consumes a typed knowledge-base filter without deleting the first resume character', async () => {
+    // Bug: the resume keystroke updates the live filter and closes in one event, so
+    // dismiss consumption deleted both the filter and the first typed character.
+    let quickPanel: QuickPanelContextType | undefined
+    const input = createInputAdapter()
+    const onSelect = vi.fn()
+    let registeredLauncher: Parameters<ToolLauncherApi['registerLaunchers']>[0][number] | undefined
+    const launcher: ToolLauncherApi = {
+      registerLaunchers: vi.fn((entries) => {
+        registeredLauncher = entries[0]
+        return vi.fn()
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <ControlledKnowledgeBaseRuntime launcher={launcher} onSelect={onSelect} />
+        <QuickPanelBridge inputAdapter={input.adapter} onContext={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => expect(registeredLauncher).toBeDefined())
+    await waitFor(() => expect(quickPanel).toBeDefined())
+
+    registeredLauncher?.action?.({
+      inputAdapter: input.adapter,
+      quickPanel: quickPanel!,
+      source: 'popover',
+      triggerInfo: { type: 'button' }
+    })
+
+    await screen.findByText('Knowledge One')
+    act(() => {
+      input.adapter.insertText('kb-1')
+    })
+    await waitFor(() => expect(screen.queryByText('Knowledge Two')).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('Knowledge One'))
+    await waitFor(() => expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]]))
+    expect(input.adapter.getText()).toBe('kb-1')
+
+    act(() => {
+      input.adapter.insertText('X')
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
+    expect(input.adapter.getText()).toBe('X')
   })
 })
