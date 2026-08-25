@@ -393,7 +393,12 @@ export const ModelSchema = z.object({
   maxInputTokens: z.number().optional(),
   /** Supported endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
-  /** Explicit routing choice among `endpointTypes`; unset falls back to `endpointTypes[0]`. */
+  /**
+   * The user's explicit routing choice. Honored only while it stays available on the current model
+   * and provider; a caller that speaks exactly one dialect still outranks it. Unset — or no longer
+   * available — falls through the rest of the order (declared set → gateway route → provider
+   * default). See `getModelPreferredEndpoint` and `resolveEffectiveEndpoint`.
+   */
   preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),

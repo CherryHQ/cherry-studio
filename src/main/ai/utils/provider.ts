@@ -63,9 +63,15 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   return { ...headers, 'X-Source': 'cherry-studio' }
 }
 
-/** Unset URLs use the Anthropic SDK default, which is the official API host. */
+/**
+ * Unset URLs use the Anthropic SDK default, which is the official API host.
+ *
+ * An empty string is NOT that case: it is `getBaseUrl` reporting a route it refused to resolve, and
+ * treating it as first-party would drop the `Authorization` header a third-party gateway needs.
+ */
 export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
-  if (!baseUrl) return true
+  if (baseUrl === undefined) return true
+  if (baseUrl === '') return false
   try {
     return new URL(baseUrl).hostname === 'api.anthropic.com'
   } catch {

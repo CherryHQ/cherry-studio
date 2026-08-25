@@ -64,7 +64,11 @@ export function mapEndpointToDshApi(
   }
 }
 
-/** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
+/**
+ * The effective chat endpoint the dsh runtime uses. Delegates to the shared resolver, so a persisted
+ * user pin wins over the declared order — dsh speaks Chat, Responses, Anthropic and Google, so it
+ * has no single-dialect constraint that should override the user.
+ */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
   return getModelPreferredEndpoint(model, provider)
 }

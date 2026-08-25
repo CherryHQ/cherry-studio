@@ -139,7 +139,13 @@ describe('isAnthropicOfficialHost', () => {
     expect(isAnthropicOfficialHost('https://api.anthropic.com')).toBe(true)
     expect(isAnthropicOfficialHost('https://api.anthropic.com/')).toBe(true)
     expect(isAnthropicOfficialHost(undefined)).toBe(true)
-    expect(isAnthropicOfficialHost('')).toBe(true)
+  })
+
+  it('does not treat an unresolved route as first-party', () => {
+    // `getBaseUrl` returns '' for a route it refused to resolve. Reading that as the official host
+    // dropped the `Authorization` header a third-party Anthropic-compatible gateway needs, so the
+    // request came back 401 missing_api_key.
+    expect(isAnthropicOfficialHost('')).toBe(false)
   })
 
   it('rejects custom proxy hosts and invalid URLs', () => {

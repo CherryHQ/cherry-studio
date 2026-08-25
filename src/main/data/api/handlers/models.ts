@@ -54,7 +54,8 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
           dto.endpointTypes || dto.preferredEndpointType
             ? {
                 endpointTypes: dto.endpointTypes,
-                preferredEndpointType: dto.preferredEndpointType
+                // `null` means "clear the pin" on the wire; enrichment only cares about a set one.
+                preferredEndpointType: dto.preferredEndpointType ?? undefined
               }
             : undefined
         return {

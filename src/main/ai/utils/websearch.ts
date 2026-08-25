@@ -195,7 +195,10 @@ export function buildProviderBuiltinWebSearchConfig(
       }
       return { openrouter: openrouterWebConfig }
     }
-    case 'cherryin': {
+    // Both variants: `resolveProviderVariant` upgrades CherryIN's default chat route to
+    // `cherryin-chat`, which is the id most CherryIN models actually resolve to.
+    case 'cherryin':
+    case 'cherryin-chat': {
       // cherryin proxies to a real endpoint forced per model;
       // map it to the AppProviderId whose web-search case applies.
       const endpoint = model && provider ? getModelPreferredEndpoint(model, provider) : undefined

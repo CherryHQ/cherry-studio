@@ -24,8 +24,12 @@ Endpoint choice controls request format, response parsing, reasoning dialect, an
 
 ## What the user should do
 
-Nothing — automatic. To change a model's protocol, open Settings → Providers → the model, and pick an endpoint.
+Nothing is required. To change a model's protocol, open Settings → Providers → the model, and pick an endpoint; pick **Inherit** to hand routing back to the supported-endpoint order.
+
+One exception to "automatic": users already on v2 do not get their v1 `endpoint_type` back on upgrade, because the v1 migrator does not re-run. Recovering it means an explicit migration rerun from retained v1 sources in Settings → Data, which discards current v2 data — back up first. Setting the endpoint by hand is the cheaper path.
 
 ## Notes for release manager
 
-New `preferred_endpoint_type` column on `user_model` (migration `0012_fat_namorita.sql`, additive and nullable). New i18n key `settings.models.add.preferred_endpoint.label`.
+New `preferred_endpoint_type` column on `user_model` (migration `0017_funny_stark_industries.sql`, additive and nullable). New i18n keys under `settings.models.add.preferred_endpoint.*`: `label`, `tooltip`, `inherit`, `inherit_resolved`.
+
+Grep for the column rather than trusting this filename: the branch regenerates its migration on every merge that appends one upstream, and this note has drifted before.

@@ -1472,6 +1472,9 @@ describe('AiService tool approval', () => {
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
       const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+      // The check must resolve against the provider that actually serves this model; the shared
+      // default fixture is an unrelated provider with no endpoint configs.
+      mockProviderGetByProviderId.mockReturnValue(provider)
       mockModelGetByKey.mockReturnValue({
         ...listedModel,
         capabilities: [MODEL_CAPABILITY.EMBEDDING]

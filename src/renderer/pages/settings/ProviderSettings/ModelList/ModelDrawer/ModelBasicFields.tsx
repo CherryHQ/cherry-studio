@@ -15,8 +15,11 @@ interface ModelBasicFieldsProps {
   showEndpointType: boolean
   /** Routable endpoints for this model. The caller decides when there is a choice worth showing. */
   preferredEndpointOptions?: readonly EndpointType[]
+  /** The pinned endpoint, or `undefined` when the model inherits its route. */
   preferredEndpointType?: EndpointType
-  onPreferredEndpointTypeChange?: (next: EndpointType) => void
+  /** Where inheriting lands today, so the inherit chip can name it. */
+  inheritedEndpointType?: EndpointType
+  onPreferredEndpointTypeChange?: (next: EndpointType | undefined) => void
   showRequiredIndicator?: boolean
   layout?: 'vertical' | 'horizontal'
   modelIdDisabled?: boolean
@@ -38,6 +41,7 @@ export function ModelBasicFields({
   showEndpointType,
   preferredEndpointOptions,
   preferredEndpointType,
+  inheritedEndpointType,
   onPreferredEndpointTypeChange,
   showRequiredIndicator = false,
   layout = 'vertical',
@@ -58,10 +62,8 @@ export function ModelBasicFields({
   const preferredEndpointLabelId = useId()
   const preferredEndpointLabel = t('settings.models.add.preferred_endpoint.label')
   const preferredEndpointTooltip = t('settings.models.add.preferred_endpoint.tooltip')
-  const showPreferredEndpoint =
-    (preferredEndpointOptions?.length ?? 0) > 0 &&
-    preferredEndpointType != null &&
-    onPreferredEndpointTypeChange != null
+  // `preferredEndpointType` is legitimately unset (inherited), so it cannot gate rendering.
+  const showPreferredEndpoint = (preferredEndpointOptions?.length ?? 0) > 0 && onPreferredEndpointTypeChange != null
 
   return (
     <>
@@ -166,6 +168,7 @@ export function ModelBasicFields({
           <div data-testid="provider-settings-model-preferred-endpoint-field">
             <ModelPreferredEndpointSelect
               value={preferredEndpointType}
+              inheritedEndpoint={inheritedEndpointType}
               options={preferredEndpointOptions ?? []}
               labelledBy={preferredEndpointLabelId}
               onChange={onPreferredEndpointTypeChange}

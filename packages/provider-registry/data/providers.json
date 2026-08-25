@@ -45,7 +45,8 @@
           "modelScope": "model-dependent",
           "vendors": ["anthropic", "gemini"]
         }
-      ]
+      ],
+      "sharedEndpointHost": true
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -388,7 +389,8 @@
           "official": "https://www.aiionly.com"
         }
       },
-      "name": "AIOnly"
+      "name": "AIOnly",
+      "sharedEndpointHost": true
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -722,7 +724,8 @@
           "modelScope": "model-dependent",
           "vendors": ["anthropic", "gemini"]
         }
-      ]
+      ],
+      "sharedEndpointHost": true
     },
     {
       "authOptional": true,
@@ -2411,5 +2414,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "b3b73ceeb452801e"
+  "version": "9bdc7d161d142d8f"
 }

@@ -344,6 +344,7 @@ describe('resolveEffectiveEndpoint', () => {
   it('uses the shared New API host for a preferred adapter-only endpoint', () => {
     const provider = makeProvider({
       id: 'new-api',
+      sharedEndpointHost: true,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
@@ -362,6 +363,34 @@ describe('resolveEffectiveEndpoint', () => {
     expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
       endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       baseUrl: 'https://new-api.example.com'
+    })
+  })
+
+  it('inherits the shared host for every aggregator, not just the New API preset', () => {
+    // Keyed to `matchesPreset('new-api')`, CherryIN and AiOnly fell out of the inheritance rule and
+    // resolved a pinned secondary route to no host at all.
+    const provider = makeProvider({
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      sharedEndpointHost: true,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://open.cherryin.net',
+          adapterFamily: 'cherryin'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'cherryin' }
+      }
+    })
+    const model = {
+      id: 'cherryin::agent/kimi-k2.5',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: 'https://open.cherryin.net'
     })
   })
 

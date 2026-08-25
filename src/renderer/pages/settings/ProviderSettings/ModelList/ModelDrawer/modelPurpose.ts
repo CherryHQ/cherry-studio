@@ -45,7 +45,7 @@ export interface ApplyModelPurposeOptions {
 
 type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
 export type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'> &
-  Partial<Pick<Provider, 'id' | 'presetProviderId'>>
+  Partial<Pick<Provider, 'id' | 'presetProviderId' | 'sharedEndpointHost'>>
 
 function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
   return MODEL_CHAT_ENDPOINT_TYPES.some((candidate) => candidate === endpointType)
@@ -115,13 +115,41 @@ export function getPreferredEndpointCandidates(
     id: provider.id ?? '',
     presetProviderId: provider.presetProviderId,
     defaultChatEndpoint: provider.defaultChatEndpoint,
-    endpointConfigs: provider.endpointConfigs
+    endpointConfigs: provider.endpointConfigs,
+    sharedEndpointHost: provider.sharedEndpointHost
   }
   const routingModel = {
     id: createUniqueModelId(routingProvider.id || 'provider', 'model'),
     endpointTypes: [...modelEndpointTypes]
   }
   return declared.filter((endpointType) => isModelEndpointTypeAvailable(routingModel, routingProvider, endpointType))
+}
+
+/**
+ * Which endpoints a model drawer offers as the model's route. Shared by add and edit so the two
+ * cannot drift: an aggregator's declared set was authoritative in one and chat-filtered in the
+ * other, which left non-chat routes selectable only after the model existed.
+ *
+ * - `purpose` drives the endpoint from its own protocol control, so the picker stays out.
+ * - `endpoint-types` (aggregators): the declared set is the route contract, non-chat entries
+ *   included — which protocol the host uses for a model is not implied by the provider, so a single
+ *   entry still renders.
+ * - otherwise: only the provider's configured chat routes, and only when there is a real choice.
+ *
+ * `modelEndpointTypes` must be a real declaration. Callers seeding a form with the provider default
+ * pass `undefined` — a seed says nothing about the model.
+ */
+export function resolvePreferredEndpointOptions(
+  provider: ProviderChatEndpoints | null | undefined,
+  mode: ModelDrawerMode,
+  modelEndpointTypes?: readonly EndpointType[]
+): readonly EndpointType[] {
+  if (!provider || mode === 'purpose') return []
+  if (mode === 'endpoint-types') {
+    return modelEndpointTypes?.length ? modelEndpointTypes : getPreferredEndpointCandidates(provider)
+  }
+  const candidates = getPreferredEndpointCandidates(provider, modelEndpointTypes)
+  return candidates.length > 1 ? candidates : []
 }
 
 export function inferModelPurpose(fields: ModelPurposeFields): ModelPurpose {
