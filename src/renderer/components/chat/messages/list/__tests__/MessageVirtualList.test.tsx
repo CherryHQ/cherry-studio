@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { Activity } from 'react'
+import { Activity, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageVirtualList } from '../MessageVirtualList'
@@ -12,7 +12,6 @@ const runtimeMockState = vi.hoisted(() => ({
   notifyWheelIntent: vi.fn(),
   scrollByWheel: vi.fn(() => true),
   markUserInput: vi.fn(),
-  hasRecentUserScrollIntent: vi.fn(() => false),
   beginScrollbarDrag: vi.fn(),
   endScrollbarDrag: vi.fn(),
   onWheel: vi.fn(),
@@ -24,8 +23,10 @@ const virtuaMockState = vi.hoisted(() => ({
   scrollRefReadyAtMount: [] as boolean[]
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
+    ...actual,
     Button: ({ children, size, variant, ...props }: any) => {
       void size
       void variant
@@ -35,11 +36,6 @@ vi.mock('@cherrystudio/ui', () => {
         </button>
       )
     },
-    Scrollbar: ({ ref, children, ...props }: any) => (
-      <div ref={ref} {...props}>
-        {children}
-      </div>
-    ),
     Tooltip: ({ children }: any) => <>{children}</>
   }
 })
@@ -93,7 +89,6 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       notifyWheelIntent: runtimeMockState.notifyWheelIntent,
       scrollByWheel: runtimeMockState.scrollByWheel,
       markUserInput: runtimeMockState.markUserInput,
-      hasRecentUserScrollIntent: runtimeMockState.hasRecentUserScrollIntent,
       beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
       endScrollbarDrag: runtimeMockState.endScrollbarDrag,
       shift: runtimeMockState.shift,
@@ -118,6 +113,11 @@ function ScrollRuntimeBoundaryProbe() {
   )
 }
 
+function renderMessageList(renderItem: () => ReactNode = () => <span>message-1</span>): HTMLElement {
+  render(<MessageVirtualList items={['message-1']} getItemKey={(item) => item} renderItem={renderItem} />)
+  return document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+}
+
 describe('MessageVirtualList', () => {
   beforeEach(() => {
     runtimeMockState.isScrollToBottomButtonVisible = false
@@ -126,7 +126,6 @@ describe('MessageVirtualList', () => {
     runtimeMockState.notifyWheelIntent.mockClear()
     runtimeMockState.scrollByWheel.mockClear()
     runtimeMockState.markUserInput.mockClear()
-    runtimeMockState.hasRecentUserScrollIntent.mockClear()
     runtimeMockState.beginScrollbarDrag.mockClear()
     runtimeMockState.endScrollbarDrag.mockClear()
     runtimeMockState.onWheel.mockClear()
@@ -136,17 +135,110 @@ describe('MessageVirtualList', () => {
   })
 
   it('mounts virtua only after the external scroller ref is ready', () => {
-    render(
-      <MessageVirtualList
-        items={['message-1']}
-        getItemKey={(item) => item}
-        renderItem={(item) => <span>{item}</span>}
-      />
-    )
+    renderMessageList()
 
     expect(screen.getByTestId('virtualizer')).toBeInTheDocument()
     expect(virtuaMockState.scrollRefReadyAtMount).not.toContain(false)
     expect(virtuaMockState.scrollRefReadyAtMount.length).toBeGreaterThan(0)
+  })
+
+  it('makes the message viewport keyboard-focusable with visible focus feedback', () => {
+    const scroller = renderMessageList()
+    expect(scroller).toHaveAttribute('tabindex', '0')
+    expect(scroller).toHaveClass('focus-visible:ring-1', 'focus-visible:ring-ring', 'focus-visible:ring-inset')
+  })
+
+  it('takes keyboard scroll ownership after direct interaction with plain message content', () => {
+    const scroller = renderMessageList(() => <span data-testid="plain-message-content">content</span>)
+    const content = screen.getByTestId('plain-message-content')
+
+    fireEvent.pointerDown(content)
+    expect(scroller).toHaveFocus()
+
+    scroller.blur()
+    fireEvent.wheel(content, { deltaY: 40 })
+    expect(scroller).toHaveFocus()
+  })
+
+  it('does not take keyboard ownership from editable message content', () => {
+    renderMessageList(() => <textarea aria-label="Editable message content" />)
+
+    const editor = screen.getByRole('textbox', { name: 'Editable message content' })
+    editor.focus()
+    fireEvent.pointerDown(editor)
+    fireEvent.wheel(editor, { deltaY: 40 })
+
+    expect(editor).toHaveFocus()
+  })
+
+  it('does not take keyboard ownership from an editor outside the message viewport on wheel', () => {
+    render(
+      <>
+        <textarea aria-label="Composer" />
+        <MessageVirtualList
+          items={['message-1']}
+          getItemKey={(item) => item}
+          renderItem={() => <span data-testid="plain-message-content">content</span>}
+        />
+      </>
+    )
+
+    const composer = screen.getByRole('textbox', { name: 'Composer' })
+    composer.focus()
+    fireEvent.wheel(screen.getByTestId('plain-message-content'), { deltaY: 40 })
+
+    expect(composer).toHaveFocus()
+  })
+
+  it('restores keyboard ownership when a focused virtualized descendant is removed', async () => {
+    const scroller = renderMessageList(() => <div data-testid="virtualized-focus-owner" tabIndex={0} />)
+    const focusOwner = screen.getByTestId('virtualized-focus-owner')
+    focusOwner.focus()
+    expect(focusOwner).toHaveFocus()
+
+    focusOwner.remove()
+
+    await waitFor(() => expect(scroller).toHaveFocus())
+  })
+
+  it('does not restore keyboard ownership when a mounted descendant deliberately blurs', async () => {
+    const hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const scroller = renderMessageList(() => <div data-testid="virtualized-focus-owner" tabIndex={0} />)
+    const focusOwner = screen.getByTestId('virtualized-focus-owner')
+    try {
+      focusOwner.focus()
+
+      focusOwner.blur()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(document.body).toHaveFocus()
+      expect(scroller).not.toHaveFocus()
+    } finally {
+      hasFocusSpy.mockRestore()
+    }
+  })
+
+  it('preserves an explicit focus move from a virtualized descendant to the composer', async () => {
+    render(
+      <>
+        <textarea aria-label="Composer" />
+        <MessageVirtualList
+          items={['message-1']}
+          getItemKey={(item) => item}
+          renderItem={() => <div data-testid="virtualized-focus-owner" tabIndex={0} />}
+        />
+      </>
+    )
+
+    const composer = screen.getByRole('textbox', { name: 'Composer' })
+    const focusOwner = screen.getByTestId('virtualized-focus-owner')
+    focusOwner.focus()
+
+    composer.focus()
+    focusOwner.remove()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(composer).toHaveFocus()
   })
 
   it('keeps virtua mounted when a hidden tab detaches the scroller ref', () => {
@@ -333,6 +425,14 @@ describe('MessageVirtualList', () => {
     runtimeMockState.takeUserControl.mockClear()
     fireEvent.scroll(scroller)
     expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
+  })
+
+  it('leaves vertical navigation keys with editable message content', () => {
+    renderMessageList(() => <textarea aria-label="Editable message content" />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Editable message content' }), { key: 'ArrowDown' })
+
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
   })
 
   it('hands keyboard and touch scrolling to the outer runtime at a nested boundary', () => {

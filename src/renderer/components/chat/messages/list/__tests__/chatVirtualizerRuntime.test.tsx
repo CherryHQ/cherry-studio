@@ -3394,12 +3394,63 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('keeps the settled viewport anchored after repeated keyboard scrolling', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    let now = 1_000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+      now = 1_010
+      act(() => {
+        runtime!.markUserInput()
+        scrollTop = 460
+        runtime!.scrollerProps.onScroll(460)
+      })
+
+      now = 1_020
+      act(() => {
+        runtime!.markUserInput()
+        scrollTop = 420
+        runtime!.scrollerProps.onScroll(420)
+        runtime!.scrollerProps.onScrollEnd()
+      })
+
+      now = 1_030
+      scrollTop = 430
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(420)
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it('treats a later resize as programmatic when keydown intent expires without a scroll', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
-    // Advance time past the intent window after markUserInput fires so
-    // hasRecentUserScrollIntent() returns false when the ResizeObserver runs.
+    // Advance time past the pending-intent window after markUserInput fires.
     let now = 1_000
     const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
 
