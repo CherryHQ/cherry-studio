@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } from 'react'
-import { Activity, useState } from 'react'
+import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -13,6 +13,7 @@ import {
   RightPanelShortcut,
   RightPanelViewport,
   useRightPanelActions,
+  useRightPanelComposerElevated,
   useRightPanelPresentationMaximized,
   useRightPanelState
 } from '../RightPanel'
@@ -80,15 +81,31 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('../../../shell/RightPaneHost', () => ({
+  // Mirrors the host's phase reporting: it enters the full-width phase with the click and only
+  // leaves it once the box has settled, which is what "settle pane" stands in for.
   PersistentRightPaneHost: ({
     children,
     maximized,
-    open
-  }: PropsWithChildren<{ maximized?: boolean; open: boolean }>) => (
-    <div data-testid="right-pane-host" data-maximized={String(Boolean(maximized))} data-open={String(open)}>
-      {children}
-    </div>
-  )
+    open,
+    onFullWidthPhaseChange
+  }: PropsWithChildren<{
+    maximized?: boolean
+    open: boolean
+    onFullWidthPhaseChange?: (active: boolean) => void
+  }>) => {
+    useLayoutEffect(() => {
+      if (maximized) onFullWidthPhaseChange?.(true)
+    }, [maximized, onFullWidthPhaseChange])
+
+    return (
+      <div data-testid="right-pane-host" data-maximized={String(Boolean(maximized))} data-open={String(open)}>
+        <button type="button" onClick={() => onFullWidthPhaseChange?.(false)}>
+          settle pane
+        </button>
+        {children}
+      </div>
+    )
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -150,11 +167,13 @@ function ControllerProbe() {
   const state = useRightPanelState()
   const actions = useRightPanelActions()
   const presentationMaximized = useRightPanelPresentationMaximized()
+  const composerElevated = useRightPanelComposerElevated()
   return (
     <>
       <output data-testid="active-panel">{state.activePanelId ?? ''}</output>
       <output data-testid="presentation-open">{String(state.presentationOpen)}</output>
       <output data-testid="presentation-maximized">{String(presentationMaximized)}</output>
+      <output data-testid="composer-elevated">{String(composerElevated)}</output>
       <button type="button" onClick={() => actions.tryOpen('first')}>
         open first
       </button>
@@ -321,6 +340,31 @@ describe('RightPanel', () => {
     expect(commandMock.handler).toBeDefined()
     act(() => commandMock.handler?.())
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('keeps the composer lifted from the maximize click until the pane stops covering the centre', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+
+    // The restore drops the maximized presentation at the click, but the pane goes on covering the
+    // centre: dropping the composer here sinks it behind the pane for the rest of the animation.
+    expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('false')
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'settle pane' }))
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
   })
 
   it('offers maximize only for capable panels and keeps the minimize control while maximized', () => {

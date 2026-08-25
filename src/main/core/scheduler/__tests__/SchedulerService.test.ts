@@ -76,6 +76,20 @@ describe('interval trigger', () => {
     expect(count).toBeGreaterThanOrEqual(1)
   })
 
+  it('reports the next chained fire and advances it after a tick', async () => {
+    const beforeRegister = Date.now()
+    scheduler.registerSchedule('i-next', { kind: 'interval', ms: 30 }, () => undefined)
+
+    const initialNextRun = scheduler.getNextRun('i-next')
+    expect(initialNextRun?.getTime()).toBeGreaterThanOrEqual(beforeRegister + 30)
+
+    await tick(40)
+
+    const advancedNextRun = scheduler.getNextRun('i-next')
+    expect(advancedNextRun?.getTime()).toBeGreaterThan(initialNextRun?.getTime() ?? 0)
+    expect(advancedNextRun?.getTime()).toBeGreaterThan(Date.now())
+  })
+
   it('does not re-arm if unregistered during the callback', async () => {
     let count = 0
     scheduler.registerSchedule('i2', { kind: 'interval', ms: 10 }, () => {
@@ -110,6 +124,14 @@ describe('once trigger', () => {
     expect(count).toBe(1)
     // After firing, the entry should be cleaned (re-register-friendly).
     expect(scheduler.has('o1')).toBe(false)
+    expect(scheduler.getNextRun('o1')).toBeNull()
+  })
+
+  it('reports the configured automatic fire before it runs', () => {
+    const at = Date.now() + 60_000
+    scheduler.registerSchedule('o-next', { kind: 'once', at }, () => undefined)
+
+    expect(scheduler.getNextRun('o-next')?.getTime()).toBe(at)
   })
 
   it('respects past `at` by firing immediately', async () => {
@@ -174,9 +196,7 @@ describe('cron trigger', () => {
     expect(next).toBeInstanceOf(Date)
   })
 
-  it('getNextRun returns null for non-cron and unknown ids', () => {
-    scheduler.registerSchedule('i-only', { kind: 'interval', ms: 60_000 }, () => undefined)
-    expect(scheduler.getNextRun('i-only')).toBeNull()
+  it('getNextRun returns null for unknown ids', () => {
     expect(scheduler.getNextRun('nope')).toBeNull()
   })
 })

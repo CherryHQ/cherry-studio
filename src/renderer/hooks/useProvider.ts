@@ -116,7 +116,10 @@ export function useProviderMutations(providerId: string) {
     trigger: patchTrigger,
     isLoading: isUpdating,
     error: updateError
-  } = useMutation('PATCH', '/providers/:providerId', { refresh })
+  } = useMutation('PATCH', '/providers/:providerId', {
+    // Endpoint/default changes alter registry-projected model controls.
+    refresh: [...refresh, '/models', '/models/*']
+  })
 
   const {
     trigger: deleteTrigger,

@@ -1,13 +1,21 @@
-import { Flex } from '@cherrystudio/ui'
+import { Kbd, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { t } from 'i18next'
 import { Check, ChevronRight } from 'lucide-react'
-import type { ReactNode, Ref } from 'react'
+import { type ReactElement, type ReactNode, type Ref, useState } from 'react'
+
+import { QUICK_PANEL_ROW_HEIGHT } from './heights'
+
+const QUICK_PANEL_KBD_CLASS =
+  'min-w-0 rounded-sm bg-muted! px-1 py-0.5 font-normal text-[11px] text-muted-foreground! leading-none'
 
 export interface QuickPanelRowData {
   id?: string
   label: ReactNode | string
   description?: ReactNode | string
+  tooltip?: ReactNode | string
+  /** In-row element used as the controlled Tooltip trigger. */
+  tooltipAnchor?: ReactElement
   icon?: ReactNode | string
   suffix?: ReactNode | string
   disabled?: boolean
@@ -34,7 +42,6 @@ interface QuickPanelReadOnlyHeaderProps {
 interface QuickPanelRowProps<T extends QuickPanelRowData> {
   active: boolean
   className?: string
-  contentClassName?: string
   dataId?: string
   hoverEnabled?: boolean
   item: T
@@ -97,18 +104,29 @@ export function QuickPanelFooter({
         {title || ''}
       </div>
       <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
-        <span>ESC {t('settings.quickPanel.close')}</span>
+        <span className="inline-flex items-center gap-1">
+          <Kbd className={QUICK_PANEL_KBD_CLASS}>Esc</Kbd>
+          <span>{t('settings.quickPanel.close')}</span>
+        </span>
 
-        <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
+        <span className="inline-flex items-center gap-1">
+          <Kbd className={QUICK_PANEL_KBD_CLASS}>▲▼</Kbd>
+          <span>{t('settings.quickPanel.select')}</span>
+        </span>
 
         {assistiveKey && showPageHint ? (
-          <Flex className="items-center gap-1">
-            <span className={assistiveKeyActive ? 'text-foreground' : 'text-muted-foreground'}>{assistiveKey}</span>+ ▲▼{' '}
-            {t('settings.quickPanel.page')}
-          </Flex>
+          <span className="inline-flex items-center gap-1">
+            <Kbd className={cn(QUICK_PANEL_KBD_CLASS, assistiveKeyActive && 'text-foreground!')}>{assistiveKey}</Kbd>
+            <span>+</span>
+            <Kbd className={QUICK_PANEL_KBD_CLASS}>▲▼</Kbd>
+            <span>{t('settings.quickPanel.page')}</span>
+          </span>
         ) : null}
 
-        <Flex className="items-center gap-1">Tab/↩︎ {confirmLabel ?? t('settings.quickPanel.confirm')}</Flex>
+        <span className="inline-flex items-center gap-1">
+          <Kbd className={QUICK_PANEL_KBD_CLASS}>Tab/↩︎</Kbd>
+          <span>{confirmLabel ?? t('settings.quickPanel.confirm')}</span>
+        </span>
       </div>
     </div>
   )
@@ -136,7 +154,6 @@ export function QuickPanelReadOnlyHeader({ onClose, title }: QuickPanelReadOnlyH
 export function QuickPanelRow<T extends QuickPanelRowData>({
   active,
   className,
-  contentClassName = 'max-w-[68%]',
   dataId,
   hoverEnabled = true,
   item,
@@ -149,6 +166,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   // Read-only panels stay non-interactive, except pinned footer actions (e.g. "open config"), which
   // remain clickable so a status panel can still expose its one affordance.
   const isReadOnlyLocked = readOnly && !item.fixedToBottom
+  const [tooltipOpen, setTooltipOpen] = useState(false)
   const suffixContent = item.suffix ? (
     item.suffix
   ) : selected ? (
@@ -156,19 +174,34 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   ) : item.isMenu && !item.disabled && !readOnly ? (
     <ChevronRight size={14} />
   ) : null
+  const hasDescription = Boolean(item.description)
   const canHover = hoverEnabled && !isReadOnlyLocked && !item.disabled
   const isUnavailable = isReadOnlyLocked || item.disabled
+  const tooltipAnchor =
+    item.tooltip && item.tooltipAnchor ? (
+      <NormalTooltip
+        content={item.tooltip}
+        side="top"
+        sideOffset={6}
+        open={active || tooltipOpen}
+        onOpenChange={setTooltipOpen}>
+        <span className="inline-flex shrink-0">{item.tooltipAnchor}</span>
+      </NormalTooltip>
+    ) : (
+      item.tooltipAnchor
+    )
 
   return (
     <div
       ref={rowRef}
+      style={{ height: QUICK_PANEL_ROW_HEIGHT }}
       role="button"
       aria-current={active ? 'true' : undefined}
       aria-disabled={isUnavailable}
       aria-pressed={!isReadOnlyLocked && item.isSelected !== undefined ? selected : undefined}
       tabIndex={isUnavailable ? -1 : 0}
       className={cn(
-        'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
+        'mx-[5px] mb-px flex items-center justify-between gap-3 rounded-md px-2 py-1 transition-colors duration-100',
         isReadOnlyLocked ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
         !isReadOnlyLocked && selected && 'bg-muted',
         !isReadOnlyLocked && selected && active && 'bg-accent',
@@ -190,22 +223,23 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
         event.stopPropagation()
         onSelect()
       }}>
-      <div className={cn('flex flex-1 shrink-0 items-center gap-[5px]', contentClassName)}>
+      <div className={cn('flex min-w-0 items-center gap-1.5', hasDescription ? 'max-w-[40%] shrink-0' : 'flex-1')}>
         {reserveIconSlot || item.icon ? (
-          <span className="flex items-center justify-center text-[13px] text-muted-foreground [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
+          <span className="flex shrink-0 items-center justify-center text-[13px] text-muted-foreground [&>svg:not([class*='text-'])]:text-muted-foreground [&>svg]:size-[1em]">
             {item.icon}
           </span>
         ) : null}
-        <span className="flex-1 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-4">
-          {item.label}
-        </span>
+        <span className="min-w-0 flex-1 truncate text-[13px] leading-4">{item.label}</span>
       </div>
-      <div className="flex min-w-[20%] items-center justify-end gap-0.5 text-[11px] text-muted-foreground">
-        {item.description ? (
-          <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
-        ) : null}
+      <div
+        className={cn(
+          'flex min-w-0 items-center justify-end gap-1 text-[12px] text-muted-foreground leading-4',
+          hasDescription ? 'flex-1' : 'shrink-0'
+        )}>
+        {hasDescription ? <span className="min-w-0 flex-1 truncate text-right">{item.description}</span> : null}
+        {tooltipAnchor}
         {suffixContent ? (
-          <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
+          <span className="flex min-w-3 max-w-full shrink-0 items-center justify-end gap-[3px] truncate [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
             {suffixContent}
           </span>
         ) : null}

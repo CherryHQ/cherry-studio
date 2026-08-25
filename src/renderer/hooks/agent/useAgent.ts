@@ -7,7 +7,7 @@
  */
 
 import { loggerService } from '@logger'
-import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { toast } from '@renderer/services/toast'
@@ -66,10 +66,18 @@ export const useAgent = (id: string | null) => {
 /**
  * List + mutate all agents. Plain deletion removes the agent only; sessions are
  * preserved as orphaned history unless a caller explicitly requests session deletion.
+ *
+ * @param options.enabled - Skip the list query when the caller has nothing to render
+ *   for it (mutations stay usable). Defaults to `true`.
  */
-export const useAgents = () => {
+export const useAgents = (options: { enabled?: boolean } = {}) => {
   const { t } = useTranslation()
-  const { data, isLoading, error, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
+  const enabled = options.enabled ?? true
+  const { data, isLoading, error, refetch } = useQuery('/agents', {
+    enabled,
+    query: { limit: AGENTS_MAX_LIMIT }
+  })
+  useDataChange(enabled ? '/agents' : [], () => void refetch())
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const invalidate = useInvalidateCache()
 

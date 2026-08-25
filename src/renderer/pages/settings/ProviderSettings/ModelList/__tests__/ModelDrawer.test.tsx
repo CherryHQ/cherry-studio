@@ -143,6 +143,7 @@ describe('Model drawers', () => {
         endpointTypes: undefined
       })
     )
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
   })
 
   it('marks only the model ID as required and blocks empty submission', () => {
@@ -253,6 +254,27 @@ describe('Model drawers', () => {
         inputModalities: [MODALITY.AUDIO]
       })
     )
+  })
+
+  it('preserves an explicitly emptied input-modality selection when adding', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'explicit-text-model' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.audio' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.audio' }))
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [] }))
   })
 
   it('keeps the add-model submit disabled while creating and shows one inline error on failure', async () => {

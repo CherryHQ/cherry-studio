@@ -30,7 +30,7 @@ import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
@@ -329,7 +329,12 @@ export class AiStreamManager extends BaseService {
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<
     string,
-    Array<{ userMessageId: string; reasoningEffort?: ReasoningEffortOption; fastMode: boolean }>
+    Array<{
+      userMessageId: string
+      reasoningEffort?: ReasoningEffortOption
+      serviceTier?: ServiceTierSelection
+      fastMode: boolean
+    }>
   >()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's explicit launch state. */
@@ -1044,6 +1049,7 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     userMessageId: string,
     reasoningEffort?: ReasoningEffortOption,
+    serviceTier?: ServiceTierSelection,
     fastMode?: boolean
   ): void {
     // The turn may have settled between `prepareDispatch` and here (the loop's terminal hooks don't
@@ -1057,7 +1063,7 @@ export class AiStreamManager extends BaseService {
     //   • aborted / error   → drop; the persisted user row stays for the user to resend.
     const status = this.activeStreams.get(topicId)?.status
     if (status && isLiveStatus(status)) {
-      this.appendPendingSteer(topicId, userMessageId, reasoningEffort, fastMode)
+      this.appendPendingSteer(topicId, userMessageId, reasoningEffort, serviceTier, fastMode)
       return
     }
     if (status === 'aborted' || status === 'error') {
@@ -1068,7 +1074,7 @@ export class AiStreamManager extends BaseService {
       })
       return
     }
-    this.appendPendingSteer(topicId, userMessageId, reasoningEffort, fastMode)
+    this.appendPendingSteer(topicId, userMessageId, reasoningEffort, serviceTier, fastMode)
     if (status !== 'awaiting-approval') this.scheduleNextChatTurn(topicId)
   }
 
@@ -1076,10 +1082,11 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     userMessageId: string,
     reasoningEffort?: ReasoningEffortOption,
+    serviceTier?: ServiceTierSelection,
     fastMode?: boolean
   ): void {
     const queue = this.pendingSteers.get(topicId)
-    const item = { userMessageId, reasoningEffort, fastMode: fastMode === true }
+    const item = { userMessageId, reasoningEffort, serviceTier, fastMode: fastMode === true }
     if (queue) queue.push(item)
     else this.pendingSteers.set(topicId, [item])
   }
@@ -1169,6 +1176,43 @@ export class AiStreamManager extends BaseService {
     // only runs after the loop settles asynchronously. A steer enqueue landing in that window reads
     // this 'aborted' off the in-grace stream and drops, instead of draining after Stop.
     stream.status = 'aborted'
+  }
+
+  /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
+  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+    await this.withDispatchLock(topicId, async () => {
+      const stream = this.activeStreams.get(topicId)
+      const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
+      const drainedLoops = new Set(loopPromises)
+
+      this.abort(topicId, reason)
+      await Promise.allSettled(loopPromises)
+
+      if (isAgentSessionTopic(topicId)) {
+        const runtimeClosing = application
+          .get('AgentSessionRuntimeService')
+          .closeSession(extractAgentSessionId(topicId))
+        const drainReplacementLoops = async (): Promise<void> => {
+          for (;;) {
+            const replacement = this.activeStreams.get(topicId)
+            const replacementLoops = replacement
+              ? [...replacement.executions.values()]
+                  .map((execution) => execution.loopPromise)
+                  .filter((loopPromise) => !drainedLoops.has(loopPromise))
+              : []
+            if (replacementLoops.length === 0) return
+
+            replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
+            this.abort(topicId, reason)
+            await Promise.allSettled(replacementLoops)
+          }
+        }
+
+        await drainReplacementLoops()
+        await runtimeClosing
+        await drainReplacementLoops()
+      }
+    })
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -1331,6 +1375,11 @@ export class AiStreamManager extends BaseService {
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
+    // The awaited dispatch can outlive this stream's registry slot — a new stream for
+    // the topic may have replaced it while listeners ran. Everything below belongs to
+    // the current stream generation only; a stale callback must not touch it.
+    if (this.activeStreams.get(topicId) !== stream) return
+
     if (chatChaining) this.scheduleNextChatTurn(topicId)
     else if (topicDone && !chaining) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
@@ -1368,6 +1417,9 @@ export class AiStreamManager extends BaseService {
     if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
+
+    // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
+    if (this.activeStreams.get(topicId) !== stream) return
 
     if (isTopicDone) {
       // Aborted (stop button / idle timeout), not a clean steer-yield — drop any queued steer
@@ -1423,6 +1475,9 @@ export class AiStreamManager extends BaseService {
     }
 
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
+
+    // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
+    if (this.activeStreams.get(topicId) !== stream) return
 
     if (isTopicDone) {
       // Errored turn — drop any queued steer rather than chaining onto a failed turn.
@@ -1574,12 +1629,13 @@ export class AiStreamManager extends BaseService {
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
     if (previous) this.evictStream(topicId)
 
-    const { userMessageId, reasoningEffort, fastMode } = pending
+    const { userMessageId, reasoningEffort, serviceTier, fastMode } = pending
     const req: MainDispatchRequest = {
       trigger: 'steer-continuation',
       topicId,
       userMessageId,
       reasoningEffort,
+      serviceTier,
       fastMode
     }
     try {
