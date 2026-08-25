@@ -544,10 +544,11 @@ describe('AgentSessionRuntimeService', () => {
         },
         frozenModels: [
           {
-            modelId: 'claude-sonnet-4-5',
+            modelId: 'configured-sonnet',
+            apiModelId: 'claude-sonnet-4-5',
             modelName: 'Claude Sonnet',
             pricingSnapshot: null,
-            aliases: ['claude-sonnet-4-5']
+            aliases: ['configured-sonnet', 'claude-sonnet-4-5']
           }
         ]
       },
@@ -606,7 +607,7 @@ describe('AgentSessionRuntimeService', () => {
           context: {
             providerId: 'claude-code',
             providerName: 'Claude Code',
-            modelId: 'claude-sonnet-4-5',
+            modelId: 'configured-sonnet',
             modelName: 'Claude Sonnet',
             pricingSnapshot: null,
             credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -4739,6 +4740,7 @@ describe('AgentSessionRuntimeService', () => {
           frozenModels: [
             {
               modelId: 'claude-sonnet-4-5',
+              apiModelId: 'claude-sonnet-4-5',
               modelName: 'Claude Sonnet',
               pricingSnapshot: null,
               aliases: ['claude-sonnet-4-5']

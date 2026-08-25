@@ -1809,6 +1809,7 @@ export class AgentSessionRuntimeService extends BaseService {
       candidate.aliases.some((alias) => normalizeAgentSdkModelAlias(alias) === normalizedModel)
     )
     const modelId = frozenModel?.modelId ?? normalizedModel
+    const apiModelId = frozenModel?.apiModelId ?? normalizedModel
     aiUsageRecordService.recordInvocation({
       requestId: invocation.requestId,
       context: createAiUsageCaptureContext({
@@ -1831,7 +1832,7 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       application.get('AnalyticsService').trackTokenUsage({
         provider: capture.providerId,
-        model: modelId,
+        model: apiModelId,
         input_tokens: invocation.usage.inputTokens,
         output_tokens: invocation.usage.outputTokens,
         source: 'agent'
