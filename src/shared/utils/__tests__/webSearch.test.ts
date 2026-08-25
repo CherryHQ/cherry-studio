@@ -28,6 +28,10 @@ describe('client web provider readiness', () => {
     expect(isWebSearchProviderReady(provider('firecrawl'), 'searchKeywords')).toBe(true)
   })
 
+  it('accepts hostless keyless keyword search providers without any configuration', () => {
+    expect(isWebSearchProviderReady(provider('duckduckgo'), 'searchKeywords')).toBe(true)
+  })
+
   it('requires an API key for providers that authenticate every search request', () => {
     expect(isWebSearchProviderReady(provider('tavily'), 'searchKeywords')).toBe(false)
     expect(isWebSearchProviderReady(provider('tavily', [' key ']), 'searchKeywords')).toBe(true)
