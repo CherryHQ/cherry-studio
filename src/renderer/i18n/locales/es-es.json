@@ -4946,6 +4946,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Prioriza la búsqueda web y la obtención de URL nativas del modelo, y cambia automáticamente a los servicios anteriores cuando no están disponibles.",
   "settings.tool.websearch.model_tools_preferred.label": "Preferir las herramientas web nativas del modelo",
   "settings.tool.websearch.provider_description.bocha": "API de búsqueda de IA china con resultados web en tiempo real y estructurados.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Búsqueda gratuita de palabras clave a través del punto de acceso HTML de DuckDuckGo. No se requiere clave de API.",
   "settings.tool.websearch.provider_description.exa": "API de búsqueda neuronal para aplicaciones de IA, optimizada para la recuperación semántica en la web.",
   "settings.tool.websearch.provider_description.exa_mcp": "Expón la búsqueda de Exa a los agentes a través del Servidor MCP de Exa.",
   "settings.tool.websearch.provider_description.fetch": "Proveedor de obtención de URL integrado. Obtiene el contenido de la página web desde una URL para enriquecer los resultados de búsqueda.",

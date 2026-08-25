@@ -4946,6 +4946,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "优先使用模型内置的网页搜索和 URL 获取功能；不可用时自动切换到上方服务。",
   "settings.tool.websearch.model_tools_preferred.label": "优先使用模型内置 Web 工具",
   "settings.tool.websearch.provider_description.bocha": "面向 AI 场景的中文搜索 API，提供实时网页与结构化结果。",
+  "settings.tool.websearch.provider_description.duckduckgo": "基于 DuckDuckGo 网页端的免费关键词搜索，无需 API Key。",
   "settings.tool.websearch.provider_description.exa": "为 AI 应用设计的神经搜索 API，擅长语义检索高质量网页。",
   "settings.tool.websearch.provider_description.exa_mcp": "通过 Exa MCP Server 将 Exa 搜索能力暴露给智能体工具调用。",
   "settings.tool.websearch.provider_description.fetch": "内置 URL 获取服务商，用于从指定 URL 获取网页内容，适合补全搜索结果正文。",
