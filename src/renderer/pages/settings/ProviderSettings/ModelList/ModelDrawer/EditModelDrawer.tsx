@@ -20,8 +20,7 @@ import {
   buildModelCapabilities,
   buildModelInputModalities,
   getInitialModelClassification,
-  getModelApiId,
-  MODEL_ENDPOINT_OPTIONS
+  getModelApiId
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
@@ -80,7 +79,8 @@ interface AutoSaveQueueItem {
  * exact model, so it is the candidate list — and unlike an ordinary provider, which protocol a
  * model speaks is not implied by the provider, so it stays on screen even with one entry. Editing
  * never writes back to `endpointTypes`: that set is owned by the upstream listing, and overwriting
- * it here is what used to lose the provider's own answer.
+ * it here is what used to lose the provider's own answer. If upstream reports no set, only the
+ * provider's configured chat routes are safe fallback candidates.
  */
 function resolveEditPreferredEndpointOptions(
   provider: ProviderChatEndpoints | null | undefined,
@@ -89,7 +89,7 @@ function resolveEditPreferredEndpointOptions(
 ): readonly EndpointType[] {
   if (!provider || mode === 'purpose') return []
   if (mode === 'endpoint-types') {
-    return endpointTypes.length > 0 ? endpointTypes : MODEL_ENDPOINT_OPTIONS.map((option) => option.id)
+    return endpointTypes.length > 0 ? endpointTypes : getPreferredEndpointCandidates(provider)
   }
   // Elsewhere a single candidate means the provider already determines the route.
   const candidates = getPreferredEndpointCandidates(provider, endpointTypes)
