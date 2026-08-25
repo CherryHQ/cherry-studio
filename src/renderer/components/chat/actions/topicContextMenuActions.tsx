@@ -518,8 +518,8 @@ topicActionRegistry.registerAction({
   group: 'danger',
   order: 89,
   surface: 'menu',
-  // Matches `topic.delete` and the row affordance: if permanently deleting the last topic is
-  // safe (the handler opens a fresh one), archiving it — which is recoverable — is safer still.
+  // Matches `topic.delete` and the row affordance: removing the last topic just clears the
+  // active selection, and archiving is recoverable on top of that.
   availability: ({ topic }) => ({ visible: !topic.pinned })
 })
 
@@ -533,8 +533,8 @@ topicActionRegistry.registerAction({
   order: 90,
   surface: 'menu',
   danger: true,
-  // Deleting the last topic is allowed — the delete handler opens a fresh empty one afterwards, so
-  // the view is never stranded. Pinned topics must be unpinned before they can be deleted.
+  // Deleting the last topic is allowed: the handler selects a neighbour when one exists and
+  // otherwise clears the active topic. Pinned topics must be unpinned before they can be deleted.
   availability: ({ topic }) => ({ visible: !topic.pinned }),
   confirm: ({ t }) => ({
     title: t('chat.topics.manage.delete.confirm.title'),

@@ -171,6 +171,8 @@
   "agent.session.api_retry.reason": "Solicitud fallida ({{error}}, HTTP {{status}}) — reintentando",
   "agent.session.api_retry.retrying": "Reintentando {{attempt}}/{{max}}…",
   "agent.session.api_retry.retrying_in": "Reintentando {{attempt}}/{{max}} en {{seconds}}s",
+  "agent.session.archive.content": "¿Archivar esta sesión? Podrás restaurarla desde la papelera.",
+  "agent.session.archive.title": "Archivar sesión",
   "agent.session.auto_rename": "Generar nombre de tarea",
   "agent.session.create.error.failed": "Error al añadir una sesión",
   "agent.session.delete.content": "¿Estás seguro de eliminar esta sesión?",

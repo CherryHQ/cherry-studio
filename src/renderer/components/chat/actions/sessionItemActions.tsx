@@ -479,19 +479,19 @@ sessionActionRegistry.registerAction({
 sessionActionRegistry.registerAction({
   id: 'session.delete',
   commandId: 'session.delete',
-  label: ({ t }) => t('common.delete'),
+  // Archives to the trash — `permanent` is never sent on this path — so the label and
+  // the confirm both have to say archive, not delete.
+  label: ({ t }) => t('common.archive'),
   icon: () => <DeleteIcon size={14} className="lucide-custom" />,
   group: 'danger',
   order: 90,
   surface: 'menu',
-  danger: true,
   availability: ({ pinned }) => ({ visible: !pinned }),
   confirm: ({ t }) => ({
-    title: t('agent.session.delete.title'),
-    description: t('agent.session.delete.content'),
-    confirmText: t('common.delete'),
-    cancelText: t('common.cancel'),
-    destructive: true
+    title: t('agent.session.archive.title'),
+    description: t('agent.session.archive.content'),
+    confirmText: t('common.archive'),
+    cancelText: t('common.cancel')
   })
 })
 

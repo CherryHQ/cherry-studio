@@ -171,6 +171,8 @@
   "agent.session.api_retry.reason": "リクエスト失敗（{{error}}、HTTP {{status}}）— 再試行中",
   "agent.session.api_retry.retrying": "{{attempt}}/{{max}}を再試行中…",
   "agent.session.api_retry.retrying_in": "{{attempt}}/{{max}}回目の再試行まであと{{seconds}}秒",
+  "agent.session.archive.content": "このセッションをアーカイブしますか？後でゴミ箱から復元できます。",
+  "agent.session.archive.title": "セッションをアーカイブ",
   "agent.session.auto_rename": "タスク名を生成",
   "agent.session.create.error.failed": "セッションの追加に失敗しました",
   "agent.session.delete.content": "このセッションを削除してもよろしいですか？",

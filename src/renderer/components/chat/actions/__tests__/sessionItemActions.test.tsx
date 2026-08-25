@@ -170,11 +170,15 @@ describe('session item actions', () => {
     expect(onSetPanePosition).toHaveBeenCalledWith('left')
   })
 
-  it('uses localized cancel text for the delete confirmation', () => {
+  it('labels and confirms as an archive — the row goes to the trash, not away', () => {
     const actions = resolveSessionMenuActions(createSessionActionFixture())
     const deleteAction = actions.find((action) => action.id === 'session.delete')
 
+    // Label, confirm and operation all have to agree: this path never sends `permanent`.
+    expect(deleteAction?.label).toBe('common.archive')
+    expect(deleteAction?.confirm?.confirmText).toBe('common.archive')
     expect(deleteAction?.confirm?.cancelText).toBe('common.cancel')
+    expect(deleteAction?.confirm?.destructive).toBeFalsy()
   })
 
   it('keeps Save to Notes independent from export and copy preferences', () => {

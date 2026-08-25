@@ -171,6 +171,8 @@
   "agent.session.api_retry.reason": "Cerere eșuată ({{error}}, HTTP {{status}}) — se reîncearcă",
   "agent.session.api_retry.retrying": "Se reîncearcă {{attempt}}/{{max}}…",
   "agent.session.api_retry.retrying_in": "Reîncercare {{attempt}}/{{max}} în {{seconds}}s",
+  "agent.session.archive.content": "Arhivezi această sesiune? O poți restaura din coșul de gunoi.",
+  "agent.session.archive.title": "Arhivează sesiunea",
   "agent.session.auto_rename": "Generați numele sarcinii",
   "agent.session.create.error.failed": "Nu s-a putut adăuga o sesiune",
   "agent.session.delete.content": "Ești sigur că vrei să ștergi această sesiune?",

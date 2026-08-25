@@ -245,6 +245,8 @@ vi.mock('react-i18next', () => {
         'agent.session.display.workdir': 'Work directory',
         'agent.session.group.no_workdir': 'No work directory',
         'agent.session.group.unknown_agent': 'Unlinked Agent',
+        'agent.session.archive.content': 'Archive this task?',
+        'agent.session.archive.title': 'Archive task',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
         'agent.session.edit.title': 'Edit task name',
@@ -257,6 +259,7 @@ vi.mock('react-i18next', () => {
         'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
+        'common.archive': 'Archive',
         'common.delete': 'Delete',
         'common.more': 'More',
         'common.name': 'Name',
@@ -940,7 +943,7 @@ describe('HistoryRecordsView agent mode', () => {
       'Edit task name',
       'Pin task',
       '',
-      'Delete'
+      'Archive'
     ])
   })
 
@@ -1062,11 +1065,11 @@ describe('HistoryRecordsView agent mode', () => {
     expect(alphaRow).not.toBeNull()
     fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete task')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Archive task')
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive' }))
       await flushAnimationFrame()
     })
 
@@ -1080,12 +1083,14 @@ describe('HistoryRecordsView agent mode', () => {
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
 
-    expect(confirmActionShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
+    expect(confirmActionShow).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Archive task', okText: 'Archive' })
+    )
 
     await act(async () => {
       await flushAnimationFrame()
@@ -1103,7 +1108,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1122,7 +1127,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
