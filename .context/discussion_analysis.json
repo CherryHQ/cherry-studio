@@ -1,26 +1,32 @@
 {
-  "generated_at": "2026-08-24T17:30:00Z",
+  "generated_at": "2026-08-25T18:00:00Z",
   "note": "GitHub Discussions GraphQL not available in this session. Discussion-labeled issues used as proxy.",
   "discussion_issues_in_sample": [
     {
+      "number": 19396,
+      "title": "[Discussion]: backups from portable version can't be imported in setup version",
+      "labels": ["help wanted", "discussion", "data"],
+      "created_at": "2026-08-25",
+      "comments": 0
+    },
+    {
+      "number": 19340,
+      "title": "[Discussion]: Claude Sonnet 5 via OpenRouter lacks vision capability",
+      "labels": ["help wanted", "discussion", "models"],
+      "created_at": "2026-08-25",
+      "comments": 0
+    },
+    {
       "number": 19335,
       "title": "[Discussion]: Does the new version support conversation import functionality?",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "data"
-      ],
+      "labels": ["help wanted", "discussion", "data"],
       "created_at": "2026-08-24",
       "comments": 0
     },
     {
       "number": 19182,
       "title": "agent",
-      "labels": [
-        "needs-more-info",
-        "help wanted",
-        "discussion"
-      ],
+      "labels": ["needs-more-info", "help wanted", "discussion"],
       "created_at": "2026-08-22",
       "comments": 0,
       "sentiment": "unclear — vague title, needs triage"
@@ -28,11 +34,7 @@
     {
       "number": 18069,
       "title": "[Discussion]: V2 portable version starts very slowly",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "performance"
-      ],
+      "labels": ["help wanted", "discussion", "performance"],
       "created_at": "2026-08-07",
       "comments": 2,
       "sentiment": "negative — startup performance regression in V2 portable; community concern"
@@ -40,12 +42,7 @@
     {
       "number": 17191,
       "title": "[Discussion]: The knowledge base invocation window has disappeared",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "ui-ux",
-        "inactive"
-      ],
+      "labels": ["help wanted", "discussion", "ui-ux", "inactive"],
       "created_at": "2026-07-20",
       "comments": 2,
       "sentiment": "negative — KB UI missing; v2 regression; marked inactive"
@@ -53,13 +50,7 @@
     {
       "number": 17271,
       "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "rag",
-        "assistant",
-        "inactive"
-      ],
+      "labels": ["help wanted", "discussion", "rag", "assistant", "inactive"],
       "created_at": "2026-07-22",
       "comments": 1,
       "sentiment": "negative — agent + RAG integration gap; marked inactive"
@@ -67,9 +58,7 @@
     {
       "number": 17260,
       "title": "[Privacy Concern]: Agent mode hard-coded to Claude Code SDK — no user opt-out",
-      "labels": [
-        "inactive"
-      ],
+      "labels": ["inactive"],
       "created_at": "2026-07-22",
       "comments": 3,
       "sentiment": "negative — user privacy and model choice autonomy concern"
@@ -77,12 +66,7 @@
     {
       "number": 16010,
       "title": "[Discussion]: Which models are supported by the agent, what is the logic",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "models",
-        "inactive"
-      ],
+      "labels": ["help wanted", "discussion", "models", "inactive"],
       "created_at": "2026-06-12",
       "comments": 3,
       "sentiment": "confused — model support matrix unclear to users; documentation gap"
@@ -93,7 +77,8 @@
     "Knowledge base (RAG) integration gaps in agent mode",
     "Model support / agent compatibility confusion",
     "Privacy concerns: hard-coded Claude Code SDK dependency",
-    "DSH/Pi runtime integration issues"
+    "DSH/Pi runtime integration issues",
+    "Data migration: v1 portable → v1 setup / v1 → v2 (new today)"
   ],
   "sentiment_summary": {
     "positive": 0,

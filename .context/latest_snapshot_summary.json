@@ -1,15 +1,42 @@
 {
-  "generated_at": "2026-08-24T17:30:00Z",
-  "open_issues_total": 936,
-  "open_issues_delta_24h": 7,
+  "generated_at": "2026-08-25T18:00:00Z",
+  "open_issues_total": 949,
+  "open_issues_delta_24h": 13,
   "open_prs_total": 100,
   "p1_issues": [
+    {
+      "number": 19383,
+      "title": "[Bug]: Built-in agent shows delete entry but errors with Handler not found",
+      "labels": ["bug", "p1", "ui-ux", "agent"],
+      "created_at": "2026-08-25",
+      "age_days": 0,
+      "comments": 2,
+      "status": "Active"
+    },
+    {
+      "number": 19379,
+      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks inner tool name)",
+      "labels": ["bug", "p1", "ui-ux", "v2", "agent"],
+      "created_at": "2026-08-25",
+      "age_days": 0,
+      "comments": 0,
+      "status": "Active"
+    },
+    {
+      "number": 19376,
+      "title": "Pi runtime: auto permission mode still prompts for every tool call",
+      "labels": ["bug", "p1", "assistant", "v2", "agent"],
+      "created_at": "2026-08-25",
+      "age_days": 0,
+      "comments": 0,
+      "status": "Active"
+    },
     {
       "number": 19326,
       "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
       "labels": ["bug", "p1", "needs-more-info", "chat"],
       "created_at": "2026-08-24",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 0,
       "status": "Active"
     },
@@ -18,7 +45,7 @@
       "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
       "labels": ["bug", "p1", "windows", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 0,
       "status": "Active"
     },
@@ -27,16 +54,16 @@
       "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
       "labels": ["bug", "p1", "models", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 0,
-      "comments": 0,
+      "age_days": 1,
+      "comments": 1,
       "status": "Active"
     },
     {
       "number": 19316,
-      "title": "[Bug]: DeepSeek Harness (dsh) Agent 会话报 400：所选服务商不接受 messages[0].role=developer",
+      "title": "[Bug]: DeepSeek Harness (dsh) Agent 400: messages[0].role=developer not accepted",
       "labels": ["bug", "p1", "models", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 1,
       "status": "Active"
     },
@@ -45,8 +72,8 @@
       "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
       "labels": ["bug", "p1", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 0,
-      "comments": 0,
+      "age_days": 1,
+      "comments": 1,
       "status": "Active"
     },
     {
@@ -54,26 +81,17 @@
       "title": "[Bug] Claude Agent SDK session injects the full Claude Code developer prompt twice",
       "labels": ["bug", "p1", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 3,
       "status": "Active"
     },
     {
       "number": 19272,
-      "title": "[Bug]: I found a bug when I used it with augment claude type agent",
+      "title": "[Bug]: bug when used with augment claude type agent",
       "labels": ["bug", "p1", "needs-more-info", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 1,
-      "status": "Active"
-    },
-    {
-      "number": 19271,
-      "title": "[Bug] MiniMax-M3 agent intermittent disconnection: reasoning-0 not found, cron task failures not retried",
-      "labels": ["bug", "p1", "models", "agent"],
-      "created_at": "2026-08-24",
-      "age_days": 0,
-      "comments": 0,
       "status": "Active"
     },
     {
@@ -81,8 +99,8 @@
       "title": "[Bug]: Multimodal content block built incorrectly — images not passed to vision models",
       "labels": ["bug", "p1", "models", "chat"],
       "created_at": "2026-08-23",
-      "age_days": 1,
-      "comments": 5,
+      "age_days": 2,
+      "comments": 7,
       "status": "Active"
     },
     {
@@ -90,7 +108,7 @@
       "title": "[Bug]: Quick Assist feature not working",
       "labels": ["bug", "p1", "ui-ux", "inactive"],
       "created_at": "2026-05-30",
-      "age_days": 86,
+      "age_days": 87,
       "comments": 0,
       "status": "Zombie"
     },
@@ -99,7 +117,7 @@
       "title": "[讨论]: cherry studio是否无法接入商汤大模型？",
       "labels": ["bug", "p1", "models", "inactive"],
       "created_at": "2025-07-31",
-      "age_days": 390,
+      "age_days": 391,
       "comments": 0,
       "status": "Zombie"
     }
@@ -124,221 +142,90 @@
     "agent": 12,
     "needs-repro": 9
   },
-  "new_issues_today_aug24": [
+  "new_issues_today_aug25": [
     {
-      "number": 19335,
-      "title": "[Discussion]: Does the new version support conversation import?",
-      "labels": ["help wanted", "discussion", "data"],
-      "severity": "low"
+      "number": 19415,
+      "title": "[Bug]: systemfile MCP auto-downloaded file fails to open with an error",
+      "labels": ["mcp"],
+      "severity": "medium"
     },
     {
-      "number": 19334,
-      "title": "Words like 'contemplation' and 'daydreaming' seem outdated",
-      "labels": ["assistant"],
-      "severity": "low"
-    },
-    {
-      "number": 19333,
-      "title": "[Bug]: Lazy-load inactive Data Settings panels",
+      "number": 19410,
+      "title": "[Bug]: Isolate HTML artifact popup subscriptions per artifact",
       "labels": ["performance"],
       "severity": "medium"
     },
     {
-      "number": 19332,
-      "title": "[Bug]: Hydrate only newly paginated Files entries",
+      "number": 19409,
+      "title": "[Bug]: Keep chat anchor gutter measurements out of React context",
       "labels": ["performance"],
       "severity": "medium"
     },
     {
-      "number": 19331,
-      "title": "[Bug]: Lazy-load Agent tool renderers from ordinary chat",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19330,
-      "title": "[Bug]: Avoid per-file IPC in Notes full-text search",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19329,
-      "title": "[Bug]: Isolate topic rename subscriptions per row",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19328,
-      "title": "[Feature] Per-topic agent binding for Telegram channels",
+      "number": 19408,
+      "title": "[Bug]: Clean up abandoned Nutstore SSO listeners",
       "labels": [],
       "severity": "low"
     },
     {
-      "number": 19327,
-      "title": "[Bug]: V2 model detection is slower and skips image-generation models",
-      "labels": ["bug", "p2", "needs-more-info", "models", "performance"],
+      "number": 19407,
+      "title": "[Bug]: Isolate message editing subscriptions per message",
+      "labels": ["performance"],
       "severity": "medium"
     },
     {
-      "number": 19326,
-      "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
-      "labels": ["bug", "p1", "needs-more-info", "chat"],
-      "severity": "critical"
+      "number": 19406,
+      "title": "[Bug]: Avoid re-registering every composer tool on state changes",
+      "labels": ["performance"],
+      "severity": "medium"
     },
     {
-      "number": 19325,
-      "title": "[Feature]: Show progress and failure stages for Harness installation and upgrades",
-      "labels": ["p3", "feature", "needs-triage", "ui-ux", "agent"],
+      "number": 19402,
+      "title": "[Bug]: Hidden MCP browser tab autoplays media with sound after switching chats",
+      "labels": [],
+      "severity": "medium"
+    },
+    {
+      "number": 19398,
+      "title": "[Feature]: Add Global Memory UI",
+      "labels": [],
       "severity": "low"
     },
     {
-      "number": 19324,
-      "title": "[Bug]: Cross-turn web citations lose the original URL",
-      "labels": ["bug", "p2", "needs-more-info", "ui-ux"],
+      "number": 19397,
+      "title": "[Bug]: @cherry/browser open action fails on local file URLs (Invalid remote url)",
+      "labels": ["mcp"],
       "severity": "medium"
     },
     {
-      "number": 19323,
-      "title": "[Bug]: V2 knowledge-base indexing is slower than V1",
-      "labels": ["bug", "p2", "needs-more-info", "rag", "performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19322,
-      "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
-      "labels": ["bug", "p1", "windows", "agent"],
-      "severity": "critical"
-    },
-    {
-      "number": 19321,
-      "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
-      "labels": ["bug", "p1", "models", "agent"],
-      "severity": "critical"
-    },
-    {
-      "number": 19320,
-      "title": "[Feature]: Include openpyxl in the managed Agent code runtime",
-      "labels": ["p3", "feature", "needs-triage", "assistant", "agent"],
+      "number": 19391,
+      "title": "[Bug]: Error dialog text cannot be selected or copied",
+      "labels": ["bug", "p3", "ui-ux"],
       "severity": "low"
     },
     {
-      "number": 19319,
-      "title": "[Bug]: Modal overlay flickers while the pointer moves",
-      "labels": ["bug", "p2", "needs-more-info", "windows", "ui-ux"],
+      "number": 19390,
+      "title": "[Task]: Size the mise install timeout for large npm graphs",
+      "labels": ["Dev Team", "performance", "internal-team"],
       "severity": "medium"
     },
     {
-      "number": 19317,
-      "title": "[Task]: Upgrade Electron 41.8.0 → 43.4.1",
-      "labels": ["Dev Team", "internal-team"],
-      "severity": "medium"
-    },
-    {
-      "number": 19316,
-      "title": "[Bug]: DeepSeek Harness (dsh) Agent 400 — messages[0].role=developer not accepted",
-      "labels": ["bug", "p1", "models", "agent"],
+      "number": 19383,
+      "title": "[Bug]: Built-in agent shows delete entry but errors with Handler not found",
+      "labels": ["bug", "p1", "ui-ux", "agent"],
       "severity": "critical"
     },
     {
-      "number": 19315,
-      "title": "[Feature]: Managed local-only security mode for sensitive shared workstations",
-      "labels": ["p2", "feature"],
-      "severity": "medium"
-    },
-    {
-      "number": 19314,
-      "title": "[Bug]: DeepSeek V4 Pro reasoning can finish without a final answer",
-      "labels": ["bug", "p2", "models"],
-      "severity": "medium"
-    },
-    {
-      "number": 19313,
-      "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
-      "labels": ["bug", "p1", "agent"],
+      "number": 19379,
+      "title": "Pi runtime: report_artifacts deliverables never render",
+      "labels": ["bug", "p1", "ui-ux", "v2", "agent"],
       "severity": "critical"
     },
     {
-      "number": 19312,
-      "title": "[Bug]: DeepSeek DSML tool-call leak (single-bar variant) bypasses dsmlParser — agent sessions stall",
-      "labels": ["models"],
-      "severity": "high"
+      "number": 19376,
+      "title": "Pi runtime: auto permission mode still prompts for every tool call",
+      "labels": ["bug", "p1", "assistant", "v2", "agent"],
+      "severity": "critical"
     }
-  ],
-  "critical_bugs_needing_attention": [
-    {
-      "number": 19313,
-      "title": "Managed DSH fails to start — @deepseek-ai/dsh-scope missing",
-      "severity": "critical",
-      "reason": "All users of Managed DSH mode blocked on startup. Missing npm scope dependency.",
-      "opened_today": true
-    },
-    {
-      "number": 19316,
-      "title": "DSH Agent 400 — provider rejects messages[0].role=developer",
-      "severity": "critical",
-      "reason": "Every DSH agent session returns 400. DSH Harness protocol mismatch with provider expectations.",
-      "opened_today": true
-    },
-    {
-      "number": 19321,
-      "title": "Local API drops DeepSeek reasoning_text on tool continuations",
-      "severity": "critical",
-      "reason": "DeepSeek reasoning output silently discarded when tool calls are chained. Affects all DSH+tool sessions.",
-      "opened_today": true
-    },
-    {
-      "number": 19326,
-      "title": "Retry state persists after success — poisons later conversation turns",
-      "severity": "critical",
-      "reason": "Stale retry state corrupts subsequent messages in an active conversation. Data integrity risk.",
-      "opened_today": true
-    },
-    {
-      "number": 19312,
-      "title": "DeepSeek DSML tool-call leak bypasses dsmlParser — agent sessions stall in premature end_turn loop",
-      "severity": "high",
-      "reason": "Single-bar DSML variant not caught by parser; agent enters infinite end_turn loop.",
-      "opened_today": true
-    },
-    {
-      "number": 19254,
-      "title": "Multimodal content block wrong — images not passed to vision models",
-      "severity": "high",
-      "reason": "Core vision feature broken for GLM-4V-Flash 1213, DeepSeek vision and likely others.",
-      "opened_today": false
-    },
-    {
-      "number": 19116,
-      "title": "v2.0.8 bundle missing #18702 and #18121 fixes",
-      "severity": "critical",
-      "reason": "Release QA gap: two known fixes absent from shipped bundle. Affects all v2.0.8 users.",
-      "opened_today": false
-    }
-  ],
-  "pr_summary": {
-    "total_open": 100,
-    "targeting_main": 95,
-    "targeting_v2": 0,
-    "targeting_v1": 1,
-    "targeting_other": 4,
-    "draft_prs": 2,
-    "labels_distribution": {
-      "needs-review": 9,
-      "ready-to-merge": 2,
-      "p1": 1,
-      "p2": 1,
-      "bug": 1,
-      "v1": 1
-    }
-  },
-  "issue_health_estimates": {
-    "total_open": 936,
-    "active_7d": 85,
-    "aging_7_30d": 52,
-    "stale_30_90d": 252,
-    "zombie_90d_plus": 547,
-    "zombie_pct": 58.4,
-    "unlabeled_pct": 21.0,
-    "note": "Estimated from 100-issue sample (most recently updated) extrapolated to full set"
-  }
+  ]
 }

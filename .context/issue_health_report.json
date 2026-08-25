@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-08-24T17:30:00Z",
-  "total_open_issues": 936,
+  "generated_at": "2026-08-25T18:00:00Z",
+  "total_open_issues": 949,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Aug 17-24)",
-      "count": 85,
-      "pct": "9.1%",
+      "description": "Updated within last 7 days (Aug 18-25)",
+      "count": 98,
+      "pct": "10.3%",
       "note": "Estimated from top-100 sample; most-recent-activity bias means true active count likely higher"
     },
     "aging": {
-      "description": "7-30 days since last update (Jul 25 - Aug 16)",
+      "description": "7-30 days since last update (Jul 26 - Aug 17)",
       "count": 52,
-      "pct": "5.6%"
+      "pct": "5.5%"
     },
     "stale": {
-      "description": "30-90 days without update (May 25 - Jul 24), many auto-labeled 'inactive'",
+      "description": "30-90 days without update (May 26 - Jul 25), many auto-labeled 'inactive'",
       "count": 252,
-      "pct": "26.9%",
+      "pct": "26.6%",
       "inactive_label_count": 65
     },
     "zombie": {
-      "description": "90+ days open with no resolution (before May 25)",
+      "description": "90+ days open with no resolution (before May 26)",
       "count": 547,
-      "pct": "58.4%",
+      "pct": "57.6%",
       "p1_zombies": [15431, 8730]
     }
   },
@@ -30,49 +30,55 @@
     "needs_triage_count": 38,
     "needs_repro_count": 9,
     "top_needs_triage": [
-      {"number": 19116, "title": "v2.0.8 bundle missing fixes — response_format and reasoning_content regressions", "priority": "critical"},
+      {"number": 19116, "title": "v2.0.8 bundle missing fixes — response_format retry and reasoning_content regressions", "priority": "critical"},
       {"number": 19093, "title": "S3 backup/restore issues reported on v2.0.7 Windows", "priority": "high"},
       {"number": 19105, "title": "Build an end-to-end diagnostics and error reporting system", "priority": "medium"},
       {"number": 19325, "title": "Show progress and failure stages for Harness installation and upgrades", "priority": "medium"},
       {"number": 19242, "title": "Expose safe runtime information to Custom Agents", "priority": "low"}
     ]
   },
-  "hot_areas_aug24": {
+  "hot_areas_aug25": {
+    "pi_runtime_regressions": {
+      "count": 2,
+      "p1_count": 2,
+      "issues": [19379, 19376],
+      "description": "CRITICAL: Pi runtime artifact rendering broken (code mode masks inner tool name) + auto-permission mode still prompts. Both v2-tagged. Filed today by kennyzheng-builds."
+    },
     "dsh_deepseek_agent_cluster": {
       "count": 5,
       "p1_count": 4,
       "issues": [19313, 19316, 19321, 19322, 19312],
-      "description": "CRITICAL CLUSTER: DSH missing npm scope, DSH 400 developer-role, reasoning_text dropped on tool continuations, Zstandard log first-frame contract failure, DSML tool-call leak → agent stall loop. All filed today. Coordinated DSH/DeepSeek integration breakage."
+      "description": "ONGOING: DSH missing npm scope, DSH 400 developer-role, reasoning_text dropped on tool continuations, Zstandard log first-frame contract failure, DSML tool-call leak → agent stall loop. Coordinated DSH/DeepSeek integration breakage from yesterday."
     },
     "agent_reliability": {
-      "count": 5,
-      "p1_count": 3,
-      "issues": [19326, 19290, 19272, 19271, 19203],
-      "description": "Retry state poisoning conversation turns (P1), Claude SDK double-prompt injection (P1), MiniMax-M3 disconnection (P1), augment claude agent bug (P1), heartbeat interval dropped from JobManager migration"
-    },
-    "performance_batch": {
-      "count": 8,
-      "issues": [19333, 19332, 19331, 19330, 19329, 19209, 19211, 19208],
-      "description": "DeJeune performance optimization batch: lazy-load settings panels, file hydration, agent tool renderers, IPC in search, subscription isolation, CodeMirror lazy-load, TabRouter stability"
-    },
-    "model_metadata": {
       "count": 4,
-      "issues": [19327, 19314, 19261, 19254],
-      "description": "V2 model detection skips image-generation models, DeepSeek V4 Pro reasoning incomplete, V4 Flash/Pro metadata wrong, multimodal vision block misbuilt"
+      "p1_count": 3,
+      "issues": [19326, 19290, 19272, 19383],
+      "description": "Retry state poisoning conversation turns (P1), Claude SDK double-prompt injection (P1), augment claude agent bug (P1), built-in agent delete handler not found (P1 new today)"
     },
-    "mcp_oauth": {
+    "performance_batch_aug25": {
+      "count": 6,
+      "issues": [19406, 19407, 19409, 19410, 19329, 19330],
+      "description": "DeJeune performance batch (cont.): subscription isolation per artifact/message/composer, anchor gutter context separation, IPC reduction"
+    },
+    "mermaid_rendering": {
       "count": 2,
-      "issues": [19268, 19048],
-      "description": "MCP OAuth redesign task (coordinator-owned background workflow), MCP OAuth 300s blocking timeout on startup"
+      "issues": [19355, 19394],
+      "description": "Mermaid diagrams shrink/blur in fullscreen and preview window. Two separate reporters; both open."
+    },
+    "mcp_issues": {
+      "count": 3,
+      "issues": [19415, 19397, 19268],
+      "description": "systemfile MCP file open failure, @cherry/browser local URL reject, MCP OAuth redesign (internal task)"
     }
   },
   "summary_deltas_vs_yesterday": {
-    "open_issues_change": "+7",
-    "new_p1_issues": 5,
-    "new_p1_detail": "DSH/DeepSeek agent cluster: #19313, #19316, #19321, #19322 (SiinXu), #19316 (kangfenmao)",
+    "open_issues_change": "+13",
+    "new_p1_issues": 3,
+    "new_p1_detail": "Pi runtime regressions: #19379, #19376 (kennyzheng-builds), built-in agent handler: #19383 (mikael1120)",
     "resolved_p1_issues": 0,
-    "newly_needs_triage": "+2",
+    "newly_needs_triage": "+1",
     "newly_inactive": "+0",
-    "today_theme": "DSH/DeepSeek Agent integration instability — 5 new P1 bugs all touching the DSH or DeepSeek agent pipeline, filed within a 2-hour window (12:18–12:44 UTC). Likely coordinated discovery after a recent DSH version bump."
+    "today_theme": "Pi runtime regressions dominate — two new P1 bugs in the Pi agent runtime (artifact rendering + permission prompts) filed within 22 minutes of each other. Combined with yesterday's unresolved DSH cluster, the agent runtime stack has 11 open P1 bugs."
   }
 }

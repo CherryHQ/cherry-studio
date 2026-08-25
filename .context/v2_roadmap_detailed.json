@@ -1,168 +1,149 @@
 {
-  "generated_at": "2026-08-24T17:30:00Z",
+  "generated_at": "2026-08-25T18:00:00Z",
   "v2_branch_open_prs": 0,
-  "v2_branch_note": "No open PRs targeting v2 base branch. All active v2 development merges to main. V2 branch may be maintained for stable release line separately.",
+  "v2_branch_note": "No open PRs targeting v2 base branch. All active v2 development merges to main. V2-specific issues tracked via the 'v2' label.",
   "v2_related_open_issues": [
+    {
+      "number": 19379,
+      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks inner tool name)",
+      "labels": ["bug", "p1", "ui-ux", "v2", "agent"],
+      "created_at": "2026-08-25",
+      "age_days": 0,
+      "status": "CRITICAL — new today"
+    },
+    {
+      "number": 19376,
+      "title": "Pi runtime: auto permission mode still prompts for every tool call",
+      "labels": ["bug", "p1", "assistant", "v2", "agent"],
+      "created_at": "2026-08-25",
+      "age_days": 0,
+      "status": "CRITICAL — new today"
+    },
     {
       "number": 9011,
       "title": "显示推理 tokens 数量 (Show reasoning token count)",
-      "labels": [
-        "feature",
-        "v2",
-        "blocked-v2"
-      ],
+      "labels": ["feature", "v2", "blocked-v2"],
       "created_at": "2025-08-09",
-      "age_days": 379,
+      "age_days": 380,
       "status": "Blocked — waiting on v2 APIs"
     }
   ],
   "recently_shipped_signals": {
-    "version": "v2.0.8",
-    "critical_regression": "#19116 — v2.0.8 bundle missing #18702 (response_format retry) and #18121 (reasoning_content) fixes. Hotfix v2.0.8.1 may be needed.",
+    "version": "v2.0.9",
+    "critical_regression": "#19116 — v2.0.8 bundle missing #18702 (response_format retry) and #18121 (reasoning_content) fixes. Watch for hotfix or v2.0.9 confirmation.",
     "known_user_friction": [
-      "DSH integration broken by credentials file format (#19262, new today)",
-      "macOS PATH not inherited by Pi/DSH runtimes (#19244, new today)",
-      "Multimodal content block built incorrectly in single chat (#19254, new today)",
+      "Pi runtime artifact rendering broken in v2 agent mode (#19379, P1, new today)",
+      "Pi runtime auto-permission still prompts on every tool call (#19376, P1, new today)",
+      "DSH integration broken — @deepseek-ai/dsh-scope missing (#19313)",
+      "DSH 400 error: developer role rejected (#19316)",
+      "macOS PATH not inherited by Pi/DSH runtimes (#19244)",
+      "Multimodal content block built incorrectly in single chat (#19254, P1)",
       "Agent heartbeat interval regression — all background tasks silent (#19203)",
-      "Agent output dead-loop on tool_calls in thinking block (#19188)",
-      "Stream stuck/empty after stop + regenerate (#19119)",
-      "Model connectivity false-negatives on reasoning_effort:none (#19171)"
+      "Agent output dead-loop on tool_calls in thinking block (#19188)"
     ]
   },
-  "active_sprint_aug23": {
-    "theme": "DSH/Agent stability + Performance isolation + Model metadata accuracy",
+  "active_sprint_aug25": {
+    "theme": "Pi/DSH runtime stability + Performance isolation + Model vision fixes",
     "new_issues_filed_today": [
       {
-        "number": 19262,
-        "title": "DSH credentials format incompatible with dsh 0.1.1-rc.2",
-        "severity": "high"
+        "number": 19383,
+        "title": "[Bug]: Built-in agent delete handler not found",
+        "severity": "critical",
+        "labels": ["bug", "p1", "ui-ux", "agent"]
       },
       {
-        "number": 19261,
-        "title": "DeepSeek V4 Flash/Pro model metadata incorrect",
-        "severity": "medium"
+        "number": 19379,
+        "title": "Pi runtime: report_artifacts deliverables never render",
+        "severity": "critical",
+        "labels": ["bug", "p1", "ui-ux", "v2", "agent"]
       },
       {
-        "number": 19255,
-        "title": "Trailing '#' in API address not preventing version path append",
-        "severity": "medium"
+        "number": 19376,
+        "title": "Pi runtime: auto permission mode still prompts",
+        "severity": "critical",
+        "labels": ["bug", "p1", "assistant", "v2", "agent"]
       },
       {
-        "number": 19254,
-        "title": "Multimodal content block built incorrectly for vision models",
-        "severity": "high"
+        "number": 19415,
+        "title": "systemfile MCP auto-downloaded file fails to open",
+        "severity": "medium",
+        "labels": ["mcp"]
       },
       {
-        "number": 19248,
-        "title": "Paste images in Agent/advisor sessions broken",
-        "severity": "medium"
+        "number": 19409,
+        "title": "Keep chat anchor gutter measurements out of React context",
+        "severity": "medium",
+        "labels": ["performance"]
       },
       {
-        "number": 19244,
-        "title": "Pi and DSH runtimes don't inherit CLI PATH on macOS",
-        "severity": "high"
+        "number": 19410,
+        "title": "Isolate HTML artifact popup subscriptions per artifact",
+        "severity": "medium",
+        "labels": ["performance"]
       },
       {
-        "number": 19243,
-        "title": "Referenced conversations can trigger actions without user request",
-        "severity": "high"
+        "number": 19407,
+        "title": "Isolate message editing subscriptions per message",
+        "severity": "medium",
+        "labels": ["performance"]
       },
       {
-        "number": 19241,
-        "title": "Workspace .agents/skills not auto-discovered",
-        "severity": "medium"
-      },
-      {
-        "number": 19240,
-        "title": "macOS screenshot overlay shows wrong Space's capture",
-        "severity": "medium"
+        "number": 19406,
+        "title": "Avoid re-registering every composer tool on state changes",
+        "severity": "medium",
+        "labels": ["performance"]
       }
     ],
     "performance_sprint_ongoing": {
       "lead": "DeJeune",
-      "open_issues": [
-        19208,
-        19209,
-        19210,
-        19211,
-        19139,
-        19140,
-        19141
-      ],
-      "description": "Lazy-load CodeMirror, isolate message subscriptions, stabilize virtualized file callbacks, exclude devtools from prod bundle"
+      "open_issues": [19406, 19407, 19409, 19410, 19208, 19209, 19211, 19329, 19330, 19331, 19332, 19333, 19139, 19140, 19141],
+      "description": "Subscription isolation per artifact/message/composer, lazy-load CodeMirror/Agent-renderers/Settings panels, stabilize virtualized file callbacks, exclude devtools from prod bundle"
     },
     "internal_dev_tasks": {
-      "lead": "EurFelux",
-      "open_tasks": [
-        19230,
-        19231,
-        19235,
-        19238,
-        19239,
-        19249
-      ],
-      "description": "Reorder agent system prompt, hot-toggle tracing, remove orphaned IPC patch, distinguish integer vs continuous param ranges"
+      "open_tasks": [19317, 19390, 19357, 19265, 19268, 19239, 19238, 19235, 19231, 19192],
+      "description": "Electron upgrade (41.8→43.4), mise install timeout sizing, dsh tool-rejection propagation, conversation pointers, MCP OAuth redesign, hot-toggle tracing, orphaned IPC patch removal, developer mode restart-free"
     }
   },
   "roadmap_planned_items": [
     {
       "number": 18984,
       "title": "Traceable Knowledge Base Citations",
-      "labels": [
-        "planned",
-        "feature",
-        "rag",
-        "internal-team"
-      ],
-      "age_days": 3
+      "labels": ["planned", "feature", "rag", "internal-team"],
+      "age_days": 4
     },
     {
       "number": 18980,
       "title": "Conversation and Agent Session Archive",
-      "labels": [
-        "planned",
-        "feature",
-        "internal-team"
-      ],
-      "age_days": 3
+      "labels": ["planned", "feature", "internal-team"],
+      "age_days": 4
     },
     {
       "number": 15661,
       "title": "Appshots — Screen Capture as Vision Input (User Button + Agent Tool)",
-      "labels": [
-        "assistant",
-        "ui-ux",
-        "internal-team"
-      ],
-      "age_days": 80
+      "labels": ["assistant", "ui-ux", "internal-team"],
+      "age_days": 81
     },
     {
       "number": 14899,
       "title": "Unified Notification Center",
-      "labels": [
-        "planned",
-        "p1",
-        "feature",
-        "ui-ux"
-      ],
-      "age_days": 108
+      "labels": ["planned", "p1", "feature", "ui-ux"],
+      "age_days": 109
     },
     {
       "number": 18264,
       "title": "Global Memory toggle for Agents + memory overview docs",
-      "labels": [
-        "docs",
-        "assistant",
-        "ui-ux"
-      ],
-      "age_days": 14
+      "labels": ["docs", "assistant", "ui-ux"],
+      "age_days": 15
     }
   ],
   "pr_pipeline_targets_main": {
-    "count": 94,
-    "draft": 3,
-    "needs_review": 4,
-    "ready_to_merge": 1,
-    "p1_labeled_prs": 2
+    "count": 95,
+    "top_authors": {
+      "userInner": 32,
+      "DeJeune": 12,
+      "yzxcj797": 9,
+      "NatsUIJM": 7,
+      "404-Page-Found": 5
+    }
   }
 }
