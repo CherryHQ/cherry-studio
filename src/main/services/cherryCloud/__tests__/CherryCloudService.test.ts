@@ -75,7 +75,7 @@ const sessionId = '00000000-0000-4000-8000-000000000010'
 const accountId = '00000000-0000-4000-8000-000000000020'
 const deviceId = '00000000-0000-4000-8000-000000000030'
 const token = (character: string) => character.repeat(42) + 'A'
-const freeAccountSnapshot = {
+const accountSnapshot = {
   account: { id: accountId },
   session: { id: sessionId, expires_at: '2030-02-01T03:04:05Z' },
   device: { id: deviceId },
@@ -93,13 +93,26 @@ const freeAccountSnapshot = {
       is_free: false,
       status: 'active',
       model_ids: ['deepseek-go']
+    },
+    {
+      plan_id: '00000000-0000-4000-8000-000000000042',
+      plan_name: '已过期套餐',
+      is_free: false,
+      status: 'inactive',
+      model_ids: ['deepseek-inactive']
     }
   ]
 }
 const cloudModelCatalog = {
   data: [
     { id: 'deepseek-free', display_name: 'DeepSeek Free', context_window: 128_000, max_output_tokens: 8_192 },
-    { id: 'deepseek-go', display_name: 'DeepSeek GO', context_window: 256_000, max_output_tokens: 16_384 }
+    { id: 'deepseek-go', display_name: 'DeepSeek GO', context_window: 256_000, max_output_tokens: 16_384 },
+    {
+      id: 'deepseek-inactive',
+      display_name: 'DeepSeek Inactive',
+      context_window: 64_000,
+      max_output_tokens: 4_096
+    }
   ]
 }
 
@@ -164,7 +177,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
   mocks.netFetch
     .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
     .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-    .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
+    .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
     .mockResolvedValueOnce(jsonResponse({ data: [] }))
 
   const service = new CherryCloudService()
@@ -176,7 +189,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
       `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
     )
   )
-  await service.syncFreeModels()
+  await service.syncEntitledModels()
   mocks.netFetch.mockReset()
   mocks.broadcast.mockClear()
   mocks.modelCreate.mockClear()
@@ -204,7 +217,7 @@ describe('CherryCloudService', () => {
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
       .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
+      .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
       .mockResolvedValueOnce(jsonResponse({ data: [] }))
 
     const service = new CherryCloudService()
@@ -243,7 +256,7 @@ describe('CherryCloudService', () => {
     const exchangeBody = JSON.parse(exchangeRequest[1].body as string)
     expect(exchangeBody).toMatchObject({ state: createBody.state, handoff_code: token('D') })
     expect(exchangeBody.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    await service.syncFreeModels()
+    await service.syncEntitledModels()
 
     CherryCloudService.resetInstances()
     const restarted = new CherryCloudService()
@@ -614,7 +627,7 @@ describe('CherryCloudService', () => {
     expect(mocks.openExternal).toHaveBeenCalledTimes(2)
   })
 
-  it('syncs only models belonging to active free entitlements', async () => {
+  it('syncs models belonging to active free and paid entitlements', async () => {
     const service = await createSignedInService()
     mocks.modelList.mockReturnValue([
       { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' },
@@ -627,10 +640,10 @@ describe('CherryCloudService', () => {
       }
     ])
     mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(freeAccountSnapshot))
+      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
-    await expect(service.syncFreeModels()).resolves.toEqual({ modelCount: 1 })
+    await expect(service.syncEntitledModels()).resolves.toEqual({ modelCount: 2 })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
       {
@@ -641,6 +654,16 @@ describe('CherryCloudService', () => {
           group: 'Cherry Cloud',
           contextWindow: 128_000,
           maxOutputTokens: 8_192
+        })
+      },
+      {
+        dto: expect.objectContaining({
+          providerId: 'cherryai',
+          modelId: 'deepseek-go',
+          name: 'DeepSeek GO',
+          group: 'Cherry Cloud',
+          contextWindow: 256_000,
+          maxOutputTokens: 16_384
         })
       }
     ])
@@ -661,6 +684,30 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('does not claim a remote model id already owned by a non-Cloud model', async () => {
+    const service = await createSignedInService()
+    mocks.modelList.mockReturnValue([
+      { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' },
+      {
+        id: 'cherryai::deepseek-go',
+        providerId: 'cherryai',
+        apiModelId: 'deepseek-go',
+        name: 'Local DeepSeek',
+        group: 'Local'
+      }
+    ])
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
+      .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
+
+    await expect(service.syncEntitledModels()).resolves.toEqual({ modelCount: 2 })
+
+    expect(mocks.modelCreate).toHaveBeenCalledWith([
+      { dto: expect.objectContaining({ providerId: 'cherryai', modelId: 'deepseek-free' }) }
+    ])
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
+  })
+
   it('does not apply a model sync that finishes after the Session is cleared', async () => {
     const service = await createSignedInService()
     const accountRequest = deferred<Response>()
@@ -670,11 +717,11 @@ describe('CherryCloudService', () => {
       .mockReturnValueOnce(catalogRequest.promise)
       .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
 
-    const sync = service.syncFreeModels()
+    const sync = service.syncEntitledModels()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
 
-    accountRequest.resolve(jsonResponse(freeAccountSnapshot))
+    accountRequest.resolve(jsonResponse(accountSnapshot))
     catalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
     await expect(sync).resolves.toEqual({ modelCount: 0 })
@@ -690,14 +737,14 @@ describe('CherryCloudService', () => {
       .mockReturnValueOnce(oldCatalogRequest.promise)
       .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
 
-    const oldSync = service.syncFreeModels()
+    const oldSync = service.syncEntitledModels()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
 
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
       .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-      .mockResolvedValueOnce(jsonResponse(freeAccountSnapshot))
+      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
     await service.startLogin()
     const createBody = JSON.parse(mocks.netFetch.mock.calls[3][1].body as string)
@@ -708,13 +755,13 @@ describe('CherryCloudService', () => {
     )
 
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(7))
-    oldAccountRequest.resolve(jsonResponse(freeAccountSnapshot))
+    oldAccountRequest.resolve(jsonResponse(accountSnapshot))
     oldCatalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
     await expect(oldSync).resolves.toEqual({ modelCount: 0 })
-    expect(mocks.modelCreate).toHaveBeenCalledWith([
-      expect.objectContaining({ dto: expect.objectContaining({ modelId: 'deepseek-free' }) })
-    ])
+    expect(mocks.modelCreate).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ dto: expect.objectContaining({ modelId: 'deepseek-free' }) })])
+    )
   })
 
   it('rotates an expired access token before a signed model request', async () => {
@@ -888,7 +935,7 @@ describe('CherryCloudService', () => {
         .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
         .mockResolvedValueOnce(jsonResponse(exchangeResponse(30)))
         .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-        .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
+        .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
         .mockResolvedValueOnce(jsonResponse({ data: [] }))
       await service.startLogin()
       const createBody = JSON.parse(mocks.netFetch.mock.calls[2][1].body as string)
@@ -954,7 +1001,7 @@ describe('CherryCloudService', () => {
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
       .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
+      .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
       .mockResolvedValueOnce(jsonResponse({ data: [] }))
     await service.startLogin()
     const createBody = JSON.parse(mocks.netFetch.mock.calls[2][1].body as string)
@@ -1052,7 +1099,7 @@ describe('CherryCloudService', () => {
       mocks.netFetch
         .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
         .mockResolvedValueOnce(jsonResponse(exchangeResponse(600, '2030-01-02T03:00:05Z')))
-        .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
+        .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
         .mockResolvedValueOnce(jsonResponse({ data: [] }))
       const service = new CherryCloudService()
       await service._doInit()
@@ -1063,7 +1110,7 @@ describe('CherryCloudService', () => {
           `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
       )
-      await service.syncFreeModels()
+      await service.syncEntitledModels()
       mocks.modelList.mockReturnValue([
         {
           id: 'cherryai::deepseek-free',

@@ -13,7 +13,6 @@ const {
   mockStreamPrompt,
   mockGetProvider,
   mockListModels,
-  mockAuthenticatedFetch,
   mockIsInternalAgentRequest,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
@@ -22,7 +21,6 @@ const {
   mockStreamPrompt: vi.fn(),
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
-  mockAuthenticatedFetch: vi.fn(),
   mockIsInternalAgentRequest: vi.fn(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
@@ -37,9 +35,9 @@ vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'AiStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
-      if (name === 'CherryCloudService') return { authenticatedFetch: mockAuthenticatedFetch }
       if (name === 'ApiGatewayService') {
         return {
+          getAgentSessionId: vi.fn(),
           resolveAgentSessionUsage: vi.fn(),
           isInternalAgentRequest: mockIsInternalAgentRequest
         }
@@ -86,7 +84,6 @@ beforeEach(() => {
     throw new Error('Provider not found')
   })
   mockListModels.mockReturnValue([])
-  mockAuthenticatedFetch.mockResolvedValue(new Response('{"type":"message"}'))
   mockIsInternalAgentRequest.mockReturnValue(false)
   mockExtractStreamOptions.mockReturnValue({})
   mockExtractProviderOptions.mockReturnValue(undefined)
@@ -242,7 +239,7 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
   })
 
-  it('rejects Cherry Cloud Work messages that did not originate from the internal Agent runtime', async () => {
+  it('rejects Cherry Cloud messages that did not originate from the internal Agent runtime', async () => {
     mockAvailableModel(CHERRYAI_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
 
     await expect(
@@ -252,47 +249,43 @@ describe('processMessage model-id parsing', () => {
         outputFormat: 'anthropic'
       })
     ).rejects.toMatchObject({ status: 403 })
-    expect(mockAuthenticatedFetch).not.toHaveBeenCalled()
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
-  it('forwards Cherry Cloud Work messages through the signed product transport', async () => {
+  it('routes internal Cherry Cloud messages through AiStreamManager', async () => {
     mockAvailableModel(CHERRYAI_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
     mockIsInternalAgentRequest.mockReturnValue(true)
-    const requestHeaders = new Headers({
-      authorization: 'Bearer local-gateway-key',
-      'x-api-key': 'local-gateway-key',
-      'anthropic-version': '2023-06-01',
-      'sec-fetch-mode': 'cors',
-      'x-cherry-agent-session-id': 'session-1',
-      'x-cherry-internal-usage-token': 'internal-token'
-    })
-
-    const response = await processMessage({
+    const responsePromise = processMessage({
       params: {
         model: `${CHERRYAI_PROVIDER_ID}:deepseek-free`,
         max_tokens: 64,
-        messages: [{ role: 'user', content: 'hello' }],
-        stream: true
+        messages: [{ role: 'user', content: 'hello' }]
       },
       inputFormat: 'anthropic',
       outputFormat: 'anthropic',
-      requestHeaders
+      requestHeaders: new Headers({ 'x-cherry-internal-request-token': 'internal-token' })
     })
 
-    expect(await response.json()).toEqual({ type: 'message' })
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRYAI_PROVIDER_ID, 'deepseek-free'))
+    void captured.opts!.listener!.onDone({} as any)
+
+    await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
+  })
+
+  it('keeps Cherry Cloud gateway access on the Anthropic Messages protocol', async () => {
+    mockAvailableModel(CHERRYAI_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    mockIsInternalAgentRequest.mockReturnValue(true)
+
+    await expect(
+      processMessage({
+        params: { model: `${CHERRYAI_PROVIDER_ID}:deepseek-free`, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ 'x-cherry-internal-request-token': 'internal-token' })
+      })
+    ).rejects.toThrow('require the Anthropic Messages protocol')
     expect(mockStreamPrompt).not.toHaveBeenCalled()
-    expect(mockAuthenticatedFetch).toHaveBeenCalledOnce()
-    const [path, init] = mockAuthenticatedFetch.mock.calls[0]
-    const forwardedHeaders = new Headers(init.headers)
-    expect(path).toBe('/v1/messages')
-    expect(JSON.parse(init.body)).toMatchObject({ model: 'deepseek-free', stream: true })
-    expect(forwardedHeaders.get('anthropic-version')).toBe('2023-06-01')
-    expect(forwardedHeaders.get('authorization')).toBeNull()
-    expect(forwardedHeaders.get('x-api-key')).toBeNull()
-    expect(forwardedHeaders.get('sec-fetch-mode')).toBeNull()
-    expect(forwardedHeaders.get('x-cherry-agent-session-id')).toBeNull()
-    expect(forwardedHeaders.get('x-cherry-internal-usage-token')).toBeNull()
   })
 
   it('rejects an address that does not match an enabled gateway model', async () => {

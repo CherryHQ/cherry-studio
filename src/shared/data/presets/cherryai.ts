@@ -17,7 +17,6 @@ export function isManagedCherryAiDefaultModel(providerId: string, modelId: strin
   return providerId === CHERRYAI_PROVIDER_ID && modelId === CHERRYAI_DEFAULT_MODEL_ID
 }
 
-/** Cloud 账号同步的 Work 模型；它们不属于普通聊天模型目录。 */
-export function isCherryCloudWorkModel(providerId: string, group: string | undefined): boolean {
+export function isManagedCherryCloudModel(providerId: string, group: string | undefined): boolean {
   return providerId === CHERRYAI_PROVIDER_ID && group === CHERRY_CLOUD_MODEL_GROUP
 }

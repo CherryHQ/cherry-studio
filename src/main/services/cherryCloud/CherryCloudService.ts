@@ -139,6 +139,10 @@ export class CherryCloudService extends BaseService {
     return this.currentStatus()
   }
 
+  public getApiOrigin(): string {
+    return resolveApiOrigin()
+  }
+
   public async startLogin(): Promise<CherryCloudStatus> {
     if (this.loginPromise) return this.loginPromise
     if (this.authorizationOperation) return this.getStatus()
@@ -354,7 +358,7 @@ export class CherryCloudService extends BaseService {
       }
       this.scheduleSessionExpiry(session)
       this.emitStatus()
-      void this.syncFreeModels().catch((error) => {
+      void this.syncEntitledModels().catch((error) => {
         logger.warn('Cherry Cloud model sync failed after login', {
           reason: error instanceof Error ? error.message : String(error)
         })
@@ -459,14 +463,14 @@ export class CherryCloudService extends BaseService {
     application.get('IpcApiService').broadcast('cherry_cloud.status_changed', this.currentStatus())
   }
 
-  public async syncFreeModels(): Promise<{ modelCount: number }> {
+  public async syncEntitledModels(): Promise<{ modelCount: number }> {
     await this.pruneExpiredState()
     const generation = this.sessionGeneration
     if (this.modelSyncPromise?.generation === generation) return this.modelSyncPromise.promise
 
-    const sync = this.syncFreeModelsOnce(generation)
+    const sync = this.syncEntitledModelsOnce(generation)
       .catch((error) => {
-        logger.warn('Cherry Cloud free model sync failed', {
+        logger.warn('Cherry Cloud entitled model sync failed', {
           reason: error instanceof Error ? error.message : String(error)
         })
         throw error
@@ -478,9 +482,9 @@ export class CherryCloudService extends BaseService {
     return sync
   }
 
-  private async syncFreeModelsOnce(sessionGeneration: number): Promise<{ modelCount: number }> {
+  private async syncEntitledModelsOnce(sessionGeneration: number): Promise<{ modelCount: number }> {
     if (!this.cloudState.session) {
-      this.reconcileFreeModels([])
+      this.reconcileEntitledModels([])
       return { modelCount: 0 }
     }
 
@@ -492,31 +496,35 @@ export class CherryCloudService extends BaseService {
     ])
     if (this.sessionGeneration !== sessionGeneration || !this.cloudState.session) return { modelCount: 0 }
 
-    const freeModelIds = new Set(
+    const entitledModelIds = new Set(
       account.entitlements
-        .filter((entitlement) => entitlement.status === 'active' && entitlement.is_free)
+        .filter((entitlement) => entitlement.status === 'active')
         .flatMap((entitlement) => entitlement.model_ids)
     )
-    const models = catalog.data.filter((model) => freeModelIds.has(model.id))
-    this.reconcileFreeModels(models)
+    const models = catalog.data.filter((model) => entitledModelIds.has(model.id))
+    this.reconcileEntitledModels(models)
     return { modelCount: models.length }
   }
 
-  private reconcileFreeModels(
+  private reconcileEntitledModels(
     models: Array<{ id: string; display_name: string; context_window: number; max_output_tokens: number }>
   ): void {
     const current = modelService.list({ providerId: CHERRYAI_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
     const remoteByModelId = new Map(models.map((model) => [model.id, model]))
     const missing = models.filter((model) => !currentByModelId.has(model.id))
+    const collisions = models.filter((model) => {
+      const existing = currentByModelId.get(model.id)
+      return existing && existing.group !== CHERRY_CLOUD_MODEL_GROUP
+    })
+    if (collisions.length > 0) {
+      logger.warn('Skipped Cherry Cloud models that collide with existing CherryAI models', {
+        modelIds: collisions.map((model) => model.id)
+      })
+    }
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
-      if (
-        modelId === CHERRYAI_DEFAULT_MODEL_ID ||
-        (model.group !== CHERRY_CLOUD_MODEL_GROUP && !remoteByModelId.has(modelId))
-      ) {
-        return []
-      }
+      if (modelId === CHERRYAI_DEFAULT_MODEL_ID || model.group !== CHERRY_CLOUD_MODEL_GROUP) return []
       const remote = remoteByModelId.get(modelId)
       const enabled = Boolean(remote)
       if (
@@ -695,7 +703,7 @@ export class CherryCloudService extends BaseService {
 
   private finishSessionCleanup(cleanupError: unknown): void {
     try {
-      this.reconcileFreeModels([])
+      this.reconcileEntitledModels([])
     } catch (error) {
       cleanupError ??= error
     }

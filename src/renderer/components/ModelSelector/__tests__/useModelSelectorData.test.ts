@@ -295,7 +295,7 @@ describe('useModelSelectorData', () => {
     ])
   })
 
-  it('shows Cherry Cloud Work models only in agent selectors', () => {
+  it('shows Cherry Cloud models only in agent selectors', () => {
     wireDeps({
       providers: [makeProvider(CHERRYAI_PROVIDER_ID)],
       models: [
