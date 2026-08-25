@@ -4,11 +4,8 @@ interface UseSmoothStreamOptions {
   onUpdate: (text: string) => void
   /** Optional external control. Omit to let the hook manage it via `update(_, isComplete)`. */
   streamDone?: boolean
-  /** Fires once each time the queue has fully drained after the stream is
-   * done. This is the only point where the published text is guaranteed
-   * final, so expensive derived work (e.g. a Markdown parse) belongs here
-   * rather than on every `onUpdate`. */
-  onSettled?: () => void
+  /** Fires after a completed stream drains, with the exact published text. */
+  onSettled?: (text: string) => void
   minDelay?: number
   initialText?: string
 }
@@ -240,7 +237,7 @@ export const useSmoothStream = ({
       if (streamDone) {
         onUpdateRef.current(displayedTextRef.current)
         animationFrameRef.current = null
-        onSettledRef.current?.()
+        onSettledRef.current?.(displayedTextRef.current)
         return
       }
       // Stamp stream-start while idling pre-first-token, so the first
@@ -268,7 +265,7 @@ export const useSmoothStream = ({
         animationFrameRef.current = requestAnimationFrame(renderLoop)
       } else {
         animationFrameRef.current = null
-        onSettledRef.current?.()
+        onSettledRef.current?.(displayedTextRef.current)
       }
       return
     }
@@ -339,7 +336,7 @@ export const useSmoothStream = ({
       animationFrameRef.current = requestAnimationFrame(renderLoop)
     } else {
       animationFrameRef.current = null
-      onSettledRef.current?.()
+      onSettledRef.current?.(displayedTextRef.current)
     }
   }, [streamDone, minDelay])
 

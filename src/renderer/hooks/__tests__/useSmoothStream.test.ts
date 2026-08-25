@@ -324,6 +324,7 @@ describe('useSmoothStream', () => {
     rerender({ done: true })
     act(() => tick(16, 30))
     expect(onSettled).toHaveBeenCalledTimes(1)
+    expect(onSettled).toHaveBeenLastCalledWith('hello')
 
     // no further frames are scheduled, so nothing fires again
     act(() => tick(16, 30))
@@ -349,6 +350,7 @@ describe('useSmoothStream', () => {
     rerender({ done: true })
     act(() => tick(16, 30))
     expect(onSettled).toHaveBeenCalledTimes(2)
+    expect(onSettled).toHaveBeenLastCalledWith('second')
     expect(lastText(onUpdate)).toBe('second')
   })
 })
