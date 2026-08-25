@@ -142,8 +142,9 @@ describe('DiagnosticBundleService', () => {
     expect(result.omittedFileCount).toBe(0)
 
     const zip = await readZip(destination)
-    expect(zip.entries).toHaveLength(3)
+    expect(zip.entries).toHaveLength(4)
     expect(zip.entries).toContain('diagnostics.json')
+    expect(zip.entries).toContain('scan/findings.json')
     expect(zip.entries).toContain(`logs/${logFileName}`)
     expect(zip.entries.some((entry) => /^traces\/[0-9a-f]+\/[0-9a-f]+\.jsonl$/.test(entry))).toBe(true)
     expect(zip.entries.some((entry) => entry.endsWith('.dmp'))).toBe(false)
