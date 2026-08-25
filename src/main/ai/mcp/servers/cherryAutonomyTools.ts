@@ -118,7 +118,7 @@ const CRON_TOOL: Tool = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Channel IDs to send task results to. Omit to use this turn’s configured notification recipients; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
+          'Channel IDs to send task results to. Omit to use this turn’s configured notification recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
       },
       timeout_minutes: {
         type: 'number',
@@ -676,6 +676,16 @@ export class CherryAutonomyTools {
     }
   }
 
+  private canUseNotifyChannel(channelId: string, adapters?: readonly { channelId: string }[]): boolean {
+    if (this.trustedNotifyChannels.some((channel) => channel.id === channelId)) return true
+    return (
+      this.allowAnyOwnedNotifyChannel &&
+      (adapters ?? application.get('ChannelManager').getAgentAdapters(this.agentId)).some(
+        (adapter) => adapter.channelId === channelId
+      )
+    )
+  }
+
   private async addJob(args: Record<string, unknown>) {
     const name = args.name as string | undefined
     const message = args.message as string | undefined
@@ -705,16 +715,20 @@ export class CherryAutonomyTools {
       trigger = { kind: 'once', at: date.getTime() }
     }
 
-    // Resolve channel_ids: explicit array, or default to the current channel. Validate that each
-    // explicit id belongs to this agent — cron is auto-approved and injected for every agent, so an
-    // unscoped id would let one agent deliver task output into another agent's channel. Foreign (and
-    // missing) ids get the same "not found" as the config-tool guards to avoid leaking existence.
+    // Explicit task targets have the same authority as immediate notifications. Foreign and missing
+    // channels get the same "not found" as config-tool guards to avoid leaking their existence.
     let channelIds: string[] | undefined
     if (Array.isArray(rawChannelIds)) {
       for (const channelId of rawChannelIds) {
         const channel = channelService.getChannel(channelId)
         if (!channel || channel.agentId !== this.agentId)
           throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+        if (!this.canUseNotifyChannel(channelId)) {
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `Channel "${channelId}" is not a configured notification recipient for this turn`
+          )
+        }
       }
       channelIds = rawChannelIds
     } else if (this.trustedNotifyChannels.length > 0) {
@@ -756,21 +770,19 @@ export class CherryAutonomyTools {
     }
 
     const explicitChannelId = typeof args.channel_id === 'string' ? args.channel_id.trim() : undefined
+    if (args.channel_id !== undefined && !explicitChannelId) {
+      throw new McpError(ErrorCode.InvalidParams, "'channel_id' must not be empty")
+    }
     const targetChannelIds = explicitChannelId
       ? [explicitChannelId]
       : this.trustedNotifyChannels.map((channel) => channel.id)
     const targetChannelIdSet = new Set(targetChannelIds)
     const allAgentAdapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
-    if (explicitChannelId && !this.trustedNotifyChannels.some((channel) => channel.id === explicitChannelId)) {
-      if (
-        !this.allowAnyOwnedNotifyChannel ||
-        !allAgentAdapters.some((adapter) => adapter.channelId === explicitChannelId)
-      ) {
-        throw new McpError(
-          ErrorCode.InvalidRequest,
-          `Channel "${explicitChannelId}" is not a configured notification recipient for this turn`
-        )
-      }
+    if (explicitChannelId && !this.canUseNotifyChannel(explicitChannelId, allAgentAdapters)) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `Channel "${explicitChannelId}" is not a configured notification recipient for this turn`
+      )
     }
 
     const adapters = allAgentAdapters.filter((adapter) => targetChannelIdSet.has(adapter.channelId))

@@ -2170,7 +2170,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps AskUserQuestion available for channel-linked interactive sessions', async () => {
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -2436,7 +2436,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps Support product info in channel sessions while denying unattended diagnostics and all-KB access', async () => {
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') {

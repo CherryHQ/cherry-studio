@@ -597,8 +597,9 @@ describe('CherryAutonomyTools', () => {
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
 
-    it('should subscribe explicit channel_ids owned by this agent', async () => {
+    it('should subscribe an explicit live channel owned by the source-session Agent', async () => {
       mockGetChannel.mockReturnValue({ id: 'ch_own', agentId: 'agent_1' })
+      mockGetNotifyAdapters.mockReturnValue([{ channelId: 'ch_own' }])
       mockCreateTask.mockReturnValue({ id: 'task_ch' })
 
       const server = createServer('agent_1')
@@ -611,6 +612,22 @@ describe('CherryAutonomyTools', () => {
       })
 
       expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch_own'] }))
+    })
+
+    it('rejects an owned channel outside a task turn’s exact notification recipients', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch_other', agentId: 'agent_1' })
+
+      const result = await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch_allowed']), {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *',
+        channel_ids: ['ch_other']
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockCreateTask).not.toHaveBeenCalled()
     })
 
     it('should reject channel_ids owned by another agent without leaking existence', async () => {
@@ -814,6 +831,14 @@ describe('CherryAutonomyTools', () => {
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain("Provide 'message', 'file_path', or both")
+    })
+
+    it('rejects an empty explicit channel_id instead of broadcasting to configured recipients', async () => {
+      const result = await callTool(createServer(), { message: 'Hello', channel_id: '   ' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'channel_id' must not be empty")
+      expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
     it('should report partial failures', async () => {

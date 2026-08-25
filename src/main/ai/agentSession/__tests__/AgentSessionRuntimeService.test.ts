@@ -805,6 +805,17 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
     })
 
+    it('keeps an omitted recipient set distinct from an explicit empty set', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toBeUndefined()
+
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      service.beginTurn({ ...baseTurnInput, trustedNotifyChannels: [] })
+      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toEqual([])
+    })
+
     it('uses queued task recipients only for that task turn', async () => {
       const service = new AgentSessionRuntimeService()
       const recipients = [{ id: 'channel-task', type: 'telegram' as const }]
