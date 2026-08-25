@@ -38,6 +38,7 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
   sourceLimitBytes: 50 * 1024 * 1024,
   sources: {
+    chatRecords: { available: true, estimatedBytes: 4_096, messageCount: 4 },
     crashDumps: { fileCount: 1 },
     logs: { available: true, estimatedBytes: 1_024, fileCount: 2 },
     traces: { available: true, estimatedBytes: 2_048, fileCount: 3 }
@@ -73,11 +74,15 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('settings.about.diagnostics.upload.privacy.title')
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(
+      screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' })
+    ).not.toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.upload.actions.consent_upload' }))
 
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+        includeChatRecords: false,
         includeLogs: true,
         includeTraces: true,
         range: '24h'
@@ -88,6 +93,65 @@ describe('DiagnosticUploadDialog', () => {
     expect(successStatus).toHaveTextContent('settings.about.diagnostics.upload.success.title')
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.close' })).toHaveFocus()
+    )
+  })
+
+  it('uploads chat history when the user explicitly enables it', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    const chatRecords = await screen.findByRole('switch', {
+      name: 'settings.about.diagnostics.sources.chat_records.title'
+    })
+    await user.click(chatRecords)
+    expect(chatRecords).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.upload.actions.consent_upload' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+        includeChatRecords: true,
+        includeLogs: true,
+        includeTraces: true,
+        range: '24h'
+      })
+    )
+  })
+
+  it('excludes chat history if it becomes unavailable for the selected range', async () => {
+    mocks.request.mockImplementation(async (route: string, input?: { range?: string }) => {
+      if (route === 'diagnostics.bundle.inspect') {
+        if (input?.range === '3d') {
+          return {
+            ...inspectResult,
+            sources: {
+              ...inspectResult.sources,
+              chatRecords: { available: false, estimatedBytes: 0, messageCount: 0 }
+            }
+          }
+        }
+        return inspectResult
+      }
+      if (route === 'diagnostics.bundle.upload') return uploadedResult
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    const chatRecords = await screen.findByRole('switch', {
+      name: 'settings.about.diagnostics.sources.chat_records.title'
+    })
+    await user.click(chatRecords)
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
+    await waitFor(() => expect(chatRecords).toBeDisabled())
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.upload.actions.consent_upload' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+        includeChatRecords: false,
+        includeLogs: true,
+        includeTraces: true,
+        range: '3d'
+      })
     )
   })
 

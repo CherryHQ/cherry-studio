@@ -8,9 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
   Scrollbar,
-  SegmentedControl,
-  Switch
+  SegmentedControl
 } from '@cherrystudio/ui'
+import { DiagnosticSourceRow } from '@renderer/components/diagnostics/DiagnosticSourceRow'
+import {
+  describeDiagnosticChatSource,
+  describeDiagnosticFileSource,
+  formatDiagnosticBytes
+} from '@renderer/components/diagnostics/diagnosticSourceSummary'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -44,19 +49,12 @@ interface DiagnosticUploadDialogProps {
   readonly open: boolean
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** unitIndex
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
-}
-
 export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadDialogProps) {
   const { t } = useTranslation()
   const [range, setRange] = useState<DiagnosticRange>('24h')
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
+  const [includeChatRecords, setIncludeChatRecords] = useState(false)
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
   const [inspectError, setInspectError] = useState(false)
   const [isInspecting, setIsInspecting] = useState(false)
@@ -96,8 +94,10 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
+  const chatRecordsAvailable = inspectResult?.sources.chatRecords.available ?? false
   const effectiveIncludeLogs = includeLogs && logsAvailable
   const effectiveIncludeTraces = includeTraces && tracesAvailable
+  const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
   const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
   const canUpload = inspectResult !== null && !isInspectionPending && !inspectError && status === 'idle'
 
@@ -130,6 +130,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
     setUploadState({ status: 'uploading' })
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
+        includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
         range
@@ -193,7 +194,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
               </section>
 
               <section className="divide-y divide-border rounded-xl border border-border">
-                <SourceRow
+                <DiagnosticSourceRow
                   title={t('settings.about.diagnostics.sources.system.title')}
                   description={t('settings.about.diagnostics.sources.system.description', {
                     crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
@@ -201,19 +202,26 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                   checked
                   disabled
                 />
-                <SourceRow
+                <DiagnosticSourceRow
                   title={t('settings.about.diagnostics.sources.logs.title')}
-                  description={sourceDescription(t, inspectResult?.sources.logs, isInspectionPending)}
+                  description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
                   checked={effectiveIncludeLogs}
                   disabled={status === 'uploading' || isInspectionPending || !logsAvailable}
                   onCheckedChange={setIncludeLogs}
                 />
-                <SourceRow
+                <DiagnosticSourceRow
                   title={t('settings.about.diagnostics.sources.traces.title')}
-                  description={sourceDescription(t, inspectResult?.sources.traces, isInspectionPending)}
+                  description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
                   checked={effectiveIncludeTraces}
                   disabled={status === 'uploading' || isInspectionPending || !tracesAvailable}
                   onCheckedChange={setIncludeTraces}
+                />
+                <DiagnosticSourceRow
+                  title={t('settings.about.diagnostics.sources.chat_records.title')}
+                  description={describeDiagnosticChatSource(t, inspectResult?.sources.chatRecords, isInspectionPending)}
+                  checked={effectiveIncludeChatRecords}
+                  disabled={status === 'uploading' || isInspectionPending || !chatRecordsAvailable}
+                  onCheckedChange={setIncludeChatRecords}
                 />
               </section>
 
@@ -236,7 +244,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                 showIcon
                 message={t('settings.about.diagnostics.upload.privacy.title')}
                 description={t('settings.about.diagnostics.upload.privacy.description', {
-                  size: formatBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
+                  size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
                 })}
               />
             </div>
@@ -324,7 +332,7 @@ function UploadResultContent({ result }: { readonly result: UploadResult }) {
             {t('settings.about.diagnostics.upload.success.description', {
               included: result.includedFileCount,
               omitted: result.omittedFileCount,
-              size: formatBytes(result.archiveBytes)
+              size: formatDiagnosticBytes(result.archiveBytes)
             })}
           </p>
         </div>
@@ -370,43 +378,6 @@ function fallbackReasonText(t: ReturnType<typeof useTranslation>['t'], reason: D
     submission_rejected: 'settings.about.diagnostics.upload.reasons.submission_rejected'
   }
   return t(keys[reason])
-}
-
-function sourceDescription(
-  t: ReturnType<typeof useTranslation>['t'],
-  source: InspectResult['sources']['logs'] | undefined,
-  isInspectionPending: boolean
-): string {
-  if (isInspectionPending) return t('settings.about.diagnostics.sources.inspecting')
-  if (!source?.available) return t('settings.about.diagnostics.sources.unavailable')
-  return t('settings.about.diagnostics.sources.summary', {
-    count: source.fileCount,
-    size: formatBytes(source.estimatedBytes)
-  })
-}
-
-function SourceRow({
-  checked,
-  description,
-  disabled,
-  onCheckedChange,
-  title
-}: {
-  readonly checked: boolean
-  readonly description: string
-  readonly disabled: boolean
-  readonly onCheckedChange?: (checked: boolean) => void
-  readonly title: string
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 p-3">
-      <div className="min-w-0 space-y-0.5">
-        <p className="font-medium text-sm">{title}</p>
-        <p className="text-muted-foreground text-xs">{description}</p>
-      </div>
-      <Switch aria-label={title} checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
-    </div>
-  )
 }
 
 export default DiagnosticUploadDialog

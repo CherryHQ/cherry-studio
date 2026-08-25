@@ -33,6 +33,7 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
   sourceLimitBytes: 50 * 1024 * 1024,
   sources: {
+    chatRecords: { available: true, estimatedBytes: 4_096, messageCount: 4 },
     crashDumps: { fileCount: 1 },
     logs: { available: true, estimatedBytes: 1_024, fileCount: 2 },
     traces: { available: true, estimatedBytes: 2_048, fileCount: 3 }
@@ -65,7 +66,7 @@ describe('DiagnosticBundleDialog inspection state', () => {
     renderDialog()
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
 
-    expect(screen.getAllByText('settings.about.diagnostics.sources.inspecting')).toHaveLength(2)
+    expect(screen.getAllByText('settings.about.diagnostics.sources.inspecting')).toHaveLength(3)
     expect(screen.queryByText('settings.about.diagnostics.sources.unavailable')).not.toBeInTheDocument()
 
     await act(async () => resolveInspection(inspectResult))
@@ -97,6 +98,7 @@ describe('DiagnosticBundleDialog inspection state', () => {
       ...inspectResult,
       sources: {
         ...inspectResult.sources,
+        chatRecords: { available: false, estimatedBytes: 0, messageCount: 0 },
         logs: { available: false, estimatedBytes: 0, fileCount: 0 },
         traces: { available: false, estimatedBytes: 0, fileCount: 0 }
       }
@@ -110,7 +112,7 @@ describe('DiagnosticBundleDialog inspection state', () => {
     expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeDisabled()
   })
 
-  it('resets the range after the close animation before inspecting on reopen', async () => {
+  it('resets the range and chat history selection after the close animation before reopening', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const { rerender } = render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={onOpenChange} />)
@@ -118,6 +120,8 @@ describe('DiagnosticBundleDialog inspection state', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
+    await user.click(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' }))
+    expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' })).toBeChecked()
 
     rerender(<DiagnosticBundleDialog appVersion="2.0.0" open={false} onOpenChange={onOpenChange} />)
     await act(() => new Promise((resolve) => window.setTimeout(resolve, DIALOG_CLOSE_DURATION_MS)))
@@ -128,6 +132,9 @@ describe('DiagnosticBundleDialog inspection state', () => {
       const inspectCalls = mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.inspect')
       expect(inspectCalls).toEqual([['diagnostics.bundle.inspect', { range: '24h' }]])
     })
+    expect(
+      screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' })
+    ).not.toBeChecked()
   })
 
   it('shows a warning when source inspection is incomplete', async () => {
