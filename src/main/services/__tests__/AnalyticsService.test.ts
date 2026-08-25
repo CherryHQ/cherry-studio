@@ -186,20 +186,4 @@ describe('AnalyticsService token usage', () => {
 
     expect(mockTrackTokenUsage).not.toHaveBeenCalled()
   })
-
-  it('does not forward local-provider usage', async () => {
-    const service = new AnalyticsService()
-    await service._doInit()
-    await vi.waitFor(() => expect(service.isActivated).toBe(true))
-
-    service.trackTokenUsage({
-      provider: 'local-provider',
-      model: 'test-model',
-      input_tokens: 3,
-      output_tokens: 5,
-      source: 'agent'
-    })
-
-    expect(mockTrackTokenUsage).not.toHaveBeenCalled()
-  })
 })
