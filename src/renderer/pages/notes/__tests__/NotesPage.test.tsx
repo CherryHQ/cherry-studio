@@ -348,7 +348,6 @@ describe('NotesPage print payloads', () => {
     mocks.settings.defaultViewMode = 'edit'
     mocks.ipcRequest.mockImplementation((route: string) => {
       if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
-      if (route === 'app.set_spell_check_enabled') return Promise.resolve(undefined)
       return Promise.resolve(true)
     })
     mocks.commandHandlers.clear()
