@@ -19,3 +19,32 @@ export interface NotesTreeNode {
   createdAt: string
   updatedAt: string
 }
+
+export interface NotesSearchMatch {
+  lineNumber: number
+  lineContent: string
+  matchStart: number
+  matchEnd: number
+  context: string
+}
+
+export interface NotesSearchResult extends NotesTreeNode {
+  matchType: 'filename' | 'content' | 'both'
+  matches?: NotesSearchMatch[]
+  score: number
+}
+
+export interface NotesSearchOptions {
+  caseSensitive?: boolean
+  useRegex?: boolean
+  maxFileSize?: number
+  maxMatchesPerFile?: number
+  contextLength?: number
+}
+
+export interface NotesSearchQuery {
+  nodes: NotesTreeNode[]
+  keyword: string
+  options: NotesSearchOptions
+  maxResults: number
+}

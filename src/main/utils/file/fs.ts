@@ -61,25 +61,25 @@ const notImplemented = (op: string): never => {
 /** Read file content as text with optional encoding detection. */
 export async function read(
   path: AbsoluteFilePath,
-  options?: { encoding?: 'text'; detectEncoding?: boolean }
+  options?: { encoding?: 'text'; detectEncoding?: boolean; signal?: AbortSignal }
 ): Promise<string>
 export async function read(
   path: AbsoluteFilePath,
-  options: { encoding: 'base64' }
+  options: { encoding: 'base64'; signal?: AbortSignal }
 ): Promise<{ data: string; mime: string }>
 export async function read(
   path: AbsoluteFilePath,
-  options: { encoding: 'binary' }
+  options: { encoding: 'binary'; signal?: AbortSignal }
 ): Promise<{ data: Uint8Array; mime: string }>
 export async function read(
   path: AbsoluteFilePath,
-  options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
+  options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean; signal?: AbortSignal }
 ): Promise<unknown> {
   const encoding = options?.encoding ?? 'text'
   if (encoding === 'text') {
-    return readFile(path, 'utf-8')
+    return readFile(path, { encoding: 'utf-8', signal: options?.signal })
   }
-  const buf = await readFile(path)
+  const buf = await readFile(path, { signal: options?.signal })
   const inferredMime = mime.getType(path) ?? 'application/octet-stream'
   if (encoding === 'base64') {
     return { data: buf.toString('base64'), mime: inferredMime }
@@ -704,13 +704,14 @@ export async function assertPathVersionUnchanged(
 /** Get file/directory stats. */
 export async function stat(
   path: AbsoluteFilePath
-): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean }> {
+): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean; isFile: boolean }> {
   const s = await fsStat(path)
   return {
     size: s.size,
     createdAt: Math.floor(s.birthtimeMs),
     modifiedAt: Math.floor(s.mtimeMs),
-    isDirectory: s.isDirectory()
+    isDirectory: s.isDirectory(),
+    isFile: s.isFile()
   }
 }
 

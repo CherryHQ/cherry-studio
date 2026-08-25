@@ -48,6 +48,7 @@ describe('stat', () => {
     const s = await stat(f as AbsoluteFilePath)
     expect(s.size).toBe('hello world'.length)
     expect(s.isDirectory).toBe(false)
+    expect(s.isFile).toBe(true)
     expect(s.modifiedAt).toBeGreaterThan(0)
     expect(s.createdAt).toBeGreaterThan(0)
   })
@@ -57,6 +58,7 @@ describe('stat', () => {
     await mkdir(d)
     const s = await stat(d as AbsoluteFilePath)
     expect(s.isDirectory).toBe(true)
+    expect(s.isFile).toBe(false)
   })
 
   it('throws ENOENT for missing path', async () => {
@@ -216,6 +218,17 @@ describe('read (text)', () => {
 
   it('throws ENOENT on missing path', async () => {
     await expect(read(path.join(tmp, 'missing') as AbsoluteFilePath)).rejects.toThrow(/ENOENT/)
+  })
+
+  it('forwards an abort signal to the underlying file read', async () => {
+    const f = path.join(tmp, 'cancelled.txt')
+    await writeFile(f, 'content that should not be returned', 'utf-8')
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(read(f as AbsoluteFilePath, { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError'
+    })
   })
 })
 
