@@ -1,5 +1,5 @@
 ---
-title: Local Markdown links open in the artifact pane
+title: Agent Markdown links use workspace-aware file navigation
 category: changed
 severity: notice
 introduced_in_pr: "#17135"
@@ -8,11 +8,11 @@ date: 2026-08-24
 
 ## What changed
 
-Links to workspace files in agent session messages and an agent artifact's rendered Markdown preview now open the target file in the artifact pane. Relative links resolve from the agent workspace root.
+In agent session messages and rendered Markdown artifact previews, schemeless local links resolve from the agent workspace root. Files open in the artifact pane, while directories open in the system file manager; other Markdown surfaces keep their existing link behavior.
 
 ## Why this matters to the user
 
-Following a local link no longer sends it through the external-link flow, and links are interpreted consistently with paths in agent messages.
+On those Agent surfaces, users can follow workspace-relative links without routing them through the external-link flow.
 
 ## What the user should do
 

@@ -35,6 +35,7 @@ const {
   fileSessionState,
   fileTreeModelState,
   fileTreeModelStore,
+  openPathMock,
   resolveArtifactPaneFileSelectionMock,
   systemFileTreeState,
   tracePaneModuleLoadMock,
@@ -64,6 +65,7 @@ const {
     listeners: new Set<() => void>(),
     revision: 0
   },
+  openPathMock: vi.fn().mockResolvedValue(undefined),
   resolveArtifactPaneFileSelectionMock: vi.fn(),
   systemFileTreeState: {
     root: null as TreeDirRoot | null,
@@ -572,6 +574,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockResolvedValue({
       kind: 'file',
@@ -1122,36 +1125,35 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
-  it('opens the files pane without previewing a declared directory', async () => {
+  it('opens Markdown preview directory links in the system file manager without clearing the current preview', async () => {
     ipcRequestMock.mockResolvedValue({
       kind: 'directory',
       size: 0,
       createdAt: 1,
       modifiedAt: 1
     })
-    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
       workspacePath: '/workspace',
-      filePath: 'html in canvas'
-    })
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
 
     render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <OpenArtifactButton path="html in canvas" />
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open Markdown file link' }))
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    await waitFor(() => {
-      expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
-        kind: 'path',
-        path: '/workspace/html in canvas'
-      })
-    })
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
-    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    await waitFor(() => expect(openPathMock).toHaveBeenCalledWith('/workspace/DESIGN.md'))
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
   })
 
   it('replaces the retained flow when another flow is opened', () => {

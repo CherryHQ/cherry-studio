@@ -138,8 +138,8 @@ describe('Markdown sanitize schema', () => {
       'href=".agents/skills/gh-create-pr/SKILL.md"'
     )
     expect(await run('<a href="/Users/alice/notes.md">x</a>')).toContain('href="/Users/alice/notes.md"')
-    // Drive paths (`c:`), file: URLs and unsafe protocols are dropped by sanitize's protocol
-    // allow-list, so absolute drive/file: markdown links are unsupported by design.
+    // In this isolated sanitize pass, drive paths (`c:`), file: URLs and unsafe protocols
+    // are dropped. The production pipeline preserves supported drive paths around sanitization.
     expect(await run('<a href="C:/Users/Alice/README.md">x</a>')).not.toContain('C:/Users')
     expect(await run('<a href="file:///C:/Users/x.md">x</a>')).not.toContain('file:///C:/Users/x.md')
     expect(await run('<a href="javascript:alert(1)">x</a>')).not.toContain('javascript:')

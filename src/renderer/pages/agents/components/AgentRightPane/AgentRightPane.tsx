@@ -56,6 +56,7 @@ import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -303,6 +304,7 @@ function AgentRightPaneActionsProvider({
   setFileTreeSearchKeyword,
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
+  const { t } = useTranslation()
   const panelActions = useRightPanelActions()
   const artifactOpenRequestRef = useRef(0)
   // Invalidate in-flight artifact-open requests when the session or workspace
@@ -336,19 +338,32 @@ function AgentRightPaneActionsProvider({
         return
       }
 
-      void ipcApi
-        .request('file.get_metadata', createFilePathHandle(getArtifactPaneSelectionPath(selection)))
-        .then((metadata) => {
+      const targetPath = getArtifactPaneSelectionPath(selection)
+      void openFileTarget(targetPath, {
+        openArtifactFile: () => {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
-        })
-        .catch(() => {
-          if (artifactOpenRequestRef.current !== requestId) return
-          // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
           requestFileSelection(selection)
-        })
+        },
+        openPath: (path) => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          return window.api.file.openPath(path)
+        },
+        isDirectory: async () => {
+          try {
+            const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(targetPath))
+            return metadata?.kind === 'directory'
+          } catch {
+            // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
+            return false
+          }
+        },
+        onError: () => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          toast.error(t('chat.input.tools.open_file_error', { path: targetPath }))
+        }
+      })
     },
-    [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
+    [canOpenArtifactFile, panelActions, requestFileSelection, t, workspacePath]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
