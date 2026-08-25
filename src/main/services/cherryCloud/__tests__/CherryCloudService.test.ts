@@ -1025,14 +1025,29 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession).toBeNull()
   })
 
-  it('keeps the local login when remote Product Session revocation fails', async () => {
+  it('clears the local login when remote Product Session revocation fails', async () => {
     const service = await createSignedInService()
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 503))
 
-    await expect(service.revokeCurrentSession()).rejects.toThrow('Cherry Cloud logout failed (503)')
+    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-    expect(mocks.savedSession).not.toBeNull()
+    expect(mocks.savedSession).toBeNull()
+  })
+
+  it('times out remote Product Session revocation and clears the local login', async () => {
+    const service = await createSignedInService()
+    const timeoutController = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(timeoutController.signal)
+    mocks.netFetch.mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+
+    try {
+      await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+      expect(timeout).toHaveBeenCalledWith(30_000)
+      expect(mocks.netFetch.mock.calls[0][1].signal).toBe(timeoutController.signal)
+      expect(mocks.savedSession).toBeNull()
+    } finally {
+      timeout.mockRestore()
+    }
   })
 
   it('clears the Product Session when Cloud API rejects authentication', async () => {
