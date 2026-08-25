@@ -662,6 +662,35 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('https://example.com/gone.webp')).rejects.toThrow('404')
     })
 
+    it('throws when a 200 response carries non-image content (proxy/login page)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html>signin</html>'], { type: 'text/html' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/wallpaper.png')).rejects.toThrow('not an image')
+    })
+
+    it('accepts a remote blob with an empty content type', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['bytes']) })
+
+      const blob = await getImageBlobFromSource('https://example.com/unknown.bin')
+
+      expect(blob.type).toBe('')
+    })
+
+    it('accepts an octet-stream local file (extension-less entries are real images)', async () => {
+      ipcMocks.request.mockResolvedValueOnce({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'application/octet-stream',
+        version: { mtime: 1, size: 3 }
+      })
+
+      const blob = await getImageBlobFromSource('file:///data/Files/noext')
+
+      expect(blob.type).toBe('application/octet-stream')
+    })
+
     it('throws on a data URL with no media type', async () => {
       await expect(getImageBlobFromSource('data:;base64,aGVsbG8=')).rejects.toThrow('Invalid image data URL')
     })

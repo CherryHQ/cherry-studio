@@ -116,19 +116,33 @@ beforeEach(() => {
 // --- collectExportableImages ---
 
 describe('collectExportableImages', () => {
-  it('collects image file parts with fileEntryId as the dedup key', async () => {
+  it("resolves a fileEntryId part to the entry's current physical path", async () => {
+    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/moved-a.png')
     const message = view([{ type: 'text', text: 'look at this' }, imageFilePart('file:///data/Files/a.png', 'entry-a')])
 
     const { refs, unresolvedCount } = await collectExportableImages([message])
 
     expect(unresolvedCount).toBe(0)
+    expect(fileApi.getPhysicalPath).toHaveBeenCalledWith({ id: 'entry-a' })
     expect(refs).toEqual([
       {
         key: 'entry-a',
-        url: 'file:///data/Files/a.png',
+        url: 'file:///data/Files/moved-a.png',
         filename: 'photo.png',
         mime: 'image/png'
       }
+    ])
+  })
+
+  it('falls back to the stored url when the fileEntryId can no longer be resolved', async () => {
+    fileApi.getPhysicalPath.mockRejectedValueOnce(new Error('entry gone'))
+    const message = view([imageFilePart('file:///data/Files/a.png', 'entry-a')])
+
+    const { refs, unresolvedCount } = await collectExportableImages([message])
+
+    expect(unresolvedCount).toBe(0)
+    expect(refs).toEqual([
+      { key: 'entry-a', url: 'file:///data/Files/a.png', filename: 'photo.png', mime: 'image/png' }
     ])
   })
 
@@ -141,7 +155,7 @@ describe('collectExportableImages', () => {
   })
 
   it('resolves generate_image output ids to file urls', async () => {
-    fileApi.getPhysicalPath.mockResolvedValue('/data/Files/gen-1.png')
+    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/gen-1.png')
     const message = view([generateImagePart([{ id: 'gen-1', name: 'painting.png' }])], 'assistant')
 
     const { refs } = await collectExportableImages([message])
@@ -205,7 +219,7 @@ describe('collectExportableImages', () => {
   })
 
   it('recognizes the mcp-prefixed agent generate_image tool name', async () => {
-    fileApi.getPhysicalPath.mockResolvedValue('/data/Files/gen-9.png')
+    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/gen-9.png')
     const part = {
       ...generateImagePart([{ id: 'gen-9', name: 'a.png' }]),
       type: 'tool-mcp__cherry-tools__generate_image'
@@ -248,6 +262,23 @@ describe('collectExportableImages', () => {
 
     expect(unresolvedCount).toBe(0)
     expect(refs).toEqual([{ key: PNG_1PX, url: PNG_1PX, filename: undefined, mime: 'image/png' }])
+  })
+
+  it('does not export an errored MCP inline result as an image', async () => {
+    const part = {
+      ...generateImageInlinePart([{ data: PNG_1PX_RAW }]),
+      output: {
+        content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }],
+        isError: true,
+        metadata: { type: 'mcp', name: 'generate_image' }
+      }
+    }
+    const message = view([part], 'assistant')
+
+    const { refs, unresolvedCount } = await collectExportableImages([message])
+
+    expect(refs).toEqual([])
+    expect(unresolvedCount).toBe(0)
   })
 })
 
@@ -357,6 +388,16 @@ describe('serializeMessagesWithImages', () => {
     expect(pendingWrites).toEqual([{ fileName: expect.stringMatching(/^img-[a-z0-9-]+\.png$/), ref: refs[0] }])
   })
 
+  it('maps an SVG attachment to a .svg asset name from its mime type (folder)', async () => {
+    // extensionless filename: the .svg extension must come from the mime map, not the name
+    const message = view([imageFilePart('file:///data/Files/icon', 'entry-svg', 'icon', 'image/svg+xml')])
+    const { refs } = await collectExportableImages([message])
+
+    const { pendingWrites } = await serializeMessagesWithImages([message], 'folder', refs)
+
+    expect(pendingWrites[0].fileName).toMatch(/^img-[a-z0-9-]+\.svg$/)
+  })
+
   it('allocates a distinct asset name per image so none overwrites another (folder)', async () => {
     const message = view([imageFilePart(PNG_1PX, 'entry-a'), imageFilePart(GIF_1PX, 'entry-b', 'anim.gif')])
     const { refs } = await collectExportableImages([message])
@@ -399,7 +440,7 @@ describe('serializeMessagesWithImages', () => {
   })
 
   it('serializes generate_image outputs in both modes (folder)', async () => {
-    fileApi.getPhysicalPath.mockResolvedValue('/data/Files/gen-1.png')
+    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/gen-1.png')
     ipcApiRequest.mockResolvedValue({ ok: true, data: { content: new Uint8Array([1, 2, 3]), mime: 'image/png' } })
     const message = view([generateImagePart([{ id: 'gen-1', name: 'painting.png' }])], 'assistant')
     const { refs } = await collectExportableImages([message])
@@ -576,7 +617,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
   it('exports text-only with a warning when the only image failed to resolve', async () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.getPhysicalPath.mockRejectedValue(new Error('entry cleaned up'))
+    fileApi.getPhysicalPath.mockRejectedValueOnce(new Error('entry cleaned up'))
     const message = view([
       { type: 'text', text: 'here is a painting' },
       generateImagePart([{ id: 'gone', name: 'painting.png' }])
@@ -590,6 +631,22 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).toContain('here is a painting')
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
+  })
+
+  it('toasts the combined skip count when unresolved and exported images coexist', async () => {
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    // one dead generate_image entry (collection failure) + one healthy attachment
+    // (no entryId, so the healthy part never touches getPhysicalPath)
+    fileApi.getPhysicalPath.mockRejectedValueOnce(new Error('entry cleaned up'))
+    const message = view([imageFilePart(PNG_1PX), generateImagePart([{ id: 'gone', name: 'painting.png' }])])
+    chooseImageMode.mockResolvedValue('embed')
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    expect(chooseImageMode).toHaveBeenCalledWith(1)
+    // embed mode surfaces collection failures with the embed-flavored copy
+    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（超过 10 MiB 或无法读取）')
+    expect(fileApi.save.mock.calls[0][1]).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
   })
 
   it('aborts with zero file writes when the user cancels the mode choice', async () => {
@@ -725,8 +782,13 @@ describe('exportMessageAsMarkdown image pipeline', () => {
       expect(fileApi.save).not.toHaveBeenCalled()
       expect(fileApi.mkdir).toHaveBeenCalledWith('/tmp/preconf/assets')
       const paths = fileApi.write.mock.calls.map((call: unknown[]) => call[0] as string)
-      expect(paths.some((p) => p.startsWith('/tmp/preconf/') && p.endsWith('.md'))).toBe(true)
-      expect(paths.some((p) => p.startsWith('/tmp/preconf/assets/img-'))).toBe(true)
+      const mdPath = paths.find((p) => p.startsWith('/tmp/preconf/') && p.endsWith('.md'))
+      const assetPath = paths.find((p) => p.startsWith('/tmp/preconf/assets/img-'))
+      expect(mdPath).toBeDefined()
+      expect(assetPath).toBeDefined()
+      // the markdown body must link to the exact asset file that was written
+      const markdown = fileApi.write.mock.calls.find((call: unknown[]) => call[0] === mdPath)![1] as string
+      expect(markdown).toContain(`(assets/${assetPath!.split('/').pop()})`)
     } finally {
       await preferenceService.set('data.export.markdown.path', null)
     }

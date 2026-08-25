@@ -91,6 +91,9 @@ function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
   // mcp metadata keeps the envelope — accept both shapes.
   const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
   if (!Array.isArray(content)) return []
+  // An error result carries its explanation as content — the renderer treats it
+  // as failure, so the export must not ship it as an image.
+  if (!Array.isArray(response) && (response as { isError?: unknown }).isError === true) return []
   return content.flatMap((item) => {
     if (item?.type === 'image' && typeof item.data === 'string' && item.data) {
       const mime = typeof item.mimeType === 'string' && item.mimeType ? item.mimeType : 'image/png'
@@ -122,12 +125,32 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
           if (!isImageFilePart(part)) continue
           const filePart = part
           const fileEntryId = readCherryMeta(part)?.fileEntryId
-          push({
-            key: fileEntryId ?? filePart.url,
-            url: filePart.url,
-            filename: filePart.filename,
-            mime: filePart.mediaType
-          })
+          if (fileEntryId) {
+            // The entry's current physical path is authoritative; the persisted
+            // part url is a snapshot that goes stale after a userData move.
+            try {
+              const physicalPath = await window.api.file.getPhysicalPath({ id: fileEntryId })
+              push({
+                key: fileEntryId,
+                url: toFileUrl(physicalPath),
+                filename: filePart.filename,
+                mime: filePart.mediaType
+              })
+            } catch (error) {
+              logger.warn('Failed to resolve a file entry path, falling back to the stored url', {
+                fileEntryId,
+                error
+              })
+              push({ key: fileEntryId, url: filePart.url, filename: filePart.filename, mime: filePart.mediaType })
+            }
+          } else {
+            push({
+              key: filePart.url,
+              url: filePart.url,
+              filename: filePart.filename,
+              mime: filePart.mediaType
+            })
+          }
         } else if (isGenerateImageToolPart(part)) {
           for (const item of parseGenerateImageItems(part)) {
             try {
@@ -178,7 +201,8 @@ const MIME_EXTS: Record<string, string> = {
   'image/gif': 'gif',
   'image/webp': 'webp',
   'image/bmp': 'bmp',
-  'image/avif': 'avif'
+  'image/avif': 'avif',
+  'image/svg+xml': 'svg'
 }
 
 function imageExtension(ref: ExportableImageRef, mime: string | undefined): string {

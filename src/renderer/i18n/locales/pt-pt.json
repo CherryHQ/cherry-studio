@@ -790,7 +790,7 @@
   "chat.topics.export.image_exporting_keep_page": "A exportar imagem. Por favor, permaneça nesta página.",
   "chat.topics.export.image_mode.cancel_hint": "Cancelar aborta esta exportação",
   "chat.topics.export.image_mode.count": "{{count}} imagem(ns) serão exportadas",
-  "chat.topics.export.image_mode.embed": "Incorporar no arquivo (padrão)",
+  "chat.topics.export.image_mode.embed": "Incorporar no ficheiro (predefinição)",
   "chat.topics.export.image_mode.folder": "Exportar como pasta de imagens",
   "chat.topics.export.image_mode.none": "Sem imagens",
   "chat.topics.export.image_mode.skipped": "{{count}} imagem(ns) ignorada(s) (indisponíveis ou ilegíveis)",

@@ -854,7 +854,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const byteArray = parseResult.isBase64
       ? Base64.toUint8Array(parseResult.data)
       : decodeDataUrlBytes(parseResult.data)
-    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
+    return assertImageBlob(new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType }), src)
   }
 
   if (src.startsWith('file://')) {
@@ -863,7 +863,11 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
       handle: createFilePathHandle(path),
       options: { mode: 'full', encoding: 'binary' }
     })
-    return new Blob([content.slice() as unknown as BlobPart], { type: mime })
+    // Local entries may lack an extension (ext: null / renamed file), leaving mime
+    // sniffing at octet-stream — real image bytes still decode downstream, so pass.
+    return assertImageBlob(new Blob([content.slice() as unknown as BlobPart], { type: mime }), src, {
+      allowUnknownType: true
+    })
   }
 
   const response = await fetch(src)
@@ -871,7 +875,17 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
   if (!response.ok) {
     throw new Error(`Failed to fetch image: ${response.status} ${src}`)
   }
-  return response.blob()
+  const blob = await response.blob()
+  return assertImageBlob(blob, src)
+}
+
+/** A 200 response is still not an image when its content type says otherwise (proxy/login pages). */
+function assertImageBlob(blob: Blob, src: string, opts?: { allowUnknownType?: boolean }): Blob {
+  const unknown = opts?.allowUnknownType && blob.type === 'application/octet-stream'
+  if (blob.type && !unknown && !blob.type.startsWith('image/')) {
+    throw new Error(`Source is not an image (content type ${blob.type}): ${src}`)
+  }
+  return blob
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {
