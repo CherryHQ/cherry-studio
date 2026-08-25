@@ -95,10 +95,17 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 }
 
-/** `{timestamp}_{resumeToken}.jsonl` → the token, or null when the name is not pi's. */
+/**
+ * `{timestamp}_{resumeToken}.jsonl` → the token, or null when the name is not pi's.
+ * Splits on the FIRST `_`: pi's timestamp prefix is dash-only, but `_` is a legal
+ * token character, so splitting on the last one truncates the token and would
+ * make a still-claimed session look orphaned.
+ */
 function piResumeTokenOf(fileName: string): string | null {
   if (!fileName.endsWith('.jsonl')) return null
   const stem = fileName.slice(0, -'.jsonl'.length)
-  const token = stem.slice(stem.lastIndexOf('_') + 1)
-  return stem.includes('_') && token.length > 0 ? token : null
+  const separator = stem.indexOf('_')
+  if (separator < 0) return null
+  const token = stem.slice(separator + 1)
+  return token.length > 0 ? token : null
 }

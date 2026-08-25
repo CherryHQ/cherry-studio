@@ -63,9 +63,16 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
       if (!projectEntry.isDirectory()) continue
       const projectDir = path.resolve(projectsRoot, projectEntry.name)
       for (const entry of await listEntries(projectDir)) {
-        const token = entry.isFile() && entry.name.endsWith('.jsonl') ? entry.name.slice(0, -'.jsonl'.length) : null
+        // A project dir holds only `{id}.jsonl` and `{id}/`, so either names the session.
+        // The dir has to stand on its own: its jsonl sibling may already be gone, and
+        // keying solely off the file would strand the transcripts forever.
+        const token = entry.isDirectory()
+          ? entry.name
+          : entry.name.endsWith('.jsonl')
+            ? entry.name.slice(0, -'.jsonl'.length)
+            : null
         if (!token || keptResumeTokens.has(token)) continue
-        for (const target of [path.resolve(projectDir, entry.name), path.resolve(projectDir, token)]) {
+        for (const target of [path.resolve(projectDir, `${token}.jsonl`), path.resolve(projectDir, token)]) {
           if (await reclaimStale(target, options)) removed.push(target)
         }
       }

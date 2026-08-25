@@ -64,6 +64,17 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
     expect(existsSync(claimedNew)).toBe(true)
   })
 
+  it('keeps a claimed session whose resume token contains an underscore', async () => {
+    // `_` is legal in a pi resume token, so splitting the stem on the LAST one
+    // truncated the token and made a live session look orphaned.
+    const claimed = seedFile(`${sessions}/2026-08-19T00-00-00-000Z_tok_with_underscore.jsonl`)
+
+    const { removed } = await driver.reclaimOrphanSessions(new Set(['tok_with_underscore']), OPTIONS)
+
+    expect(removed).toEqual([])
+    expect(existsSync(claimed)).toBe(true)
+  })
+
   it('ignores names it cannot parse into a resume token', async () => {
     const notPi = seedFile(`${sessions}/index.json`)
     const noToken = seedFile(`${sessions}/nounderscore.jsonl`)
