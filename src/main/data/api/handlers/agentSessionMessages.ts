@@ -36,6 +36,10 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
       const items = response.items.map((item) => projectMessageForRenderer(item, params.sessionId))
       if (items.every((item, index) => item === response.items[index])) return response
       return { ...response, items }
+    },
+
+    DELETE: async ({ params }) => {
+      return agentSessionMessageService.clearSessionMessages(params.sessionId)
     }
   },
 

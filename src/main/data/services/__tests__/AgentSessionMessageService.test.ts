@@ -902,6 +902,52 @@ describe('AgentSessionMessageService', () => {
     expect(emptySession.lastActivityAt).toBe(3_000)
   })
 
+  it('clears only the requested session messages and leaves other sessions untouched', async () => {
+    const otherSessionId = 'session-other-clear'
+    await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'c0' })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: otherSessionId,
+      message: {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004',
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'keep' }] }
+      }
+    })
+
+    const result = agentSessionMessageService.clearSessionMessages(SESSION_ID)
+
+    expect(result.deletedIds.sort()).toEqual([ASSISTANT_MESSAGE_ID, USER_MESSAGE_ID].sort())
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+    expect(
+      agentSessionMessageService.getSessionMessage(otherSessionId, '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004').id
+    ).toBe('018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004')
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        routeParams: { sessionId: SESSION_ID },
+        entityIds: result.deletedIds
+      }
+    ])
+  })
+
+  it('is a no-op for an empty session and rejects a missing session', () => {
+    expect(agentSessionMessageService.clearSessionMessages(SESSION_ID)).toEqual({ deletedIds: [] })
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    expect(() => agentSessionMessageService.clearSessionMessages('missing-session')).toThrow(
+      "Session with id 'missing-session' not found"
+    )
+  })
+
   it('publishes the data change derived from an inserted or updated message', () => {
     agentSessionMessageService.saveMessage(
       {

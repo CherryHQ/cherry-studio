@@ -1,19 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listSessionMessagesMock, getSessionMessageMock, updateSessionMessageMock, deleteSessionMessageMock } =
-  vi.hoisted(() => ({
-    listSessionMessagesMock: vi.fn(),
-    getSessionMessageMock: vi.fn(),
-    updateSessionMessageMock: vi.fn(),
-    deleteSessionMessageMock: vi.fn()
-  }))
+const {
+  listSessionMessagesMock,
+  getSessionMessageMock,
+  updateSessionMessageMock,
+  deleteSessionMessageMock,
+  clearSessionMessagesMock
+} = vi.hoisted(() => ({
+  listSessionMessagesMock: vi.fn(),
+  getSessionMessageMock: vi.fn(),
+  updateSessionMessageMock: vi.fn(),
+  deleteSessionMessageMock: vi.fn(),
+  clearSessionMessagesMock: vi.fn()
+}))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     listSessionMessages: listSessionMessagesMock,
     getSessionMessage: getSessionMessageMock,
     updateSessionMessage: updateSessionMessageMock,
-    deleteSessionMessage: deleteSessionMessageMock
+    deleteSessionMessage: deleteSessionMessageMock,
+    clearSessionMessages: clearSessionMessagesMock
   }
 }))
 
@@ -118,6 +125,19 @@ describe('agentSessionMessageHandlers', () => {
           params: { sessionId: 'session-1' }
         } as never)
       ).resolves.toBe(response)
+    })
+
+    it('clears every message in the requested Agent session', async () => {
+      const response = { deletedIds: ['message-1', 'message-2'] }
+      clearSessionMessagesMock.mockReturnValueOnce(response)
+
+      await expect(
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].DELETE({
+          params: { sessionId: 'session-1' }
+        } as never)
+      ).resolves.toBe(response)
+
+      expect(clearSessionMessagesMock).toHaveBeenCalledWith('session-1')
     })
   })
 

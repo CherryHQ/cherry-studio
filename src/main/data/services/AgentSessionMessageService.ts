@@ -530,6 +530,42 @@ export class AgentSessionMessageService {
     }
   }
 
+  clearSessionMessages(sessionId: string): { deletedIds: string[] } {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const [session] = tx
+        .select({ id: sessionTable.id })
+        .from(sessionTable)
+        .where(eq(sessionTable.id, sessionId))
+        .limit(1)
+        .all()
+      if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+
+      const rows = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .all()
+      const deletedIds = rows.map((row) => row.id)
+      if (deletedIds.length === 0) return { deletedIds }
+
+      tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).run()
+      return { deletedIds }
+    })
+
+    if (result.deletedIds.length > 0) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId },
+          entityIds: result.deletedIds
+        }
+      ])
+    }
+
+    return result
+  }
+
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
     const row = this.findExistingMessageRow(database, sessionId, messageId)

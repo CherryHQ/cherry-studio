@@ -27,13 +27,19 @@ import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { useClearAgentSessionMessages } from '@renderer/hooks/agent/useClearAgentSessionMessages'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -198,6 +204,8 @@ const AgentChat = ({
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
+  const clearAgentSessionMessages = useClearAgentSessionMessages()
+  const isActiveTab = useIsActiveTab()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
@@ -225,6 +233,26 @@ const AgentChat = ({
   const isInitializing = !sessionSnapshot && conversationBootstrap.sessionLoading
   const citationsPanelOpen = citationPanelCitations !== null
   const conversationState = sessionSnapshot ? 'ready' : isInitializing ? 'pending' : 'unavailable'
+  const showConversation = Boolean(sessionSnapshot && !centerSurface)
+
+  useCommandHandler(
+    'topic.clear_messages',
+    async () => {
+      if (!sessionSnapshot) return
+      const confirmed = await popup.confirm({
+        title: t('chat.input.clear.title'),
+        content: t('chat.input.clear.content'),
+        centered: true
+      })
+      if (!confirmed) return
+      try {
+        await clearAgentSessionMessages(sessionSnapshot.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
+    },
+    { enabled: showConversation && isActiveTab }
+  )
   const sessionAgentId = sessionSnapshot?.agentId ?? null
   const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
   const composerAgentId = isActiveAgentLoading ? (sessionAgentId ?? undefined) : sendableAgentId

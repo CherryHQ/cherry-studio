@@ -83,6 +83,11 @@ export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMes
 export const UpdateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({ data: true })
 export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMessageSchema>
 
+/** Response for clearing every message in an Agent session. */
+export interface ClearAgentSessionMessagesResponse {
+  deletedIds: string[]
+}
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -93,6 +98,10 @@ export type AgentSessionMessageSchemas = {
       params: { sessionId: string }
       query?: AgentSessionMessagesListQuery
       response: CursorPaginationResponse<z.infer<typeof AgentSessionMessageEntitySchema>>
+    }
+    DELETE: {
+      params: { sessionId: string }
+      response: ClearAgentSessionMessagesResponse
     }
   }
 
