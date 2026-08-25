@@ -328,10 +328,10 @@ export class ScreenshotOverlayService extends BaseService {
 
           // Transparent first so the OS show animation is never visible.
           window.setOpacity(0)
-          // macOS drops this flag on hide(), and closing a pooled overlay only hides it —
-          // a recycled window would otherwise fail to cover a fullscreen Space.
+          // macOS drops the fullscreen-auxiliary collection behavior on hide(). Reapply it
+          // without joining every Space, so a stale capture cannot follow Space switches.
           if (isMac) {
-            window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+            window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
           }
           // showMode 'manual' means nothing else ever shows this window, and setOpacity()
           // on a hidden one is a no-op. Inactive: only the cursor's overlay takes focus.
@@ -791,9 +791,10 @@ export class ScreenshotOverlayService extends BaseService {
     for (const windowId of this.overlayWindowIds) {
       const window = windowManager.getWindow(windowId)
       if (!window || window.isDestroyed()) continue
-      // macOS drops the all-workspaces flag on hide(); the alwaysOnTop level is
-      // restored declaratively by the window type's reapplyAlwaysOnTop quirk.
-      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+      // Restore fullscreen coverage after hide() without making the stale capture
+      // follow the user to another Space. The always-on-top level is restored by
+      // the window type's reapplyAlwaysOnTop quirk.
+      window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
       window.setOpacity(0)
       // The active overlay must become the key window again or Esc and the next drag
       // land nowhere; the others stay unfocused, as at session start.

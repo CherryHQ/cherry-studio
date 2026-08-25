@@ -18,6 +18,7 @@ interface RuntimeProbeProps {
   keepMountedKeys?: readonly string[]
   onReachTop?: () => void
   onRuntime(runtime: ChatVirtualizerRuntime<string>): void
+  topicId?: string
   topPadding?: number
 }
 
@@ -32,6 +33,7 @@ function RuntimeProbe({
   keepMountedKeys,
   onReachTop,
   onRuntime,
+  topicId,
   topPadding
 }: RuntimeProbeProps) {
   const runtime = useChatVirtualizerRuntime({
@@ -42,6 +44,7 @@ function RuntimeProbe({
     handleRef,
     keepMountedKeys,
     onReachTop,
+    topicId,
     topPadding,
     topReachOverscanItems: 4,
     bottomPadding: 12
@@ -58,6 +61,7 @@ function RuntimeDomProbe({
   nonce,
   onReachTop,
   onRuntime,
+  topicId,
   topPadding
 }: RuntimeDomProbeProps) {
   void nonce
@@ -69,6 +73,7 @@ function RuntimeDomProbe({
     handleRef,
     keepMountedKeys,
     onReachTop,
+    topicId,
     topPadding,
     topReachOverscanItems: 4,
     bottomPadding: 12
@@ -683,6 +688,7 @@ describe('useChatVirtualizerRuntime', () => {
         handle!.scrollToTop('instant')
       })
       expect(scrollTop).toBe(0)
+      expect(handle!.getNavigationBaseKey()).toBe('message-a')
 
       act(() => callbacks[0]?.([], {} as ResizeObserver))
 
@@ -738,7 +744,7 @@ describe('useChatVirtualizerRuntime', () => {
   it.each([
     ['top', (handle: MessageVirtualListHandle) => handle.scrollToTop('instant')],
     ['a message key', (handle: MessageVirtualListHandle) => handle.scrollToKey('message-a', 'start')]
-  ])('keeps reading at %s when streaming content grows after explicit navigation', (_label, navigate) => {
+  ])('tracks the %s navigation base through growth until the user scrolls', (_label, navigate) => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -783,16 +789,78 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => navigate(handle!))
       raf.tick(60)
       expect(scrollTop).toBe(0)
+      expect(handle!.getNavigationBaseKey()).toBe('message-a')
 
       scrollHeight = 1700
       act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
       raf.tick(60)
 
       expect(scrollTop).toBe(0)
+      expect(handle!.getNavigationBaseKey()).toBe('message-a')
+
+      act(() => {
+        scrollTop = 1
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(1)
+      })
+      expect(handle!.getNavigationBaseKey()).toBeNull()
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
+  })
+
+  it('does not resurrect an explicit navigation target after leaving and returning to a topic', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    const renderProbe = (topicId: string) => (
+      <RuntimeDomProbe
+        items={['message-a', 'message-b']}
+        handleRef={handleRef}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        topicId={topicId}
+      />
+    )
+    const view = render(renderProbe('topic-a'))
+    runtime!.vlistHandleRef.current = createHandle()
+
+    act(() => handle!.scrollToKey('message-b', 'start'))
+    expect(handle!.getNavigationBaseKey()).toBe('message-b')
+
+    view.rerender(renderProbe('topic-b'))
+    expect(handle!.getNavigationBaseKey()).toBeNull()
+
+    view.rerender(renderProbe('topic-a'))
+    expect(handle!.getNavigationBaseKey()).toBeNull()
+  })
+
+  it('does not resurrect an explicit navigation target after its item disappears and returns', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    const renderProbe = (items: string[]) => (
+      <RuntimeDomProbe
+        items={items}
+        handleRef={handleRef}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        topicId="topic-a"
+      />
+    )
+    const view = render(renderProbe(['message-a', 'message-b']))
+    runtime!.vlistHandleRef.current = createHandle()
+
+    act(() => handle!.scrollToKey('message-b', 'start'))
+    expect(handle!.getNavigationBaseKey()).toBe('message-b')
+
+    view.rerender(renderProbe(['message-a']))
+    view.rerender(renderProbe(['message-a', 'message-b']))
+
+    expect(handle!.getNavigationBaseKey()).toBeNull()
   })
 
   it('jumps instantly to a key more than a few viewports away', () => {
@@ -1034,6 +1102,7 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => handle!.scrollToElement(heading))
       raf.tick(60)
       expect(scrollTop).toBe(300)
+      expect(handle!.getNavigationBaseKey()).toBe('message-a')
 
       headingDocumentTop = 350
       scrollHeight = 1700
@@ -1099,10 +1168,12 @@ describe('useChatVirtualizerRuntime', () => {
     })
     act(() => handle!.scrollToBottom())
     expect(handle!.isFollowing()).toBe(true)
+    expect(handle!.getNavigationBaseKey()).toBe('message-a')
     act(() => handle!.scrollToRange(range))
     expect(scrollTop).toBe(1100)
     expect(getRangeRect).toHaveBeenCalledTimes(1)
     expect(handle!.isFollowing()).toBe(false)
+    expect(handle!.getNavigationBaseKey()).toBe('message-a')
   })
 
   it('keeps key navigation aimed at the same message when history is prepended mid-animation', () => {
