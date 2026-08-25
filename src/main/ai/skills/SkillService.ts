@@ -326,7 +326,9 @@ export class SkillService {
   async resolveWorkspaceSkillPluginPath(workdir: string): Promise<string | undefined> {
     const { pluginDir } = await this.resolveWorkspaceSkillPlugin(workdir)
     if (!pluginDir || this.isWorkspaceSkillPluginBackedOff(pluginDir)) return undefined
-    return pluginDir
+    // A missing directory (never published, or OS temp cleanup removed it) reads as a distinct
+    // fact, so the rebuild signature mismatches and the next build (re)publishes it.
+    return (await directoryExists(pluginDir)) ? pluginDir : `${pluginDir}#unpublished`
   }
 
   private isWorkspaceSkillPluginBackedOff(pluginDir: string): boolean {
@@ -518,6 +520,9 @@ export class SkillService {
           hash.update(`d\0${relative}\n`)
           await walk(entryPath, relative)
         } else {
+          // Check the declared size before reading so one huge file cannot balloon memory first.
+          const stat = await fs.promises.stat(entryPath)
+          if (stat.size > remaining.bytes) throw new WorkspaceSkillFingerprintOverflow()
           const content = await fs.promises.readFile(entryPath)
           remaining.bytes -= content.byteLength
           if (remaining.bytes < 0) throw new WorkspaceSkillFingerprintOverflow()

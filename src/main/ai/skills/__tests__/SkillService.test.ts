@@ -720,10 +720,13 @@ describe('SkillService', () => {
 
         const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + 6 * 60_000)
         try {
+          // Past the backoff the fact reappears (as the not-yet-published marker), so the
+          // signature mismatch triggers the retry.
           const expected = await skillService.resolveWorkspaceSkillPluginPath(workdir)
           expect(expected).toBeDefined()
-          await expect(skillService.ensureWorkspaceSkillPlugin(workdir)).resolves.toBe(expected)
-          await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(expected)
+          const published = await skillService.ensureWorkspaceSkillPlugin(workdir)
+          expect(published).toBeDefined()
+          await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(published)
         } finally {
           nowSpy.mockRestore()
         }
@@ -809,7 +812,8 @@ describe('SkillService', () => {
         const current = await skillService.resolveWorkspaceSkillPluginPath(workdir)
         expect(current).not.toBe(first)
         const second = await skillService.ensureWorkspaceSkillPlugin(workdir)
-        expect(second).toBe(current)
+        expect(second).not.toBe(first)
+        await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(second)
         await expect(
           fs.promises.readFile(path.join(second!, 'skills', 'agent-only', 'SKILL.md'), 'utf-8')
         ).resolves.toBe('# changed mid-copy')
@@ -886,26 +890,73 @@ describe('SkillService', () => {
       await skillService.ensureWorkspaceSkillPlugin(emptyWorkdir)
       const workdir = await createTempDir('skill-workspace-plugin-workdir-')
       await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
-      const expected = await skillService.resolveWorkspaceSkillPluginPath(workdir)
+      // Strip the not-yet-published marker to plant the corpse at the real key path.
+      const expected = (await skillService.resolveWorkspaceSkillPluginPath(workdir))!.replace(/#unpublished$/, '')
       // Simulate rm dying halfway: the key directory survives without its manifest or skills.
-      await fs.promises.mkdir(path.join(expected!, 'skills'), { recursive: true })
+      await fs.promises.mkdir(path.join(expected, 'skills'), { recursive: true })
 
       await expect(skillService.ensureWorkspaceSkillPlugin(workdir)).resolves.toBe(expected)
 
-      const manifest = await fs.promises.readFile(path.join(expected!, '.claude-plugin', 'plugin.json'), 'utf-8')
+      const manifest = await fs.promises.readFile(path.join(expected, '.claude-plugin', 'plugin.json'), 'utf-8')
       expect(JSON.parse(manifest)).toEqual({ name: 'cherry-workspace-skills' })
-      expect(await fs.promises.readdir(path.join(expected!, 'skills'))).toEqual(['agent-only'])
+      expect(await fs.promises.readdir(path.join(expected, 'skills'))).toEqual(['agent-only'])
     })
 
-    it('resolves the directory a publish would use without creating it', async () => {
+    it('resolves a distinct fact until the plugin is published, then the published directory', async () => {
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-workspace-plugin-workdir-')
       await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
 
-      const resolved = await skillService.resolveWorkspaceSkillPluginPath(workdir)
+      const beforePublish = await skillService.resolveWorkspaceSkillPluginPath(workdir)
+      expect(beforePublish && fs.existsSync(beforePublish)).toBe(false)
 
-      expect(resolved && fs.existsSync(resolved)).toBe(false)
-      await expect(skillService.ensureWorkspaceSkillPlugin(workdir)).resolves.toBe(resolved)
+      const published = await skillService.ensureWorkspaceSkillPlugin(workdir)
+      expect(published).toBeDefined()
+      expect(beforePublish).not.toBe(published)
+      await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(published)
+    })
+
+    it('signals a republish when the published directory vanishes', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+
+      const published = await skillService.ensureWorkspaceSkillPlugin(workdir)
+      // OS temp cleanup can remove the directory under a live session.
+      await fs.promises.rm(published!, { recursive: true, force: true })
+
+      const vanished = await skillService.resolveWorkspaceSkillPluginPath(workdir)
+      expect(vanished).toBeDefined()
+      expect(vanished).not.toBe(published)
+
+      await expect(skillService.ensureWorkspaceSkillPlugin(workdir)).resolves.toBe(published)
+      await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(published)
+    })
+
+    it('refuses a copy-mode skill whose single file exceeds the byte cap without reading it', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      const huge = path.join(workdir, '.agents', 'skills', 'huge-file-skill')
+      await fs.promises.mkdir(huge, { recursive: true })
+      await fs.promises.writeFile(path.join(huge, 'SKILL.md'), '# huge')
+      await fs.promises.writeFile(path.join(huge, 'blob.bin'), Buffer.alloc(17 * 1024 * 1024))
+      const copySpy = vi
+        .spyOn(
+          skillService as unknown as { shouldCopyWorkspaceSkill(target: string): boolean },
+          'shouldCopyWorkspaceSkill'
+        )
+        .mockReturnValue(true)
+      const readSpy = vi.spyOn(fs.promises, 'readFile')
+
+      try {
+        const pluginDir = await skillService.ensureWorkspaceSkillPlugin(workdir)
+        expect(await fs.promises.readdir(path.join(pluginDir!, 'skills'))).toEqual(['agent-only'])
+        expect(readSpy).not.toHaveBeenCalledWith(path.join(huge, 'blob.bin'))
+      } finally {
+        readSpy.mockRestore()
+        copySpy.mockRestore()
+      }
     })
   })
 
