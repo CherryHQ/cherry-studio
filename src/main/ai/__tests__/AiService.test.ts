@@ -339,7 +339,8 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
     })
   })
 
@@ -371,7 +372,41 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
+    })
+  })
+
+  it('reports explicitly classified token analytics as agent usage', async () => {
+    const service = createService()
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart(
+      {
+        id: 'test-model',
+        providerId: 'test-provider',
+        apiModelId: 'test-api-model'
+      },
+      'agent'
+    )
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onFinish()
+
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5,
+      source: 'agent'
     })
   })
 

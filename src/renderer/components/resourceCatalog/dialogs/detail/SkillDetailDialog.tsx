@@ -88,22 +88,24 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-4xl">
         <DialogHeader className="pr-8">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-subtle text-warning">
-              <ToolCase size={22} strokeWidth={1.5} />
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-blue-400/10 text-blue-400 dark:bg-blue-300/10 dark:text-blue-300">
+              <ToolCase size={22} strokeWidth={1.5} className="lucide-custom" />
             </div>
-            <div className="min-w-0 pt-0.5">
+            <div className="-translate-y-px min-w-0">
               <DialogTitle className="truncate">{skill.name}</DialogTitle>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className="border-0 bg-warning-subtle px-2 py-0.5 text-warning-subtle-foreground text-xs">
+                  className="h-5 border-0 bg-info-subtle px-2 py-0 text-info-subtle-foreground text-xs">
                   {t('library.type.skill')}
                 </Badge>
-                <span className="text-foreground-tertiary text-xs">{skill.source}</span>
-                {skill.author ? <span className="text-foreground-tertiary text-xs">{skill.author}</span> : null}
+                <span className="text-foreground-tertiary text-xs leading-5">{skill.source}</span>
+                {skill.author ? (
+                  <span className="text-foreground-tertiary text-xs leading-5">{skill.author}</span>
+                ) : null}
                 {sourceTags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-foreground-tertiary text-xs">
+                  <span key={tag} className="text-foreground-tertiary text-xs leading-5">
                     {tag}
                   </span>
                 ))}

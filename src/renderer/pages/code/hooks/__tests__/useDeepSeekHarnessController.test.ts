@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
+  useIpcOn: vi.fn(),
+  events: new Map<string, (payload: Record<string, unknown>) => void>(),
   openSmartMiniApp: vi.fn(),
   toastError: vi.fn()
 }))
@@ -13,7 +15,7 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request }, useIpcOn: mocks.useIpcOn }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }) }
@@ -24,6 +26,12 @@ vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 const { useDeepSeekHarnessController } = await import('../useDeepSeekHarnessController')
+
+const emitStatusChanged = (payload: Record<string, unknown>) => {
+  const handler = mocks.events.get('deepseek_harness.status_changed')
+  if (!handler) throw new Error('status_changed handler not registered')
+  handler(payload)
+}
 
 const directProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 
@@ -46,6 +54,10 @@ describe('useDeepSeekHarnessController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(Date, 'now').mockReturnValue(1_776_000_000_000)
+    mocks.events.clear()
+    mocks.useIpcOn.mockImplementation((event: string, handler: (payload: Record<string, unknown>) => void) => {
+      mocks.events.set(event, handler)
+    })
     mocks.request.mockImplementation((route: string) => {
       if (route === 'deepseek_harness.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'deepseek_harness.start') {
@@ -74,6 +86,10 @@ describe('useDeepSeekHarnessController', () => {
       logo: 'deepseek'
     })
     expect(new URL(descriptor.url).searchParams.get('cherry_navigation_revision')).toBe('1776000000000')
+    // Running state is no longer written locally — it arrives as a main-pushed event.
+    await act(async () => {
+      emitStatusChanged({ status: 'running', url: 'http://127.0.0.1:43123' })
+    })
     expect(result.current.running).toBe(true)
   })
 
@@ -121,7 +137,7 @@ describe('useDeepSeekHarnessController', () => {
     expect(mocks.toastError).toHaveBeenCalledWith('config collision')
   })
 
-  it('polls managed status, reopens the current URL, and stops only through the managed IPC', async () => {
+  it('tracks managed status via pushed events, reopens the current URL, and stops only through the managed IPC', async () => {
     mocks.request.mockImplementation((route: string) => {
       if (route === 'deepseek_harness.get_status') {
         return Promise.resolve({ status: 'running', url: 'http://127.0.0.1:45231' })
@@ -134,10 +150,16 @@ describe('useDeepSeekHarnessController', () => {
 
     await act(async () => result.current.onOpenWebUi())
     expect(mocks.openSmartMiniApp).toHaveBeenCalledOnce()
+
+    // A kill surfaces immediately through the pushed event — no 5s polling wait.
+    await act(async () => {
+      emitStatusChanged({ status: 'error' })
+    })
+    expect(result.current.running).toBe(false)
+
     await act(async () => {
       await result.current.onStop()
     })
     expect(mocks.request).toHaveBeenCalledWith('deepseek_harness.stop')
-    expect(result.current.running).toBe(false)
   })
 })
