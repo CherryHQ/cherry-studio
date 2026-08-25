@@ -508,8 +508,7 @@ export class McpRuntimeService extends BaseService {
     // armed background OAuth listener. Concurrent connect/restart bumps the generation and
     // supersedes this probe; overlapping reuses share one probe via pendingProbes.
     const attemptGeneration = this.connectionAttemptGenerations.get(server.id) ?? 0
-    const isCurrentAttempt = () =>
-      (this.connectionAttemptGenerations.get(server.id) ?? 0) === attemptGeneration
+    const isCurrentAttempt = () => (this.connectionAttemptGenerations.get(server.id) ?? 0) === attemptGeneration
 
     try {
       // add short timeout to prevent hanging
@@ -1126,11 +1125,7 @@ export class McpRuntimeService extends BaseService {
     )
   }
 
-  private registerPendingOAuthListener(
-    serverId: string,
-    cancel: () => Promise<void>,
-    serverKey?: string
-  ): void {
+  private registerPendingOAuthListener(serverId: string, cancel: () => Promise<void>, serverKey?: string): void {
     const pending = this.pendingOAuthListeners.get(serverId) ?? new Set()
     pending.add(cancel)
     this.pendingOAuthListeners.set(serverId, pending)
