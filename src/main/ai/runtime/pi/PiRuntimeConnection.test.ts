@@ -346,7 +346,9 @@ beforeEach(() => {
       providerId: 'p',
       providerName: 'P',
       source: null,
-      frozenModels: [{ modelId: 'p::m', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }]
+      frozenModels: [
+        { modelId: 'p::m', apiModelId: 'm', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }
+      ]
     }
   })
   mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))

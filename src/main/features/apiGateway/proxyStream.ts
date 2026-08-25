@@ -461,6 +461,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
+            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -545,6 +546,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       callOverrides,
       contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
+      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 
