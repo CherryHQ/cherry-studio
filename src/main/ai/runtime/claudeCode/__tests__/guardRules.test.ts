@@ -465,6 +465,58 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       }
     })
 
+    it.each([';', '|', '&'])('recognizes a quoted Bash path followed by %s', async (operator) => {
+      const knowledgeDatabase = path.join(userDataPath, 'Data', 'KnowledgeBase', 'knowledge.sqlite')
+      await expect(
+        evaluate(
+          makeCtx({
+            cwd: systemWorkspace,
+            input: { command: `sqlite3 "${knowledgeDatabase}" ${operator} echo done` }
+          })
+        )
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+    })
+
+    it('resolves Bash paths from the current directory and tracks cd', async () => {
+      await mkdir(path.join(userDataPath, 'Data', 'KnowledgeBase'), { recursive: true })
+      const relativeDatabase = path.join('..', '..', '..', '..', 'cherrystudio.sqlite')
+      const homeRelativeDatabase = path.join(
+        'Library',
+        'Application Support',
+        'CherryStudio',
+        'Data',
+        'cherrystudio.sqlite'
+      )
+      const commands = [
+        { cwd: systemWorkspace, command: `sqlite3 ${relativeDatabase}` },
+        { cwd: homePath, command: `sqlite3 "${homeRelativeDatabase}"` },
+        {
+          cwd: systemWorkspace,
+          command: 'cd "$HOME/Library/Application Support/CherryStudio/Data" && sqlite3 cherrystudio.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command: 'cd "$HOME/Library/Application Support/CherryStudio/Data/KnowledgeBase" && sqlite3 knowledge.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command: 'cd -- "$HOME/Library/Application Support/CherryStudio/Data" && sqlite3 cherrystudio.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command:
+            'cd -P -- "$HOME/Library/Application Support/CherryStudio/Data/KnowledgeBase" && sqlite3 knowledge.sqlite'
+        }
+      ]
+
+      for (const { cwd, command } of commands) {
+        await expect(evaluate(makeCtx({ cwd, input: { command } }))).resolves.toMatchObject({
+          effect: 'deny',
+          ruleId: 'user-data-sqlite-write'
+        })
+      }
+    })
+
     it('allows workspace-local SQLite files and does not turn reads into writes', async () => {
       const workspaceSqlite = path.join(systemWorkspace, 'artifact.sqlite')
       const workspaceDb = path.join(systemWorkspace, 'artifact.db')
@@ -475,6 +527,10 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await expect(
         evaluate(makeCtx({ toolName: 'Edit', cwd: systemWorkspace, input: { file_path: workspaceDb } }))
       ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ cwd: systemWorkspace, input: { command: 'sqlite3 artifact.sqlite "vacuum"' } }))
+      ).resolves.toBeUndefined()
+
       const readDecision = await evaluate(
         makeCtx({ toolName: 'Read', cwd: systemWorkspace, input: { file_path: databaseFile } })
       )
@@ -488,6 +544,9 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
 
       await expect(
         evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: linkedDatabase } }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      await expect(
+        evaluate(makeCtx({ cwd: systemWorkspace, input: { command: `sqlite3 "${linkedDatabase}" "vacuum"` } }))
       ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
     })
 

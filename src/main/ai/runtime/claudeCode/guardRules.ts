@@ -25,7 +25,7 @@ import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApp
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 
-import { isPathWithinAllowedRoots, isUserDataSqlitePath } from './pathContainment'
+import { commandReferencesUserDataSqlite, isPathWithinAllowedRoots, isUserDataSqlitePath } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
@@ -76,6 +76,21 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  if (ctx.toolName === 'Bash') {
+    const command = bashCommand(ctx)
+    if (!command) return null
+    return (await commandReferencesUserDataSqlite(
+      command,
+      ctx.cwd,
+      application.getPath('app.userdata'),
+      application.getPath('app.database.file'),
+      application.getPath('sys.home'),
+      ctx.signal
+    ))
+      ? {}
+      : null
+  }
+
   const pathField = SQLITE_WRITE_PATH_FIELDS[ctx.toolName as keyof typeof SQLITE_WRITE_PATH_FIELDS]
   if (!pathField) return null
   const requestedPath = ctx.input?.[pathField]

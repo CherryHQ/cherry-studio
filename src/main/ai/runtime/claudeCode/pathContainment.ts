@@ -100,8 +100,91 @@ export async function isPathWithinAllowedRoots(
   )
 }
 
+function normalizeShellPathText(value: string): string {
+  const normalized = value.replace(/\\([\\\s"'`$;&|<>])/g, '$1').replaceAll('\\', '/')
+  return isMac || isWin ? normalized.toLowerCase() : normalized
+}
+
+interface ShellToken {
+  value: string
+  isOperator: boolean
+}
+
+function tokenizeShellCommand(command: string): ShellToken[] {
+  const tokens: ShellToken[] = []
+  let current = ''
+  let quote: '"' | "'" | undefined
+
+  const pushCurrent = () => {
+    if (current) tokens.push({ value: current, isOperator: false })
+    current = ''
+  }
+
+  for (let index = 0; index < command.length; index++) {
+    const character = command[index]
+    if (character === '\\' && quote !== "'") {
+      const next = command[index + 1]
+      if (next && /[\\\s"'`$;&|<>]/.test(next)) {
+        current += next
+        index++
+      } else {
+        current += character
+      }
+    } else if (quote) {
+      if (character === quote) quote = undefined
+      else current += character
+    } else if (character === '"' || character === "'") {
+      quote = character
+    } else if (/\s/.test(character)) {
+      pushCurrent()
+      if (character === '\n') tokens.push({ value: character, isOperator: true })
+    } else if (/[;&|<>]/.test(character)) {
+      pushCurrent()
+      const doubled = (character === '&' || character === '|') && command[index + 1] === character
+      tokens.push({ value: doubled ? character.repeat(2) : character, isOperator: true })
+      if (doubled) index++
+    } else {
+      current += character
+    }
+  }
+  pushCurrent()
+  return tokens
+}
+
 function expandHomePath(requestedPath: string, homePath: string): string {
   return requestedPath.replace(/^(?:\$\{home\}|\$home|~)(?=[/\\]|$)/i, () => homePath)
+}
+
+function expandShellHomePath(requestedPath: string, homePath: string): string {
+  return expandHomePath(normalizeShellPathText(requestedPath), normalizeShellPathText(path.resolve(homePath)))
+}
+
+function pathFromShellWord(word: string): string | undefined {
+  const normalizedWord = normalizeShellPathText(word).replace(/[,)}\]]+$/, '')
+  const pathText = normalizedWord.slice(normalizedWord.lastIndexOf('=') + 1).replace(/^file:/i, '')
+  const pathWithoutQuery = pathText.replace(/[?#].*$/, '')
+  return pathWithoutQuery || undefined
+}
+
+function directoryFromCdWords(words: readonly string[], homePath: string): string | undefined {
+  let index = 1
+  let optionsEnded = false
+
+  while (index < words.length && !optionsEnded) {
+    const word = words[index]
+    if (word === '--') {
+      optionsEnded = true
+      index++
+    } else if (word === '-') {
+      return undefined
+    } else if (word.startsWith('-')) {
+      index++
+    } else {
+      break
+    }
+  }
+
+  return words[index] ?? homePath
 }
 
 interface SqlitePathRoots {
@@ -148,6 +231,47 @@ async function isUserDataSqlitePathWithinRoots(
   const isInsideUserData = target === roots.userData || isPathInside(target, roots.userData)
   const isInsideWorkspace = target === roots.workspace || isPathInside(target, roots.workspace)
   return isInsideUserData && !isInsideWorkspace
+}
+
+export async function commandReferencesUserDataSqlite(
+  command: string,
+  cwd: string,
+  userDataPath: string,
+  databaseFile: string,
+  homePath: string,
+  signal?: AbortSignal
+): Promise<boolean> {
+  let shellCwd = cwd
+  let words: string[] = []
+  const tokens = tokenizeShellCommand(command)
+  const roots = await resolveSqlitePathRoots(cwd, userDataPath, databaseFile, signal)
+  if (!roots) return true
+
+  for (let index = 0; index <= tokens.length; index++) {
+    const token = tokens[index]
+    if (token && !token.isOperator) {
+      words.push(token.value)
+      continue
+    }
+    for (const word of words) {
+      const requestedPath = pathFromShellWord(word)
+      if (requestedPath && (await isUserDataSqlitePathWithinRoots(requestedPath, shellCwd, homePath, roots, signal))) {
+        return true
+      }
+    }
+
+    const operator = token?.value
+    if ((operator === '&&' || operator === ';' || operator === '\n') && words[0] === 'cd') {
+      const requestedDirectory = directoryFromCdWords(words, homePath)
+      if (requestedDirectory === undefined) return true
+      const expandedDirectory = expandShellHomePath(requestedDirectory, homePath)
+      shellCwd = path.isAbsolute(expandedDirectory)
+        ? path.resolve(expandedDirectory)
+        : path.resolve(shellCwd, expandedDirectory)
+    }
+    words = []
+  }
+  return false
 }
 
 export async function isUserDataSqlitePath(
