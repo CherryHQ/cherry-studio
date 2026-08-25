@@ -375,6 +375,50 @@ describe('AiService', () => {
     })
   })
 
+  it('does not report token analytics when all token counts are zero', async () => {
+    const service = createService()
+    const hooks = (service as any).analyticsHookPart({
+      id: 'test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-api-model'
+    })
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onFinish()
+
+    expect(mockApplicationGet).not.toHaveBeenCalled()
+  })
+
+  it('does not report token analytics for local-provider', async () => {
+    const service = createService()
+    const hooks = (service as any).analyticsHookPart({
+      id: 'test-model',
+      providerId: 'local-provider',
+      apiModelId: 'test-api-model'
+    })
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onFinish()
+
+    expect(mockApplicationGet).not.toHaveBeenCalled()
+  })
+
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({

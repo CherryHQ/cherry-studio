@@ -1201,7 +1201,7 @@ export class AiService extends BaseService {
   // ── Token usage tracking ──
 
   private trackUsage(model: Model, usage?: { inputTokens?: number; outputTokens?: number }): void {
-    if (!usage || !model.providerId || !model.apiModelId) return
+    if (!usage || !model.providerId || !model.apiModelId || model.providerId === 'local-provider') return
     const inputTokens = usage.inputTokens ?? 0
     const outputTokens = usage.outputTokens ?? 0
     if (inputTokens === 0 && outputTokens === 0) return
