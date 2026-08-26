@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
+  DocumentBlockParam,
   ImageBlockParam,
   MessageCreateParams,
   MessageParam,
@@ -70,25 +71,39 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   return undefined
 }
 
+/** An Anthropic document block (the Agent SDK's PDF Read) as a `file`/`text` UI part (undefined for content sources). */
+function documentBlockToPart(source: DocumentBlockParam['source']): FileUIPart | TextUIPart | undefined {
+  if (source.type === 'base64') {
+    return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
+  }
+  if (source.type === 'url') {
+    return { type: 'file', mediaType: 'application/pdf', url: source.url }
+  }
+  if (source.type === 'text') {
+    return { type: 'text', text: source.data }
+  }
+  return undefined
+}
+
 /** A tool_result split into the model-visible string output and relocated user parts. */
 interface ToolResultConversion {
   output: string
   relocatedParts: Array<TextUIPart | FileUIPart>
 }
 
-function toolResultImageAnchor(toolCallId: string, index: number): string {
-  return `[tool-result attachment call_id=${JSON.stringify(toolCallId)} image=${index}]`
+function toolResultAttachmentAnchor(toolCallId: string, kind: 'image' | 'document', index: number): string {
+  return `[tool-result attachment call_id=${JSON.stringify(toolCallId)} ${kind}=${index}]`
 }
 
 /**
  * Convert Anthropic tool_result content for the `dynamic-tool` UI part.
  *
- * Image blocks cannot ride inside the tool output: `convertToModelMessages`
- * only supports string/JSON tool outputs there, and OpenAI-style protocols have
- * no image tool content at all — inlining base64 blows up the prompt (#17078).
- * Instead each image becomes a `file` part relocated into the user message that
- * carried the tool_result (every protocol accepts user images), and the output
- * keeps a placeholder pointing at it.
+ * Image and document blocks cannot ride inside the tool output:
+ * `convertToModelMessages` only supports string/JSON tool outputs there, and
+ * OpenAI-style protocols have no media tool content at all — inlining base64
+ * blows up the prompt (#17078). Instead each becomes a `file` part relocated
+ * into the user message that carried the tool_result (every capable protocol
+ * accepts user files), and the output keeps a placeholder pointing at it.
  */
 function toolResultToOutput(
   toolCallId: string,
@@ -98,15 +113,25 @@ function toolResultToOutput(
   const lines: string[] = []
   const relocatedParts: Array<TextUIPart | FileUIPart> = []
   let imageIndex = 0
+  let documentIndex = 0
   for (const block of content) {
     if (block.type === 'text') {
       lines.push(block.text)
     } else if (block.type === 'image') {
       const file = imageBlockToFilePart(block.source)
       if (file) {
-        const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
+        const anchor = toolResultAttachmentAnchor(toolCallId, 'image', ++imageIndex)
         lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
         relocatedParts.push({ type: 'text', text: anchor }, file)
+      }
+    } else if (block.type === 'document') {
+      const part = documentBlockToPart(block.source)
+      if (part?.type === 'file') {
+        const anchor = toolResultAttachmentAnchor(toolCallId, 'document', ++documentIndex)
+        lines.push(`${anchor} (${part.mediaType}): attached in the following user message`)
+        relocatedParts.push({ type: 'text', text: anchor }, part)
+      } else if (part) {
+        lines.push(part.text)
       }
     }
   }
@@ -237,6 +262,11 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           parts.push(part)
         } else if (block.type === 'image') {
           const part = imageBlockToFilePart(block.source)
+          if (part) {
+            parts.push(part)
+          }
+        } else if (block.type === 'document') {
+          const part = documentBlockToPart(block.source)
           if (part) {
             parts.push(part)
           }
