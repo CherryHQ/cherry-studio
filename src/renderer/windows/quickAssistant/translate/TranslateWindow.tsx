@@ -21,10 +21,17 @@ const Translate: FC<Props> = ({ text }) => {
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.mini_window.target_lang')
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
-  const { reset: resetSmoothStream, update: updateSmoothStream } = useSmoothStream({ onUpdate: setResult })
-  const { translate: runTranslate, cancel } = useTranslate({
+  const {
+    translate: runTranslate,
+    cancel,
+    isTranslating
+  } = useTranslate({
     loggerContext: 'TranslateWindow',
-    onResponse: updateSmoothStream
+    onResponse: (text, isComplete) => updateSmoothStream(text, isComplete)
+  })
+  const { reset: resetSmoothStream, update: updateSmoothStream } = useSmoothStream({
+    onUpdate: setResult,
+    streamDone: !isTranslating
   })
 
   const translateCurrentText = useEffectEvent(() => {
