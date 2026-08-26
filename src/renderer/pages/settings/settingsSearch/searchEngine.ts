@@ -139,6 +139,7 @@ export function rankEntries(
         result: {
           route,
           panel: entry.panel,
+          providerId: entry.providerId,
           focusId: getSettingDomId(route, entry.anchorId),
           title,
           description,

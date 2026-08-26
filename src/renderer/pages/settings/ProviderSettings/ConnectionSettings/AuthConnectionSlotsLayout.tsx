@@ -17,7 +17,7 @@ export default function AuthConnectionSlotsLayout({ providerId, children }: Auth
   const isLoginBased = provider ? isLoginBasedProvider(provider) : false
 
   return (
-    <section className="shrink-0 space-y-4">
+    <section id={`setting-provider-auth-${providerId}`} className="shrink-0 space-y-4">
       <ProviderSpecificSettings providerId={providerId} placement="beforeAuth" />
       {!isLoginBased && (
         <div className="flex flex-col gap-3">

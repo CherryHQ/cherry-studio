@@ -17,6 +17,12 @@ export interface SettingsSearchEntry {
    * panel mounts before the anchor lookup.
    */
   panel?: string
+  /**
+   * Provider id for provider-page entries that must select a specific provider
+   * on arrival: carried as ?id= (the page consumes it, selects the provider and
+   * strips the param).
+   */
+  providerId?: string
 }
 
 export interface SettingsSearchSection {
@@ -38,6 +44,8 @@ export interface SettingsSearchResult {
   route: string
   /** In-page panel key (?panel=) for state-switched sections like Data */
   panel?: string
+  /** Provider id (?id=) for provider-page entries that select a provider */
+  providerId?: string
   /** DOM id to scroll to and flash; undefined when the result is the section itself */
   focusId?: string
   /** Resolved title text for display and highlighting */
