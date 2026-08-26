@@ -1,4 +1,5 @@
 import type * as CherryUi from '@cherrystudio/ui'
+import { DiagnosticReportLauncherProvider } from '@renderer/components/feedback/DiagnosticReportLauncherContext'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -169,6 +170,8 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.input': 'Input',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
+    'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
+    'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report',
     'agent.sidebar_title': 'Agents',
     'common.create_success': 'Created successfully',
     'library.assistant_catalog.go_to_chat': 'Go to chat',
@@ -918,6 +921,54 @@ describe('AgentToolRenderer', () => {
         path: '/app/agents',
         query: { agentId: 'agent-created' }
       })
+    })
+  })
+
+  describe('assistant prepare_diagnostic_report tool rendering', () => {
+    const preparedResponse: McpToolResponse = {
+      id: 'call-prepare-report',
+      tool: {
+        id: 'assistant__mcp__assistant__prepare_diagnostic_report',
+        name: 'prepare_diagnostic_report',
+        description: 'Prepare diagnostic report',
+        type: 'mcp',
+        serverId: 'assistant',
+        serverName: 'assistant',
+        inputSchema: { type: 'object', properties: {}, required: [] }
+      },
+      arguments: undefined,
+      status: 'done',
+      response: {
+        content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+        structuredContent: { ok: true, description: 'Draft from this tool call' }
+      },
+      toolCallId: 'call-prepare-report'
+    }
+
+    it('opens the report launcher with this tool call draft', async () => {
+      const user = userEvent.setup()
+      const openReport = vi.fn()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+
+      render(
+        <DiagnosticReportLauncherProvider openReport={openReport}>
+          <MessageTools toolResponse={preparedResponse} />
+        </DiagnosticReportLauncherProvider>
+      )
+
+      expect(screen.getByText('Cherry Support prepared an editable description.')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Review diagnostic report' }))
+      expect(openReport).toHaveBeenCalledWith('Draft from this tool call')
+      expect(navigateToRoute).not.toHaveBeenCalled()
+      expect(mockGetToolResult).not.toHaveBeenCalled()
+    })
+
+    it('shows the prepared state without a dead action when no launcher is available', () => {
+      render(<MessageTools toolResponse={preparedResponse} />)
+
+      expect(screen.getByText('Cherry Support prepared an editable description.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
     })
   })
 

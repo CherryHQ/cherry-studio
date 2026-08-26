@@ -2,6 +2,7 @@ import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { findLatestPrepareDiagnosticReportResult } from '@renderer/components/chat/messages/tools/agent'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -23,6 +24,8 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import { DiagnosticReportLauncherProvider } from '@renderer/components/feedback/DiagnosticReportLauncherContext'
+import DiagnosticUploadDialog from '@renderer/components/feedback/DiagnosticUploadDialog'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -35,11 +38,12 @@ import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
@@ -47,6 +51,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
 import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
+import { SupportDiagnosticReportButton } from './components/SupportDiagnosticReportButton'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -187,12 +192,14 @@ const AgentChat = ({
   const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
+  const [diagnosticReportDescription, setDiagnosticReportDescription] = useState<string | null>(null)
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const activeAgent = conversationBootstrap.resources.agent
+  const isSupportAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
@@ -248,6 +255,13 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
+  const latestDiagnosticReportDraft = useMemo(
+    () => findLatestPrepareDiagnosticReportResult(runtime.uiMessages, runtime.partsByMessageId),
+    [runtime.partsByMessageId, runtime.uiMessages]
+  )
+  const openDiagnosticReport = useCallback((description = '') => {
+    setDiagnosticReportDescription(description)
+  }, [])
   const isEmptyConversation = Boolean(
     sessionSnapshot &&
       sessionMessagesEnabled &&
@@ -438,6 +452,13 @@ const AgentChat = ({
             />
           ) : undefined
         }
+        tools={
+          isSupportAgent ? (
+            <SupportDiagnosticReportButton
+              onClick={() => openDiagnosticReport(latestDiagnosticReportDraft?.description ?? '')}
+            />
+          ) : undefined
+        }
         showSidebarControls={showResourceListControls}
         sidebarOpen={sidebarOpen}
         onSidebarToggle={onSidebarToggle}
@@ -468,6 +489,7 @@ const AgentChat = ({
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
         composerLaunchOptions={composerLaunchOptions}
+        openDiagnosticReport={isSupportAgent ? openDiagnosticReport : undefined}
       />
     )
   }
@@ -505,6 +527,15 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
+      {isSupportAgent && diagnosticReportDescription !== null ? (
+        <DiagnosticUploadDialog
+          initialDescription={diagnosticReportDescription}
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setDiagnosticReportDescription(null)
+          }}
+        />
+      ) : null}
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
@@ -564,6 +595,7 @@ interface AgentChatSessionCenterProps {
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
   composerLaunchOptions?: AgentComposerLaunchOptions
+  openDiagnosticReport?: (description?: string) => void
 }
 
 const AgentChatSessionCenter = ({
@@ -580,7 +612,8 @@ const AgentChatSessionCenter = ({
   sessionMessagesEnabled,
   onOpenCitationsPanel,
   onCreateEmptySession,
-  composerLaunchOptions
+  composerLaunchOptions,
+  openDiagnosticReport
 }: AgentChatSessionCenterProps) => {
   const composer = (
     <div className="flex w-full flex-col">
@@ -603,6 +636,25 @@ const AgentChatSessionCenter = ({
       />
     </div>
   )
+  const messageList = (
+    <AgentChatMain
+      placement="docked"
+      sessionMessagesEnabled={sessionMessagesEnabled}
+      agentId={agentId}
+      sessionId={runtime.sessionId}
+      messages={runtime.uiMessages}
+      activeAgent={activeAgent}
+      partsByMessageId={runtime.partsByMessageId}
+      streamingLayers={runtime.streamingLayers}
+      optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
+      isLoading={runtime.isLoading}
+      hasOlder={runtime.hasOlder}
+      loadOlder={runtime.loadOlder}
+      onOpenCitationsPanel={onOpenCitationsPanel}
+      deleteMessage={runtime.deleteMessage}
+      respondToolApproval={runtime.respondToolApproval}
+    />
+  )
   const main = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
@@ -613,23 +665,13 @@ const AgentChatSessionCenter = ({
           />
         </div>
       )}
-      <AgentChatMain
-        placement="docked"
-        sessionMessagesEnabled={sessionMessagesEnabled}
-        agentId={agentId}
-        sessionId={runtime.sessionId}
-        messages={runtime.uiMessages}
-        activeAgent={activeAgent}
-        partsByMessageId={runtime.partsByMessageId}
-        streamingLayers={runtime.streamingLayers}
-        optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
-        isLoading={runtime.isLoading}
-        hasOlder={runtime.hasOlder}
-        loadOlder={runtime.loadOlder}
-        onOpenCitationsPanel={onOpenCitationsPanel}
-        deleteMessage={runtime.deleteMessage}
-        respondToolApproval={runtime.respondToolApproval}
-      />
+      {openDiagnosticReport ? (
+        <DiagnosticReportLauncherProvider openReport={openDiagnosticReport}>
+          {messageList}
+        </DiagnosticReportLauncherProvider>
+      ) : (
+        messageList
+      )}
       <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )

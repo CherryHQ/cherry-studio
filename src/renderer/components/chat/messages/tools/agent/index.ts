@@ -6,6 +6,11 @@ export { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResu
 export { CreateAgentToolInline } from './CreateAgentTool'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
+export {
+  findLatestPrepareDiagnosticReportResult,
+  getPrepareDiagnosticReportResult
+} from './prepareDiagnosticReportResult'
+export { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
 export { SessionResultCards } from './SessionResultCards'
 export { getSessionToolTarget, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'

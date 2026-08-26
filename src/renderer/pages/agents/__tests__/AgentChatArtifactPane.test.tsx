@@ -1,5 +1,8 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -39,6 +42,23 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 
 vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
   default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
+}))
+
+vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => ({
+  default: ({
+    initialDescription,
+    onOpenChange
+  }: {
+    initialDescription?: string
+    onOpenChange: (open: boolean) => void
+  }) => (
+    <div role="dialog" aria-label="Review diagnostic report">
+      <textarea aria-label="Problem description" readOnly value={initialDescription ?? ''} />
+      <button type="button" onClick={() => onOpenChange(false)}>
+        Cancel diagnostic report
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
@@ -540,10 +560,17 @@ vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
 }))
 
-vi.mock('react-i18next', async (importOriginal) => ({
-  ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+vi.mock('react-i18next', async (importOriginal) => {
+  const translations: Record<string, string> = {
+    'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
+    'agent.builtin.cherry_support.diagnostics.report_problem': 'Report a problem',
+    'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report'
+  }
+  return {
+    ...(await importOriginal<typeof ReactI18next>()),
+    useTranslation: () => ({ t: (key: string) => translations[key] ?? key })
+  }
+})
 
 vi.mock('../components/AgentChatNavbar', () => ({
   AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div data-testid="agent-chat-navbar">{tools}</div>
@@ -582,8 +609,12 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   )
 }))
 
-vi.mock('../components/AgentSessionMessages', () => ({
-  default: ({
+vi.mock('../components/AgentSessionMessages', async () => {
+  const { useOptionalDiagnosticReportLauncher } = await import(
+    '@renderer/components/feedback/DiagnosticReportLauncherContext'
+  )
+
+  const MockAgentSessionMessages = ({
     sessionId,
     openAgentToolFlow,
     openArtifactFile
@@ -591,48 +622,88 @@ vi.mock('../components/AgentSessionMessages', () => ({
     sessionId: string
     openAgentToolFlow?: (input: any) => void
     openArtifactFile?: (path: string) => void
-  }) => (
-    <div data-testid="agent-messages" data-session-id={sessionId}>
-      <button
-        type="button"
-        onClick={() =>
-          openAgentToolFlow?.({
-            toolCallId: 'agent-a',
-            toolName: 'Agent',
-            title: 'cache-usage.md'
-          })
-        }>
-        open flow a
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          openAgentToolFlow?.({
-            toolCallId: 'agent-b',
-            toolName: 'Agent',
-            title: 'renderer audit'
-          })
-        }>
-        open flow b
-      </button>
-      <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
-        open artifact file
-      </button>
-      <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/report.xlsx')}>
-        open excel artifact file
-      </button>
-      <button type="button" onClick={() => openArtifactFile?.('/Users/suyao/Desktop/记忆商人.md')}>
-        open desktop artifact file
-      </button>
-    </div>
-  )
-}))
+  }) => {
+    const openDiagnosticReport = useOptionalDiagnosticReportLauncher()
+    return (
+      <div data-testid="agent-messages" data-session-id={sessionId}>
+        {openDiagnosticReport ? (
+          <button type="button" onClick={() => openDiagnosticReport('Inline draft from this message')}>
+            Open inline diagnostic draft
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() =>
+            openAgentToolFlow?.({
+              toolCallId: 'agent-a',
+              toolName: 'Agent',
+              title: 'cache-usage.md'
+            })
+          }>
+          open flow a
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            openAgentToolFlow?.({
+              toolCallId: 'agent-b',
+              toolName: 'Agent',
+              title: 'renderer audit'
+            })
+          }>
+          open flow b
+        </button>
+        <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
+          open artifact file
+        </button>
+        <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/report.xlsx')}>
+          open excel artifact file
+        </button>
+        <button type="button" onClick={() => openArtifactFile?.('/Users/suyao/Desktop/记忆商人.md')}>
+          open desktop artifact file
+        </button>
+      </div>
+    )
+  }
+
+  return {
+    default: MockAgentSessionMessages
+  }
+})
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: ({ open }: { open: boolean }) => <div data-testid="citations-panel" data-open={String(open)} />
 }))
 
 describe('AgentChat artifact pane', () => {
+  const reportPart = (
+    toolCallId: string,
+    state: 'input-streaming' | 'output-available' | 'output-error',
+    description: string
+  ): CherryMessagePart =>
+    ({
+      type: 'dynamic-tool',
+      toolName: 'mcp__assistant__prepare_diagnostic_report',
+      toolCallId,
+      state,
+      input: { description },
+      ...(state === 'output-error'
+        ? { errorText: 'draft failed' }
+        : { output: { structuredContent: { ok: true, description } } })
+    }) as CherryMessagePart
+
+  const setRuntimeMessages = (messages: CherryUIMessage[]) => {
+    agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
+      messages,
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: vi.fn(),
+      seedReservedMessages: vi.fn(),
+      deleteMessage: vi.fn()
+    })
+  }
+
   const createConversationBootstrap = (
     session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = activeSessionMocks.result
       .session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
@@ -716,6 +787,56 @@ describe('AgentChat artifact pane', () => {
         }
       }
     })
+  })
+
+  it('keeps the Support report launcher available and opens only on explicit user actions', async () => {
+    const user = userEvent.setup()
+    const first = reportPart('complete', 'output-available', 'Last complete draft')
+    const partial = reportPart('partial', 'input-streaming', 'Partial draft')
+    const failed = reportPart('failed', 'output-error', 'Failed draft')
+    setRuntimeMessages([
+      { id: 'message-1', role: 'assistant', parts: [first] } as CherryUIMessage,
+      { id: 'message-2', role: 'assistant', parts: [partial, failed] } as CherryUIMessage
+    ])
+    const supportBootstrap = createConversationBootstrap()
+    supportBootstrap.resources.agent = {
+      id: 'agent-1',
+      model: 'provider::model-1',
+      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
+    } as unknown as typeof supportBootstrap.resources.agent
+    supportBootstrap.resources.model = undefined
+
+    renderAgentChat({ conversationBootstrap: supportBootstrap })
+
+    expect(screen.getByRole('button', { name: 'Report a problem' })).toBeEnabled()
+    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
+    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Last complete draft')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel diagnostic report' }))
+    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open inline diagnostic draft' }))
+    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Inline draft from this message')
+    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+  })
+
+  it('passes an empty draft from the Support navbar and hides the launcher for other agents', async () => {
+    const user = userEvent.setup()
+    const supportBootstrap = createConversationBootstrap()
+    supportBootstrap.resources.agent = {
+      id: 'agent-1',
+      model: 'provider::model-1',
+      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
+    } as unknown as typeof supportBootstrap.resources.agent
+
+    const { rerender } = renderAgentChat({ conversationBootstrap: supportBootstrap })
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('')
+
+    rerenderAgentChat(rerender)
+    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
   })
 
   it('opens and closes the artifact pane without replacing the existing chat shell pane', () => {

@@ -11,8 +11,10 @@ import { useOptionalMessageListTopicId } from '../MessageListProvider'
 import {
   CreateAgentToolInline,
   getCreateAgentResult,
+  getPrepareDiagnosticReportResult,
   isReportArtifactsToolResponse,
-  MessageChannelConfigTool
+  MessageChannelConfigTool,
+  PrepareDiagnosticReportTool
 } from './agent'
 import { isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
@@ -92,6 +94,8 @@ export default function MessageTools({ toolResponse }: Props) {
     return { ...toolResponse, response: normalizeToolOutputResponse(output) }
   }, [deferredOutput, error, isLoading, output, toolResponse])
 
+  const prepareDiagnosticReportResult = getPrepareDiagnosticReportResult(resolvedToolResponse)
+  if (prepareDiagnosticReportResult) return <PrepareDiagnosticReportTool result={prepareDiagnosticReportResult} />
   const createAgentResult = getCreateAgentResult(resolvedToolResponse)
   if (createAgentResult) return <CreateAgentToolInline result={createAgentResult} />
   if (isReportArtifactsToolResponse(resolvedToolResponse)) return null
