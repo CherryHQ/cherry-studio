@@ -10,7 +10,8 @@ export enum CodeCli {
   MCODE = 'mcode',
   QODER_CLI = 'qoder-cli',
   GITHUB_COPILOT_CLI = 'github-copilot-cli',
-  PI = 'pi'
+  PI = 'pi',
+  HERMES = 'hermes'
 }
 
 export const DEEPSEEK_HARNESS_AGENT_PRESETS = ['inherit', 'standard', 'code', 'minimal'] as const
@@ -117,6 +118,7 @@ export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.KIMI_CODE,
   CodeCli.MCODE,
   CodeCli.PI,
+  CodeCli.HERMES,
   CodeCli.DEEPSEEK_HARNESS
 ])
 

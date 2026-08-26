@@ -29,3 +29,9 @@ export const PI_ENDPOINTS: readonly EndpointType[] = [
   'openai-responses',
   'openai-chat-completions'
 ]
+
+export const HERMES_ENDPOINTS: readonly EndpointType[] = [
+  'anthropic-messages',
+  'openai-responses',
+  'openai-chat-completions'
+]

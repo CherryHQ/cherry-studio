@@ -7,6 +7,7 @@ import {
   CODEX_CHAT_ENDPOINT,
   CODEX_RESPONSES_ENDPOINT,
   GEMINI_AGGREGATOR_BASE_URLS,
+  HERMES_ENDPOINTS,
   MCODE_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
   PI_ENDPOINTS
@@ -28,6 +29,15 @@ export interface PiProviderInfo {
 
 export interface MiniMaxCodeProviderInfo {
   apiFormat: 'anthropic-messages' | 'openai-completions' | 'openai-responses'
+  baseUrl: string
+  endpointType: EndpointType
+}
+
+export const HERMES_API_MODES = ['anthropic_messages', 'chat_completions', 'codex_responses'] as const
+export type HermesApiMode = (typeof HERMES_API_MODES)[number]
+
+export interface HermesProviderInfo {
+  apiMode: HermesApiMode
   baseUrl: string
   endpointType: EndpointType
 }
@@ -173,6 +183,28 @@ export function resolveMiniMaxCodeProviderInfo(
       : withoutTrailingSlash(rawBaseUrl ?? '')
 
   return { apiFormat: apiFormatByEndpoint[endpointType]!, baseUrl, endpointType }
+}
+
+export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): HermesProviderInfo {
+  const endpointType = resolveSupportedEndpointType(
+    provider,
+    modelEndpointTypes,
+    HERMES_ENDPOINTS,
+    'openai-chat-completions'
+  )
+  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const apiMode: HermesApiMode =
+    endpointType === 'anthropic-messages'
+      ? 'anthropic_messages'
+      : endpointType === 'openai-responses'
+        ? 'codex_responses'
+        : 'chat_completions'
+  const baseUrl =
+    endpointType === 'anthropic-messages'
+      ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false))
+      : formatApiHost(rawBaseUrl)
+
+  return { apiMode, baseUrl, endpointType }
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {

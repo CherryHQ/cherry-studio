@@ -310,7 +310,8 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'mcode',
   'qoder-cli',
   'github-copilot-cli',
-  'pi'
+  'pi',
+  'hermes'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

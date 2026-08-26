@@ -787,7 +787,8 @@
         "mcode",
         "qoder-cli",
         "github-copilot-cli",
-        "pi"
+        "pi",
+        "hermes"
       ]
     }
   }

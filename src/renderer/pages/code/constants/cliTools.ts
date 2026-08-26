@@ -10,7 +10,7 @@ import {
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
-import { Deepseek, MinimaxAgent, Openclaw } from '@cherrystudio/ui/icons/providers'
+import { Deepseek, MinimaxAgent, Nousresearch, Openclaw } from '@cherrystudio/ui/icons/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -28,6 +28,7 @@ export const CLI_TOOLS = [
   { value: CodeCli.QODER_CLI, label: 'code.cli_tools.qoder_cli', icon: QoderCli },
   { value: CodeCli.GITHUB_COPILOT_CLI, label: 'code.cli_tools.github_copilot_cli', icon: GithubCopilotCli },
   { value: CodeCli.PI, label: 'code.cli_tools.pi', icon: PiCli },
+  { value: CodeCli.HERMES, label: 'code.cli_tools.hermes', icon: Nousresearch },
   { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw },
   { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: Deepseek }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
@@ -61,6 +62,7 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
  * - Gemini CLI: inject reads the Gemini-format endpoint (`google-generate-content`).
  * - Qwen Code / Kimi CLI: inject reads an OpenAI-compatible endpoint.
  * - MiniMax Code / Pi: inject any endpoint supported by each CLI's custom-provider schema.
+ * - Hermes: injects Anthropic or OpenAI-compatible endpoints into its custom runtime.
  * - Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
@@ -83,5 +85,6 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [CodeCli.MCODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
   [CodeCli.QODER_CLI]: () => [],
   [CodeCli.GITHUB_COPILOT_CLI]: () => [],
-  [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p))
+  [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
+  [CodeCli.HERMES]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
 }
