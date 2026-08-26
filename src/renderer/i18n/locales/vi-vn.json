@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Tất cả các mục trong mọi danh mục sẽ bị xoá vĩnh viễn ngay lập tức. Không thể hoàn tác.",
   "settings.data.trash.empty_trash.confirm_title": "Dọn thùng rác?",
   "settings.data.trash.empty_trash.error": "Dọn thùng rác thất bại",
+  "settings.data.trash.empty_trash.partial": "Đã dọn thùng rác. Một số tệp vẫn đang được thu hồi ở chế độ nền.",
   "settings.data.trash.empty_trash.success": "Đã dọn thùng rác",
   "settings.data.trash.error.load": "Tải thất bại",
   "settings.data.trash.load_more": "Tải thêm",

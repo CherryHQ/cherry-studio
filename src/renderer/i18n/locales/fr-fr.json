@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Tous les éléments de toutes les catégories seront immédiatement supprimés définitivement. Cette action est irréversible.",
   "settings.data.trash.empty_trash.confirm_title": "Vider la corbeille ?",
   "settings.data.trash.empty_trash.error": "Échec du vidage de la corbeille",
+  "settings.data.trash.empty_trash.partial": "Corbeille vidée. Certains fichiers sont encore libérés en arrière-plan.",
   "settings.data.trash.empty_trash.success": "Corbeille vidée",
   "settings.data.trash.error.load": "Échec du chargement",
   "settings.data.trash.load_more": "Charger plus",

@@ -49,12 +49,16 @@ export class TrashService extends BaseService {
    * terminal state, so callers can trust `status` ('completed' | 'failed' |
    * 'cancelled') before invalidating caches or toasting success.
    *
+   * `reclaimed` reports whether disk reclamation actually finished. The rows are
+   * always gone on 'completed', but the sweeps are batch-capped and stand aside
+   * during a restore, so a caller must not promise the space back on status alone.
+   *
    * Concurrency is 1 — a manual run queues behind an in-flight scheduled
    * purge. Caveat: JobManager.onDestroy abandons unresolved `finished`
    * promises during shutdown, so a request pending at quit never resolves;
    * acceptable for this fire-from-UI path.
    */
-  async purgeNow(): Promise<{ status: TerminalJobStatus }> {
+  async purgeNow(): Promise<{ status: TerminalJobStatus; reclaimed: boolean }> {
     const handle = application.get('JobManager').enqueue('trash.purge', { emptyAll: true })
     const snapshot = await handle.finished
     // `finished` resolves only at a terminal state; the guard narrows the type
@@ -62,6 +66,7 @@ export class TrashService extends BaseService {
     if (!isTerminalStatus(snapshot.status)) {
       throw new Error(`Trash purge resolved with non-terminal status: ${snapshot.status}`)
     }
-    return { status: snapshot.status }
+    const output = snapshot.output as { reclaimed?: boolean } | undefined
+    return { status: snapshot.status, reclaimed: output?.reclaimed === true }
   }
 }

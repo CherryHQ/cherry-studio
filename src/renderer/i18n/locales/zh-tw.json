@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "回收筒中所有分類的全部項目將被立即永久刪除，且無法復原。",
   "settings.data.trash.empty_trash.confirm_title": "確定要清空回收筒嗎？",
   "settings.data.trash.empty_trash.error": "清空回收筒失敗",
+  "settings.data.trash.empty_trash.partial": "回收站已清空。部分檔案仍在背景回收中。",
   "settings.data.trash.empty_trash.success": "回收筒已清空",
   "settings.data.trash.error.load": "載入失敗",
   "settings.data.trash.load_more": "載入更多",

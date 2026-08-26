@@ -15,6 +15,6 @@ import { defineRoute } from '../define'
 export const trashRequestSchemas = {
   'trash.purge_now': defineRoute({
     input: z.void(),
-    output: z.strictObject({ status: TerminalJobStatusSchema })
+    output: z.strictObject({ status: TerminalJobStatusSchema, reclaimed: z.boolean() })
   })
 }

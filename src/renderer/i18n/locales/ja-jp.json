@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "すべてのカテゴリのすべての項目がただちに完全に削除されます。この操作は取り消せません。",
   "settings.data.trash.empty_trash.confirm_title": "ゴミ箱を空にしますか？",
   "settings.data.trash.empty_trash.error": "ゴミ箱を空にできませんでした",
+  "settings.data.trash.empty_trash.partial": "ゴミ箱を空にしました。一部のファイルはバックグラウンドで解放中です。",
   "settings.data.trash.empty_trash.success": "ゴミ箱を空にしました",
   "settings.data.trash.error.load": "読み込みに失敗しました",
   "settings.data.trash.load_more": "さらに読み込む",

@@ -366,15 +366,18 @@ describe('trashPurgeJobHandler', () => {
     expect(ctx.reportProgress).toHaveBeenLastCalledWith(100)
   })
 
-  it('skips entirely when retention is 0 (never auto-purge)', async () => {
+  it('keeps every row when retention is 0, but still reclaims disk residue', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('data.trash.retention_days', 0)
     await dbh.db.insert(topicTable).values({ id: 'topic-expired', name: 'expired', orderKey: 'a0', deletedAt: OLD })
 
     const result = await trashPurgeJobHandler.execute(makeCtx({}))
 
-    expect(result).toEqual({ skipped: true })
+    expect(result).toMatchObject({ skipped: true, purged: {} })
     expect(allIds(dbh.db.select({ id: topicTable.id }).from(topicTable).all())).toEqual(['topic-expired'])
-    expect(fileManagerMock.runSweep).not.toHaveBeenCalled()
+    // Retention 0 disables the row purge only — permanent deletes still strand runtime
+    // state, and it would otherwise never be reclaimed.
+    expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
+    expect(sweepAgentOrphansMock).toHaveBeenCalledTimes(1)
   })
 
   it('emptyAll purges every trashed row regardless of retention, sparing active rows', async () => {

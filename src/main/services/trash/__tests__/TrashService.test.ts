@@ -82,13 +82,13 @@ describe('TrashService', () => {
     jobManager.enqueue.mockReturnValue({
       id: 'job-1',
       snapshot: { id: 'job-1', status: 'pending' },
-      finished: Promise.resolve({ id: 'job-1', status: 'completed' })
+      finished: Promise.resolve({ id: 'job-1', status: 'completed', output: { reclaimed: true } })
     })
 
     const result = await new TrashService().purgeNow()
 
     expect(jobManager.enqueue).toHaveBeenCalledExactlyOnceWith('trash.purge', { emptyAll: true })
-    expect(result).toEqual({ status: 'completed' })
+    expect(result).toEqual({ status: 'completed', reclaimed: true })
   })
 
   it('purgeNow passes a failed terminal status through instead of masking it', async () => {
@@ -98,6 +98,7 @@ describe('TrashService', () => {
       finished: Promise.resolve({ id: 'job-2', status: 'failed' })
     })
 
-    await expect(new TrashService().purgeNow()).resolves.toEqual({ status: 'failed' })
+    // A failed run reports no reclamation — the caller must not promise the space back.
+    await expect(new TrashService().purgeNow()).resolves.toEqual({ status: 'failed', reclaimed: false })
   })
 })

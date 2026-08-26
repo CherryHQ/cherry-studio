@@ -112,10 +112,10 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
   async execute(ctx) {
     const emptyAll = ctx.input?.emptyAll === true
     const retentionDays = application.get('PreferenceService').get('data.trash.retention_days')
-    if (!emptyAll && retentionDays === 0) {
-      logger.info('Trash auto-purge disabled (retention_days = 0) — skipping')
-      return { skipped: true }
-    }
+    // Retention 0 disables the row purge, not disk reclamation: permanent deletes still
+    // strand runtime state, and skipping the sweeps would leave it there forever.
+    const retentionDisabled = !emptyAll && retentionDays === 0
+    if (retentionDisabled) logger.info('Trash auto-purge disabled (retention_days = 0) — sweeping residue only')
 
     // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows archived "now".
     const cutoffMs = emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS
@@ -123,7 +123,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     const totalSteps = PURGE_DOMAINS.length + 2 // + file orphan sweep + agent dir sweep
     const purged: Record<string, number> = {}
 
-    for (const [index, domain] of PURGE_DOMAINS.entries()) {
+    for (const [index, domain] of retentionDisabled ? [] : PURGE_DOMAINS.entries()) {
       ctx.signal.throwIfAborted()
       const purgedIds: string[] = []
       let batch: string[]
@@ -179,7 +179,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     }
     ctx.reportProgress(100)
 
-    logger.info('Trash purge complete', { emptyAll, purged, reclaimed })
-    return { skipped: false, purged, reclaimed }
+    logger.info('Trash purge complete', { emptyAll, purged, reclaimed, retentionDisabled })
+    return { skipped: retentionDisabled, purged, reclaimed }
   }
 }

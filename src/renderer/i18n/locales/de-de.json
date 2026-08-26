@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Alle Elemente in allen Kategorien werden sofort endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.",
   "settings.data.trash.empty_trash.confirm_title": "Papierkorb leeren?",
   "settings.data.trash.empty_trash.error": "Papierkorb konnte nicht geleert werden",
+  "settings.data.trash.empty_trash.partial": "Papierkorb geleert. Einige Dateien werden noch im Hintergrund freigegeben.",
   "settings.data.trash.empty_trash.success": "Papierkorb geleert",
   "settings.data.trash.error.load": "Laden fehlgeschlagen",
   "settings.data.trash.load_more": "Mehr laden",

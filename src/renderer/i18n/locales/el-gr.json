@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Όλα τα στοιχεία σε κάθε κατηγορία θα διαγραφούν οριστικά αμέσως. Αυτή η ενέργεια δεν αναιρείται.",
   "settings.data.trash.empty_trash.confirm_title": "Άδειασμα κάδου;",
   "settings.data.trash.empty_trash.error": "Το άδειασμα του κάδου απέτυχε",
+  "settings.data.trash.empty_trash.partial": "Ο κάδος άδειασε. Ορισμένα αρχεία ελευθερώνονται ακόμη στο παρασκήνιο.",
   "settings.data.trash.empty_trash.success": "Ο κάδος άδειασε",
   "settings.data.trash.error.load": "Η φόρτωση απέτυχε",
   "settings.data.trash.load_more": "Φόρτωση περισσότερων",

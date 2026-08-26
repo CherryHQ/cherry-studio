@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Todos os itens de todas as categorias serão eliminados permanentemente de imediato. Esta ação não pode ser anulada.",
   "settings.data.trash.empty_trash.confirm_title": "Esvaziar a reciclagem?",
   "settings.data.trash.empty_trash.error": "Falha ao esvaziar a reciclagem",
+  "settings.data.trash.empty_trash.partial": "Reciclagem esvaziada. Alguns ficheiros ainda estão a ser libertados em segundo plano.",
   "settings.data.trash.empty_trash.success": "Reciclagem esvaziada",
   "settings.data.trash.error.load": "Falha ao carregar",
   "settings.data.trash.load_more": "Carregar mais",

@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Todos los elementos de todas las categorías se eliminarán permanentemente de inmediato. Esta acción no se puede deshacer.",
   "settings.data.trash.empty_trash.confirm_title": "¿Vaciar la papelera?",
   "settings.data.trash.empty_trash.error": "No se pudo vaciar la papelera",
+  "settings.data.trash.empty_trash.partial": "Papelera vaciada. Algunos archivos aún se están liberando en segundo plano.",
   "settings.data.trash.empty_trash.success": "Papelera vaciada",
   "settings.data.trash.error.load": "Error al cargar",
   "settings.data.trash.load_more": "Cargar más",

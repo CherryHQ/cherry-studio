@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Toate elementele din toate categoriile vor fi șterse definitiv imediat. Această acțiune nu poate fi anulată.",
   "settings.data.trash.empty_trash.confirm_title": "Golești coșul?",
   "settings.data.trash.empty_trash.error": "Golirea coșului a eșuat",
+  "settings.data.trash.empty_trash.partial": "Coșul a fost golit. Unele fișiere sunt încă eliberate în fundal.",
   "settings.data.trash.empty_trash.success": "Coșul a fost golit",
   "settings.data.trash.error.load": "Încărcarea a eșuat",
   "settings.data.trash.load_more": "Încarcă mai multe",

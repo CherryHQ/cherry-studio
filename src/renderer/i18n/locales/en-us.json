@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "All items in every category will be permanently deleted immediately. This cannot be undone.",
   "settings.data.trash.empty_trash.confirm_title": "Empty trash?",
   "settings.data.trash.empty_trash.error": "Failed to empty trash",
+  "settings.data.trash.empty_trash.partial": "Trash emptied. Some files are still being reclaimed in the background.",
   "settings.data.trash.empty_trash.success": "Trash emptied",
   "settings.data.trash.error.load": "Failed to load",
   "settings.data.trash.load_more": "Load more",

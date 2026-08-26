@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "回收站中所有分类的全部项目将被立即彻底删除，且无法恢复。",
   "settings.data.trash.empty_trash.confirm_title": "确定要清空回收站吗？",
   "settings.data.trash.empty_trash.error": "清空回收站失败",
+  "settings.data.trash.empty_trash.partial": "回收站已清空。部分文件仍在后台回收中。",
   "settings.data.trash.empty_trash.success": "回收站已清空",
   "settings.data.trash.error.load": "加载失败",
   "settings.data.trash.load_more": "加载更多",

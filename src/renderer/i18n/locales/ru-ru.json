@@ -3553,6 +3553,7 @@
   "settings.data.trash.empty_trash.confirm_content": "Все элементы во всех категориях будут немедленно удалены навсегда. Это действие нельзя отменить.",
   "settings.data.trash.empty_trash.confirm_title": "Очистить корзину?",
   "settings.data.trash.empty_trash.error": "Не удалось очистить корзину",
+  "settings.data.trash.empty_trash.partial": "Корзина очищена. Часть файлов ещё освобождается в фоновом режиме.",
   "settings.data.trash.empty_trash.success": "Корзина очищена",
   "settings.data.trash.error.load": "Не удалось загрузить",
   "settings.data.trash.load_more": "Загрузить ещё",
