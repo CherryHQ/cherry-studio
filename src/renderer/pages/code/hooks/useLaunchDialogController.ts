@@ -151,13 +151,13 @@ export function useLaunchDialogController({
     try {
       setLaunching(true)
       // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
-      // config; re-verify it's serving and rewrite the config with the fresh context so the
-      // CLI never launches against a dead endpoint or a stale key.
+      // config; re-verify it's serving and rewrite the config with the configured context so the
+      // CLI never launches against a dead endpoint.
       if (isGatewayProvider && apiGatewayProvider) {
         await apiGatewayProvider.ensureRunning()
       }
       if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
-        const apiKey = await apiGatewayProvider.getFreshApiKey()
+        const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
           onDiskFiles = await readCliConfigFiles(selectedCliTool)

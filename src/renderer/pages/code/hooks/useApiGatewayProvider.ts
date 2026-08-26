@@ -23,8 +23,8 @@ export interface ApiGatewayProviderBundle {
   apiKey: string | null
   /** Start the gateway if needed and confirm it is running. */
   ensureRunning: () => Promise<void>
-  /** Read the freshest persisted key for a CLI config-file write. */
-  getFreshApiKey: () => Promise<string>
+  /** Read the persisted key for a CLI config-file write. */
+  getApiKey: () => Promise<string>
 }
 
 /**
@@ -53,8 +53,8 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
     }
   }, [apiGatewayRunning, startApiGateway])
 
-  const getFreshApiKey = useCallback(async (): Promise<string> => {
-    const key = await preferenceService.getFresh('feature.api_gateway.api_key')
+  const getApiKey = useCallback(async (): Promise<string> => {
+    const key = await preferenceService.get('feature.api_gateway.api_key')
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }
@@ -78,6 +78,6 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       settings: DEFAULT_PROVIDER_SETTINGS,
       isEnabled: true
     }
-    return { provider, apiKey, ensureRunning, getFreshApiKey }
-  }, [host, port, apiKey, t, ensureRunning, getFreshApiKey])
+    return { provider, apiKey, ensureRunning, getApiKey }
+  }, [host, port, apiKey, t, ensureRunning, getApiKey])
 }

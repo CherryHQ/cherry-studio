@@ -71,7 +71,7 @@ const {
       provider: Provider
       apiKey: string | null
       ensureRunning: ReturnType<typeof vi.fn>
-      getFreshApiKey: ReturnType<typeof vi.fn>
+      getApiKey: ReturnType<typeof vi.fn>
     } | null,
     defaultModelId: undefined as string | undefined,
     modelsById: new Map<string, { id: string; providerId: string; modelId: string; apiModelId: string; name: string }>()
@@ -620,7 +620,7 @@ describe('CodeCliPage', () => {
       provider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider,
       apiKey: null,
       ensureRunning: vi.fn(),
-      getFreshApiKey: vi.fn()
+      getApiKey: vi.fn()
     }
     mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
 
@@ -666,12 +666,12 @@ describe('CodeCliPage', () => {
 
   it('opens Hermes Dashboard before the Gateway bootstrap when no default Gateway model exists', async () => {
     const ensureRunning = vi.fn()
-    const getFreshApiKey = vi.fn()
+    const getApiKey = vi.fn()
     gatewayState.bundle = {
       provider: { ...provider, id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Gateway' },
       apiKey: 'gateway-key',
       ensureRunning,
-      getFreshApiKey
+      getApiKey
     }
     mockCodeCliState({ selectedCliTool: CodeCli.HERMES })
     render(<CodeCliPage />)
@@ -681,7 +681,7 @@ describe('CodeCliPage', () => {
 
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('hermes_dashboard.start'))
     expect(ensureRunning).not.toHaveBeenCalled()
-    expect(getFreshApiKey).not.toHaveBeenCalled()
+    expect(getApiKey).not.toHaveBeenCalled()
     expect(selectFolderMock).not.toHaveBeenCalled()
     expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
   })
@@ -926,8 +926,8 @@ describe('CodeCliPage', () => {
       name: 'Claude New'
     }
     const ensureRunning = vi.fn().mockResolvedValue(undefined)
-    const getFreshApiKey = vi.fn().mockResolvedValue('cs-sk-default')
-    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getFreshApiKey }
+    const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
     gatewayState.defaultModelId = defaultModel.id
     gatewayState.modelsById.set(defaultModel.id, defaultModel)
     mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
@@ -941,7 +941,7 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'start tool' }))
     fireEvent.click(await screen.findByRole('button', { name: 'launch tool' }))
 
-    await waitFor(() => expect(getFreshApiKey).toHaveBeenCalledOnce())
+    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
     expect(ensureRunning).toHaveBeenCalledOnce()
     expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
       cliTool: CodeCli.OPEN_CODE,
@@ -972,8 +972,8 @@ describe('CodeCliPage', () => {
       name: 'Claude New'
     }
     const ensureRunning = vi.fn().mockResolvedValue(undefined)
-    const getFreshApiKey = vi.fn().mockResolvedValue('cs-sk-default')
-    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getFreshApiKey }
+    const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
     gatewayState.defaultModelId = defaultModel.id
     gatewayState.modelsById.set(defaultModel.id, defaultModel)
     unsupportedProviderIds.add(provider.id)
@@ -991,7 +991,7 @@ describe('CodeCliPage', () => {
     await user.click(startButton)
     await user.click(await screen.findByRole('button', { name: 'launch tool' }))
 
-    await waitFor(() => expect(getFreshApiKey).toHaveBeenCalledOnce())
+    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
     expect(ensureRunning).toHaveBeenCalledOnce()
     expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
       cliTool: CodeCli.CLAUDE_CODE,
@@ -1017,7 +1017,7 @@ describe('CodeCliPage', () => {
       provider: gatewayProvider,
       apiKey: null,
       ensureRunning: vi.fn(),
-      getFreshApiKey: vi.fn()
+      getApiKey: vi.fn()
     }
     gatewayState.defaultModelId = 'anthropic::claude-new'
     gatewayState.modelsById.set('anthropic::claude-new', {
@@ -1064,7 +1064,7 @@ describe('CodeCliPage', () => {
       provider: gatewayProvider,
       apiKey: null,
       ensureRunning: vi.fn(),
-      getFreshApiKey: vi.fn()
+      getApiKey: vi.fn()
     }
     gatewayState.defaultModelId = defaultModel.id
     gatewayState.modelsById.set(defaultModel.id, defaultModel)
@@ -1085,7 +1085,7 @@ describe('CodeCliPage', () => {
       provider: gatewayProvider,
       apiKey: null,
       ensureRunning: vi.fn().mockResolvedValue(undefined),
-      getFreshApiKey: vi.fn().mockResolvedValue('cs-sk-default')
+      getApiKey: vi.fn().mockResolvedValue('cs-sk-default')
     }
     mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
 

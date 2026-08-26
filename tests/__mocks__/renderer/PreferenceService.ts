@@ -59,11 +59,6 @@ export const createMockPreferenceService = (customDefaults: Record<string, any> 
       return Promise.resolve(value !== undefined ? value : null)
     }),
 
-    getFresh: vi.fn((key: string) => {
-      const value = mergedDefaults[key]
-      return Promise.resolve(value !== undefined ? value : null)
-    }),
-
     getMultiple: vi.fn((keys: Record<string, string>) => {
       const result: Record<string, any> = {}
       Object.entries(keys).forEach(([alias, key]) => {

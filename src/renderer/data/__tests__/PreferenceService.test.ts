@@ -85,17 +85,6 @@ describe('renderer PreferenceService preloadAll', () => {
 })
 
 describe('renderer PreferenceService keyed subscription batching', () => {
-  it('getFresh bypasses a cached value and updates the cache', async () => {
-    get.mockResolvedValueOnce(null).mockResolvedValueOnce('cs-sk-fresh')
-    const service = await createService()
-
-    await service.get('feature.api_gateway.api_key')
-    await expect(service.getFresh('feature.api_gateway.api_key')).resolves.toBe('cs-sk-fresh')
-
-    expect(get).toHaveBeenCalledTimes(2)
-    expect(service.getCachedValue('feature.api_gateway.api_key')).toBe('cs-sk-fresh')
-  })
-
   it('preload of uncached keys subscribes once with all of them', async () => {
     const service = await createService()
 

@@ -135,21 +135,6 @@ export class PreferenceService {
     }
   }
 
-  /** Fetch a preference from main even when the renderer cache already has a value. */
-  public async getFresh<K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> {
-    try {
-      const value = await window.api.preference.get(key)
-      const changed = !isEqual(this.cache[key], value)
-      this.cache[key] = value
-      if (changed) this.notifyChangeListeners(key)
-      await this.subscribeToKeyInternal([key])
-      return value
-    } catch (error) {
-      logger.error(`Failed to refresh preference ${key}:`, error as Error)
-      return getDefaultValue(key)
-    }
-  }
-
   /**
    * Set a single preference value with configurable update strategy
    * @param key The preference key to update

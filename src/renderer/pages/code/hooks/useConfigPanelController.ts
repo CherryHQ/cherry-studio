@@ -73,7 +73,7 @@ export function useConfigPanelController({
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
 
-  // For a gateway write: start the gateway if needed and resolve the fresh key, then hand back the
+  // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
   // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
   // provider key). Returns undefined for non-gateway providers.
   const resolveGatewayWriteContext = useCallback(
@@ -82,7 +82,7 @@ export function useConfigPanelController({
         return undefined
       }
       await apiGatewayProvider.ensureRunning()
-      const apiKey = await apiGatewayProvider.getFreshApiKey()
+      const apiKey = await apiGatewayProvider.getApiKey()
       return { provider: apiGatewayProvider.provider, apiKey }
     },
     [apiGatewayProvider, selectedCliTool]
@@ -413,7 +413,7 @@ export function useConfigPanelController({
             providerConfig: providerConfigs[editingProvider.id] ?? null,
             isCurrentProvider: currentProviderId === editingProvider.id,
             modelFilter: makeModelFilter(editingProvider.id),
-            // Preview key only (may be null before first start); the actual write uses a fresh key.
+            // Preview key only (may be null before first start); the actual write reads the configured key.
             gateway:
               isApiGatewayProviderId(editingProvider.id) && apiGatewayProvider
                 ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }

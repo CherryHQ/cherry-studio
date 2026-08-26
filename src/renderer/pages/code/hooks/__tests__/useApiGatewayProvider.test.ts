@@ -32,7 +32,7 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
     mocks.apiGatewayConfig = { host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-old', enabled: false }
     mocks.apiGatewayRunning = false
     mocks.startApiGateway.mockReset()
-    vi.mocked(preferenceService.getFresh).mockReset()
+    vi.mocked(preferenceService.get).mockReset()
   })
 
   it('rejects when a non-running gateway fails to start', async () => {
@@ -43,7 +43,7 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
     const { result } = renderHook(() => useApiGatewayProvider())
 
     await expect(result.current!.ensureRunning()).rejects.toThrow(/failed to start/)
-    expect(preferenceService.getFresh).not.toHaveBeenCalled()
+    expect(preferenceService.get).not.toHaveBeenCalled()
   })
 
   it('starts the gateway without reading its key', async () => {
@@ -53,7 +53,7 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
     const { result } = renderHook(() => useApiGatewayProvider())
 
     await expect(result.current!.ensureRunning()).resolves.toBeUndefined()
-    expect(preferenceService.getFresh).not.toHaveBeenCalled()
+    expect(preferenceService.get).not.toHaveBeenCalled()
   })
 
   it('does not restart a running gateway', async () => {
@@ -66,11 +66,11 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
     expect(mocks.startApiGateway).not.toHaveBeenCalled()
   })
 
-  it('reads the freshest key independently of gateway startup', async () => {
-    vi.mocked(preferenceService.getFresh).mockResolvedValue('cs-sk-fresh')
+  it('reads the key independently of gateway startup', async () => {
+    vi.mocked(preferenceService.get).mockResolvedValue('cs-sk-current')
     const { result } = renderHook(() => useApiGatewayProvider())
 
-    await expect(result.current!.getFreshApiKey()).resolves.toBe('cs-sk-fresh')
+    await expect(result.current!.getApiKey()).resolves.toBe('cs-sk-current')
     expect(mocks.startApiGateway).not.toHaveBeenCalled()
   })
 })

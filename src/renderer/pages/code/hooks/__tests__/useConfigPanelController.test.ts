@@ -330,7 +330,7 @@ describe('useConfigPanelController', () => {
   describe('DeepSeek Harness selection', () => {
     it('defers gateway startup and shared config writes until the managed launch action', async () => {
       const ensureRunning = vi.fn().mockResolvedValue(undefined)
-      const getFreshApiKey = vi.fn().mockResolvedValue('gateway-key')
+      const getApiKey = vi.fn().mockResolvedValue('gateway-key')
       const options = {
         ...baseOptions(),
         selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
@@ -342,7 +342,7 @@ describe('useConfigPanelController', () => {
           provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
           apiKey: 'gateway-key',
           ensureRunning,
-          getFreshApiKey
+          getApiKey
         }
       }
       mocks.resolveCliConfigApplyContext.mockReturnValue({
@@ -358,7 +358,7 @@ describe('useConfigPanelController', () => {
 
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
       expect(ensureRunning).not.toHaveBeenCalled()
-      expect(getFreshApiKey).not.toHaveBeenCalled()
+      expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
     })
   })
@@ -366,7 +366,7 @@ describe('useConfigPanelController', () => {
   describe('Antigravity selection', () => {
     it('saves and enables a gateway model without starting it, reading its key, or writing CLI files', async () => {
       const ensureRunning = vi.fn().mockResolvedValue(undefined)
-      const getFreshApiKey = vi.fn().mockRejectedValue(new Error('key should not be read'))
+      const getApiKey = vi.fn().mockRejectedValue(new Error('key should not be read'))
       const options = {
         ...baseOptions(),
         selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
@@ -375,7 +375,7 @@ describe('useConfigPanelController', () => {
           provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
           apiKey: null,
           ensureRunning,
-          getFreshApiKey
+          getApiKey
         }
       }
       mocks.resolveCliConfigApplyContext
@@ -400,7 +400,7 @@ describe('useConfigPanelController', () => {
       })
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
       expect(ensureRunning).not.toHaveBeenCalled()
-      expect(getFreshApiKey).not.toHaveBeenCalled()
+      expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
     })
   })
@@ -709,7 +709,7 @@ describe('useConfigPanelController', () => {
           provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
           apiKey: 'cs-sk-old',
           ensureRunning,
-          getFreshApiKey: vi.fn().mockResolvedValue('cs-sk-fresh')
+          getApiKey: vi.fn().mockResolvedValue('cs-sk-current')
         }
       }
       mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
@@ -742,7 +742,7 @@ describe('useConfigPanelController', () => {
           provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
           apiKey: 'cs-sk-old',
           ensureRunning,
-          getFreshApiKey: vi.fn().mockResolvedValue('cs-sk-fresh')
+          getApiKey: vi.fn().mockResolvedValue('cs-sk-current')
         }
       }
       mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
