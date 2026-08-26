@@ -5,9 +5,10 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/composer/quoteToken'
-import { useOptionalOpenFilePreviewTab } from '@renderer/components/FilePreview'
+import { FilePreview } from '@renderer/components/FilePreview'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
@@ -711,7 +712,6 @@ function ComposerTokenHoverPopover({
 }
 
 export function FileComposerToken(props: FileComposerTokenProps) {
-  const openFilePreviewTab = useOptionalOpenFilePreviewTab()
   const { imageIconPreview = false, onRemove, removeLabel: removeLabelProp, tooltipActions } = props
   const tokenFile = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
   const previewFileType = props.readOnlyFilePreview?.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : undefined
@@ -741,11 +741,28 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const readOnlyFilePreviewPath = getReadOnlyFilePreviewPath(props.readOnlyFilePreview)
   const pathTooltipPath = props.readOnly ? readOnlyFilePreviewPath : file?.path
   const filePreviewPath = props.readOnly ? readOnlyFilePreviewPath : getEditableFilePreviewPath(file)
-  const canOpenFilePreview = presentation.variant === 'markdown' && Boolean(filePreviewPath && openFilePreviewTab)
+  const canOpenFilePreview = presentation.variant === 'markdown' && Boolean(filePreviewPath)
   const openFilePreview = useCallback(() => {
-    if (!canOpenFilePreview || !filePreviewPath || !openFilePreviewTab) return
-    openFilePreviewTab(filePreviewPath, label)
-  }, [canOpenFilePreview, filePreviewPath, label, openFilePreviewTab])
+    if (!canOpenFilePreview || !filePreviewPath) return
+    void ContentPopup.show({
+      content: (
+        <div className="h-full min-h-0 overflow-hidden">
+          <FilePreview filePath={filePreviewPath} />
+        </div>
+      ),
+      title: label,
+      width: 700,
+      styles: {
+        body: { height: '100%', minHeight: 0, overflow: 'hidden' },
+        content: {
+          gridTemplateRows: 'auto minmax(0, 1fr)',
+          height: 'min(80vh, 760px)',
+          maxHeight: 'calc(100vh - 2rem)',
+          overflow: 'hidden'
+        }
+      }
+    })
+  }, [canOpenFilePreview, filePreviewPath, label])
   const handleFilePreviewClick = useCallback(
     (event: ReactMouseEvent<HTMLSpanElement>) => {
       if (!canOpenFilePreview || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
