@@ -31,7 +31,9 @@ vi.mock('@cherrystudio/ui/components/composites/code-editor', () => {
 })
 
 vi.mock('@renderer/components/ActionIconButton', () => ({
-  default: () => null
+  default: ({ 'aria-label': label, onClick }: { 'aria-label'?: string; onClick?: () => void }) => (
+    <button type="button" aria-label={label} onClick={onClick} />
+  )
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
@@ -125,5 +127,21 @@ describe('NotesEditor focus behavior', () => {
     expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('onCommandsReady')
     // Hiding the image command must not disable image paste, which notes have always supported.
     expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('enableImageInsertion')
+  })
+
+  it('names the spell check toggle in the editor footer', async () => {
+    render(
+      <NotesEditor
+        activeNodeId="/notes/example.md"
+        currentContent="note"
+        tokenCount={4}
+        editorRef={{ current: null }}
+        codeEditorRef={{ current: null }}
+        onMarkdownChange={vi.fn()}
+      />
+    )
+
+    await screen.findByTestId('rich-editor')
+    expect(screen.getByRole('button', { name: 'notes.spell_check_tooltip' })).toBeInTheDocument()
   })
 })
