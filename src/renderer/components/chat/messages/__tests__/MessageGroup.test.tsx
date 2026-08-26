@@ -536,6 +536,15 @@ describe('MessageGroup', () => {
     expect(contentContainer.style.width).toBe('')
   })
 
+  it('keeps ordinary message content out of the keyboard tab order', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    expect(contentContainer).not.toHaveAttribute('tabindex')
+  })
+
   it('renders adapter-owned tail content only after its target assistant message', () => {
     const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
 
@@ -609,6 +618,7 @@ describe('MessageGroup', () => {
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('auto')
+    expect(contentContainer).toHaveAttribute('tabindex', '0')
 
     const horizontalGroup = outerWrapper!.parentElement as HTMLElement
     expect(getComputedStyle(horizontalGroup).overflowX).toBe('auto')

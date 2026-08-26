@@ -236,8 +236,9 @@ export function MessageVirtualList<T>({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || !isKeyboardScrollIntent(event, scrollerElement)) return
       const nestedScroller = findNestedScroller(event.target, scrollerElement)
-      if (nestedScroller && canConsumeVerticalWheel(nestedScroller, getKeyboardScrollDelta(event))) return
-      markUserInput()
+      const delta = getKeyboardScrollDelta(event)
+      if (nestedScroller && canConsumeVerticalWheel(nestedScroller, delta)) return
+      markUserInput(delta < 0 ? 'up' : 'down')
     }
     let focusedVirtualDescendant: Node | null = null
     const restoreFocusAfterOwnerRemoval = () => {
@@ -303,6 +304,8 @@ export function MessageVirtualList<T>({
         ref={setScrollerRef}
         data-message-virtual-list-scroller
         tabIndex={0}
+        role="region"
+        aria-label={t('globalSearch.groups.message')}
         className={cn('focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset', className)}
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>

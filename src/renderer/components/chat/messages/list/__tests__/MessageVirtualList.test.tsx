@@ -145,6 +145,8 @@ describe('MessageVirtualList', () => {
   it('makes the message viewport keyboard-focusable with visible focus feedback', () => {
     const scroller = renderMessageList()
     expect(scroller).toHaveAttribute('tabindex', '0')
+    expect(scroller).toHaveAttribute('role', 'region')
+    expect(scroller).toHaveAccessibleName('globalSearch.groups.message')
     expect(scroller).toHaveClass('focus-visible:ring-1', 'focus-visible:ring-ring', 'focus-visible:ring-inset')
   })
 
@@ -454,9 +456,15 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 200
 
     fireEvent.keyDown(region, { key: 'PageDown' })
-    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledWith('down')
 
     runtimeMockState.markUserInput.mockClear()
+    region.scrollTop = 0
+    fireEvent.keyDown(region, { key: 'ArrowUp' })
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledWith('up')
+
+    runtimeMockState.markUserInput.mockClear()
+    region.scrollTop = 200
     const fireTouchPointerEvent = (type: 'pointerdown' | 'pointermove', clientY: number, buttons: number) => {
       const event = new Event(type, { bubbles: true, cancelable: true })
       Object.defineProperties(event, {

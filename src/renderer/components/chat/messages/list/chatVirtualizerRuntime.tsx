@@ -139,7 +139,7 @@ export interface ChatVirtualizerRuntime<T> {
    * `scrollerProps.onWheel`; the host calls this for pointer drags and
    * keyboard scroll commands.
    */
-  markUserInput(): void
+  markUserInput(direction?: ScrollDirection): void
   /** Keep native scrollbar ownership latched until the pointer is actually released. */
   beginScrollbarDrag(): void
   /** Finish a native scrollbar drag and anchor the viewport at its final position. */
