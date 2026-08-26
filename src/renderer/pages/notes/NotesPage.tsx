@@ -1125,6 +1125,7 @@ const NotesPage: FC = () => {
               onMarkdownChange={handleMarkdownChange}
               editorRef={editorRef}
               codeEditorRef={codeEditorRef}
+              onCreateNote={() => void handleCreateNote(t('notes.untitled_note'))}
             />
           )}
         </div>
