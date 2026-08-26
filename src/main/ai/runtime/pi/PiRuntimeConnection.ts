@@ -44,6 +44,7 @@ import {
 } from '@shared/ai/builtinTools'
 import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
@@ -64,7 +65,11 @@ import {
   resolvePiProviderInjectionForSession
 } from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
-import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
+import {
+  capturePiConnectionSnapshot,
+  type PiConnectionSnapshot,
+  PiInvalidConnectionSnapshotError
+} from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
   buildPiMcpToolName,
@@ -178,6 +183,22 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    const resolveInjection = async (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> => {
+      try {
+        return await resolvePiProviderInjectionForSession(
+          this.input.sessionId,
+          snapshot.provider,
+          snapshot.model,
+          snapshot.enabledApiKeys
+        )
+      } catch (error) {
+        if (error instanceof ApiGatewayNotRunningError) {
+          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+        }
+        throw error
+      }
+    }
+
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
     // the final snapshot check below.
@@ -187,6 +208,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+    // Gateway startup and first-key creation change its fingerprint, so settle them before the
+    // authoritative snapshot. The actual injection is resolved again from that snapshot below.
+    if (isManagedCherryCloudModel(discoverySnapshot.model.providerId, discoverySnapshot.model.group)) {
+      await resolveInjection(discoverySnapshot)
+    }
     await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
@@ -204,20 +230,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    let injection: PiProviderInjection
-    try {
-      injection = await resolvePiProviderInjectionForSession(
-        this.input.sessionId,
-        initialSnapshot.provider,
-        initialSnapshot.model,
-        initialSnapshot.enabledApiKeys
-      )
-    } catch (error) {
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-      }
-      throw error
-    }
+    const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
 
