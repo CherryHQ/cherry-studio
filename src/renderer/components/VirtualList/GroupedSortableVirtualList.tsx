@@ -2,7 +2,7 @@ import { BlurCancelPointerSensor } from '@cherrystudio/ui'
 import type { DragEndEvent, DragOverEvent, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core'
 import { DndContext, DragOverlay, KeyboardSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, type SortingStrategy, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { CSS, useCombinedRefs } from '@dnd-kit/utilities'
 import type React from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -578,7 +578,7 @@ function SortableItemRow<TGroup, TItem>({
     activeDragState?.active !== undefined &&
     isItemDragData(activeDragState.active) &&
     activeDragState.active.itemId === data.itemId
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+  const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef, transform, transition } = useSortable({
     id: toItemSortableId(data.itemId),
     data,
     disabled: {
@@ -586,10 +586,11 @@ function SortableItemRow<TGroup, TItem>({
       droppable: disabled || (dropTargetRowState.isBlocked && !isActiveItem)
     }
   })
+  const setSortableNodeRef = useCombinedRefs(setNodeRef, setActivatorNodeRef)
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setSortableNodeRef}
       data-dragging={isDragging || undefined}
       {...dropTargetRowState.props}
       className={joinClassNames(dropTargetRowState.props.className, dropIndicatorPosition ? 'relative' : undefined)}
@@ -674,15 +675,16 @@ function SortableGroupHeaderRow<TGroup, TItem>({
     rowId: data.groupId,
     rowType: 'group'
   })
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+  const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef, transform, transition } = useSortable({
     id: toGroupSortableId(data.groupId),
     data,
     disabled: disabled || dropTargetRowState.isBlocked
   })
+  const setSortableNodeRef = useCombinedRefs(setNodeRef, setActivatorNodeRef)
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setSortableNodeRef}
       data-dragging={isDragging || undefined}
       {...dropTargetRowState.props}
       className={joinClassNames(dropTargetRowState.props.className, dropIndicatorPosition ? 'relative' : undefined)}

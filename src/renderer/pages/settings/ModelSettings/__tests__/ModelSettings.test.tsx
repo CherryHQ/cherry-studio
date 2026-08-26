@@ -20,7 +20,6 @@ const harness = vi.hoisted(() => ({
   preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>
 }))
 
-const routerSearch = vi.hoisted(() => ({ current: {} as { focus?: string } }))
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn())
 const matchMediaMock = vi.hoisted(() => vi.fn())
 
@@ -116,7 +115,9 @@ vi.mock('@renderer/utils/model', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useSearch: () => routerSearch.current
+  useSearch: () => {
+    throw new Error('useSearch must not be called from ModelSettings')
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -148,7 +149,6 @@ describe('ModelSettings', () => {
       configurable: true,
       value: matchMediaMock.mockReturnValue({ matches: false })
     })
-    routerSearch.current = {}
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
@@ -287,9 +287,7 @@ describe('ModelSettings', () => {
     ['default', 'settings.models.default_assistant_model'],
     ['translate', 'settings.models.translate_model']
   ] as const)('points to the %s model selector requested by the route', (focus, expectedTitle) => {
-    routerSearch.current = { focus }
-
-    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+    render(<ModelSettings focus={focus} showPaintingModel={false} showSettingsButton={false} />)
 
     const scrollTarget = vi.mocked(Element.prototype.scrollIntoView).mock.instances[0]
     expect(scrollTarget).toHaveTextContent(expectedTitle)
@@ -308,15 +306,18 @@ describe('ModelSettings', () => {
   })
 
   it('avoids smooth scrolling when reduced motion is requested', () => {
-    routerSearch.current = { focus: 'default' }
     matchMediaMock.mockReturnValue({ matches: true })
 
-    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+    render(<ModelSettings focus="default" showPaintingModel={false} showSettingsButton={false} />)
 
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
       behavior: 'auto',
       block: 'center',
       inline: 'nearest'
     })
+  })
+
+  it('renders off-router (onboarding compact) without calling useSearch', () => {
+    expect(() => render(<ModelSettings compact showPaintingModel={false} showSettingsButton={false} />)).not.toThrow()
   })
 })

@@ -158,7 +158,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         const meta = chunk.providerMetadata as Record<string, any> | undefined
         const thoughtSignature = meta?.google?.thoughtSignature
         if (googleReasoningCache && typeof thoughtSignature === 'string') {
-          googleReasoningCache.set(`google-${toolName}`, thoughtSignature)
+          googleReasoningCache.set(`google-${chunk.toolCallId}`, thoughtSignature)
         }
         const reasoningDetails = meta?.openrouter?.reasoning_details
         if (openRouterReasoningCache && Array.isArray(reasoningDetails)) {
