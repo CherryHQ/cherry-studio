@@ -3447,6 +3447,7 @@
   "settings.data.nutstore.checkConnection.success": "Conexión con Nutstore establecida",
   "settings.data.nutstore.isLogin": "Iniciado sesión",
   "settings.data.nutstore.login.button": "Iniciar Sesión",
+  "settings.data.nutstore.login.failed": "El inicio de sesión en Nutstore no se completó. Inténtalo de nuevo.",
   "settings.data.nutstore.logout.button": "Cerrar Sesión",
   "settings.data.nutstore.logout.content": "Después de cerrar sesión no podrás hacer copias de seguridad ni restaurar desde Nutstore",
   "settings.data.nutstore.logout.title": "¿Seguro que quieres cerrar la sesión de Nutstore?",

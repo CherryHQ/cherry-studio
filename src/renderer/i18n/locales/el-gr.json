@@ -3447,6 +3447,7 @@
   "settings.data.nutstore.checkConnection.success": "Συνδεδεμένο στο Jotunn Cloud",
   "settings.data.nutstore.isLogin": "Συνδεδεμένος",
   "settings.data.nutstore.login.button": "Σύνδεση",
+  "settings.data.nutstore.login.failed": "Η σύνδεση στο Nutstore δεν ολοκληρώθηκε. Δοκιμάστε ξανά.",
   "settings.data.nutstore.logout.button": "Αποσύνδεση",
   "settings.data.nutstore.logout.content": "Μετά την αποσύνδεση δεν θα μπορείτε να κάνετε αντίγραφο ασφαλείας ή να ανακτήσετε δεδομένα από το Jotunn Cloud",
   "settings.data.nutstore.logout.title": "Επιβεβαίωση αποσύνδεσης από το Jotunn Cloud;",

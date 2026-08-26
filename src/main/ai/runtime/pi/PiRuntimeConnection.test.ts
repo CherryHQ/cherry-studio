@@ -156,6 +156,7 @@ vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
@@ -426,7 +427,7 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('IMPORTANT: You must respond in English.')
   })
 
-  it('forwards the active Cherry proxy environment to Pi provider requests', async () => {
+  it('uses Cherry network transport and preserves provider request environment', async () => {
     const injection = mocks.resolveInjection()
     mocks.resolveInjection.mockReturnValue({
       ...injection,
@@ -440,13 +441,27 @@ describe('PiRuntimeConnection', () => {
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
     providerConfig.streamSimple({}, [], { env: { REQUEST_SCOPED: 'preserved' } })
 
-    expect(mocks.providerStreamSimple.mock.calls[0][2].env).toMatchObject({
-      REQUEST_SCOPED: 'preserved',
-      HTTP_PROXY: 'http://127.0.0.1:7890',
-      HTTPS_PROXY: 'http://127.0.0.1:7890',
-      NO_PROXY: 'localhost,127.0.0.1',
-      AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
+    expect(mocks.providerStreamSimple.mock.calls[0][2]).toMatchObject({
+      fetch: customFetch,
+      env: {
+        REQUEST_SCOPED: 'preserved',
+        HTTP_PROXY: 'http://127.0.0.1:7890',
+        HTTPS_PROXY: 'http://127.0.0.1:7890',
+        NO_PROXY: 'localhost,127.0.0.1',
+        AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
+      }
     })
+  })
+
+  it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {
+    await new PiRuntimeConnection(input).start()
+    vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', 'socks5://user:password@127.0.0.1:1080')
+    vi.stubEnv('SOCKS_PROXY', 'socks5://user:password@127.0.0.1:1080')
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+
+    providerConfig.streamSimple({}, [], {})
+
+    expect(mocks.providerStreamSimple.mock.calls[0][2]).not.toHaveProperty('fetch')
   })
 
   it('uses a generation-scoped api namespace so same-session replacements cannot overwrite each other', async () => {
