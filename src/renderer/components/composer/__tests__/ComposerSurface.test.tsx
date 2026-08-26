@@ -5272,7 +5272,8 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         title: 'Thinking',
         symbol: 'thinking',
-        queryAnchor: 0,
+        // handleItemAction already consumed the slash trigger; forwarding 0 would track leftover draft as the submenu filter.
+        queryAnchor: undefined,
         parentPanel: expect.objectContaining({
           title: 'settings.quickPanel.title',
           symbol: '/',
