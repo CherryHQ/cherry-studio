@@ -49,7 +49,7 @@ vi.mock('lucide-react', () => {
 vi.mock('react-i18next', () => {
   return {
     useTranslation: () => ({
-      t: (key: string) => key
+      t: (key: string) => (key === 'globalSearch.groups.message' ? 'Messages' : key)
     })
   }
 })
@@ -145,8 +145,9 @@ describe('MessageVirtualList', () => {
   it('makes the message viewport keyboard-focusable with visible focus feedback', () => {
     const scroller = renderMessageList()
     expect(scroller).toHaveAttribute('tabindex', '0')
-    expect(scroller).toHaveAttribute('role', 'region')
-    expect(scroller).toHaveAccessibleName('globalSearch.groups.message')
+    expect(screen.getByRole('region', { name: 'Messages' })).toBe(scroller)
+    scroller.focus()
+    expect(scroller).toHaveFocus()
     expect(scroller).toHaveClass('focus-visible:ring-1', 'focus-visible:ring-ring', 'focus-visible:ring-inset')
   })
 
@@ -433,6 +434,17 @@ describe('MessageVirtualList', () => {
     renderMessageList(() => <textarea aria-label="Editable message content" />)
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Editable message content' }), { key: 'ArrowDown' })
+
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['contenteditable', <div key="contenteditable" data-testid="editable-message-content" contentEditable />],
+    ['textbox role', <div key="textbox" data-testid="editable-message-content" role="textbox" tabIndex={0} />]
+  ])('leaves Space with editable message content exposed through %s', (_, editor) => {
+    renderMessageList(() => editor)
+
+    fireEvent.keyDown(screen.getByTestId('editable-message-content'), { key: ' ' })
 
     expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
   })

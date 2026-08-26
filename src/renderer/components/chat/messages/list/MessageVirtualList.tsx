@@ -30,7 +30,6 @@ export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
 const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
-const KEYBOARD_ACTIVATION_SELECTOR = 'button,a,input,textarea,select,[role="button"]'
 const KEYBOARD_SCROLL_OWNER_SELECTOR =
   'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"],[role="listbox"],[role="slider"],[role="spinbutton"]'
 const KEYBOARD_FOCUS_OWNER_SELECTOR = `${KEYBOARD_SCROLL_OWNER_SELECTOR},button,a[href],summary,[tabindex]:not([tabindex="-1"])`
@@ -39,7 +38,7 @@ function isKeyboardScrollIntent(event: KeyboardEvent, scroller: HTMLElement): bo
   const target = event.target instanceof HTMLElement ? event.target : null
   if (KEYBOARD_SCROLL_KEYS.has(event.key)) return !target?.closest(KEYBOARD_SCROLL_OWNER_SELECTOR)
   if (event.key !== ' ' && event.key !== 'Spacebar') return false
-  return target === scroller || !target?.closest(KEYBOARD_ACTIVATION_SELECTOR)
+  return target === scroller || !hasIndependentKeyboardFocusOwner(target, scroller)
 }
 
 function getKeyboardScrollDelta(event: KeyboardEvent): number {
