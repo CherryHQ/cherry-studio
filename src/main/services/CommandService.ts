@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDisposable } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
+import { openRouteInMainWindow, openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import { showNativePopupMenu } from '@main/services/nativePopupMenu'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -82,6 +82,18 @@ export class CommandService extends BaseService {
 
     this.registerHandler('app.settings.open', () => {
       openSettingsInMainWindow()
+    })
+
+    this.registerHandler('app.chat.open', () => {
+      openRouteInMainWindow('/app/chat')
+    })
+
+    this.registerHandler('app.work.open', () => {
+      openRouteInMainWindow('/app/agents')
+    })
+
+    this.registerHandler('app.translate.open', () => {
+      openRouteInMainWindow('/app/translate')
     })
 
     this.registerHandler('quick_assistant.toggle', () => {

@@ -71,6 +71,36 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.chat.open',
+    titleKey: 'settings.shortcuts.open_chat',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'main',
+    keybinding: {
+      defaultBinding: [],
+      global: true
+    }
+  }),
+  defineCommand({
+    id: 'app.work.open',
+    titleKey: 'settings.shortcuts.open_work',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'main',
+    keybinding: {
+      defaultBinding: [],
+      global: true
+    }
+  }),
+  defineCommand({
+    id: 'app.translate.open',
+    titleKey: 'settings.shortcuts.open_translation',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'main',
+    keybinding: {
+      defaultBinding: [],
+      global: true
+    }
+  }),
+  defineCommand({
     id: 'app.zoom.in',
     titleKey: 'settings.shortcuts.zoom_in',
     categoryKey: 'settings.shortcuts.general',

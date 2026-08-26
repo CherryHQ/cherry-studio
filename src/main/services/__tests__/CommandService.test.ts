@@ -16,6 +16,7 @@ vi.mock('@data/PreferenceService', async () => {
 
 const {
   windowServiceMock,
+  openRouteInMainWindowMock,
   openSettingsInMainWindowMock,
   quickAssistantServiceMock,
   selectionServiceMock,
@@ -26,6 +27,7 @@ const {
   windowServiceMock: {
     toggleMainWindow: vi.fn()
   },
+  openRouteInMainWindowMock: vi.fn(),
   openSettingsInMainWindowMock: vi.fn(),
   quickAssistantServiceMock: {
     toggleQuickAssistant: vi.fn()
@@ -79,6 +81,7 @@ vi.mock('@main/services/nativePopupMenu', () => ({
 }))
 
 vi.mock('@main/services/mainWindowNavigation', () => ({
+  openRouteInMainWindow: openRouteInMainWindowMock,
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
@@ -136,6 +139,16 @@ describe('CommandService', () => {
     service.execute('app.settings.open')
 
     expect(openSettingsInMainWindowMock).toHaveBeenCalledWith()
+  })
+
+  it.each([
+    ['app.chat.open', '/app/chat'],
+    ['app.work.open', '/app/agents'],
+    ['app.translate.open', '/app/translate']
+  ] as const)('opens %s through the main-window navigation boundary', (command, route) => {
+    service.execute(command)
+
+    expect(openRouteInMainWindowMock).toHaveBeenCalledWith(route)
   })
 
   it('passes the target window to zoom commands', () => {

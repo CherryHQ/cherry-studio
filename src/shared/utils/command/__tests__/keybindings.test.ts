@@ -80,6 +80,14 @@ describe('command definitions', () => {
       supportedPlatforms: ['darwin', 'win32', 'linux'],
       whenSource: 'feature.selection.enabled'
     })
+    for (const command of ['app.chat.open', 'app.work.open', 'app.translate.open'] as const) {
+      expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === command)).toMatchObject({
+        command,
+        defaultBinding: [],
+        global: true,
+        scope: 'main'
+      })
+    }
     expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'app.zoom.in')).toMatchObject({
       command: 'app.zoom.in',
       defaultBinding: ['CommandOrControl', '='],
