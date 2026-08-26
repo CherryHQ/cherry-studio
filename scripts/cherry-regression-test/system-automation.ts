@@ -122,25 +122,49 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       timeout: 15_000
     })
   } else {
-    const script = statSync(filePath).isDirectory()
-      ? [
-          '$shell = New-Object -ComObject WScript.Shell',
-          `$null = $shell.AppActivate(${electronPid})`,
-          'Start-Sleep -Milliseconds 500',
-          '$shell.SendKeys("%d")',
-          'Start-Sleep -Milliseconds 250',
-          `$shell.SendKeys('${escapePowerShell(filePath)}')`,
-          '$shell.SendKeys("{ENTER}")',
-          'Start-Sleep -Milliseconds 750',
-          '$shell.SendKeys("%s")'
-        ].join('; ')
-      : [
-          '$shell = New-Object -ComObject WScript.Shell',
-          `$null = $shell.AppActivate(${electronPid})`,
-          'Start-Sleep -Milliseconds 500',
-          `$shell.SendKeys('${escapePowerShell(filePath)}')`,
-          '$shell.SendKeys("{ENTER}")'
-        ].join('; ')
+    const isDirectory = statSync(filePath).isDirectory()
+    const script = [
+      'Add-Type -AssemblyName UIAutomationClient',
+      'Add-Type -AssemblyName UIAutomationTypes',
+      '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+      `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
+      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$dialog = $null',
+      'do {',
+      '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
+      '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
+      '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $dialog) { throw "Native file dialog was not found" }',
+      '$dialog.SetFocus()',
+      ...(isDirectory
+        ? [
+            'Add-Type -AssemblyName System.Windows.Forms',
+            '[System.Windows.Forms.SendKeys]::SendWait("^l")',
+            'Start-Sleep -Milliseconds 200',
+            '$pathInput = [System.Windows.Automation.AutomationElement]::FocusedElement',
+            '$valuePattern = $pathInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
+            `$valuePattern.SetValue('${escapePowerShell(filePath)}')`,
+            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
+            'Start-Sleep -Milliseconds 500',
+            '$buttonCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
+            '$buttons = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
+            '$selectButton = $buttons | Where-Object { $_.Current.Name -in @("Select Folder", "Select") } | Select-Object -First 1',
+            'if (-not $selectButton) { throw "Select Folder button was not found" }',
+            '$selectButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()'
+          ]
+        : [
+            '$fileNameCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1148")',
+            '$fileNameInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileNameCondition)',
+            'if (-not $fileNameInput) { throw "File name input was not found" }',
+            '$valuePattern = $fileNameInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
+            `$valuePattern.SetValue('${escapePowerShell(filePath)}')`,
+            '$openCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Open")',
+            '$openButton = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $openCondition)',
+            'if (-not $openButton) { throw "Open button was not found" }',
+            '$openButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()'
+          ])
+    ].join('; ')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       stdio: 'ignore',
       timeout: 15_000

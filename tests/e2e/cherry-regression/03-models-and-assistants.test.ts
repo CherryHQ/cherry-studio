@@ -1,6 +1,6 @@
 import { expect, test } from './fixture'
 import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
-import { dismissOnboarding } from './helpers'
+import { dismissOnboarding, selectSidebarApp } from './helpers'
 import {
   closeSettings,
   CUSTOM_CHAT_PROVIDER,
@@ -36,6 +36,7 @@ test('[C-01] 创建自定义助手并聊天 @custom-assistant', async ({ app, ma
 
   const restarted = await app.restart('authenticated')
   await dismissOnboarding(restarted)
-  await expect(restarted.getByText(CUSTOM_ASSISTANT, { exact: true }).first()).toBeVisible()
+  await selectSidebarApp(restarted, 'Chat')
+  await restarted.getByText(CUSTOM_ASSISTANT, { exact: true }).first().click()
   await expect(restarted.getByText('ASSISTANT_PROMPT_PASS').last()).toBeVisible()
 })

@@ -10,7 +10,7 @@ import {
   statSync,
   writeFileSync
 } from 'node:fs'
-import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
+import { basename, dirname, join, resolve, win32 } from 'node:path'
 
 import { evaluateCdpExpression } from './cdp-client'
 import type { RunPaths } from './paths'
@@ -408,22 +408,7 @@ interface InspectorTarget {
   webSocketDebuggerUrl?: string
 }
 
-interface BranchLaunchSpec {
-  entryPath: string
-  executablePath: string
-}
-
 const MAIN_WINDOW_PATH = '/windows/main/index.html'
-
-function isPlatformPathInside(platform: Platform, parent: string, child: string): boolean {
-  const path = platform === 'windows' ? win32 : posix
-  if (!path.isAbsolute(parent) || !path.isAbsolute(child)) return false
-  const relativePath = path.relative(path.resolve(parent), path.resolve(child))
-  return (
-    relativePath === '' ||
-    (!relativePath.startsWith(`..${path.sep}`) && relativePath !== '..' && !path.isAbsolute(relativePath))
-  )
-}
 
 async function ownedMainInspectorUrl(record: AppRecord): Promise<string> {
   if (findListeningPid(record.platform, MAIN_INSPECTOR_PORT) !== record.electronPid) {
@@ -495,35 +480,19 @@ export async function prepareWindowsCdpConnection(record: AppRecord): Promise<vo
 
 async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: string): Promise<void> {
   const debuggerUrl = await ownedMainInspectorUrl(record)
-
-  const launchSpec = await evaluateCdpExpression<BranchLaunchSpec>(
+  const delivered = await evaluateCdpExpression<boolean>(
     debuggerUrl,
     `(() => {
-      const path = process.mainModule?.require?.('node:path')
-      if (!path || !process.argv[1]) throw new Error('Electron launch information is unavailable')
-      return {
-        entryPath: path.resolve(process.cwd(), process.argv[1]),
-        executablePath: process.execPath
+      const electron = process.mainModule?.require?.('electron')
+      if (!electron?.app) throw new Error('Electron app is unavailable')
+      const callbackUrl = ${JSON.stringify(url)}
+      if (${JSON.stringify(record.platform)} === 'macos') {
+        return electron.app.emit('open-url', { preventDefault() {} }, callbackUrl)
       }
+      return electron.app.emit('second-instance', {}, [process.execPath, process.argv[1] ?? '', callbackUrl], process.cwd())
     })()`
   )
-  if (
-    !launchSpec ||
-    !isPlatformPathInside(record.platform, record.targetRoot, launchSpec.executablePath) ||
-    !isPlatformPathInside(record.platform, record.targetRoot, launchSpec.entryPath)
-  ) {
-    throw new Error('Owned Cherry Studio launch information could not be verified')
-  }
-
-  try {
-    execFileSync(launchSpec.executablePath, [launchSpec.entryPath, url], {
-      cwd: record.cwd,
-      env: { ...process.env, CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` },
-      stdio: 'ignore',
-      timeout: 15_000,
-      windowsHide: record.platform === 'windows'
-    })
-  } catch {
+  if (!delivered) {
     throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')
   }
 }

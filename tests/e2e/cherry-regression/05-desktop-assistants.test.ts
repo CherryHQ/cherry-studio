@@ -14,7 +14,11 @@ async function configureQuickAssistant(
     ({ providerId, model }) =>
       window.api.preference.setMultiple({
         'feature.quick_assistant.enabled': true,
-        'feature.quick_assistant.model_id': `${providerId}::${model}`
+        'feature.quick_assistant.model_id': `${providerId}::${model}`,
+        'shortcut.quick_assistant.toggle': {
+          binding: ['CommandOrControl', 'E'],
+          enabled: true
+        }
       }),
     { model, providerId }
   )
@@ -86,7 +90,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
 
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
   sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 's'])
-  const selection = await app.window('/windows/selection/')
+  const selection = await app.window('/windows/selection/toolbar/')
   await expect(selection.getByText('Explain', { exact: true })).toBeVisible()
   await expect(selection.getByText('Translate', { exact: true })).toBeVisible()
   await selection.waitForTimeout(1_000)
