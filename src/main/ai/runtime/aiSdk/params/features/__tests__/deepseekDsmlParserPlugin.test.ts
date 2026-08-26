@@ -62,10 +62,13 @@ async function runStream(
   finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
   kind: 'text' | 'reasoning' = 'text'
 ) {
+  return runSourceStream(buildSourceStream(deltas, finishReasonUnified, kind))
+}
+
+async function runSourceStream(source: ReadableStream<LanguageModelV3StreamPart>) {
   const middleware = await getMiddleware()
   expect(middleware.wrapStream).toBeDefined()
 
-  const source = buildSourceStream(deltas, finishReasonUnified, kind)
   const wrapped = await middleware.wrapStream!({
     doStream: async () => ({ stream: source, request: { body: {} }, response: { headers: {} } }),
 
@@ -421,15 +424,62 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(finish.finishReason.unified).toBe('tool-calls')
   })
 
+  it('keeps interleaved text and reasoning parser state isolated by content block', async () => {
+    const parts: LanguageModelV3StreamPart[] = [
+      { type: 'stream-start', warnings: [] },
+      { type: 'reasoning-start', id: 'reasoning-1' },
+      { type: 'reasoning-delta', id: 'reasoning-1', delta: '<｜DSML｜tool_' },
+      { type: 'text-start', id: 'text-1' },
+      { type: 'text-delta', id: 'text-1', delta: 'visible answer' },
+      { type: 'text-end', id: 'text-1' },
+      {
+        type: 'reasoning-delta',
+        id: 'reasoning-1',
+        delta:
+          'calls><｜DSML｜invoke name="read_file"><｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>'
+      },
+      { type: 'reasoning-end', id: 'reasoning-1' },
+      {
+        type: 'finish',
+        finishReason: { unified: 'stop', raw: 'end_turn' },
+        usage: {} as any
+      }
+    ]
+    const source = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      }
+    })
+    const events = await runSourceStream(source)
+
+    expect(
+      events
+        .filter((event) => event.type === 'text-delta')
+        .map((event) => event.delta)
+        .join('')
+    ).toBe('visible answer')
+    expect(events.filter((event) => event.type === 'tool-call')).toEqual([
+      expect.objectContaining({ toolName: 'read_file' })
+    ])
+    expect(events.find((event) => event.type === 'finish')).toMatchObject({
+      finishReason: { unified: 'tool-calls' }
+    })
+  })
+
   describe('wrapGenerate (non-streaming)', () => {
-    async function runGenerate(text: string, finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+    async function runGenerate(
+      text: string,
+      finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
+      kind: 'text' | 'reasoning' = 'text'
+    ) {
       const middleware = await getMiddleware()
       expect(middleware.wrapGenerate).toBeDefined()
 
       const result = await middleware.wrapGenerate!({
         doGenerate: async () =>
           ({
-            content: [{ type: 'text', text }],
+            content: [{ type: kind, text }],
             finishReason: { unified: finishReasonUnified, raw: finishReasonUnified },
             usage: {} as any,
             warnings: [],
@@ -479,6 +529,25 @@ describe('deepseekDsmlParserPlugin', () => {
       expect(reconstructed).toBe('lead-in  middle  tail')
       expect(reconstructed).not.toContain('｜｜DSML｜｜')
 
+      expect(result.finishReason.unified).toBe('tool-calls')
+    })
+
+    it('extracts the single-bar variant from a reasoning part', async () => {
+      const text =
+        'thinking ' +
+        '<｜DSML｜tool_calls>' +
+        '<｜DSML｜invoke name="read_file">' +
+        '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>' +
+        '</｜DSML｜invoke>' +
+        '</｜DSML｜tool_calls>'
+
+      const result = await runGenerate(text, 'stop', 'reasoning')
+
+      expect(result.content).toEqual([
+        { type: 'reasoning', text: 'thinking ' },
+        expect.objectContaining({ type: 'tool-call', toolName: 'read_file' })
+      ])
+      expect(JSON.parse(result.content[1].input)).toEqual({ path: '/tmp/a.md' })
       expect(result.finishReason.unified).toBe('tool-calls')
     })
 
