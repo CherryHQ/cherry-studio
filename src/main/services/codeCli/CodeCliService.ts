@@ -20,12 +20,12 @@ import {
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
-import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED, redactRecord } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
-import { writeCliConfigFiles } from './configWriter'
+import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -354,6 +354,11 @@ export class CodeCliService extends BaseService {
       return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
     }
     return writeCliConfigFiles(cliTool, files)
+  }
+
+  /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
+  public async readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
+    return readCliConfigFiles(targets)
   }
 
   async run(input: CodeCliRunInput): Promise<OperationResult> {

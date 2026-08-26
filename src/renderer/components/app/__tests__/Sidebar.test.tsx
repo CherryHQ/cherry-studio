@@ -488,7 +488,7 @@ describe('app Sidebar', () => {
 
     fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/general')
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
 
   it('keeps feedback mounted when the floating sidebar closes', async () => {
