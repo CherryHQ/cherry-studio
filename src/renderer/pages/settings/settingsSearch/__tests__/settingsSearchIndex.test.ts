@@ -89,6 +89,12 @@ describe('settings search index', () => {
           expect(lookup(enUS, key), `en-us missing ${key}`).toBeTruthy()
         }
         const domId = getSettingDomId(entry.route ?? section.route, entry.anchorId)
+        // auth- entries flash the provider page's dynamic section
+        // setting-provider-auth-<providerId> — a mismatched tail (e.g. a brand
+        // name diverging from the real provider id) silently kills the scroll.
+        if (entry.anchorId.startsWith('auth-') && entry.providerId) {
+          expect(entry.anchorId, `${entry.anchorId} must end with its providerId`).toBe(`auth-${entry.providerId}`)
+        }
         expect(domIds.has(domId), `duplicate dom id ${domId}`).toBe(false)
         domIds.add(domId)
       }

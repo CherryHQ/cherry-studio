@@ -38,7 +38,7 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['codex', 'chatgpt', 'oauth', '登录']
   },
   {
-    anchorId: 'auth-github-copilot',
+    anchorId: 'auth-copilot',
     titleKey: 'provider.copilot',
     providerId: 'copilot',
     aliases: ['copilot', 'github copilot', 'oauth', '登录']
