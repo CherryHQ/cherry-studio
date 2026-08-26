@@ -3,19 +3,16 @@ import * as path from 'node:path'
 
 import { Node, type ObjectLiteralExpression, Project, SyntaxKind } from 'ts-morph'
 
-import { appLanguageOptions } from '../../../src/renderer/i18n/languages'
-import { CodeCli } from '../../../src/shared/types/codeCli'
-import { COMMAND_DEFINITIONS } from '../../../src/shared/utils/command/definitions'
-import { DEFAULT_CONTEXT_SETTINGS, MIN_TRUNCATE_THRESHOLD } from '../../../src/shared/data/types/contextSettings'
-import { McpServerInstallSourceSchema, McpServerTypeSchema } from '../../../src/shared/data/types/mcpServer'
-import {
-  knowledgeFileProcessingExts,
-  knowledgeSupportedFileExts
-} from '../../../src/shared/utils/file/fileExtensions'
 import {
   COMPRESSION_MAX_OUTPUT_TOKENS,
   COMPRESSION_MIN_OUTPUT_TOKENS
 } from '../../../packages/aiCore/src/core/context/middleware'
+import { appLanguageOptions } from '../../../src/renderer/i18n/languages'
+import { DEFAULT_CONTEXT_SETTINGS, MIN_TRUNCATE_THRESHOLD } from '../../../src/shared/data/types/contextSettings'
+import { McpServerInstallSourceSchema, McpServerTypeSchema } from '../../../src/shared/data/types/mcpServer'
+import { CodeCli } from '../../../src/shared/types/codeCli'
+import { COMMAND_DEFINITIONS } from '../../../src/shared/utils/command/definitions'
+import { knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../../../src/shared/utils/file/fileExtensions'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..', '..')
 const PACKAGE_JSON_FILE = path.join(ROOT_DIR, 'package.json')
