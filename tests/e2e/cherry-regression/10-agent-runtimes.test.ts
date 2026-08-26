@@ -53,8 +53,10 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
   const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
   if (await model.isVisible().catch(() => false)) {
     await model.click()
-    await page.getByTestId('model-selector-search').fill(app.config.cherryIn.chatModel)
-    await page.getByRole('option').filter({ hasText: app.config.cherryIn.chatModel }).first().click()
+    const search = page.getByTestId('model-selector-search')
+    await search.fill(app.config.cherryIn.chatModel)
+    await expect(page.getByRole('option').first()).toBeVisible()
+    await search.press('Enter')
   }
   await selectAgentWorkspace(app, page)
 

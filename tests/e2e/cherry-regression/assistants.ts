@@ -28,11 +28,12 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
     const modelSelector = page.getByTestId('model-selector-content')
     await expect(modelSelector).toBeVisible()
     await modelSelector.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
-    await modelSelector
+    const option = modelSelector
       .locator('[data-testid^="model-selector-item-"]')
       .filter({ hasText: app.config.customProvider.chatModel })
       .first()
-      .click()
+    await expect(option).toBeVisible()
+    await modelSelector.getByTestId('model-selector-search').press('Enter')
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await page
       .getByRole('dialog')

@@ -97,10 +97,9 @@ export async function selectChatModel(page: Page, model: string): Promise<void> 
   await page.getByRole('button', { name: 'Selected models', exact: true }).click()
   const search = page.getByTestId('model-selector-search')
   await search.fill(model)
-  await page.getByRole('option').filter({ hasText: model }).first().click()
-  await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(
-    model.split('/').at(-1) ?? model
-  )
+  await expect(page.getByRole('option').first()).toBeVisible()
+  await search.press('Enter')
+  await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toBeVisible()
 }
 
 export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<void> {

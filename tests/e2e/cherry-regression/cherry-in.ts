@@ -54,13 +54,18 @@ export async function addCherryInModel(page: Page, model: string, tab?: string):
   )
     return
   await page.getByRole('button', { name: 'Get model list', exact: true }).click()
+  const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]:visible').first()
+  await expect(drawer).toBeVisible()
   if (tab) {
-    const tabLocator = page.getByRole('tab', { name: new RegExp(tab, 'i') })
+    const tabLocator = drawer.getByRole('tab', { name: new RegExp(tab, 'i') })
     if (await tabLocator.isVisible().catch(() => false)) await tabLocator.click()
   }
-  await page.getByPlaceholder('Search models').fill(model)
-  await expect(page.getByText(model, { exact: true })).toBeVisible()
-  const add = page.getByRole('button', { name: 'Add', exact: true }).first()
+  const search = drawer.getByPlaceholder('Search models')
+  await expect(search).toBeEnabled()
+  await search.fill(model)
+  await expect(drawer.getByText(model, { exact: true })).toBeVisible()
+  const add = drawer.getByRole('button', { name: 'Add', exact: true }).first()
   if (await add.isVisible().catch(() => false)) await add.click()
   await page.keyboard.press('Escape')
+  await expect(drawer).toBeHidden()
 }

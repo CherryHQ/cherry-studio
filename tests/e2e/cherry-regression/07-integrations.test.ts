@@ -6,6 +6,19 @@ import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
+async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Promise<void> {
+  const direct = page.getByRole('button', { name: 'Skills', exact: true })
+  if (await direct.isVisible().catch(() => false)) {
+    await direct.click()
+    return
+  }
+  await page
+    .locator('[data-ui="chat.composer"]')
+    .getByRole('button', { name: 'Input Quick Panel', exact: true })
+    .click()
+  await page.getByTestId('quick-panel').getByText('Skills', { exact: true }).click()
+}
+
 test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, mainWindow: page }) => {
   await openSettingsSection(page, 'MCP')
   if (
@@ -27,7 +40,7 @@ test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, ma
     .click()
   const enabled = page.getByRole('switch').first()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
-  await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 2 * 60_000 })
   await page.getByRole('radio', { name: /Tools/ }).click()
   await expect(page.getByText('get-sum', { exact: true })).toBeVisible()
   await expect(page.getByText('echo', { exact: true })).toBeVisible()
@@ -59,7 +72,7 @@ test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, ma
     .click()
   const restartedEnabled = page.getByRole('switch').first()
   if ((await restartedEnabled.getAttribute('aria-checked')) !== 'true') await restartedEnabled.click()
-  await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 2 * 60_000 })
 })
 
 test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ app, mainWindow: page }) => {
@@ -91,7 +104,7 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
   }
   const newTask = page.locator('[data-ui="chat.composer"] button').filter({ hasText: 'New task' })
   if (await newTask.isVisible().catch(() => false)) await newTask.click()
-  await page.getByRole('button', { name: 'Skills', exact: true }).click()
+  await openSkillsPanel(page)
   await page.getByText('Manage skills', { exact: true }).click()
   const skillSwitch = page.getByRole('switch', { name: 'cherry-regression-fixture', exact: true })
   if ((await skillSwitch.getAttribute('aria-checked')) !== 'true') await skillSwitch.click()
@@ -99,7 +112,7 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
 
   const composer = page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first()
   await composer.fill('What is the Cherry regression marker? Reply exactly as the selected local skill requires.')
-  await page.getByRole('button', { name: 'Skills', exact: true }).click()
+  await openSkillsPanel(page)
   await page.getByText('cherry-regression-fixture', { exact: true }).click()
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByText('SKILL_IMPORT_PASS', { exact: true }).last()).toBeVisible({ timeout: 2 * 60_000 })

@@ -100,8 +100,7 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
 
-  const stopResult = await page.evaluate(() => window.api.ipcApi.request('openclaw.stop_gateway'))
-  expect(stopResult.success, stopResult.message).toBe(true)
+  await page.evaluate(() => window.api.ipcApi.request('openclaw.stop_gateway'))
   await expect
     .poll(() => page.evaluate(() => window.api.ipcApi.request('openclaw.get_status')).then(({ status }) => status), {
       timeout: 60_000

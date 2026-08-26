@@ -42,15 +42,28 @@ function runWindowsHotkey(keys: string[]): void {
     return
   }
 
-  const modifiers = keys
-    .filter((key) => ['Alt', 'Control', 'Meta', 'Shift'].includes(key))
-    .map((key) => ({ Alt: '%', Control: '^', Meta: '^', Shift: '+' })[key])
-    .join('')
+  const virtualKeys: Record<string, number> = {
+    Alt: 0x12,
+    Control: 0x11,
+    Enter: 0x0d,
+    Escape: 0x1b,
+    Meta: 0x5b,
+    Shift: 0x10,
+    Space: 0x20
+  }
+  const modifiers = keys.filter((key) => ['Alt', 'Control', 'Meta', 'Shift'].includes(key))
   const key = keys.find((candidate) => !['Alt', 'Control', 'Meta', 'Shift'].includes(candidate))
   if (!key) throw new Error('A hotkey must include a non-modifier key')
-  const namedKeys: Record<string, string> = { Enter: '{ENTER}', Escape: '{ESC}', Space: ' ' }
-  const sequence = `${modifiers}${namedKeys[key] ?? key}`
-  const script = `$shell = New-Object -ComObject WScript.Shell; $shell.SendKeys('${escapePowerShell(sequence)}')`
+  const keyCode = virtualKeys[key] ?? key.toUpperCase().charCodeAt(0)
+  const script = [
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
+    ...modifiers.map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 0, [UIntPtr]::Zero)`),
+    `[NativeKeyboard]::keybd_event(${keyCode}, 0, 0, [UIntPtr]::Zero)`,
+    `[NativeKeyboard]::keybd_event(${keyCode}, 0, 2, [UIntPtr]::Zero)`,
+    ...modifiers
+      .toReversed()
+      .map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 2, [UIntPtr]::Zero)`)
+  ].join('; ')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     stdio: 'ignore',
     timeout: 10_000
@@ -84,14 +97,15 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
     )
   } else {
     const script = [
-      `Start-Process notepad.exe -ArgumentList '${escapePowerShell(filePath)}'`,
-      'Start-Sleep -Seconds 2',
+      `$process = Start-Process notepad.exe -ArgumentList '${escapePowerShell(filePath)}' -PassThru`,
+      '$null = $process.WaitForInputIdle(5000)',
       '$shell = New-Object -ComObject WScript.Shell',
-      '$null = $shell.AppActivate("Notepad")',
+      'if (-not $shell.AppActivate($process.Id)) { throw "Notepad window could not be activated" }',
+      'Start-Sleep -Milliseconds 500',
       '$shell.SendKeys("^a")'
-    ].join('; ')
+    ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-      stdio: 'ignore',
+      stdio: ['ignore', 'ignore', 'pipe'],
       timeout: 15_000
     })
   }
@@ -164,9 +178,9 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
             'if (-not $openButton) { throw "Open button was not found" }',
             '$openButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()'
           ])
-    ].join('; ')
+    ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-      stdio: 'ignore',
+      stdio: ['ignore', 'ignore', 'pipe'],
       timeout: 15_000
     })
   }
