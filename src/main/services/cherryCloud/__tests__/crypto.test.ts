@@ -1,6 +1,30 @@
+import { createHash, createPrivateKey, createPublicKey } from 'node:crypto'
+
 import { describe, expect, it } from 'vitest'
 
-import { createDeviceSignature, createIdempotencyKey } from '../crypto'
+import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from '../crypto'
+
+describe('Cherry Cloud authorization cryptography', () => {
+  it('derives the S256 PKCE challenge from the verifier', () => {
+    const { codeVerifier, codeChallenge } = createAuthorizationSecrets()
+
+    expect(codeVerifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(codeChallenge).toBe(createHash('sha256').update(codeVerifier, 'ascii').digest('base64url'))
+  })
+
+  it('exports the Ed25519 device public key in raw base64url form', () => {
+    const { publicKey, privateKey } = createDeviceKeyPair()
+    const privateKeyObject = createPrivateKey({
+      key: Buffer.from(privateKey, 'base64'),
+      format: 'der',
+      type: 'pkcs8'
+    })
+    const derivedPublicKey = createPublicKey(privateKeyObject).export({ format: 'jwk' })
+
+    expect(Buffer.from(publicKey, 'base64url')).toHaveLength(32)
+    expect(derivedPublicKey).toMatchObject({ kty: 'OKP', crv: 'Ed25519', x: publicKey })
+  })
+})
 
 describe('Cherry Cloud device request signing', () => {
   it('matches the protocol Ed25519 fixture', () => {
