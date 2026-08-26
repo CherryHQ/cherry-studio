@@ -360,6 +360,35 @@ describe('DiagnosticBundleService', () => {
     }
   })
 
+  it('counts chat archive families omitted entirely by the shared source budget', async () => {
+    const mib = 1024 * 1024
+    const candidate = chatCandidate('message:oversized', 1, [
+      chatRecordReference('chats/messages.jsonl', 'message:oversized', { id: 'oversized' }, 51 * mib),
+      chatRecordReference('chats/topics.jsonl', 'topic:1', { id: 'topic-1' })
+    ])
+    const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(chatCollection([candidate]))
+    const service = new DiagnosticBundleService()
+
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: true, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
+
+      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 0, omittedFileCount: 2 })
+      const zip = await readZip(destination)
+      expect(zip.entries).toEqual(['diagnostics.json'])
+      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      expect(manifest.sources.chatRecords).toMatchObject({
+        included: { messageCount: 0, recordCount: 0 },
+        omitted: { messageCount: 1, recordCount: 2 }
+      })
+      expect(manifest.warnings).toContain('size_limit_reached')
+    } finally {
+      collectSpy.mockRestore()
+    }
+  })
+
   it('keeps readable file sources when selected chat records cannot be staged', async () => {
     const now = Date.now()
     const logFileName = `app.${formatLogDate(now)}.log`

@@ -137,6 +137,7 @@ async function selectBundleSources(
   chatCollection: ChatRecordCollection
 ): Promise<{
   allChatStats: ChatRecordStats
+  expectedChatArchiveNames: ReadonlySet<string>
   omittedChats: boolean
   omittedFiles: SourceCandidate[]
   selectedChats: ChatRecordCandidate[]
@@ -148,10 +149,13 @@ async function selectBundleSources(
   const selectedFileCandidates = new Set<DiagnosticBudgetCandidate<SourceCandidate>>()
   const selector = createDiagnosticBudgetSelector(DIAGNOSTIC_SOURCE_LIMIT_BYTES)
   const chatContextRecordKeys = new Set<string>()
+  const expectedChatArchiveNames = new Set<string>()
   const allChatStats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
 
   const observeChat = (candidate: ChatRecordCandidate): void => {
     addChatRecordStats(allChatStats, chatContextRecordKeys, candidate)
+    expectedChatArchiveNames.add(candidate.messageRecord.archiveName)
+    expectedChatArchiveNames.add(candidate.contextRecord.archiveName)
   }
 
   const trySelect = (candidate: DiagnosticBudgetCandidate<BundleSourceCandidate>): void => {
@@ -200,6 +204,7 @@ async function selectBundleSources(
 
   return {
     allChatStats,
+    expectedChatArchiveNames,
     omittedChats: allChatStats.messageCount > selectedChats.length,
     omittedFiles: sortedFiles
       .filter((candidate) => !selectedFileCandidates.has(candidate))
@@ -444,6 +449,7 @@ export class DiagnosticBundleService {
         collection,
         destination,
         destinationIdentity,
+        expectedChatArchiveNames: selection.expectedChatArchiveNames,
         input,
         range,
         selectedChats: selection.selectedChats,
@@ -490,6 +496,7 @@ export class DiagnosticBundleService {
           collection,
           destination,
           destinationIdentity: { status: 'missing' },
+          expectedChatArchiveNames: selection.expectedChatArchiveNames,
           input,
           range,
           selectedChats: selection.selectedChats,
@@ -580,6 +587,7 @@ export class DiagnosticBundleService {
     collection,
     destination,
     destinationIdentity,
+    expectedChatArchiveNames,
     input,
     range,
     selectedChats,
@@ -593,6 +601,7 @@ export class DiagnosticBundleService {
     collection: SourceCollection
     destination: AbsoluteFilePath
     destinationIdentity: DestinationIdentity
+    expectedChatArchiveNames: ReadonlySet<string>
     input: ExportInput
     range: DiagnosticTimeRange
     selectedChats: ChatRecordCandidate[]
@@ -603,11 +612,6 @@ export class DiagnosticBundleService {
   }): Promise<SavedBundle> {
     const staged: StagedSource[] = []
     const failedCandidates: SourceCandidate[] = []
-    const expectedChatArchiveNames = new Set<string>()
-    for (const candidate of selectedChats) {
-      expectedChatArchiveNames.add(candidate.messageRecord.archiveName)
-      expectedChatArchiveNames.add(candidate.contextRecord.archiveName)
-    }
 
     for (const [index, candidate] of selectedFiles.entries()) {
       const stagedPath = AbsoluteFilePathSchema.parse(path.join(tempRoot, `source-${index}.jsonl`))
