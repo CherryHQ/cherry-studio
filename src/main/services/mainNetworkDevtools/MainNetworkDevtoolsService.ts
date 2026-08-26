@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
-import { net } from 'electron'
+import { app, net } from 'electron'
 import type WebSocket from 'ws'
 import type { WebSocketServer } from 'ws'
 
@@ -184,6 +184,9 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 export class MainNetworkDevtoolsService extends BaseService {
   private capturing = false
   private enabled = false
+  private setupDone = false
+  /** Bumped on every stop so work still in flight from the previous run can tell it was abandoned. */
+  private generation = 0
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
   private readonly allowedOrigins = new Set<string>()
@@ -207,6 +210,10 @@ export class MainNetworkDevtoolsService extends BaseService {
    */
   protected async onInit(): Promise<void> {
     if (isDev) await this.startCapture()
+    // onAllReady only ever fires once per instance, so a restart has to pick the
+    // preference up here. app.isReady() is exactly that signal: false during the
+    // first bootstrap (Background runs before app.whenReady()), true afterwards.
+    if (app.isReady()) await this.setup()
   }
 
   /**
@@ -215,13 +222,31 @@ export class MainNetworkDevtoolsService extends BaseService {
    * onInit would hit `session.defaultSession` too early and throw "Session can only be
    * received when app is ready". onAllReady fires after every phase completes, by which
    * point the app is ready — and the developer-mode preference is readable.
+   */
+  protected async onAllReady(): Promise<void> {
+    await this.setup()
+  }
+
+  /** Reset to the "never started" state; BaseService has already released the patches, server and subscription. */
+  protected onStop(): void {
+    this.generation++
+    this.capturing = false
+    this.enabled = false
+    this.setupDone = false
+  }
+
+  /**
+   * Watch the developer-mode preference and honour its current value.
    *
    * Enabling developer mode later takes effect immediately (the user only has to reopen
    * DevTools to see the panel); it is not captured retroactively. Disabling it stops at
    * the next launch — the patches installed for this session stay in place, matching
    * NodeTraceService, rather than being pulled out from under in-flight requests.
    */
-  protected async onAllReady(): Promise<void> {
+  private async setup(): Promise<void> {
+    if (this.setupDone) return
+
+    this.setupDone = true
     const preferences = application.get('PreferenceService')
     this.registerDisposable(
       preferences.subscribeChange('app.developer_mode.enabled', (enabled) => {
@@ -236,8 +261,11 @@ export class MainNetworkDevtoolsService extends BaseService {
   private async enable(): Promise<void> {
     if (this.enabled) return
 
+    const generation = this.generation
     this.enabled = true
     await this.startCapture()
+    if (generation !== this.generation) return
+
     await this.installPanel()
   }
 
@@ -571,6 +599,7 @@ export class MainNetworkDevtoolsService extends BaseService {
   }
 
   private async startWebSocketServer(port = MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT): Promise<number> {
+    const generation = this.generation
     const { WebSocketServer } = await import('ws')
     const server = new WebSocketServer({ host: '127.0.0.1', port })
 
@@ -604,6 +633,14 @@ export class MainNetworkDevtoolsService extends BaseService {
     }
 
     const listeningPort = (address as AddressInfo).port
+
+    // Stopped while binding: the disposable list has already been flushed, so a
+    // close-disposable registered now would never run and the port would leak.
+    if (generation !== this.generation) {
+      server.close()
+      return listeningPort
+    }
+
     logger.info(`Main Network DevTools websocket server listening on 127.0.0.1:${listeningPort}`)
 
     this.registerDisposable(() => {

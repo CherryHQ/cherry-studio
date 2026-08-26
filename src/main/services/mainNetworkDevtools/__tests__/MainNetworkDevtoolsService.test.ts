@@ -1,8 +1,9 @@
 import { EventEmitter } from 'node:events'
+import { createServer } from 'node:net'
 
 import { BaseService } from '@main/core/lifecycle'
 import type * as PlatformModule from '@main/core/platform'
-import { net } from 'electron'
+import { app, net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
 
@@ -320,6 +321,7 @@ describe('MainNetworkDevtoolsService gating', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     platformState.isDev = false
+    vi.mocked(app.isReady).mockReturnValue(false)
     MockMainPreferenceServiceUtils.resetMocks()
     vi.mocked(installBundledDevtools)
       .mockReset()
@@ -418,6 +420,95 @@ describe('MainNetworkDevtoolsService gating', () => {
     }
   })
 
+  it('captures again after a restart, even though onAllReady only fires once', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const originalNetFetch = net.fetch
+    const service = createStartedService()
+
+    await service._doInit()
+    await service._doAllReady()
+    await service._doStop()
+    expect(net.fetch).toBe(originalNetFetch)
+
+    // A restart only replays _doInit(); it always happens after the app is ready.
+    vi.mocked(app.isReady).mockReturnValue(true)
+    try {
+      await service._doInit()
+      await net.fetch('https://api.test/v1/models')
+
+      expect(readEvents(service).at(-1)).toMatchObject({ method: 'GET', url: 'https://api.test/v1/models' })
+    } finally {
+      await service._doStop()
+    }
+
+    expect(net.fetch).toBe(originalNetFetch)
+  })
+
+  it('watches the developer mode preference again after a restart', async () => {
+    const originalNetFetch = net.fetch
+    const service = createStartedService()
+
+    await service._doInit()
+    await service._doAllReady()
+    await service._doStop()
+
+    vi.mocked(app.isReady).mockReturnValue(true)
+    try {
+      await service._doInit()
+      expect(net.fetch).toBe(originalNetFetch)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+      await vi.waitFor(() => expect(installBundledDevtools).toHaveBeenCalled())
+
+      await net.fetch('https://api.test/v1/models')
+      expect(readEvents(service).at(-1)).toMatchObject({ method: 'GET', url: 'https://api.test/v1/models' })
+    } finally {
+      await service._doStop()
+    }
+  })
+
+  it('releases the websocket port when the service stops while the server is still binding', async () => {
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as { startWebSocketServer: (port?: number) => Promise<number> }
+
+    // Binding completes on an I/O turn, so the stop below always lands inside the await window.
+    const listening = serviceState.startWebSocketServer(0)
+    await service._doStop()
+    const port = await listening
+
+    // server.close() is asynchronous, so poll until the port is free again.
+    await vi.waitFor(() => bindPort(port))
+  })
+
+  it('does not install the panel when the service stops while capture is still starting', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const service = new MainNetworkDevtoolsService()
+    let releaseServer: ((port: number) => void) | undefined
+    const startWebSocketServer = vi
+      .spyOn(service as unknown as { startWebSocketServer: () => Promise<number> }, 'startWebSocketServer')
+      .mockImplementation(() => new Promise<number>((resolve) => (releaseServer = resolve)))
+
+    await service._doInit()
+    const allReady = service._doAllReady()
+    await service._doStop()
+    releaseServer?.(38997)
+    await allReady
+
+    expect(installBundledDevtools).not.toHaveBeenCalled()
+
+    startWebSocketServer.mockResolvedValue(38997)
+    vi.mocked(app.isReady).mockReturnValue(true)
+    try {
+      await service._doInit()
+      await net.fetch('https://api.test/v1/models')
+
+      expect(installBundledDevtools).toHaveBeenCalledTimes(1)
+      expect(readEvents(service).at(-1)).toMatchObject({ method: 'GET', url: 'https://api.test/v1/models' })
+    } finally {
+      await service._doStop()
+    }
+  })
+
   it('captures boot-time requests in development regardless of the developer mode preference', async () => {
     platformState.isDev = true
     const originalNetFetch = net.fetch
@@ -453,6 +544,16 @@ function readEvents(service: MainNetworkDevtoolsService): MainNetworkDevtoolsEve
 
 function isOriginAllowed(service: MainNetworkDevtoolsService, origin: string): boolean {
   return (service as unknown as { isOriginAllowed: (origin: string) => boolean }).isOriginAllowed(origin)
+}
+
+/** Bind and release a localhost port; rejects while something else still holds it. */
+async function bindPort(port: number): Promise<void> {
+  const server = createServer()
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen({ host: '127.0.0.1', port }, resolve)
+  })
+  await new Promise<void>((resolve) => server.close(() => resolve()))
 }
 
 async function flushMicrotasks(): Promise<void> {
