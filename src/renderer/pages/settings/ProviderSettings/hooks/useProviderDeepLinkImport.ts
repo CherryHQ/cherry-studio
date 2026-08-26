@@ -111,7 +111,8 @@ export function useProviderDeepLinkImport(
           })
         }
 
-        if (popupResult.autoSyncModels) {
+        // New providers only: an existing key would otherwise be sent to the imported base URL.
+        if (popupResult.autoSyncModels && isNew) {
           try {
             const models = await syncProviderModelsForProvider({
               providerId,

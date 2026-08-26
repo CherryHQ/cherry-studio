@@ -52,6 +52,8 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, autoSyncMo
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
 
   const foundProvider = providers.find((p) => p.id === id)
+  const isNewProvider = foundProvider === undefined
+  const willAutoSyncModels = autoSyncModels === true && isNewProvider
   const existingApiHost = getProviderHostTopology(foundProvider).primaryBaseUrl
   const { data: apiKeysData, isLoading: apiKeysLoading } = useQuery('/providers/:providerId/api-keys', {
     params: { providerId: id },
@@ -91,7 +93,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, autoSyncMo
     const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
 
     if (finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
-      resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName, autoSyncModels: false })
+      resolve({ updatedProvider: undefined, isNew: isNewProvider, displayName, autoSyncModels: false })
       return
     }
 
@@ -100,11 +102,11 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, autoSyncMo
       apiKey: finalApiKey,
       apiHost: finalApiHost
     }
-    resolve({ updatedProvider, isNew: !foundProvider, displayName, autoSyncModels: autoSyncModels === true })
+    resolve({ updatedProvider, isNew: isNewProvider, displayName, autoSyncModels: willAutoSyncModels })
   }
 
   const handleCancel = () => {
-    resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName, autoSyncModels: false })
+    resolve({ updatedProvider: undefined, isNew: isNewProvider, displayName, autoSyncModels: false })
   }
 
   const rows = [
@@ -128,7 +130,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, autoSyncMo
           </DialogTitle>
           <DialogDescription className="text-sm leading-5 text-muted-foreground">
             {confirmMessage}
-            {autoSyncModels ? ` ${t('settings.models.provider_import_auto_sync')}` : null}
+            {willAutoSyncModels ? ` ${t('settings.models.provider_import_auto_sync')}` : null}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
