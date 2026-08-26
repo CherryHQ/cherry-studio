@@ -27,7 +27,6 @@ import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
-import { useClearAgentSessionMessages } from '@renderer/hooks/agent/useClearAgentSessionMessages'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -204,7 +203,6 @@ const AgentChat = ({
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
-  const clearAgentSessionMessages = useClearAgentSessionMessages()
   const isActiveTab = useIsActiveTab()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
@@ -261,9 +259,8 @@ const AgentChat = ({
       })
       if (!confirmed) return
       try {
-        // Drain first: terminal persistence would otherwise recreate the deleted assistant.
-        await runtime.stop()
-        await clearAgentSessionMessages(sessionSnapshot.id)
+        // One abort IPC: drain + DELETE stay under the same per-topic dispatch lock.
+        await runtime.stop({ clearSessionMessages: true })
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
       }

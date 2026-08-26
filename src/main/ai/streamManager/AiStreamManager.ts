@@ -15,6 +15,7 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
@@ -1185,8 +1186,16 @@ export class AiStreamManager extends BaseService {
     stream.status = 'aborted'
   }
 
-  /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
-  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+  /**
+   * Abort a user-visible topic and hold same-topic admission until its durable teardown settles.
+   * When `clearSessionMessages` is set on an Agent Session topic, DELETE runs in the same lock
+   * hold so a queued delivery cannot be admitted and then erased.
+   */
+  async abortAndDrain(
+    topicId: string,
+    reason: string,
+    options?: { readonly clearSessionMessages?: boolean }
+  ): Promise<void> {
     await this.withDispatchLock(topicId, async () => {
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
@@ -1196,9 +1205,8 @@ export class AiStreamManager extends BaseService {
       await Promise.allSettled(loopPromises)
 
       if (isAgentSessionTopic(topicId)) {
-        const runtimeClosing = application
-          .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId))
+        const sessionId = extractAgentSessionId(topicId)
+        const runtimeClosing = application.get('AgentSessionRuntimeService').closeSession(sessionId)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1218,6 +1226,9 @@ export class AiStreamManager extends BaseService {
         await drainReplacementLoops()
         await runtimeClosing
         await drainReplacementLoops()
+        if (options?.clearSessionMessages) {
+          agentSessionMessageService.clearSessionMessages(sessionId)
+        }
       }
     })
   }

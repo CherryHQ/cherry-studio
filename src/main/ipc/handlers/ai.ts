@@ -189,8 +189,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
-  'ai.stream.abort': async ({ topicId }) => {
-    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
+  'ai.stream.abort': async ({ topicId, clearSessionMessages }) => {
+    await application
+      .get('AiStreamManager')
+      .abortAndDrain(topicId, 'user-requested', clearSessionMessages ? { clearSessionMessages: true } : undefined)
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──

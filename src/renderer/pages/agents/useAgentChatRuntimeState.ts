@@ -108,7 +108,7 @@ export interface AgentChatRuntimeState {
   hasOlder?: boolean
   loadOlder?: () => void
   isPending: boolean
-  stop: () => Promise<void>
+  stop: (options?: { clearSessionMessages?: boolean }) => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>

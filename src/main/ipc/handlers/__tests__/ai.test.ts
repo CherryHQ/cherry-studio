@@ -354,11 +354,19 @@ describe('aiHandlers — streaming', () => {
     await Promise.resolve()
 
     expect(settled).toBe(false)
-    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested', undefined)
     expect(windowManager.getWindow).not.toHaveBeenCalled()
 
     finishDrain()
     await expect(aborting).resolves.toBeUndefined()
+  })
+
+  it('stream_abort forwards clearSessionMessages so drain and DELETE share the dispatch lock', async () => {
+    aiStreamManager.abortAndDrain.mockResolvedValueOnce(undefined)
+    await aiHandlers['ai.stream.abort']({ topicId: 'agent-session:s1', clearSessionMessages: true }, { senderId: null })
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('agent-session:s1', 'user-requested', {
+      clearSessionMessages: true
+    })
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {

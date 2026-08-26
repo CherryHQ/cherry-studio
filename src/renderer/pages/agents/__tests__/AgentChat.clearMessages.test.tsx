@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
 
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
-const clearAgentSessionMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const stopLiveTurnMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
 
@@ -55,10 +54,6 @@ vi.mock('@renderer/hooks/command', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useIsActiveTab: () => activeTabMock.current
-}))
-
-vi.mock('@renderer/hooks/agent/useClearAgentSessionMessages', () => ({
-  useClearAgentSessionMessages: () => clearAgentSessionMessagesMock
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -155,35 +150,18 @@ describe('AgentChat clear messages command', () => {
       content: 'chat.input.clear.content',
       centered: true
     })
-    expect(stopLiveTurnMock).toHaveBeenCalled()
-    expect(clearAgentSessionMessagesMock).toHaveBeenCalledWith('session-1')
-    expect(stopLiveTurnMock.mock.invocationCallOrder[0]).toBeLessThan(
-      clearAgentSessionMessagesMock.mock.invocationCallOrder[0]
-    )
+    expect(stopLiveTurnMock).toHaveBeenCalledWith({ clearSessionMessages: true })
+    expect(stopLiveTurnMock).toHaveBeenCalledTimes(1)
   })
 
-  it('drains the live turn before clearing so terminal persistence cannot recreate the assistant', async () => {
-    let transcript = ['assistant']
-    let turnLive = true
-    const persistTerminalAssistant = () => {
-      transcript = ['assistant']
-    }
-    stopLiveTurnMock.mockImplementation(async () => {
-      persistTerminalAssistant()
-      turnLive = false
-    })
-    clearAgentSessionMessagesMock.mockImplementation(async () => {
-      transcript = []
-    })
-
+  it('requests drain and DELETE in one abort so a post-drain delivery cannot be admitted then erased', async () => {
     render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
 
     await act(async () => {
       await commandHandlers.get('topic.clear_messages')?.()
     })
-    if (turnLive) persistTerminalAssistant()
 
-    expect(transcript).toEqual([])
+    expect(stopLiveTurnMock.mock.calls).toEqual([[{ clearSessionMessages: true }]])
   })
 
   it('leaves Agent messages untouched when stopping the live turn fails', async () => {
@@ -195,7 +173,6 @@ describe('AgentChat clear messages command', () => {
       await commandHandlers.get('topic.clear_messages')?.()
     })
 
-    expect(clearAgentSessionMessagesMock).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('message.error.unknown: Error: abort failed')
   })
 
@@ -209,11 +186,10 @@ describe('AgentChat clear messages command', () => {
     })
 
     expect(stopLiveTurnMock).not.toHaveBeenCalled()
-    expect(clearAgentSessionMessagesMock).not.toHaveBeenCalled()
   })
 
   it('toasts the existing localized error when clearing the Agent session fails', async () => {
-    clearAgentSessionMessagesMock.mockRejectedValueOnce(new Error('disk full'))
+    stopLiveTurnMock.mockRejectedValueOnce(new Error('disk full'))
 
     render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
 

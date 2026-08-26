@@ -260,7 +260,11 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.stream.abort': defineRoute({
-    input: z.strictObject({ topicId: z.string().min(1) }),
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      // Agent Session clear: drain + DELETE under the same dispatch lock.
+      clearSessionMessages: z.boolean().optional()
+    }),
     output: z.void()
   }),
 
