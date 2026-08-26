@@ -676,12 +676,17 @@ export class CherryAutonomyTools {
     }
   }
 
-  private canUseNotifyChannel(channelId: string, adapters?: readonly { channelId: string }[]): boolean {
+  private canUseNotifyChannel(
+    channelId: string,
+    adapters?: readonly { channelId: string; connected: boolean }[]
+  ): boolean {
     if (this.trustedNotifyChannels.some((channel) => channel.id === channelId)) return true
+    // A dropped adapter stays registered for reconnection, so require a live connection here —
+    // otherwise this fallback authorizes an offline channel the turn was never granted.
     return (
       this.allowAnyOwnedNotifyChannel &&
       (adapters ?? application.get('ChannelManager').getAgentAdapters(this.agentId)).some(
-        (adapter) => adapter.channelId === channelId
+        (adapter) => adapter.channelId === channelId && adapter.connected
       )
     )
   }
@@ -692,7 +697,7 @@ export class CherryAutonomyTools {
     const cronExpr = args.cron as string | undefined
     const every = args.every as string | undefined
     const at = args.at as string | undefined
-    const rawChannelIds = args.channel_ids as string[] | undefined
+    const rawChannelIds = args.channel_ids
     const timeoutMinutes = args.timeout_minutes as number | undefined
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
@@ -718,8 +723,14 @@ export class CherryAutonomyTools {
     // Explicit task targets have the same authority as immediate notifications. Foreign and missing
     // channels get the same "not found" as config-tool guards to avoid leaking their existence.
     let channelIds: string[] | undefined
-    if (Array.isArray(rawChannelIds)) {
-      for (const channelId of rawChannelIds) {
+    if (rawChannelIds !== undefined) {
+      // Callers bypassing this tool's schema can pass a non-array; rejecting keeps it from being
+      // read as omission and fanning out to every trusted recipient.
+      if (!Array.isArray(rawChannelIds) || rawChannelIds.some((id) => typeof id !== 'string')) {
+        throw new McpError(ErrorCode.InvalidParams, "'channel_ids' must be an array of channel ids")
+      }
+      const explicitChannelIds = rawChannelIds as string[]
+      for (const channelId of explicitChannelIds) {
         const channel = channelService.getChannel(channelId)
         if (!channel || channel.agentId !== this.agentId)
           throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
@@ -730,7 +741,7 @@ export class CherryAutonomyTools {
           )
         }
       }
-      channelIds = rawChannelIds
+      channelIds = explicitChannelIds
     } else if (this.trustedNotifyChannels.length > 0) {
       channelIds = this.trustedNotifyChannels.map((channel) => channel.id)
     }

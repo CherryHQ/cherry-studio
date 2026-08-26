@@ -112,7 +112,11 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const {
+  buildClaudeCodeQueryRequestForAgentSession,
+  buildClaudeCodeWarmQueryRequestForAgentSession,
+  deriveConnectionConfig
+} = await import('../agentSessionWarmup')
 const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
@@ -430,6 +434,18 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('carries the turn notification authority into the prewarm request that keys warm reuse', async () => {
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
+
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(warmRequest?.notificationContext).toEqual({
+      sourceChannel: null,
+      channels: [{ id: 'channel-1', type: 'telegram' }],
+      allowAnyOwnedChannel: false
+    })
   })
 
   it('captures provider and model facts from the route materialized before a connect-time edit', async () => {

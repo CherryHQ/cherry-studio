@@ -938,6 +938,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     initializeTimeoutMs: request.initializeTimeoutMs,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
-    knowledgeBaseIds: request.knowledgeBaseIds
+    knowledgeBaseIds: request.knowledgeBaseIds,
+    notificationContext: request.notificationContext
   }
 }
