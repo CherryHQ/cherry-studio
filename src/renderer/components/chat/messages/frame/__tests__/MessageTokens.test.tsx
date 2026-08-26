@@ -138,7 +138,7 @@ function openDetails() {
   if (!trigger) throw new Error('Message token trigger was not rendered')
 
   fireEvent.pointerEnter(trigger)
-  act(() => vi.advanceTimersByTime(200))
+  void act(() => vi.advanceTimersByTime(200))
   return trigger
 }
 
@@ -392,7 +392,7 @@ describe('MessageTokens', () => {
 
     const trigger = screen.getByRole('button', { name: '200 Tokens' })
     fireEvent.focus(trigger)
-    act(() => vi.advanceTimersByTime(200))
+    void act(() => vi.advanceTimersByTime(200))
 
     const card = getDetailsCard()
     expect(trigger).toHaveAttribute('aria-describedby', card.id)
@@ -412,7 +412,7 @@ describe('MessageTokens', () => {
     expect(trigger).toHaveAttribute('data-state', 'closed')
 
     fireEvent.click(trigger, { detail: 1 })
-    act(() => vi.advanceTimersByTime(200))
+    void act(() => vi.advanceTimersByTime(200))
 
     expect(trigger).toHaveAttribute('data-state', 'closed')
     expect(trigger).toHaveFocus()
@@ -420,17 +420,17 @@ describe('MessageTokens', () => {
     expect(locateMessage).toHaveBeenCalledWith(message.id, false)
 
     fireEvent.pointerEnter(trigger)
-    act(() => vi.advanceTimersByTime(200))
+    void act(() => vi.advanceTimersByTime(200))
     expect(trigger).toHaveAttribute('data-state', 'closed')
 
     fireEvent.mouseEnter(trigger, { clientX: 100, clientY: 100 })
     fireEvent.pointerEnter(trigger)
-    act(() => vi.advanceTimersByTime(200))
+    void act(() => vi.advanceTimersByTime(200))
     expect(trigger).toHaveAttribute('data-state', 'closed')
 
     fireEvent.mouseEnter(trigger, { clientX: 120, clientY: 100 })
     fireEvent.pointerEnter(trigger)
-    act(() => vi.advanceTimersByTime(200))
+    void act(() => vi.advanceTimersByTime(200))
     expect(trigger).toHaveAttribute('data-state', 'open')
 
     fireEvent.mouseDown(trigger, { clientX: 120, clientY: 100 })
@@ -445,7 +445,7 @@ describe('MessageTokens', () => {
 
     act(() => trigger.focus())
     fireEvent.click(trigger, { detail: 0 })
-    act(() => vi.advanceTimersByTime(200))
+    void act(() => vi.advanceTimersByTime(200))
 
     expect(trigger).toHaveAttribute('data-state', 'closed')
     expect(trigger).toHaveFocus()
@@ -454,7 +454,7 @@ describe('MessageTokens', () => {
 
     act(() => trigger.blur())
     fireEvent.pointerEnter(trigger)
-    act(() => vi.advanceTimersByTime(200))
+    void act(() => vi.advanceTimersByTime(200))
     expect(trigger).toHaveAttribute('data-state', 'open')
   })
 })
