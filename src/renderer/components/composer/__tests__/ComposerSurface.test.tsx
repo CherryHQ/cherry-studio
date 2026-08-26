@@ -176,6 +176,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       isEditable: true,
       getJSON: mocks.getJSON,
       commands: {
+        deleteSelection: mocks.deleteSelection,
         focus: mocks.focus,
         setContent: mocks.setContent,
         setHardBreak: mocks.setHardBreak,
@@ -4212,6 +4213,11 @@ describe('ComposerSurface', () => {
     render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    mocks.selection = { empty: true, from: 1, to: 1, $to: {} }
+    mocks.pasteHandler.mockImplementation((_event, options) => {
+      options?.beforeAddFiles?.()
+      return Promise.resolve(true)
+    })
 
     const event = {
       preventDefault: vi.fn(),
@@ -4224,7 +4230,8 @@ describe('ComposerSurface', () => {
 
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
-    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event, expect.any(Object))
+    expect(mocks.deleteSelection).not.toHaveBeenCalled()
   })
 
   it('keeps long pasted text in the active editor when its ref is stale', async () => {
@@ -4267,6 +4274,11 @@ describe('ComposerSurface', () => {
     render(<ComposerSurface {...baseProps} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    mocks.selection = { empty: true, from: 1, to: 1, $to: {} }
+    mocks.pasteHandler.mockImplementation((_event, options) => {
+      options?.beforeAddFiles?.()
+      return Promise.resolve(true)
+    })
 
     const event = {
       preventDefault: vi.fn(),
@@ -4281,7 +4293,117 @@ describe('ComposerSurface', () => {
 
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
-    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event, expect.any(Object))
+    expect(mocks.deleteSelection).not.toHaveBeenCalled()
+  })
+
+  it('reconciles selected managed tokens before adding an accepted clipboard file', async () => {
+    const onTokensChange = vi.fn()
+    const fileToken = {
+      id: 'file:old-image',
+      kind: 'file' as const,
+      label: 'old-image.png',
+      payload: { path: '/tmp/old-image.png' },
+      index: 0,
+      textOffset: 0
+    }
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'composerToken', attrs: fileToken }]
+        }
+      ]
+    })
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        tokens={[fileToken]}
+        draftTokens={[fileToken]}
+        managedTokenKinds={['file']}
+        onTokensChange={onTokensChange}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    onTokensChange.mockClear()
+    mocks.selection = { empty: false, from: 0, to: 2, $to: {} }
+    mocks.deleteSelection.mockImplementation(() => {
+      mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
+      mocks.editorOptions.onUpdate({ editor: mocks.currentView.dom.editor })
+    })
+    mocks.pasteHandler.mockImplementation((_event, options) => {
+      options?.beforeAddFiles?.()
+      return Promise.resolve(true)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        files: [{ name: 'new-image.png', type: 'image/png' }],
+        items: [{ kind: 'file', type: 'image/png' }]
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event, expect.any(Object))
+    expect(onTokensChange).toHaveBeenCalledWith([])
+  })
+
+  it('preserves a selected draft when a clipboard file cannot be attached', async () => {
+    const onTokensChange = vi.fn()
+    const fileToken = {
+      id: 'file:old-image',
+      kind: 'file' as const,
+      label: 'old-image.png',
+      payload: { path: '/tmp/old-image.png' },
+      index: 0,
+      textOffset: 0
+    }
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'composerToken', attrs: fileToken }]
+        }
+      ]
+    })
+    mocks.pasteHandler.mockResolvedValue(false)
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        tokens={[fileToken]}
+        draftTokens={[fileToken]}
+        managedTokenKinds={['file']}
+        onTokensChange={onTokensChange}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    onTokensChange.mockClear()
+    mocks.selection = { empty: false, from: 0, to: 2, $to: {} }
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        files: [{ name: 'unsupported.exe', type: 'application/octet-stream' }],
+        items: [{ kind: 'file', type: 'application/octet-stream' }]
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+    expect(handled).toBe(true)
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event, expect.any(Object))
+    expect(mocks.deleteSelection).not.toHaveBeenCalled()
+    expect(onTokensChange).not.toHaveBeenCalled()
   })
 
   it('truncates pasted text to the remaining maximum text length', async () => {

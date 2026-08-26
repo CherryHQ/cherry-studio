@@ -51,6 +51,7 @@ describe('pasteHandling', () => {
   it('marks long pasted text files with the pasted-text composer kind', async () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()
+    const beforeAddFiles = vi.fn()
     let files: ComposerAttachment[] = []
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
@@ -63,11 +64,19 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(event, ['.txt'], setFiles, undefined, '', undefined, (key) =>
-      key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.txt'],
+      setFiles,
+      undefined,
+      '',
+      undefined,
+      (key) => (key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key),
+      { beforeAddFiles }
     )
 
     expect(handled).toBe(true)
+    expect(beforeAddFiles).toHaveBeenCalledOnce()
     expect(preventDefault).toHaveBeenCalled()
     expect(window.api.file.createTempFile).toHaveBeenCalledWith('pasted_text.txt')
     expect(window.api.file.write).toHaveBeenCalledWith('/tmp/pasted_text.txt', clipboardText)
@@ -143,6 +152,7 @@ describe('pasteHandling', () => {
     vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
 
     let files: ComposerAttachment[] = []
+    const beforeAddFiles = vi.fn()
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
@@ -154,9 +164,12 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles)
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, undefined, {
+      beforeAddFiles
+    })
 
     expect(handled).toBe(true)
+    expect(beforeAddFiles).toHaveBeenCalledOnce()
     expect(window.api.file.createTempFile).toHaveBeenCalledWith('image.png')
     expect(files).toHaveLength(1)
     expect(files[0]).toMatchObject({
@@ -166,6 +179,31 @@ describe('pasteHandling', () => {
       ext: '.png',
       type: FILE_TYPE.IMAGE
     })
+  })
+
+  it('prepares selection replacement only after a clipboard file is accepted', async () => {
+    const beforeAddFiles = vi.fn()
+    const setFiles = vi.fn()
+    const clipboardFile = {
+      name: 'unsupported.exe',
+      type: 'application/octet-stream',
+      arrayBuffer: vi.fn()
+    } as unknown as File
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: () => '',
+        files: [clipboardFile]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, undefined, {
+      beforeAddFiles
+    })
+
+    expect(handled).toBe(true)
+    expect(beforeAddFiles).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
   })
 
   it('attaches a supported screenshot when the clipboard also exposes a text flavor', async () => {

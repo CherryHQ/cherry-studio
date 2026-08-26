@@ -1620,6 +1620,25 @@ export default function ComposerSurfaceRuntime({
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = (view.dom as TiptapEditorHTMLElement).editor
+      const selection = editor?.state.selection
+      const replacementSelection =
+        selection && !selection.empty ? { from: selection.from, to: selection.to } : undefined
+      const filePasteLifecycle = {
+        beforeAddFiles: () => {
+          if (!editor || editor.isDestroyed || !replacementSelection) return
+          const currentSelection = editor.state.selection
+          if (
+            currentSelection.empty ||
+            currentSelection.from !== replacementSelection.from ||
+            currentSelection.to !== replacementSelection.to
+          ) {
+            return
+          }
+          // Wait until at least one file is accepted. Eager deletion would lose the selected draft
+          // when the clipboard file is unsupported or its import fails.
+          editor.commands.deleteSelection()
+        }
+      }
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
       if (editor && selectedPromptVariable && pastedText) {
         event.preventDefault()
@@ -1637,7 +1656,7 @@ export default function ComposerSurfaceRuntime({
       const shouldDelegateLongTextPaste = shouldDelegateLongTextPasteToFileHandler(pastedText, supportedExts)
       if (shouldDelegateLongTextPaste) {
         event.preventDefault()
-        void handlePaste(event)
+        void handlePaste(event, filePasteLifecycle)
         return true
       }
 
@@ -1694,11 +1713,11 @@ export default function ComposerSurfaceRuntime({
 
       if (!pastedText && hasClipboardFiles(event.clipboardData)) {
         event.preventDefault()
-        void handlePaste(event)
+        void handlePaste(event, filePasteLifecycle)
         return true
       }
 
-      void handlePaste(event)
+      void handlePaste(event, filePasteLifecycle)
       return false
     },
     [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker, supportedExts]

@@ -15,6 +15,10 @@ let lastFocusedComponent: ComponentType = 'inputbar' // Default to inputbar
 // 处理函数类型
 type PasteHandler = (event: ClipboardEvent) => Promise<boolean>
 
+export interface PasteHandlerLifecycle {
+  beforeAddFiles?: () => void
+}
+
 // 处理函数存储
 const handlers: {
   inputbar?: PasteHandler
@@ -35,8 +39,16 @@ export const handlePaste = async (
   setText?: (text: string) => void,
   text?: string,
   resizeTextArea?: () => void,
-  t?: (key: string) => string
+  t?: (key: string) => string,
+  lifecycle?: PasteHandlerLifecycle
 ): Promise<boolean> => {
+  let preparedFileInsertion = false
+  const prepareFileInsertion = () => {
+    if (preparedFileInsertion) return
+    preparedFileInsertion = true
+    lifecycle?.beforeAddFiles?.()
+  }
+
   try {
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
@@ -65,6 +77,7 @@ export const handlePaste = async (
             origin_name: t?.('chat.input.pasted_text_file_name') ?? selectedFile.origin_name,
             composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
           }
+          prepareFileInsertion()
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
           if (setText && text) setText(text) // 保持输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
@@ -93,6 +106,7 @@ export const handlePaste = async (
               await window.api.file.write(tempFilePath, uint8Array)
               const selectedFile = await window.api.file.get(tempFilePath)
               if (selectedFile) {
+                prepareFileInsertion()
                 setFiles((prevFiles) => [
                   ...prevFiles,
                   toComposerAttachment({
@@ -114,6 +128,7 @@ export const handlePaste = async (
           if (await isSupportedFile(filePath, extensionSet)) {
             const selectedFile = await window.api.file.get(filePath)
             if (selectedFile) {
+              prepareFileInsertion()
               setFiles((prevFiles) => [...prevFiles, toComposerAttachment(selectedFile)])
             }
           } else {
