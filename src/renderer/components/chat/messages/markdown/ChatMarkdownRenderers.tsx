@@ -1,3 +1,5 @@
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
+import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import type { ComponentProps, CSSProperties, JSX } from 'react'
@@ -8,6 +10,7 @@ import CitationSup from './CitationSup'
 import CodeBlock from './CodeBlock'
 import Link from './Link'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
+import { BARE_FILE_PATH_PROPERTY } from './plugins/rehypeBareFilePaths'
 import Table from './Table'
 
 type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[Tag] & ExtraProps
@@ -56,6 +59,15 @@ function ChatParagraphRenderer(props: MarkdownRendererProps<'p'>) {
   return <p {...props} />
 }
 
+function ChatSpanRenderer({ node, children, ...props }: MarkdownRendererProps<'span'>) {
+  const path = node?.properties?.[BARE_FILE_PATH_PROPERTY]
+  if (typeof path === 'string') {
+    if (isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
+    return <ClickableFilePath path={path} displayName={path} preserveWrappingPunctuation />
+  }
+  return <span {...props}>{children}</span>
+}
+
 export const CHAT_MARKDOWN_COMPONENTS = {
   a: ChatLinkRenderer,
   sup: ChatCitationSupRenderer,
@@ -64,6 +76,7 @@ export const CHAT_MARKDOWN_COMPONENTS = {
   img: ChatImageRenderer,
   pre: ChatPreRenderer,
   p: ChatParagraphRenderer,
+  span: ChatSpanRenderer,
   svg: MarkdownSvgRenderer as Components['svg']
 } satisfies Partial<Components>
 

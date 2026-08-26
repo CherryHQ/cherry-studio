@@ -287,7 +287,7 @@ describe('MainTextBlock', () => {
     isStreaming?: boolean
     citations?: Citation[]
     citationReferences?: { citationBlockId?: string; citationBlockSource?: any }[]
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'system'
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
     readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
@@ -318,6 +318,22 @@ describe('MainTextBlock', () => {
       expect(getRenderedMarkdown()).toBeInTheDocument()
       expect(screen.getByText('Markdown: Assistant response')).toBeInTheDocument()
       expect(getRenderedPlainText()).not.toBeInTheDocument()
+    })
+
+    it('enables bare file paths only for assistant markdown', () => {
+      const assistant = renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'assistant' })
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBe(true)
+
+      assistant.unmount()
+      capturedChatMarkdownProps.length = 0
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'user' })
+
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBeUndefined()
+
+      capturedChatMarkdownProps.length = 0
+      renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'system' })
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBe(false)
     })
 
     it('keeps inline HTML generating until smoothed content reaches the completed source', () => {
