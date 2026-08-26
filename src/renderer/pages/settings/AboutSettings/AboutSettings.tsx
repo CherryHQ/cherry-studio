@@ -229,7 +229,7 @@ const AboutSettings: FC = () => {
                     />
                   </div>
                 )}
-                <LogoAvatar logo={AppLogo} size={72} className="rounded-full" />
+                <LogoAvatar logo={AppLogo} size={72} className="rounded-full" alt="" />
               </span>
             </button>
 

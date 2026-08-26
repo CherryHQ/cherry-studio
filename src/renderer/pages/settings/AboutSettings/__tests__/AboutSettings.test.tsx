@@ -58,9 +58,9 @@ vi.mock('../../FeedbackDialog', () => ({
   FeedbackDialog: () => null
 }))
 
-// Unlabeled img stands in for decorative logo media so the About page must hide it.
+// Forwards alt so empty-alt decorative logos stay hidden even without the wrapper.
 vi.mock('@renderer/components/icons/LogoAvatar', () => ({
-  default: ({ logo }: { logo: string }) => <img src={logo} />
+  default: ({ logo, alt }: { logo: string; alt?: string }) => <img src={logo} alt={alt} />
 }))
 
 import { AboutSettings } from '..'
