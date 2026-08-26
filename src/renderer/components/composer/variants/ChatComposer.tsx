@@ -192,9 +192,9 @@ const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type ===
 // Composer edits as a single text field: the draft joins all text parts (`\n\n`) and
 // rebuilds files from tokens. Saving replaces the first editable part with the rebuilt
 // draft and drops trailing editable parts — non-editable `reasoning`/`dynamic-tool` blocks
-// stay in place and `data-translation` is removed. For interleaved replies like
-// [text "before", tool, text "after"], the trailing text's content survives via the joined
-// draft but the message is normalized to [text "before\n\nafter", tool].
+// stay in place and `data-translation` is removed. Interleaved shapes such as
+// [text "before", tool, text "after"] are blocked by `canEditAssistantMessageParts` and
+// never reach this path, so no reordering occurs on save.
 const replaceComposerEditableMessageParts = (
   originalParts: CherryMessagePart[],
   editedParts: CherryMessagePart[]

@@ -78,27 +78,6 @@ describe('canEditAssistantMessageParts', () => {
         }
       })
     },
-    // Previously blocked — now allowed for uniform editing
-    {
-      messageParts: parts(
-        { type: 'text', text: 'before tool' },
-        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
-        { type: 'text', text: 'after tool' }
-      )
-    },
-    {
-      messageParts: parts(
-        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
-        { type: 'text', text: 'answer' }
-      )
-    },
-    {
-      messageParts: parts(
-        { type: 'text', text: 'before file' },
-        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
-        { type: 'text', text: 'after file' }
-      )
-    },
     {
       messageParts: parts({
         type: 'text',
@@ -179,8 +158,29 @@ describe('canEditAssistantMessageParts', () => {
     },
     { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
     { messageParts: parts({ type: 'text', text: '   ' }) },
-    { messageParts: parts() }
-  ])('is not editable when the message has no text', ({ messageParts }) => {
+    { messageParts: parts() },
+    // Interleaved editable parts require reordering to save, so they stay blocked
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before tool' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'text', text: 'after tool' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'answer' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before file' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'after file' }
+      )
+    }
+  ])('is not editable when the message has no text or interleaved parts', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })

@@ -4402,7 +4402,7 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
-  it('saves an assistant reply whose editable parts are separated by a tool call', async () => {
+  it('does not save an assistant reply whose editable parts are separated by a tool call', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
@@ -4429,9 +4429,10 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
     await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
 
-    expect(editMessage).toHaveBeenCalled()
+    expect(editMessage).not.toHaveBeenCalled()
     expect(forkAndResend).not.toHaveBeenCalled()
-    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('saves an assistant reply whose text has provider metadata', async () => {
