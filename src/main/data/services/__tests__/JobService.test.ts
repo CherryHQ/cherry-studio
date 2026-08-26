@@ -202,6 +202,175 @@ describe('JobService.getRunStatesByScheduleIds', () => {
       ])
     )
   })
+
+  it('projects cancel-requested non-terminal rows as cancelled at their updatedAt', () => {
+    const now = Date.now()
+    const schedules = (['running', 'pending', 'delayed'] as const).map((status) => {
+      const schedule = createSchedule(`cancel-requested-${status}`)
+      jobService.create(
+        baseRow({
+          type: 'agent.task',
+          status,
+          scheduleId: schedule.id,
+          startedAt: status === 'running' ? now - 5_000 : null,
+          cancelRequested: true,
+          updatedAt: now - 1_000
+        })
+      )
+      return schedule
+    })
+
+    const states = jobService.getRunStatesByScheduleIds(
+      'agent.task',
+      schedules.map((s) => s.id)
+    )
+    for (const schedule of schedules) {
+      expect(states.get(schedule.id)).toEqual({ kind: 'terminal', status: 'cancelled', finishedAt: now - 1_000 })
+    }
+  })
+
+  it('orders the cancelled projection against the latest real terminal row, ties going to the terminal row', () => {
+    const now = Date.now()
+
+    const newerCancel = createSchedule('newer-cancel')
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'completed', scheduleId: newerCancel.id, finishedAt: now - 5_000 })
+    )
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'running',
+        scheduleId: newerCancel.id,
+        startedAt: now - 3_000,
+        cancelRequested: true,
+        updatedAt: now - 1_000
+      })
+    )
+
+    const newerTerminal = createSchedule('newer-terminal')
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'pending',
+        scheduleId: newerTerminal.id,
+        cancelRequested: true,
+        updatedAt: now - 5_000
+      })
+    )
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'failed', scheduleId: newerTerminal.id, finishedAt: now - 1_000 })
+    )
+
+    const tied = createSchedule('tied')
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'completed', scheduleId: tied.id, finishedAt: now - 2_000 })
+    )
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'running',
+        scheduleId: tied.id,
+        startedAt: now - 3_000,
+        cancelRequested: true,
+        updatedAt: now - 2_000
+      })
+    )
+
+    expect(jobService.getRunStatesByScheduleIds('agent.task', [newerCancel.id, newerTerminal.id, tied.id])).toEqual(
+      new Map([
+        [newerCancel.id, { kind: 'terminal', status: 'cancelled', finishedAt: now - 1_000 }],
+        [newerTerminal.id, { kind: 'terminal', status: 'failed', finishedAt: now - 1_000 }],
+        [tied.id, { kind: 'terminal', status: 'completed', finishedAt: now - 2_000 }]
+      ])
+    )
+  })
+
+  it('keeps active state when a non-cancel-requested active row coexists with a cancel-requested one', () => {
+    const now = Date.now()
+
+    const runningSchedule = createSchedule('active-wins-running')
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'running',
+        scheduleId: runningSchedule.id,
+        startedAt: now - 1_000,
+        cancelRequested: true,
+        updatedAt: now
+      })
+    )
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'running', scheduleId: runningSchedule.id, startedAt: now - 500 })
+    )
+
+    const queuedSchedule = createSchedule('active-wins-queued')
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'running',
+        scheduleId: queuedSchedule.id,
+        startedAt: now - 1_000,
+        cancelRequested: true,
+        updatedAt: now
+      })
+    )
+    jobService.create(baseRow({ type: 'agent.task', status: 'pending', scheduleId: queuedSchedule.id }))
+
+    expect(jobService.getRunStatesByScheduleIds('agent.task', [runningSchedule.id, queuedSchedule.id])).toEqual(
+      new Map([
+        [runningSchedule.id, { kind: 'running' }],
+        [queuedSchedule.id, { kind: 'unfinished' }]
+      ])
+    )
+  })
+
+  it('stays stable across a recovery settle when a newer run finished after the cancel request', () => {
+    const now = Date.now()
+    const schedule = createSchedule('mixed-run-recovery')
+    const leftover = jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'running',
+        scheduleId: schedule.id,
+        startedAt: now - 8_000,
+        cancelRequested: true,
+        updatedAt: now - 5_000
+      })
+    )
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'completed', scheduleId: schedule.id, finishedAt: now - 2_000 })
+    )
+
+    const before = jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])
+    expect(before.get(schedule.id)).toEqual({ kind: 'terminal', status: 'completed', finishedAt: now - 2_000 })
+
+    jobService.cancelByIdsAtRequestTime([leftover.id], null)
+
+    const settled = jobService.getById(leftover.id)
+    expect(settled?.status).toBe('cancelled')
+    expect(settled && Date.parse(settled.finishedAt!)).toBe(now - 5_000)
+    expect(jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])).toEqual(before)
+  })
+
+  it('reports the real status for a terminal row that still carries cancelRequested', () => {
+    const now = Date.now()
+    const schedule = createSchedule('completed-despite-cancel')
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'completed',
+        scheduleId: schedule.id,
+        startedAt: now - 2_000,
+        finishedAt: now - 1_000,
+        cancelRequested: true,
+        updatedAt: now - 1_000
+      })
+    )
+
+    expect(jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])).toEqual(
+      new Map([[schedule.id, { kind: 'terminal', status: 'completed', finishedAt: now - 1_000 }]])
+    )
+  })
 })
 
 describe('JobService.addFileRefsTx', () => {

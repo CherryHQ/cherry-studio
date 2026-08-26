@@ -307,14 +307,20 @@ export class AgentTaskService {
     // a NaN result (corrupt row) flows through as durationMs = 0 instead
     // of `NaN`.
     const startedMs = Date.parse(startedAt)
-    const finishedMs = job.finishedAt ? Date.parse(job.finishedAt) : NaN
+    // A cancel-requested row's fate is sealed (live cancel and startup recovery
+    // both end it as cancelled) — show the outcome, with updatedAt ≈ cancel time.
+    const provisionalCancel = job.cancelRequested && !job.finishedAt
+    const finishedMs = job.finishedAt ? Date.parse(job.finishedAt) : provisionalCancel ? Date.parse(job.updatedAt) : NaN
     const durationMs = Number.isFinite(finishedMs - startedMs) ? finishedMs - startedMs : 0
 
     // jobTable has 6 states; the renderer's run log model only shows running
     // + 3 terminal states. Collapse pending/delayed to 'running' so queued
     // jobs are visible (matches the user's mental model of "task is in flight").
-    const status: TaskRunLogEntity['status'] =
-      job.status === 'pending' || job.status === 'delayed' ? 'running' : job.status
+    const status: TaskRunLogEntity['status'] = provisionalCancel
+      ? 'cancelled'
+      : job.status === 'pending' || job.status === 'delayed'
+        ? 'running'
+        : job.status
 
     return {
       id: job.id,

@@ -315,6 +315,36 @@ describe('AgentTaskService (read side)', () => {
       expect(result.logs[0]).not.toHaveProperty('runAt')
       expect(result.logs[0]).toHaveProperty('startedAt')
     })
+
+    it('shows cancel-requested unfinished runs as cancelled with a provisional duration', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({
+          id: 'j1',
+          status: 'running',
+          startedAt: '2026-05-20T00:00:01.000Z',
+          finishedAt: null,
+          cancelRequested: true,
+          updatedAt: '2026-05-20T00:00:11.000Z'
+        }),
+        makeJobSnapshot({
+          id: 'j2',
+          status: 'pending',
+          startedAt: null,
+          finishedAt: null,
+          cancelRequested: true,
+          updatedAt: '2026-05-20T00:00:03.000Z'
+        }),
+        makeJobSnapshot({ id: 'j3', status: 'completed', cancelRequested: true })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([
+        expect.objectContaining({ id: 'j1', status: 'cancelled', durationMs: 10_000 }),
+        expect.objectContaining({ id: 'j2', status: 'cancelled', durationMs: 3_000 }),
+        expect.objectContaining({ id: 'j3', status: 'completed' })
+      ])
+    })
   })
 
   describe('session reuse metadata', () => {

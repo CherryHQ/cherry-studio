@@ -47,6 +47,11 @@ type TerminalJobScheduleRunStateRow = {
   finishedAt: number
 }
 
+type CancellingJobScheduleRow = {
+  scheduleId: string
+  updatedAt: number
+}
+
 function isTerminalJobStatus(status: JobStatus): status is TerminalJobStatus {
   return TERMINAL_JOB_STATUSES.some((terminalStatus) => terminalStatus === status)
 }
@@ -158,7 +163,18 @@ export class JobService {
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
-  /** Batch schedule-level state read for list projections. */
+  /**
+   * Batch schedule-level state read for list projections.
+   *
+   * Non-terminal rows with cancelRequested=true project as terminal `cancelled`
+   * (timestamped by `updatedAt`, which the cancel tx bumps): their fate is
+   * sealed — the live cancel path and startup recovery both end them as
+   * cancelled, but recovery's direct DB write bypasses onSettled and emits no
+   * read-model notification, so counting such a row as active would leave
+   * already-fetched lists showing "running" forever. Recovery settles such
+   * rows via {@link cancelByIdsAtRequestTime}, so the timestamp projected here
+   * survives the sweep and the pre/post-sweep winners stay identical.
+   */
   getRunStatesByScheduleIds(type: string, scheduleIds: readonly string[]): Map<string, JobScheduleRunState> {
     const uniqueScheduleIds = [...new Set(scheduleIds)]
     if (uniqueScheduleIds.length === 0) return new Map()
@@ -187,6 +203,7 @@ export class JobService {
             AND job.finished_at IS NULL
             AND job.type = ${type}
             AND job.status = 'running'
+            AND job.cancel_requested = 0
         ) AS "running"
       FROM requested_schedules AS requested
       WHERE EXISTS (
@@ -195,6 +212,25 @@ export class JobService {
         WHERE job.schedule_id = requested.schedule_id
           AND job.finished_at IS NULL
           AND job.type = ${type}
+          AND job.cancel_requested = 0
+      )
+    `)
+
+    const cancellingRows = db.all<CancellingJobScheduleRow>(sql`
+      ${requestedSchedules()}
+      SELECT
+        requested.schedule_id AS "scheduleId",
+        cancelling.updated_at AS "updatedAt"
+      FROM requested_schedules AS requested
+      JOIN job AS cancelling ON cancelling.id = (
+        SELECT candidate.id
+        FROM job AS candidate INDEXED BY job_schedule_id_finished_at_idx
+        WHERE candidate.schedule_id = requested.schedule_id
+          AND candidate.finished_at IS NULL
+          AND candidate.cancel_requested = 1
+          AND candidate.type = ${type}
+        ORDER BY candidate.updated_at DESC
+        LIMIT 1
       )
     `)
 
@@ -219,6 +255,7 @@ export class JobService {
 
     const runningByScheduleId = new Map(activeRows.map((row) => [row.scheduleId, row.running === 1]))
     const terminalByScheduleId = new Map(terminalRows.map((row) => [row.scheduleId, row]))
+    const cancellingUpdatedAtByScheduleId = new Map(cancellingRows.map((row) => [row.scheduleId, row.updatedAt]))
 
     return new Map(
       uniqueScheduleIds.flatMap((scheduleId): Array<[string, JobScheduleRunState]> => {
@@ -226,6 +263,12 @@ export class JobService {
         if (running !== undefined) return [[scheduleId, { kind: running ? 'running' : 'unfinished' }]]
 
         const terminal = terminalByScheduleId.get(scheduleId)
+        // Strict > : on a timestamp tie the persisted terminal row beats the
+        // optimistic cancelled projection.
+        const cancellingAt = cancellingUpdatedAtByScheduleId.get(scheduleId)
+        if (cancellingAt !== undefined && (!terminal || cancellingAt > terminal.finishedAt)) {
+          return [[scheduleId, { kind: 'terminal', status: 'cancelled', finishedAt: cancellingAt }]]
+        }
         if (!terminal || !isTerminalJobStatus(terminal.status)) return []
         return [[scheduleId, { kind: 'terminal', status: terminal.status, finishedAt: terminal.finishedAt }]]
       })
@@ -515,6 +558,35 @@ export class JobService {
   cancelByIds(jobIds: string[], error: JobError | null): void {
     if (jobIds.length === 0) return
     this.cancelByIdsTx(application.get('DbService').getDb(), jobIds, error)
+  }
+
+  /**
+   * Recovery-only variant of {@link cancelByIdsTx} for leftover
+   * cancelRequested rows: stamps `finishedAt` from the row's own `updatedAt`
+   * (≈ when the cancel was requested) instead of "now". The sweep runs up to a
+   * process lifetime after the request and emits no read-model notification —
+   * a sweep-time timestamp could outrank a run that genuinely finished later
+   * and silently reorder already-projected "latest run" results
+   * ({@link getRunStatesByScheduleIds}).
+   */
+  cancelByIdsAtRequestTimeTx(tx: DbOrTx, jobIds: string[], error: JobError | null): void {
+    if (jobIds.length === 0) return
+    tx.update(jobTable)
+      .set({
+        status: 'cancelled',
+        // SET right-hand sides read the pre-update row, so this captures the
+        // old updatedAt even though the same statement bumps updatedAt below.
+        finishedAt: sql`${jobTable.updatedAt}`,
+        updatedAt: Date.now(),
+        error
+      })
+      .where(inArray(jobTable.id, jobIds))
+      .run()
+  }
+
+  cancelByIdsAtRequestTime(jobIds: string[], error: JobError | null): void {
+    if (jobIds.length === 0) return
+    this.cancelByIdsAtRequestTimeTx(application.get('DbService').getDb(), jobIds, error)
   }
 
   /**
