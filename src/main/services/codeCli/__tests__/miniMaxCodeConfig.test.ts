@@ -26,19 +26,24 @@ afterEach(async () => {
 
 describe('MiniMax Code config selection', () => {
   it('uses the same public data directory overrides and home fallback as mcode', () => {
+    const root = path.parse(process.cwd()).root
+    const minimaxDataDir = path.join(root, 'custom', 'minimax')
+    const mavisDataDir = path.join(root, 'custom', 'mavis')
+    const shellHome = path.join(root, 'shell', 'home')
+    const systemHome = path.join(root, 'system', 'home')
     expect(
       resolveMiniMaxCodeConfigPath(
-        { MINIMAX_DATA_DIR: '/custom/minimax', MAVIS_DATA_DIR: '/custom/mavis', HOME: '/shell/home' },
-        '/system/home'
+        { MINIMAX_DATA_DIR: minimaxDataDir, MAVIS_DATA_DIR: mavisDataDir, HOME: shellHome },
+        systemHome
       )
-    ).toBe(path.resolve('/custom/minimax', 'config.yaml'))
-    expect(resolveMiniMaxCodeConfigPath({ MAVIS_DATA_DIR: '/custom/mavis' }, '/system/home')).toBe(
-      path.resolve('/custom/mavis', 'config.yaml')
+    ).toBe(path.join(minimaxDataDir, 'config.yaml'))
+    expect(resolveMiniMaxCodeConfigPath({ MAVIS_DATA_DIR: mavisDataDir }, systemHome)).toBe(
+      path.join(mavisDataDir, 'config.yaml')
     )
-    expect(resolveMiniMaxCodeConfigPath({ HOME: '/shell/home' }, '/system/home')).toBe(
-      path.join('/shell/home', '.minimax', 'config.yaml')
+    expect(resolveMiniMaxCodeConfigPath({ HOME: shellHome }, systemHome)).toBe(
+      path.join(shellHome, '.minimax', 'config.yaml')
     )
-    expect(resolveMiniMaxCodeConfigPath({}, '/system/home')).toBe(path.join('/system/home', '.minimax', 'config.yaml'))
+    expect(resolveMiniMaxCodeConfigPath({}, systemHome)).toBe(path.join(systemHome, '.minimax', 'config.yaml'))
   })
 
   it('atomically selects a custom model and can restore only the previous selection fields', async () => {
