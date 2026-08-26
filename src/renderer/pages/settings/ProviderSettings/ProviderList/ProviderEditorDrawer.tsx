@@ -76,6 +76,7 @@ interface ProviderEditorDrawerProps {
   mode: ProviderEditorMode | null
   initialLogo?: string
   presetSources?: Provider[]
+  seamlessTransitions?: boolean
   onClose: () => void
   onSelectPreset?: (source: Provider) => void
   onSubmit: (providerInput: ProviderEditorSubmit) => Promise<void>
@@ -143,6 +144,7 @@ export default function ProviderEditorDrawer({
   mode,
   initialLogo,
   presetSources = [],
+  seamlessTransitions = false,
   onClose,
   onSelectPreset,
   onSubmit
@@ -670,6 +672,7 @@ export default function ProviderEditorDrawer({
         closeOnOverlayClick={!isSubmitting}
         showCloseButton={!isSubmitting}
         size="lg"
+        motion={seamlessTransitions ? 'none' : 'directional'}
         data-testid="provider-editor-dialog"
         className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
         <DialogHeader className="px-6 pt-6 pb-4">

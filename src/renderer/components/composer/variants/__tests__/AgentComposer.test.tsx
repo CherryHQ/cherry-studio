@@ -545,8 +545,12 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
-    <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
+  ModelSelector: ({ modelServiceSetup, onSelect, trigger, open, onOpenChange, shortcut }: any) => (
+    <div
+      data-testid="agent-model-selector"
+      data-model-service-setup={String(Boolean(modelServiceSetup))}
+      data-open={String(Boolean(open))}
+      data-shortcut={shortcut ?? ''}>
       {trigger}
       {onOpenChange ? (
         <>
@@ -1400,6 +1404,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-model-service-setup', 'true')
 
     fireEvent.click(screen.getByText('select model 2'))
 

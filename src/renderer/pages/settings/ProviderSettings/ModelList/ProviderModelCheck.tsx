@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,7 +26,14 @@ export default function ProviderModelCheck({ onAddModels }: ProviderModelCheckPr
         className="h-8 rounded-lg border-border-subtle bg-background px-2.5 py-0 text-foreground text-sm leading-5 shadow-none hover:bg-accent/40 hover:text-foreground"
         aria-label={label}
         disabled={(!hasModels && !onAddModels) || health.isModelChecking}
-        onClick={isAddModelsAction ? onAddModels : health.openModelCheck}>
+        onClick={() => {
+          if (isAddModelsAction) {
+            toast.info(t('settings.models.check.add_model_first'))
+            onAddModels?.()
+            return
+          }
+          health.openModelCheck()
+        }}>
         {health.isModelChecking ? <Loader2 className="motion-safe:animate-spin" /> : null}
         <span>{label}</span>
       </Button>

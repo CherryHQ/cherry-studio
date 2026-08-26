@@ -12,7 +12,9 @@ vi.mock('@shared/utils/provider', () => ({
     p.authMethods !== undefined && p.authMethods.length > 0 && !p.authMethods.includes('api-key')
 }))
 
-const { isProviderPresetInstanceSource, isProviderSettingsListVisibleProvider } = await import('../providerDisplay')
+const { isProviderPresetInstanceSource, isProviderSettingsListVisibleProvider, matchKeywordsInProvider } = await import(
+  '../providerDisplay'
+)
 
 const provider = (id: string): Provider => ({ id }) as Provider
 const presetSource = (overrides: Partial<Provider> = {}): Provider =>
@@ -73,5 +75,21 @@ describe('isProviderPresetInstanceSource', () => {
   it('rejects other presets without a configured default chat endpoint', () => {
     expect(isProviderPresetInstanceSource(presetSource({ defaultChatEndpoint: undefined }))).toBe(false)
     expect(isProviderPresetInstanceSource(presetSource({ endpointConfigs: undefined }))).toBe(false)
+  })
+})
+
+describe('matchKeywordsInProvider', () => {
+  const chineseProvider = provider('deepseek-custom')
+  chineseProvider.name = '深度求索'
+
+  it.each([
+    ['深度', true],
+    ['shendu', true],
+    ['shen du', true],
+    ['sdqs', true],
+    ['SDQS', true],
+    ['sds', false]
+  ])('matches "%s" with the expected result', (query, expected) => {
+    expect(matchKeywordsInProvider(query.split(/\s+/), chineseProvider)).toBe(expected)
   })
 })

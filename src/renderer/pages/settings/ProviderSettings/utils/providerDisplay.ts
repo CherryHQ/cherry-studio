@@ -3,6 +3,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isLoginBasedProvider } from '@shared/utils/provider'
+import * as tinyPinyin from 'tiny-pinyin'
 
 export { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 
@@ -56,11 +57,24 @@ export function getProviderSearchString(provider: Provider): string {
   return `${provider.id} ${provider.name}`
 }
 
+function getPinyinSearchString(value: string): string {
+  if (!tinyPinyin.isSupported() || !/[\u4e00-\u9fa5]/.test(value)) return ''
+
+  const words = tinyPinyin.convertToPinyin(value, ' ', true).toLowerCase().split(/\s+/).filter(Boolean)
+  const fullPinyin = words.join('')
+  const initials = words.map((word) => word[0] ?? '').join('')
+  return `${fullPinyin} ${initials}`
+}
+
 export function matchKeywordsInProvider(keywords: string[], provider: Provider, extraSearchString?: string): boolean {
   if (keywords.length === 0) return true
   const base = getProviderSearchString(provider)
   const searchStr = (extraSearchString ? `${base} ${extraSearchString}` : base).toLowerCase()
-  return keywords.every((kw) => searchStr.includes(kw))
+  const pinyinSearchStr = getPinyinSearchString(searchStr)
+  return keywords.every((keyword) => {
+    const normalizedKeyword = keyword.toLowerCase()
+    return searchStr.includes(normalizedKeyword) || pinyinSearchStr.includes(normalizedKeyword)
+  })
 }
 
 /**

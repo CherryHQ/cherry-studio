@@ -5,6 +5,7 @@ import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { modelServiceSetupService } from '@renderer/services/ModelServiceSetupService'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
@@ -345,6 +346,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
     onSettingsNavigate,
+    modelServiceSetup,
     shortcut
   } = props
   const { t } = useTranslation()
@@ -641,6 +643,51 @@ export function ModelSelector(props: ModelSelectorProps) {
     closeBeforeSettingsNavigation('/settings/provider')
   }, [closeBeforeSettingsNavigation])
 
+  const applyConfiguredModels = useCallback(
+    (models: Model[]) => {
+      if (props.multiple) {
+        if (props.selectionType === 'id') {
+          return Promise.resolve(props.onSelect(models.map((model) => model.id)))
+        }
+
+        return Promise.resolve(props.onSelect(models))
+      }
+
+      const model = models[0]
+      if (props.selectionType === 'id') {
+        return Promise.resolve(props.onSelect(model.id))
+      }
+
+      return Promise.resolve(props.onSelect(model))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional narrow
+    [props.multiple, props.selectionType, props.onSelect]
+  )
+
+  const handleConfigureModelService = useCallback(() => {
+    if (!modelServiceSetup) return
+
+    closeBeforeAction(() => {
+      void modelServiceSetupService
+        .open({
+          setupContext: modelServiceSetup.setupContext,
+          modelFilter: filter,
+          onCloseAutoFocus: modelServiceSetup.onCloseAutoFocus
+        })
+        .then((models) => {
+          if (!models?.length) {
+            return
+          }
+
+          return applyConfiguredModels(models)
+        })
+        .catch((error) => {
+          logger.error('Failed to apply configured models', error as Error)
+          toast.error(t('models.action.apply_configured_failed'))
+        })
+    })
+  }, [applyConfiguredModels, closeBeforeAction, filter, modelServiceSetup, t])
+
   const handleSelectNone = useCallback(() => {
     emitSelection([])
     setOpen(false)
@@ -902,8 +949,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     const actions: SelectorShellBottomAction[] = [
       {
         icon: <Settings2 className="size-3.5" />,
-        label: t('models.action.configure_custom'),
-        onClick: handleNavigateToCustomModelSettings
+        label: t(modelServiceSetup ? 'models.action.configure_service' : 'models.action.configure_custom'),
+        onClick: modelServiceSetup ? handleConfigureModelService : handleNavigateToCustomModelSettings
       }
     ]
 
@@ -918,7 +965,15 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     return actions
-  }, [handleNavigateToCustomModelSettings, handleSelectNone, noneOptionLabel, rawSelectedModelIds.length, t])
+  }, [
+    handleConfigureModelService,
+    handleNavigateToCustomModelSettings,
+    handleSelectNone,
+    modelServiceSetup,
+    noneOptionLabel,
+    rawSelectedModelIds.length,
+    t
+  ])
 
   const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
 

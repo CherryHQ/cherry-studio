@@ -1,4 +1,3 @@
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
@@ -33,9 +32,16 @@ type ActiveSignIn = {
   operation: {
     controller: AbortController
     phase: 'discovery' | 'callback' | 'exchange' | 'persist'
-    requestIds: Set<string>
   }
-  promise: Promise<OAuthAccount>
+  observers: Map<
+    string,
+    {
+      promise: Promise<OAuthAccount>
+      resolve: (account: OAuthAccount) => void
+      reject: (error: unknown) => void
+    }
+  >
+  completion: Promise<void>
 }
 
 /**
@@ -80,9 +86,9 @@ export class OAuthRuntimeService extends BaseService {
     if (this.teardownPromise) return this.teardownPromise
 
     this.stopping = true
-    const activePromises = [...this.activeSignIns.values()].map(({ operation, promise }) => {
+    const activePromises = [...this.activeSignIns.values()].map(({ operation, completion }) => {
       if (this.isSignInCancellable(operation.phase)) operation.controller.abort()
-      return promise
+      return completion
     })
 
     for (const transport of this.transports.values()) {
@@ -102,6 +108,20 @@ export class OAuthRuntimeService extends BaseService {
 
   private isSignInCancellable(phase: ActiveSignIn['operation']['phase']): boolean {
     return phase === 'discovery' || phase === 'callback'
+  }
+
+  private observeSignIn(activeSignIn: ActiveSignIn, requestId: string): Promise<OAuthAccount> {
+    const existing = activeSignIn.observers.get(requestId)
+    if (existing) return existing.promise
+
+    let resolve!: (account: OAuthAccount) => void
+    let reject!: (error: unknown) => void
+    const promise = new Promise<OAuthAccount>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise
+      reject = rejectPromise
+    })
+    activeSignIn.observers.set(requestId, { promise, resolve, reject })
+    return promise
   }
 
   private getDefinition(providerId: string): OAuthRuntimeProviderDefinition {
@@ -191,7 +211,6 @@ export class OAuthRuntimeService extends BaseService {
       operation.phase = 'persist'
       await this.persistTokens(definition, tokenData)
       await definition.afterPersistTokens?.(tokenData, {})
-      providerService.update(definition.providerId, { isEnabled: true })
       this.logger.info(`${definition.providerId} sign-in succeeded`)
       return this.getAccount(definition.providerId)
     } catch (error) {
@@ -213,8 +232,7 @@ export class OAuthRuntimeService extends BaseService {
 
     const existing = this.activeSignIns.get(providerId)
     if (existing) {
-      existing.operation.requestIds.add(requestId)
-      return existing.promise
+      return this.observeSignIn(existing, requestId)
     }
 
     try {
@@ -228,19 +246,33 @@ export class OAuthRuntimeService extends BaseService {
 
       const operation: ActiveSignIn['operation'] = {
         controller: new AbortController(),
-        phase: 'discovery',
-        requestIds: new Set([requestId])
+        phase: 'discovery'
       }
       const activeSignIn: ActiveSignIn = {
         operation,
-        promise: this.runSignIn(definition, transport, operation).finally(() => {
-          if (this.activeSignIns.get(providerId) !== activeSignIn) return
-          this.activeSignIns.delete(providerId)
-          transport.close()
-        })
+        observers: new Map(),
+        completion: Promise.resolve()
       }
       this.activeSignIns.set(providerId, activeSignIn)
-      return activeSignIn.promise
+      const observer = this.observeSignIn(activeSignIn, requestId)
+      const finishSignIn = () => {
+        if (this.activeSignIns.get(providerId) === activeSignIn) this.activeSignIns.delete(providerId)
+        activeSignIn.observers.clear()
+        transport.close()
+      }
+      activeSignIn.completion = this.runSignIn(definition, transport, operation).then(
+        (account) => {
+          const observers = [...activeSignIn.observers.values()]
+          finishSignIn()
+          for (const currentObserver of observers) currentObserver.resolve(account)
+        },
+        (error) => {
+          const observers = [...activeSignIn.observers.values()]
+          finishSignIn()
+          for (const currentObserver of observers) currentObserver.reject(error)
+        }
+      )
+      return observer
     } catch (error) {
       return Promise.reject(error)
     }
@@ -253,27 +285,21 @@ export class OAuthRuntimeService extends BaseService {
     this.getDefinition(providerId)
     const activeSignIn = this.activeSignIns.get(providerId)
     if (!activeSignIn) return { status: 'not-found' }
-    activeSignIn.operation.requestIds.add(requestId)
-    return { status: 'completed', account: await activeSignIn.promise }
+    return { status: 'completed', account: await this.observeSignIn(activeSignIn, requestId) }
   }
 
   public cancelSignIn = async (providerId: string, requestId: string): Promise<void> => {
     this.getDefinition(providerId)
     const activeSignIn = this.activeSignIns.get(providerId)
-    if (
-      !activeSignIn ||
-      !activeSignIn.operation.requestIds.has(requestId) ||
-      !this.isSignInCancellable(activeSignIn.operation.phase)
-    ) {
-      return
-    }
+    const observer = activeSignIn?.observers.get(requestId)
+    if (!activeSignIn || !observer || !this.isSignInCancellable(activeSignIn.operation.phase)) return
+
+    activeSignIn.observers.delete(requestId)
+    observer.reject(new OAuthSignInCancelledError(providerId))
+    if (activeSignIn.observers.size > 0) return
 
     activeSignIn.operation.controller.abort()
-    try {
-      await activeSignIn.promise
-    } catch (error) {
-      if (!(error instanceof OAuthSignInCancelledError)) throw error
-    }
+    await activeSignIn.completion
   }
 
   public startDeepLinkFlow = async (
@@ -289,6 +315,21 @@ export class OAuthRuntimeService extends BaseService {
     const client = await definition.createClient(context)
     const { authUrl, state, codeVerifier } = client.createAuthorizationRequest()
     return transport.registerAuthorizationRequest(authUrl, state, codeVerifier, initiatorWindowId, context)
+  }
+
+  public cancelDeepLinkFlow = async (
+    initiatorWindowId: WindowId | null,
+    providerId: string,
+    state: string
+  ): Promise<void> => {
+    if (!initiatorWindowId) {
+      throw new OAuthServiceError('OAuth flow initiator is not a managed window')
+    }
+    const definition = this.getDefinition(providerId)
+    if (definition.transport.type !== 'deep-link') {
+      throw new OAuthServiceError(`OAuth provider does not support deep-link sign-in: ${providerId}`)
+    }
+    this.deepLinkTransports.get(providerId)?.cancelAuthorizationRequest(state, initiatorWindowId)
   }
 
   public handleDeepLinkCallback = async (url: URL): Promise<void> => {
@@ -310,7 +351,6 @@ export class OAuthRuntimeService extends BaseService {
         // away a valid token and force the user through the whole flow again.
         await this.persistTokens(definition, tokenData)
         const sideEffectResult = await definition.afterPersistTokens?.(tokenData, callback.context)
-        providerService.update(providerId, { isEnabled: true })
         transport.sendConsumedResult(callback.state, callback.initiatorWindowId, {
           apiKeys: sideEffectResult?.apiKeys ?? ''
         })

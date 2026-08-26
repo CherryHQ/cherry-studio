@@ -24,15 +24,21 @@ function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.C
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
-function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+type DialogOverlayProps = React.ComponentProps<typeof DialogPrimitive.Overlay> & {
+  motion?: boolean
+}
+
+function DialogOverlay({ className, motion = true, onPointerDown, ...props }: DialogOverlayProps) {
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
         'fixed inset-0 z-[80] bg-black/50',
-        'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:animation-duration-[220ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-        'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
-        'fill-mode-both motion-reduce:animate-none',
+        motion &&
+          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:animation-duration-[220ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
+        motion &&
+          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+        motion && 'fill-mode-both motion-reduce:animate-none',
         className
       )}
       onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
@@ -44,7 +50,7 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
 }
 
 type DialogContentSize = 'sm' | 'default' | 'lg' | 'xl'
-type DialogContentMotion = 'directional' | 'fade-scale'
+type DialogContentMotion = 'directional' | 'fade-scale' | 'none'
 
 const dialogContentSizeClass: Record<DialogContentSize, string> = {
   sm: 'sm:max-w-sm',
@@ -101,6 +107,7 @@ function DialogContent({
       <DialogPrimitive.Close asChild>
         <DialogOverlay
           className={overlayClassName}
+          motion={motion !== 'none'}
           onClick={(event) => {
             if (!closeOnOverlayClick) event.preventDefault()
           }}
@@ -122,11 +129,13 @@ function DialogContent({
           // no-drag punches the dialog's area out of any titlebar drag region it overlaps,
           // so the close button stays clickable when the dialog reaches max height (Electron).
           'bg-card text-card-foreground fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl [-webkit-app-region:no-drag]',
-          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99 data-[state=open]:animation-duration-[260ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+          motion !== 'none' &&
+            'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99 data-[state=open]:animation-duration-[260ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
+          motion !== 'none' &&
+            'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
           motion === 'directional' &&
             'data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4',
-          'fill-mode-both motion-reduce:animate-none',
+          motion !== 'none' && 'fill-mode-both motion-reduce:animate-none',
           dialogContentSizeClass[size],
           className
         )}

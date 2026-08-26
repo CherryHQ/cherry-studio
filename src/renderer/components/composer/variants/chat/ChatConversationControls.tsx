@@ -164,6 +164,7 @@ export function ChatConversationControls({
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
           filter={CHAT_MODEL_FILTER}
+          modelServiceSetup={{ setupContext: 'chat', onCloseAutoFocus: onDialogCloseAutoFocus }}
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -189,6 +190,7 @@ export function ChatConversationControls({
           value={model}
           onSelect={onModelSelect}
           filter={CHAT_MODEL_FILTER}
+          modelServiceSetup={{ setupContext: 'chat', onCloseAutoFocus: onDialogCloseAutoFocus }}
           shortcut="chat.model.select"
           side={side}
           align="start"

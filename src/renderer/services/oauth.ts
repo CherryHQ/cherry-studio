@@ -187,6 +187,7 @@ export const oauthWithAiOnly = async (setKey) => {
 export interface NewApiOAuthConfig {
   oauthServer: string
   apiHost?: string
+  signal?: AbortSignal
 }
 
 /**
@@ -201,7 +202,8 @@ export const oauthWithCherryIn = async (
   setKey: (key: string) => void | Promise<void>,
   config: NewApiOAuthConfig
 ): Promise<string> => {
-  const { oauthServer, apiHost } = config
+  const { oauthServer, apiHost, signal } = config
+  signal?.throwIfAborted()
 
   const { authUrl, state } = await ipcApi.request('oauth.start_deep_link_flow', {
     providerId: SystemProviderIds.cherryin,
@@ -219,6 +221,18 @@ export const oauthWithCherryIn = async (
 
   return new Promise<string>((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const cancelPendingFlow = () => {
+      void ipcApi
+        .request('oauth.cancel_deep_link_flow', { providerId: SystemProviderIds.cherryin, state })
+        .catch((error) => logger.warn('Failed to cancel CherryIN OAuth flow', error as Error))
+    }
+
+    const handleAbort = () => {
+      cleanup()
+      cancelPendingFlow()
+      reject(signal?.reason ?? new DOMException('OAuth flow cancelled', 'AbortError'))
+    }
 
     const removeListener = ipcApi.on('oauth.deep_link_result', async (result) => {
       // Defensive: another concurrent CherryIN flow on the same window would
@@ -251,16 +265,24 @@ export const oauthWithCherryIn = async (
 
     function cleanup(): void {
       removeListener()
+      signal?.removeEventListener('abort', handleAbort)
       if (timeoutId) {
         clearTimeout(timeoutId)
         timeoutId = null
       }
     }
 
+    if (signal?.aborted) {
+      handleAbort()
+      return
+    }
+    signal?.addEventListener('abort', handleAbort, { once: true })
+
     timeoutId = setTimeout(
       () => {
         logger.warn('Flow timed out')
         cleanup()
+        cancelPendingFlow()
         reject(new Error('OAuth flow timed out'))
       },
       10 * 60 * 1000

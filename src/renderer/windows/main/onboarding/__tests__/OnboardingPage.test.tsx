@@ -15,11 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const responsiveStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/responsive.css'), 'utf8')
 
-const addApiKeyMock = vi.fn()
-const updateProviderMock = vi.fn()
-const oauthWithCherryInMock = vi.fn()
-const syncProviderModelsMock = vi.fn()
-const toastSuccessMock = vi.fn()
+const modelServiceSetupOpenMock = vi.fn()
 const toastErrorMock = vi.fn()
 const modelSettingsPropsMock = vi.fn()
 const dataApiMocks = vi.hoisted(() => ({
@@ -54,10 +50,6 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({
-    addApiKey: addApiKeyMock,
-    updateProvider: updateProviderMock
-  }),
   useProviders: () => ({ providers: enabledProvidersMock, isLoading: false })
 }))
 
@@ -66,13 +58,12 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: enabledModelsMock, isLoading: false })
 }))
 
-vi.mock('@renderer/services/oauth', () => ({
-  oauthWithCherryIn: (...args: unknown[]) => oauthWithCherryInMock(...args)
+vi.mock('@renderer/services/ModelServiceSetupService', () => ({
+  modelServiceSetupService: { open: (...args: unknown[]) => modelServiceSetupOpenMock(...args) }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
   toast: {
-    success: (...args: unknown[]) => toastSuccessMock(...args),
     error: (...args: unknown[]) => toastErrorMock(...args)
   }
 }))
@@ -82,11 +73,7 @@ vi.mock('@renderer/components/WindowControls', () => ({
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings', () => ({
-  ProviderSettingsPage: () => <div data-testid="provider-settings" />,
-  useProviderModelSync: () => ({
-    syncProviderModels: syncProviderModelsMock,
-    isSyncingModels: false
-  })
+  ProviderSettingsPage: () => <div data-testid="provider-settings" />
 }))
 
 vi.mock('@renderer/pages/settings/ModelSettings/ModelSettings', () => ({
@@ -147,10 +134,9 @@ describe('OnboardingPage', () => {
     }
     MockUsePreferenceUtils.resetMocks()
     i18nMock.changeLanguage.mockResolvedValue(undefined)
-    oauthWithCherryInMock.mockResolvedValue('sk-test')
-    addApiKeyMock.mockResolvedValue(undefined)
-    updateProviderMock.mockResolvedValue(undefined)
-    syncProviderModelsMock.mockResolvedValue([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
+    modelServiceSetupOpenMock.mockResolvedValue([
+      { id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true, capabilities: [] }
+    ])
     dataApiMocks.get.mockImplementation(async (path: string) => {
       if (path === '/assistants') return { items: [], total: 0 }
       if (path === '/agents') return { items: [], total: 0 }
@@ -582,10 +568,6 @@ describe('OnboardingPage', () => {
 
   it('starts CherryIN login without privacy acceptance and disables data collection', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '')
-    oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
-      await setKey('sk-one')
-      return 'sk-one'
-    })
     render(<OnboardingPage />)
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'onboarding.privacy.accept_policy' }))
@@ -594,7 +576,7 @@ describe('OnboardingPage', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
 
-    await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(modelServiceSetupOpenMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByTestId('privacy-policy-dialog')).not.toBeInTheDocument()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
@@ -759,9 +741,14 @@ describe('OnboardingPage', () => {
     expect(screen.getByText('onboarding.welcome.setup_hint')).toHaveClass('mt-4')
   })
 
-  it('hides the login icon while loading and restores the action after ten seconds', async () => {
-    vi.useFakeTimers()
-    oauthWithCherryInMock.mockImplementation(() => new Promise<string>(() => {}))
+  it('keeps the login action busy until guided setup is dismissed', async () => {
+    let resolveSetup: (models: null) => void = () => {}
+    modelServiceSetupOpenMock.mockImplementation(
+      () =>
+        new Promise<null>((resolve) => {
+          resolveSetup = resolve
+        })
+    )
     render(<OnboardingPage />)
 
     const loginButton = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
@@ -770,15 +757,12 @@ describe('OnboardingPage', () => {
     expect(loginButton).toBeDisabled()
     expect(loginButton.querySelector('.lucide-log-in')).not.toBeInTheDocument()
 
-    await act(() => vi.advanceTimersByTime(9_999))
-    expect(loginButton).toBeDisabled()
-
-    await act(() => vi.advanceTimersByTime(1))
-    expect(loginButton).toBeEnabled()
+    await act(async () => resolveSetup(null))
+    await waitFor(() => expect(loginButton).toBeEnabled())
     expect(loginButton.querySelector('.lucide-log-in')).toBeInTheDocument()
   })
 
-  it('syncs CherryIN models before moving a fresh install to model selection', async () => {
+  it('uses the verified CherryIN setup result before moving a fresh install to model selection', async () => {
     enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'cherryai', isEnabled: true })
     enabledModelsMock.splice(0, enabledModelsMock.length, {
       id: 'cherryai::qwen',
@@ -789,38 +773,29 @@ describe('OnboardingPage', () => {
     selectedModelsMock.defaultModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
     selectedModelsMock.quickModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
     selectedModelsMock.translateModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
-    oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
-      await setKey('sk-one, sk-two')
-      return 'sk-one, sk-two'
-    })
-
     render(<OnboardingPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
 
     await waitFor(() => expect(screen.getByTestId('model-settings')).toBeInTheDocument())
-    expect(addApiKeyMock).toHaveBeenCalledWith('sk-one', 'OAuth')
-    expect(addApiKeyMock).toHaveBeenCalledWith('sk-two', 'OAuth')
-    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
-    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    expect(toastSuccessMock).toHaveBeenCalledWith('onboarding.toast.connected')
+    expect(modelServiceSetupOpenMock).toHaveBeenCalledWith({
+      setupContext: 'chat',
+      initialProviderId: 'cherryin',
+      modelFilter: expect.any(Function)
+    })
   })
 
-  it('returns to provider setup when CherryIN sync finds no enabled model', async () => {
-    syncProviderModelsMock.mockResolvedValue([])
-    oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
-      await setKey('sk-one')
-      return 'sk-one'
-    })
+  it('stays on welcome when CherryIN guided setup is cancelled', async () => {
+    modelServiceSetupOpenMock.mockResolvedValue(null)
 
     render(<OnboardingPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
 
-    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('provider-settings')).toBeInTheDocument()
+    await waitFor(() => expect(modelServiceSetupOpenMock).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })).toBeEnabled()
+    expect(screen.queryByTestId('provider-settings')).not.toBeInTheDocument()
     expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
-    expect(toastErrorMock).toHaveBeenCalledWith('onboarding.provider_setup.missing_model')
-    expect(toastSuccessMock).not.toHaveBeenCalled()
+    expect(toastErrorMock).not.toHaveBeenCalled()
   })
 })

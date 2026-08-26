@@ -65,6 +65,15 @@ describe('DeepLinkCallbackTransport', () => {
     expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?state=known-state&code=code`))).not.toBeNull()
   })
 
+  it('only lets the initiating window cancel its pending flow', () => {
+    const transport = new DeepLinkCallbackTransport({ redirectUri: REDIRECT_URI })
+    registerFlow(transport)
+
+    expect(transport.cancelAuthorizationRequest('state', 'other-window')).toBe(false)
+    expect(transport.cancelAuthorizationRequest('state', 'settings-window')).toBe(true)
+    expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?state=state&code=code`))).toBeNull()
+  })
+
   // When the user denies consent the provider redirects back with an `error`
   // (and usually an `error_description`); surface that as a thrown error so the
   // flow reports failure rather than silently succeeding with no code.

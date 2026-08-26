@@ -8,14 +8,18 @@ or before wiring a new OAuth consumer through it.
 
 This runtime drives the PKCE authorization-code flow for providers whose
 credential the app itself holds and refreshes: **Codex, Grok CLI, CherryIN**. It
-owns the flow (authorize → callback → token exchange → persist → refresh) plus
-the provider's enablement: a successful sign-in flips the provider `isEnabled`
-on, and logout flips it off (and resets `authConfig` to `api-key`).
+owns the flow (authorize → callback → token exchange → persist → refresh).
+Authentication alone never makes a provider ready. Settings reflects the signed-in
+account without enabling the provider; guided setup enables it only after a usable
+model has also been created and verified. Before token exchange starts, each
+observer can cancel independently; the shared transport is aborted only after its
+final observer leaves. Logout still disables an OAuth-only provider and resets
+`authConfig` to `api-key`.
 
 It is **provider-scoped**, not a general OAuth system. The hard coupling is to
 the *provider* row in SQLite: tokens persist into that row's `authConfig`
 (`ProviderAuthConfigOAuthTokenStore` → `providerService.update(providerId, …)`),
-and the same `providerService.update` toggles `isEnabled` on sign-in/logout. A
+and the same `providerService.update` disables OAuth-only providers on logout. A
 non-provider entity (an MCP server, a cloud-sync account) cannot reuse this
 runtime without its own `OAuthTokenStore` backend and its own enablement model.
 

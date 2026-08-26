@@ -1,2 +1,5 @@
+export { default as ProviderEditorDrawer } from './ProviderEditorDrawer'
 export type { ProviderListProps } from './ProviderList'
 export { default as ProviderList } from './ProviderList'
+export type { ProviderCreationContext, SubmitProviderEditorParams } from './useProviderEditor'
+export { useProviderEditor } from './useProviderEditor'

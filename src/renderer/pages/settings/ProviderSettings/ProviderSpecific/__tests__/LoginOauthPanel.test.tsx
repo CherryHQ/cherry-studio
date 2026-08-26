@@ -44,7 +44,7 @@ beforeEach(() => {
 })
 
 describe('LoginOauthPanel', () => {
-  it('invalidates provider DataApi reads after sign-in', async () => {
+  it('reflects sign-in without enabling the provider before models are verified', async () => {
     requestMock.mockImplementation((channel: string) => {
       if (channel === 'oauth.has_token') return Promise.resolve(false)
       if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
@@ -136,6 +136,23 @@ describe('LoginOauthPanel', () => {
       requestId: expect.any(String)
     })
     expect(requestMock).not.toHaveBeenCalledWith('oauth.sign_in', expect.anything())
+  })
+
+  it('does not enable the provider when observing sign-in owned by guided setup', async () => {
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') {
+        return Promise.resolve({ status: 'completed', account: { accountId: null } })
+      }
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+
+    render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
+
+    expect(await screen.findByText('settings.provider.codex.logged_in')).toBeInTheDocument()
+    expect(invalidateProviderCacheMock).toHaveBeenCalledWith(PROVIDER_CACHE_PATHS)
+    expect(providerPatchMock).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('recovers completion between the first token read and attach without starting a new flow', async () => {

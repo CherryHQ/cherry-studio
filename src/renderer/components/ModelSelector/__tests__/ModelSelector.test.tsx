@@ -14,6 +14,7 @@ import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult }
 const mocks = vi.hoisted(() => ({
   bottomActions: [] as SelectorShellBottomAction[],
   loggerError: vi.fn(),
+  openModelServiceSetup: vi.fn(),
   openSettingsTab: vi.fn(),
   shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
@@ -36,6 +37,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mocks.openSettingsTab
+}))
+
+vi.mock('@renderer/services/ModelServiceSetupService', () => ({
+  modelServiceSetupService: { open: mocks.openModelServiceSetup }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -240,6 +245,7 @@ describe('ModelSelector', () => {
     vi.clearAllMocks()
     mocks.bottomActions = []
     mocks.shellEvents = []
+    mocks.openModelServiceSetup.mockResolvedValue(null)
     mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -617,6 +623,99 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(screen.getByText('dialog closed')).toBeInTheDocument())
     expect(mocks.openSettingsTab).toHaveBeenCalledWith(expectedPath)
+  })
+
+  it('opens guided provider setup from chat mode and applies the first configured model', async () => {
+    const user = userEvent.setup()
+    const filter = vi.fn(() => true)
+    const onCloseAutoFocus = vi.fn()
+    const onSelect = vi.fn()
+    const configuredModels = [makeModel('openai::gpt-4'), makeModel('openai::gpt-3.5')]
+    mocks.openModelServiceSetup.mockResolvedValue(configuredModels)
+
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return (
+        <ModelSelector
+          open={open}
+          multiple={false}
+          trigger={<button type="button">open</button>}
+          filter={filter}
+          modelServiceSetup={{ setupContext: 'chat', onCloseAutoFocus }}
+          onOpenChange={setOpen}
+          onSelect={onSelect}
+        />
+      )
+    }
+
+    render(<Host />)
+
+    expect(screen.queryByRole('button', { name: 'models.action.configure_custom' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'models.action.configure_service' }))
+
+    await waitFor(() =>
+      expect(mocks.openModelServiceSetup).toHaveBeenCalledWith({
+        setupContext: 'chat',
+        modelFilter: filter,
+        onCloseAutoFocus
+      })
+    )
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(configuredModels[0]))
+    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
+  })
+
+  it('applies every configured model to a multi-select id selector', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    const configuredModels = [makeModel('openai::gpt-4'), makeModel('openai::gpt-3.5')]
+    mocks.openModelServiceSetup.mockResolvedValue(configuredModels)
+
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return (
+        <ModelSelector
+          open={open}
+          multiple
+          selectionType="id"
+          trigger={<button type="button">open</button>}
+          modelServiceSetup={{ setupContext: 'agent' }}
+          onOpenChange={setOpen}
+          onSelect={onSelect}
+        />
+      )
+    }
+
+    render(<Host />)
+
+    await user.click(screen.getByRole('button', { name: 'models.action.configure_service' }))
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(configuredModels.map((model) => model.id)))
+  })
+
+  it('keeps the current selection when guided setup is cancelled', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return (
+        <ModelSelector
+          open={open}
+          multiple={false}
+          trigger={<button type="button">open</button>}
+          modelServiceSetup={{ setupContext: 'chat' }}
+          onOpenChange={setOpen}
+          onSelect={onSelect}
+        />
+      )
+    }
+
+    render(<Host />)
+
+    await user.click(screen.getByRole('button', { name: 'models.action.configure_service' }))
+
+    await waitFor(() => expect(mocks.openModelServiceSetup).toHaveBeenCalledOnce())
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('shows an empty result when no models match', () => {

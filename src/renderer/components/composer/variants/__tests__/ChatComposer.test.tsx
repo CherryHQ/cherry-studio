@@ -1410,6 +1410,7 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(mocks.modelSelectorProps.at(-1)?.filter?.(rerankerModel)).toBe(false)
+    expect(mocks.modelSelectorProps.at(-1)?.modelServiceSetup).toBeDefined()
   })
 
   // The composer no longer duplicates the web-search reconciliation: `setModel` does it with an
@@ -1429,6 +1430,7 @@ describe('ChatComposer', () => {
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multiple', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+    expect(mocks.modelSelectorProps.at(-1)?.modelServiceSetup).toBeDefined()
 
     fireEvent.click(screen.getByText('toggle model multi select'))
     fireEvent.click(screen.getByText('select models 1 and 2'))

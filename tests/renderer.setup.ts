@@ -265,6 +265,8 @@ vi.mock('@cherrystudio/ui', () => {
           .filter(Boolean)
           .join(' ')
       }),
+    SearchInput: ({ clearLabel: _clearLabel, onClear: _onClear, ...props }) =>
+      React.createElement('input', { ...props, type: 'search' }),
     Textarea: {
       Input: ({ hasError, 'aria-invalid': ariaInvalid, className, onValueChange, onChange, ...props }) =>
         React.createElement('textarea', {
@@ -550,8 +552,12 @@ vi.mock('@cherrystudio/ui', () => {
     DialogContent: ({
       children,
       closeOnOverlayClick: _closeOnOverlayClick,
+      onCloseAutoFocus: _onCloseAutoFocus,
       onEscapeKeyDown: _onEscapeKeyDown,
+      onOpenAutoFocus: _onOpenAutoFocus,
+      overlayClassName: _overlayClassName,
       showCloseButton: _showCloseButton,
+      motion: _motion,
       size,
       ...props
     }) => React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
@@ -925,6 +931,7 @@ vi.mock('@cherrystudio/ui', () => {
       secondaryLabel,
       onSecondary,
       preset,
+      compact: _compact,
       ...props
     }) =>
       React.createElement(

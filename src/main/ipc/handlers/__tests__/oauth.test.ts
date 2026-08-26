@@ -16,7 +16,8 @@ const runtimeService = {
   hasToken: vi.fn(() => Promise.resolve(true)),
   getAccount: vi.fn(() => Promise.resolve({ accountId: 'acc-1' })),
   logout: vi.fn(() => Promise.resolve()),
-  startDeepLinkFlow: vi.fn(() => Promise.resolve({ authUrl: 'https://open.cherryin.ai/auth', state: 'st' }))
+  startDeepLinkFlow: vi.fn(() => Promise.resolve({ authUrl: 'https://open.cherryin.ai/auth', state: 'st' })),
+  cancelDeepLinkFlow: vi.fn()
 }
 
 const codeCliService = {
@@ -124,5 +125,11 @@ describe('oauthHandlers', () => {
       oauthServer: 'https://open.cherryin.ai',
       apiHost: 'https://open.cherryin.ai'
     })
+  })
+
+  it('cancels a deep-link flow for the initiating window', async () => {
+    await oauthHandlers['oauth.cancel_deep_link_flow']({ providerId: 'cherryin', state: 'state-1' }, ctx)
+
+    expect(runtimeService.cancelDeepLinkFlow).toHaveBeenCalledWith('w1', 'cherryin', 'state-1')
   })
 })

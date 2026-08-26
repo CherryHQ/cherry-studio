@@ -52,6 +52,10 @@ export const oauthRequestSchemas = {
   'oauth.start_deep_link_flow': defineRoute({
     input: z.object({ providerId: z.string(), oauthServer: z.string(), apiHost: z.string().optional() }),
     output: z.object({ authUrl: z.string(), state: z.string() })
+  }),
+  'oauth.cancel_deep_link_flow': defineRoute({
+    input: z.object({ providerId: z.string(), state: z.string().min(1) }),
+    output: z.void()
   })
 }
 

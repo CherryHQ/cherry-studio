@@ -9,6 +9,9 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
+import { useEffect } from 'react'
+
+import { registerModelServiceSetupPopup } from '../ModelServiceSetupPopup'
 
 // Headless behavior leaf inside the providers: the shared window runtime (same route
 // tree as main, so it needs the same window-level side effects). It renders nothing;
@@ -16,6 +19,7 @@ import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell
 // none of the main-only concerns (boot spinner/timer, update/storage notification).
 function SubWindowRuntime(): null {
   useWindowRuntime()
+  useEffect(() => registerModelServiceSetupPopup(), [])
 
   return null
 }
