@@ -27,6 +27,11 @@ import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
+import {
+  activateMiniMaxCodeModel,
+  type MiniMaxCodeSelectionReceipt,
+  restoreMiniMaxCodeSelection
+} from './miniMaxCodeConfig'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -46,6 +51,11 @@ interface MiniMaxCodeListedProvider {
   providerId: string
   name: string
   kind?: string
+  active?: boolean
+  models?: Array<{
+    modelId?: string
+    selected?: boolean
+  }>
 }
 
 /**
@@ -206,10 +216,40 @@ export class CodeCliService extends BaseService {
     })
   }
 
+  private assertMiniMaxCodeProviderTestSucceeded(output: string): void {
+    const parsed: unknown = JSON.parse(output)
+    if (!parsed || typeof parsed !== 'object') throw new Error('MiniMax Code returned an invalid provider test result')
+    const result = parsed as {
+      success?: unknown
+      message?: unknown
+      status?: { lastErrorMessage?: unknown }
+    }
+    if (result.success === true) return
+    const detail =
+      (typeof result.status?.lastErrorMessage === 'string' && result.status.lastErrorMessage) ||
+      (typeof result.message === 'string' && result.message)
+    throw new Error(detail || 'MiniMax Code provider connectivity test failed')
+  }
+
+  private isMiniMaxCodeProviderSelected(
+    provider: MiniMaxCodeListedProvider,
+    providerId: string,
+    modelId: string
+  ): boolean {
+    return (
+      provider.providerId === providerId &&
+      provider.active === true &&
+      provider.models?.some((model) => model.modelId === modelId && model.selected === true) === true
+    )
+  }
+
   public async applyMiniMaxCodeProvider(input: MiniMaxCodeProviderApplyInput): Promise<OperationResult> {
     return this.enqueueMiniMaxCodeProviderOperation(async () => {
+      let runtime: { path: string; env: Record<string, string> } | undefined
+      let createdProviderId: string | undefined
+      let selectionReceipt: MiniMaxCodeSelectionReceipt | undefined
       try {
-        const runtime = await this.resolveMiniMaxCodeCommand()
+        runtime = await this.resolveMiniMaxCodeCommand()
         const previousProviders = await this.listManagedMiniMaxCodeProviders(runtime)
         const previousIds = new Set(previousProviders.map((provider) => provider.providerId))
         const managedName = `${MCODE_PROVIDER_NAME_PREFIX}${input.providerName}`
@@ -226,28 +266,72 @@ export class CodeCliService extends BaseService {
             '--model',
             input.model,
             '--api-key-env',
-            MCODE_PROVIDER_API_KEY_ENV,
-            '--use'
+            MCODE_PROVIDER_API_KEY_ENV
           ],
           { [MCODE_PROVIDER_API_KEY_ENV]: input.apiKey }
         )
 
         const providers = await this.listManagedMiniMaxCodeProviders(runtime)
-        const activeProvider =
+        const appliedProvider =
           providers.find((provider) => !previousIds.has(provider.providerId)) ??
           providers.find((provider) => provider.name === managedName) ??
           providers.at(-1)
-        if (!activeProvider) throw new Error('MiniMax Code did not retain the applied provider')
+        if (!appliedProvider) throw new Error('MiniMax Code did not retain the applied provider')
+        if (!previousIds.has(appliedProvider.providerId)) createdProviderId = appliedProvider.providerId
 
-        for (const provider of providers) {
-          if (provider.providerId === activeProvider.providerId) continue
+        const testOutput = await this.runMiniMaxCodeProviderCommand(runtime, [
+          'test',
+          appliedProvider.providerId,
+          '--model',
+          input.model,
+          '--json'
+        ])
+        this.assertMiniMaxCodeProviderTestSucceeded(testOutput)
+
+        selectionReceipt = await activateMiniMaxCodeModel(
+          runtime.env,
+          application.getPath('sys.home'),
+          appliedProvider.providerId,
+          input.model
+        )
+        const verifiedProviders = await this.listManagedMiniMaxCodeProviders(runtime)
+        if (
+          !verifiedProviders.some((provider) =>
+            this.isMiniMaxCodeProviderSelected(provider, appliedProvider.providerId, input.model)
+          )
+        ) {
+          throw new Error('MiniMax Code did not activate the applied provider')
+        }
+
+        for (const provider of verifiedProviders) {
+          if (provider.providerId === appliedProvider.providerId) continue
           await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes']).catch((error) =>
             logger.warn('Failed to remove a stale Cherry-managed MiniMax Code provider', error as Error)
           )
         }
         return { success: true }
       } catch (error) {
-        const message = (error instanceof Error ? error.message : String(error)).replaceAll(input.apiKey, REDACTED)
+        let rollbackError: unknown
+        let selectionRestored = selectionReceipt === undefined
+        if (selectionReceipt) {
+          try {
+            await restoreMiniMaxCodeSelection(selectionReceipt)
+            selectionRestored = true
+          } catch (restoreError) {
+            rollbackError = restoreError
+            logger.warn('Failed to restore the previous MiniMax Code selection', restoreError as Error)
+          }
+        }
+        if (runtime && createdProviderId && selectionRestored) {
+          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', createdProviderId, '--yes']).catch(
+            (removeError) => {
+              logger.warn('Failed to remove the rejected Cherry-managed MiniMax Code provider', removeError as Error)
+            }
+          )
+        }
+        const failure = error instanceof Error ? error.message : String(error)
+        const rollbackSuffix = rollbackError ? '; previous MiniMax Code selection could not be restored' : ''
+        const message = `${failure}${rollbackSuffix}`.replaceAll(input.apiKey, REDACTED)
         logger.warn('Failed to apply MiniMax Code provider', { message })
         return { success: false, message }
       }
