@@ -8,6 +8,8 @@ export const diagnosticsErrorCodes = {
   DESTINATION_IS_SOURCE: 'DIAGNOSTICS_DESTINATION_IS_SOURCE',
   /** A failed or uncertain upload could not be preserved for manual recovery. */
   FALLBACK_SAVE_FAILED: 'DIAGNOSTICS_FALLBACK_SAVE_FAILED',
+  /** The requested preserved archive is not available for retry in this process. */
+  RETRY_NOT_AVAILABLE: 'DIAGNOSTICS_RETRY_NOT_AVAILABLE',
   /** An upload may have succeeded, but its local recovery copy could not be preserved. */
   SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED: 'DIAGNOSTICS_SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED'
 } as const

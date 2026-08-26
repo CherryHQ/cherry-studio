@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { generateDiagnosticUploadHeaders } from '@main/ai/provider/cherryai'
 import { openReadableFileSnapshot, type ReadableFileSnapshot } from '@main/utils/file'
+import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 import { net } from 'electron'
@@ -14,13 +15,7 @@ const MAX_RESPONSE_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 15 * 60 * 1000
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
-export type CherryDiagnosticUploadFailureReason =
-  | 'invalid_archive'
-  | 'archive_too_large'
-  | 'authentication_failed'
-  | 'rate_limited'
-  | 'service_unavailable'
-  | 'submission_rejected'
+export type CherryDiagnosticUploadFailureReason = DiagnosticUploadFailureReason
 
 export type CherryDiagnosticUploadResult =
   | { status: 'uploaded'; reportId: string }

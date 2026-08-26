@@ -21,10 +21,11 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
-import { feishuAnonymousFormClient } from './FeishuAnonymousFormClient'
+import { cherryDiagnosticUploadClient } from './CherryDiagnosticUploadClient'
 import {
   collectCrashDumpInventory,
   collectDiagnosticSources,
@@ -59,6 +60,13 @@ type ExportResult = OutputFor<'diagnostics.bundle.export'>
 type SavedBundle = Extract<ExportResult, { status: 'saved' }>
 type UploadInput = InputFor<'diagnostics.bundle.upload'>
 type UploadResult = OutputFor<'diagnostics.bundle.upload'>
+type RetryUploadInput = InputFor<'diagnostics.bundle.retry_upload'>
+type RetryUploadResult = OutputFor<'diagnostics.bundle.retry_upload'>
+
+interface RetryableUpload {
+  readonly bundle: Omit<SavedBundle, 'status'>
+  readonly description: string
+}
 
 type DestinationIdentity = { readonly status: 'missing' } | ({ readonly status: 'present' } & SourceIdentity)
 
@@ -226,6 +234,7 @@ async function assertDestinationOutsideSources(destination: AbsoluteFilePath): P
 export class DiagnosticBundleService {
   private readonly inspectionMutex = new Mutex()
   private inFlightOperation: Promise<unknown> | null = null
+  private readonly retryableUploads = new Map<string, RetryableUpload>()
 
   async inspect(rangeName: DiagnosticRange): Promise<InspectResult> {
     return this.inspectionMutex.runExclusive(() => this.performInspection(rangeName))
@@ -269,6 +278,17 @@ export class DiagnosticBundleService {
   async uploadBundle(input: UploadInput): Promise<UploadResult> {
     if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performUpload(input)
+    this.inFlightOperation = operation
+    try {
+      return await operation
+    } finally {
+      if (this.inFlightOperation === operation) this.inFlightOperation = null
+    }
+  }
+
+  async retryUpload(input: RetryUploadInput): Promise<RetryUploadResult> {
+    if (this.inFlightOperation) return { status: 'busy' }
+    const operation = this.performRetryUpload(input)
     this.inFlightOperation = operation
     try {
       return await operation
@@ -332,6 +352,7 @@ export class DiagnosticBundleService {
   }
 
   private async performUpload(input: UploadInput): Promise<UploadResult> {
+    const description = normalizeDiagnosticDescription(input.description.trim())
     const createdAt = new Date()
     const bundleId = randomUUID()
     const fileName = `cherry-studio-diagnostics-${formatTimestamp(createdAt)}-${bundleId}.zip`
@@ -367,10 +388,10 @@ export class DiagnosticBundleService {
         throw new IpcError(diagnosticsErrorCodes.BUNDLE_BUILD_FAILED, 'Failed to build diagnostic bundle')
       }
 
-      const uploadResult = await feishuAnonymousFormClient.upload({
+      const uploadResult = await cherryDiagnosticUploadClient.upload({
+        description,
         fileName: bundle.fileName,
-        filePath: bundle.filePath,
-        fileSize: bundle.archiveBytes
+        filePath: bundle.filePath
       })
       if (uploadResult.status === 'uploaded') {
         return {
@@ -379,6 +400,7 @@ export class DiagnosticBundleService {
           hasWarnings: bundle.hasWarnings,
           includedFileCount: bundle.includedFileCount,
           omittedFileCount: bundle.omittedFileCount,
+          reportId: uploadResult.reportId,
           status: 'uploaded'
         }
       }
@@ -395,17 +417,13 @@ export class DiagnosticBundleService {
         }
         throw error
       }
+      this.retryableUploads.set(savedBundle.bundleId, { bundle: savedBundle, description })
       if (uploadResult.status === 'submission_unknown') {
         logger.warn('Diagnostic bundle submission result is unknown')
         return { ...savedBundle, status: 'submission_unknown' }
       }
-      logger.warn('Diagnostic bundle requires manual upload', { reason: uploadResult.reason })
-      return {
-        fileName: savedBundle.fileName,
-        filePath: savedBundle.filePath,
-        reason: uploadResult.reason,
-        status: 'manual_upload_required'
-      }
+      logger.warn('Diagnostic bundle submission failed', { reason: uploadResult.reason })
+      return { ...savedBundle, reason: uploadResult.reason, status: 'submission_failed' }
     } finally {
       await removeDir(tempRoot).catch((error) => {
         logger.warn('Failed to clean diagnostic upload temporary files', {
@@ -413,6 +431,40 @@ export class DiagnosticBundleService {
         })
       })
     }
+  }
+
+  private async performRetryUpload(input: RetryUploadInput): Promise<RetryUploadResult> {
+    const retryable = this.retryableUploads.get(input.bundleId)
+    if (!retryable) {
+      throw new IpcError(
+        diagnosticsErrorCodes.RETRY_NOT_AVAILABLE,
+        'Diagnostic bundle is not available for retry in this process'
+      )
+    }
+
+    const uploadResult = await cherryDiagnosticUploadClient.upload({
+      description: retryable.description,
+      fileName: retryable.bundle.fileName,
+      filePath: retryable.bundle.filePath
+    })
+    if (uploadResult.status === 'uploaded') {
+      this.retryableUploads.delete(input.bundleId)
+      return {
+        archiveBytes: retryable.bundle.archiveBytes,
+        bundleId: retryable.bundle.bundleId,
+        hasWarnings: retryable.bundle.hasWarnings,
+        includedFileCount: retryable.bundle.includedFileCount,
+        omittedFileCount: retryable.bundle.omittedFileCount,
+        reportId: uploadResult.reportId,
+        status: 'uploaded'
+      }
+    }
+    if (uploadResult.status === 'submission_unknown') {
+      logger.warn('Diagnostic bundle retry result is unknown')
+      return { ...retryable.bundle, status: 'submission_unknown' }
+    }
+    logger.warn('Diagnostic bundle retry failed', { reason: uploadResult.reason })
+    return { ...retryable.bundle, reason: uploadResult.reason, status: 'submission_failed' }
   }
 
   private async saveUploadFallback(bundle: SavedBundle): Promise<Omit<SavedBundle, 'status'>> {

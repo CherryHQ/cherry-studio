@@ -28,11 +28,20 @@ vi.mock('electron', () => ({
   dialog: { showSaveDialog: electronMocks.showSaveDialog }
 }))
 
-vi.mock('../FeishuAnonymousFormClient', () => ({
-  feishuAnonymousFormClient: uploadMocks
+vi.mock('../CherryDiagnosticUploadClient', () => ({
+  cherryDiagnosticUploadClient: uploadMocks
 }))
 
 import { DiagnosticBundleService } from '../DiagnosticBundleService'
+
+const REPORT_ID = '123e4567-e89b-42d3-a456-426614174000'
+const RETRY_REPORT_ID = '223e4567-e89b-42d3-a456-426614174000'
+const UPLOAD_INPUT = {
+  description: '  Line one\nLine two  ',
+  includeLogs: false,
+  includeTraces: false,
+  range: '24h' as const
+}
 
 function formatLogDate(timestamp: number): string {
   const date = new Date(timestamp)
@@ -92,7 +101,7 @@ describe('DiagnosticBundleService', () => {
     electronMocks.showSaveDialog.mockResolvedValue({ canceled: false, filePath: destination })
     electronMocks.getLocale.mockReturnValue('en-US')
     electronMocks.getVersion.mockReturnValue('2.0.0-test')
-    uploadMocks.upload.mockResolvedValue({ status: 'uploaded' })
+    uploadMocks.upload.mockResolvedValue({ reportId: REPORT_ID, status: 'uploaded' })
   })
 
   afterEach(async () => {
@@ -250,18 +259,27 @@ describe('DiagnosticBundleService', () => {
     await expect(first).resolves.toEqual({ status: 'canceled' })
   })
 
-  it('builds an upload bundle with automatic delivery marked in the manifest', async () => {
+  it('uploads a bundle with the normalized description and keeps report and bundle ids distinct', async () => {
     let uploadedManifest: Record<string, unknown> | undefined
-    uploadMocks.upload.mockImplementationOnce(async ({ filePath: uploadPath }) => {
+    uploadMocks.upload.mockImplementationOnce(async ({ description, fileName, filePath: uploadPath }) => {
       const zip = await readZip(uploadPath)
       uploadedManifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-      return { status: 'uploaded' }
+      expect(description).toBe('Line one\r\nLine two')
+      expect(fileName).toBe(path.basename(uploadPath))
+      return { reportId: REPORT_ID, status: 'uploaded' }
     })
     const service = new DiagnosticBundleService()
 
-    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const result = await service.uploadBundle(UPLOAD_INPUT)
 
-    expect(result).toMatchObject({ status: 'uploaded', includedFileCount: 0, omittedFileCount: 0 })
+    expect(result).toMatchObject({
+      reportId: REPORT_ID,
+      status: 'uploaded',
+      includedFileCount: 0,
+      omittedFileCount: 0
+    })
+    if (result.status !== 'uploaded') throw new Error('Expected uploaded result')
+    expect(result.bundleId).not.toBe(result.reportId)
     expect(uploadedManifest?.privacy).toMatchObject({ uploadedAutomatically: true })
     expect(await readdir(appTempDir)).toEqual([])
     expect(await readdir(downloadsDir)).toEqual([])
@@ -269,15 +287,15 @@ describe('DiagnosticBundleService', () => {
 
   it('preserves a failed upload in Downloads with a unique bundle filename', async () => {
     uploadMocks.upload.mockResolvedValueOnce({
-      reason: 'form_changed',
-      status: 'manual_upload_required'
+      reason: 'rate_limited',
+      status: 'rejected'
     })
     const service = new DiagnosticBundleService()
 
-    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const result = await service.uploadBundle(UPLOAD_INPUT)
 
-    expect(result).toMatchObject({ reason: 'form_changed', status: 'manual_upload_required' })
-    if (result.status !== 'manual_upload_required') throw new Error('Expected manual upload fallback')
+    expect(result).toMatchObject({ reason: 'rate_limited', status: 'submission_failed' })
+    if (result.status !== 'submission_failed') throw new Error('Expected preserved failed submission')
     expect(path.dirname(result.filePath)).toBe(downloadsDir)
     expect(result.fileName).toMatch(
       /^cherry-studio-diagnostics-\d{8}-\d{6}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.zip$/
@@ -292,7 +310,7 @@ describe('DiagnosticBundleService', () => {
     uploadMocks.upload.mockResolvedValueOnce({ status: 'submission_unknown' })
     const service = new DiagnosticBundleService()
 
-    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const result = await service.uploadBundle(UPLOAD_INPUT)
 
     expect(result).toMatchObject({ status: 'submission_unknown', includedFileCount: 0 })
     if (result.status !== 'submission_unknown') throw new Error('Expected unknown submission status')
@@ -300,8 +318,60 @@ describe('DiagnosticBundleService', () => {
     expect(uploadMocks.upload).toHaveBeenCalledOnce()
   })
 
-  it('serializes local export and anonymous upload operations', async () => {
-    let resolveUpload: (value: { status: 'uploaded' }) => void = () => undefined
+  it('retries the same saved archive and removes the retry record after success', async () => {
+    uploadMocks.upload
+      .mockResolvedValueOnce({ reason: 'service_unavailable', status: 'rejected' })
+      .mockResolvedValueOnce({ reason: 'rate_limited', status: 'rejected' })
+      .mockResolvedValueOnce({ reportId: RETRY_REPORT_ID, status: 'uploaded' })
+    const service = new DiagnosticBundleService()
+
+    const first = await service.uploadBundle(UPLOAD_INPUT)
+    if (first.status !== 'submission_failed') throw new Error('Expected preserved failed submission')
+    const originalArchive = await readFile(first.filePath)
+    await rm(appTempDir, { recursive: true })
+    await writeFile(appTempDir, 'retry must not rebuild')
+
+    const retryFailed = await service.retryUpload({ bundleId: first.bundleId })
+    const retried = await service.retryUpload({ bundleId: first.bundleId })
+
+    expect(retryFailed).toMatchObject({ reason: 'rate_limited', status: 'submission_failed' })
+    expect(retried).toMatchObject({
+      bundleId: first.bundleId,
+      reportId: RETRY_REPORT_ID,
+      status: 'uploaded'
+    })
+    expect(uploadMocks.upload).toHaveBeenNthCalledWith(1, {
+      description: 'Line one\r\nLine two',
+      fileName: first.fileName,
+      filePath: expect.stringContaining(`${path.sep}temp${path.sep}`)
+    })
+    expect(uploadMocks.upload).toHaveBeenNthCalledWith(2, {
+      description: 'Line one\r\nLine two',
+      fileName: first.fileName,
+      filePath: first.filePath
+    })
+    expect(uploadMocks.upload).toHaveBeenNthCalledWith(3, {
+      description: 'Line one\r\nLine two',
+      fileName: first.fileName,
+      filePath: first.filePath
+    })
+    await expect(readFile(first.filePath)).resolves.toEqual(originalArchive)
+    await expect(service.retryUpload({ bundleId: first.bundleId })).rejects.toMatchObject({
+      code: diagnosticsErrorCodes.RETRY_NOT_AVAILABLE
+    })
+  })
+
+  it('rejects a retry id that is not owned by this process', async () => {
+    const service = new DiagnosticBundleService()
+
+    await expect(service.retryUpload({ bundleId: '323e4567-e89b-42d3-a456-426614174000' })).rejects.toMatchObject({
+      code: diagnosticsErrorCodes.RETRY_NOT_AVAILABLE
+    })
+    expect(uploadMocks.upload).not.toHaveBeenCalled()
+  })
+
+  it('serializes export, initial upload, and retry through one in-flight operation', async () => {
+    let resolveUpload: (value: { reportId: string; status: 'uploaded' }) => void = () => undefined
     uploadMocks.upload.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -309,13 +379,16 @@ describe('DiagnosticBundleService', () => {
         })
     )
     const service = new DiagnosticBundleService()
-    const first = service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const first = service.uploadBundle(UPLOAD_INPUT)
 
     await vi.waitFor(() => expect(uploadMocks.upload).toHaveBeenCalledOnce())
     await expect(
       service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
     ).resolves.toEqual({ status: 'busy' })
-    resolveUpload({ status: 'uploaded' })
+    await expect(service.retryUpload({ bundleId: '423e4567-e89b-42d3-a456-426614174000' })).resolves.toEqual({
+      status: 'busy'
+    })
+    resolveUpload({ reportId: REPORT_ID, status: 'uploaded' })
     await expect(first).resolves.toMatchObject({ status: 'uploaded' })
   })
 
@@ -324,23 +397,23 @@ describe('DiagnosticBundleService', () => {
     await writeFile(appTempDir, 'not a directory')
     const service = new DiagnosticBundleService()
 
-    await expect(
-      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
-    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.BUNDLE_BUILD_FAILED })
+    await expect(service.uploadBundle(UPLOAD_INPUT)).rejects.toMatchObject({
+      code: diagnosticsErrorCodes.BUNDLE_BUILD_FAILED
+    })
     expect(uploadMocks.upload).not.toHaveBeenCalled()
   })
 
   it('uses a stable diagnostics error when a failed upload cannot be preserved', async () => {
     uploadMocks.upload.mockResolvedValueOnce({
-      reason: 'network_failed',
-      status: 'manual_upload_required'
+      reason: 'service_unavailable',
+      status: 'rejected'
     })
     await rm(downloadsDir, { recursive: true })
     const service = new DiagnosticBundleService()
 
-    await expect(
-      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
-    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.FALLBACK_SAVE_FAILED })
+    await expect(service.uploadBundle(UPLOAD_INPUT)).rejects.toMatchObject({
+      code: diagnosticsErrorCodes.FALLBACK_SAVE_FAILED
+    })
     expect(await readdir(appTempDir)).toEqual([])
   })
 
@@ -349,9 +422,9 @@ describe('DiagnosticBundleService', () => {
     await rm(downloadsDir, { recursive: true })
     const service = new DiagnosticBundleService()
 
-    await expect(
-      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
-    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED })
+    await expect(service.uploadBundle(UPLOAD_INPUT)).rejects.toMatchObject({
+      code: diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED
+    })
     expect(uploadMocks.upload).toHaveBeenCalledOnce()
     expect(await readdir(appTempDir)).toEqual([])
   })

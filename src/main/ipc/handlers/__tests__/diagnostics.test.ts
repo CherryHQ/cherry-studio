@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const serviceMocks = vi.hoisted(() => ({
   exportBundle: vi.fn(),
   inspect: vi.fn(),
+  retryUpload: vi.fn(),
   uploadBundle: vi.fn()
 }))
 
@@ -45,13 +46,28 @@ describe('diagnosticsHandlers', () => {
     expect(serviceMocks.exportBundle).toHaveBeenCalledWith(input, 'main-window')
   })
 
-  it('delegates anonymous upload without adding a preload channel', async () => {
-    const input = { includeLogs: true, includeTraces: true, range: '24h' as const }
+  it('delegates diagnostic upload without adding a preload channel', async () => {
+    const input = {
+      description: 'The app stopped responding.',
+      includeLogs: true,
+      includeTraces: true,
+      range: '24h' as const
+    }
     serviceMocks.uploadBundle.mockResolvedValue({ status: 'uploaded' })
 
     await expect(diagnosticsHandlers['diagnostics.bundle.upload'](input, { senderId: 'main-window' })).resolves.toEqual(
       { status: 'uploaded' }
     )
     expect(serviceMocks.uploadBundle).toHaveBeenCalledWith(input)
+  })
+
+  it('delegates retry by opaque bundle id', async () => {
+    const input = { bundleId: '123e4567-e89b-42d3-a456-426614174000' }
+    serviceMocks.retryUpload.mockResolvedValue({ status: 'busy' })
+
+    await expect(
+      diagnosticsHandlers['diagnostics.bundle.retry_upload'](input, { senderId: 'main-window' })
+    ).resolves.toEqual({ status: 'busy' })
+    expect(serviceMocks.retryUpload).toHaveBeenCalledWith(input)
   })
 })
