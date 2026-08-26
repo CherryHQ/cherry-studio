@@ -174,7 +174,9 @@ describe('canEditAssistantMessageParts', () => {
 
   it.each([
     { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) },
-    { messageParts: parts({ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' }) },
+    {
+      messageParts: parts({ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' })
+    },
     { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
     { messageParts: parts({ type: 'text', text: '   ' }) },
     { messageParts: parts() }
