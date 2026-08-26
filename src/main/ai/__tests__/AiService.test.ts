@@ -37,6 +37,7 @@ const mockReadRetryPolicy = vi.fn(() => ({
 }))
 const mockGetImageGenerationSupport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
+const mockIsRegistryProvider = vi.fn()
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
@@ -99,7 +100,8 @@ vi.mock('@main/data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
-    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args)
+    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args),
+    isRegistryProvider: (...args: unknown[]) => mockIsRegistryProvider(...args)
   }
 }))
 
@@ -222,6 +224,7 @@ describe('AiService', () => {
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
+    mockIsRegistryProvider.mockReturnValue(false)
     mockProviderResolveApiKey.mockImplementation((_id: string, override?: string) => ({
       value: override ?? 'test-key',
       apiKeySelection: { attribution: override ? ('matched' as const) : ('unknown' as const) }

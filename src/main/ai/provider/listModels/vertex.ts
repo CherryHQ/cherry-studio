@@ -1,11 +1,10 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
-import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
 import { isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
 
-import { getBaseUrl } from '../../utils/provider'
+import { getBaseUrl, getProviderAppHeaders } from '../../utils/provider'
 import { normalizeVertexCredentials } from '../vertex'
 
 const logger = loggerService.withContext('ModelListService')
@@ -113,7 +112,7 @@ export async function createVertexModelListRequest(
   return {
     baseUrl: getVertexServiceEndpoint(provider, location),
     headers: {
-      ...defaultAppHeaders(),
+      ...getProviderAppHeaders(provider),
       ...authHeaders,
       ...provider.settings?.extraHeaders
     }
