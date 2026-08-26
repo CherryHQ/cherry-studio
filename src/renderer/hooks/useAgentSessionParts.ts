@@ -50,6 +50,21 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   } as CherryUIMessage
 }
 
+function dropSessionMessageFromPages(
+  pages: CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined,
+  messageId: string
+): CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined {
+  if (!pages) return pages
+  let mutated = false
+  const nextPages = pages.map((page) => {
+    const items = page.items.filter((item) => item.id !== messageId)
+    if (items.length === page.items.length) return page
+    mutated = true
+    return { ...page, items }
+  })
+  return mutated ? nextPages : pages
+}
+
 function reservedUIMessageToAgentSessionMessage(
   sessionId: string,
   message: CherryUIMessage
@@ -98,6 +113,8 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
   })
+  const inFlightDeleteIdsRef = useRef(new Set<string>())
+  const locallyRemovedIdsRef = useRef(new Set<string>())
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     () => {
@@ -233,9 +250,24 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
-      await deleteMessageTrigger({ params: { sessionId, messageId } })
+      const deleteKey = `${sessionId}:${messageId}`
+      if (locallyRemovedIdsRef.current.has(deleteKey)) {
+        await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
+        return
+      }
+      if (inFlightDeleteIdsRef.current.has(deleteKey)) return
+      if (!pages.some((page) => page.items.some((item) => item.id === messageId))) return
+
+      inFlightDeleteIdsRef.current.add(deleteKey)
+      try {
+        await deleteMessageTrigger({ params: { sessionId, messageId } })
+        locallyRemovedIdsRef.current.add(deleteKey)
+        await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
+      } finally {
+        inFlightDeleteIdsRef.current.delete(deleteKey)
+      }
     },
-    [deleteMessageTrigger, sessionId]
+    [deleteMessageTrigger, mutate, pages, sessionId]
   )
 
   return {

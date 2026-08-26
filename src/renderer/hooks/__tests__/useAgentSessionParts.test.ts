@@ -22,6 +22,23 @@ vi.mock('../useConversationHistoryQuery', () => ({
 
 const { toAgentSessionUIMessage, useAgentSessionParts } = await import('../useAgentSessionParts')
 
+function sessionMessageRow(id: string, sessionId = 'session-1'): AgentSessionMessageEntity {
+  return {
+    id,
+    sessionId,
+    role: 'user',
+    data: { parts: [{ type: 'text', text: id }] },
+    searchableText: id,
+    status: 'success',
+    modelId: null,
+    messageSnapshot: null,
+    stats: null,
+    runtimeResumeToken: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  } as AgentSessionMessageEntity
+}
+
 function mockAgentSessionPartsDataApi(pages: Array<{ items: AgentSessionMessageEntity[]; nextCursor?: string }> = []) {
   dataApiMocks.useInfiniteQuery.mockReturnValue({
     pages,
@@ -33,6 +50,37 @@ function mockAgentSessionPartsDataApi(pages: Array<{ items: AgentSessionMessageE
   })
   dataApiMocks.useInfiniteFlatItems.mockReturnValue(pages.flatMap((page) => page.items))
   dataApiMocks.useMutation.mockReturnValue({ trigger: vi.fn() })
+}
+
+function mockLiveAgentSessionParts(initialItems: AgentSessionMessageEntity[]) {
+  let pages = [{ items: initialItems, nextCursor: undefined as string | undefined }]
+  const mutate = vi.fn(async (updater?: unknown) => {
+    if (typeof updater === 'function') {
+      const next = await (
+        updater as (current: typeof pages) => typeof pages | Promise<typeof pages | undefined> | undefined
+      )(pages)
+      if (next !== undefined) pages = next
+    }
+    return pages
+  })
+  const trigger = vi.fn(async () => undefined)
+  dataApiMocks.useInfiniteQuery.mockImplementation(() => ({
+    pages,
+    isLoading: false,
+    isRefreshing: false,
+    hasNext: false,
+    loadNext: vi.fn(),
+    mutate
+  }))
+  dataApiMocks.useInfiniteFlatItems.mockImplementation((currentPages: Array<{ items: AgentSessionMessageEntity[] }>) =>
+    currentPages.flatMap((page) => page.items)
+  )
+  dataApiMocks.useMutation.mockReturnValue({ trigger })
+  return {
+    getIds: () => pages.flatMap((page) => page.items.map((item) => item.id)),
+    mutate,
+    trigger
+  }
 }
 
 describe('toAgentSessionUIMessage', () => {
@@ -351,5 +399,86 @@ describe('useAgentSessionParts', () => {
     rerender()
 
     expect(result.current.messages[0].parts).toBe(liveParts)
+  })
+
+  it('drops a successfully deleted message from the visible infinite list without remounting', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-keep'), sessionMessageRow('message-delete')])
+    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+
+    expect(result.current.messages.map((message) => message.id)).toEqual(['message-keep', 'message-delete'])
+
+    await act(async () => {
+      await result.current.deleteMessage('message-delete')
+    })
+    rerender()
+
+    expect(live.trigger).toHaveBeenCalledOnce()
+    expect(live.trigger).toHaveBeenCalledWith({
+      params: { sessionId: 'session-1', messageId: 'message-delete' }
+    })
+    expect(live.mutate).toHaveBeenCalledWith(expect.any(Function), { revalidate: false })
+    expect(live.getIds()).toEqual(['message-keep'])
+    expect(result.current.messages.map((message) => message.id)).toEqual(['message-keep'])
+  })
+
+  it('keeps the row in the visible list when DELETE fails', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
+    live.trigger.mockRejectedValueOnce(new Error('delete failed'))
+    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+
+    await expect(
+      act(async () => {
+        await result.current.deleteMessage('message-1')
+      })
+    ).rejects.toThrow('delete failed')
+    rerender()
+
+    expect(live.trigger).toHaveBeenCalledOnce()
+    expect(live.getIds()).toEqual(['message-1'])
+    expect(result.current.messages.map((message) => message.id)).toEqual(['message-1'])
+  })
+
+  it('does not send another DELETE for an id already removed from the local list', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1'), sessionMessageRow('message-2')])
+    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+
+    await act(async () => {
+      await result.current.deleteMessage('message-1')
+    })
+    rerender()
+    await act(async () => {
+      await result.current.deleteMessage('message-1')
+    })
+
+    expect(live.trigger).toHaveBeenCalledOnce()
+    expect(live.getIds()).toEqual(['message-2'])
+  })
+
+  it('does not send a second DELETE while the first request is in flight', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
+    let resolveDelete!: () => void
+    live.trigger.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = () => resolve(undefined)
+        })
+    )
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
+
+    let firstDelete!: Promise<void>
+    act(() => {
+      firstDelete = result.current.deleteMessage('message-1')
+      return undefined
+    })
+    await act(async () => {
+      await result.current.deleteMessage('message-1')
+    })
+    await act(async () => {
+      resolveDelete()
+      await firstDelete
+    })
+
+    expect(live.trigger).toHaveBeenCalledOnce()
+    expect(live.getIds()).toEqual([])
   })
 })
