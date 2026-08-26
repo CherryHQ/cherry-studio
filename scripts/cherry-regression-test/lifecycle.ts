@@ -500,19 +500,13 @@ export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string):
     if (!executablePath || !isVerifiedExecutable) {
       throw new Error('Owned macOS Electron executable could not be verified')
     }
-    const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
-    if (record.mode === 'tag' && !userDataArgument) throw new Error('Owned macOS application profile is missing')
-    const args =
-      record.mode === 'branch' ? [record.targetRoot, url] : ([userDataArgument, url].filter(Boolean) as string[])
+    const appBundlePath = dirname(dirname(dirname(executablePath)))
+    if (!basename(appBundlePath).endsWith('.app')) {
+      throw new Error('Owned macOS application bundle could not be verified')
+    }
     try {
-      execFileSync(executablePath, args, {
+      execFileSync('open', ['-a', appBundlePath, url], {
         cwd: record.cwd,
-        env: {
-          ...process.env,
-          ...(record.mode === 'branch'
-            ? { CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` }
-            : {})
-        },
         stdio: 'ignore',
         timeout: 15_000
       })

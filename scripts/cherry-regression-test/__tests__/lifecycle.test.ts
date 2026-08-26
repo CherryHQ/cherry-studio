@@ -260,7 +260,7 @@ describe('owned application lifecycle', () => {
     const callback = 'cherrystudio://oauth/callback?code=test-code&state=test-state'
     vi.spyOn(process, 'kill').mockReturnValue(true)
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
-      if (file === executablePath) return ''
+      if (file === 'open') return ''
       if (file === 'lsof') return String(electronPid)
       if (file === 'ps' && args.includes('command=')) return `${executablePath} ${targetRoot}`
       if (file === 'ps' && args.includes('comm=')) return executablePath
@@ -270,11 +270,10 @@ describe('owned application lifecycle', () => {
     await sendProtocolUrlToOwnedApp(record, callback)
 
     expect(execFileSyncMock).toHaveBeenCalledWith(
-      executablePath,
-      [targetRoot, callback],
+      'open',
+      ['-a', `${targetRoot}/node_modules/electron/dist/Electron.app`, callback],
       expect.objectContaining({
         cwd: targetRoot,
-        env: expect.objectContaining({ CS_DEV_USER_DATA_SUFFIX: 'Regression-test-run-authenticated' }),
         stdio: 'ignore'
       })
     )
