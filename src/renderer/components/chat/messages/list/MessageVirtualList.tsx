@@ -12,6 +12,7 @@
  */
 
 import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 import { ArrowDown } from 'lucide-react'
 import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -241,14 +242,7 @@ export function MessageVirtualList<T>({
       <Scrollbar
         ref={setScrollerRef}
         data-message-virtual-list-scroller
-        className={className}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          overflowAnchor: 'none'
-        }}>
+        className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none]', className)}>
         <div ref={runtime.contentRef}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
