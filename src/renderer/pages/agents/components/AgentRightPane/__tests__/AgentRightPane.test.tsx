@@ -1489,7 +1489,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
     const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
-    expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
+    expect(taskButton.querySelector('svg')).toHaveClass('motion-safe:animate-spin')
   })
 
   it('returns from a subagent flow to the status panel', async () => {
@@ -1513,7 +1513,7 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
-    expect(screen.getByText('agent.right_pane.info.subagents')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.running')).toBeInTheDocument()
   })
 
   it('shows a dsh todo_write snapshot in the floating task capsule', () => {
