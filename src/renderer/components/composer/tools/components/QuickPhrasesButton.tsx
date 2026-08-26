@@ -212,7 +212,8 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     () => ({
       title: t('settings.prompts.title'),
       list: phraseItems,
-      symbol: ComposerPanelSymbol.QuickPhrases
+      symbol: ComposerPanelSymbol.QuickPhrases,
+      trackInputQuery: true
     }),
     [phraseItems, t]
   )

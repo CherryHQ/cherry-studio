@@ -13,8 +13,14 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
+import type {
+  ScheduledTaskEntity,
+  ScheduledTaskListItem,
+  TaskRunLogEntity,
+  TaskRunSummary
+} from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -191,10 +197,15 @@ export class AgentTaskService {
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
   listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
-    tasks: ScheduledTaskEntity[]
+    tasks: ScheduledTaskListItem[]
     total: number
   } {
-    return this.queryTasks(options)
+    const result = this.queryTasks(options)
+    const runSummaries = this.getRunSummariesByScheduleIds(result.tasks.map((task) => task.id))
+    return {
+      tasks: result.tasks.map((task) => ({ ...task, runSummary: runSummaries.get(task.id) ?? null })),
+      total: result.total
+    }
   }
 
   private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
@@ -225,6 +236,18 @@ export class AgentTaskService {
       tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
       total: filtered.length
     }
+  }
+
+  private getRunSummariesByScheduleIds(scheduleIds: readonly string[]): Map<string, TaskRunSummary> {
+    return new Map(
+      [...jobService.getRunStatesByScheduleIds(AGENT_TASK_TYPE, scheduleIds)].map(
+        ([scheduleId, runState]): [string, TaskRunSummary] => {
+          if (runState.kind === 'running') return [scheduleId, { status: 'running' }]
+          if (runState.kind === 'unfinished') return [scheduleId, { status: 'queued' }]
+          return [scheduleId, { status: runState.status, finishedAt: timestampToISO(runState.finishedAt) }]
+        }
+      )
+    )
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {

@@ -31,11 +31,18 @@ function deferred<T>() {
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
+  const translations: Record<string, string> = {
+    'settings.models.add.context_window.label': 'Context window',
+    'settings.models.add.max_input_tokens.label': 'Max input tokens',
+    'settings.models.add.max_output_tokens.label': 'Max output tokens',
+    'settings.models.add.max_output_tokens.placeholder': 'e.g. 65536',
+    'settings.models.add.quick_presets': 'Quick presets'
+  }
 
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string) => key
+      t: (key: string) => translations[key] ?? key
     })
   }
 })
@@ -926,5 +933,164 @@ describe('Model drawers', () => {
       'claude-4-sonnet',
       expect.objectContaining({ endpointTypes: [] })
     )
+  })
+
+  it('offers independent token limit presets and keeps custom input available', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+
+    const contextGroup = screen.getByRole('group', {
+      name: 'Context window Quick presets'
+    })
+    const maxInputGroup = screen.getByRole('group', {
+      name: 'Max input tokens Quick presets'
+    })
+    const maxOutputGroup = screen.getByRole('group', {
+      name: 'Max output tokens Quick presets'
+    })
+    const contextPreset = within(contextGroup).getByRole('button', { name: /200K \(200000\)/ })
+    const maxInputPreset = within(maxInputGroup).getByRole('button', { name: /512K \(512000\)/ })
+    const maxOutputPreset = within(maxOutputGroup).getByRole('button', { name: /256K \(256000\)/ })
+
+    expect(within(contextGroup).getAllByRole('button')).toHaveLength(6)
+    expect(within(maxInputGroup).getAllByRole('button')).toHaveLength(5)
+    expect(within(maxOutputGroup).getAllByRole('button')).toHaveLength(5)
+    expect(screen.getByLabelText('Max output tokens')).toHaveAttribute('placeholder', 'e.g. 65536')
+
+    await user.click(contextPreset)
+    await user.click(maxInputPreset)
+    await user.click(maxOutputPreset)
+
+    expect(screen.getByLabelText('Context window')).toHaveValue('200000')
+    expect(screen.getByLabelText('Max input tokens')).toHaveValue('512000')
+    expect(screen.getByLabelText('Max output tokens')).toHaveValue('256000')
+    expect(contextPreset).toHaveAttribute('aria-pressed', 'true')
+    expect(maxInputPreset).toHaveAttribute('aria-pressed', 'true')
+    expect(maxOutputPreset).toHaveAttribute('aria-pressed', 'true')
+
+    const contextInput = screen.getByLabelText('Context window')
+    await user.clear(contextInput)
+    await user.type(contextInput, '777777')
+
+    expect(screen.getByLabelText('Context window')).toHaveValue('777777')
+    expect(contextPreset).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('submits the exact values selected from token limit presets', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'preset-model')
+    await user.click(screen.getByRole('button', { name: /512K \(524288\)/ }))
+    await user.click(screen.getByRole('button', { name: 'Max input tokens: 1M (1000000)' }))
+    await user.click(
+      within(
+        screen.getByRole('group', {
+          name: 'Max output tokens Quick presets'
+        })
+      ).getByRole('button', { name: /128K \(128000\)/ })
+    )
+    await user.click(screen.getByRole('button', { name: 'settings.models.add.add_model' }))
+
+    await waitFor(() =>
+      expect(createModelMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerId: 'openai',
+          modelId: 'preset-model',
+          contextWindow: 524288,
+          maxInputTokens: 1000000,
+          maxOutputTokens: 128000
+        })
+      )
+    )
+  })
+
+  it('auto-saves preset and manually entered token limits from the edit drawer', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::preset-model',
+            providerId: 'openai',
+            name: 'preset-model',
+            group: 'OpenAI',
+            capabilities: [],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /512K \(524288\)/ }))
+    await user.click(screen.getByRole('button', { name: 'Max input tokens: 256K (256000)' }))
+    await user.click(screen.getByRole('button', { name: /64K \(65536\)/ }))
+
+    await waitFor(() => {
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ contextWindow: 524288 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxInputTokens: 256000 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxOutputTokens: 65536 })
+      )
+    })
+
+    const contextInput = screen.getByLabelText('Context window')
+    const maxInput = screen.getByLabelText('Max input tokens')
+    const maxOutput = screen.getByLabelText('Max output tokens')
+
+    await user.clear(contextInput)
+    await user.type(contextInput, '777777')
+    await user.click(maxInput)
+    await user.clear(maxInput)
+    await user.type(maxInput, '666666')
+    await user.click(maxOutput)
+    await user.clear(maxOutput)
+    await user.type(maxOutput, '555555')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ contextWindow: 777777 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxInputTokens: 666666 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxOutputTokens: 555555 })
+      )
+    })
   })
 })
