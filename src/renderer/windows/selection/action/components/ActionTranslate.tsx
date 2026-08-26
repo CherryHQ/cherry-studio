@@ -2,6 +2,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherr
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wrapLinesContext'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
@@ -407,11 +408,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
             <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
-              <ActionResultContent
-                key={latestAssistantMessage.id}
-                message={latestAssistantMessage}
-                partsByMessageId={partsMap}
-              />
+              <CodeBlockWrapLinesContext value={true}>
+                <ActionResultContent
+                  key={latestAssistantMessage.id}
+                  message={latestAssistantMessage}
+                  partsByMessageId={partsMap}
+                />
+              </CodeBlockWrapLinesContext>
             </Suspense>
           )}
         </div>

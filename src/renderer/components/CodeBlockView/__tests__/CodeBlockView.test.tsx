@@ -232,6 +232,37 @@ describe('CodeBlockView', () => {
     expect(screen.getByLabelText('Code viewer')).toHaveAttribute('data-wrapped', 'true')
   })
 
+  it('hides the wrap toggle when wrap is forced even if chat wrap is on', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.wrappable': true,
+      'chat.code.editor.enabled': false
+    })
+
+    render(
+      <CodeBlockWrapLinesContext value={true}>
+        <CodeBlockView language="javascript" editable={false}>
+          const token = 'short'
+        </CodeBlockView>
+      </CodeBlockWrapLinesContext>
+    )
+
+    expect(screen.getByLabelText('Code viewer')).toHaveAttribute('data-wrapped', 'true')
+    expect(screen.queryByRole('button', { name: 'code_block.wrap.off' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code_block.wrap.on' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the wrap toggle in ordinary chat when wrap is not forced', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
+
+    render(
+      <CodeBlockView language="javascript" editable={false}>
+        const token = 'short'
+      </CodeBlockView>
+    )
+
+    expect(screen.getByRole('button', { name: 'code_block.wrap.off' })).toBeInTheDocument()
+  })
+
   it('keeps chat wrap off when no ancestor requested wrap', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.code.wrappable': false,

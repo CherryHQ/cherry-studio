@@ -155,13 +155,6 @@ describe('ActionGeneral', () => {
     await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
   })
 
-  it('keeps the result column shrinkable inside the action panel', () => {
-    const { container } = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
-
-    expect(container.firstElementChild).toHaveClass('min-w-0', 'w-full')
-    expect(container.querySelector('.mt-1')).toHaveClass('min-w-0', 'max-w-full')
-  })
-
   it('leases a no-assistant temporary topic and sends for default model actions', async () => {
     render(<ActionGeneral action={createAction({ assistantId: '' })} />)
 

@@ -295,7 +295,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   useWrapTool({
     enabled: !isInSpecialView,
     wrapped: shouldWrap,
-    wrappable: codeWrappable,
+    wrappable: codeWrappable && !wrapLines,
     toggle: handleToggleWrapped,
     setTools
   })

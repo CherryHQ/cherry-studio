@@ -3,7 +3,6 @@ import { useMessageListRenderConfig } from '@renderer/components/chat/messages/h
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
-import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wrapLinesContext'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 
@@ -23,17 +22,13 @@ const ActionResultContent: FC<Props> = ({ message, partsByMessageId }) => {
   const { renderConfig } = useMessageListRenderConfig()
   const platformActions = useMessagePlatformActions()
   return (
-    <div className="min-w-0 max-w-full">
-      <CodeBlockWrapLinesContext value={true}>
-        <MessageContentProvider
-          messages={[message]}
-          partsByMessageId={partsByMessageId}
-          renderConfig={renderConfig}
-          actions={platformActions}>
-          <MessageContent key={message.id} message={message} />
-        </MessageContentProvider>
-      </CodeBlockWrapLinesContext>
-    </div>
+    <MessageContentProvider
+      messages={[message]}
+      partsByMessageId={partsByMessageId}
+      renderConfig={renderConfig}
+      actions={platformActions}>
+      <MessageContent key={message.id} message={message} />
+    </MessageContentProvider>
   )
 }
 

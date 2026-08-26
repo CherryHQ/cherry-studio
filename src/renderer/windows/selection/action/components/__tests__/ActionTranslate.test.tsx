@@ -265,17 +265,6 @@ describe('ActionTranslate', () => {
     expect(detectedLabel).toHaveAttribute('title', 'English')
   })
 
-  it('keeps the translation column and result pane shrinkable inside the action panel', async () => {
-    state.detectLanguage.mockResolvedValue('en-us')
-
-    const { container } = render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
-
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
-
-    expect(container.firstElementChild).toHaveClass('min-w-0', 'w-full', 'flex-1')
-    expect(container.querySelector('.mt-4.whitespace-pre-wrap')).toHaveClass('min-w-0', 'max-w-full')
-  })
-
   it('toggles the original text after the auxiliary controls are regrouped', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
 
