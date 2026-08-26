@@ -2827,6 +2827,7 @@
   "provider.tencent-cloud-ti": "Tencent Cloud TI",
   "provider.tesseract": "Tesseract",
   "provider.together": "Together",
+  "provider.token-plan": "Token Plan",
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
