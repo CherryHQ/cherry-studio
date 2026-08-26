@@ -21,6 +21,11 @@ export async function openLaunchpadApp(page: Page, name: string): Promise<void> 
 
 export async function selectSidebarApp(page: Page, name: string): Promise<void> {
   await dismissOnboarding(page)
+  const targetView = {
+    Chat: '[data-ui="chat.view"]:visible',
+    Settings: '[data-ui="settings.view"]:visible',
+    Work: '[data-ui="agent.view"]:visible'
+  }[name]
   if (
     await page
       .locator('[data-ui="settings.view"]:visible')
@@ -32,15 +37,16 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
   }
   const sidebarButton = page.getByRole('button', { name, exact: true }).first()
   if (await sidebarButton.isVisible().catch(() => false)) {
-    await sidebarButton.click()
+    await sidebarButton.click({ noWaitAfter: true })
   } else {
     const back = page.getByRole('button', { name: 'Back', exact: true }).first()
     if (await back.isVisible().catch(() => false)) await back.click()
     if (await sidebarButton.isVisible().catch(() => false)) {
-      await sidebarButton.click()
-      return
+      await sidebarButton.click({ noWaitAfter: true })
+    } else {
+      await openLaunchpad(page)
+      await page.getByRole('button', { name, exact: true }).last().click({ noWaitAfter: true })
     }
-    await openLaunchpad(page)
-    await page.getByRole('button', { name, exact: true }).last().click()
   }
+  if (targetView) await expect(page.locator(targetView).first()).toBeVisible({ timeout: 30_000 })
 }

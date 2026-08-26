@@ -11,14 +11,11 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   await selectSidebarApp(page, 'Chat')
+  const chatView = page.locator('[data-ui="chat.view"]:visible').first()
+  const assistant = chatView.getByText(CUSTOM_ASSISTANT, { exact: true }).first()
 
-  if (
-    !(await page
-      .getByText(CUSTOM_ASSISTANT, { exact: true })
-      .isVisible()
-      .catch(() => false))
-  ) {
-    await page.getByRole('button', { name: 'Add Assistant', exact: true }).click()
+  if (!(await assistant.isVisible().catch(() => false))) {
+    await chatView.getByRole('button', { name: 'Add Assistant', exact: true }).click({ noWaitAfter: true })
     await page.getByRole('option', { name: 'New Assistant', exact: true }).click()
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill(CUSTOM_ASSISTANT)
     await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Cherry Regression Test Assistant')
@@ -34,8 +31,8 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await page.getByRole('button', { name: 'Create', exact: true }).click()
   } else {
-    await page.getByText(CUSTOM_ASSISTANT, { exact: true }).first().click()
+    await assistant.click({ noWaitAfter: true })
   }
 
-  await expect(page.getByText(CUSTOM_ASSISTANT, { exact: true }).first()).toBeVisible()
+  await expect(assistant).toBeVisible()
 }

@@ -37,7 +37,7 @@ test('[C-01] 创建自定义助手并聊天 @custom-assistant', async ({ app, ma
   const restarted = await app.restart('authenticated')
   await dismissOnboarding(restarted)
   await selectSidebarApp(restarted, 'Chat')
-  const assistantList = restarted.getByTestId('assistant-resource-list')
+  const assistantList = restarted.locator('[data-ui="chat.view"]:visible').getByRole('listbox').first()
   await expect(assistantList).toBeVisible()
   await assistantList.getByText(CUSTOM_ASSISTANT, { exact: true }).first().click({ noWaitAfter: true })
   await expect(restarted.getByText('ASSISTANT_PROMPT_PASS').last()).toBeVisible()
