@@ -33,6 +33,9 @@ const chatFixedModels = [
   'kimi-k2-5',
   'kimi-k2-6',
   'kimi-k2-7-code',
+  // LongCat 2.0 declares a thinking toggle but no `provider.npm`, so it rides the chat/completions
+  // default; its toggle wire on Zen Go is unverified, so claim no knobs until the contract is known.
+  'longcat-2-0',
   'mimo-v2-5',
   'mimo-v2-5-pro',
   'mimo-v2-omni',
@@ -49,6 +52,14 @@ const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = 
   // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
   // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
   { modelId: 'ox-alpha', values: ['low', 'high', 'max'] }
+]
+
+// models.dev routes Zen Go's Grok through `@ai-sdk/openai` (Responses); the Go endpoint table still
+// prints chat/completions, so Chat stays selectable behind the Responses default (#17860). Effort
+// vocabularies differ per SKU — 4.6 adds `xhigh`.
+const grokResponsesModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
+  { modelId: 'grok-4-5', values: ['low', 'medium', 'high'] },
+  { modelId: 'grok-4-6', values: ['low', 'medium', 'high', 'xhigh'] }
 ]
 
 const anthropicFixedModels = ['minimax-m2-5', 'minimax-m2-7']
@@ -76,16 +87,14 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
       'openai-chat-completions': { support: effortSupport(values) }
     }
   })),
-  // models.dev routes Zen Go's Grok 4.5 through `@ai-sdk/openai` (Responses); the Go endpoint table
-  // still prints chat/completions, so Chat stays selectable behind the Responses default (#17860).
-  {
-    modelId: 'grok-4-5',
+  ...grokResponsesModels.map(({ modelId, values }) => ({
+    modelId,
     endpointTypes: ['openai-responses' as const, 'openai-chat-completions' as const],
     reasoningContracts: {
-      'openai-responses': { support: effortSupport(['low', 'medium', 'high']) },
-      'openai-chat-completions': { support: effortSupport(['low', 'medium', 'high']) }
+      'openai-responses': { support: effortSupport(values) },
+      'openai-chat-completions': { support: effortSupport(values) }
     }
-  },
+  })),
   {
     modelId: 'gpt-5-6-luna',
     endpointTypes: ['openai-responses' as const],
