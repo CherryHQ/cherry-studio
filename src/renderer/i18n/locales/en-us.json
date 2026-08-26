@@ -3440,6 +3440,7 @@
   "settings.data.nutstore.checkConnection.success": "Connected to Nutstore",
   "settings.data.nutstore.isLogin": "Logged in",
   "settings.data.nutstore.login.button": "Login",
+  "settings.data.nutstore.login.failed": "Nutstore login did not complete. Please try again.",
   "settings.data.nutstore.logout.button": "Logout",
   "settings.data.nutstore.logout.content": "After logout, you will not be able to backup to Nutstore or restore from Nutstore.",
   "settings.data.nutstore.logout.title": "Are you sure you want to logout from Nutstore?",

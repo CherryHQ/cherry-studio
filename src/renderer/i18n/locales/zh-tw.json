@@ -3440,6 +3440,7 @@
   "settings.data.nutstore.checkConnection.success": "已連線至堅果雲",
   "settings.data.nutstore.isLogin": "已登入",
   "settings.data.nutstore.login.button": "登入",
+  "settings.data.nutstore.login.failed": "堅果雲登入未完成，請重試。",
   "settings.data.nutstore.logout.button": "登出",
   "settings.data.nutstore.logout.content": "登出後將無法備份到堅果雲或從堅果雲還原。",
   "settings.data.nutstore.logout.title": "確定要登出堅果雲嗎？",

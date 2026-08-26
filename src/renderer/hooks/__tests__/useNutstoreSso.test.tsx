@@ -77,16 +77,20 @@ describe('useNutstoreSso', () => {
   it('replaces the previous attempt instead of accumulating listeners', async () => {
     const { result } = renderHook(() => useNutstoreSso())
     const first = result.current()
+    let firstSettled = false
+    void first.then(() => {
+      firstSettled = true
+    })
     const second = result.current()
 
     expect(mocks.activeListeners.size).toBe(1)
-    await expect(first).resolves.toBeNull()
 
     act(() => {
       emitProtocolData('cherrystudio://?s=second-token')
     })
 
     await expect(second).resolves.toBe('second-token')
+    expect(firstSettled).toBe(false)
     expect(mocks.activeListeners.size).toBe(0)
   })
 
@@ -113,13 +117,18 @@ describe('useNutstoreSso', () => {
     expect(mocks.logger.error).toHaveBeenCalledWith('Failed to listen for Nutstore SSO callback', subscriptionError)
   })
 
-  it('settles and removes the active attempt when the owner unmounts', async () => {
+  it('removes the active attempt when the owner unmounts without settling it', async () => {
     const { result, unmount } = renderHook(() => useNutstoreSso())
     const pending = result.current()
+    let settled = false
+    void pending.then(() => {
+      settled = true
+    })
 
     unmount()
 
-    await expect(pending).resolves.toBeNull()
+    await Promise.resolve()
+    expect(settled).toBe(false)
     expect(mocks.activeListeners.size).toBe(0)
   })
 })

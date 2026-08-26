@@ -22,17 +22,26 @@ export function useNutstoreSso() {
       const resources: { removeListener?: () => void; timeoutId?: number } = {}
       let settled = false
 
-      const finish = (encryptedToken: string | null) => {
-        if (settled) return
+      const release = () => {
         settled = true
         resources.removeListener?.()
         if (resources.timeoutId !== undefined) window.clearTimeout(resources.timeoutId)
         if (cancelPendingAttemptRef.current === cancel) {
           cancelPendingAttemptRef.current = null
         }
+      }
+
+      const finish = (encryptedToken: string | null) => {
+        if (settled) return
+        release()
         resolve(encryptedToken)
       }
-      const cancel = () => finish(null)
+
+      // 取消（被新尝试替换、组件卸载）不结算：调用方不该为一次主动放弃的尝试报错
+      const cancel = () => {
+        if (settled) return
+        release()
+      }
       cancelPendingAttemptRef.current = cancel
 
       const onProtocolData = (data: { url: string }) => {

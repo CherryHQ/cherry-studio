@@ -64,10 +64,13 @@ const NutstoreSettings: FC = () => {
     window.open(ssoUrl, '_blank')
     const nutstoreToken = await nutstoreSsoHandler()
 
-    if (nutstoreToken) {
-      void setNutstoreToken(nutstoreToken)
+    if (!nutstoreToken) {
+      toast.error(t('settings.data.nutstore.login.failed'))
+      return
     }
-  }, [nutstoreSsoHandler, setNutstoreToken])
+
+    void setNutstoreToken(nutstoreToken)
+  }, [nutstoreSsoHandler, setNutstoreToken, t])
 
   useEffect(() => {
     async function decryptTokenEffect() {
