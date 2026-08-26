@@ -6,6 +6,16 @@ import { Node, type ObjectLiteralExpression, Project, SyntaxKind } from 'ts-morp
 import { appLanguageOptions } from '../../../src/renderer/i18n/languages'
 import { CodeCli } from '../../../src/shared/types/codeCli'
 import { COMMAND_DEFINITIONS } from '../../../src/shared/utils/command/definitions'
+import { DEFAULT_CONTEXT_SETTINGS, MIN_TRUNCATE_THRESHOLD } from '../../../src/shared/data/types/contextSettings'
+import { McpServerInstallSourceSchema, McpServerTypeSchema } from '../../../src/shared/data/types/mcpServer'
+import {
+  knowledgeFileProcessingExts,
+  knowledgeSupportedFileExts
+} from '../../../src/shared/utils/file/fileExtensions'
+import {
+  COMPRESSION_MAX_OUTPUT_TOKENS,
+  COMPRESSION_MIN_OUTPUT_TOKENS
+} from '../../../packages/aiCore/src/core/context/middleware'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..', '..')
 const PACKAGE_JSON_FILE = path.join(ROOT_DIR, 'package.json')
@@ -61,6 +71,32 @@ export interface ProductManifest {
     codeCli: {
       route: string
       tools: string[]
+    }
+  }
+  features: {
+    context: {
+      defaults: {
+        enabled: boolean
+        truncateThreshold: number
+        maxMessages: number | null
+        compress: {
+          enabled: boolean
+          modelId: string | null
+        }
+      }
+      limits: {
+        minTruncateThreshold: number
+        compressionMinOutputTokens: number
+        compressionMaxOutputTokens: number
+      }
+    }
+    mcp: {
+      serverTypes: string[]
+      installSources: string[]
+    }
+    knowledge: {
+      supportedFileExtensions: string[]
+      fileProcessingExtensions: string[]
     }
   }
 }
@@ -191,6 +227,27 @@ function readAgentCapabilities(primaryRoutes: ProductManifest['routes']['primary
   }
 }
 
+function readFeatures(): ProductManifest['features'] {
+  return {
+    context: {
+      defaults: { ...DEFAULT_CONTEXT_SETTINGS },
+      limits: {
+        minTruncateThreshold: MIN_TRUNCATE_THRESHOLD,
+        compressionMinOutputTokens: COMPRESSION_MIN_OUTPUT_TOKENS,
+        compressionMaxOutputTokens: COMPRESSION_MAX_OUTPUT_TOKENS
+      }
+    },
+    mcp: {
+      serverTypes: [...McpServerTypeSchema.options],
+      installSources: [...McpServerInstallSourceSchema.options]
+    },
+    knowledge: {
+      supportedFileExtensions: [...knowledgeSupportedFileExts],
+      fileProcessingExtensions: [...knowledgeFileProcessingExts]
+    }
+  }
+}
+
 export function generateProductManifest(): ProductManifest {
   const primaryRoutes = readPrimaryRoutes()
   return {
@@ -203,7 +260,8 @@ export function generateProductManifest(): ProductManifest {
     commands: JSON.parse(JSON.stringify(COMMAND_DEFINITIONS)) as ProductManifest['commands'],
     providers: readProviders(),
     locales: [...appLanguageOptions],
-    agents: readAgentCapabilities(primaryRoutes)
+    agents: readAgentCapabilities(primaryRoutes),
+    features: readFeatures()
   }
 }
 
