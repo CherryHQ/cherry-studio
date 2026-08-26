@@ -3,8 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { parse } from 'yaml'
 import { afterEach, describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 
 import {
   activateMiniMaxCodeModel,
@@ -31,14 +31,14 @@ describe('MiniMax Code config selection', () => {
         { MINIMAX_DATA_DIR: '/custom/minimax', MAVIS_DATA_DIR: '/custom/mavis', HOME: '/shell/home' },
         '/system/home'
       )
-    ).toBe('/custom/minimax/config.yaml')
+    ).toBe(path.resolve('/custom/minimax', 'config.yaml'))
     expect(resolveMiniMaxCodeConfigPath({ MAVIS_DATA_DIR: '/custom/mavis' }, '/system/home')).toBe(
-      '/custom/mavis/config.yaml'
+      path.resolve('/custom/mavis', 'config.yaml')
     )
     expect(resolveMiniMaxCodeConfigPath({ HOME: '/shell/home' }, '/system/home')).toBe(
-      '/shell/home/.minimax/config.yaml'
+      path.join('/shell/home', '.minimax', 'config.yaml')
     )
-    expect(resolveMiniMaxCodeConfigPath({}, '/system/home')).toBe('/system/home/.minimax/config.yaml')
+    expect(resolveMiniMaxCodeConfigPath({}, '/system/home')).toBe(path.join('/system/home', '.minimax', 'config.yaml'))
   })
 
   it('atomically selects a custom model and can restore only the previous selection fields', async () => {
