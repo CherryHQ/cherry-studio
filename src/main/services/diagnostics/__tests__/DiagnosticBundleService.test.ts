@@ -3,12 +3,21 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChatRecordCandidate, ChatRecordCollection, SerializedChatRecord } from '../chatRecordCollector'
+import type {
+  ChatArchiveName,
+  ChatRecordCandidate,
+  ChatRecordCollection,
+  ChatRecordReference
+} from '../chatRecordCollector'
 import * as chatRecordCollector from '../chatRecordCollector'
 
 const electronMocks = vi.hoisted(() => ({
@@ -34,21 +43,46 @@ vi.mock('electron', () => ({
 vi.mock('../FeishuAnonymousFormClient', () => ({
   feishuAnonymousFormClient: uploadMocks
 }))
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: { getSessionMessage: vi.fn() }
+}))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: vi.fn() }
+}))
+vi.mock('@data/services/MessageService', () => ({
+  messageService: { getById: vi.fn() }
+}))
+vi.mock('@data/services/TopicService', () => ({
+  topicService: { getById: vi.fn() }
+}))
 
 import { DiagnosticBundleService } from '../DiagnosticBundleService'
 
-function serializedChatRecord(
-  archiveName: SerializedChatRecord['archiveName'],
+function chatRecordReference(
+  archiveName: ChatArchiveName,
   key: string,
   entity: unknown,
   bytes?: number
-): SerializedChatRecord {
-  const data = Buffer.from(`${JSON.stringify(entity)}\n`, 'utf8')
-  return { archiveName, bytes: bytes ?? data.length, data, key }
+): ChatRecordReference {
+  return { archiveName, bytes: bytes ?? Buffer.byteLength(`${JSON.stringify(entity)}\n`, 'utf8'), key }
 }
 
-function chatCandidate(id: string, latestAt: number, parts: SerializedChatRecord[]): ChatRecordCandidate {
-  return { id, kind: 'chatRecords', latestAt, parts }
+function chatCandidate(
+  id: string,
+  latestAt: number,
+  [messageRecord, contextRecord]: [ChatRecordReference, ChatRecordReference]
+): ChatRecordCandidate {
+  const source = id.startsWith('agent-session-message:') ? 'agent-session' : 'normal-chat'
+  return {
+    contextId: contextRecord.key.slice(contextRecord.key.indexOf(':') + 1),
+    contextRecord,
+    id,
+    kind: 'chatRecords',
+    latestAt,
+    messageId: id.slice(id.indexOf(':') + 1),
+    messageRecord,
+    source
+  }
 }
 
 function chatCollection(
@@ -223,18 +257,22 @@ describe('DiagnosticBundleService', () => {
     }
     const candidates = [
       chatCandidate('message:message-1', Date.parse(message.createdAt), [
-        serializedChatRecord('chats/messages.jsonl', 'message:message-1', message),
-        serializedChatRecord('chats/topics.jsonl', 'topic:topic-1', topic)
+        chatRecordReference('chats/messages.jsonl', 'message:message-1', message),
+        chatRecordReference('chats/topics.jsonl', 'topic:topic-1', topic)
       ]),
       chatCandidate('agent-session-message:agent-message-1', Date.parse(agentMessage.createdAt), [
-        serializedChatRecord(
+        chatRecordReference(
           'chats/agent-session-messages.jsonl',
           'agent-session-message:agent-message-1',
           agentMessage
         ),
-        serializedChatRecord('chats/agent-sessions.jsonl', 'agent-session:session-1', session)
+        chatRecordReference('chats/agent-sessions.jsonl', 'agent-session:session-1', session)
       ])
     ]
+    vi.mocked(messageService.getById).mockReturnValue(message as never)
+    vi.mocked(topicService.getById).mockReturnValue(topic as never)
+    vi.mocked(agentSessionMessageService.getSessionMessage).mockReturnValue(agentMessage as never)
+    vi.mocked(agentSessionService.getById).mockReturnValue(session as never)
     const collection = chatCollection(candidates)
     const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(collection)
     const service = new DiagnosticBundleService()
@@ -279,15 +317,19 @@ describe('DiagnosticBundleService', () => {
 
   it('omits older whole chat messages when chat records exceed the shared source budget', async () => {
     const mib = 1024 * 1024
-    const topic = serializedChatRecord('chats/topics.jsonl', 'topic:1', { id: 'topic-1' }, mib)
+    const topicEntity = { id: 'topic-1' }
+    const newerEntity = { id: 'newer' }
+    const topic = chatRecordReference('chats/topics.jsonl', 'topic:1', topicEntity, mib)
     const newer = chatCandidate('message:newer', 2, [
-      serializedChatRecord('chats/messages.jsonl', 'message:newer', { id: 'newer' }, 40 * mib),
+      chatRecordReference('chats/messages.jsonl', 'message:newer', newerEntity, 40 * mib),
       topic
     ])
     const older = chatCandidate('message:older', 1, [
-      serializedChatRecord('chats/messages.jsonl', 'message:older', { id: 'older' }, 20 * mib),
+      chatRecordReference('chats/messages.jsonl', 'message:older', { id: 'older' }, 20 * mib),
       topic
     ])
+    vi.mocked(messageService.getById).mockReturnValue(newerEntity as never)
+    vi.mocked(topicService.getById).mockReturnValue(topicEntity as never)
     const collectSpy = vi
       .spyOn(chatRecordCollector, 'collectChatRecords')
       .mockReturnValue(chatCollection([newer, older]))
@@ -304,11 +346,15 @@ describe('DiagnosticBundleService', () => {
       const messageLines = zip.contents['chats/messages.jsonl'].toString('utf8').trim().split('\n')
       expect(messageLines.map((line) => JSON.parse(line))).toEqual([{ id: 'newer' }])
       const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      const actualIncludedBytes =
+        Buffer.byteLength(`${JSON.stringify(newerEntity)}\n`, 'utf8') +
+        Buffer.byteLength(`${JSON.stringify(topicEntity)}\n`, 'utf8')
       expect(manifest.sources.chatRecords).toEqual({
-        included: { bytes: 41 * mib, messageCount: 1, recordCount: 2 },
+        included: { bytes: actualIncludedBytes, messageCount: 1, recordCount: 2 },
         omitted: { bytes: 20 * mib, messageCount: 1, recordCount: 1 }
       })
       expect(manifest.warnings).toContain('size_limit_reached')
+      expect(manifest.warnings).toContain('source_changed')
     } finally {
       collectSpy.mockRestore()
     }
@@ -322,8 +368,8 @@ describe('DiagnosticBundleService', () => {
       `${JSON.stringify({ message: 'recent', timestamp: new Date(now - 1_000).toISOString() })}\n`
     )
     const candidate = chatCandidate('message:1', now - 2_000, [
-      serializedChatRecord('chats/messages.jsonl', 'message:1', { id: 'message-1' }),
-      serializedChatRecord('chats/topics.jsonl', 'topic:1', { id: 'topic-1' })
+      chatRecordReference('chats/messages.jsonl', 'message:1', { id: 'message-1' }),
+      chatRecordReference('chats/topics.jsonl', 'topic:1', { id: 'topic-1' })
     ])
     const collection = chatCollection([candidate])
     const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(collection)
@@ -336,7 +382,7 @@ describe('DiagnosticBundleService', () => {
         'main-window'
       )
 
-      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 1, omittedFileCount: 0 })
+      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 1, omittedFileCount: 2 })
       const zip = await readZip(destination)
       expect(zip.entries).toContain(`logs/${logFileName}`)
       expect(zip.entries.some((entry) => entry.startsWith('chats/'))).toBe(false)
@@ -353,6 +399,62 @@ describe('DiagnosticBundleService', () => {
     } finally {
       collectSpy.mockRestore()
       stageSpy.mockRestore()
+    }
+  })
+
+  it('counts only missing chat archives when one chat family cannot be hydrated', async () => {
+    const topic = { id: 'topic-1', name: 'Topic' }
+    const message = {
+      id: 'message-1',
+      topicId: topic.id,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] },
+      createdAt: '2026-08-25T00:01:00.000Z'
+    }
+    const session = { id: 'session-1', agentId: 'agent-1', name: 'Agent session' }
+    const agentMessage = {
+      id: 'agent-message-1',
+      sessionId: session.id,
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'agent reply' }] },
+      createdAt: '2026-08-25T00:02:00.000Z'
+    }
+    const candidates = [
+      chatCandidate('agent-session-message:agent-message-1', Date.parse(agentMessage.createdAt), [
+        chatRecordReference(
+          'chats/agent-session-messages.jsonl',
+          'agent-session-message:agent-message-1',
+          agentMessage
+        ),
+        chatRecordReference('chats/agent-sessions.jsonl', 'agent-session:session-1', session)
+      ]),
+      chatCandidate('message:message-1', Date.parse(message.createdAt), [
+        chatRecordReference('chats/messages.jsonl', 'message:message-1', message),
+        chatRecordReference('chats/topics.jsonl', 'topic:topic-1', topic)
+      ])
+    ]
+    vi.mocked(agentSessionMessageService.getSessionMessage).mockImplementation(() => {
+      throw new Error('agent chat unavailable')
+    })
+    vi.mocked(messageService.getById).mockReturnValue(message as never)
+    vi.mocked(topicService.getById).mockReturnValue(topic as never)
+    const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(chatCollection(candidates))
+    const service = new DiagnosticBundleService()
+
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: true, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
+
+      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 2, omittedFileCount: 2 })
+      const zip = await readZip(destination)
+      expect(zip.entries).toContain('chats/messages.jsonl')
+      expect(zip.entries).toContain('chats/topics.jsonl')
+      expect(zip.entries).not.toContain('chats/agent-session-messages.jsonl')
+      expect(zip.entries).not.toContain('chats/agent-sessions.jsonl')
+    } finally {
+      collectSpy.mockRestore()
     }
   })
 

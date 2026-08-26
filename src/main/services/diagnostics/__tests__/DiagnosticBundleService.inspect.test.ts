@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChatRecordCandidate, ChatRecordCollection } from '../chatRecordCollector'
+import type { ChatRecordCandidate, ChatRecordCollection, ChatRecordReference } from '../chatRecordCollector'
 import type * as ChatRecordCollectorModule from '../chatRecordCollector'
 import type * as SourceCollectorModule from '../sourceCollector'
 import type { SourceCollection } from '../types'
@@ -41,8 +41,22 @@ function emptyChatCollection(): ChatRecordCollection {
   }
 }
 
-function chatCandidate(id: string, latestAt: number, parts: ChatRecordCandidate['parts']): ChatRecordCandidate {
-  return { id, kind: 'chatRecords', latestAt, parts }
+function chatCandidate(
+  id: string,
+  latestAt: number,
+  [messageRecord, contextRecord]: [ChatRecordReference, ChatRecordReference]
+): ChatRecordCandidate {
+  const source = id.startsWith('agent-session-message:') ? 'agent-session' : 'normal-chat'
+  return {
+    contextId: contextRecord.key.slice(contextRecord.key.indexOf(':') + 1),
+    contextRecord,
+    id,
+    kind: 'chatRecords',
+    latestAt,
+    messageId: id.slice(id.indexOf(':') + 1),
+    messageRecord,
+    source
+  }
 }
 
 describe('DiagnosticBundleService inspection scheduling', () => {
@@ -56,29 +70,20 @@ describe('DiagnosticBundleService inspection scheduling', () => {
     const topic = {
       archiveName: 'chats/topics.jsonl',
       bytes: 10,
-      data: Buffer.alloc(10),
       key: 'topic:1'
     } as const
     const candidates = [
-      chatCandidate('message:1', 2, [
-        { archiveName: 'chats/messages.jsonl', bytes: 5, data: Buffer.alloc(5), key: 'message:1' },
-        topic
-      ]),
-      chatCandidate('message:2', 1, [
-        { archiveName: 'chats/messages.jsonl', bytes: 7, data: Buffer.alloc(7), key: 'message:2' },
-        topic
-      ]),
+      chatCandidate('message:1', 2, [{ archiveName: 'chats/messages.jsonl', bytes: 5, key: 'message:1' }, topic]),
+      chatCandidate('message:2', 1, [{ archiveName: 'chats/messages.jsonl', bytes: 7, key: 'message:2' }, topic]),
       chatCandidate('agent-session-message:1', 0, [
         {
           archiveName: 'chats/agent-session-messages.jsonl',
           bytes: 11,
-          data: Buffer.alloc(11),
           key: 'agent-session-message:1'
         },
         {
           archiveName: 'chats/agent-sessions.jsonl',
           bytes: 13,
-          data: Buffer.alloc(13),
           key: 'agent-session:1'
         }
       ])

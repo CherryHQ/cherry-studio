@@ -46,7 +46,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, getTableColumns, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -94,6 +94,13 @@ export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
   /** In the same order as `input.placeholders`. */
   placeholders: Message[]
+}
+
+export interface DiagnosticMessageMetadata {
+  readonly createdAt: string
+  readonly entityJsonBytes: number
+  readonly id: string
+  readonly topicId: string
 }
 
 /**
@@ -147,6 +154,25 @@ function rowToMessage(row: MessageRow): Message {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function messageEntityJsonBytes(): SQL<number> {
+  return sql<number>`length(cast(json_object(
+    'id', ${messageTable.id},
+    'topicId', ${messageTable.topicId},
+    'parentId', ${messageTable.parentId},
+    'role', ${messageTable.role},
+    'data', json(${messageTable.data}),
+    'searchableText', ${messageTable.searchableText},
+    'status', ${messageTable.status},
+    'siblingsGroupId', ${messageTable.siblingsGroupId},
+    'modelId', ${messageTable.modelId},
+    'messageSnapshot', json(${messageTable.messageSnapshot}),
+    'stats', json(${messageTable.stats}),
+    'compactionSummary', ${messageTable.compactionSummary},
+    'createdAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${messageTable.createdAt} / 1000.0, 'unixepoch'),
+    'updatedAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${messageTable.updatedAt} / 1000.0, 'unixepoch')
+  ) as blob))`
 }
 
 function completeApprovalWait(
@@ -829,7 +855,7 @@ export class MessageService {
     return rows.map((row) => row.id)
   }
 
-  listLiveCreatedInRangePage({
+  listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
     cursor: rawCursor,
@@ -839,12 +865,17 @@ export class MessageService {
     toMs: number
     cursor?: string
     limit: number
-  }): CursorPaginationResponse<Message> {
+  }): CursorPaginationResponse<DiagnosticMessageMetadata> {
     const db = application.get('DbService').getDb()
     const ordering = keysetOrdering(messageTable.createdAt, messageTable.id, { major: 'desc', tie: 'asc' })
     const cursor = decodeListCursor(rawCursor, asNumericKey, 'diagnostic-message')
     const rows = db
-      .select(getTableColumns(messageTable))
+      .select({
+        createdAt: messageTable.createdAt,
+        entityJsonBytes: messageEntityJsonBytes(),
+        id: messageTable.id,
+        topicId: messageTable.topicId
+      })
       .from(messageTable)
       .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
       .where(
@@ -865,7 +896,7 @@ export class MessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const tail = pageRows[pageRows.length - 1]
     return {
-      items: pageRows.map(rowToMessage),
+      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
       nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
     }
   }

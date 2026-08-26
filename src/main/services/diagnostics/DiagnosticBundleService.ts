@@ -25,9 +25,9 @@ import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
 import {
+  addChatRecordStats,
   type ChatRecordCandidate,
   type ChatRecordCollection,
-  chatRecordStats,
   collectChatRecords,
   scanChatRecordStats,
   stageChatRecords
@@ -147,28 +147,18 @@ async function selectBundleSources(
   const selectedChats: ChatRecordCandidate[] = []
   const selectedFileCandidates = new Set<DiagnosticBudgetCandidate<SourceCandidate>>()
   const selector = createDiagnosticBudgetSelector(DIAGNOSTIC_SOURCE_LIMIT_BYTES)
-  const chatRecordKeys = new Set<string>()
+  const chatContextRecordKeys = new Set<string>()
   const allChatStats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
 
   const observeChat = (candidate: ChatRecordCandidate): void => {
-    allChatStats.messageCount += 1
-    for (const part of candidate.parts) {
-      if (chatRecordKeys.has(part.key)) continue
-      chatRecordKeys.add(part.key)
-      allChatStats.bytes += part.bytes
-      allChatStats.recordCount += 1
-    }
+    addChatRecordStats(allChatStats, chatContextRecordKeys, candidate)
   }
 
   const trySelect = (candidate: DiagnosticBudgetCandidate<BundleSourceCandidate>): void => {
     const result = selector.trySelect(candidate)
     if (!result.selected) return
     if (candidate.item.kind === 'chatRecords') {
-      const selectedPartKeys = new Set(result.selectedPartKeys)
-      selectedChats.push({
-        ...candidate.item,
-        parts: candidate.item.parts.filter((part) => selectedPartKeys.has(part.key))
-      })
+      selectedChats.push(candidate.item)
     } else {
       selectedFileCandidates.add(candidate as DiagnosticBudgetCandidate<SourceCandidate>)
     }
@@ -613,6 +603,11 @@ export class DiagnosticBundleService {
   }): Promise<SavedBundle> {
     const staged: StagedSource[] = []
     const failedCandidates: SourceCandidate[] = []
+    const expectedChatArchiveNames = new Set<string>()
+    for (const candidate of selectedChats) {
+      expectedChatArchiveNames.add(candidate.messageRecord.archiveName)
+      expectedChatArchiveNames.add(candidate.contextRecord.archiveName)
+    }
 
     for (const [index, candidate] of selectedFiles.entries()) {
       const stagedPath = AbsoluteFilePathSchema.parse(path.join(tempRoot, `source-${index}.jsonl`))
@@ -627,11 +622,20 @@ export class DiagnosticBundleService {
       }
     }
 
-    let includedChatCandidates: ChatRecordCandidate[] = []
+    let includedChatStats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
+    let adjustedAllChatStats = allChatStats
     if (selectedChats.length > 0) {
       try {
-        staged.push(...(await stageChatRecords(selectedChats, tempRoot)))
-        includedChatCandidates = selectedChats
+        const stagedFileBytes = staged.reduce((bytes, source) => bytes + source.bytes, 0)
+        const chatResult = await stageChatRecords(
+          selectedChats,
+          tempRoot,
+          Math.max(0, DIAGNOSTIC_SOURCE_LIMIT_BYTES - stagedFileBytes)
+        )
+        staged.push(...chatResult.sources)
+        includedChatStats = chatResult.included
+        adjustedAllChatStats = { ...allChatStats, bytes: allChatStats.bytes + chatResult.observedByteDelta }
+        mergeWarnings(collection.warnings, chatResult.warnings)
       } catch (error) {
         collection.warnings.add('source_unreadable')
         logger.warn('Skipped diagnostic chat records that could not be staged', {
@@ -643,13 +647,13 @@ export class DiagnosticBundleService {
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
     const system = await collectDiagnosticSystemInfo(collection.warnings)
     const included = {
-      chatRecords: chatRecordStats(includedChatCandidates),
+      chatRecords: includedChatStats,
       logs: stagedStats(staged, 'logs'),
       traces: stagedStats(staged, 'traces')
     }
     const omittedCandidates = [...sizeOmittedFiles, ...failedCandidates]
     const omitted = {
-      chatRecords: subtractChatStats(allChatStats, included.chatRecords),
+      chatRecords: subtractChatStats(adjustedAllChatStats, included.chatRecords),
       logs: candidateStats(omittedCandidates, 'logs'),
       traces: candidateStats(omittedCandidates, 'traces')
     }
@@ -690,6 +694,12 @@ export class DiagnosticBundleService {
     await writeBundleZip(destination, destinationIdentity, `${JSON.stringify(manifest, null, 2)}\n`, staged)
 
     const archiveBytes = (await stat(destination)).size
+    const stagedChatArchiveNames = new Set(
+      staged.filter((source) => source.kind === 'chatRecords').map((source) => source.archiveName)
+    )
+    const omittedChatArchiveCount = [...expectedChatArchiveNames].filter(
+      (archiveName) => !stagedChatArchiveNames.has(archiveName)
+    ).length
     return {
       archiveBytes,
       bundleId,
@@ -697,7 +707,7 @@ export class DiagnosticBundleService {
       fileName: path.basename(destination),
       hasWarnings: warnings.length > 0,
       includedFileCount: staged.length,
-      omittedFileCount: omitted.logs.fileCount + omitted.traces.fileCount,
+      omittedFileCount: omitted.logs.fileCount + omitted.traces.fileCount + omittedChatArchiveCount,
       status: 'saved'
     }
   }

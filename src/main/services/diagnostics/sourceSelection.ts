@@ -95,6 +95,6 @@ export function toChatBudgetCandidate(candidate: ChatRecordCandidate): Diagnosti
     key: candidate.id,
     kind: candidate.kind,
     latestAt: candidate.latestAt,
-    parts: candidate.parts.map((part) => ({ key: part.key, bytes: part.bytes }))
+    parts: [candidate.messageRecord, candidate.contextRecord].map((part) => ({ key: part.key, bytes: part.bytes }))
   }
 }

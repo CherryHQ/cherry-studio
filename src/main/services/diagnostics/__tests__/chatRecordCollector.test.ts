@@ -12,13 +12,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type ChatRecordCandidate, chatRecordStats, collectChatRecords, stageChatRecords } from '../chatRecordCollector'
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { listCreatedInRangePage: vi.fn() }
+  agentSessionMessageService: { getSessionMessage: vi.fn(), listCreatedInRangeMetadataPage: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: vi.fn() }
 }))
 vi.mock('@data/services/MessageService', () => ({
-  messageService: { listLiveCreatedInRangePage: vi.fn() }
+  messageService: { getById: vi.fn(), listLiveCreatedInRangeMetadataPage: vi.fn() }
 }))
 vi.mock('@data/services/TopicService', () => ({
   topicService: { getById: vi.fn() }
@@ -95,6 +95,20 @@ const agentMessage = {
   updatedAt: '2026-08-25T00:01:00.000Z'
 }
 
+const normalMessageMetadata = normalMessages.map(({ createdAt, id, topicId, ...entity }) => ({
+  createdAt,
+  entityJsonBytes: Buffer.byteLength(JSON.stringify({ id, topicId, ...entity, createdAt }), 'utf8'),
+  id,
+  topicId
+}))
+
+const agentMessageMetadata = {
+  createdAt: agentMessage.createdAt,
+  entityJsonBytes: Buffer.byteLength(JSON.stringify(agentMessage), 'utf8'),
+  id: agentMessage.id,
+  sessionId: agentMessage.sessionId
+}
+
 describe('chat record collection', () => {
   let tempRoot: AbsoluteFilePath
 
@@ -106,15 +120,19 @@ describe('chat record collection', () => {
 
   beforeEach(async () => {
     tempRoot = (await mkdtemp(path.join(tmpdir(), 'diagnostic-chat-records-'))) as AbsoluteFilePath
-    vi.mocked(messageService.listLiveCreatedInRangePage).mockReturnValue({
-      items: normalMessages,
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
+      items: normalMessageMetadata,
       nextCursor: undefined
     } as never)
+    vi.mocked(messageService.getById).mockImplementation(
+      (id) => normalMessages.find((message) => message.id === id) as never
+    )
     vi.mocked(topicService.getById).mockReturnValue(normalTopic as never)
-    vi.mocked(agentSessionMessageService.listCreatedInRangePage).mockReturnValue({
-      items: [agentMessage],
+    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+      items: [agentMessageMetadata],
       nextCursor: undefined
     } as never)
+    vi.mocked(agentSessionMessageService.getSessionMessage).mockReturnValue(agentMessage as never)
     vi.mocked(agentSessionService.getById).mockReturnValue(agentSession as never)
   })
 
@@ -123,43 +141,25 @@ describe('chat record collection', () => {
     vi.clearAllMocks()
   })
 
-  it('collects and stages canonical normal-chat and agent-session entities as UTF-8 JSONL', async () => {
+  it('collects metadata without message bodies and hydrates only while staging UTF-8 JSONL', async () => {
     const collection = collectChatRecords({ fromMs: 1_000, toMs: 2_000 })
     const candidates = await collectCandidates(collection)
-    const records = new Map(
-      candidates.flatMap((candidate) => candidate.parts.map((record) => [record.key, record] as const))
-    )
 
     expect(candidates).toHaveLength(3)
-    expect(records).toHaveLength(5)
     expect(chatRecordStats(candidates)).toEqual({
       bytes: expect.any(Number),
       messageCount: 3,
       recordCount: 5
     })
-    expect([...records.values()].map((record) => record.archiveName)).toEqual(
-      expect.arrayContaining([
-        'chats/topics.jsonl',
-        'chats/messages.jsonl',
-        'chats/agent-sessions.jsonl',
-        'chats/agent-session-messages.jsonl'
-      ])
-    )
-
-    const normalMessageRecord = records.get('message:message-new')!
-    const normalLine = `${JSON.stringify(normalMessages[0])}\n`
-    expect(normalMessageRecord.data).toEqual(Buffer.from(normalLine, 'utf8'))
-    expect(normalMessageRecord.bytes).toBe(Buffer.byteLength(normalLine, 'utf8'))
-    expect(JSON.parse(normalMessageRecord.data.toString('utf8'))).toEqual(normalMessages[0])
-
-    const agentMessageRecord = records.get('agent-session-message:agent-message-1')!
-    expect(JSON.parse(agentMessageRecord.data.toString('utf8'))).toEqual(agentMessage)
-    expect(JSON.parse(agentMessageRecord.data.toString('utf8'))).toMatchObject({
-      runtimeResumeToken: 'runtime-resume-token',
-      delivery: { status: 'accepted', turnRef: 'turn-1' }
+    expect(candidates[0]).toMatchObject({
+      messageRecord: { archiveName: 'chats/messages.jsonl', key: 'message:message-new' },
+      source: 'normal-chat'
     })
+    expect(messageService.getById).not.toHaveBeenCalled()
+    expect(agentSessionMessageService.getSessionMessage).not.toHaveBeenCalled()
 
-    const staged = await stageChatRecords(candidates, tempRoot)
+    const result = await stageChatRecords(candidates, tempRoot, 1024 * 1024)
+    const staged = result.sources
 
     expect(staged).toEqual(
       expect.arrayContaining([
@@ -178,6 +178,11 @@ describe('chat record collection', () => {
       ])
     )
     expect(staged).toHaveLength(4)
+    expect(result.included).toEqual(chatRecordStats(candidates))
+    expect(result.observedByteDelta).toBe(0)
+    expect(result.warnings).toEqual(new Set())
+    expect(messageService.getById).toHaveBeenCalledTimes(2)
+    expect(agentSessionMessageService.getSessionMessage).toHaveBeenCalledTimes(1)
     expect(await readdir(path.join(tempRoot, 'chats'))).toEqual([
       'agent-session-messages.jsonl',
       'agent-sessions.jsonl',
@@ -201,21 +206,21 @@ describe('chat record collection', () => {
   })
 
   it('loads later pages on demand and keeps global newest-first order', async () => {
-    vi.mocked(messageService.listLiveCreatedInRangePage)
-      .mockReturnValueOnce({ items: [normalMessages[0]], nextCursor: 'normal-next' } as never)
-      .mockReturnValueOnce({ items: [normalMessages[1]], nextCursor: undefined } as never)
-    vi.mocked(agentSessionMessageService.listCreatedInRangePage).mockReturnValue({
-      items: [agentMessage],
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage)
+      .mockReturnValueOnce({ items: [normalMessageMetadata[0]], nextCursor: 'normal-next' } as never)
+      .mockReturnValueOnce({ items: [normalMessageMetadata[1]], nextCursor: undefined } as never)
+    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+      items: [agentMessageMetadata],
       nextCursor: undefined
     } as never)
 
     const iterator = collectChatRecords({ fromMs: 1_000, toMs: 2_000 }).candidates[Symbol.asyncIterator]()
 
     await expect(iterator.next()).resolves.toMatchObject({ value: { id: 'message:message-new' } })
-    expect(messageService.listLiveCreatedInRangePage).toHaveBeenCalledTimes(1)
+    expect(messageService.listLiveCreatedInRangeMetadataPage).toHaveBeenCalledTimes(1)
     await expect(iterator.next()).resolves.toMatchObject({ value: { id: 'agent-session-message:agent-message-1' } })
     await expect(iterator.next()).resolves.toMatchObject({ value: { id: 'message:message-old' } })
-    expect(messageService.listLiveCreatedInRangePage).toHaveBeenNthCalledWith(2, {
+    expect(messageService.listLiveCreatedInRangeMetadataPage).toHaveBeenNthCalledWith(2, {
       fromMs: 1_000,
       toMs: 2_000,
       cursor: 'normal-next',
@@ -224,7 +229,7 @@ describe('chat record collection', () => {
   })
 
   it('keeps the readable chat family when the other family cannot be read', async () => {
-    vi.mocked(messageService.listLiveCreatedInRangePage).mockImplementation(() => {
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage).mockImplementation(() => {
       throw new Error('normal chat unavailable')
     })
 
@@ -233,9 +238,72 @@ describe('chat record collection', () => {
 
     expect(collection.warnings).toEqual(new Set(['source_unreadable']))
     expect(candidates).toHaveLength(1)
-    const agentMessageRecord = candidates[0]?.parts.find(
-      (record) => record.key === 'agent-session-message:agent-message-1'
+    const result = await stageChatRecords(candidates, tempRoot, 1024 * 1024)
+    expect(await readFile(path.join(tempRoot, 'chats/agent-session-messages.jsonl'), 'utf8')).toBe(
+      `${JSON.stringify(agentMessage)}\n`
     )
-    expect(agentMessageRecord?.data.toString('utf8')).toBe(`${JSON.stringify(agentMessage)}\n`)
+    expect(result.included).toEqual({
+      bytes: Buffer.byteLength(`${JSON.stringify(agentMessage)}\n${JSON.stringify(agentSession)}\n`, 'utf8'),
+      messageCount: 1,
+      recordCount: 2
+    })
+  })
+
+  it('rechecks actual bytes and omits a changed candidate that exceeds the staging budget', async () => {
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
+      items: [{ ...normalMessageMetadata[0], entityJsonBytes: 1 }],
+      nextCursor: undefined
+    } as never)
+    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+      items: [],
+      nextCursor: undefined
+    } as never)
+
+    const candidates = await collectCandidates(collectChatRecords({ fromMs: 1_000, toMs: 2_000 }))
+    vi.mocked(topicService.getById).mockClear()
+    vi.mocked(topicService.getById).mockImplementation(() => {
+      throw new Error('oversize message must be rejected before context hydration')
+    })
+    const projectedBytes = candidates[0].contextRecord.bytes + candidates[0].messageRecord.bytes
+    const result = await stageChatRecords(candidates, tempRoot, projectedBytes)
+    const actualMessageBytes = Buffer.byteLength(`${JSON.stringify(normalMessages[0])}\n`, 'utf8')
+
+    expect(result.sources).toEqual([])
+    expect(result.included).toEqual({ bytes: 0, messageCount: 0, recordCount: 0 })
+    expect(result.observedByteDelta).toBe(actualMessageBytes - candidates[0].messageRecord.bytes)
+    expect(result.warnings).toEqual(new Set(['size_limit_reached', 'source_changed']))
+    expect(topicService.getById).not.toHaveBeenCalled()
+  })
+
+  it('includes a shared context when an earlier candidate was skipped after hydration', async () => {
+    const changedNewMessage = {
+      ...normalMessages[0],
+      data: { parts: [{ type: 'text', text: 'x'.repeat(1024) }] }
+    }
+    vi.mocked(messageService.getById).mockImplementation(
+      (id) => (id === changedNewMessage.id ? changedNewMessage : normalMessages[1]) as never
+    )
+    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+      items: [],
+      nextCursor: undefined
+    } as never)
+
+    const candidates = await collectCandidates(collectChatRecords({ fromMs: 1_000, toMs: 2_000 }))
+    const expectedMessageLine = `${JSON.stringify(normalMessages[1])}\n`
+    const expectedTopicLine = `${JSON.stringify(normalTopic)}\n`
+    const result = await stageChatRecords(
+      candidates,
+      tempRoot,
+      Buffer.byteLength(expectedMessageLine + expectedTopicLine, 'utf8')
+    )
+
+    expect(await readFile(path.join(tempRoot, 'chats/messages.jsonl'), 'utf8')).toBe(expectedMessageLine)
+    expect(await readFile(path.join(tempRoot, 'chats/topics.jsonl'), 'utf8')).toBe(expectedTopicLine)
+    expect(result.included).toEqual({
+      bytes: Buffer.byteLength(expectedMessageLine + expectedTopicLine, 'utf8'),
+      messageCount: 1,
+      recordCount: 2
+    })
+    expect(result.warnings).toEqual(new Set(['size_limit_reached', 'source_changed']))
   })
 })

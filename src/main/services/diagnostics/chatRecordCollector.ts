@@ -9,6 +9,7 @@ import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { createAtomicWriteStream, remove } from '@main/utils/file'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type { ChatRecordStats, DiagnosticTimeRange, DiagnosticWarning, StagedSource } from './types'
@@ -23,20 +24,23 @@ export const CHAT_ARCHIVE_NAMES = [
   'chats/agent-session-messages.jsonl'
 ] as const
 
-type ChatArchiveName = (typeof CHAT_ARCHIVE_NAMES)[number]
+export type ChatArchiveName = (typeof CHAT_ARCHIVE_NAMES)[number]
 
-export interface SerializedChatRecord {
+export interface ChatRecordReference {
   readonly archiveName: ChatArchiveName
   readonly bytes: number
-  readonly data: Buffer
   readonly key: string
 }
 
 export interface ChatRecordCandidate {
+  readonly contextId: string
+  readonly contextRecord: ChatRecordReference
   readonly id: string
   readonly kind: 'chatRecords'
   readonly latestAt: number
-  readonly parts: readonly SerializedChatRecord[]
+  readonly messageId: string
+  readonly messageRecord: ChatRecordReference
+  readonly source: 'normal-chat' | 'agent-session'
 }
 
 export interface ChatRecordCollection {
@@ -44,9 +48,28 @@ export interface ChatRecordCollection {
   readonly warnings: Set<DiagnosticWarning>
 }
 
-function serializeRecord(archiveName: ChatArchiveName, key: string, entity: unknown): SerializedChatRecord {
+interface HydratedChatRecord extends ChatRecordReference {
+  readonly data: Buffer
+}
+
+export interface StagedChatRecords {
+  readonly included: ChatRecordStats
+  readonly observedByteDelta: number
+  readonly sources: StagedSource[]
+  readonly warnings: Set<DiagnosticWarning>
+}
+
+function recordReference(archiveName: ChatArchiveName, key: string, entityJsonBytes: number): ChatRecordReference {
+  return { archiveName, bytes: entityJsonBytes + 1, key }
+}
+
+function contextRecord(archiveName: ChatArchiveName, key: string, entity: unknown): ChatRecordReference {
+  return recordReference(archiveName, key, Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+}
+
+function serializeRecord(reference: ChatRecordReference, entity: unknown): HydratedChatRecord {
   const data = Buffer.from(`${JSON.stringify(entity)}\n`, 'utf8')
-  return { archiveName, bytes: data.length, data, key }
+  return { ...reference, bytes: data.length, data }
 }
 
 function yieldToEventLoop(): Promise<void> {
@@ -58,23 +81,31 @@ async function* collectNormalChatRecords(
   warnings: Set<DiagnosticWarning>
 ): AsyncGenerator<ChatRecordCandidate> {
   let cursor: string | undefined
+  const topics = new Map<string, ChatRecordReference>()
   try {
     do {
-      const page = messageService.listLiveCreatedInRangePage({ ...range, cursor, limit: CHAT_RECORD_PAGE_SIZE })
-      const topics = new Map<string, SerializedChatRecord>()
+      const page = messageService.listLiveCreatedInRangeMetadataPage({
+        ...range,
+        cursor,
+        limit: CHAT_RECORD_PAGE_SIZE
+      })
       for (const message of page.items) {
-        let topicRecord = topics.get(message.topicId)
-        if (!topicRecord) {
+        let topicReference = topics.get(message.topicId)
+        if (!topicReference) {
           const topic = topicService.getById(message.topicId)
-          topicRecord = serializeRecord('chats/topics.jsonl', `topic:${message.topicId}`, topic)
-          topics.set(message.topicId, topicRecord)
+          topicReference = contextRecord('chats/topics.jsonl', `topic:${message.topicId}`, topic)
+          topics.set(message.topicId, topicReference)
         }
 
         yield {
+          contextId: message.topicId,
+          contextRecord: topicReference,
           id: `message:${message.id}`,
           kind: 'chatRecords',
           latestAt: Date.parse(message.createdAt),
-          parts: [serializeRecord('chats/messages.jsonl', `message:${message.id}`, message), topicRecord]
+          messageId: message.id,
+          messageRecord: recordReference('chats/messages.jsonl', `message:${message.id}`, message.entityJsonBytes),
+          source: 'normal-chat'
         }
       }
       cursor = page.nextCursor
@@ -90,26 +121,35 @@ async function* collectAgentChatRecords(
   warnings: Set<DiagnosticWarning>
 ): AsyncGenerator<ChatRecordCandidate> {
   let cursor: string | undefined
+  const sessions = new Map<string, ChatRecordReference>()
   try {
     do {
-      const page = agentSessionMessageService.listCreatedInRangePage({ ...range, cursor, limit: CHAT_RECORD_PAGE_SIZE })
-      const sessions = new Map<string, SerializedChatRecord>()
+      const page = agentSessionMessageService.listCreatedInRangeMetadataPage({
+        ...range,
+        cursor,
+        limit: CHAT_RECORD_PAGE_SIZE
+      })
       for (const message of page.items) {
-        let sessionRecord = sessions.get(message.sessionId)
-        if (!sessionRecord) {
+        let sessionReference = sessions.get(message.sessionId)
+        if (!sessionReference) {
           const session = agentSessionService.getById(message.sessionId)
-          sessionRecord = serializeRecord('chats/agent-sessions.jsonl', `agent-session:${message.sessionId}`, session)
-          sessions.set(message.sessionId, sessionRecord)
+          sessionReference = contextRecord('chats/agent-sessions.jsonl', `agent-session:${message.sessionId}`, session)
+          sessions.set(message.sessionId, sessionReference)
         }
 
         yield {
+          contextId: message.sessionId,
+          contextRecord: sessionReference,
           id: `agent-session-message:${message.id}`,
           kind: 'chatRecords',
           latestAt: Date.parse(message.createdAt),
-          parts: [
-            serializeRecord('chats/agent-session-messages.jsonl', `agent-session-message:${message.id}`, message),
-            sessionRecord
-          ]
+          messageId: message.id,
+          messageRecord: recordReference(
+            'chats/agent-session-messages.jsonl',
+            `agent-session-message:${message.id}`,
+            message.entityJsonBytes
+          ),
+          source: 'agent-session'
         }
       }
       cursor = page.nextCursor
@@ -162,69 +202,179 @@ export function collectChatRecords(range: DiagnosticTimeRange): ChatRecordCollec
   return { candidates, warnings }
 }
 
+export function addChatRecordStats(
+  stats: ChatRecordStats,
+  contextRecordKeys: Set<string>,
+  candidate: ChatRecordCandidate
+): void {
+  stats.bytes += candidate.messageRecord.bytes
+  stats.messageCount += 1
+  stats.recordCount += 1
+  if (contextRecordKeys.has(candidate.contextRecord.key)) return
+  contextRecordKeys.add(candidate.contextRecord.key)
+  stats.bytes += candidate.contextRecord.bytes
+  stats.recordCount += 1
+}
+
 export function chatRecordStats(candidates: readonly ChatRecordCandidate[]): ChatRecordStats {
-  const records = new Map<string, SerializedChatRecord>()
-  for (const candidate of candidates) {
-    for (const part of candidate.parts) records.set(part.key, part)
-  }
-  return {
-    bytes: [...records.values()].reduce((bytes, record) => bytes + record.bytes, 0),
-    messageCount: candidates.length,
-    recordCount: records.size
-  }
+  const contextRecordKeys = new Set<string>()
+  const stats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
+  for (const candidate of candidates) addChatRecordStats(stats, contextRecordKeys, candidate)
+  return stats
 }
 
 export async function scanChatRecordStats(candidates: AsyncIterable<ChatRecordCandidate>): Promise<ChatRecordStats> {
-  const recordKeys = new Set<string>()
+  const contextRecordKeys = new Set<string>()
   const stats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
-  for await (const candidate of candidates) {
-    stats.messageCount += 1
-    for (const part of candidate.parts) {
-      if (recordKeys.has(part.key)) continue
-      recordKeys.add(part.key)
-      stats.bytes += part.bytes
-      stats.recordCount += 1
-    }
-  }
+  for await (const candidate of candidates) addChatRecordStats(stats, contextRecordKeys, candidate)
   return stats
+}
+
+function hydrateMessageRecord(candidate: ChatRecordCandidate): HydratedChatRecord {
+  if (candidate.source === 'normal-chat') {
+    return serializeRecord(candidate.messageRecord, messageService.getById(candidate.messageId))
+  }
+
+  return serializeRecord(
+    candidate.messageRecord,
+    agentSessionMessageService.getSessionMessage(candidate.contextId, candidate.messageId)
+  )
+}
+
+function hydrateContextRecord(candidate: ChatRecordCandidate): HydratedChatRecord {
+  if (candidate.source === 'normal-chat') {
+    return serializeRecord(candidate.contextRecord, topicService.getById(candidate.contextId))
+  }
+
+  return serializeRecord(candidate.contextRecord, agentSessionService.getById(candidate.contextId))
 }
 
 export async function stageChatRecords(
   selectedCandidates: readonly ChatRecordCandidate[],
-  tempRoot: AbsoluteFilePath
-): Promise<StagedSource[]> {
+  tempRoot: AbsoluteFilePath,
+  limitBytes: number
+): Promise<StagedChatRecords> {
   const sortedCandidates = [...selectedCandidates].sort(newestFirst)
-  const seenRecordKeys = new Set<string>()
   await mkdir(path.join(tempRoot, 'chats'), { recursive: true })
-  const staged: StagedSource[] = []
-  for (const archiveName of CHAT_ARCHIVE_NAMES) {
-    const destination = AbsoluteFilePathSchema.parse(path.join(tempRoot, archiveName))
-    let writer: ReturnType<typeof createAtomicWriteStream> | undefined
-    let completion: Promise<void> | undefined
-    let bytes = 0
-    try {
-      for (const candidate of sortedCandidates) {
-        for (const record of candidate.parts) {
-          if (record.archiveName !== archiveName || seenRecordKeys.has(record.key)) continue
-          if (!writer) {
-            writer = createAtomicWriteStream(destination)
-            completion = finished(writer)
-            void completion.catch(() => undefined)
-          }
-          seenRecordKeys.add(record.key)
-          bytes += record.bytes
-          if (!writer.write(record.data)) await once(writer, 'drain')
+  const destinations = new Map(
+    CHAT_ARCHIVE_NAMES.map((archiveName) => [
+      archiveName,
+      AbsoluteFilePathSchema.parse(path.join(tempRoot, archiveName))
+    ])
+  )
+  const writers = new Map<
+    ChatArchiveName,
+    {
+      bytes: number
+      completion: Promise<void>
+      writer: ReturnType<typeof createAtomicWriteStream>
+    }
+  >()
+  const included: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
+  const observedRecordKeys = new Set<string>()
+  const stagedContextKeys = new Set<string>()
+  const warnings = new Set<DiagnosticWarning>()
+  let observedByteDelta = 0
+  let remainingBytes = Math.max(0, limitBytes)
+
+  const observeRecord = (record: HydratedChatRecord, reference: ChatRecordReference): void => {
+    if (observedRecordKeys.has(record.key)) return
+    observedRecordKeys.add(record.key)
+    observedByteDelta += record.bytes - reference.bytes
+    if (record.bytes !== reference.bytes) warnings.add('source_changed')
+  }
+
+  const writeRecord = async (record: HydratedChatRecord): Promise<void> => {
+    let state = writers.get(record.archiveName)
+    if (!state) {
+      const writer = createAtomicWriteStream(destinations.get(record.archiveName)!)
+      const completion = finished(writer)
+      void completion.catch(() => undefined)
+      state = { bytes: 0, completion, writer }
+      writers.set(record.archiveName, state)
+    }
+    state.bytes += record.bytes
+    if (!state.writer.write(record.data)) await once(state.writer, 'drain')
+  }
+
+  try {
+    for (const candidate of sortedCandidates) {
+      const includeContext = !stagedContextKeys.has(candidate.contextRecord.key)
+      let messageRecord: HydratedChatRecord
+      try {
+        messageRecord = hydrateMessageRecord(candidate)
+      } catch (error) {
+        warnings.add(
+          isDataApiError(error) && error.code === ErrorCode.NOT_FOUND ? 'source_changed' : 'source_unreadable'
+        )
+        logger.warn('Skipped a diagnostic chat record that could not be hydrated', {
+          errorName: error instanceof Error ? error.name : typeof error,
+          source: candidate.source
+        })
+        continue
+      }
+
+      observeRecord(messageRecord, candidate.messageRecord)
+      if (messageRecord.bytes > remainingBytes) {
+        warnings.add('size_limit_reached')
+        continue
+      }
+
+      const records = [messageRecord]
+      if (includeContext) {
+        try {
+          const contextRecord = hydrateContextRecord(candidate)
+          observeRecord(contextRecord, candidate.contextRecord)
+          records.push(contextRecord)
+        } catch (error) {
+          warnings.add(
+            isDataApiError(error) && error.code === ErrorCode.NOT_FOUND ? 'source_changed' : 'source_unreadable'
+          )
+          logger.warn('Skipped a diagnostic chat context that could not be hydrated', {
+            errorName: error instanceof Error ? error.name : typeof error,
+            source: candidate.source
+          })
+          continue
         }
       }
-      if (!writer || !completion) continue
-      writer.end()
-      await completion
-      staged.push({ archiveName, bytes, kind: 'chatRecords', malformedLineCount: 0, path: destination })
-    } catch (error) {
-      if (writer && !writer.destroyed) await writer.abort().catch(() => undefined)
-      await remove(destination).catch(() => undefined)
-      throw error
+
+      const candidateBytes = records.reduce((bytes, record) => bytes + record.bytes, 0)
+      if (candidateBytes > remainingBytes) {
+        warnings.add('size_limit_reached')
+        continue
+      }
+
+      for (const record of records) await writeRecord(record)
+      remainingBytes -= candidateBytes
+      included.bytes += candidateBytes
+      included.messageCount += 1
+      included.recordCount += records.length
+      if (includeContext) stagedContextKeys.add(candidate.contextRecord.key)
     }
+
+    for (const { writer } of writers.values()) writer.end()
+    await Promise.all([...writers.values()].map(({ completion }) => completion))
+  } catch (error) {
+    await Promise.allSettled(
+      [...writers.values()].map(({ writer }) => (writer.destroyed ? Promise.resolve() : writer.abort()))
+    )
+    await Promise.allSettled([...destinations.values()].map((destination) => remove(destination)))
+    throw error
   }
-  return staged
+
+  const sources = CHAT_ARCHIVE_NAMES.flatMap((archiveName): StagedSource[] => {
+    const state = writers.get(archiveName)
+    return state
+      ? [
+          {
+            archiveName,
+            bytes: state.bytes,
+            kind: 'chatRecords',
+            malformedLineCount: 0,
+            path: destinations.get(archiveName)!
+          }
+        ]
+      : []
+  })
+  return { included, observedByteDelta, sources, warnings }
 }

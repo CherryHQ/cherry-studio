@@ -482,8 +482,8 @@ describe('MessageService', () => {
     })
   })
 
-  describe('listLiveCreatedInRangePage', () => {
-    it('returns only live content messages within the closed range in stable newest-first order', async () => {
+  describe('listLiveCreatedInRangeMetadataPage', () => {
+    it('returns body-free canonical metadata within the closed range in stable newest-first order', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 'topic-range-a', activeNodeId: null, orderKey: 'ba0' },
         { id: 'topic-range-b', activeNodeId: null, orderKey: 'ba1' },
@@ -528,8 +528,9 @@ describe('MessageService', () => {
           parentId: 'vroot-topic-range-b',
           topicId: 'topic-range-b',
           role: 'user',
-          data: mainText('end'),
+          data: mainText('结束🙂\n"quoted"\\slash'),
           status: 'success',
+          compactionSummary: '摘要🙂\n"quoted"',
           createdAt: 300,
           updatedAt: 300
         },
@@ -576,8 +577,8 @@ describe('MessageService', () => {
         }
       ])
 
-      const firstPage = messageService.listLiveCreatedInRangePage({ fromMs: 100, toMs: 300, limit: 2 })
-      const secondPage = messageService.listLiveCreatedInRangePage({
+      const firstPage = messageService.listLiveCreatedInRangeMetadataPage({ fromMs: 100, toMs: 300, limit: 2 })
+      const secondPage = messageService.listLiveCreatedInRangeMetadataPage({
         fromMs: 100,
         toMs: 300,
         limit: 2,
@@ -593,6 +594,12 @@ describe('MessageService', () => {
         '1970-01-01T00:00:00.200Z',
         '1970-01-01T00:00:00.100Z'
       ])
+      for (const metadata of [...firstPage.items, ...secondPage.items]) {
+        const entity = messageService.getById(metadata.id)
+        expect(metadata).not.toHaveProperty('data')
+        expect(metadata.topicId).toBe(entity.topicId)
+        expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+      }
     })
 
     it('plans the global keyset range walk without a temporary order-by sort', () => {

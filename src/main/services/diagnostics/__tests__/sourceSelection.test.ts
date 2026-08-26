@@ -62,18 +62,26 @@ describe('diagnostic source budget selection', () => {
   })
 
   it('counts a shared topic only once when selecting chat records', () => {
-    const topic = { archiveName: 'chats/topics.jsonl', bytes: 10, data: Buffer.alloc(10), key: 'topic:1' } as const
+    const topic = { archiveName: 'chats/topics.jsonl', bytes: 10, key: 'topic:1' } as const
     const older: ChatRecordCandidate = {
+      contextId: '1',
+      contextRecord: topic,
       id: 'message:older',
       kind: 'chatRecords',
       latestAt: 10,
-      parts: [{ archiveName: 'chats/messages.jsonl', bytes: 5, data: Buffer.alloc(5), key: 'message:older' }, topic]
+      messageId: 'older',
+      messageRecord: { archiveName: 'chats/messages.jsonl', bytes: 5, key: 'message:older' },
+      source: 'normal-chat'
     }
     const newer: ChatRecordCandidate = {
+      contextId: '1',
+      contextRecord: topic,
       id: 'message:newer',
       kind: 'chatRecords',
       latestAt: 20,
-      parts: [{ archiveName: 'chats/messages.jsonl', bytes: 5, data: Buffer.alloc(5), key: 'message:newer' }, topic]
+      messageId: 'newer',
+      messageRecord: { archiveName: 'chats/messages.jsonl', bytes: 5, key: 'message:newer' },
+      source: 'normal-chat'
     }
 
     const result = selectBudgetCandidates([older, newer].map(toChatBudgetCandidate), 20)
@@ -83,18 +91,26 @@ describe('diagnostic source budget selection', () => {
   })
 
   it('reports only newly budgeted parts for incremental chat retention', () => {
-    const topic = { archiveName: 'chats/topics.jsonl', bytes: 10, data: Buffer.alloc(10), key: 'topic:1' } as const
+    const topic = { archiveName: 'chats/topics.jsonl', bytes: 10, key: 'topic:1' } as const
     const newer: ChatRecordCandidate = {
+      contextId: '1',
+      contextRecord: topic,
       id: 'message:newer',
       kind: 'chatRecords',
       latestAt: 20,
-      parts: [{ archiveName: 'chats/messages.jsonl', bytes: 5, data: Buffer.alloc(5), key: 'message:newer' }, topic]
+      messageId: 'newer',
+      messageRecord: { archiveName: 'chats/messages.jsonl', bytes: 5, key: 'message:newer' },
+      source: 'normal-chat'
     }
     const older: ChatRecordCandidate = {
+      contextId: '1',
+      contextRecord: topic,
       id: 'message:older',
       kind: 'chatRecords',
       latestAt: 10,
-      parts: [{ archiveName: 'chats/messages.jsonl', bytes: 5, data: Buffer.alloc(5), key: 'message:older' }, topic]
+      messageId: 'older',
+      messageRecord: { archiveName: 'chats/messages.jsonl', bytes: 5, key: 'message:older' },
+      source: 'normal-chat'
     }
     const selector = createDiagnosticBudgetSelector(20)
 

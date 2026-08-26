@@ -1082,7 +1082,7 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
-  it('pages messages in a closed range without skipping timestamp ties', async () => {
+  it('pages body-free canonical metadata in a closed range without skipping timestamp ties', async () => {
     await dbh.db.insert(agentSessionMessageTable).values([
       {
         id: 'range-start',
@@ -1115,7 +1115,7 @@ describe('AgentSessionMessageService', () => {
         id: 'range-end',
         sessionId: SESSION_ID,
         role: 'assistant',
-        data: { parts: [{ type: 'text', text: 'end' }] },
+        data: { parts: [{ type: 'text', text: '结束🙂\n"quoted"\\slash' }] },
         status: 'success',
         runtimeResumeToken: 'resume-token',
         delivery: {
@@ -1154,8 +1154,8 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const firstPage = agentSessionMessageService.listCreatedInRangePage({ fromMs: 100, toMs: 300, limit: 2 })
-    const secondPage = agentSessionMessageService.listCreatedInRangePage({
+    const firstPage = agentSessionMessageService.listCreatedInRangeMetadataPage({ fromMs: 100, toMs: 300, limit: 2 })
+    const secondPage = agentSessionMessageService.listCreatedInRangeMetadataPage({
       fromMs: 100,
       toMs: 300,
       limit: 2,
@@ -1165,22 +1165,12 @@ describe('AgentSessionMessageService', () => {
     expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
     expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
     expect(secondPage.nextCursor).toBeUndefined()
-    expect(firstPage.items[0]).toMatchObject({
-      id: 'range-end',
-      sessionId: SESSION_ID,
-      role: 'assistant',
-      data: { parts: [{ type: 'text', text: 'end' }] },
-      status: 'success',
-      runtimeResumeToken: 'resume-token',
-      delivery: {
-        sender: { agentId: 'sender-agent', sessionId: 'sender-session' },
-        receiver: { agentId: 'receiver-agent', sessionId: SESSION_ID },
-        replyPolicy: 'completion',
-        status: 'accepted'
-      },
-      createdAt: '1970-01-01T00:00:00.300Z',
-      updatedAt: '1970-01-01T00:00:00.300Z'
-    })
+    for (const metadata of [...firstPage.items, ...secondPage.items]) {
+      const entity = agentSessionMessageService.getSessionMessage(metadata.sessionId, metadata.id)
+      expect(metadata).not.toHaveProperty('data')
+      expect(metadata.createdAt).toBe(entity.createdAt)
+      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+    }
   })
 
   it('plans the global keyset range walk without a temporary order-by sort', () => {
