@@ -378,6 +378,46 @@ describe('MainNetworkDevtoolsService gating', () => {
     expect(net.fetch).toBe(originalNetFetch)
   })
 
+  it('starts capturing as soon as the user enables developer mode, without an app restart', async () => {
+    const originalNetFetch = net.fetch
+    const service = createStartedService()
+
+    try {
+      await service._doInit()
+      await service._doAllReady()
+      expect(net.fetch).toBe(originalNetFetch)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+      await vi.waitFor(() => expect(installBundledDevtools).toHaveBeenCalled())
+
+      await net.fetch('https://api.test/v1/models')
+      expect(readEvents(service)[0]).toMatchObject({ method: 'GET', url: 'https://api.test/v1/models' })
+    } finally {
+      await service._doStop()
+    }
+
+    expect(net.fetch).toBe(originalNetFetch)
+  })
+
+  it('does not re-install the panel when developer mode is toggled again', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const service = createStartedService()
+
+    try {
+      await service._doInit()
+      await service._doAllReady()
+      expect(installBundledDevtools).toHaveBeenCalledTimes(1)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+      await flushMicrotasks()
+
+      expect(installBundledDevtools).toHaveBeenCalledTimes(1)
+    } finally {
+      await service._doStop()
+    }
+  })
+
   it('captures boot-time requests in development regardless of the developer mode preference', async () => {
     platformState.isDev = true
     const originalNetFetch = net.fetch
@@ -413,6 +453,10 @@ function readEvents(service: MainNetworkDevtoolsService): MainNetworkDevtoolsEve
 
 function isOriginAllowed(service: MainNetworkDevtoolsService, origin: string): boolean {
   return (service as unknown as { isOriginAllowed: (origin: string) => boolean }).isOriginAllowed(origin)
+}
+
+async function flushMicrotasks(): Promise<void> {
+  for (let tick = 0; tick < 5; tick++) await Promise.resolve()
 }
 
 function openSocketWithMessage(port: number, origin: string): Promise<{ socket: WebSocket; message: unknown }> {

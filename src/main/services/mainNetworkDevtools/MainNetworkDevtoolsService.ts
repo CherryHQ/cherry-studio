@@ -182,7 +182,8 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 @ServicePhase(Phase.Background)
 @Priority(0)
 export class MainNetworkDevtoolsService extends BaseService {
-  private started = false
+  private capturing = false
+  private enabled = false
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
   private readonly allowedOrigins = new Set<string>()
@@ -205,7 +206,7 @@ export class MainNetworkDevtoolsService extends BaseService {
    * default. That path starts from onAllReady instead.
    */
   protected async onInit(): Promise<void> {
-    if (isDev) await this.start()
+    if (isDev) await this.startCapture()
   }
 
   /**
@@ -215,20 +216,35 @@ export class MainNetworkDevtoolsService extends BaseService {
    * received when app is ready". onAllReady fires after every phase completes, by which
    * point the app is ready — and the developer-mode preference is readable.
    *
-   * Disabling developer mode takes effect on the next launch; the patches installed
-   * for this session stay in place, matching NodeTraceService.
+   * Enabling developer mode later takes effect immediately (the user only has to reopen
+   * DevTools to see the panel); it is not captured retroactively. Disabling it stops at
+   * the next launch — the patches installed for this session stay in place, matching
+   * NodeTraceService, rather than being pulled out from under in-flight requests.
    */
   protected async onAllReady(): Promise<void> {
-    if (!this.started && application.get('PreferenceService').get('app.developer_mode.enabled')) {
-      await this.start()
-    }
-    if (!this.started) return
+    const preferences = application.get('PreferenceService')
+    this.registerDisposable(
+      preferences.subscribeChange('app.developer_mode.enabled', (enabled) => {
+        if (enabled) void this.enable()
+      })
+    )
 
+    if (isDev || preferences.get('app.developer_mode.enabled')) await this.enable()
+  }
+
+  /** Start monitoring and expose the panel. Idempotent — enabling twice is a no-op. */
+  private async enable(): Promise<void> {
+    if (this.enabled) return
+
+    this.enabled = true
+    await this.startCapture()
     await this.installPanel()
   }
 
-  private async start(): Promise<void> {
-    this.started = true
+  private async startCapture(): Promise<void> {
+    if (this.capturing) return
+
+    this.capturing = true
     this.patchFetch()
     this.patchNetFetch()
     this.patchHttpModules()
