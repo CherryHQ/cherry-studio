@@ -1,15 +1,42 @@
 {
-  "generated_at": "2026-08-25T18:00:00Z",
-  "open_issues_total": 949,
-  "open_issues_delta_24h": 13,
+  "generated_at": "2026-08-26T17:47:24Z",
+  "open_issues_total": 973,
+  "open_issues_delta_24h": 24,
   "open_prs_total": 100,
   "p1_issues": [
+    {
+      "number": 19455,
+      "title": "Message action labels are included in selected and copied reply text",
+      "labels": ["bug", "p1", "windows", "ui-ux", "chat"],
+      "created_at": "2026-08-26",
+      "age_days": 0,
+      "comments": 1,
+      "status": "Active"
+    },
+    {
+      "number": 19454,
+      "title": "Streaming output flickers and shifts layout during generation",
+      "labels": ["bug", "p1", "ui-ux", "performance", "chat"],
+      "created_at": "2026-08-26",
+      "age_days": 0,
+      "comments": 1,
+      "status": "Active"
+    },
+    {
+      "number": 19452,
+      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
+      "labels": ["bug", "p1", "windows", "rag", "connectivity", "models"],
+      "created_at": "2026-08-26",
+      "age_days": 0,
+      "comments": 2,
+      "status": "Active"
+    },
     {
       "number": 19383,
       "title": "[Bug]: Built-in agent shows delete entry but errors with Handler not found",
       "labels": ["bug", "p1", "ui-ux", "agent"],
       "created_at": "2026-08-25",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 2,
       "status": "Active"
     },
@@ -18,7 +45,7 @@
       "title": "Pi runtime: report_artifacts deliverables never render (code mode masks inner tool name)",
       "labels": ["bug", "p1", "ui-ux", "v2", "agent"],
       "created_at": "2026-08-25",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 0,
       "status": "Active"
     },
@@ -27,7 +54,7 @@
       "title": "Pi runtime: auto permission mode still prompts for every tool call",
       "labels": ["bug", "p1", "assistant", "v2", "agent"],
       "created_at": "2026-08-25",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 0,
       "status": "Active"
     },
@@ -36,7 +63,7 @@
       "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
       "labels": ["bug", "p1", "needs-more-info", "chat"],
       "created_at": "2026-08-24",
-      "age_days": 1,
+      "age_days": 2,
       "comments": 0,
       "status": "Active"
     },
@@ -45,7 +72,7 @@
       "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
       "labels": ["bug", "p1", "windows", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 1,
+      "age_days": 2,
       "comments": 0,
       "status": "Active"
     },
@@ -54,16 +81,7 @@
       "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
       "labels": ["bug", "p1", "models", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 1,
-      "comments": 1,
-      "status": "Active"
-    },
-    {
-      "number": 19316,
-      "title": "[Bug]: DeepSeek Harness (dsh) Agent 400: messages[0].role=developer not accepted",
-      "labels": ["bug", "p1", "models", "agent"],
-      "created_at": "2026-08-24",
-      "age_days": 1,
+      "age_days": 2,
       "comments": 1,
       "status": "Active"
     },
@@ -72,17 +90,8 @@
       "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
       "labels": ["bug", "p1", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 1,
+      "age_days": 2,
       "comments": 1,
-      "status": "Active"
-    },
-    {
-      "number": 19290,
-      "title": "[Bug] Claude Agent SDK session injects the full Claude Code developer prompt twice",
-      "labels": ["bug", "p1", "agent"],
-      "created_at": "2026-08-24",
-      "age_days": 1,
-      "comments": 3,
       "status": "Active"
     },
     {
@@ -90,8 +99,8 @@
       "title": "[Bug]: bug when used with augment claude type agent",
       "labels": ["bug", "p1", "needs-more-info", "agent"],
       "created_at": "2026-08-24",
-      "age_days": 1,
-      "comments": 1,
+      "age_days": 2,
+      "comments": 2,
       "status": "Active"
     },
     {
@@ -99,7 +108,7 @@
       "title": "[Bug]: Multimodal content block built incorrectly — images not passed to vision models",
       "labels": ["bug", "p1", "models", "chat"],
       "created_at": "2026-08-23",
-      "age_days": 2,
+      "age_days": 3,
       "comments": 7,
       "status": "Active"
     },
@@ -108,7 +117,7 @@
       "title": "[Bug]: Quick Assist feature not working",
       "labels": ["bug", "p1", "ui-ux", "inactive"],
       "created_at": "2026-05-30",
-      "age_days": 87,
+      "age_days": 88,
       "comments": 0,
       "status": "Zombie"
     },
@@ -117,114 +126,102 @@
       "title": "[讨论]: cherry studio是否无法接入商汤大模型？",
       "labels": ["bug", "p1", "models", "inactive"],
       "created_at": "2025-07-31",
-      "age_days": 391,
+      "age_days": 392,
       "comments": 0,
       "status": "Zombie"
     }
   ],
   "needs_triage_count": 38,
   "inactive_stale_count": 65,
-  "bug_labeled_count": 19,
+  "bug_labeled_count": 20,
   "label_distribution_top15": {
-    "internal-team": 52,
-    "feature": 39,
-    "needs-triage": 38,
-    "assistant": 35,
-    "models": 30,
-    "ui-ux": 27,
-    "performance": 22,
-    "rag": 19,
-    "inactive": 65,
-    "data": 13,
-    "bug": 19,
-    "mcp": 13,
-    "planned": 13,
+    "models": 23,
+    "bug": 20,
+    "ui-ux": 17,
+    "performance": 14,
     "agent": 12,
-    "needs-repro": 9
+    "p1": 12,
+    "p2": 11,
+    "feature": 9,
+    "assistant": 7,
+    "windows": 7,
+    "needs-more-info": 6,
+    "inactive": 6,
+    "chat": 5,
+    "p3": 5,
+    "help wanted": 5
   },
-  "new_issues_today_aug25": [
+  "new_issues_today_aug26": [
     {
-      "number": 19415,
-      "title": "[Bug]: systemfile MCP auto-downloaded file fails to open with an error",
-      "labels": ["mcp"],
-      "severity": "medium"
-    },
-    {
-      "number": 19410,
-      "title": "[Bug]: Isolate HTML artifact popup subscriptions per artifact",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19409,
-      "title": "[Bug]: Keep chat anchor gutter measurements out of React context",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19408,
-      "title": "[Bug]: Clean up abandoned Nutstore SSO listeners",
+      "number": 19518,
+      "title": "[Bug]: Channel log and edit dialogs name the close control Close in Chinese UI",
       "labels": [],
       "severity": "low"
     },
     {
-      "number": 19407,
-      "title": "[Bug]: Isolate message editing subscriptions per message",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19406,
-      "title": "[Bug]: Avoid re-registering every composer tool on state changes",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19402,
-      "title": "[Bug]: Hidden MCP browser tab autoplays media with sound after switching chats",
+      "number": 19510,
+      "title": "[Bug]: Lazy-load optional Notes menu workflows",
       "labels": [],
       "severity": "medium"
     },
     {
-      "number": 19398,
-      "title": "[Feature]: Add Global Memory UI",
+      "number": 19511,
+      "title": "[Bug]: Notes page icon buttons lack accessible names",
       "labels": [],
       "severity": "low"
     },
     {
-      "number": 19397,
-      "title": "[Bug]: @cherry/browser open action fails on local file URLs (Invalid remote url)",
-      "labels": ["mcp"],
+      "number": 19508,
+      "title": "[Bug]: Process pasted files without serial IPC",
+      "labels": ["performance"],
       "severity": "medium"
     },
     {
-      "number": 19391,
-      "title": "[Bug]: Error dialog text cannot be selected or copied",
-      "labels": ["bug", "p3", "ui-ux"],
+      "number": 19509,
+      "title": "[Bug]: Isolate message activity subscriptions per message",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19507,
+      "title": "[Bug]: Query and hydrate only the visible Files view",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19506,
+      "title": "[Bug]: Isolate translation overlays per message",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19504,
+      "title": "[Bug]: After switching models, clicking Regenerate still uses the previous model",
+      "labels": [],
+      "severity": "medium"
+    },
+    {
+      "number": 19500,
+      "title": "[Bug]: Selection translation result code blocks do not wrap and are clipped",
+      "labels": [],
       "severity": "low"
     },
     {
-      "number": 19390,
-      "title": "[Task]: Size the mise install timeout for large npm graphs",
-      "labels": ["Dev Team", "performance", "internal-team"],
-      "severity": "medium"
-    },
-    {
-      "number": 19383,
-      "title": "[Bug]: Built-in agent shows delete entry but errors with Handler not found",
-      "labels": ["bug", "p1", "ui-ux", "agent"],
+      "number": 19455,
+      "title": "Message action labels are included in selected and copied reply text",
+      "labels": ["bug", "p1", "windows", "ui-ux", "chat"],
       "severity": "critical"
     },
     {
-      "number": 19379,
-      "title": "Pi runtime: report_artifacts deliverables never render",
-      "labels": ["bug", "p1", "ui-ux", "v2", "agent"],
+      "number": 19454,
+      "title": "Streaming output flickers and shifts layout during generation",
+      "labels": ["bug", "p1", "ui-ux", "performance", "chat"],
       "severity": "critical"
     },
     {
-      "number": 19376,
-      "title": "Pi runtime: auto permission mode still prompts for every tool call",
-      "labels": ["bug", "p1", "assistant", "v2", "agent"],
+      "number": 19452,
+      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
+      "labels": ["bug", "p1", "windows", "rag", "connectivity", "models"],
       "severity": "critical"
     }
   ]

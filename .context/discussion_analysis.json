@@ -1,7 +1,21 @@
 {
-  "generated_at": "2026-08-25T18:00:00Z",
+  "generated_at": "2026-08-26T17:47:24Z",
   "note": "GitHub Discussions GraphQL not available in this session. Discussion-labeled issues used as proxy.",
   "discussion_issues_in_sample": [
+    {
+      "number": 19437,
+      "title": "[Discussion]: How to manually install and configure onnxruntime",
+      "labels": ["help wanted", "discussion"],
+      "created_at": "2026-08-26",
+      "comments": 0
+    },
+    {
+      "number": 19422,
+      "title": "[Discussion]: Scheduled task sends channel messages",
+      "labels": ["help wanted", "discussion", "needs-repro"],
+      "created_at": "2026-08-26",
+      "comments": 0
+    },
     {
       "number": 19396,
       "title": "[Discussion]: backups from portable version can't be imported in setup version",
@@ -24,12 +38,11 @@
       "comments": 0
     },
     {
-      "number": 19182,
-      "title": "agent",
-      "labels": ["needs-more-info", "help wanted", "discussion"],
-      "created_at": "2026-08-22",
-      "comments": 0,
-      "sentiment": "unclear — vague title, needs triage"
+      "number": 18792,
+      "title": "[Discussion]: When conversation auto-renaming is not enabled, title is always New Conversation",
+      "labels": ["help wanted", "discussion"],
+      "created_at": "2026-08-18",
+      "comments": 1
     },
     {
       "number": 18069,
@@ -56,14 +69,6 @@
       "sentiment": "negative — agent + RAG integration gap; marked inactive"
     },
     {
-      "number": 17260,
-      "title": "[Privacy Concern]: Agent mode hard-coded to Claude Code SDK — no user opt-out",
-      "labels": ["inactive"],
-      "created_at": "2026-07-22",
-      "comments": 3,
-      "sentiment": "negative — user privacy and model choice autonomy concern"
-    },
-    {
       "number": 16010,
       "title": "[Discussion]: Which models are supported by the agent, what is the logic",
       "labels": ["help wanted", "discussion", "models", "inactive"],
@@ -76,14 +81,15 @@
     "V2 startup/performance regression vs V1",
     "Knowledge base (RAG) integration gaps in agent mode",
     "Model support / agent compatibility confusion",
-    "Privacy concerns: hard-coded Claude Code SDK dependency",
+    "Data migration: portable → setup version (new thread today)",
+    "Scheduled task feature requests and edge cases",
     "DSH/Pi runtime integration issues",
-    "Data migration: v1 portable → v1 setup / v1 → v2 (new today)"
+    "onnxruntime manual install friction (new thread today)"
   ],
   "sentiment_summary": {
     "positive": 0,
-    "neutral": 1,
+    "neutral": 3,
     "negative": 5,
-    "overall": "predominantly negative — community frustrated by V2 regressions and documentation gaps"
+    "overall": "predominantly negative — community frustrated by V2 regressions; 2 new unanswered questions today"
   }
 }
