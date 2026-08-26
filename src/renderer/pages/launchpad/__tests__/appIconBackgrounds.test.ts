@@ -14,6 +14,8 @@ describe('hexContrastRatio', () => {
   it('matches WCAG relative-luminance contrast for known pairs', () => {
     expect(hexContrastRatio('#FFFFFF', '#000000')).toBeCloseTo(21, 5)
     expect(hexContrastRatio('#FFFFFF', '#FFFFFF')).toBeCloseTo(1, 5)
+    // Independent mid-tone oracle: WebAIM Contrast Checker reports #777777 vs #FFFFFF as 4.48:1.
+    expect(hexContrastRatio('#FFFFFF', '#777777')).toBeCloseTo(4.48, 2)
   })
 
   it('rejects the previous lime-400 core and accepts lime-600', () => {

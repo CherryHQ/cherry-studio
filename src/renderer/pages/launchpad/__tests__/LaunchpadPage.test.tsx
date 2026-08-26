@@ -177,9 +177,23 @@ const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', i
 const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
 
 function getAppTileFace(name: string): HTMLElement {
-  const face = screen.getByRole('button', { name }).querySelector('span.size-14.rounded-2xl')
+  const face = [...screen.getByRole('button', { name }).querySelectorAll('span')].find(
+    (el): el is HTMLElement => el instanceof HTMLElement && el.style.background !== ''
+  )
   expect(face).toBeInstanceOf(HTMLElement)
   return face as HTMLElement
+}
+
+function getGrainOverlay(root: ParentNode): HTMLElement | null {
+  return root.querySelector('[aria-hidden="true"]')
+}
+
+function expectGrainUnderArtwork(tile: HTMLElement) {
+  const overlay = getGrainOverlay(tile)
+  const artwork = tile.querySelector('img')
+  expect(overlay).toBeInstanceOf(HTMLElement)
+  expect(artwork).toBeInTheDocument()
+  expect(overlay && artwork && overlay.compareDocumentPosition(artwork) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 }
 const createMiniApp = (appId: string, overrides: Partial<MiniApp> = {}): MiniApp =>
   ({
@@ -247,10 +261,8 @@ describe('LaunchpadPage', () => {
       background: APP_ICON_BACKGROUNDS_LIGHT.knowledge
     })
     expect(chat.style.background).not.toEqual(knowledge.style.background)
-    expect(chat.querySelector('img')).toBeInTheDocument()
-    expect(knowledge.querySelector('img')).toBeInTheDocument()
-    expect(chat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
-    expect(knowledge.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+    expectGrainUnderArtwork(chat)
+    expectGrainUnderArtwork(knowledge)
   })
 
   it('switches sidebar app tile palettes when the resolved theme is dark', () => {
@@ -265,20 +277,23 @@ describe('LaunchpadPage', () => {
       background: APP_ICON_BACKGROUNDS_DARK.assistants
     })
     expect(darkChat.style.background).not.toEqual(lightChatBackground)
-    expect(darkChat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+    expectGrainUnderArtwork(darkChat)
   })
 
   it('keeps the DeepSeek Harness shortcut on its own outlined tile, not the app mesh palette', () => {
     render(<LaunchpadPage />)
 
     const shortcut = screen.getByRole('button', { name: 'DSH' })
-    const face = shortcut.querySelector('span.size-14.rounded-2xl')
+    // Outlined shortcut contract: semantic `bg-transparent` + `border-border-subtle`, not a mesh fill.
+    const face = [...shortcut.querySelectorAll('span')].find(
+      (el) => el.classList.contains('bg-transparent') && el.classList.contains('border-border-subtle')
+    )
 
-    expect(face).toHaveClass('bg-transparent', 'border-border-subtle')
+    expect(face).toBeInstanceOf(HTMLElement)
     expect(face).not.toHaveStyle({
       background: APP_ICON_BACKGROUNDS_LIGHT.assistants
     })
-    expect(shortcut.querySelector('.mix-blend-overlay')).not.toBeInTheDocument()
+    expect(getGrainOverlay(shortcut)).not.toBeInTheDocument()
     expect(shortcut.querySelector('img')).toBeInTheDocument()
   })
 
