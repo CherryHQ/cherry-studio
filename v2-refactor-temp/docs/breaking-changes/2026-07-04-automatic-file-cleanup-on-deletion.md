@@ -1,5 +1,5 @@
 ---
-title: Deleting a chat, topic, or painting now reclaims its files
+title: Deleting a chat message, or purging a topic or painting, now reclaims its files
 category: changed
 severity: notice
 introduced_in_pr: '#16727'
@@ -8,7 +8,7 @@ date: 2026-07-04
 
 ## What changed
 
-Deleting a chat topic, message, or painting now reclaims the files that were exclusively created for it (chat attachments, AI-generated images, painting inputs/outputs) once they have no other references — the file record and its physical blob are deleted, not just the owning business row. The Files page no longer accumulates every historical upload forever: files reclaimed this way disappear from the list along with their owner. This is a **silent, automatic** mechanism — there is no user-facing control (no pin/unpin, no "clean up now"): files created outside chat/painting flows (for example, uploaded directly via the Files page) are kept, while files owned by a chat/painting are reclaimed once that owner is gone. Nothing irreplaceable is lost — chat attachments are Cherry's own copies; the user's original file on disk is never touched. Files migrated from a v1 install keep today's "kept forever" behavior unless they were referenced by a migrated chat message or painting, in which case they follow the same reclaim-on-delete lifecycle as newly created files.
+Since #16746 deleting a topic or painting archives it to the trash, so this reclaim happens when that item is finally purged — permanently deleted from the trash, or removed by the retention sweep — not the moment the user hits delete. Deleting a message still applies immediately, because messages never enter the trash. Purging then reclaims the files that were exclusively created for the item (chat attachments, AI-generated images, painting inputs/outputs) once they have no other references — the file record and its physical blob are deleted, not just the owning business row. The Files page no longer accumulates every historical upload forever: files reclaimed this way disappear from the list along with their owner. This is a **silent, automatic** mechanism — there is no user-facing control (no pin/unpin, no "clean up now"): files created outside chat/painting flows (for example, uploaded directly via the Files page) are kept, while files owned by a chat/painting are reclaimed once that owner is gone. Nothing irreplaceable is lost — chat attachments are Cherry's own copies; the user's original file on disk is never touched. Files migrated from a v1 install keep today's "kept forever" behavior unless they were referenced by a migrated chat message or painting, in which case they follow the same reclaim-on-delete lifecycle as newly created files.
 
 ## Why this matters to the user
 
