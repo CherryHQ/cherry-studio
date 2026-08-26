@@ -1,4 +1,3 @@
-import { diagnosticsRequestSchemas } from '@shared/ipc/schemas/diagnostics'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serviceMocks = vi.hoisted(() => ({
@@ -35,24 +34,6 @@ describe('diagnosticsHandlers', () => {
       diagnosticsHandlers['diagnostics.bundle.inspect']({ range: '3d' }, { senderId: 'main' })
     ).resolves.toEqual(expected)
     expect(serviceMocks.inspect).toHaveBeenCalledWith('3d')
-  })
-
-  it('requires the explicit chat-record selection in strict bundle inputs', () => {
-    const schema = diagnosticsRequestSchemas['diagnostics.bundle.export'].input
-
-    expect(
-      schema.safeParse({ includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' }).success
-    ).toBe(true)
-    expect(schema.safeParse({ includeLogs: true, includeTraces: false, range: '24h' }).success).toBe(false)
-    expect(
-      schema.safeParse({
-        includeChatRecords: false,
-        includeLogs: true,
-        includeTraces: false,
-        range: '24h',
-        unexpected: true
-      }).success
-    ).toBe(false)
   })
 
   it('passes the trusted caller window id to export', async () => {

@@ -1,6 +1,7 @@
 import {
   Alert,
   Button,
+  DescriptionSwitch,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -10,7 +11,6 @@ import {
   Scrollbar,
   SegmentedControl
 } from '@cherrystudio/ui'
-import { DiagnosticSourceRow } from '@renderer/components/DiagnosticSourceRow'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -194,35 +194,47 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
               </section>
 
               <section className="divide-y divide-border rounded-xl border border-border">
-                <DiagnosticSourceRow
-                  title={t('settings.about.diagnostics.sources.system.title')}
-                  description={t('settings.about.diagnostics.sources.system.description', {
-                    crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                  })}
-                  checked
-                  disabled
-                />
-                <DiagnosticSourceRow
-                  title={t('settings.about.diagnostics.sources.logs.title')}
-                  description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
-                  checked={effectiveIncludeLogs}
-                  disabled={status === 'uploading' || isInspectionPending || !logsAvailable}
-                  onCheckedChange={setIncludeLogs}
-                />
-                <DiagnosticSourceRow
-                  title={t('settings.about.diagnostics.sources.traces.title')}
-                  description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
-                  checked={effectiveIncludeTraces}
-                  disabled={status === 'uploading' || isInspectionPending || !tracesAvailable}
-                  onCheckedChange={setIncludeTraces}
-                />
-                <DiagnosticSourceRow
-                  title={t('settings.about.diagnostics.sources.chat_records.title')}
-                  description={describeDiagnosticChatSource(t, inspectResult?.sources.chatRecords, isInspectionPending)}
-                  checked={effectiveIncludeChatRecords}
-                  disabled={status === 'uploading' || isInspectionPending || !chatRecordsAvailable}
-                  onCheckedChange={setIncludeChatRecords}
-                />
+                <div className="p-1">
+                  <DescriptionSwitch
+                    label={t('settings.about.diagnostics.sources.system.title')}
+                    description={t('settings.about.diagnostics.sources.system.description', {
+                      crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
+                    })}
+                    checked
+                    disabled
+                  />
+                </div>
+                <div className="p-1">
+                  <DescriptionSwitch
+                    label={t('settings.about.diagnostics.sources.logs.title')}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
+                    checked={effectiveIncludeLogs}
+                    disabled={status === 'uploading' || isInspectionPending || !logsAvailable}
+                    onCheckedChange={setIncludeLogs}
+                  />
+                </div>
+                <div className="p-1">
+                  <DescriptionSwitch
+                    label={t('settings.about.diagnostics.sources.traces.title')}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
+                    checked={effectiveIncludeTraces}
+                    disabled={status === 'uploading' || isInspectionPending || !tracesAvailable}
+                    onCheckedChange={setIncludeTraces}
+                  />
+                </div>
+                <div className="p-1">
+                  <DescriptionSwitch
+                    label={t('settings.about.diagnostics.sources.chat_records.title')}
+                    description={describeDiagnosticChatSource(
+                      t,
+                      inspectResult?.sources.chatRecords,
+                      isInspectionPending
+                    )}
+                    checked={effectiveIncludeChatRecords}
+                    disabled={status === 'uploading' || isInspectionPending || !chatRecordsAvailable}
+                    onCheckedChange={setIncludeChatRecords}
+                  />
+                </div>
               </section>
 
               {isInspectionPending ? (

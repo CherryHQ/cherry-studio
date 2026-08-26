@@ -51,34 +51,6 @@ export function createDiagnosticBudgetSelector(limitBytes: number): {
   return { trySelect }
 }
 
-export function selectBudgetCandidates<T>(
-  candidates: readonly DiagnosticBudgetCandidate<T>[],
-  limitBytes: number
-): { selected: T[]; omitted: T[] } {
-  const sortedCandidates = [...candidates].sort(compareBudgetCandidates)
-  const selected = new Set<DiagnosticBudgetCandidate<T>>()
-  const selector = createDiagnosticBudgetSelector(limitBytes)
-
-  const trySelect = (candidate: DiagnosticBudgetCandidate<T> | undefined): void => {
-    if (!candidate || selected.has(candidate)) return
-    if (!selector.trySelect(candidate).selected) return
-    selected.add(candidate)
-  }
-
-  const sourceRepresentatives: DiagnosticBudgetCandidate<T>[] = []
-  for (const kind of ['logs', 'traces', 'chatRecords'] as const) {
-    const representative = sortedCandidates.find((candidate) => candidate.kind === kind)
-    if (representative) sourceRepresentatives.push(representative)
-  }
-  for (const candidate of sourceRepresentatives.sort(compareBudgetCandidates)) trySelect(candidate)
-  for (const candidate of sortedCandidates) trySelect(candidate)
-
-  return {
-    selected: sortedCandidates.filter((candidate) => selected.has(candidate)).map((candidate) => candidate.item),
-    omitted: sortedCandidates.filter((candidate) => !selected.has(candidate)).map((candidate) => candidate.item)
-  }
-}
-
 export function toFileBudgetCandidate(candidate: SourceCandidate): DiagnosticBudgetCandidate<SourceCandidate> {
   return {
     item: candidate,

@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { createRequire } from 'node:module'
 import { beforeAll, beforeEach, expect, vi } from 'vitest'
 
+import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'
 import { resetPopupMocks } from './__mocks__/renderer/popup'
 import { resetToastMocks } from './__mocks__/renderer/toast'
 
@@ -987,6 +988,7 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
+    DescriptionSwitch: MockCherrystudioUI.DescriptionSwitch,
     Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,

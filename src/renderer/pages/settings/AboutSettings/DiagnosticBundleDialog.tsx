@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Checkbox,
+  DescriptionSwitch,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -12,7 +13,6 @@ import {
   SegmentedControl
 } from '@cherrystudio/ui'
 import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
-import { DiagnosticSourceRow } from '@renderer/components/DiagnosticSourceRow'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -352,39 +352,47 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
                 </section>
 
                 <section className="divide-y divide-border rounded-xl border border-border">
-                  <DiagnosticSourceRow
-                    title={t('settings.about.diagnostics.sources.system.title')}
-                    description={t('settings.about.diagnostics.sources.system.description', {
-                      crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                    })}
-                    checked
-                    disabled
-                  />
-                  <DiagnosticSourceRow
-                    title={t('settings.about.diagnostics.sources.logs.title')}
-                    description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
-                    checked={effectiveIncludeLogs}
-                    disabled={status === 'saving' || isInspectionPending || !logsAvailable}
-                    onCheckedChange={changeLogs}
-                  />
-                  <DiagnosticSourceRow
-                    title={t('settings.about.diagnostics.sources.traces.title')}
-                    description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
-                    checked={effectiveIncludeTraces}
-                    disabled={status === 'saving' || isInspectionPending || !tracesAvailable}
-                    onCheckedChange={changeTraces}
-                  />
-                  <DiagnosticSourceRow
-                    title={t('settings.about.diagnostics.sources.chat_records.title')}
-                    description={describeDiagnosticChatSource(
-                      t,
-                      inspectResult?.sources.chatRecords,
-                      isInspectionPending
-                    )}
-                    checked={effectiveIncludeChatRecords}
-                    disabled={status === 'saving' || isInspectionPending || !chatRecordsAvailable}
-                    onCheckedChange={changeChatRecords}
-                  />
+                  <div className="p-1">
+                    <DescriptionSwitch
+                      label={t('settings.about.diagnostics.sources.system.title')}
+                      description={t('settings.about.diagnostics.sources.system.description', {
+                        crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
+                      })}
+                      checked
+                      disabled
+                    />
+                  </div>
+                  <div className="p-1">
+                    <DescriptionSwitch
+                      label={t('settings.about.diagnostics.sources.logs.title')}
+                      description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
+                      checked={effectiveIncludeLogs}
+                      disabled={status === 'saving' || isInspectionPending || !logsAvailable}
+                      onCheckedChange={changeLogs}
+                    />
+                  </div>
+                  <div className="p-1">
+                    <DescriptionSwitch
+                      label={t('settings.about.diagnostics.sources.traces.title')}
+                      description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
+                      checked={effectiveIncludeTraces}
+                      disabled={status === 'saving' || isInspectionPending || !tracesAvailable}
+                      onCheckedChange={changeTraces}
+                    />
+                  </div>
+                  <div className="p-1">
+                    <DescriptionSwitch
+                      label={t('settings.about.diagnostics.sources.chat_records.title')}
+                      description={describeDiagnosticChatSource(
+                        t,
+                        inspectResult?.sources.chatRecords,
+                        isInspectionPending
+                      )}
+                      checked={effectiveIncludeChatRecords}
+                      disabled={status === 'saving' || isInspectionPending || !chatRecordsAvailable}
+                      onCheckedChange={changeChatRecords}
+                    />
+                  </div>
                 </section>
 
                 {isInspectionPending && (
