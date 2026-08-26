@@ -14,10 +14,13 @@ export default defineCreator({
     // Only hunyuan-a13b exposes the knob today.
     { pattern: '^hunyuan-a13b', toggle: true },
     { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
+    // Hy3/Hy4 expose a two-step ladder only. Declared here because upstream
+    // listings disagree (some publish low/medium/high) and would win otherwise.
+    { pattern: '^hy3', effort: ['none', 'high'] },
+    { pattern: '^hy4', effort: ['none', 'high'] },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: 'hunyuan-t1' },
-    { pattern: 'hunyuan-a13b' },
-    { pattern: '^hy3' }
+    { pattern: 'hunyuan-a13b' }
   ],
   models: [
     { id: 'hunyuan-turbos', name: 'Hunyuan TurboS', capabilities: ['function-call'] },
@@ -31,19 +34,43 @@ export default defineCreator({
     },
     {
       id: 'hy3',
-      name: 'Hunyuan 3',
+      name: 'Hy3',
+      family: 'Hy',
+      group: 'hy',
+      capabilities: ['reasoning', 'function-call'],
+      contextWindow: 262144,
+      maxInputTokens: 196608,
+      maxOutputTokens: 131072,
+      // Declared per-model because upstream publishes a three-step ladder for
+      // hy3, and a present upstream vocabulary outranks the family rule.
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'high'] }] }
+    },
+    {
+      id: 'hy3-preview',
+      name: 'Hy3 preview',
+      family: 'Hy',
+      group: 'hy',
       capabilities: ['reasoning', 'function-call'],
       contextWindow: 262144,
       maxInputTokens: 196608,
       maxOutputTokens: 131072
     },
     {
-      id: 'hy3-preview',
-      name: 'Hunyuan 3 Preview',
+      id: 'hy4-preview',
+      name: 'Hy4 preview',
+      family: 'Hy',
+      group: 'hy',
       capabilities: ['reasoning', 'function-call'],
-      contextWindow: 262144,
-      maxInputTokens: 196608,
-      maxOutputTokens: 131072
+      contextWindow: 1048576,
+      maxInputTokens: 983040,
+      maxOutputTokens: 65536,
+      // No upstream listing carries this SKU yet, so the price is converted from
+      // the CN list price (÷ tax rate × FX) rather than enriched from models.dev.
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.834 },
+        output: { currency: 'USD', perMillionTokens: 2.501 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.042 }
+      }
     },
     {
       id: 'hunyuan-2-0-thinking',

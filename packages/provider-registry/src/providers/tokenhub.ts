@@ -26,7 +26,9 @@ export default defineProvider({
   modelListSource: 'registry',
   overrides: [
     // Tencent-own
+    { modelId: 'hy3', apiModelId: 'hy3' },
     { modelId: 'hy3-preview', apiModelId: 'hy3-preview' },
+    { modelId: 'hy4-preview', apiModelId: 'hy4-preview' },
     { modelId: 'hunyuan-2-0-instruct', apiModelId: 'hunyuan-2.0-instruct-20251111' },
     { modelId: 'hunyuan-2-0', apiModelId: 'hunyuan-2.0-thinking-20251109' },
     { modelId: 'hy-role', apiModelId: 'hy-role' },
