@@ -2010,6 +2010,31 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Token Plan - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/v3"
+        }
+      },
+      "id": "token-plan",
+      "metadata": {
+        "website": {
+          "apiKey": "https://console.cloud.tencent.com/tokenhub/tokenplan/common",
+          "docs": "https://cloud.tencent.com/document/product/1823",
+          "models": "https://cloud.tencent.com/document/product/1823/130060",
+          "official": "https://cloud.tencent.com/document/product/1823/130060"
+        }
+      },
+      "modelListSource": "registry",
+      "name": "Token Plan"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Baidu Cloud - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -2411,5 +2436,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "b3b73ceeb452801e"
+  "version": "cea82cf606ffcb5a"
 }
