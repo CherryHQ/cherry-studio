@@ -41,6 +41,8 @@ export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Pr
       password: app.config.cherryIn.password
     })
     await sendProtocolUrlToOwnedApp(app.record, callback)
+    await openSettingsSection(page, 'Model Provider')
+    await page.getByTestId('provider-list-item-cherryin').click()
   }
   await expect(logout).toBeVisible({ timeout: 3 * 60_000 })
 }
@@ -66,6 +68,6 @@ export async function addCherryInModel(page: Page, model: string, tab?: string):
   await expect(drawer.getByText(model, { exact: true })).toBeVisible()
   const add = drawer.getByRole('button', { name: 'Add', exact: true }).first()
   if (await add.isVisible().catch(() => false)) await add.click()
-  await page.keyboard.press('Escape')
+  await drawer.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(drawer).toBeHidden()
 }

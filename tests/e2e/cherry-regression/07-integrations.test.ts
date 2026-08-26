@@ -7,16 +7,9 @@ import { closeSettings, ensureCustomChatProvider, openSettingsSection, selectVis
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Promise<void> {
-  const direct = page.getByRole('button', { name: 'Skills', exact: true })
-  if (await direct.isVisible().catch(() => false)) {
-    await direct.click()
-    return
-  }
-  await page
-    .locator('[data-ui="chat.composer"]')
-    .getByRole('button', { name: 'Input Quick Panel', exact: true })
-    .click()
-  await page.getByTestId('quick-panel').getByText('Skills', { exact: true }).click()
+  const direct = page.locator('[data-ui="chat.composer"]').getByRole('button', { name: 'Skills', exact: true })
+  await expect(direct).toBeVisible({ timeout: 30_000 })
+  await direct.click()
 }
 
 test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, mainWindow: page }) => {

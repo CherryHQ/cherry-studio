@@ -88,11 +88,11 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await expect(page.getByRole('switch').first()).toHaveAttribute('aria-checked', 'true')
   await closeSettings(page)
 
-  openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 'k'])
   const selection = await app.window('/windows/selection/toolbar/')
   await expect(selection.getByText('Explain', { exact: true })).toBeVisible()
   await expect(selection.getByText('Translate', { exact: true })).toBeVisible()
+  openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
+  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 'k'])
   await selection.getByRole('button', { name: 'Explain', exact: true }).click({ force: true })
   const action = await app.window('/windows/selection/action/')
   await expect(action.locator('body')).toContainText('SELECTION_ASSISTANT_PASS', { timeout: 2 * 60_000 })
