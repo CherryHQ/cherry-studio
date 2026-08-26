@@ -150,7 +150,9 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
       'if (-not $dialog) { throw "Native file dialog was not found" }',
-      '$dialog.SetFocus()',
+      '$shell = New-Object -ComObject WScript.Shell',
+      `if (-not $shell.AppActivate(${electronPid})) { throw "Native file dialog could not be activated" }`,
+      'Start-Sleep -Milliseconds 300',
       ...(isDirectory
         ? [
             'Add-Type -AssemblyName System.Windows.Forms',
@@ -161,9 +163,12 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
             `$valuePattern.SetValue('${escapePowerShell(filePath)}')`,
             '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
             'Start-Sleep -Milliseconds 500',
+            '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+            '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
+            'if (-not $dialog) { throw "Native folder dialog closed before selection" }',
             '$buttonCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
             '$buttons = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
-            '$selectButton = $buttons | Where-Object { $_.Current.Name -in @("Select Folder", "Select") } | Select-Object -First 1',
+            '$selectButton = $buttons | Where-Object { $_.Current.Name -in @("Select Folder", "Choose Folder", "Choose this folder", "Select") } | Select-Object -First 1',
             'if (-not $selectButton) { throw "Select Folder button was not found" }',
             '$selectButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()'
           ]

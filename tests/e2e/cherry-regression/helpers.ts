@@ -16,7 +16,7 @@ export async function openLaunchpad(page: Page): Promise<void> {
 
 export async function openLaunchpadApp(page: Page, name: string): Promise<void> {
   await openLaunchpad(page)
-  await page.locator('button').filter({ hasText: name }).last().click()
+  await page.getByRole('button', { name, exact: true }).last().click()
 }
 
 export async function selectSidebarApp(page: Page, name: string): Promise<void> {
@@ -41,6 +41,6 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
       return
     }
     await openLaunchpad(page)
-    await page.locator('button').filter({ hasText: name }).last().click()
+    await page.getByRole('button', { name, exact: true }).last().click()
   }
 }

@@ -103,6 +103,14 @@ function windowsProcessExecutablePath(pid: number): string {
   }
 }
 
+function macosProcessExecutablePath(pid: number): string {
+  try {
+    return execFileSync('ps', ['-o', 'comm=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
+  } catch {
+    return ''
+  }
+}
+
 function assertOwnedProcess(record: AppRecord, pid: number, kind: 'electron' | 'runner'): void {
   const command = processCommand(pid, record.platform)
   const expected =
@@ -478,48 +486,33 @@ export async function prepareWindowsCdpConnection(record: AppRecord): Promise<vo
   throw new Error('Non-main Windows CDP targets did not close')
 }
 
-async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: string): Promise<void> {
-  const debuggerUrl = await ownedMainInspectorUrl(record)
-  const delivered = await evaluateCdpExpression<boolean>(
-    debuggerUrl,
-    `(() => {
-      const electron = process.mainModule?.require?.('electron')
-      if (!electron?.app) throw new Error('Electron app is unavailable')
-      const callbackUrl = ${JSON.stringify(url)}
-      if (${JSON.stringify(record.platform)} === 'macos') {
-        return electron.app.emit('open-url', { preventDefault() {} }, callbackUrl)
-      }
-      return electron.app.emit('second-instance', {}, [process.execPath, process.argv[1] ?? '', callbackUrl], process.cwd())
-    })()`
-  )
-  if (!delivered) {
-    throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')
-  }
-}
-
 export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): Promise<void> {
   if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
   assertOwnedProcess(record, record.electronPid, 'electron')
-  if (record.mode === 'branch') {
-    await sendProtocolUrlThroughMainInspector(record, url)
-    return
-  }
 
   if (record.platform === 'macos') {
-    const executablePath = record.executablePath
-    const isVerifiedExecutable = Boolean(
-      record.executablePath && resolve(executablePath ?? '') === resolve(record.executablePath)
-    )
+    const executablePath =
+      record.mode === 'branch' ? macosProcessExecutablePath(record.electronPid) : record.executablePath
+    const isVerifiedExecutable =
+      record.mode === 'branch'
+        ? basename(executablePath ?? '') === 'Electron' && isPathInside(record.targetRoot, executablePath ?? '')
+        : Boolean(record.executablePath && resolve(executablePath ?? '') === resolve(record.executablePath))
     if (!executablePath || !isVerifiedExecutable) {
       throw new Error('Owned macOS Electron executable could not be verified')
     }
     const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
-    if (!userDataArgument) throw new Error('Owned macOS application profile is missing')
-    const args = [userDataArgument, url]
+    if (record.mode === 'tag' && !userDataArgument) throw new Error('Owned macOS application profile is missing')
+    const args =
+      record.mode === 'branch' ? [record.targetRoot, url] : ([userDataArgument, url].filter(Boolean) as string[])
     try {
       execFileSync(executablePath, args, {
         cwd: record.cwd,
-        env: { ...process.env },
+        env: {
+          ...process.env,
+          ...(record.mode === 'branch'
+            ? { CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` }
+            : {})
+        },
         stdio: 'ignore',
         timeout: 15_000
       })
@@ -530,20 +523,32 @@ export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string):
   }
 
   const executablePath = windowsProcessExecutablePath(record.electronPid)
-  const isVerifiedExecutable = Boolean(
-    record.executablePath &&
-      win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
-  )
+  const relativeExecutable = win32.relative(win32.resolve(record.targetRoot), win32.resolve(executablePath))
+  const isVerifiedExecutable =
+    record.mode === 'branch'
+      ? win32.basename(executablePath).toLowerCase() === 'electron.exe' &&
+        !relativeExecutable.startsWith('..') &&
+        !win32.isAbsolute(relativeExecutable)
+      : Boolean(
+          record.executablePath &&
+            win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
+        )
   if (!executablePath || !isVerifiedExecutable) {
     throw new Error('Owned Windows Electron executable could not be verified')
   }
   const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
-  if (!userDataArgument) throw new Error('Owned Windows application profile is missing')
-  const args = [userDataArgument, url]
+  if (record.mode === 'tag' && !userDataArgument) throw new Error('Owned Windows application profile is missing')
+  const args =
+    record.mode === 'branch' ? [record.targetRoot, url] : ([userDataArgument, url].filter(Boolean) as string[])
   try {
     execFileSync(executablePath, args, {
       cwd: record.cwd,
-      env: { ...process.env },
+      env: {
+        ...process.env,
+        ...(record.mode === 'branch'
+          ? { CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` }
+          : {})
+      },
       stdio: 'ignore',
       timeout: 15_000,
       windowsHide: true

@@ -4,7 +4,7 @@ import { expect, test } from './fixture'
 import { createAgent, runAgentFileTask, selectAgentWorkspace } from './agents'
 import { addCherryInModel, ensureCherryInSignedIn } from './cherry-in'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
-import { closeSettings } from './models'
+import { closeSettings, selectVisibleModel } from './models'
 import { validateFileEvidence } from '../../../scripts/cherry-regression-test/file-evidence'
 
 async function ensureAgentModel(
@@ -53,10 +53,7 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
   const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
   if (await model.isVisible().catch(() => false)) {
     await model.click()
-    const search = page.getByTestId('model-selector-search')
-    await search.fill(app.config.cherryIn.chatModel)
-    await expect(page.getByRole('option').first()).toBeVisible()
-    await search.press('Enter')
+    await selectVisibleModel(page, app.config.cherryIn.chatModel)
   }
   await selectAgentWorkspace(app, page)
 

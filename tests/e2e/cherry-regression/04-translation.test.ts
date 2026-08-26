@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { expect, test } from './fixture'
 import { selectSidebarApp } from './helpers'
-import { closeSettings, ensureCustomChatProvider } from './models'
+import { closeSettings, ensureCustomChatProvider, selectVisibleModel } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[0], model: string): Promise<void> {
@@ -12,8 +12,7 @@ async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[
       '[data-ui="translate.view"] [data-selector-shell-root="true"]:has(+ button[aria-label="Translation History"]) > button'
     )
     .click()
-  await page.getByTestId('model-selector-search').fill(model)
-  await page.getByRole('option').filter({ hasText: model }).first().click()
+  await selectVisibleModel(page, model)
   const sourceLanguage = page.getByRole('button', { name: 'Source Language' })
   if (!(await sourceLanguage.textContent())?.includes('English')) {
     await sourceLanguage.click()

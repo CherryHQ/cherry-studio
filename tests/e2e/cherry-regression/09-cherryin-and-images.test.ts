@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { expect, test } from './fixture'
 import { addCherryInModel, ensureCherryInSignedIn } from './cherry-in'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
-import { closeSettings, selectChatModel, sendChatMarker } from './models'
+import { closeSettings, selectChatModel, selectVisibleModel, sendChatMarker } from './models'
 import { validateFileEvidence } from '../../../scripts/cherry-regression-test/file-evidence'
 import { saveNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
@@ -35,8 +35,7 @@ async function generateAndSaveImage(
   const modelName = model.split('/').at(-1) ?? model
   if (!(await modelButton.textContent())?.includes(modelName)) {
     await modelButton.click()
-    await page.getByTestId('model-selector-search').fill(modelName)
-    await page.getByRole('option').filter({ hasText: modelName }).first().click()
+    await selectVisibleModel(page, modelName)
   }
   await page.locator('[contenteditable="true"]').fill(IMAGE_PROMPT)
   await page.getByRole('button', { name: 'Send', exact: true }).click()

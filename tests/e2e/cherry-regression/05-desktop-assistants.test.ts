@@ -16,7 +16,7 @@ async function configureQuickAssistant(
         'feature.quick_assistant.enabled': true,
         'feature.quick_assistant.model_id': `${providerId}::${model}`,
         'shortcut.quick_assistant.toggle': {
-          binding: ['CommandOrControl', 'E'],
+          binding: ['CommandOrControl', 'Alt', 'Shift', 'E'],
           enabled: true
         }
       }),
@@ -44,7 +44,7 @@ async function invokeQuickAssistant(
 ): Promise<void> {
   const { platform } = app.record
   openExternalText(platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  sendSystemHotkey(platform, platform === 'macos' ? ['Meta', 'e'] : ['Control', 'e'])
+  sendSystemHotkey(platform, platform === 'macos' ? ['Meta', 'Alt', 'Shift', 'e'] : ['Control', 'Alt', 'Shift', 'e'])
   const quick = await app.window('/windows/quickassistant/')
   const input = quick.getByRole('textbox').first()
   await expect(input).toBeVisible()
@@ -78,7 +78,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
         'feature.selection.enabled': true,
         'feature.selection.trigger_mode': 'shortcut',
         'shortcut.selection.capture_text': {
-          binding: ['CommandOrControl', 'Shift', 'S'],
+          binding: ['CommandOrControl', 'Alt', 'Shift', 'K'],
           enabled: true
         }
       })
@@ -89,7 +89,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await closeSettings(page)
 
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 's'])
+  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 'k'])
   const selection = await app.window('/windows/selection/toolbar/')
   await expect(selection.getByText('Explain', { exact: true })).toBeVisible()
   await expect(selection.getByText('Translate', { exact: true })).toBeVisible()

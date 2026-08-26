@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { expect, test } from './fixture'
 import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
-import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
+import { closeSettings, ensureCustomChatProvider, openSettingsSection, selectVisibleModel } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Promise<void> {
@@ -99,8 +99,7 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
   const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
   if (await model.isVisible().catch(() => false)) {
     await model.click()
-    await page.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
-    await page.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
+    await selectVisibleModel(page, app.config.customProvider.chatModel)
   }
   const newTask = page.locator('[data-ui="chat.composer"] button').filter({ hasText: 'New task' })
   if (await newTask.isVisible().catch(() => false)) await newTask.click()

@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test'
 import type { RegressionApp } from './app'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
-import { openSettingsSection } from './models'
+import { openSettingsSection, selectVisibleModel } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding'
@@ -67,8 +67,7 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
       const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
       await page.getByRole('textbox', { name: 'Name', exact: true }).fill(KNOWLEDGE_NAME)
       await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-      await page.getByTestId('model-selector-search').fill(app.config.customEmbeddingProvider.model)
-      await page.getByRole('option').filter({ hasText: app.config.customEmbeddingProvider.model }).first().click()
+      await selectVisibleModel(page, app.config.customEmbeddingProvider.model)
       await page.getByRole('button', { name: 'Create', exact: true }).click()
       await expect(dialog).toBeHidden({ timeout: 2 * 60_000 })
       await expect(selectedBase).toBeVisible()

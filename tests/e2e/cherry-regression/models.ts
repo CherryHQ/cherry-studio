@@ -6,6 +6,16 @@ import { dismissOnboarding, selectSidebarApp } from './helpers'
 
 export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 
+export async function selectVisibleModel(page: Page, model: string): Promise<void> {
+  const selector = page.locator('[data-testid="model-selector-content"]:visible').last()
+  await expect(selector).toBeVisible()
+  const search = selector.getByTestId('model-selector-search')
+  await search.fill(model)
+  const option = selector.getByRole('option').filter({ hasText: model }).first()
+  await expect(option).toBeVisible()
+  await option.click()
+}
+
 async function closeOpenSettingsDrawer(page: Page): Promise<void> {
   const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]:visible').first()
   if (!(await drawer.isVisible().catch(() => false))) return
@@ -67,7 +77,6 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
     await expect(apiKeyInput).toHaveAttribute('type', 'password')
     await apiKeyInput.fill(apiKey)
     await page.getByRole('textbox', { name: 'Anthropic', exact: true }).fill(baseUrl)
-    await page.getByRole('textbox', { name: 'OpenAI', exact: true }).fill(baseUrl)
     await page.getByRole('button', { name: 'Add', exact: true }).click()
   }
 
@@ -95,10 +104,7 @@ export async function closeSettings(page: Page): Promise<void> {
 export async function selectChatModel(page: Page, model: string): Promise<void> {
   await selectSidebarApp(page, 'Chat')
   await page.getByRole('button', { name: 'Selected models', exact: true }).click()
-  const search = page.getByTestId('model-selector-search')
-  await search.fill(model)
-  await expect(page.getByRole('option').first()).toBeVisible()
-  await search.press('Enter')
+  await selectVisibleModel(page, model)
   await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toBeVisible()
 }
 
