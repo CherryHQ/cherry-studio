@@ -9,6 +9,9 @@ import {
 
 export const COMPOSER_DRAFT_TOKEN_KINDS = COMPOSER_TOKEN_KINDS
 
+export const COMPOSER_TOKEN_NODE_NAME = 'composerToken'
+export const COMPOSER_INPUT_MAX_LENGTH = 40000
+
 export type ComposerDraftTokenKind = ComposerTokenKind
 
 export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = COMPOSER_INPUT_TOKEN_KINDS
