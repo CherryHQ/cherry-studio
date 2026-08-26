@@ -279,7 +279,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                 className="w-full"
                 loading={isRevokingSession}
                 onClick={() => void handleCloudLogout()}
-                variant="destructive">
+                variant="outline">
                 {t('settings.provider.cherry_cloud.logout')}
               </Button>
             </ColFlex>

@@ -322,7 +322,9 @@ describe('UserPopup', () => {
     })
     showUserPopup()
 
-    await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' }))
+    const logoutButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' })
+    expect(logoutButton).toHaveAttribute('variant', 'outline')
+    await user.click(logoutButton)
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.session.revoke')
     expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
