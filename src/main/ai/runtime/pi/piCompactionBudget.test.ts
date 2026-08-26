@@ -43,7 +43,7 @@ async function outputBudget(context: Context) {
   return buildBaseOptions(model, context).maxTokens
 }
 
-describe('patched pi-ai compaction output budget', () => {
+describe('pi-ai compaction output budget', () => {
   it('ignores assistant usage older than an inserted compaction summary', async () => {
     const context: Context = {
       systemPrompt: 'system',
