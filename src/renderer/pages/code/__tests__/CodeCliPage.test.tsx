@@ -2,7 +2,7 @@ import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,6 +31,7 @@ const {
   navigateMock,
   openSettingsTabMock,
   ipcRequestMock,
+  ipcEventHandlers,
   versionStatusesMock,
   mockProviders,
   mockProviderConfigs,
@@ -59,6 +60,7 @@ const {
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
   ipcRequestMock: vi.fn(),
+  ipcEventHandlers: new Map<string, (payload: unknown) => void>(),
   versionStatusesMock: vi.fn(),
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>,
@@ -194,7 +196,7 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (...args: unknown[]) => ipcRequestMock(...args)
   },
-  useIpcOn: vi.fn()
+  useIpcOn: (event: string, handler: (payload: unknown) => void) => ipcEventHandlers.set(event, handler)
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -410,6 +412,7 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
+    { value: CodeCli.HERMES, label: 'Hermes', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
   PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
@@ -495,6 +498,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
     [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
+    [CodeCli.HERMES]: { ...base, ...overrides[CodeCli.HERMES] },
     [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
   }
 }
@@ -502,6 +506,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
 describe('CodeCliPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ipcEventHandlers.clear()
     mockProviders.splice(0, mockProviders.length, provider)
     providersLoadingState.value = false
     unsupportedProviderIds.clear()
@@ -522,7 +527,9 @@ describe('CodeCliPage', () => {
     selectFolderMock.mockResolvedValue('/tmp/project')
     navigateMock.mockResolvedValue(undefined)
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
+      if (route === 'deepseek_harness.get_status' || route === 'hermes_dashboard.get_status')
+        return { status: 'stopped' }
+      if (route === 'hermes_dashboard.start') return { success: true, url: 'http://127.0.0.1:49152' }
       return { success: true }
     })
   })
@@ -559,6 +566,25 @@ describe('CodeCliPage', () => {
       writePrimaryModel: true
     })
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('opens Hermes Dashboard before the Gateway bootstrap when no default Gateway model exists', async () => {
+    const ensureReady = vi.fn()
+    gatewayState.bundle = {
+      provider: { ...provider, id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Gateway' },
+      apiKey: 'gateway-key',
+      ensureReady
+    }
+    mockCodeCliState({ selectedCliTool: CodeCli.HERMES })
+    render(<CodeCliPage />)
+
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+    fireEvent.click(screen.getByText('start tool'))
+
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('hermes_dashboard.start'))
+    expect(ensureReady).not.toHaveBeenCalled()
+    expect(selectFolderMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
   })
 
   it('stores a DeepSeek Harness selection without writing config or starting external services', async () => {
@@ -643,6 +669,89 @@ describe('CodeCliPage', () => {
     expect(setCurrentProviderMock).not.toHaveBeenCalled()
     expect(screen.queryByTestId('config-panel')).not.toBeInTheDocument()
     expect(upgradeMock).not.toHaveBeenCalled()
+  })
+
+  it('locks Hermes Agent provider changes and upgrades while its web UI is running', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.HERMES,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
+    )
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'hermes_dashboard.get_status') return { status: 'running', url: 'http://127.0.0.1:49152' }
+      return { success: true }
+    })
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'configure anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeDisabled()
+    })
+  })
+
+  it('locks Hermes Agent provider actions immediately after a cross-window status push', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.HERMES,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
+    )
+    ipcRequestMock.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status') return new Promise(() => {})
+      return Promise.resolve({ success: true })
+    })
+    render(<CodeCliPage />)
+
+    const statusChanged = ipcEventHandlers.get('hermes_dashboard.status_changed')
+    if (!statusChanged) throw new Error('Expected Hermes Dashboard status listener')
+    await act(async () => {
+      statusChanged({ status: 'running', url: 'http://127.0.0.1:49152' })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'configure anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeDisabled()
+    })
+  })
+
+  it('keeps a Hermes cross-window push authoritative over a status poll that answers later', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.HERMES,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
+    )
+    let answerStatusPoll: ((status: { status: string; url?: string }) => void) | undefined
+    ipcRequestMock.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status')
+        return new Promise((resolve) => {
+          answerStatusPoll = resolve
+        })
+      return Promise.resolve({ success: true })
+    })
+    render(<CodeCliPage />)
+
+    const statusChanged = ipcEventHandlers.get('hermes_dashboard.status_changed')
+    if (!statusChanged) throw new Error('Expected Hermes Dashboard status listener')
+    await act(async () => {
+      statusChanged({ status: 'running', url: 'http://127.0.0.1:49152' })
+    })
+    if (!answerStatusPoll) throw new Error('Expected an in-flight Hermes Dashboard status poll')
+    await act(async () => {
+      answerStatusPoll?.({ status: 'stopped' })
+    })
+
+    expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
   })
 
   it('enables the provider after saving detailed config from the pending dialog', async () => {
