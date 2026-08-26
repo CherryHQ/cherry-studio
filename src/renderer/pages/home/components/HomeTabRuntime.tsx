@@ -7,18 +7,20 @@ type Props = {
   title: string
   emoji?: string | null
   preserveVisuals: boolean
+  entityId?: string
   activeTopicId?: string | null
   activeTopicSource: ActiveTopicSource
 }
 
-export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopicId, activeTopicSource }: Props) {
+export function HomeTabRuntime({ title, emoji, preserveVisuals, entityId, activeTopicId, activeTopicSource }: Props) {
   const isActiveTab = useIsActiveTab()
 
   useTabSelfVisuals({
     title,
     emoji,
     appId: 'assistants',
-    preserveVisuals
+    preserveVisuals,
+    entityId
   })
 
   useEffect(() => {

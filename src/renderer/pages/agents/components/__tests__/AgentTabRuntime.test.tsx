@@ -33,6 +33,7 @@ describe('AgentTabRuntime', () => {
         title="Session A"
         emoji="agent-avatar"
         preserveVisuals={false}
+        entityId="agent-a"
         activeSessionId="session-a"
         activeSessionSource="query"
         onToggleSidebar={onToggleSidebar}
@@ -43,7 +44,8 @@ describe('AgentTabRuntime', () => {
       title: 'Session A',
       emoji: 'agent-avatar',
       appId: 'agents',
-      preserveVisuals: false
+      preserveVisuals: false,
+      entityId: 'agent-a'
     })
     expect(runtimeMocks.useCommandHandler).toHaveBeenCalledWith('app.sidebar.toggle', onToggleSidebar, {
       enabled: true

@@ -59,7 +59,81 @@ describe('useTabSelfVisuals', () => {
     await waitFor(() =>
       expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
         title: 'Topic title',
-        icon: 'icon:spark'
+        icon: 'icon:spark',
+        metadata: { conversationEntry: undefined }
+      })
+    )
+  })
+
+  it('stamps the entity that owns the conversation the tab is showing', async () => {
+    mocks.tabs = [{ id: 'tab-1', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Old title' }]
+
+    render(
+      <TabIdProvider tabId="tab-1">
+        <TabVisualsWriter title="Topic title" appId="assistants" entityId="assistant-1" />
+      </TabIdProvider>
+    )
+
+    await waitFor(() =>
+      expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'Topic title',
+        icon: undefined,
+        metadata: { conversationEntry: { type: 'assistant', entityId: 'assistant-1' } }
+      })
+    )
+  })
+
+  it('re-stamps the owner when the tab switches to another entity, even with identical visuals', async () => {
+    mocks.tabs = [
+      {
+        id: 'tab-1',
+        type: 'route',
+        url: '/app/chat?topicId=topic-2',
+        title: 'Shared title',
+        metadata: { conversationEntry: { type: 'assistant', entityId: 'assistant-1' } }
+      }
+    ]
+
+    render(
+      <TabIdProvider tabId="tab-1">
+        <TabVisualsWriter title="Shared title" appId="assistants" entityId="assistant-2" />
+      </TabIdProvider>
+    )
+
+    await waitFor(() =>
+      expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'Shared title',
+        icon: undefined,
+        metadata: { conversationEntry: { type: 'assistant', entityId: 'assistant-2' } }
+      })
+    )
+  })
+
+  it('keeps unrelated metadata when re-stamping the owner', async () => {
+    mocks.tabs = [
+      {
+        id: 'tab-1',
+        type: 'route',
+        url: '/app/agents?sessionId=session-1',
+        title: 'Old title',
+        metadata: { somethingElse: 'keep me' }
+      }
+    ]
+
+    render(
+      <TabIdProvider tabId="tab-1">
+        <TabVisualsWriter title="Session title" appId="agents" entityId="agent-9" />
+      </TabIdProvider>
+    )
+
+    await waitFor(() =>
+      expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'Session title',
+        icon: undefined,
+        metadata: {
+          somethingElse: 'keep me',
+          conversationEntry: { type: 'agent', entityId: 'agent-9' }
+        }
       })
     )
   })
@@ -107,20 +181,21 @@ describe('useTabSelfVisuals', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
-  it('skips the update when title and icon already match', async () => {
+  it('skips the update when title, icon and owner already match', async () => {
     mocks.tabs = [
       {
         id: 'tab-1',
         type: 'route',
         url: '/app/agents?sessionId=session-1',
         title: 'Session title',
-        icon: 'icon:spark'
+        icon: 'icon:spark',
+        metadata: { conversationEntry: { type: 'agent', entityId: 'agent-1' } }
       }
     ]
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Session title" emoji="spark" appId="agents" />
+        <TabVisualsWriter title="Session title" emoji="spark" appId="agents" entityId="agent-1" />
       </TabIdProvider>
     )
 

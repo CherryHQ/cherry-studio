@@ -28,6 +28,7 @@ describe('HomeTabRuntime', () => {
         title="Topic A"
         emoji="🍒"
         preserveVisuals={false}
+        entityId="assistant-a"
         activeTopicId="topic-a"
         activeTopicSource="query"
       />
@@ -37,7 +38,8 @@ describe('HomeTabRuntime', () => {
       title: 'Topic A',
       emoji: '🍒',
       appId: 'assistants',
-      preserveVisuals: false
+      preserveVisuals: false,
+      entityId: 'assistant-a'
     })
     expect(cacheService.setPersist).toHaveBeenCalledWith('ui.chat.last_used_topic_id', 'topic-a')
   })

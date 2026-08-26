@@ -8,6 +8,7 @@ type Props = {
   title: string
   emoji?: string | null
   preserveVisuals: boolean
+  entityId?: string
   activeSessionId?: string | null
   activeSessionSource: AgentSessionSource
   onToggleSidebar: () => void
@@ -17,6 +18,7 @@ export function AgentTabRuntime({
   title,
   emoji,
   preserveVisuals,
+  entityId,
   activeSessionId,
   activeSessionSource,
   onToggleSidebar
@@ -27,7 +29,8 @@ export function AgentTabRuntime({
     title,
     emoji,
     appId: 'agents',
-    preserveVisuals
+    preserveVisuals,
+    entityId
   })
 
   useCommandHandler('app.sidebar.toggle', onToggleSidebar, { enabled: isActiveTab })

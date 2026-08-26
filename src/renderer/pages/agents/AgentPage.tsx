@@ -1009,6 +1009,7 @@ const AgentPage = () => {
         title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
         emoji={visibleAgent?.configuration?.avatar}
         preserveVisuals={preserveTabVisuals}
+        entityId={visibleAgent?.id}
         activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}
         onToggleSidebar={toggleShellPane}

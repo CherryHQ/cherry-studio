@@ -660,6 +660,7 @@ const HomePage: FC = () => {
           title={tabTitle}
           emoji={visibleAssistant?.emoji}
           preserveVisuals={preserveTabVisuals}
+          entityId={visibleAssistant?.id}
           activeTopicId={activeTopic?.id}
           activeTopicSource={activeTopicSource}
         />
@@ -775,6 +776,7 @@ const HomePage: FC = () => {
         title={tabTitle}
         emoji={visibleAssistant?.emoji}
         preserveVisuals={preserveTabVisuals}
+        entityId={visibleAssistant?.id}
         activeTopicId={activeTopic?.id}
         activeTopicSource={activeTopicSource}
       />
