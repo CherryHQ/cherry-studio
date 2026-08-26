@@ -250,7 +250,7 @@ export default function ModelServiceSetupDialog({
           aria-describedby={undefined}
           size="lg"
           motion={useDefaultProviderMotion ? 'directional' : 'none'}
-          className="grid h-[min(620px,calc(100vh-2rem))] grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-4"
+          className="grid h-[min(620px,calc(100vh-2rem))] grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-4 [&_[data-slot=dialog-close]]:top-7"
           data-testid="model-service-setup-dialog"
           onOpenAutoFocus={(event) => {
             event.preventDefault()

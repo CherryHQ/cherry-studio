@@ -22,7 +22,7 @@ let localModels: Model[] = []
 let storedApiKeys: Array<{ id: string; key: string; isEnabled: boolean }> = []
 let storedApiKeysUnavailable = false
 let storedApiKeysLoading = false
-let providerMeta: { apiKeyWebsite?: string; isDmxapi: boolean }
+let providerMeta: { apiKeyWebsite?: string; fancyProviderName: string; isDmxapi: boolean }
 let provider: {
   id: string
   name: string
@@ -57,6 +57,7 @@ vi.mock('@renderer/utils/model', async (importOriginal) => ({
 }))
 
 vi.mock('@cherrystudio/ui/icons', () => ({
+  resolveProviderIconRef: () => undefined,
   useIcon: () => undefined
 }))
 
@@ -178,6 +179,7 @@ describe('ProviderApiSetupDialog', () => {
     storedApiKeysLoading = false
     providerMeta = {
       apiKeyWebsite: 'https://platform.openai.com/api-keys',
+      fancyProviderName: 'OpenAI',
       isDmxapi: false
     }
     provider = {
@@ -271,7 +273,9 @@ describe('ProviderApiSetupDialog', () => {
   it('requires a non-empty key, saves it explicitly, and leaves every model unselected', async () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 
-    expect(screen.getByRole('heading', { name: 'settings.provider.api_setup.add_key' })).toBeInTheDocument()
+    const heading = screen.getByRole('heading')
+    expect(heading).toHaveTextContent('OpenAI')
+    expect(heading).toHaveTextContent('settings.provider.api_setup.add_key')
     expect(screen.queryByText('settings.provider.api_setup.key_description')).not.toBeInTheDocument()
     const saveButton = screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' })
     expect(saveButton).toBeDisabled()
@@ -280,7 +284,7 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(saveButton)
 
     await screen.findAllByText('alpha')
-    expect(screen.getByRole('heading', { name: 'settings.provider.api_setup.models_title' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(screen.queryByText('settings.provider.api_setup.models_description')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { expanded: true })).not.toBeInTheDocument()
     expect(addApiKeyMock).toHaveBeenCalledWith('sk-valid')
@@ -300,7 +304,7 @@ describe('ProviderApiSetupDialog', () => {
     ).toBe(true)
     fireEvent.change(screen.getByRole('textbox', { name: 'common.search' }), { target: { value: 'beta' } })
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' })).toBeDisabled()
     expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
@@ -318,7 +322,7 @@ describe('ProviderApiSetupDialog', () => {
     )
 
     expect(
-      await screen.findByRole('heading', { name: 'settings.provider.api_setup.models_check_title' })
+      await screen.findByRole('heading', { name: /settings\.provider\.api_setup\.models_check_title/ })
     ).toBeInTheDocument()
   })
 
@@ -375,7 +379,8 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findAllByText('alpha')
     fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
 
     await waitFor(() =>
       expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { apiKey: 'sk-fresh', timeout: 15000 })
@@ -413,25 +418,24 @@ describe('ProviderApiSetupDialog', () => {
     expect(modelCheckboxes[0]).toBeChecked()
     expect(modelCheckboxes[1]).not.toBeChecked()
     await user.click(modelCheckboxes[1])
-    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
-    expect(
-      await screen.findByRole('heading', { name: 'settings.provider.api_setup.add_and_verify' })
-    ).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('settings.provider.api_setup.status.checking_model:alpha')
+    const verificationHeading = await screen.findByRole('heading', {
+      name: /settings\.provider\.api_setup\.verify_and_enable/
+    })
+    expect(verificationHeading).toBeVisible()
+    expect(verificationHeading).toHaveTextContent('OpenAI')
     expect(
       screen.getByRole('listitem', {
         name: 'settings.provider.api_setup.progress.add_models common.success'
       })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('listitem', {
-        name: 'settings.provider.api_setup.progress.check_model_named:alpha common.loading'
-      })
-    ).toHaveAttribute('aria-current', 'step')
-    expect(
-      screen.getByRole('listitem', { name: 'settings.provider.api_setup.progress.enable_provider' })
+      screen.getByRole('listitem', { name: 'settings.provider.api_setup.progress.check_model_named:alpha' })
     ).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(checkApiMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
 
     await waitFor(() =>
       expect(createModelsMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'beta', name: 'beta' }])
@@ -442,6 +446,14 @@ describe('ProviderApiSetupDialog', () => {
         patch: { isEnabled: true, isHidden: false }
       }
     ])
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('settings.provider.api_setup.status.checking_model:alpha')
+    expect(
+      screen.getByRole('listitem', {
+        name: 'settings.provider.api_setup.progress.check_model_named:alpha common.loading'
+      })
+    ).toHaveAttribute('aria-current', 'step')
     expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { timeout: 15000 })
     expect(enableProviderMock).not.toHaveBeenCalled()
 
@@ -551,7 +563,7 @@ describe('ProviderApiSetupDialog', () => {
     await screen.findAllByText('manual')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0]).toBeChecked()
-    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' })).toBeEnabled()
   })
 
   it('keeps an incompatible manually added model out of the selection', async () => {
@@ -577,10 +589,13 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findAllByText('alpha')
     fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
 
     await screen.findByText(/insufficient balance/)
-    expect(screen.getByRole('heading', { name: 'settings.provider.api_setup.add_and_verify' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
         name: 'settings.provider.api_setup.progress.add_models common.success'
@@ -594,10 +609,11 @@ describe('ProviderApiSetupDialog', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.back_to_models' }))
-    expect(screen.getByRole('heading', { name: 'settings.provider.api_setup.models_title' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0]).toBeChecked()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
     await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('settings.provider.api_setup.success')).toBeInTheDocument()
@@ -611,7 +627,8 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findAllByText('alpha')
     fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
 
     await screen.findByText(/Request timed out/)
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: false })
@@ -639,14 +656,13 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findAllByText('model-0')
     fireEvent.click(screen.getByRole('button', { name: 'common.select_all' }))
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
-    await screen.findByText(/second batch failed/)
+    expect(await screen.findByRole('alert')).toHaveTextContent('second batch failed')
+    expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(
-      screen.getByRole('listitem', {
-        name: 'settings.provider.api_setup.progress.add_models settings.models.check.failed'
-      })
-    ).toBeInTheDocument()
+      screen.queryByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
+    ).not.toBeInTheDocument()
     expect(createModelsMock).toHaveBeenCalledTimes(2)
     expect(createModelsMock.mock.calls[0]?.[0]).toHaveLength(500)
     expect(createModelsMock.mock.calls[1]?.[0]).toHaveLength(1)
@@ -670,15 +686,20 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findAllByText('alpha')
     fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
     await screen.findByText('settings.provider.api_setup.manual_title')
-    expect(screen.getByRole('heading', { name: 'settings.provider.api_setup.add_and_verify' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
         name: 'settings.provider.api_setup.progress.add_models common.success'
       })
     ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' })
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
         name: 'settings.provider.api_setup.progress.check_model settings.models.check.status_skipped'
@@ -686,7 +707,7 @@ describe('ProviderApiSetupDialog', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'common.close' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.back_to_models' }))
-    expect(screen.getByRole('heading', { name: 'settings.provider.api_setup.models_title' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0]).toBeChecked()
     expect(createModelsMock).toHaveBeenCalledTimes(1)
     expect(checkApiMock).not.toHaveBeenCalled()

@@ -18,6 +18,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, Circle, CircleAlert, CircleX, Loa
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ProviderAvatar } from '../components/ProviderAvatar'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import {
   ModelListSyncContent,
@@ -25,7 +26,7 @@ import {
   useModelListSyncView,
   useProviderModelPullReconcile
 } from '../ModelList'
-import { ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
+import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
 import { getProviderSetupErrorSummary, persistProviderModels } from '../utils/providerModelSetup'
 
@@ -47,14 +48,7 @@ interface ProviderApiSetupDialogProps {
   onSetupSuccess?: (models: Model[]) => void
 }
 
-type SetupBusyState =
-  | 'saving-key'
-  | 'loading-models'
-  | 'preparing-verification'
-  | 'creating-models'
-  | 'checking'
-  | 'enabling'
-  | null
+type SetupBusyState = 'saving-key' | 'loading-models' | 'creating-models' | 'checking' | 'enabling' | null
 type SetupErrorKind = 'api-key' | 'models' | 'create' | 'check' | 'enable'
 type VerificationStep = 'models' | 'check' | 'enable'
 type VerificationStepStatus = 'pending' | 'active' | 'complete' | 'error' | 'warning'
@@ -104,10 +98,21 @@ export default function ProviderApiSetupDialog({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeIntentRef = useRef<'back' | 'dismiss' | 'manual'>('dismiss')
   const persistedModelsRef = useRef(new Map<UniqueModelId, Model>())
+  const configuredModelsRef = useRef<Model[]>([])
   const probeSucceededModelIdRef = useRef<string | null>(null)
 
   const isBusy = busyState !== null
   const canDismissDialog = !isBusy || busyState === 'loading-models'
+  const providerDisplayName = providerMeta.fancyProviderName || provider?.name || ''
+  const setupStepTitle = t(
+    step === 'api-key'
+      ? 'settings.provider.api_setup.add_key'
+      : step === 'verification'
+        ? 'settings.provider.api_setup.verify_and_enable'
+        : modelSelectionMode === 'check'
+          ? 'settings.provider.api_setup.models_check_title'
+          : 'settings.provider.api_setup.models_title'
+  )
   const availableModels = useMemo(
     () => unfilteredAvailableModels.filter((model) => modelFilter?.(model, provider) ?? true),
     [modelFilter, provider, unfilteredAvailableModels]
@@ -138,13 +143,7 @@ export default function ProviderApiSetupDialog({
   const verificationApiKey = apiKey.trim() || storedApiKey?.key || ''
   const canAddModelManually = provider != null && provider.presetProviderId == null
   const activeVerificationStep: VerificationStep | null =
-    busyState === 'preparing-verification' || busyState === 'creating-models'
-      ? 'models'
-      : busyState === 'checking'
-        ? 'check'
-        : busyState === 'enabling'
-          ? 'enable'
-          : null
+    busyState === 'checking' ? 'check' : busyState === 'enabling' ? 'enable' : null
   const failedVerificationStep: VerificationStep | null =
     error?.kind === 'create' ? 'models' : error?.kind === 'check' ? 'check' : error?.kind === 'enable' ? 'enable' : null
   const verificationSteps = [
@@ -158,13 +157,9 @@ export default function ProviderApiSetupDialog({
     { id: 'enable', label: t('settings.provider.api_setup.progress.enable_provider') }
   ] as const
   const verificationStatusMessage =
-    busyState === 'preparing-verification' || busyState === 'creating-models'
-      ? t('settings.provider.api_setup.status.adding_models')
-      : busyState === 'checking' && probeModel
-        ? t('settings.provider.api_setup.status.checking_model', { model: probeModel.name })
-        : busyState === 'enabling'
-          ? t('settings.provider.api_setup.status.enabling_provider')
-          : t('settings.provider.api_setup.verifying')
+    busyState === 'checking' && probeModel
+      ? t('settings.provider.api_setup.status.checking_model', { model: probeModel.name })
+      : t('settings.provider.api_setup.status.enabling_provider')
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) {
@@ -238,6 +233,7 @@ export default function ProviderApiSetupDialog({
     setCompletedVerificationSteps(new Set())
     setSelectedModelIds(new Set(localModelIds))
     setModelViewResetVersion((version) => version + 1)
+    configuredModelsRef.current = []
     probeSucceededModelIdRef.current = null
 
     try {
@@ -376,21 +372,22 @@ export default function ProviderApiSetupDialog({
     })
   }, [modelListView.filteredModels])
 
-  const completeSetup = useCallback(async () => {
+  const addSelectedModels = useCallback(async () => {
     if (!provider || selectedModels.length === 0 || isBusy) {
       return
     }
 
-    setBusyState('preparing-verification')
+    setBusyState('creating-models')
     setError(null)
     setRequiresManualConfirmation(false)
     setSetupSucceeded(false)
+    setCompletedVerificationSteps(new Set())
+    configuredModelsRef.current = []
+    probeSucceededModelIdRef.current = null
 
-    let configuredModels: Model[]
     try {
       await keepProviderDisabled()
-      setBusyState('creating-models')
-      configuredModels = await persistProviderModels({
+      configuredModelsRef.current = await persistProviderModels({
         provider,
         selectedModels,
         localModels,
@@ -407,13 +404,32 @@ export default function ProviderApiSetupDialog({
       return
     }
 
-    setCompletedVerificationSteps((current) => new Set(current).add('models'))
-
+    setCompletedVerificationSteps(new Set(['models']))
     if (!probeModel) {
-      setBusyState(null)
       setRequiresManualConfirmation(true)
+    }
+    setBusyState(null)
+    setStep('verification')
+  }, [
+    createError,
+    createModels,
+    isBusy,
+    keepProviderDisabled,
+    localModels,
+    probeModel,
+    provider,
+    selectedModels,
+    updateModels
+  ])
+
+  const verifyAndEnable = useCallback(async () => {
+    if (!probeModel || configuredModelsRef.current.length === 0 || isBusy) {
       return
     }
+
+    setError(null)
+    setRequiresManualConfirmation(false)
+    setSetupSucceeded(false)
 
     if (probeSucceededModelIdRef.current !== probeModel.id) {
       setBusyState('checking')
@@ -437,36 +453,13 @@ export default function ProviderApiSetupDialog({
       await enableProvider()
       setCompletedVerificationSteps((current) => new Set(current).add('enable'))
       setBusyState(null)
-      onSetupSuccess?.(configuredModels)
+      onSetupSuccess?.(configuredModelsRef.current)
       setSetupSucceeded(true)
     } catch (cause) {
       setBusyState(null)
       setError(createError('enable', 'settings.provider.api_setup.enable_failed', cause))
     }
-  }, [
-    createError,
-    createModels,
-    enableProvider,
-    isBusy,
-    keepProviderDisabled,
-    localModels,
-    onSetupSuccess,
-    provider,
-    probeModel,
-    selectedModels,
-    updateModels,
-    verificationApiKey
-  ])
-
-  const startVerification = useCallback(() => {
-    if (selectedModels.length === 0 || isBusy) {
-      return
-    }
-
-    setCompletedVerificationSteps(new Set())
-    setStep('verification')
-    void completeSetup()
-  }, [completeSetup, isBusy, selectedModels.length])
+  }, [createError, enableProvider, isBusy, onSetupSuccess, probeModel, verificationApiKey])
 
   const returnToModels = useCallback(() => {
     if (isBusy) {
@@ -477,6 +470,8 @@ export default function ProviderApiSetupDialog({
     setRequiresManualConfirmation(false)
     setSetupSucceeded(false)
     setCompletedVerificationSteps(new Set())
+    configuredModelsRef.current = []
+    probeSucceededModelIdRef.current = null
     setStep('models')
   }, [isBusy])
 
@@ -501,6 +496,8 @@ export default function ProviderApiSetupDialog({
     setRequiresManualConfirmation(false)
     setSetupSucceeded(false)
     setCompletedVerificationSteps(new Set())
+    configuredModelsRef.current = []
+    probeSucceededModelIdRef.current = null
     setApiKey((current) => current || storedApiKey?.key || '')
     setStep('api-key')
   }, [storedApiKey?.key])
@@ -533,41 +530,46 @@ export default function ProviderApiSetupDialog({
             }
           }}
           className={cn(
-            'gap-5',
+            'gap-5 [&_[data-slot=dialog-close]]:top-7',
             step === 'models' &&
               error?.kind !== 'models' &&
               'h-[min(720px,calc(100vh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]'
           )}>
-          {step === 'verification' ? (
-            <DialogTitle className="sr-only">{t('settings.provider.api_setup.add_and_verify')}</DialogTitle>
-          ) : (
-            <DialogHeader>
-              <div className="flex items-center gap-2">
-                {onBack ? (
-                  <Tooltip content={t('settings.provider.api_setup.back_to_providers')}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t('settings.provider.api_setup.back_to_providers')}
-                      disabled={!canDismissDialog}
-                      onClick={requestBack}>
-                      <ArrowLeft className="size-4" />
-                    </Button>
-                  </Tooltip>
-                ) : null}
-                <DialogTitle>
-                  {t(
-                    step === 'api-key'
-                      ? 'settings.provider.api_setup.add_key'
-                      : modelSelectionMode === 'check'
-                        ? 'settings.provider.api_setup.models_check_title'
-                        : 'settings.provider.api_setup.models_title'
-                  )}
-                </DialogTitle>
-              </div>
-            </DialogHeader>
-          )}
+          <DialogHeader className="pr-8">
+            <div className="flex min-w-0 items-center gap-2">
+              {step !== 'verification' && onBack ? (
+                <Tooltip content={t('settings.provider.api_setup.back_to_providers')}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('settings.provider.api_setup.back_to_providers')}
+                    disabled={!canDismissDialog}
+                    onClick={requestBack}>
+                    <ArrowLeft className="size-4" />
+                  </Button>
+                </Tooltip>
+              ) : null}
+              {provider && providerDisplayName ? (
+                <ProviderAvatar
+                  provider={{ ...provider, name: providerDisplayName }}
+                  size={24}
+                  className={providerListClasses.itemAvatar}
+                  displayContext="provider-list"
+                />
+              ) : null}
+              <DialogTitle className="flex min-w-0 items-baseline gap-2">
+                {providerDisplayName ? (
+                  <>
+                    <span className="min-w-0 truncate font-normal text-base">{providerDisplayName}</span>
+                    <span className="shrink-0 font-normal text-muted-foreground text-sm">· {setupStepTitle}</span>
+                  </>
+                ) : (
+                  setupStepTitle
+                )}
+              </DialogTitle>
+            </div>
+          </DialogHeader>
 
           {step === 'api-key' ? (
             <div className="space-y-4">
@@ -589,7 +591,7 @@ export default function ProviderApiSetupDialog({
                   }}
                 />
                 {providerMeta.apiKeyWebsite && !providerMeta.isDmxapi ? (
-                  <div className="flex">
+                  <div className="flex pl-3">
                     <ProviderHelpLink
                       target="_blank"
                       rel="noreferrer"
@@ -655,46 +657,48 @@ export default function ProviderApiSetupDialog({
             </div>
           ) : (
             <div className="space-y-5">
-              <div
-                role={error ? 'alert' : 'status'}
-                aria-live="polite"
-                className="flex flex-col items-center gap-2 pt-1 text-center">
+              {isBusy || error || requiresManualConfirmation || setupSucceeded ? (
                 <div
-                  className={cn(
-                    'flex size-10 items-center justify-center rounded-full',
-                    setupSucceeded
-                      ? 'bg-success-subtle text-success'
-                      : error
-                        ? 'bg-error-subtle text-error'
-                        : requiresManualConfirmation
-                          ? 'bg-warning-subtle text-warning'
-                          : 'bg-primary/10 text-primary'
-                  )}>
-                  {setupSucceeded ? (
-                    <CheckCircle2 className="size-5" aria-hidden />
-                  ) : error ? (
-                    <CircleX className="size-5" aria-hidden />
-                  ) : requiresManualConfirmation ? (
-                    <CircleAlert className="size-5" aria-hidden />
-                  ) : (
-                    <LoaderCircle className="size-5 motion-safe:animate-spin" aria-hidden />
-                  )}
-                </div>
-                <div className="max-w-md text-sm leading-6">
-                  {setupSucceeded
-                    ? t('settings.provider.api_setup.success')
-                    : error
-                      ? error.message
-                      : requiresManualConfirmation
-                        ? t('settings.provider.api_setup.manual_title')
-                        : verificationStatusMessage}
-                </div>
-                {requiresManualConfirmation ? (
-                  <div className="max-w-md text-muted-foreground text-xs leading-5">
-                    {t('settings.provider.api_setup.manual_description')}
+                  role={error ? 'alert' : 'status'}
+                  aria-live="polite"
+                  className="flex flex-col items-center gap-2 pt-1 text-center">
+                  <div
+                    className={cn(
+                      'flex size-10 items-center justify-center rounded-full',
+                      setupSucceeded
+                        ? 'bg-success-subtle text-success'
+                        : error
+                          ? 'bg-error-subtle text-error'
+                          : requiresManualConfirmation
+                            ? 'bg-warning-subtle text-warning'
+                            : 'bg-primary/10 text-primary'
+                    )}>
+                    {setupSucceeded ? (
+                      <CheckCircle2 className="size-5" aria-hidden />
+                    ) : error ? (
+                      <CircleX className="size-5" aria-hidden />
+                    ) : requiresManualConfirmation ? (
+                      <CircleAlert className="size-5" aria-hidden />
+                    ) : (
+                      <LoaderCircle className="size-5 motion-safe:animate-spin" aria-hidden />
+                    )}
                   </div>
-                ) : null}
-              </div>
+                  <div className="max-w-md text-sm leading-6">
+                    {setupSucceeded
+                      ? t('settings.provider.api_setup.success')
+                      : error
+                        ? error.message
+                        : requiresManualConfirmation
+                          ? t('settings.provider.api_setup.manual_title')
+                          : verificationStatusMessage}
+                  </div>
+                  {requiresManualConfirmation ? (
+                    <div className="max-w-md text-muted-foreground text-xs leading-5">
+                      {t('settings.provider.api_setup.manual_description')}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <ol className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle">
                 {verificationSteps.map(({ id, label }) => {
@@ -724,27 +728,35 @@ export default function ProviderApiSetupDialog({
                 })}
               </ol>
 
-              {error || requiresManualConfirmation ? (
+              {requiresManualConfirmation ? (
                 <div className="flex flex-wrap justify-center gap-2">
                   <Button type="button" variant="outline" onClick={returnToModels}>
                     {t('settings.provider.api_setup.back_to_models')}
                   </Button>
-                  {error && editableApiKeyId ? (
-                    <Button type="button" variant="outline" onClick={editSavedKey}>
-                      {t('settings.provider.api_setup.edit_key')}
-                    </Button>
-                  ) : null}
-                  {error ? (
-                    <Button type="button" onClick={() => void completeSetup()}>
-                      {t('common.retry')}
-                    </Button>
-                  ) : null}
                 </div>
               ) : null}
             </div>
           )}
 
-          {step !== 'verification' ? (
+          {step === 'verification' ? (
+            !setupSucceeded && !requiresManualConfirmation ? (
+              <DialogFooter className="flex-row items-center justify-between sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="ghost" disabled={isBusy} onClick={returnToModels}>
+                    {t('settings.provider.api_setup.back_to_models')}
+                  </Button>
+                  {error && editableApiKeyId ? (
+                    <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
+                      {t('settings.provider.api_setup.edit_key')}
+                    </Button>
+                  ) : null}
+                </div>
+                <Button type="button" loading={isBusy} disabled={!probeModel} onClick={() => void verifyAndEnable()}>
+                  {t('settings.provider.api_setup.verify_and_enable')}
+                </Button>
+              </DialogFooter>
+            ) : null
+          ) : (
             <DialogFooter className="flex-row items-center justify-between sm:justify-between">
               <div>
                 {step === 'models' && editableApiKeyId ? (
@@ -766,13 +778,17 @@ export default function ProviderApiSetupDialog({
                     {t('common.retry')}
                   </Button>
                 ) : (
-                  <Button type="button" disabled={selectedModels.length === 0 || isBusy} onClick={startVerification}>
-                    {t('settings.provider.api_setup.add_and_verify')}
+                  <Button
+                    type="button"
+                    loading={busyState === 'creating-models'}
+                    disabled={selectedModels.length === 0 || isBusy}
+                    onClick={() => void addSelectedModels()}>
+                    {t('settings.provider.api_setup.progress.add_models')}
                   </Button>
                 )}
               </div>
             </DialogFooter>
-          ) : null}
+          )}
         </DialogContent>
       </Dialog>
       <ProviderModelAddDialog
