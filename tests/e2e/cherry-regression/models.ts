@@ -49,7 +49,7 @@ async function addModel(page: Page, model: string): Promise<void> {
   await closeOpenSettingsDrawer(page)
 }
 
-export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<void> {
+export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<string> {
   const { baseUrl, apiKey, chatModel } = app.config.customProvider
   await openSettingsSection(page, 'Model Provider')
   const providerItem = page
@@ -75,6 +75,13 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
   const enabled = page.getByRole('switch').last()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
   await addModel(page, chatModel)
+
+  const providerTestId = await providerItem.getAttribute('data-testid')
+  const providerTestIdPrefix = 'provider-list-item-'
+  if (!providerTestId?.startsWith(providerTestIdPrefix)) {
+    throw new Error('Custom chat provider ID is unavailable')
+  }
+  return providerTestId.slice(providerTestIdPrefix.length)
 }
 
 export async function closeSettings(page: Page): Promise<void> {

@@ -16,7 +16,13 @@ vi.mock('node:child_process', async (importOriginal) => ({
 }))
 vi.mock('../cdp-client', () => ({ evaluateCdpExpression: evaluateCdpExpressionMock }))
 
-import { type AppRecord, ensureProfile, sendProtocolUrlToOwnedApp, stopOwnedApp } from '../lifecycle'
+import {
+  type AppRecord,
+  ensureProfile,
+  prepareWindowsCdpConnection,
+  sendProtocolUrlToOwnedApp,
+  stopOwnedApp
+} from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 afterEach(() => {
@@ -26,7 +32,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function mockMainInspector(): void {
+function mockMainInspector(launchSpec: { entryPath: string; executablePath: string }): void {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
@@ -40,7 +46,7 @@ function mockMainInspector(): void {
       status: 200
     })
   )
-  evaluateCdpExpressionMock.mockResolvedValue(true)
+  evaluateCdpExpressionMock.mockResolvedValue(launchSpec)
 }
 
 describe('owned application lifecycle', () => {
@@ -166,10 +172,13 @@ describe('owned application lifecycle', () => {
       restartCount: 0
     }
     const callback = 'cherrystudio://oauth/callback?code=test-code&state=test-state'
+    const executablePath = `${targetRoot}\\node_modules\\electron\\electron.exe`
+    const entryPath = `${targetRoot}\\out\\main\\index.js`
     vi.spyOn(process, 'kill').mockReturnValue(true)
-    mockMainInspector()
+    mockMainInspector({ entryPath, executablePath })
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
       const script = String(args.at(-1))
+      if (file === executablePath) return ''
       if (script.includes('Get-NetTCPConnection')) return String(electronPid)
       if (script.includes('CommandLine')) return `${targetRoot}\\node_modules\\electron\\electron.exe ${targetRoot}`
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
@@ -179,10 +188,65 @@ describe('owned application lifecycle', () => {
 
     expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
       'ws://127.0.0.1:9229/main-process',
-      expect.stringContaining(`electron.app.emit('open-url'`)
+      expect.stringContaining('executablePath: process.execPath')
     )
-    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain(`electron.app.emit(\n        'second-instance'`)
-    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain(JSON.stringify(callback))
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      executablePath,
+      [entryPath, callback],
+      expect.objectContaining({ cwd: targetRoot, windowsHide: true })
+    )
+  })
+
+  it('disposes hidden prewarmed windows before a Windows CDP connection', async () => {
+    const electronPid = 42_001
+    const targetRoot = 'D:\\target-app'
+    const record: AppRecord = {
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'windows',
+      profile: 'authenticated',
+      runKey: 'test-run',
+      targetRoot,
+      command: 'pnpm.cmd',
+      args: ['debug'],
+      cwd: targetRoot,
+      runnerPid: 42_000,
+      electronPid,
+      cdpPort: 9222,
+      targetUrl: 'http://127.0.0.1:9222',
+      logPath: 'D:\\run\\electron.log',
+      startedAt: '2026-08-22T00:00:00.000Z',
+      restartCount: 0
+    }
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (url: string) => ({
+        json: async () =>
+          url.includes(':9229')
+            ? [{ type: 'node', webSocketDebuggerUrl: 'ws://127.0.0.1:9229/main-process' }]
+            : [{ title: 'Cherry Studio', type: 'page', url: 'http://localhost/windows/main/index.html' }],
+        ok: true,
+        status: 200
+      }))
+    )
+    evaluateCdpExpressionMock.mockResolvedValue(2)
+    execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+      const script = String(args.at(-1))
+      if (script.includes('Get-NetTCPConnection')) return String(electronPid)
+      if (script.includes('CommandLine')) return `${targetRoot}\\node_modules\\electron\\electron.exe ${targetRoot}`
+      throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
+    })
+
+    await prepareWindowsCdpConnection(record)
+
+    expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
+      'ws://127.0.0.1:9229/main-process',
+      expect.stringContaining('/windows/selection/action/index.html')
+    )
+    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain('window.destroy()')
   })
 
   it('delivers a protocol URL through the owned macOS main-process inspector', async () => {
@@ -209,9 +273,12 @@ describe('owned application lifecycle', () => {
       restartCount: 0
     }
     const callback = 'cherrystudio://oauth/callback?code=test-code&state=test-state'
+    const executablePath = `${targetRoot}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`
+    const entryPath = `${targetRoot}/out/main/index.js`
     vi.spyOn(process, 'kill').mockReturnValue(true)
-    mockMainInspector()
+    mockMainInspector({ entryPath, executablePath })
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+      if (file === executablePath) return ''
       if (file === 'lsof') return String(electronPid)
       if (file === 'ps' && args.includes('command='))
         return `${targetRoot}/node_modules/electron/Electron ${targetRoot}`
@@ -222,10 +289,13 @@ describe('owned application lifecycle', () => {
 
     expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
       'ws://127.0.0.1:9229/main-process',
-      expect.stringContaining(`electron.app.emit('open-url'`)
+      expect.stringContaining('entryPath: path.resolve(process.cwd(), process.argv[1])')
     )
-    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain(`electron.app.emit(\n        'second-instance'`)
-    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain(JSON.stringify(callback))
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      executablePath,
+      [entryPath, callback],
+      expect.objectContaining({ cwd: targetRoot, windowsHide: false })
+    )
   })
 
   it('rejects a main-process inspector owned by another process', async () => {

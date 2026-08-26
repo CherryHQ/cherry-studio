@@ -10,7 +10,7 @@ import {
   statSync,
   writeFileSync
 } from 'node:fs'
-import { basename, dirname, join, resolve, win32 } from 'node:path'
+import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
 
 import { evaluateCdpExpression } from './cdp-client'
 import type { RunPaths } from './paths'
@@ -408,7 +408,24 @@ interface InspectorTarget {
   webSocketDebuggerUrl?: string
 }
 
-async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: string): Promise<void> {
+interface BranchLaunchSpec {
+  entryPath: string
+  executablePath: string
+}
+
+const WINDOWS_CDP_DISPOSABLE_PATHS = new Set(['/windows/subwindow/index.html', '/windows/selection/action/index.html'])
+
+function isPlatformPathInside(platform: Platform, parent: string, child: string): boolean {
+  const path = platform === 'windows' ? win32 : posix
+  if (!path.isAbsolute(parent) || !path.isAbsolute(child)) return false
+  const relativePath = path.relative(path.resolve(parent), path.resolve(child))
+  return (
+    relativePath === '' ||
+    (!relativePath.startsWith(`..${path.sep}`) && relativePath !== '..' && !path.isAbsolute(relativePath))
+  )
+}
+
+async function ownedMainInspectorUrl(record: AppRecord): Promise<string> {
   if (findListeningPid(record.platform, MAIN_INSPECTOR_PORT) !== record.electronPid) {
     throw new Error('Owned Cherry Studio instance does not own the main-process inspector')
   }
@@ -429,26 +446,88 @@ async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: strin
   ) {
     throw new Error('Main-process inspector target is not loopback-owned')
   }
+  return debuggerUrl.toString()
+}
 
-  const delivered = await evaluateCdpExpression<boolean>(
-    debuggerUrl.toString(),
+export async function prepareWindowsCdpConnection(record: AppRecord): Promise<void> {
+  if (record.platform !== 'windows') return
+  if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const debuggerUrl = await ownedMainInspectorUrl(record)
+  const destroyed = await evaluateCdpExpression<number>(
+    debuggerUrl,
     `(() => {
       const electron = process.mainModule?.require?.('electron')
-      if (!electron?.app) throw new Error('Electron app is unavailable in the main-process inspector')
-      const event = { preventDefault() {} }
-      const callbackUrl = ${JSON.stringify(url)}
-      const openUrlDelivered = electron.app.emit('open-url', event, callbackUrl)
-      const secondInstanceDelivered = electron.app.emit(
-        'second-instance',
-        event,
-        [process.execPath, process.argv[1] ?? '', callbackUrl],
-        process.cwd(),
-        {}
-      )
-      return openUrlDelivered || secondInstanceDelivered
+      if (!electron?.BrowserWindow) throw new Error('Electron BrowserWindow is unavailable')
+      const disposablePaths = new Set(${JSON.stringify([...WINDOWS_CDP_DISPOSABLE_PATHS])})
+      let destroyed = 0
+      for (const window of electron.BrowserWindow.getAllWindows()) {
+        let pathname = ''
+        try {
+          pathname = new URL(window.webContents.getURL()).pathname.toLowerCase()
+        } catch {}
+        if (!window.isVisible() && disposablePaths.has(pathname)) {
+          window.destroy()
+          destroyed += 1
+        }
+      }
+      return destroyed
     })()`
   )
-  if (!delivered) throw new Error('Owned Cherry Studio instance has no protocol URL listener')
+  if (!Number.isInteger(destroyed) || destroyed < 0) {
+    throw new Error('Windows CDP preparation returned an invalid result')
+  }
+  if (destroyed === 0) return
+
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    const targets = await readCdpTargets()
+    const hasDisposableTarget = targets.some((target) => {
+      try {
+        return target.type === 'page' && WINDOWS_CDP_DISPOSABLE_PATHS.has(new URL(target.url).pathname.toLowerCase())
+      } catch {
+        return false
+      }
+    })
+    if (!hasDisposableTarget) return
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100))
+  }
+  throw new Error('Hidden Windows CDP targets did not close')
+}
+
+async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: string): Promise<void> {
+  const debuggerUrl = await ownedMainInspectorUrl(record)
+
+  const launchSpec = await evaluateCdpExpression<BranchLaunchSpec>(
+    debuggerUrl,
+    `(() => {
+      const path = process.mainModule?.require?.('node:path')
+      if (!path || !process.argv[1]) throw new Error('Electron launch information is unavailable')
+      return {
+        entryPath: path.resolve(process.cwd(), process.argv[1]),
+        executablePath: process.execPath
+      }
+    })()`
+  )
+  if (
+    !launchSpec ||
+    !isPlatformPathInside(record.platform, record.targetRoot, launchSpec.executablePath) ||
+    !isPlatformPathInside(record.platform, record.targetRoot, launchSpec.entryPath)
+  ) {
+    throw new Error('Owned Cherry Studio launch information could not be verified')
+  }
+
+  try {
+    execFileSync(launchSpec.executablePath, [launchSpec.entryPath, url], {
+      cwd: record.cwd,
+      env: { ...process.env },
+      stdio: 'ignore',
+      timeout: 15_000,
+      windowsHide: record.platform === 'windows'
+    })
+  } catch {
+    throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')
+  }
 }
 
 export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): Promise<void> {

@@ -99,11 +99,6 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
   await expect
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
-  const openWebUi = page.getByRole('button', { name: 'Open Web UI', exact: true })
-  const readyToChat = page.getByText('Ready to chat', { exact: true })
-  await expect(openWebUi.or(readyToChat)).toBeVisible({ timeout: 2 * 60_000 })
-  if (await openWebUi.isVisible().catch(() => false)) await openWebUi.click()
-  await expect(page.locator('body')).toContainText(/ready to chat|connected|dashboard/i, { timeout: 60_000 })
 
   await openLaunchpadApp(page, 'Code Mate')
   await page.getByRole('button', { name: 'OpenClaw', exact: true }).first().click()

@@ -4,6 +4,7 @@ import { chromium } from '@playwright/test'
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/cherry-regression-test/config'
 import {
   ensureProfile,
+  prepareWindowsCdpConnection,
   readAppRecord,
   restartApp,
   type AppRecord
@@ -36,7 +37,9 @@ export class RegressionApp {
 
   private async connect(): Promise<Browser> {
     if (this.browser?.isConnected()) return this.browser
-    const { cdpPort } = this.record
+    const record = this.record
+    await prepareWindowsCdpConnection(record)
+    const { cdpPort } = record
     this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
       isLocal: true,
       noDefaults: true,

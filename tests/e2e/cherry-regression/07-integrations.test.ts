@@ -48,7 +48,7 @@ test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, ma
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('body')).toContainText('31415', { timeout: 2 * 60_000 })
   await expect(page.locator('body')).toContainText('27182')
-  await expect(page.getByText('58597', { exact: true }).last()).toBeVisible()
+  await expect(page.locator('[data-ui="chat.message"]:visible').last()).toContainText('58597')
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
