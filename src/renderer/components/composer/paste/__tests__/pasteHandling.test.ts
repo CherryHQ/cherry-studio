@@ -1,5 +1,5 @@
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
@@ -204,6 +204,62 @@ describe('pasteHandling', () => {
     expect(window.api.file.write).toHaveBeenCalledWith(tempImageFile.path, new Uint8Array([1, 2, 3]))
     expect(files).toHaveLength(1)
     expect(files[0]).toMatchObject({ path: tempImageFile.path, ext: '.png', type: FILE_TYPE.IMAGE })
+  })
+
+  it('processes path-backed clipboard files concurrently and commits them once in order', async () => {
+    const firstFile = {
+      ...selectedFile,
+      id: 'file-a',
+      name: 'a.png',
+      origin_name: 'a.png',
+      path: '/tmp/a.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    const secondFile = {
+      ...firstFile,
+      id: 'file-b',
+      name: 'b.png',
+      origin_name: 'b.png',
+      path: '/tmp/b.png'
+    }
+    let resolveFirstFile: (file: FileMetadata) => void = () => undefined
+    const pendingFirstFile = new Promise<FileMetadata>((resolve) => {
+      resolveFirstFile = resolve
+    })
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockImplementation((path) =>
+      path === firstFile.path ? pendingFirstFile : Promise.resolve(secondFile)
+    )
+    const clipboardFiles = [
+      { name: firstFile.name, type: 'image/png' },
+      { name: secondFile.name, type: 'image/png' }
+    ] as File[]
+    let files: ComposerAttachment[] = [toComposerAttachment(selectedFile)]
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: () => '',
+        files: clipboardFiles
+      }
+    } as unknown as ClipboardEvent
+
+    const pastePromise = pasteHandling.handlePaste(event, ['.png'], setFiles)
+    await Promise.resolve()
+    await Promise.resolve()
+    const secondReadStartedBeforeFirstResolved = vi
+      .mocked(window.api.file.get)
+      .mock.calls.some(([path]) => path === secondFile.path)
+
+    resolveFirstFile(firstFile)
+    await pastePromise
+
+    expect(secondReadStartedBeforeFirstResolved).toBe(true)
+    expect(setFiles).toHaveBeenCalledOnce()
+    expect(files.map((file) => file.path)).toEqual([selectedFile.path, firstFile.path, secondFile.path])
   })
 
   describe('handler registration and lifecycle', () => {
