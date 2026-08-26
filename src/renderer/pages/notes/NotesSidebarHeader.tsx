@@ -24,7 +24,7 @@ const HeaderIconButton: FC<{ label: string; onClick?: () => void; children: Reac
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="flex size-6 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground hover:bg-muted hover:text-foreground">
+      className="flex size-6 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground">
       {children}
     </button>
   </Tooltip>

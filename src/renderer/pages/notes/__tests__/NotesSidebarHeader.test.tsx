@@ -73,4 +73,15 @@ describe('NotesSidebarHeader accessible names', () => {
     expect(props.onToggleStarredView).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: 'notes.new_note' })).not.toBeInTheDocument()
   })
+
+  // DESIGN.md §6: keyboard focus must reuse hover vocabulary. Global CSS clears
+  // *:focus outlines, so these classes are the visible-focus contract.
+  it('keeps keyboard focus visible on toolbar icon buttons', () => {
+    renderHeader()
+
+    expect(screen.getByRole('button', { name: 'notes.new_note' })).toHaveClass(
+      'focus-visible:bg-muted',
+      'focus-visible:text-foreground'
+    )
+  })
 })
