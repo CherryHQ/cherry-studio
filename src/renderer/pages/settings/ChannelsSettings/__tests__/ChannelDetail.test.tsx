@@ -113,7 +113,26 @@ vi.mock('@cherrystudio/ui', () => {
         {open && onOpenChange && <button type="button" aria-label="close dialog" onClick={() => onOpenChange(false)} />}
       </div>
     ),
-    DialogContent: passthrough('div'),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      closeLabel = 'Close',
+      showCloseButton = true,
+      ...props
+    }: {
+      children?: React.ReactNode
+      closeOnOverlayClick?: boolean
+      closeLabel?: string
+      showCloseButton?: boolean
+    }) => {
+      void closeOnOverlayClick
+      return (
+        <div {...props}>
+          {children}
+          {showCloseButton ? <button type="button" aria-label={closeLabel} /> : null}
+        </div>
+      )
+    },
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
@@ -323,5 +342,11 @@ describe('ChannelDetail', () => {
     const title = screen.getByRole('heading', { name: 'Telegram channel' })
     expect(title).toBeInTheDocument()
     expect(title.closest('[data-open]')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('names channel log and edit dialog close controls with the localized close label', () => {
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    expect(screen.getAllByRole('button', { name: 'common.close' })).toHaveLength(2)
   })
 })
