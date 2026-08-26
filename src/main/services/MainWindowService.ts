@@ -6,7 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import { resetMainRendererDelivery } from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -74,21 +74,21 @@ export class MainWindowService extends BaseService {
         this.mainWindow = window
         this.setupMainWindow(window)
         this._onMainWindowCreated.fire(window)
-        // Tab attach delivery is only valid while the renderer's listener is
-        // mounted; a reload or crash tears it down. Mirrors ProtocolService's
-        // readiness reset wiring.
-        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
-        window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
+        // Queued route/tab delivery is only valid while the renderer listeners
+        // are mounted; a reload or crash tears them down. Mirrors
+        // ProtocolService's readiness reset wiring.
+        window.webContents.on('did-start-loading', resetMainRendererDelivery)
+        window.webContents.on('render-process-gone', resetMainRendererDelivery)
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.Main, () => {
         this.mainWindow = null
         // Destroyed-before-ready leaves the launch flag armed; clear it so the
-        // next rebuild is not suppressed. Also drops tab delivery readiness
-        // (queue is kept — it flushes into the next ready renderer).
+        // next rebuild is not suppressed. Also drops route/tab delivery
+        // readiness (queued requests flush into the next ready renderer).
         this.suppressInitialLaunchShow = false
-        resetMainRendererTabAttachDelivery()
+        resetMainRendererDelivery()
       })
     )
 
