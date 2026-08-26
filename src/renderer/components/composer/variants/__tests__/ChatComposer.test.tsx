@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -518,7 +519,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/hooks/useProvider')>()
+  const actual = await importOriginal<typeof UseProviderModule>()
 
   return {
     ...actual,

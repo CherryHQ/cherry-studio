@@ -1,3 +1,4 @@
+import type * as I18nLabelModule from '@renderer/i18n/label'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { act, render, screen } from '@testing-library/react'
@@ -25,7 +26,7 @@ const { mockHoverCardContentProps, mockHoverCardProps, mockHoverCardOpenChange }
 }))
 
 vi.mock('@renderer/i18n/label', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/i18n/label')>()),
+  ...(await importOriginal<typeof I18nLabelModule>()),
   getProviderLabel: (id: string) => id
 }))
 
