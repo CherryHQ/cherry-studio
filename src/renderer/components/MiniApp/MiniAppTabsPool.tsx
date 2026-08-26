@@ -4,6 +4,7 @@ import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useCommandContextKey } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useIpcOn } from '@renderer/ipc'
 import {
   DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
   miniAppIdFromTabUrl,
@@ -48,14 +49,16 @@ const MiniAppTabsPool: React.FC = () => {
     openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
-    setMiniAppShow
+    setMiniAppShow,
+    setSplitOpen,
+    setSplitMiniAppId
   } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
   // Read the active tab's URL from the v2 tabs cache. We can't use the
   // `@tanstack/react-router` `useLocation` here — the Pool sits above the
   // per-tab MemoryRouter, with no Router context.
-  const { tabs, activeTabId } = useTabs()
+  const { tabs, activeTabId, closeTab } = useTabs()
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
@@ -106,6 +109,29 @@ const MiniAppTabsPool: React.FC = () => {
     setOpenedKeepAliveMiniApps(retention.keep)
     for (const app of retention.evicted) clearWebviewState(app.appId)
   }, [retention, setOpenedKeepAliveMiniApps])
+
+  // Host-initiated eviction: unlike the LRU path there is nothing to negotiate — the
+  // host is already waiting on this webview going away.
+  useIpcOn('mini_app.runtime.evicted', ({ appId }) => {
+    // Membership and removal must read the SAME snapshot: this fires from IPC, so the
+    // closure is stale. Safe here only because `useCache`'s setter is not React's.
+    let wasMounted = false
+    setOpenedKeepAliveMiniApps((current) => {
+      wasMounted = current.some((a) => a.appId === appId)
+      return current.filter((a) => a.appId !== appId)
+    })
+    // The broadcast reaches every window. Clearing state for an app this pool never
+    // mounted reaches into another window's entry through a shared store.
+    if (wasMounted) clearWebviewState(appId)
+    // Reopening is the user's action: nothing re-adds the app while its tab stays
+    // active, so close the tab rather than leave a blank pane behind the toolbar.
+    if (appId === activeMiniAppId) closeTab(activeTabId)
+    // The split pane owns no tab, so nothing re-adds its app either.
+    if (splitMiniAppId === appId) {
+      setSplitMiniAppId('')
+      setSplitOpen(false)
+    }
+  })
 
   // Render the pool in a stable order (by appId), independent of the LRU
   // ordering inside `openedKeepAliveMiniApps`. Order in the cache is correct
@@ -259,6 +285,7 @@ const MiniAppTabsPool: React.FC = () => {
             <WebviewContainer
               appid={app.appId}
               url={app.url}
+              kind={app.kind}
               onSetRefCallback={handleSetRef}
               onLoadedCallback={handleLoaded}
               onNavigateCallback={handleNavigate}

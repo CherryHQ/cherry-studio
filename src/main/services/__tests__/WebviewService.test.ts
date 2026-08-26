@@ -1,4 +1,4 @@
-import { shell, webContents } from 'electron'
+import { session, shell, webContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setOpenLinkExternal } from '../WebviewService'
@@ -14,12 +14,26 @@ type OpenHandler = (details: { url: string }) => { action: 'allow' | 'deny' }
 describe('setOpenLinkExternal', () => {
   let handler: OpenHandler
 
+  const siteSession = {}
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(session, { fromPartition: vi.fn(() => siteSession) })
     const setWindowOpenHandler = vi.fn((cb: OpenHandler) => {
       handler = cb
     })
-    vi.mocked(webContents.fromId).mockReturnValue({ setWindowOpenHandler } as never)
+    vi.mocked(webContents.fromId).mockReturnValue({ setWindowOpenHandler, session: siteSession } as never)
+  })
+
+  it('leaves a webview outside the site partition alone', () => {
+    // A mini app guest carries a deny-all popup policy, and `setWindowOpenHandler` replaces
+    // it: the renderer asking for this on a guest would hand it `shell.openExternal`.
+    const setWindowOpenHandler = vi.fn()
+    vi.mocked(webContents.fromId).mockReturnValue({ setWindowOpenHandler, session: {} } as never)
+
+    setOpenLinkExternal(1, true)
+    setOpenLinkExternal(1, false)
+
+    expect(setWindowOpenHandler).not.toHaveBeenCalled()
   })
 
   describe('in-app mode (isExternal=false)', () => {

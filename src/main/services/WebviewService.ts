@@ -9,6 +9,8 @@ import { join } from 'path'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
 const logger = loggerService.withContext('WebviewService')
+/** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
+const WEBVIEW_PARTITION = 'persist:webview'
 
 /**
  * init the useragent of the webview session
@@ -34,10 +36,19 @@ export function initSessionUserAgent() {
 /**
  * WebviewService handles the behavior of links opened from webview elements
  * It controls whether links should be opened within the application or in an external browser
+ *
+ * Site webviews only. A mini app guest (`persist:miniapp:*`) carries its own deny-all
+ * popup policy, and `setWindowOpenHandler` REPLACES whatever was installed before —
+ * a call here would hand the guest `shell.openExternal`, an exit from a sandbox that
+ * promises none. Decided on the session, never on what the renderer claims.
  */
 export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
   const webview = webContents.fromId(webviewId)
   if (!webview) return
+  if (webview.session !== session.fromPartition(WEBVIEW_PARTITION)) {
+    logger.warn('Refused to change the popup policy of a webview outside the site partition', { webviewId })
+    return
+  }
 
   webview.setWindowOpenHandler(({ url }) => {
     if (isExternal) {
@@ -72,7 +83,7 @@ export class WebviewService extends BaseService {
    * Removes CherryStudio and Electron from the useragent.
    */
   private initSessionUserAgent() {
-    const wvSession = session.fromPartition('persist:webview')
+    const wvSession = session.fromPartition(WEBVIEW_PARTITION)
     const originUA = wvSession.getUserAgent()
     const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 

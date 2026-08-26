@@ -11,6 +11,12 @@ import { useMemo } from 'react'
 
 import { displayModelId } from './usageAnalytics'
 
+const SOURCE_TYPE_FALLBACK = {
+  assistant: 'A',
+  agent: 'G',
+  'mini-app': 'M'
+} satisfies Record<AiUsageRecordSourceType, string>
+
 export function UsageModelAvatar({
   modelId,
   providerId,
@@ -76,7 +82,7 @@ export function UsageSourceLabel({
   size?: number
   className?: string
 }) {
-  const fallback = sourceType === 'agent' ? 'G' : sourceType === 'assistant' ? 'A' : '?'
+  const fallback = sourceType ? SOURCE_TYPE_FALLBACK[sourceType] : '?'
 
   return (
     <span className={cn('inline-flex min-w-0 items-center gap-2', className)}>

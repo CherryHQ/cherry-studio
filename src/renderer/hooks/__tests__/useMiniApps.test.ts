@@ -285,7 +285,7 @@ describe('useMiniApps', () => {
         })
       })
 
-      // Logo edits go through the `mini_app.set_logo` command, not this PATCH;
+      // Logo edits go through the `mini_app.settings.set_logo` command, not this PATCH;
       // the tab icon still resolves from the service's returned `logo`.
       expect(trigger).toHaveBeenCalledWith({
         params: { appId: 'custom-app' },

@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
@@ -43,6 +43,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
  *      own app under Global.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
+  if (app.kind === 'app') return true
   if (region === 'CN') return true
 
   if (!app.supportedRegions || app.supportedRegions.length === 0) {
@@ -538,3 +539,16 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
 }
 
 export type UseMiniAppsReturn = ReturnType<typeof useMiniApps>
+
+/**
+ * Converges `/mini-apps` after the writes DataApi cannot see: install, uninstall,
+ * update apply and rollback commit through IpcApi, so no mutation invalidates the
+ * query cache. Main publishes `notifyDataApiDataChange` after each commit; this is
+ * the renderer half. Mounted ONCE per window by `useWindowRuntime`.
+ */
+export function useMiniAppListSync(): void {
+  const invalidate = useInvalidateCache()
+  useDataChange('/mini-apps', () => {
+    void invalidate('/mini-apps')
+  })
+}

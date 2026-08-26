@@ -6,6 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { installMiniAppWebviewHost } from '@main/features/miniApp/runtime/webviewHost'
 import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
@@ -246,6 +247,7 @@ export class MainWindowService extends BaseService {
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
     this.setupHtmlArtifactWebviews(mainWindow)
+    installMiniAppWebviewHost(mainWindow.webContents)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)

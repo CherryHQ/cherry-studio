@@ -17,7 +17,9 @@ const checkboxVariants = cva(
     'data-[state=checked]:animate-checkbox-bounce',
     'focus-visible:border-primary',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
-    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle'
+    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle',
+    // A fixed tick must read as fixed: same glyph in the muted role, not the foreground one.
+    'disabled:data-[state=checked]:border-muted-foreground disabled:data-[state=checked]:text-muted-foreground'
   ),
   {
     variants: {

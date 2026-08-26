@@ -1,0 +1,335 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { application } from '@application'
+import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
+import type { MiniAppManifest } from '@shared/types/miniAppManifest'
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { clearPublishJournal, recoverInterruptedPublishes, writePublishJournal } from '../publishJournal'
+import { withPublishLock } from '../publishLock'
+
+const A = 'com.example.a'
+
+/** `manifest_json` is `$type<MiniAppManifest>()`, so a partial object does not typecheck. */
+const manifestOf = (appId: string): MiniAppManifest => ({
+  id: appId,
+  name: { en: appId },
+  description: { en: appId },
+  version: '1.0.0',
+  entry: 'index.html',
+  permissions: [],
+  optionalPermissions: [],
+  network: []
+})
+
+describe('publish journal', () => {
+  const dbh = setupTestDatabase()
+  let root: string
+
+  const seedCommitted = (appId: string, contentHash: string) => {
+    dbh.db
+      .insert(miniAppTable)
+      .values({
+        appId,
+        kind: 'app',
+        presetMiniAppId: null,
+        name: appId,
+        url: `cherry-miniapp://${appId}/index.html`,
+        status: 'enabled',
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(miniAppInstallationTable)
+      .values({
+        appId,
+        version: '1.0.0',
+        contentHash,
+        source: 'file',
+        manifestJson: manifestOf(appId)
+      })
+      .run()
+  }
+
+  /** Writes a journal file byte-for-byte, for the cases that need a BAD one. */
+  const writeRawJournal = (appId: string, raw: string) => {
+    const dir = path.join(root, '.publish-journal')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, `${appId}.json`), raw)
+  }
+
+  const makeDir = (name: string, marker = name) => {
+    const dir = path.join(root, name)
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'marker'), marker)
+    return dir
+  }
+  const markerIn = (name: string) => fs.readFileSync(path.join(root, name, 'marker'), 'utf8')
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'miniapp-journal-'))
+    // Key-aware AND filename-aware: ignoring either collapses every journal onto
+    // the packages root — `writeFileSync` on a directory.
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      const dir =
+        key === 'feature.mini_app.publish_journal'
+          ? path.join(root, '.publish-journal')
+          : key === 'feature.mini_app.data'
+            ? path.join(root, 'data')
+            : root
+      return filename ? path.join(dir, filename) : dir
+    })
+  })
+
+  it('deletes a directory whose rows never committed', async () => {
+    makeDir(A)
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:new' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(fs.existsSync(path.join(root, A))).toBe(false)
+  })
+
+  it('KEEPS a directory whose rows did commit — the crash was after the commit', async () => {
+    // The bug this guards: an unconditional delete destroys a successfully installed
+    // app, and its appId can never be reused because the row survives.
+    makeDir(A)
+    seedCommitted(A, 'sha256:new')
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:new' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(fs.existsSync(path.join(root, A))).toBe(true)
+  })
+
+  it('rolls back an install whose row belongs to a DIFFERENT content hash', async () => {
+    makeDir(A)
+    seedCommitted(A, 'sha256:other')
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:new' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(fs.existsSync(path.join(root, A))).toBe(false)
+  })
+
+  it('restores the backup when an update did not commit', async () => {
+    makeDir(A, 'new')
+    makeDir(`${A}.backup`, 'old')
+    seedCommitted(A, 'sha256:old')
+    writePublishJournal({ kind: 'update', appId: A, contentHash: 'sha256:new' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(markerIn(A)).toBe('old')
+    expect(fs.existsSync(path.join(root, `${A}.backup`))).toBe(false)
+  })
+
+  it('restores the backup even when the new tree never landed', async () => {
+    makeDir(`${A}.backup`, 'old')
+    seedCommitted(A, 'sha256:old')
+    writePublishJournal({ kind: 'update', appId: A, contentHash: 'sha256:new' })
+
+    await recoverInterruptedPublishes()
+
+    expect(markerIn(A)).toBe('old')
+  })
+
+  it('keeps the retained backup when the update DID commit', async () => {
+    makeDir(A, 'new')
+    makeDir(`${A}.backup`, 'old')
+    seedCommitted(A, 'sha256:new')
+    writePublishJournal({ kind: 'update', appId: A, contentHash: 'sha256:new' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(fs.existsSync(path.join(root, `${A}.backup`))).toBe(true)
+  })
+
+  it('keeps the previous version retrievable when a rollback did not commit', async () => {
+    // The bug this guards: restoring `.rolling` by deleting `install` destroys the
+    // previous version while the rows still promise a rollback.
+    makeDir(A, 'old')
+    makeDir(`${A}.rolling`, 'new')
+    seedCommitted(A, 'sha256:new')
+    writePublishJournal({ kind: 'rollback', appId: A, contentHash: 'sha256:old' })
+
+    await recoverInterruptedPublishes()
+
+    expect(markerIn(A)).toBe('new')
+    expect(markerIn(`${A}.backup`)).toBe('old')
+  })
+
+  it('restores the NEW tree when a rollback did not commit', async () => {
+    // The bug this guards: reusing the `update` state for rollback. `.backup` is
+    // already consumed, so the repair finds nothing and leaves old files under new rows.
+    makeDir(A, 'old')
+    makeDir(`${A}.rolling`, 'new')
+    seedCommitted(A, 'sha256:new')
+    writePublishJournal({ kind: 'rollback', appId: A, contentHash: 'sha256:old' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(markerIn(A)).toBe('new')
+  })
+
+  it('drops the retained tree when a rollback DID commit', async () => {
+    makeDir(A, 'old')
+    makeDir(`${A}.rolling`, 'new')
+    seedCommitted(A, 'sha256:old')
+    writePublishJournal({ kind: 'rollback', appId: A, contentHash: 'sha256:old' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(markerIn(A)).toBe('old')
+    expect(fs.existsSync(path.join(root, `${A}.rolling`))).toBe(false)
+  })
+
+  it('reclaims the directory of an uninstall whose rows are already gone', async () => {
+    // The bug this guards: rows deleted, process killed, directory left behind —
+    // and the installer then refuses that appId forever because the directory exists.
+    makeDir(A)
+    makeDir(`${A}.backup`)
+    writePublishJournal({ kind: 'uninstall', appId: A })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(fs.existsSync(path.join(root, A))).toBe(false)
+    expect(fs.existsSync(path.join(root, `${A}.backup`))).toBe(false)
+  })
+
+  it('removes the save data of an uninstall whose rows are already gone', async () => {
+    // The bug this guards: recovery reclaiming only the package trees. `data/<appId>` is
+    // a sibling of `packages/`, and a reinstall of the same id would read the old save.
+    makeDir(A)
+    const data = path.join(root, 'data', A)
+    fs.mkdirSync(data, { recursive: true })
+    fs.writeFileSync(path.join(data, 'storage.json'), '{"score":"9000"}')
+    writePublishJournal({ kind: 'uninstall', appId: A })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(fs.existsSync(data)).toBe(false)
+  })
+
+  it('leaves the files alone when an uninstall never committed', async () => {
+    makeDir(A)
+    seedCommitted(A, 'sha256:new')
+    writePublishJournal({ kind: 'uninstall', appId: A })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(fs.existsSync(path.join(root, A))).toBe(true)
+  })
+
+  it('leaves a cleared entry alone', async () => {
+    makeDir(A)
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:new' })
+    clearPublishJournal(A)
+
+    expect(await recoverInterruptedPublishes()).toEqual([])
+    expect(fs.existsSync(path.join(root, A))).toBe(true)
+  })
+
+  it('is idempotent — recovering twice is a no-op', async () => {
+    makeDir(A)
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:new' })
+
+    await recoverInterruptedPublishes()
+    await expect(recoverInterruptedPublishes()).resolves.toEqual([])
+  })
+
+  it('keeps both journals when two apps publish at once', async () => {
+    // THE bug per-app files make unrepresentable: publishes are serialized per appId, so
+    // two apps can be mid-publish together and one shared file loses the other's entry.
+    const B = 'com.example.b'
+    makeDir(A)
+    makeDir(B)
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:a' })
+    writePublishJournal({ kind: 'install', appId: B, contentHash: 'sha256:b' })
+
+    const recovered = await recoverInterruptedPublishes()
+
+    expect(recovered.map((r) => r.appId).sort()).toEqual([A, B])
+    expect(fs.existsSync(path.join(root, A))).toBe(false)
+    expect(fs.existsSync(path.join(root, B))).toBe(false)
+  })
+
+  it('survives a corrupt journal file instead of blocking startup', async () => {
+    writeRawJournal(A, '{ not json')
+    await expect(recoverInterruptedPublishes()).resolves.toEqual([])
+  })
+
+  it('discards a file whose shape does not validate', async () => {
+    // A hand-edited or half-written journal must not steer a recursive delete.
+    writeRawJournal(A, JSON.stringify({ kind: 'install' }))
+    makeDir(A)
+
+    await expect(recoverInterruptedPublishes()).resolves.toEqual([])
+    expect(fs.existsSync(path.join(root, A))).toBe(true)
+  })
+
+  it('refuses a journal whose appId would escape the mini app root', async () => {
+    // The bug this guards: the appId is joined onto the packages root and the result is
+    // an `rm -rf` target, so a loose `z.string()` lets `../..` out.
+    const outside = path.join(root, '..', 'do-not-delete')
+    fs.mkdirSync(outside, { recursive: true })
+    writeRawJournal(A, JSON.stringify({ kind: 'install', appId: '../do-not-delete', contentHash: 'sha256:x' }))
+
+    await expect(recoverInterruptedPublishes()).resolves.toEqual([])
+    expect(fs.existsSync(outside)).toBe(true)
+    fs.rmSync(outside, { recursive: true, force: true })
+  })
+
+  it('never leaves a half-written journal behind', async () => {
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:new' })
+    writePublishJournal({ kind: 'install', appId: 'com.example.b', contentHash: 'sha256:b' })
+
+    const dir = path.join(root, '.publish-journal')
+    for (const name of fs.readdirSync(dir).filter((f) => f.endsWith('.json'))) {
+      expect(() => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'))).not.toThrow()
+    }
+    expect(fs.readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([])
+  })
+})
+
+describe('withPublishLock', () => {
+  it('runs two actions on one app strictly in sequence', async () => {
+    const order: string[] = []
+    const slow = async () => {
+      order.push('a:start')
+      await new Promise((r) => setTimeout(r, 10))
+      order.push('a:end')
+    }
+    const fast = async () => {
+      order.push('b')
+    }
+
+    await Promise.all([withPublishLock(A, slow), withPublishLock(A, fast)])
+
+    expect(order).toEqual(['a:start', 'a:end', 'b'])
+  })
+
+  it('does not serialize different apps against each other', async () => {
+    const order: string[] = []
+    const slow = async () => {
+      await new Promise((r) => setTimeout(r, 10))
+      order.push('slow')
+    }
+    const fast = async () => {
+      order.push('fast')
+    }
+
+    await Promise.all([withPublishLock(A, slow), withPublishLock('com.example.b', fast)])
+
+    expect(order).toEqual(['fast', 'slow'])
+  })
+
+  it('keeps running after a failed action', async () => {
+    // The bug this guards: chaining off the value poisons the chain, so one failed
+    // install makes every later action on that app hang or reject forever.
+    await expect(
+      withPublishLock(A, async () => {
+        throw new Error('boom')
+      })
+    ).rejects.toThrow('boom')
+
+    await expect(withPublishLock(A, async () => 'ok')).resolves.toBe('ok')
+  })
+})
