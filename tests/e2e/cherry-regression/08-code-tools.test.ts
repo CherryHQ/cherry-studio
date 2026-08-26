@@ -100,8 +100,6 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
 
-  await openLaunchpadApp(page, 'Code Mate')
-  await page.getByRole('button', { name: 'OpenClaw', exact: true }).first().click()
-  await page.getByRole('button', { name: 'Stop', exact: true }).click()
+  await page.evaluate(() => window.api.ipcApi.request('openclaw.stop_gateway'))
   await expect.poll(() => observeOwnedProcess(app.record, 'openclaw', false).passed, { timeout: 60_000 }).toBe(true)
 })

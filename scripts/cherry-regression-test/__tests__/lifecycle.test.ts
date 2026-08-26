@@ -193,11 +193,15 @@ describe('owned application lifecycle', () => {
     expect(execFileSyncMock).toHaveBeenCalledWith(
       executablePath,
       [entryPath, callback],
-      expect.objectContaining({ cwd: targetRoot, windowsHide: true })
+      expect.objectContaining({
+        cwd: targetRoot,
+        env: expect.objectContaining({ CS_DEV_USER_DATA_SUFFIX: 'Regression-test-run-authenticated' }),
+        windowsHide: true
+      })
     )
   })
 
-  it('disposes hidden prewarmed windows before a Windows CDP connection', async () => {
+  it('disposes non-main windows before a Windows CDP connection', async () => {
     const electronPid = 42_001
     const targetRoot = 'D:\\target-app'
     const record: AppRecord = {
@@ -244,8 +248,9 @@ describe('owned application lifecycle', () => {
 
     expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
       'ws://127.0.0.1:9229/main-process',
-      expect.stringContaining('/windows/selection/action/index.html')
+      expect.stringContaining('/windows/main/index.html')
     )
+    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain('pathname !== mainWindowPath')
     expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain('window.destroy()')
   })
 
@@ -294,7 +299,11 @@ describe('owned application lifecycle', () => {
     expect(execFileSyncMock).toHaveBeenCalledWith(
       executablePath,
       [entryPath, callback],
-      expect.objectContaining({ cwd: targetRoot, windowsHide: false })
+      expect.objectContaining({
+        cwd: targetRoot,
+        env: expect.objectContaining({ CS_DEV_USER_DATA_SUFFIX: 'Regression-test-run-authenticated' }),
+        windowsHide: false
+      })
     )
   })
 

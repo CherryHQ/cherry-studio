@@ -413,7 +413,7 @@ interface BranchLaunchSpec {
   executablePath: string
 }
 
-const WINDOWS_CDP_DISPOSABLE_PATHS = new Set(['/windows/subwindow/index.html', '/windows/selection/action/index.html'])
+const MAIN_WINDOW_PATH = '/windows/main/index.html'
 
 function isPlatformPathInside(platform: Platform, parent: string, child: string): boolean {
   const path = platform === 'windows' ? win32 : posix
@@ -459,14 +459,14 @@ export async function prepareWindowsCdpConnection(record: AppRecord): Promise<vo
     `(() => {
       const electron = process.mainModule?.require?.('electron')
       if (!electron?.BrowserWindow) throw new Error('Electron BrowserWindow is unavailable')
-      const disposablePaths = new Set(${JSON.stringify([...WINDOWS_CDP_DISPOSABLE_PATHS])})
+      const mainWindowPath = ${JSON.stringify(MAIN_WINDOW_PATH)}
       let destroyed = 0
       for (const window of electron.BrowserWindow.getAllWindows()) {
         let pathname = ''
         try {
           pathname = new URL(window.webContents.getURL()).pathname.toLowerCase()
         } catch {}
-        if (!window.isVisible() && disposablePaths.has(pathname)) {
+        if (pathname !== mainWindowPath) {
           window.destroy()
           destroyed += 1
         }
@@ -477,22 +477,20 @@ export async function prepareWindowsCdpConnection(record: AppRecord): Promise<vo
   if (!Number.isInteger(destroyed) || destroyed < 0) {
     throw new Error('Windows CDP preparation returned an invalid result')
   }
-  if (destroyed === 0) return
-
   const deadline = Date.now() + 5_000
   while (Date.now() < deadline) {
     const targets = await readCdpTargets()
-    const hasDisposableTarget = targets.some((target) => {
+    const hasNonMainTarget = targets.some((target) => {
       try {
-        return target.type === 'page' && WINDOWS_CDP_DISPOSABLE_PATHS.has(new URL(target.url).pathname.toLowerCase())
+        return target.type === 'page' && new URL(target.url).pathname.toLowerCase() !== MAIN_WINDOW_PATH
       } catch {
-        return false
+        return target.type === 'page'
       }
     })
-    if (!hasDisposableTarget) return
+    if (!hasNonMainTarget) return
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 100))
   }
-  throw new Error('Hidden Windows CDP targets did not close')
+  throw new Error('Non-main Windows CDP targets did not close')
 }
 
 async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: string): Promise<void> {
@@ -520,7 +518,7 @@ async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: strin
   try {
     execFileSync(launchSpec.executablePath, [launchSpec.entryPath, url], {
       cwd: record.cwd,
-      env: { ...process.env },
+      env: { ...process.env, CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` },
       stdio: 'ignore',
       timeout: 15_000,
       windowsHide: record.platform === 'windows'

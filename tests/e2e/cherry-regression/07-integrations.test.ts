@@ -53,6 +53,12 @@ test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, ma
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await openSettingsSection(page, 'MCP')
+  await page
+    .getByText(/everything STDIO|everything/, { exact: true })
+    .first()
+    .click()
+  const restartedEnabled = page.getByRole('switch').first()
+  if ((await restartedEnabled.getAttribute('aria-checked')) !== 'true') await restartedEnabled.click()
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
 })
 

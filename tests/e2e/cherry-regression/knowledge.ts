@@ -64,11 +64,14 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
       await existingBase.click()
     } else {
       await page.getByRole('button', { name: 'Create Knowledge Base', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
       await page.getByRole('textbox', { name: 'Name', exact: true }).fill(KNOWLEDGE_NAME)
       await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()
       await page.getByTestId('model-selector-search').fill(app.config.customEmbeddingProvider.model)
       await page.getByRole('option').filter({ hasText: app.config.customEmbeddingProvider.model }).first().click()
       await page.getByRole('button', { name: 'Create', exact: true }).click()
+      await expect(dialog).toBeHidden({ timeout: 2 * 60_000 })
+      await expect(selectedBase).toBeVisible()
     }
   }
 

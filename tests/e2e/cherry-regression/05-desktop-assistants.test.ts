@@ -85,7 +85,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await closeSettings(page)
 
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  sendSystemHotkey(app.record.platform, ['Control', 'Shift', 's'])
+  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 's'])
   const selection = await app.window('/windows/selection/')
   await expect(selection.getByText('Explain', { exact: true })).toBeVisible()
   await expect(selection.getByText('Translate', { exact: true })).toBeVisible()
