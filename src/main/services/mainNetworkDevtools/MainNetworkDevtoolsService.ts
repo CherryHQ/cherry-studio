@@ -183,6 +183,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 @Priority(0)
 export class MainNetworkDevtoolsService extends BaseService {
   private capturing = false
+  private serving = false
   private enabled = false
   private setupDone = false
   /** Bumped on every stop so work still in flight from the previous run can tell it was abandoned. */
@@ -231,6 +232,7 @@ export class MainNetworkDevtoolsService extends BaseService {
   protected onStop(): void {
     this.generation++
     this.capturing = false
+    this.serving = false
     this.enabled = false
     this.setupDone = false
   }
@@ -263,25 +265,50 @@ export class MainNetworkDevtoolsService extends BaseService {
 
     const generation = this.generation
     this.enabled = true
-    await this.startCapture()
+
+    const monitoring = await this.startCapture()
     if (generation !== this.generation) return
+
+    // The panel only ever talks to the fixed port. Installing it with nothing behind
+    // that port would show the user an empty panel — the very symptom this feature
+    // exists to remove. Stay off instead, and let the next attempt bind again.
+    if (!monitoring) {
+      this.enabled = false
+      return
+    }
 
     await this.installPanel()
   }
 
-  private async startCapture(): Promise<void> {
-    if (this.capturing) return
+  /**
+   * Patch the request APIs and bring the monitor port up.
+   *
+   * @returns whether the monitor is live. A port already held by another instance or a
+   * leftover process leaves it false; the patches stay and the next call retries the bind.
+   */
+  private async startCapture(): Promise<boolean> {
+    const generation = this.generation
 
-    this.capturing = true
-    this.patchFetch()
-    this.patchNetFetch()
-    this.patchHttpModules()
+    if (!this.capturing) {
+      this.capturing = true
+      this.patchFetch()
+      this.patchNetFetch()
+      this.patchHttpModules()
+    }
+
+    if (this.serving) return true
 
     try {
       await this.startWebSocketServer()
     } catch (error) {
-      logger.error('Failed to start Main Network DevTools websocket server', error as Error)
+      logger.error('Failed to start Main Network DevTools websocket server; the panel stays hidden', error as Error)
+      return false
     }
+
+    if (generation !== this.generation) return false
+
+    this.serving = true
+    return true
   }
 
   /**

@@ -509,6 +509,88 @@ describe('MainNetworkDevtoolsService gating', () => {
     }
   })
 
+  it('does not install the panel when the service stops after capture was already live', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const service = new MainNetworkDevtoolsService()
+    let releaseCapture: ((live: boolean) => void) | undefined
+    vi.spyOn(service as unknown as { startCapture: () => Promise<boolean> }, 'startCapture').mockImplementation(
+      () => new Promise<boolean>((resolve) => (releaseCapture = resolve))
+    )
+
+    await service._doInit()
+    const allReady = service._doAllReady()
+    await service._doStop()
+    // Capture reports success only after the stop — the panel must not follow it into a dead session.
+    releaseCapture?.(true)
+    await allReady
+
+    expect(installBundledDevtools).not.toHaveBeenCalled()
+  })
+
+  it('reports a busy monitor port as a failure instead of resolving', async () => {
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as { startWebSocketServer: (port?: number) => Promise<number> }
+    const squatter = createServer()
+    const port = await listenOnAnyPort(squatter)
+
+    try {
+      await expect(serviceState.startWebSocketServer(port)).rejects.toThrow(/EADDRINUSE/)
+    } finally {
+      await new Promise<void>((resolve) => squatter.close(() => resolve()))
+      await service._doStop()
+    }
+  })
+
+  it('does not install the panel when the monitor port is taken, and binds again once it frees up', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const originalNetFetch = net.fetch
+    const service = new MainNetworkDevtoolsService()
+    const startWebSocketServer = vi
+      .spyOn(service as unknown as { startWebSocketServer: () => Promise<number> }, 'startWebSocketServer')
+      .mockRejectedValue(Object.assign(new Error('listen EADDRINUSE 127.0.0.1:38997'), { code: 'EADDRINUSE' }))
+
+    try {
+      await service._doInit()
+      await service._doAllReady()
+
+      // A panel with no monitor behind it shows zero requests — the bug being fixed.
+      expect(installBundledDevtools).not.toHaveBeenCalled()
+
+      startWebSocketServer.mockResolvedValue(38997)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+      await vi.waitFor(() => expect(installBundledDevtools).toHaveBeenCalledTimes(1))
+
+      await net.fetch('https://api.test/v1/models')
+      expect(readEvents(service).at(-1)).toMatchObject({ method: 'GET', url: 'https://api.test/v1/models' })
+    } finally {
+      await service._doStop()
+    }
+
+    expect(net.fetch).toBe(originalNetFetch)
+  })
+
+  it('takes the monitor port again after a restart released it', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const service = new MainNetworkDevtoolsService()
+    const startWebSocketServer = vi
+      .spyOn(service as unknown as { startWebSocketServer: () => Promise<number> }, 'startWebSocketServer')
+      .mockResolvedValue(38997)
+
+    await service._doInit()
+    await service._doAllReady()
+    expect(startWebSocketServer).toHaveBeenCalledTimes(1)
+    await service._doStop()
+
+    vi.mocked(app.isReady).mockReturnValue(true)
+    try {
+      await service._doInit()
+      expect(startWebSocketServer).toHaveBeenCalledTimes(2)
+    } finally {
+      await service._doStop()
+    }
+  })
+
   it('captures boot-time requests in development regardless of the developer mode preference', async () => {
     platformState.isDev = true
     const originalNetFetch = net.fetch
@@ -544,6 +626,17 @@ function readEvents(service: MainNetworkDevtoolsService): MainNetworkDevtoolsEve
 
 function isOriginAllowed(service: MainNetworkDevtoolsService, origin: string): boolean {
   return (service as unknown as { isOriginAllowed: (origin: string) => boolean }).isOriginAllowed(origin)
+}
+
+/** Listen on a free localhost port and report which one, so tests never fight over 38997. */
+async function listenOnAnyPort(server: ReturnType<typeof createServer>): Promise<number> {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen({ host: '127.0.0.1', port: 0 }, resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Server did not expose a TCP port')
+  return address.port
 }
 
 /** Bind and release a localhost port; rejects while something else still holds it. */
