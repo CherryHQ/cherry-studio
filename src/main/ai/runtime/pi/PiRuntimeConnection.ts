@@ -26,7 +26,12 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
-import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import {
+  getBinarySearchDirs,
+  getBinaryShimsDir,
+  mergeBinaryExecutionEnv,
+  mergePathSuffixes
+} from '@main/utils/binaryEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -83,6 +88,27 @@ const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
     buildPiMcpToolName(serverName, toolName)
   )
 )
+
+function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const definedEnv = Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  )
+  const binarySearchDirs = getBinarySearchDirs()
+  const managedShimsDir = getBinaryShimsDir()
+  const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
+  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
+
+  if (callerOwnsMiseEnvironment) {
+    // A generic shell may already be activated against the user's mise installation. Do not
+    // redirect that installation to Cherry's isolated data directory or expose Cherry's shims
+    // under an incompatible MISE_* contract. Bundled standalone binaries remain a safe fallback,
+    // but stay behind the caller's PATH so they cannot replace the user's own tool versions.
+    return mergePathSuffixes(definedEnv, standaloneBinaryDirs, [managedShimsDir])
+  }
+
+  return mergeBinaryExecutionEnv(definedEnv, standaloneBinaryDirs)
+}
+
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -296,16 +322,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         authorizeTool
       )
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
-      // agent-bin PATH while prepending Cherry's managed binaries and MISE_* execution contract.
+      // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
         spawnHook: (context) => ({
           ...context,
-          env: mergeBinaryExecutionEnv(
-            Object.fromEntries(
-              Object.entries(context.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-            ),
-            [application.getPath('cherry.bin')]
-          )
+          env: mergePiBashExecutionEnv(context.env)
         })
       }) as ToolDefinition
       const finalSnapshot = await capturePiConnectionSnapshot(

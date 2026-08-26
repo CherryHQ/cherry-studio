@@ -503,6 +503,43 @@ describe('PiRuntimeConnection', () => {
     })
   })
 
+  it('preserves a caller-owned mise environment instead of redirecting its shims', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'node --version',
+      cwd: WORKSPACE,
+      env: {
+        PATH: ['/home/user/.local/share/mise/shims', path.join('/cherry/Toolchain/mise', 'shims'), '/system/bin'].join(
+          path.delimiter
+        ),
+        MISE_DATA_DIR: '/home/user/.local/share/mise',
+        MISE_SHIMS_DIR: '/home/user/.local/share/mise/shims'
+      }
+    })
+
+    expect(result.env.PATH?.split(path.delimiter)).toEqual([
+      '/home/user/.local/share/mise/shims',
+      '/system/bin',
+      '/cherry/bin'
+    ])
+    expect(result.env).toMatchObject({
+      MISE_DATA_DIR: '/home/user/.local/share/mise',
+      MISE_SHIMS_DIR: '/home/user/.local/share/mise/shims'
+    })
+    expect(result.env.MISE_CONFIG_DIR).toBeUndefined()
+    expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+  })
+
   it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {
     await new PiRuntimeConnection(input).start()
     vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', 'socks5://user:password@127.0.0.1:1080')
@@ -1277,6 +1314,10 @@ describe('PiRuntimeConnection', () => {
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
     expect(factories).toHaveLength(2)
     expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
+    expect(mocks.createOpts?.customTools).toEqual([
+      MANAGED_BASH_TOOL,
+      ...CODE_MODE_TOOL_NAMES.map((name) => ({ name }))
+    ])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
