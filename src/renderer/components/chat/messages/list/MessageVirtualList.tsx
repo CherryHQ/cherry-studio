@@ -247,10 +247,9 @@ export function MessageVirtualList<T>({
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          overflowAnchor: 'none',
-          clipPath: bottomPadding > 0 ? `inset(0 0 ${bottomPadding}px 0)` : undefined
+          overflowAnchor: 'none'
         }}>
-        <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
+        <div ref={runtime.contentRef}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
             requestReadingControl={requestDisclosureReadingControl}
