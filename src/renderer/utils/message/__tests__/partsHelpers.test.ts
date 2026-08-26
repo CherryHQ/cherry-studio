@@ -77,12 +77,8 @@ describe('canEditAssistantMessageParts', () => {
           openai: 'msg_1'
         }
       })
-    }
-  ])('allows one unambiguous editable run', ({ messageParts }) => {
-    expect(canEditAssistantMessageParts(messageParts)).toBe(true)
-  })
-
-  it.each([
+    },
+    // Previously blocked — now allowed for uniform editing
     {
       messageParts: parts(
         { type: 'text', text: 'before tool' },
@@ -171,9 +167,18 @@ describe('canEditAssistantMessageParts', () => {
         },
         { type: 'text', text: 'second paragraph' }
       )
-    },
-    { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) }
-  ])('rejects parts that Composer cannot safely write back', ({ messageParts }) => {
+    }
+  ])('is editable when the message has text', ({ messageParts }) => {
+    expect(canEditAssistantMessageParts(messageParts)).toBe(true)
+  })
+
+  it.each([
+    { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) },
+    { messageParts: parts({ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' }) },
+    { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
+    { messageParts: parts({ type: 'text', text: '   ' }) },
+    { messageParts: parts() }
+  ])('is not editable when the message has no text', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })
