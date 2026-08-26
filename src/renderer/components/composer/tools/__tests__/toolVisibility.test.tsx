@@ -1,4 +1,5 @@
 import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
+import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/toolbarManifests'
 import { TopicType } from '@renderer/components/composer/tools/types'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -64,16 +65,21 @@ describe('composer tool visibility', () => {
     expect(tools.map((tool) => tool.key)).toEqual(expect.arrayContaining(['generate_image', 'knowledge_base']))
   })
 
-  it('shows MCP status in chat and agent session scopes only', () => {
+  it('inherits chat tools and toolbar manifests in the quick assistant scope', () => {
     const model = {
       id: 'text-only',
       providerId: 'provider-1',
       name: 'Text only'
     } as any
+    const quickAssistantToolKeys = getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)
+    const quickAssistantToolbarIds = getComposerToolbarManifestsForScope(
+      'quick-assistant',
+      ((key: string) => key) as any
+    ).map((manifest) => manifest.id)
 
-    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
-    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
-    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
+    expect(quickAssistantToolKeys).toEqual(expect.arrayContaining(['web_search', 'knowledge_base', 'mcp_status']))
+    expect(quickAssistantToolbarIds).toEqual(expect.arrayContaining(['web-search', 'knowledge-base', 'screenshot']))
+    expect(quickAssistantToolbarIds).not.toContain('permission-mode')
   })
 
   it('makes knowledge selection discoverable in Agent Session scope', () => {

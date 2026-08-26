@@ -23,6 +23,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import type { Topic as TemporaryTopic } from '@shared/data/types/topic'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -49,6 +50,8 @@ export interface UseTemporaryTopicOptions {
 export interface UseTemporaryTopicResult {
   /** Null until the temporary topic is created on Main. */
   topicId: string | null
+  /** The leased topic entity, for consumers that render it (name, timestamps). */
+  topic: TemporaryTopic | null
   /** True once `topicId` is available. */
   ready: boolean
   /** Drop the current topic and lease a fresh one. No-op when disabled. */
@@ -59,37 +62,46 @@ export interface UseTemporaryTopicResult {
 
 export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTemporaryTopicResult {
   const { assistantId, enabled = assistantId !== undefined } = options
-  const [topicId, setTopicId] = useState<string | null>(null)
+  const [topic, setTopic] = useState<TemporaryTopic | null>(null)
+  const topicId = topic?.id ?? null
   /** Bumped by `reset()` to force the effect to re-run and allocate a new topic. */
   const [epoch, setEpoch] = useState(0)
-  /**
-   * Mirror of the in-effect `createdId`. Cleared by `persist()` so the
-   * cleanup path skips DELETE once the topic has migrated to SQLite.
-   */
-  const activeIdRef = useRef<string | null>(null)
+  /** The lease `persist()` acts on. Each effect run tracks its own id separately. */
+  const leaseRef = useRef<string | null>(null)
+  /** Leases that reached SQLite, so releasing them would delete a real topic. */
+  const persistedIdsRef = useRef(new Set<string>())
+
+  const releaseLease = useCallback((id: string, reason: string) => {
+    if (persistedIdsRef.current.has(id)) return
+    void dataApiService.delete(`/temporary/topics/${id}`).catch((err) => {
+      logger.warn(reason, err as Error)
+    })
+  }, [])
 
   useEffect(() => {
     if (!enabled) {
-      setTopicId(null)
+      setTopic(null)
       return
     }
 
     let cancelled = false
+    // Scoped to this run, not shared: two overlapping leases would otherwise overwrite
+    // each other's id and leak whichever topic the user is actually looking at.
+    let createdId: string | null = null
 
     const body = assistantId ? { assistantId } : {}
 
     void dataApiService
       .post('/temporary/topics', { body })
-      .then((topic) => {
-        activeIdRef.current = topic.id
+      .then((created) => {
+        createdId = created.id
         if (cancelled) {
-          void dataApiService.delete(`/temporary/topics/${topic.id}`).catch((err) => {
-            logger.warn('Failed to cleanup racing temporary topic', err as Error)
-          })
+          releaseLease(created.id, 'Failed to cleanup racing temporary topic')
           return
         }
-        setTopicId(topic.id)
-        logger.debug('Leased temporary topic', { topicId: topic.id, assistantId, epoch })
+        leaseRef.current = created.id
+        setTopic(created)
+        logger.debug('Leased temporary topic', { topicId: created.id, assistantId, epoch })
       })
       .catch((err) => {
         logger.error('Failed to create temporary topic', err as Error)
@@ -97,27 +109,31 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     return () => {
       cancelled = true
-      setTopicId(null)
-      const idToCleanup = activeIdRef.current
-      activeIdRef.current = null
-      if (idToCleanup) {
-        void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
-          logger.warn('Failed to release temporary topic on unmount', err as Error)
-        })
+      setTopic(null)
+      if (createdId) {
+        if (leaseRef.current === createdId) leaseRef.current = null
+        releaseLease(createdId, 'Failed to release temporary topic on unmount')
       }
     }
-  }, [enabled, assistantId, epoch])
+  }, [enabled, assistantId, epoch, releaseLease])
 
   const reset = useCallback(() => {
     setEpoch((n) => n + 1)
   }, [])
 
   const persist = useCallback(async (initialName?: string) => {
-    const id = activeIdRef.current
+    const id = leaseRef.current
     if (!id) return
-    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
-    // Clear before unmount so cleanup skips the now-pointless DELETE.
-    activeIdRef.current = null
+    // Claim before the request so a concurrent reset/unmount cannot DELETE the topic
+    // mid-persist, and give the claim back on failure so the save stays retryable.
+    persistedIdsRef.current.add(id)
+    try {
+      await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
+    } catch (err) {
+      persistedIdsRef.current.delete(id)
+      throw err
+    }
+    if (leaseRef.current === id) leaseRef.current = null
     logger.debug('Persisted temporary topic', { topicId: id })
 
     const trimmed = initialName?.trim()
@@ -135,5 +151,5 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     }
   }, [])
 
-  return { topicId, ready: topicId !== null, reset, persist }
+  return { topicId, topic, ready: topicId !== null, reset, persist }
 }

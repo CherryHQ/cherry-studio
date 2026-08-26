@@ -1,4 +1,5 @@
 import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolbarPinnedToolsKey } from '@renderer/components/composer/variants/shared/useComposerToolbarPinnedTools'
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
@@ -17,6 +18,11 @@ export type ComposerToolScope = TopicType | 'quick-assistant' | 'painting'
 export interface ComposerToolScopeConfig {
   enableQuickPanel?: boolean
   enableDragDrop?: boolean
+  inheritedToolScopes?: readonly ComposerToolScope[]
+  /** Overrides `chat.input.placeholder` where that string is too long for the surface. */
+  placeholderKey?: string
+  /** Preference holding this surface's pinned toolbar ids. Defaults to the chat one. */
+  pinnedToolsPreferenceKey?: ComposerToolbarPinnedToolsKey
 }
 
 type ReadableKeys<T> = {

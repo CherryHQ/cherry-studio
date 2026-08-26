@@ -8,6 +8,28 @@ import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../compos
 
 const logger = loggerService.withContext('pasteHandling')
 
+/**
+ * Stage raw image bytes (clipboard image, capture result — anything without a path on
+ * disk) as a composer attachment. Returns false when the temp file could not be read
+ * back, which is the only outcome the callers branch on.
+ */
+export const attachImageBytes = async (
+  fileName: string,
+  bytes: Uint8Array,
+  setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
+): Promise<boolean> => {
+  const tempFilePath = await window.api.file.createTempFile(fileName)
+  await window.api.file.write(tempFilePath, bytes)
+  const selectedFile = await window.api.file.get(tempFilePath)
+  if (!selectedFile) return false
+
+  setFiles((prevFiles) => [
+    ...prevFiles,
+    toComposerAttachment({ ...selectedFile, origin_name: removeFileExtension(fileName) })
+  ])
+  return true
+}
+
 // Track last focused component
 type ComponentType = 'inputbar' | 'messageEditor' | 'TranslatePage' | null
 let lastFocusedComponent: ComponentType = 'inputbar' // Default to inputbar
@@ -87,21 +109,8 @@ export const handlePaste = async (
           if (!filePath) {
             // 图像生成也支持图像编辑
             if (file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))) {
-              const tempFilePath = await window.api.file.createTempFile(file.name)
-              const arrayBuffer = await file.arrayBuffer()
-              const uint8Array = new Uint8Array(arrayBuffer)
-              await window.api.file.write(tempFilePath, uint8Array)
-              const selectedFile = await window.api.file.get(tempFilePath)
-              if (selectedFile) {
-                setFiles((prevFiles) => [
-                  ...prevFiles,
-                  toComposerAttachment({
-                    ...selectedFile,
-                    origin_name: removeFileExtension(file.name)
-                  })
-                ])
-                break
-              }
+              const bytes = new Uint8Array(await file.arrayBuffer())
+              if (await attachImageBytes(file.name, bytes, setFiles)) break
             } else {
               if (t) {
                 toast.info(t('chat.input.file_not_supported'))

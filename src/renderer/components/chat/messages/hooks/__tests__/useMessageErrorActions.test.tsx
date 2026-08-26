@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
   showErrorDetailPopup: vi.fn()
 }))
 
+const routerState = vi.hoisted(() => ({
+  router: undefined as { navigate: ReturnType<typeof vi.fn> } | undefined,
+  openRoute: vi.fn()
+}))
+
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     deleteCasual: vi.fn((key: string) => mocks.cache.delete(key)),
@@ -33,7 +38,11 @@ vi.mock('@renderer/components/ErrorDetailModal', () => {
 })
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn()
+  useRouter: () => routerState.router
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: (...args: unknown[]) => routerState.openRoute(...args)
 }))
 
 const { cacheService } = await import('@data/CacheService')
@@ -48,6 +57,8 @@ describe('useMessageErrorActions', () => {
     mocks.cache.clear()
     mocks.classifyErrorByAI.mockReset()
     mocks.showErrorDetailPopup.mockReset()
+    routerState.router = { navigate: vi.fn() }
+    routerState.openRoute.mockReset()
     vi.clearAllMocks()
   })
 
@@ -121,5 +132,25 @@ describe('useMessageErrorActions', () => {
         onDiagnosisComplete: persistDiagnosis
       })
     )
+  })
+
+  it('navigates through the router when the surface has one', () => {
+    const { result } = renderHook(() => useMessageErrorActions())
+
+    void result.current.navigateErrorTarget?.('/settings/provider')
+
+    expect(routerState.router?.navigate).toHaveBeenCalledWith({ to: '/settings/provider' })
+    expect(routerState.openRoute).not.toHaveBeenCalled()
+  })
+
+  it('sends the user to the main window when the surface has no router', () => {
+    // The message list also renders in the quick assistant, which has no RouterProvider;
+    // reaching for one there used to throw the moment the link was clicked.
+    routerState.router = undefined
+    const { result } = renderHook(() => useMessageErrorActions())
+
+    void result.current.navigateErrorTarget?.('/settings/provider')
+
+    expect(routerState.openRoute).toHaveBeenCalledWith('/settings/provider')
   })
 })

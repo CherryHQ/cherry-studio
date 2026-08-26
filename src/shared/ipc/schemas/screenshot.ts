@@ -153,4 +153,11 @@ export type ScreenshotEventSchemas = {
    * else tells its renderer to let go of the decoded capture until the next session.
    */
   'screenshot.session_ended': void
+  /**
+   * Directed to the window that started the session, carrying the capture itself.
+   * Reading it back off the clipboard instead would race anything else the user copies
+   * and depends on clipboard read permission; the bytes are already capped by
+   * `screenshot.commit` on the way in.
+   */
+  'screenshot.captured': ScreenshotResultData
 }

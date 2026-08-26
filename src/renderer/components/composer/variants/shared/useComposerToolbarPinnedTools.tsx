@@ -6,7 +6,10 @@ import { Settings2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type ComposerToolbarPinnedToolsKey = 'chat.input.toolbar.pinned_tools' | 'agent.input.toolbar.pinned_tools'
+export type ComposerToolbarPinnedToolsKey =
+  | 'chat.input.toolbar.pinned_tools'
+  | 'agent.input.toolbar.pinned_tools'
+  | 'quick_assistant.input.toolbar.pinned_tools'
 
 /**
  * Single entry point for a composer variant's pinned toolbar tools preference:

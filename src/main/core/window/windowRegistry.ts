@@ -275,10 +275,13 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     // Persist & restore position/size across launches (never maximized — maximizable:false).
     rememberBounds: true,
     windowOptions: {
-      width: 550,
-      height: 400,
-      minWidth: 350,
-      minHeight: 380,
+      // Opens as a bar: `height` is only the pre-paint size — the renderer measures its
+      // composer and reports the real one through `quick_assistant.set_view`, which also
+      // drives the grow-to-panel resize on send.
+      width: 680,
+      height: 44,
+      minWidth: 420,
+      minHeight: 44,
       maxWidth: 1024,
       maxHeight: 768,
       frame: false,
@@ -286,6 +289,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       useContentSize: true,
       skipTaskbar: true,
       autoHideMenuBar: true,
+      // The bar is one flat surface with no page behind it — the OS shadow is the only
+      // thing separating it from the desktop. `thickFrame` stays default (true): turning
+      // it off would take the Windows resize frame with it despite `resizable: true`.
+      hasShadow: true,
       resizable: true,
       minimizable: false,
       maximizable: false,
@@ -294,8 +301,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         mac: {
           type: 'panel',
           transparent: true,
-          vibrancy: 'under-window',
-          visualEffectState: 'followWindow'
+          roundedCorners: false
         }
       },
       webPreferences: {

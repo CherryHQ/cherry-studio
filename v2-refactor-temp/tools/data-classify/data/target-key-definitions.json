@@ -139,6 +139,13 @@
       "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "quick_assistant.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["screenshot"],
+      "status": "classified",
+      "description": "Ordered tool ids pinned on the quick assistant composer toolbar (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.exclude_domains",
       "type": "string[]",
       "defaultValue": [],

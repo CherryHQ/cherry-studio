@@ -63,7 +63,7 @@ function isFullyInside(rect: Rectangle, area: Rectangle): boolean {
  * Fit `rect` into `area`: shrink the size to fit when it is larger than the
  * work area, then clamp the origin so the whole rect stays on-screen.
  */
-function clampInto(rect: Rectangle, area: Rectangle): Rectangle {
+export function clampInto(rect: Rectangle, area: Rectangle): Rectangle {
   const width = Math.min(rect.width, area.width)
   const height = Math.min(rect.height, area.height)
   const x = Math.min(Math.max(rect.x, area.x), area.x + area.width - width)
