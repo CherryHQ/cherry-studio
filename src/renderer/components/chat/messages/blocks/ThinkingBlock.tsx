@@ -1,27 +1,17 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, memo, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
-import { normalizeThinkingPreview, scanThinkingPreview, type ThinkingPreviewScanState } from './thinkingPreview'
-import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
+import { normalizeThinkingPreview } from './thinkingPreview'
 import { useScrollAnchor } from './useScrollAnchor'
 
 // This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
 const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
-const THINKING_PREVIEW_MIN_DURATION_MS = 1000
-
-function getThinkingPreviewKey(preview: string): string {
-  return preview
-}
-
-function shouldBypassThinkingPreviewStabilization(currentPreview: string): boolean {
-  return !currentPreview
-}
 
 interface Props {
   /** Stable ID for heading prefix and block identity tracking */
@@ -74,7 +64,6 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const { thoughtAutoCollapse } = useMessageRenderConfig()
   const [isExpanded, setIsExpanded] = useState(!thoughtAutoCollapse)
   const contentId = useId()
-  const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
@@ -82,21 +71,6 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
     () => (!isThinking && showTitlePreview ? normalizeThinkingPreview(content ?? '') : ''),
     [content, isThinking, showTitlePreview]
   )
-  const thinkingPreviewScanResult = useMemo(
-    () => (isThinking ? scanThinkingPreview(content ?? '', thinkingPreviewScanStateRef.current) : undefined),
-    [content, isThinking]
-  )
-  const nextStreamingPreview = thinkingPreviewScanResult?.preview ?? ''
-  const streamingPreviewText = useMinimumDisplayDuration(nextStreamingPreview, {
-    enabled: isThinking,
-    getKey: getThinkingPreviewKey,
-    minimumDurationMs: THINKING_PREVIEW_MIN_DURATION_MS,
-    shouldBypass: shouldBypassThinkingPreviewStabilization
-  })
-
-  useEffect(() => {
-    thinkingPreviewScanStateRef.current = thinkingPreviewScanResult?.state
-  }, [thinkingPreviewScanResult])
 
   useEffect(() => {
     setIsExpanded(!thoughtAutoCollapse)
@@ -131,22 +105,12 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
           trailing={
             isThinking ? (
-              <>
-                <span
-                  aria-hidden="true"
-                  className="flex shrink-0 items-center text-foreground-tertiary"
-                  data-testid="thinking-loading-indicator">
-                  <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
-                </span>
-                {streamingPreviewText && (
-                  <span
-                    aria-hidden="true"
-                    className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[13px] leading-5"
-                    style={{ color: THINKING_MUTED_COLOR }}>
-                    {streamingPreviewText}
-                  </span>
-                )}
-              </>
+              <span
+                aria-hidden="true"
+                className="flex shrink-0 items-center text-foreground-tertiary"
+                data-testid="thinking-loading-indicator">
+                <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
+              </span>
             ) : showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
