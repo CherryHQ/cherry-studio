@@ -251,8 +251,25 @@ async function findAvailablePort(): Promise<number> {
 
 async function assertDashboardReady(url: string): Promise<void> {
   const response = await fetch(`${url}/api/status`, { signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS) })
-  await response.body?.cancel()
-  if (!response.ok) throw new Error(`Hermes Dashboard returned HTTP ${response.status}`)
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error(`Hermes Dashboard returned HTTP ${response.status}`)
+  }
+  // A foreign process can hold our freshly-picked port before Hermes binds; confirm the
+  // /api/status body is Hermes's own so we never open the wrong server as the Dashboard.
+  const body = await response.json().catch(() => null)
+  if (!isHermesStatusBody(body)) {
+    throw new Error('Hermes Dashboard health endpoint returned an unrecognized response')
+  }
+}
+
+function isHermesStatusBody(body: unknown): boolean {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    typeof (body as Record<string, unknown>).hermes_home === 'string' &&
+    'gateway_running' in body
+  )
 }
 
 function appendBounded(current: string, chunk: Buffer | string): string {
@@ -350,4 +367,3 @@ function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Pr
     else checkHealth()
   })
 }
-

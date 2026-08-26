@@ -61,7 +61,12 @@ describe('HermesDashboardService', () => {
     mocks.spawn.mockReturnValue(child as unknown as NodeChildProcess.ChildProcess)
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: true, status: 200, body: { cancel: vi.fn() } }))
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        body: { cancel: vi.fn() },
+        json: async () => ({ hermes_home: '/home/hermes', gateway_running: false })
+      }))
     )
     vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals) => {
       if (pid === -child.pid) queueMicrotask(() => child.close(signal ?? 'SIGTERM'))
@@ -265,6 +270,25 @@ describe('HermesDashboardService', () => {
 
     await expect(starting).resolves.toMatchObject({ success: false, reason: 'startup_failed' })
     expect(process.kill).toHaveBeenCalledWith(-child.pid, 'SIGTERM')
+    expect(service.getStatus()).toEqual({ status: 'error' })
+  })
+
+  it('rejects a foreign 200 on the port whose body is not a Hermes status document', async () => {
+    vi.useFakeTimers()
+    const service = new HermesDashboardService()
+    // A different server grabbed the freshly-picked port: HTTP 200, but /api/status
+    // carries none of Hermes's identifying fields, so it must never pass as ready.
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: { cancel: vi.fn() },
+      json: async () => ({ service: 'not-hermes' })
+    } as unknown as Response)
+
+    const starting = service.start()
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    await expect(starting).resolves.toMatchObject({ success: false, reason: 'startup_failed' })
     expect(service.getStatus()).toEqual({ status: 'error' })
   })
 
