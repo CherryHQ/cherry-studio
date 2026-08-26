@@ -1,13 +1,11 @@
 import type { ChildProcess } from 'node:child_process'
-import { execFile } from 'node:child_process'
 import { createServer } from 'node:net'
-import { promisify } from 'node:util'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -15,7 +13,6 @@ import { redactSecretText } from '@shared/utils/redaction'
 import { Mutex } from 'async-mutex'
 
 const logger = loggerService.withContext('HermesDashboardService')
-const execFileAsync = promisify(execFile)
 
 const DASHBOARD_HOST = '127.0.0.1'
 const START_TIMEOUT_MS = 30_000
@@ -95,9 +92,11 @@ export class HermesDashboardService extends BaseService {
         if (this.child && this.status === 'running' && this.url) {
           return { success: true, url: this.url }
         }
-        if (this.child) await this.stopOwnedProcessLocked()
 
         try {
+          // Reaping a leftover child belongs inside the try so a failing stop is
+          // mapped to a failure Result, not thrown out of start().
+          if (this.child) await this.stopOwnedProcessLocked()
           this.updateStatus('starting')
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
@@ -222,11 +221,11 @@ export class HermesDashboardService extends BaseService {
     }
     this.stoppingChild = child
     try {
-      await terminateOwnedProcess(child, false)
-      if (await waitForTermination(child, GRACEFUL_STOP_TIMEOUT_MS)) return
+      await terminateProcessTree(child, false, 'Hermes Dashboard')
+      if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 
-      await terminateOwnedProcess(child, true)
-      if (!(await waitForTermination(child, FORCE_STOP_TIMEOUT_MS))) {
+      await terminateProcessTree(child, true, 'Hermes Dashboard')
+      if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
         throw new Error('Hermes Dashboard did not exit after forced termination')
       }
     } catch (error) {
@@ -352,40 +351,3 @@ function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Pr
   })
 }
 
-async function terminateOwnedProcess(child: ChildProcess, force: boolean): Promise<void> {
-  if (!child.pid) return
-  if (isWin) {
-    const args = ['/PID', String(child.pid), '/T', ...(force ? ['/F'] : [])]
-    await execFileAsync('taskkill', args, { windowsHide: true }).catch((error) => {
-      if (child.exitCode !== null || child.signalCode !== null) return
-      if (force) throw error
-      logger.warn('Failed to gracefully stop the managed Hermes Dashboard process tree', error as Error)
-    })
-    return
-  }
-
-  try {
-    process.kill(-child.pid, force ? 'SIGKILL' : 'SIGTERM')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-  }
-}
-
-function waitForTermination(child: ChildProcess, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      child.off('exit', onClose)
-      child.off('close', onClose)
-      resolve(false)
-    }, timeoutMs)
-    const onClose = () => {
-      clearTimeout(timeout)
-      child.off('exit', onClose)
-      child.off('close', onClose)
-      resolve(true)
-    }
-    child.once('exit', onClose)
-    child.once('close', onClose)
-  })
-}

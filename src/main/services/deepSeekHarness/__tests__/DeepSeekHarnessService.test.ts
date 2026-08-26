@@ -41,7 +41,10 @@ vi.mock('@main/core/platform', () => ({
     return mocks.isWin
   }
 }))
-vi.mock('@main/utils/processRunner', () => ({ crossPlatformSpawn: mocks.spawn }))
+vi.mock('@main/utils/processRunner', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/utils/processRunner')>()),
+  crossPlatformSpawn: mocks.spawn
+}))
 vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: vi.fn(async () => ({
     PATH: '/system/bin',

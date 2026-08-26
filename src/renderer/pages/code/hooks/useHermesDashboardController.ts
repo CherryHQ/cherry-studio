@@ -145,12 +145,17 @@ export function useHermesDashboardController(
   }, [applyStatus, t])
 
   const onOpenDashboard = useCallback(async () => {
+    const operationEpoch = statusEpochRef.current
     try {
       const current = await ipcApi.request('hermes_dashboard.get_status')
+      // A launch/stop started or finished while this read was in flight — its
+      // outcome supersedes this stale snapshot, so don't revive 'running' or open.
+      if (operationEpoch !== statusEpochRef.current || operationInFlightRef.current) return
       if (current.status !== 'running' || !current.url) throw new Error('Hermes Dashboard is not running')
       applyStatus('running')
       openDashboard(current.url)
     } catch (error) {
+      if (operationEpoch !== statusEpochRef.current) return
       logger.error('Failed to open Hermes Dashboard', error as Error)
       toast.error(t('code.hermes_dashboard.error.open_failed'))
     }
