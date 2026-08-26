@@ -754,6 +754,32 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  // Reviewed in #15755: with a ready external search provider but no usable fetch provider, the
+  // external-provider override claims the whole web-tool group for the client side — so the server
+  // URL-context this provider could deliver is dropped instead of mixed in (group exclusivity,
+  // #17322). Documents the known tradeoff until per-capability routing is deliberately designed.
+  it('drops the available server fetch when only search has a ready external provider', async () => {
+    const preferences = new Map<string, unknown>([
+      ['app.developer_mode.enabled', false],
+      ['chat.web_search.client_tools_preferred', false],
+      ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+      ['chat.web_search.default_fetch_urls_provider', 'jina'],
+      ['chat.web_search.provider_overrides', { jina: { capabilities: { fetchUrls: { apiHost: '' } } } }],
+      ['chat.web_search.max_results', 5],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+    registry.register(clientSearchEntry)
+    registry.register(clientFetchEntry)
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.tools?.web_search).toBe(clientSearchEntry.tool)
+    expect(result.tools?.web_fetch).toBeUndefined()
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
+    expect(result.plugins.some((plugin) => plugin.name === 'urlContext')).toBe(false)
+  })
+
   it('disables Responses storage for assistant-backed calls too', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'openai', providerSettings: {} },
