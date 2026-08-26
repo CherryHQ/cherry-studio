@@ -90,6 +90,9 @@ describe('useHermesDashboardController', () => {
     })
     expect(result.current.launching).toBe(false)
     expect(result.current.stopping).toBe(false)
+    // The superseded start must not revive running or open the Web UI after the stop.
+    expect(result.current.running).toBe(false)
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
   })
 
   it('clears busy state when a pending stop is superseded by launch', async () => {

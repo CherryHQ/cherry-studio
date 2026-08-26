@@ -2,6 +2,7 @@ import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 
 import { BaseService } from '@main/core/lifecycle'
+import type * as ProcessRunner from '@main/utils/processRunner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,7 +21,7 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 vi.mock('@main/utils/processRunner', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/processRunner')>()),
+  ...(await importOriginal<typeof ProcessRunner>()),
   crossPlatformSpawn: mocks.spawn
 }))
 vi.mock('@main/utils/shellEnv', () => ({
@@ -252,6 +253,19 @@ describe('HermesDashboardService', () => {
 
     expect(process.kill).not.toHaveBeenCalled()
     expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
+  it('times out a startup whose health probe never passes and terminates the child it spawned', async () => {
+    vi.useFakeTimers()
+    const service = new HermesDashboardService()
+    vi.mocked(fetch).mockRejectedValue(new Error('Dashboard is not ready'))
+
+    const starting = service.start()
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    await expect(starting).resolves.toMatchObject({ success: false, reason: 'startup_failed' })
+    expect(process.kill).toHaveBeenCalledWith(-child.pid, 'SIGTERM')
+    expect(service.getStatus()).toEqual({ status: 'error' })
   })
 
   it('escalates to a forced kill and reports an error when its child ignores termination', async () => {

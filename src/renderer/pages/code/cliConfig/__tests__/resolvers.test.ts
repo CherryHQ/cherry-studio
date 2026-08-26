@@ -99,7 +99,11 @@ describe('resolveGeminiBaseUrl', () => {
 })
 
 describe('resolveHermesProviderInfo', () => {
-  it('prefers the model-supported endpoint and selects the matching Hermes API mode', () => {
+  // anthropic-messages is configured AND first in HERMES_ENDPOINTS, so a catalog-order
+  // fallback would pick it; the model supports only openai-responses (a later catalog
+  // entry), so selecting it proves model preference beats catalog order rather than
+  // coinciding with it.
+  it('prefers the model-supported endpoint over an earlier one in catalog order', () => {
     expect(
       resolveHermesProviderInfo(
         provider({
@@ -109,6 +113,19 @@ describe('resolveHermesProviderInfo', () => {
             'openai-responses': { baseUrl: 'https://openai.example' }
           }
         }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      apiMode: 'codex_responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('maps a selected anthropic-messages endpoint to its mode and strips the trailing API version', () => {
+    expect(
+      resolveHermesProviderInfo(
+        provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' } } }),
         ['anthropic-messages']
       )
     ).toEqual({

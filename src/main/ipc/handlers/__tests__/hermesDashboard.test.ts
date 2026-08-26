@@ -49,4 +49,20 @@ describe('hermesDashboardHandlers', () => {
       message: 'Dashboard dependencies are missing'
     })
   })
+
+  it('forwards an in-band start failure result unchanged, preserving its specific reason', async () => {
+    // The catch path coerces reason to 'startup_failed'; an in-band failure Result
+    // must reach the caller with the service's own reason, not be overwritten.
+    dashboard.start.mockResolvedValue({
+      success: false,
+      reason: 'dashboard_dependencies_missing',
+      message: 'Hermes Dashboard dependencies are missing'
+    })
+
+    await expect(hermesDashboardHandlers['hermes_dashboard.start'](undefined, ctx)).resolves.toEqual({
+      success: false,
+      reason: 'dashboard_dependencies_missing',
+      message: 'Hermes Dashboard dependencies are missing'
+    })
+  })
 })
