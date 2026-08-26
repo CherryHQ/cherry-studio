@@ -8,6 +8,8 @@ const DOCUMENT_WITH_SCRIPT =
 const DOCUMENT_INERT = '<!doctype html><html><head><title>Doc</title></head><body><h1>Static doc</h1></body></html>'
 const FRAGMENT_INERT = '<div><h2>Fragment</h2></div>'
 const FRAGMENT_WITH_SCRIPT = '<div><canvas id="c"></canvas><script>draw()</script></div>'
+const FRAGMENT_WITH_META_REFRESH =
+  '<div><meta http-equiv="refresh" content="0;url=https://evil.example"><h2>Redirector</h2></div>'
 
 describe('htmlArtifactPreviewRequiresInteractive', () => {
   it('decides by content only — active fragments and documents both need the webview tier', () => {
@@ -58,6 +60,20 @@ describe('HtmlArtifactPreviewSurface', () => {
     const iframe = screen.getByTitle('common.html_preview')
     expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
     expect(iframe?.getAttribute('sandbox')).not.toContain('allow-scripts')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+  })
+
+  it('strips meta-refresh from the static tier so unconsented content cannot auto-navigate', () => {
+    render(
+      <HtmlArtifactPreviewSurface html={FRAGMENT_WITH_META_REFRESH} title="common.html_preview" authorized={false} />
+    )
+
+    const iframe = screen.getByTitle('common.html_preview')
+    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+    // Meta-refresh navigation survives the script-less sandbox and CSP, so the tag
+    // itself must be gone from the rendered document (the CSP meta is injected).
+    expect(iframe?.getAttribute('srcdoc')).not.toMatch(/http-equiv=["']?refresh/i)
+    expect(iframe?.getAttribute('srcdoc')).toContain('Redirector')
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
   })
 

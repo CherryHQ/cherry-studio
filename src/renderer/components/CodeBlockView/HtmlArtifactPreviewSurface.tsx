@@ -9,7 +9,7 @@ import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
   injectHtmlPreviewHeadElement
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
-import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
+import { htmlArtifactRequiresUserConsent, stripMetaRefresh } from '@renderer/utils/htmlArtifact'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
 import { memo, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -154,6 +154,9 @@ export const StaticHtmlPreview = memo(function StaticHtmlPreview({
   emptyText?: string
 }) {
   const zoomScale = zoom / 100
+  // The static tier is a preview, never navigation: meta-refresh survives the
+  // script-less sandbox (navigation needs no JS) and CSP cannot govern navigations.
+  const staticHtml = useMemo(() => stripMetaRefresh(html), [html])
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -165,7 +168,7 @@ export const StaticHtmlPreview = memo(function StaticHtmlPreview({
           transform: `scale(${zoomScale})`
         }}>
         <HtmlPreviewFrame
-          html={html}
+          html={staticHtml}
           title={title}
           iframeRef={iframeRef}
           sandbox="allow-same-origin"
