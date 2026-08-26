@@ -107,9 +107,9 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
         }}
         data-tab-id={tab.id}
         type="button"
+        aria-label={tab.title}
         onPointerDown={drag.onPointerDown}
         onClick={onSelect}
-        title={tab.title}
         style={{
           ...rest.style,
           transform: `translateX(${drag.translateX}px)`,
@@ -118,12 +118,24 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
+          // Compact labeled chip: same height/min-width as an unpinned tab, smaller
+          // max-width, no flex-grow — identifiable without matching unpinned density.
+          'nodrag flex h-[30px] min-w-[56px] max-w-[120px] shrink-0 items-center gap-1 overflow-hidden rounded-[10px] px-1.5 transition-colors duration-150 [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
           rest.className
         )}>
-        <TabIcon tab={tab} size={14} />
+        <span aria-hidden className="shrink-0">
+          <TabIcon tab={tab} size={14} className="mr-0" />
+        </span>
+        <span
+          className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+          style={{
+            maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
+          }}>
+          {tab.title}
+        </span>
       </button>
     </Tooltip>
   )
@@ -914,7 +926,7 @@ export const AppShellTabBar = ({
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
-            <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
+            <div className="flex shrink-0 items-center gap-0.5 rounded-[12px] bg-sidebar-accent/50 p-0.5 [-webkit-app-region:no-drag]">
               {pinnedTabs.map((tab) => {
                 const caps = getTabCapabilities(tab, tabContext)
                 return (

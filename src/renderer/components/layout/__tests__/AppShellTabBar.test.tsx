@@ -505,6 +505,44 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
+  it('keeps pinned agent conversations identifiable by title with a practical hit target', () => {
+    const setActiveTab = vi.fn()
+    const tabs = [
+      createTab('agent-write', {
+        url: '/app/agents?sessionId=s1',
+        title: 'Write a function',
+        icon: 'emoji:🤖',
+        isPinned: true
+      }),
+      createTab('agent-review', {
+        url: '/app/agents?sessionId=s2',
+        title: 'Review this PR',
+        icon: 'emoji:🤖',
+        isPinned: true
+      }),
+      createTab('home')
+    ]
+
+    renderTabBar({ tabs, activeTabId: 'home', setActiveTab })
+
+    const writeTab = screen.getByRole('button', { name: 'Write a function' })
+    const reviewTab = screen.getByRole('button', { name: 'Review this PR' })
+    const homeTab = screen.getByRole('button', { name: 'Chat' })
+
+    expect(writeTab).toHaveTextContent('Write a function')
+    expect(reviewTab).toHaveTextContent('Review this PR')
+    expect(screen.queryByRole('button', { name: '🤖' })).not.toBeInTheDocument()
+
+    // Hit-target / density contract: pinned tabs match the unpinned height and
+    // min width, stay denser than the unpinned max, and do not flex-grow.
+    expect(writeTab).toHaveClass('h-[30px]', 'min-w-[56px]', 'max-w-[120px]', 'shrink-0')
+    expect(homeTab).toHaveClass('h-[30px]', 'min-w-[56px]', 'max-w-[160px]')
+    expect(homeTab).not.toHaveClass('max-w-[120px]')
+
+    fireEvent.click(writeTab)
+    expect(setActiveTab).toHaveBeenCalledWith('agent-write')
+  })
+
   it('does not request ResourceList reveal when switching chat or agent tabs', () => {
     const setActiveTab = vi.fn()
     const tabs = [
