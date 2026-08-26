@@ -9,6 +9,7 @@ import AgentChat from '../AgentChat'
 
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
 const clearAgentSessionMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
+const stopLiveTurnMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const session = {
@@ -86,7 +87,7 @@ vi.mock('../useAgentChatRuntimeState', () => ({
     hasOlder: false,
     loadOlder: vi.fn(),
     sendMessage: vi.fn(),
-    stop: vi.fn(),
+    stop: stopLiveTurnMock,
     composerContext: undefined,
     streamingLayers: {},
     optimisticAskUserQuestionInputsByToolCallId: {},
@@ -157,6 +158,43 @@ describe('AgentChat clear messages command', () => {
     expect(clearAgentSessionMessagesMock).toHaveBeenCalledWith('session-1')
   })
 
+  it('drains the live turn before clearing so terminal persistence cannot recreate the assistant', async () => {
+    let transcript = ['assistant']
+    let turnLive = true
+    const persistTerminalAssistant = () => {
+      transcript = ['assistant']
+    }
+    stopLiveTurnMock.mockImplementation(async () => {
+      persistTerminalAssistant()
+      turnLive = false
+    })
+    clearAgentSessionMessagesMock.mockImplementation(async () => {
+      transcript = []
+    })
+
+    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+    if (turnLive) persistTerminalAssistant()
+
+    expect(transcript).toEqual([])
+  })
+
+  it('leaves Agent messages untouched when stopping the live turn fails', async () => {
+    stopLiveTurnMock.mockRejectedValueOnce(new Error('abort failed'))
+
+    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(clearAgentSessionMessagesMock).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('message.error.unknown: Error: abort failed')
+  })
+
   it('leaves Agent messages untouched when the confirmation is dismissed', async () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
 
@@ -166,6 +204,7 @@ describe('AgentChat clear messages command', () => {
       await commandHandlers.get('topic.clear_messages')?.()
     })
 
+    expect(stopLiveTurnMock).not.toHaveBeenCalled()
     expect(clearAgentSessionMessagesMock).not.toHaveBeenCalled()
   })
 

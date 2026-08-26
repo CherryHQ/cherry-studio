@@ -234,25 +234,6 @@ const AgentChat = ({
   const citationsPanelOpen = citationPanelCitations !== null
   const conversationState = sessionSnapshot ? 'ready' : isInitializing ? 'pending' : 'unavailable'
   const showConversation = Boolean(sessionSnapshot && !centerSurface)
-
-  useCommandHandler(
-    'topic.clear_messages',
-    async () => {
-      if (!sessionSnapshot) return
-      const confirmed = await popup.confirm({
-        title: t('chat.input.clear.title'),
-        content: t('chat.input.clear.content'),
-        centered: true
-      })
-      if (!confirmed) return
-      try {
-        await clearAgentSessionMessages(sessionSnapshot.id)
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
-      }
-    },
-    { enabled: showConversation && isActiveTab }
-  )
   const sessionAgentId = sessionSnapshot?.agentId ?? null
   const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
   const composerAgentId = isActiveAgentLoading ? (sessionAgentId ?? undefined) : sendableAgentId
@@ -269,6 +250,26 @@ const AgentChat = ({
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
   })
+  useCommandHandler(
+    'topic.clear_messages',
+    async () => {
+      if (!sessionSnapshot) return
+      const confirmed = await popup.confirm({
+        title: t('chat.input.clear.title'),
+        content: t('chat.input.clear.content'),
+        centered: true
+      })
+      if (!confirmed) return
+      try {
+        // Drain first: terminal persistence would otherwise recreate the deleted assistant.
+        await runtime.stop()
+        await clearAgentSessionMessages(sessionSnapshot.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
+    },
+    { enabled: showConversation && isActiveTab }
+  )
   const {
     hasOlder: runtimeHasOlder,
     isLoading: runtimeIsLoading,

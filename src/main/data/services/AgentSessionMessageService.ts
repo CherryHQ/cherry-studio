@@ -146,6 +146,7 @@ export const AGENT_SESSION_DELIVERY_ERROR_CODES = {
   DELIVERY_TURN_DELETED: 'DELIVERY_TURN_DELETED',
   CANCELLED: 'CANCELLED',
   TARGET_SESSION_DELETED: 'TARGET_SESSION_DELETED',
+  TARGET_SESSION_CLEARED: 'TARGET_SESSION_CLEARED',
   CALLER_SESSION_DELETED: 'CALLER_SESSION_DELETED'
 } as const
 
@@ -540,16 +541,20 @@ export class AgentSessionMessageService {
         .all()
       if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
+      const deliveryResults = this.prepareSessionDeletionTx(tx, [sessionId], {
+        code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_CLEARED,
+        message: 'Target Session messages were cleared'
+      })
       const rows = tx
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(eq(sessionMessagesTable.sessionId, sessionId))
         .all()
       const deletedIds = rows.map((row) => row.id)
-      if (deletedIds.length === 0) return { deletedIds }
+      if (deletedIds.length === 0) return { deletedIds, deliveryResults }
 
       tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).run()
-      return { deletedIds }
+      return { deletedIds, deliveryResults }
     })
 
     if (result.deletedIds.length > 0) {
@@ -562,8 +567,9 @@ export class AgentSessionMessageService {
         }
       ])
     }
+    this.publishDeliveryChanges(result.deliveryResults)
 
-    return result
+    return { deletedIds: result.deletedIds }
   }
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
@@ -1521,7 +1527,14 @@ export class AgentSessionMessageService {
     return failed.result
   }
 
-  prepareSessionDeletionTx(tx: DbOrTx, sessionIds: readonly string[]): AgentSessionMessageEntity[] {
+  prepareSessionDeletionTx(
+    tx: DbOrTx,
+    sessionIds: readonly string[],
+    error: AgentSessionDeliveryError = {
+      code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_DELETED,
+      message: 'Target Session was deleted'
+    }
+  ): AgentSessionMessageEntity[] {
     const deleting = [...new Set(sessionIds)]
     if (deleting.length === 0) return []
     const requests = tx
@@ -1564,7 +1577,7 @@ export class AgentSessionMessageService {
             id: uuidv7(),
             role: 'user',
             status: 'success',
-            data: { parts: [{ type: 'text', text: 'Target Session was deleted before completing the request.' }] },
+            data: { parts: [{ type: 'text', text: `${error.message} before completing the request.` }] },
             delivery: {
               version: 1,
               sender: request.delivery.receiver,
@@ -1574,7 +1587,7 @@ export class AgentSessionMessageService {
               replyPolicy: 'none',
               sourceMessageId: null,
               outcome: 'failed',
-              error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
+              error,
               statusAt: now
             },
             deliveryStatus: 'accepted',
