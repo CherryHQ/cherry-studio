@@ -19,6 +19,7 @@ interface ModelSelectorCommonProps {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
+  isModelDisabled?: ModelSelectorFilter
   prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign

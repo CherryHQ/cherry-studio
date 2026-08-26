@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     port: 49152,
     setExpiresAt: vi.fn()
   },
+  modelBulkDelete: vi.fn(),
   modelBulkUpdate: vi.fn(),
   modelCreate: vi.fn(),
   modelList: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notif
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
+    bulkDelete: mocks.modelBulkDelete,
     bulkUpdate: mocks.modelBulkUpdate,
     create: mocks.modelCreate,
     list: mocks.modelList
@@ -193,6 +195,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
   mocks.netFetch.mockReset()
   mocks.broadcast.mockClear()
   mocks.modelCreate.mockClear()
+  mocks.modelBulkDelete.mockClear()
   mocks.modelBulkUpdate.mockClear()
   mocks.notifyDataChange.mockClear()
   return service
@@ -208,6 +211,7 @@ describe('CherryCloudService', () => {
       { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' }
     ])
     mocks.modelCreate.mockReturnValue([])
+    mocks.modelBulkDelete.mockReturnValue(undefined)
     mocks.modelBulkUpdate.mockReturnValue([])
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
@@ -258,10 +262,35 @@ describe('CherryCloudService', () => {
     expect(exchangeBody.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
     await service.syncEntitledModels()
 
+    mocks.netFetch.mockReset()
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
+      .mockResolvedValueOnce(jsonResponse({ data: [] }))
     CherryCloudService.resetInstances()
     const restarted = new CherryCloudService()
     await restarted._doInit()
     expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+    expect(mocks.netFetch.mock.calls.map(([url]) => url)).toEqual([
+      'http://127.0.0.1:8084/api/v1/account',
+      'http://127.0.0.1:8084/v1/models?limit=1000'
+    ])
+  })
+
+  it('reports that a Product Session is required for authenticated requests', async () => {
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    const response = await service.authenticatedFetch('/v1/messages', { method: 'POST' })
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({
+      type: 'error',
+      error: {
+        type: 'authentication_error',
+        message: 'Cherry Cloud account is not signed in'
+      }
+    })
   })
 
   it('does not install a Session when login persistence fails', async () => {
@@ -640,10 +669,21 @@ describe('CherryCloudService', () => {
       }
     ])
     mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...accountSnapshot,
+          quota_pools: [
+            { model_ids: ['deepseek-free'], windows: [{ remaining_units: 0 }] },
+            { model_ids: ['deepseek-go'], windows: [{ remaining_units: 1 }] }
+          ]
+        })
+      )
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
-    await expect(service.syncEntitledModels()).resolves.toEqual({ modelCount: 2 })
+    await expect(service.syncEntitledModels()).resolves.toEqual({
+      modelCount: 2,
+      quotaExhaustedModelIds: ['cherryai::deepseek-free']
+    })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
       {
@@ -667,13 +707,7 @@ describe('CherryCloudService', () => {
         })
       }
     ])
-    expect(mocks.modelBulkUpdate).toHaveBeenCalledWith([
-      expect.objectContaining({
-        providerId: 'cherryai',
-        modelId: 'old-free',
-        patch: expect.objectContaining({ isEnabled: false })
-      })
-    ])
+    expect(mocks.modelBulkDelete).toHaveBeenCalledWith([{ providerId: 'cherryai', modelId: 'old-free' }])
     expect(mocks.notifyDataChange).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
 
     for (const [, init] of mocks.netFetch.mock.calls) {
@@ -682,6 +716,98 @@ describe('CherryCloudService', () => {
       expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
       expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
     }
+  })
+
+  it('reuses a recent model snapshot when the selector opens repeatedly', async () => {
+    const service = await createSignedInService()
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
+      .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
+
+    const expected = await service.syncEntitledModels()
+    mocks.netFetch.mockClear()
+
+    await expect(service.syncEntitledModelsIfStale()).resolves.toEqual(expected)
+    await expect(service.syncEntitledModelsIfStale()).resolves.toEqual(expected)
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+  })
+
+  it('refreshes an expired model snapshot when the selector opens', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
+      const service = await createSignedInService()
+      mocks.netFetch
+        .mockResolvedValueOnce(jsonResponse(accountSnapshot))
+        .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
+      await service.syncEntitledModels()
+      mocks.netFetch.mockClear()
+
+      await vi.advanceTimersByTimeAsync(60_001)
+      mocks.netFetch
+        .mockResolvedValueOnce(
+          jsonResponse({
+            ...accountSnapshot,
+            quota_pools: [{ model_ids: ['deepseek-free'], windows: [{ remaining_units: 0 }] }]
+          })
+        )
+        .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
+
+      await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
+        modelCount: 2,
+        quotaExhaustedModelIds: ['cherryai::deepseek-free']
+      })
+      expect(mocks.netFetch).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds model sync requests without clearing the retriable Session', async () => {
+    const service = await createSignedInService()
+    const timeoutController = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(timeoutController.signal)
+    try {
+      mocks.netFetch.mockImplementation((_url: string, init: RequestInit) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+      })
+
+      const sync = service.syncEntitledModels()
+      const syncFailure = expect(sync).rejects.toMatchObject({ name: 'TimeoutError' })
+      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+      const requestSignals = mocks.netFetch.mock.calls.map(([, init]) => init.signal)
+
+      expect(timeout).toHaveBeenCalledWith(30_000)
+      expect(requestSignals[0]).toBe(requestSignals[1])
+      timeoutController.abort(new DOMException('The operation timed out', 'TimeoutError'))
+
+      expect(requestSignals.every((signal) => signal?.aborted)).toBe(true)
+      await syncFailure
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    } finally {
+      timeout.mockRestore()
+    }
+  })
+
+  it('cancels model sync requests when the service stops', async () => {
+    const service = await createSignedInService()
+    mocks.netFetch.mockImplementation((_url: string, init: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+      })
+    })
+
+    const sync = service.syncEntitledModels()
+    const syncFailure = expect(sync).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+    const requestSignals = mocks.netFetch.mock.calls.map(([, init]) => init.signal)
+
+    await service._doStop()
+
+    expect(requestSignals.every((signal) => signal?.aborted)).toBe(true)
+    await syncFailure
   })
 
   it('does not claim a remote model id already owned by a non-Cloud model', async () => {
@@ -700,11 +826,12 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse(accountSnapshot))
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
-    await expect(service.syncEntitledModels()).resolves.toEqual({ modelCount: 2 })
+    await expect(service.syncEntitledModels()).resolves.toEqual({ modelCount: 2, quotaExhaustedModelIds: [] })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
       { dto: expect.objectContaining({ providerId: 'cherryai', modelId: 'deepseek-free' }) }
     ])
+    expect(mocks.modelBulkDelete).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
   })
 
@@ -718,13 +845,14 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
 
     const sync = service.syncEntitledModels()
+    const syncFailure = expect(sync).rejects.toMatchObject({ name: 'AbortError' })
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
 
     accountRequest.resolve(jsonResponse(accountSnapshot))
     catalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
-    await expect(sync).resolves.toEqual({ modelCount: 0 })
+    await syncFailure
     expect(mocks.modelCreate).not.toHaveBeenCalled()
   })
 
@@ -738,6 +866,7 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
 
     const oldSync = service.syncEntitledModels()
+    const oldSyncFailure = expect(oldSync).rejects.toMatchObject({ name: 'AbortError' })
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
 
@@ -758,7 +887,7 @@ describe('CherryCloudService', () => {
     oldAccountRequest.resolve(jsonResponse(accountSnapshot))
     oldCatalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
-    await expect(oldSync).resolves.toEqual({ modelCount: 0 })
+    await oldSyncFailure
     expect(mocks.modelCreate).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ dto: expect.objectContaining({ modelId: 'deepseek-free' }) })])
     )
@@ -1090,7 +1219,7 @@ describe('CherryCloudService', () => {
         isEnabled: true
       }
     ])
-    mocks.modelBulkUpdate.mockImplementationOnce(() => {
+    mocks.modelBulkDelete.mockImplementationOnce(() => {
       throw new Error('database is read-only')
     })
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({}, 401))
@@ -1106,7 +1235,7 @@ describe('CherryCloudService', () => {
     })
   })
 
-  it('expires the Product Session and disables its managed models', async () => {
+  it('expires the Product Session and deletes its managed models', async () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
@@ -1136,7 +1265,7 @@ describe('CherryCloudService', () => {
           isEnabled: true
         }
       ])
-      mocks.modelBulkUpdate.mockClear()
+      mocks.modelBulkDelete.mockClear()
 
       await vi.advanceTimersByTimeAsync(5_000)
       await Promise.resolve()
@@ -1149,13 +1278,7 @@ describe('CherryCloudService', () => {
       })
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(mocks.savedSession).toBeNull()
-      expect(mocks.modelBulkUpdate).toHaveBeenCalledWith([
-        expect.objectContaining({
-          providerId: 'cherryai',
-          modelId: 'deepseek-free',
-          patch: expect.objectContaining({ isEnabled: false })
-        })
-      ])
+      expect(mocks.modelBulkDelete).toHaveBeenCalledWith([{ providerId: 'cherryai', modelId: 'deepseek-free' }])
     } finally {
       vi.useRealTimers()
     }

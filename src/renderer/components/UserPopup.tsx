@@ -25,7 +25,7 @@ import { isEmoji } from '@renderer/utils/naming'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiPicker } from './EmojiPicker'
@@ -33,6 +33,7 @@ import { EmojiPicker } from './EmojiPicker'
 type Props = PopupInjectedProps<Record<string, never>>
 
 type AvatarPopoverView = 'menu' | 'emoji'
+type CloudStatusLoadState = 'error' | 'loading' | 'ready'
 
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
@@ -40,35 +41,43 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
   const [cloudStatus, setCloudStatus] = useState<CherryCloudStatus | null>(null)
+  const [cloudStatusLoadState, setCloudStatusLoadState] = useState<CloudStatusLoadState>('loading')
   const [isStartingLogin, setIsStartingLogin] = useState(false)
   const [isCancellingLogin, setIsCancellingLogin] = useState(false)
   const [isRevokingSession, setIsRevokingSession] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cloudStatusRevisionRef = useRef(0)
+  const cloudStatusRequestRef = useRef(0)
   const { t } = useTranslation()
   const avatar = useAvatar()
 
   useIpcOn('cherry_cloud.status_changed', (status) => {
-    cloudStatusRevisionRef.current += 1
+    cloudStatusRequestRef.current += 1
     setCloudStatus(status)
+    setCloudStatusLoadState('ready')
   })
+
+  const loadCloudStatus = useCallback(async () => {
+    const requestId = ++cloudStatusRequestRef.current
+    setCloudStatusLoadState('loading')
+    try {
+      const status = await ipcApi.request('cherry_cloud.status.get')
+      if (requestId !== cloudStatusRequestRef.current) return
+      setCloudStatus(status)
+      setCloudStatusLoadState('ready')
+    } catch {
+      if (requestId === cloudStatusRequestRef.current) setCloudStatusLoadState('error')
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
 
-    let active = true
-    const statusRevision = cloudStatusRevisionRef.current
-    void ipcApi
-      .request('cherry_cloud.status.get')
-      .then((status) => {
-        if (active && statusRevision === cloudStatusRevisionRef.current) setCloudStatus(status)
-      })
-      .catch(() => undefined)
+    void loadCloudStatus()
 
     return () => {
-      active = false
+      cloudStatusRequestRef.current += 1
     }
-  }, [open])
+  }, [loadCloudStatus, open])
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -242,7 +251,18 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           />
         </RowFlex>
         <RowFlex className="border-border-subtle border-t px-5 py-4">
-          {cloudStatus?.phase === 'signed-in' ? (
+          {cloudStatusLoadState === 'error' ? (
+            <ColFlex className="w-full gap-2">
+              <div
+                role="alert"
+                className="rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-center text-error-subtle-foreground text-xs">
+                {t('error.http.503')}
+              </div>
+              <Button className="w-full" onClick={() => void loadCloudStatus()} variant="outline">
+                {t('common.retry')}
+              </Button>
+            </ColFlex>
+          ) : cloudStatus?.phase === 'signed-in' ? (
             <ColFlex className="w-full gap-2">
               <div
                 role="status"
@@ -267,7 +287,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             <ColFlex className="w-full gap-2">
               <Button
                 className="w-full"
-                loading={cloudStatus === null || isAuthorizing}
+                loading={cloudStatusLoadState === 'loading' || isAuthorizing}
                 onClick={() => void handleCloudLogin()}
                 variant="emphasis">
                 {isAuthorizing

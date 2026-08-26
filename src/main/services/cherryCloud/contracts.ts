@@ -36,6 +36,11 @@ const entitlementSchema = z.looseObject({
   model_ids: z.array(z.string().min(1))
 })
 
+const quotaPoolSchema = z.looseObject({
+  model_ids: z.array(z.string().min(1)),
+  windows: z.array(z.looseObject({ remaining_units: z.number().int().nonnegative() })).min(1)
+})
+
 export const accountSnapshotSchema = z.looseObject({
   account: z.looseObject({
     id: z.uuid(),
@@ -48,7 +53,8 @@ export const accountSnapshotSchema = z.looseObject({
   device: z.looseObject({
     id: z.uuid()
   }),
-  entitlements: z.array(entitlementSchema).default([])
+  entitlements: z.array(entitlementSchema).default([]),
+  quota_pools: z.array(quotaPoolSchema).default([])
 })
 
 export const exchangeDesktopAuthorizationResponseSchema = z.strictObject({

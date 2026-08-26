@@ -4,7 +4,7 @@ const service = vi.hoisted(() => ({
   cancelLogin: vi.fn(),
   getStatus: vi.fn(),
   startLogin: vi.fn(),
-  syncEntitledModels: vi.fn()
+  syncEntitledModelsIfStale: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -53,10 +53,14 @@ describe('cherryCloudHandlers', () => {
   })
 
   it('syncs the signed-in entitled model catalog', async () => {
-    service.syncEntitledModels.mockResolvedValue({ modelCount: 2 })
+    service.syncEntitledModelsIfStale.mockResolvedValue({
+      modelCount: 2,
+      quotaExhaustedModelIds: ['cherryai::deepseek-free']
+    })
 
     await expect(cherryCloudHandlers['cherry_cloud.models.sync'](undefined, { senderId: 'w1' })).resolves.toEqual({
-      modelCount: 2
+      modelCount: 2,
+      quotaExhaustedModelIds: ['cherryai::deepseek-free']
     })
   })
 

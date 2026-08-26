@@ -330,6 +330,26 @@ describe('ModelSelector', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('shows a quota-exhausted model but does not let the user select it', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        isModelDisabled={(model) => model.id === 'openai::gpt-4'}
+        trigger={<button type="button">open</button>}
+        onSelect={onSelect}
+      />
+    )
+
+    const disabledModel = screen.getAllByRole('option')[0]
+    expect(disabledModel).toHaveAttribute('aria-disabled', 'true')
+    await user.click(disabledModel)
+
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('tears down the lazy shell before resetting an active tag filter on close', async () => {
     const user = userEvent.setup()
     const resetTags = vi.fn(() => {

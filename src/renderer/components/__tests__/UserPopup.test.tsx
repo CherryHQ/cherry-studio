@@ -382,15 +382,22 @@ describe('UserPopup', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Sora')
   })
 
-  it('keeps an unknown status when the status query fails', async () => {
+  it('offers a retry when the Cloud account status cannot be loaded', async () => {
+    let statusAttempts = 0
     mocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') throw new Error('service unavailable')
+      if (route === 'cherry_cloud.status.get') {
+        statusAttempts += 1
+        if (statusAttempts === 1) throw new Error('service unavailable')
+        return { phase: 'signed-in', displayName: 'Sora' }
+      }
       return undefined
     })
     showUserPopup()
 
-    const loginButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })
-    await waitFor(() => expect(loginButton).toBeDisabled())
-    expect(loginButton).toHaveAttribute('aria-busy', 'true')
+    expect(await screen.findByRole('alert')).toHaveTextContent('error.http.503')
+    await userEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Sora')
+    expect(statusAttempts).toBe(2)
   })
 })

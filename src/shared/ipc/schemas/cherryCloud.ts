@@ -1,3 +1,4 @@
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -16,7 +17,10 @@ export const cherryCloudRequestSchemas = {
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({
     input: z.void(),
-    output: z.strictObject({ modelCount: z.number().int().nonnegative() })
+    output: z.strictObject({
+      modelCount: z.number().int().nonnegative(),
+      quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
+    })
   })
 }
 
