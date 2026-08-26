@@ -119,6 +119,13 @@
       "when": 1787514273959,
       "tag": "0016_agent_session_message_reasoning_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1787775370404,
+      "tag": "0017_closed_living_lightning",
+      "breakpoints": true
     }
   ],
   "version": "7"
