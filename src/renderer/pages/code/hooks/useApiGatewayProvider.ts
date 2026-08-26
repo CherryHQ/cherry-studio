@@ -52,7 +52,8 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
         throw new Error('API gateway failed to start')
       }
     }
-    const key = await preferenceService.get('feature.api_gateway.api_key')
+    // The renderer cache can still contain the pre-start null when the start IPC resolves.
+    const key = await preferenceService.getFresh('feature.api_gateway.api_key')
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }

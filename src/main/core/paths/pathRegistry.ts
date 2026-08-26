@@ -137,6 +137,9 @@ export function buildPathRegistry() {
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
 
+    // Code CLI session data
+    'feature.cli.antigravity.root': path.join(appUserDataData, 'CodeCli', 'Antigravity'),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),

@@ -10,7 +10,7 @@ import {
   isApiGatewayProviderId,
   LOGIN_CAPABLE_CLI_TOOLS
 } from '@shared/types/codeCli'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { clearCliConfig, resolveCliConfigApplyContext } from '../cliConfig'
@@ -166,10 +166,22 @@ export function useCodeCliPageViewProps(
     apiGatewayProvider: apiGatewayBundle
   })
 
-  const activeTool = useMemo<CliToolOption | undefined>(
-    () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
-    [selectedCliTool]
+  const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
+  const visibleTools = useMemo(
+    () =>
+      CLI_TOOLS.filter((tool) => tool.value !== CodeCli.GEMINI_CLI || statuses[CodeCli.GEMINI_CLI]?.installed === true),
+    [statuses]
   )
+  const activeTool = useMemo<CliToolOption | undefined>(
+    () => visibleTools.find((tool) => tool.value === selectedCliTool),
+    [selectedCliTool, visibleTools]
+  )
+  useEffect(() => {
+    const geminiStatus = statuses[CodeCli.GEMINI_CLI]
+    if (selectedCliTool !== CodeCli.GEMINI_CLI || !geminiStatus || geminiStatus.installed) return
+    const fallback = visibleTools[0]
+    if (fallback) selectTool(fallback.value)
+  }, [selectedCliTool, selectTool, statuses, visibleTools])
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
@@ -177,7 +189,6 @@ export function useCodeCliPageViewProps(
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
-  const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
   // Local busy Sets give instant feedback; snapshot operations cover mutations
   // initiated in another window or before this page mounted.
   const mergedInstallingTools = useMemo(() => {
@@ -291,7 +302,7 @@ export function useCodeCliPageViewProps(
 
   return {
     sidebarProps: {
-      tools: CLI_TOOLS,
+      tools: visibleTools,
       selectedCliTool,
       onSelectTool: selectTool,
       toMeta,

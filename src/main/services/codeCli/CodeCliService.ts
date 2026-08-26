@@ -21,10 +21,11 @@ import {
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { REDACTED, redactRecord } from '@shared/utils/redaction'
+import { REDACTED, redactLiterals } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
+import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
@@ -480,7 +481,6 @@ export class CodeCliService extends BaseService {
       }
 
       logger.info('Setting environment variables:', Object.keys(env))
-      logger.debug('Environment variable values:', redactRecord(env))
 
       if (isWindows) {
         // Windows uses set command
@@ -559,6 +559,31 @@ export class CodeCliService extends BaseService {
         }
         baseCommand = `${baseCommand} --model ${modelArg}`
       }
+    }
+
+    if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
+      let launchConfig
+      try {
+        launchConfig = await prepareAntigravityLaunch(normal)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error('Failed to prepare Antigravity CLI launch', error as Error)
+        return { success: false, message }
+      }
+
+      if (!isShellSafeModelId(launchConfig.model)) {
+        const message = `Unsupported model id for ${cliTool}: ${launchConfig.model}`
+        logger.error(message)
+        return { success: false, message }
+      }
+
+      Object.assign(env, launchConfig.env)
+      const geminiDirArg =
+        platform === 'win32'
+          ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
+          : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
+      const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
+      baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather
@@ -797,7 +822,8 @@ export class CodeCliService extends BaseService {
     // Launch terminal process
     try {
       logger.info(`Launching terminal with command: ${terminalCommand}`)
-      logger.debug(`Terminal arguments:`, terminalArgs)
+      const redactedTerminalArgs = terminalArgs.map((arg) => redactLiterals(arg, Object.values(env)))
+      logger.debug(`Terminal arguments:`, redactedTerminalArgs)
       logger.debug(`Working directory: ${directory}`)
       logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
 

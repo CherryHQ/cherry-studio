@@ -140,6 +140,13 @@ describe('buildPathRegistry', () => {
     )
     expect(shouldAutoEnsure('feature.deepseek_harness.workspace')).toBe(true)
   })
+
+  it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.cli.antigravity.root']).toBe(path.join('/mock/userData', 'Data', 'CodeCli', 'Antigravity'))
+    expect(shouldAutoEnsure('feature.cli.antigravity.root')).toBe(true)
+  })
 })
 
 describe('pathRegistry.shouldAutoEnsure', () => {

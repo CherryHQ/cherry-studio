@@ -23,10 +23,6 @@ vi.mock('@renderer/hooks/useApiGateway', () => ({
   })
 }))
 
-vi.mock('@data/PreferenceService', () => ({
-  preferenceService: { get: vi.fn() }
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
@@ -36,7 +32,7 @@ describe('useApiGatewayProvider.ensureReady', () => {
     mocks.apiGatewayConfig = { host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-old', enabled: false }
     mocks.apiGatewayRunning = false
     mocks.startApiGateway.mockReset()
-    vi.mocked(preferenceService.get).mockReset()
+    vi.mocked(preferenceService.getFresh).mockReset()
   })
 
   it('rejects (never returns a stale key) when a non-running gateway fails to start', async () => {
@@ -44,17 +40,17 @@ describe('useApiGatewayProvider.ensureReady', () => {
     // survives a stop), but the server is not listening and the start attempt fails.
     mocks.apiGatewayRunning = false
     mocks.startApiGateway.mockResolvedValue(false)
-    vi.mocked(preferenceService.get).mockResolvedValue('cs-sk-old')
+    vi.mocked(preferenceService.getFresh).mockResolvedValue('cs-sk-old')
 
     const { result } = renderHook(() => useApiGatewayProvider())
 
     await expect(result.current!.ensureReady()).rejects.toThrow(/failed to start/)
   })
 
-  it('returns the freshly-read key once the start confirms the gateway is running', async () => {
+  it('bypasses a stale renderer cache after the first successful start', async () => {
     mocks.apiGatewayRunning = false
     mocks.startApiGateway.mockResolvedValue(true)
-    vi.mocked(preferenceService.get).mockResolvedValue('cs-sk-fresh')
+    vi.mocked(preferenceService.getFresh).mockResolvedValue('cs-sk-fresh')
 
     const { result } = renderHook(() => useApiGatewayProvider())
 
@@ -64,7 +60,7 @@ describe('useApiGatewayProvider.ensureReady', () => {
   it('returns the key without starting when the gateway is already running', async () => {
     mocks.apiGatewayRunning = true
     mocks.apiGatewayConfig = { host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-live', enabled: true }
-    vi.mocked(preferenceService.get).mockResolvedValue('cs-sk-live')
+    vi.mocked(preferenceService.getFresh).mockResolvedValue('cs-sk-live')
 
     const { result } = renderHook(() => useApiGatewayProvider())
 

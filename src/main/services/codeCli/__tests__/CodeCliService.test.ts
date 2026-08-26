@@ -8,6 +8,7 @@ const binaryManagerMock = vi.hoisted(() => ({
   getToolSnapshots: vi.fn()
 }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
+const antigravityLaunchMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', () => ({
   application: {
@@ -18,6 +19,10 @@ vi.mock('@application', () => ({
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
   }
+}))
+
+vi.mock('../antigravity', () => ({
+  prepareAntigravityLaunch: antigravityLaunchMock
 }))
 
 const loggerMock = vi.hoisted(() => ({
@@ -151,6 +156,14 @@ describe('CodeCliService', () => {
     hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
+    antigravityLaunchMock.mockResolvedValue({
+      env: {
+        GEMINI_API_KEY: 'antigravity-secret',
+        GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+      },
+      geminiDir: '/mock/antigravity data',
+      model: 'gemini-2.5-pro'
+    })
   })
 
   it('should extend BaseService', async () => {
@@ -434,6 +447,117 @@ describe('CodeCliService', () => {
 
       expect(script).toContain('GEMINI_CLI_TRUST_WORKSPACE=')
       expect(script).not.toContain('_cherry_mise_key')
+    })
+  })
+
+  describe('run (Antigravity session configuration)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    const launchScript = async (input: CodeCliRunInput) => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+        const result = await codeCliService.run(input)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        return { result, script: call ? (call[1] as string[]).join(' ') : '' }
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('quotes the isolated directory and model while injecting Cherry credentials for a normal launch', async () => {
+      const { result, script } = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini-2.5-pro',
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(antigravityLaunchMock).toHaveBeenCalledWith(
+        expect.objectContaining({ providerId: 'gemini', model: 'gemini-2.5-pro' })
+      )
+      expect(script).toContain("'--gemini_dir=/mock/antigravity data'")
+      expect(script).toContain("--model '\\''gemini-2.5-pro'\\''")
+      expect(script).toContain("GEMINI_API_KEY='\\''antigravity-secret'\\''")
+    })
+
+    it('leaves the user Google login and global Antigravity settings untouched in own-login mode', async () => {
+      const { result, script } = await launchScript({
+        mode: 'own-login',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(antigravityLaunchMock).not.toHaveBeenCalled()
+      expect(script).not.toContain('--gemini_dir')
+      expect(script).not.toContain('GEMINI_API_KEY')
+      expect(script).not.toContain('--model')
+    })
+
+    it('rejects an unsafe resolved model before opening a terminal', async () => {
+      antigravityLaunchMock.mockResolvedValueOnce({
+        env: { GEMINI_API_KEY: 'antigravity-secret' },
+        geminiDir: '/mock/antigravity',
+        model: 'gemini; open /Applications/Calculator.app'
+      })
+
+      const { result, script } = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini-2.5-pro',
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(false)
+      if (result.success) throw new Error('Expected Antigravity launch to fail')
+      expect(result.message).toContain('Unsupported model id')
+      expect(script).toBe('')
+    })
+
+    it('redacts injected values from main-process logs', async () => {
+      antigravityLaunchMock.mockResolvedValueOnce({
+        env: {
+          TEST_SHORT: '1',
+          GEMINI_API_KEY: 'cs-sk-101-secret',
+          GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+        },
+        geminiDir: '/mock/antigravity data',
+        model: 'gemini-2.5-pro'
+      })
+      const { result } = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini-2.5-pro',
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      const logged = JSON.stringify([
+        ...loggerMock.info.mock.calls,
+        ...loggerMock.debug.mock.calls,
+        ...loggerMock.warn.mock.calls,
+        ...loggerMock.error.mock.calls
+      ])
+      expect(logged).not.toContain('cs-sk-')
+      expect(logged).not.toContain('101-secret')
+      expect(logged).not.toContain('https://gemini.example.test')
+      expect(logged).toContain('GEMINI_API_KEY')
     })
   })
 

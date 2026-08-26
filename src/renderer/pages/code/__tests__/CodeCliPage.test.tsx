@@ -103,6 +103,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ description }: { description?: ReactNode }) => <div role="alert">{description}</div>,
   Button: ({
     variant,
     size,
@@ -410,6 +411,8 @@ vi.mock('../constants/cliTools', () => ({
   CLI_TOOLS: [
     { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
     { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
+    { value: CodeCli.ANTIGRAVITY_CLI, label: 'Antigravity CLI', icon: () => null },
+    { value: CodeCli.GEMINI_CLI, label: 'Gemini CLI', icon: () => null },
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
     { value: CodeCli.HERMES, label: 'Hermes', icon: () => null },
@@ -496,6 +499,13 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
   return {
     [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
+    [CodeCli.ANTIGRAVITY_CLI]: { ...base, ...overrides[CodeCli.ANTIGRAVITY_CLI] },
+    [CodeCli.GEMINI_CLI]: {
+      ...base,
+      installed: false,
+      source: 'none',
+      ...overrides[CodeCli.GEMINI_CLI]
+    },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
     [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
     [CodeCli.HERMES]: { ...base, ...overrides[CodeCli.HERMES] },
@@ -532,6 +542,90 @@ describe('CodeCliPage', () => {
       if (route === 'hermes_dashboard.start') return { success: true, url: 'http://127.0.0.1:49152' }
       return { success: true }
     })
+  })
+
+  it('shows Antigravity immediately while hiding Gemini until installation status is resolved', () => {
+    const statuses: Partial<Record<CodeCli, Record<string, unknown>>> = baseVersionStatuses()
+    delete statuses[CodeCli.GEMINI_CLI]
+    versionStatusesMock.mockReturnValue(statuses)
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Antigravity CLI')).toBeInTheDocument()
+    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
+  })
+
+  it.each(['system', 'mise'] as const)('shows an installed Gemini CLI from the %s snapshot', (source) => {
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+  })
+
+  it('falls back to the first visible tool after a selected Gemini installation is removed', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
+  })
+
+  it('shows the discontinuation notice only on the installed Gemini detail page', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise' }
+      })
+    )
+
+    const { unmount } = render(<CodeCliPage />)
+    expect(screen.getByRole('alert')).toHaveTextContent('code.gemini_cli_discontinued')
+    unmount()
+
+    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
+    render(<CodeCliPage />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps launch, upgrade, and uninstall actions available for an installed Gemini CLI', () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.GEMINI_CLI,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new' } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise', current: '1.0.0', latest: '1.1.0', canUpgrade: true }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+  })
+
+  it('offers official login and Unified Gateway cards for Antigravity', () => {
+    mockProviders.splice(0, mockProviders.length)
+    gatewayState.bundle = {
+      provider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider,
+      apiKey: null,
+      ensureReady: vi.fn()
+    }
+    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: `toggle ${CLI_OWN_LOGIN_PROVIDER_ID}` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `toggle ${CLI_API_GATEWAY_PROVIDER_ID}` })).toBeInTheDocument()
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {

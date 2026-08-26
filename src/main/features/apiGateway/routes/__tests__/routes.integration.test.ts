@@ -428,6 +428,17 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('normalizes an Antigravity custom model path to the gateway model address', async () => {
+      await read(
+        await post(app, '/v1beta/models/provider-a/models/models/gemini-flash:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'provider-a:models/gemini-flash',
+        streaming: true,
+        inputFormat: 'gemini'
+      })
+    })
+
     it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
       // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
       // normalization can't rewrite names ending in "flash"; the route must strip it.
