@@ -50,14 +50,6 @@ async function createService() {
   return service
 }
 
-async function createServiceWithPersistedCache(data: Record<string, unknown>) {
-  const { CacheService } = await import('../CacheService')
-  localStorage.setItem('cs_cache_persist', JSON.stringify(data))
-  const service = new CacheService()
-  createdServices.push(service)
-  return service
-}
-
 describe('renderer CacheService equality semantics', () => {
   describe('setInternal (memory cache)', () => {
     it('skips subscriber notification when object value has same content (new reference)', async () => {
@@ -181,14 +173,6 @@ describe('renderer CacheService equality semantics', () => {
       broadcastSync.mockClear()
       service.deletePersist('ui.sidebar.width') // already default
       expect(broadcastSync).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('persist load does not own product default transitions', () => {
-    it('leaves an unmarked 460 px artifact pane width unchanged', async () => {
-      const service = await createServiceWithPersistedCache({ 'ui.chat.artifact_pane.width': 460 })
-
-      expect(service.getPersist('ui.chat.artifact_pane.width')).toBe(460)
     })
   })
 })

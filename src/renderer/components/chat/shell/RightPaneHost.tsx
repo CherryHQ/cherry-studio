@@ -1,4 +1,3 @@
-import { cacheService } from '@data/CacheService'
 import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
@@ -8,7 +7,6 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { migrateLoadedArtifactPaneWidth } from './artifactPaneWidthMigration'
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
   ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT,
@@ -34,8 +32,6 @@ import {
   type RightPaneLayoutMode
 } from './rightPaneTransition'
 import { getVerticalSplitterProps } from './splitterA11y'
-
-migrateLoadedArtifactPaneWidth(cacheService)
 
 export type { RightPaneLayoutMode } from './rightPaneTransition'
 
