@@ -570,14 +570,28 @@ vi.mock('@cherrystudio/ui', () => {
     },
     InputGroupInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     InputGroupText: passthrough('span'),
-    Item: ({ asChild, children }: { asChild?: boolean; children?: React.ReactNode; size?: string }) => {
+    Item: ({
+      asChild,
+      children,
+      className
+    }: {
+      asChild?: boolean
+      children?: React.ReactNode
+      className?: string
+      size?: string
+    }) => {
       if (asChild && React.isValidElement(children)) {
         // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces the public Item asChild contract
         return React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
-          'data-slot': 'item'
+          'data-slot': 'item',
+          className
         })
       }
-      return <div data-slot="item">{children}</div>
+      return (
+        <div data-slot="item" className={className}>
+          {children}
+        </div>
+      )
     },
     ItemActions: passthrough('div', 'item-actions'),
     ItemContent: passthrough('div', 'item-content'),
@@ -698,9 +712,21 @@ vi.mock('@cherrystudio/ui', () => {
         </TabsContext>
       )
     },
-    TabsContent: ({ children, value }: { children?: React.ReactNode; value: string }) => {
+    TabsContent: ({
+      children,
+      className,
+      value
+    }: {
+      children?: React.ReactNode
+      className?: string
+      value: string
+    }) => {
       const context = React.use(TabsContext)
-      return context?.value === value ? <div role="tabpanel">{children}</div> : null
+      return context?.value === value ? (
+        <div role="tabpanel" className={className}>
+          {children}
+        </div>
+      ) : null
     },
     TabsList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
       <div role="tablist" {...props}>
@@ -1271,6 +1297,25 @@ describe('TasksSettings detail behavior', () => {
     taskMutationMocks.runTask.mockResolvedValue(true)
     taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
+  })
+
+  it('wraps an unbroken Prompt-tab token inside the panel width', async () => {
+    const longToken = `https://example.com/${'a'.repeat(240)}`
+    const prompt = `Keep this newline.\n${longToken}`
+    taskDataMock.task = { ...taskDataMock.defaultTask, prompt }
+
+    render(<TasksSettings />)
+
+    expect(screen.getByRole('tab', { name: 'agent.tasks.prompt.label' })).toHaveAttribute('aria-selected', 'true')
+    const promptText = await screen.findByText((_, node) => {
+      return node?.getAttribute('data-slot') === 'item-description' && (node.textContent ?? '').includes(longToken)
+    })
+    // Layout contract: long Prompt-tab tokens wrap inside the panel instead of overflowing.
+    expect(promptText).toHaveTextContent('Keep this newline.')
+    expect(promptText).toHaveClass('line-clamp-none', 'min-w-0', 'max-w-full', 'wrap-anywhere', 'whitespace-pre-wrap')
+    expect(promptText.closest('[data-slot="item-content"]')).toHaveClass('min-w-0')
+    expect(promptText.closest('[data-slot="item"]')).toHaveClass('min-w-0', 'max-w-full')
+    expect(promptText.closest('[role="tabpanel"]')).toHaveClass('min-w-0')
   })
 
   it('keeps task logs searchable and opens the related session', async () => {
