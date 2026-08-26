@@ -1,6 +1,7 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import i18n from 'i18next'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import MessageMetaTool from '../meta/MessageMetaTool'
 
@@ -18,19 +19,6 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ highlightCode: vi.fn(async () => '') })
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, string | number>) => {
-      if (!options) return key
-      return Object.entries(options).reduce(
-        (result, [name, value]) => result.replace(`{{${name}}}`, String(value)),
-        key
-      )
-    }
-  }),
-  initReactI18next: { type: '3rdParty', init: vi.fn() }
-}))
-
 const createMetaToolResponse = (overrides: Partial<NormalToolResponse> = {}): NormalToolResponse => ({
   id: 'meta-call-1',
   tool: {
@@ -45,6 +33,17 @@ const createMetaToolResponse = (overrides: Partial<NormalToolResponse> = {}): No
   ...overrides
 })
 
+let originalLanguage: string
+
+beforeAll(async () => {
+  originalLanguage = i18n.language
+  await i18n.changeLanguage('zh-CN')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(originalLanguage)
+})
+
 describe('MessageMetaTool', () => {
   it('keeps a lightweight copy action for completed tool payloads', async () => {
     const copyText = vi.fn()
@@ -52,7 +51,7 @@ describe('MessageMetaTool', () => {
 
     render(<MessageMetaTool toolResponse={createMetaToolResponse()} />)
 
-    const copyButton = screen.getByRole('button', { name: 'common.copy' })
+    const copyButton = screen.getByRole('button', { name: '复制' })
     const triggerButton = screen.getByRole('button', { name: /tool_search/ })
 
     expect(copyButton.tagName).toBe('BUTTON')
@@ -62,9 +61,10 @@ describe('MessageMetaTool', () => {
 
     await waitFor(() => {
       expect(copyText).toHaveBeenCalledWith(expect.stringContaining('"query": "browser"'), {
-        successMessage: 'message.copied'
+        successMessage: '已复制'
       })
     })
+    expect(screen.getByText('已复制')).toBeInTheDocument()
   })
 
   async function expandCard(name: RegExp) {
@@ -78,9 +78,8 @@ describe('MessageMetaTool', () => {
     render(<MessageMetaTool toolResponse={createMetaToolResponse()} />)
     await expandCard(/tool_search/)
 
-    expect(await screen.findByText('message.tools.meta.no_tools_matched')).toBeInTheDocument()
-    expect(screen.queryByText('No tools matched.')).not.toBeInTheDocument()
-    expect(screen.getByText('message.tools.sections.args')).toBeInTheDocument()
+    expect(await screen.findByText('没有匹配的工具。')).toBeInTheDocument()
+    expect(screen.getByText('参数')).toBeInTheDocument()
   })
 
   it('localizes a missing tool_invoke name instead of hardcoding English', async () => {
@@ -94,8 +93,7 @@ describe('MessageMetaTool', () => {
     )
     await expandCard(/tool_invoke/)
 
-    expect(await screen.findByText('message.tools.meta.invoke_missing_name')).toBeInTheDocument()
-    expect(screen.queryByText('tool_invoke called without a tool name.')).not.toBeInTheDocument()
+    expect(await screen.findByText('未提供工具名称。')).toBeInTheDocument()
   })
 
   it('localizes inspect, invoke, and exec section titles', async () => {
@@ -109,8 +107,7 @@ describe('MessageMetaTool', () => {
       />
     )
     await expandCard(/tool_inspect/)
-    expect(await screen.findByText('message.tools.sections.jsdoc')).toBeInTheDocument()
-    expect(screen.queryByText('JSDoc')).not.toBeInTheDocument()
+    expect(await screen.findByText('JSDoc')).toBeInTheDocument()
     inspectView.unmount()
 
     const invokeView = render(
@@ -123,8 +120,7 @@ describe('MessageMetaTool', () => {
       />
     )
     await expandCard(/tool_invoke/)
-    expect(await screen.findByText('message.tools.sections.output')).toBeInTheDocument()
-    expect(screen.queryByText('Response')).not.toBeInTheDocument()
+    expect(await screen.findByText('输出')).toBeInTheDocument()
     invokeView.unmount()
 
     render(
@@ -137,11 +133,23 @@ describe('MessageMetaTool', () => {
       />
     )
     await expandCard(/tool_exec/)
-    expect(await screen.findByText('message.tools.sections.code')).toBeInTheDocument()
-    expect(screen.getByText('message.tools.sections.logs')).toBeInTheDocument()
-    expect(screen.getByText('message.tools.status.error')).toBeInTheDocument()
-    expect(screen.queryByText('Code')).not.toBeInTheDocument()
-    expect(screen.queryByText('Logs (1)')).not.toBeInTheDocument()
-    expect(screen.queryByText('Result')).not.toBeInTheDocument()
+    expect(await screen.findByText('代码')).toBeInTheDocument()
+    expect(screen.getByText('日志（1）')).toBeInTheDocument()
+    expect(screen.getByText('错误')).toBeInTheDocument()
+  })
+
+  it('localizes the exec success output section', async () => {
+    render(
+      <MessageMetaTool
+        toolResponse={createMetaToolResponse({
+          tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
+          arguments: { code: 'return 1' },
+          response: { result: 1, isError: false }
+        })}
+      />
+    )
+    await expandCard(/tool_exec/)
+
+    expect(await screen.findByText('输出')).toBeInTheDocument()
   })
 })
