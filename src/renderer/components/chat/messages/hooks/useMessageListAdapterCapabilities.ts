@@ -36,7 +36,7 @@ export function useMessageListAdapterCapabilities({
   deleteMessage,
   persistDiagnosis
 }: UseMessageListAdapterCapabilitiesOptions) {
-  const getMessageActivityState = useMessageActivityState(topicId, partsByMessageId)
+  const messageActivity = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName })
@@ -56,7 +56,8 @@ export function useMessageListAdapterCapabilities({
   return {
     errorActions,
     exportActions,
-    getMessageActivityState,
+    getMessageActivityState: messageActivity.getMessageActivityState,
+    messageActivityStore: messageActivity.store,
     headerCapabilities,
     leafCapabilities,
     menuConfig,

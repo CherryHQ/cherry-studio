@@ -61,6 +61,11 @@ export interface MessageActivityState {
   isApprovalAnchor: boolean
 }
 
+export interface MessageActivityStore {
+  getSnapshot: (message: MessageListItem) => MessageActivityState
+  subscribe: (messageId: string, listener: () => void) => () => void
+}
+
 export interface MessageFileView {
   displayName: string
   previewUrl?: FileUrlString
@@ -306,6 +311,7 @@ export interface MessageListState {
   translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
+  messageActivityStore?: MessageActivityStore
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   isMessageTranslating?: (messageId: string) => boolean
   getFileView?: (file: FileMetadata) => MessageFileView
