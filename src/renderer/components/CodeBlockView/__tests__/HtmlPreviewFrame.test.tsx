@@ -6,7 +6,8 @@ import {
   HTML_PREVIEW_RESTRICTED_SANDBOX,
   HtmlPreviewFrame,
   injectHtmlPreviewBase,
-  injectHtmlPreviewCsp
+  injectHtmlPreviewCsp,
+  injectHtmlPreviewScrollbarGutter
 } from '../HtmlPreviewFrame'
 
 describe('HtmlPreviewFrame', () => {
@@ -20,6 +21,8 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
     expect(iframe).toHaveAttribute('title', 'common.html_preview')
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
+    expect(iframe?.getAttribute('srcdoc')).toContain('scrollbar-gutter:stable')
+    expect(iframe?.getAttribute('srcdoc')).toContain('overflow-y:auto')
   })
 
   it('uses a white browser canvas when HTML does not declare a background', () => {
@@ -96,6 +99,32 @@ describe('HtmlPreviewFrame', () => {
 
     expect(result.match(/<base\b/gi)).toHaveLength(1)
     expect(result).toContain('<base href="https://example.com/posts/">')
+  })
+
+  it('reserves a stable scrollbar gutter so overflow does not change preview width', () => {
+    const html = '<html><head><title>Preview</title></head><body><p>Tall content</p></body></html>'
+    const result = injectHtmlPreviewScrollbarGutter(html)
+
+    expect(result).toContain('data-cherry-html-preview-scrollbar')
+    expect(result).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(result.indexOf('<style')).toBeGreaterThan(result.indexOf('<head>'))
+    expect(result.indexOf('<style')).toBeLessThan(result.indexOf('<body>'))
+    expect(injectHtmlPreviewScrollbarGutter(result)).toBe(result)
+  })
+
+  it('keeps the scrollbar gutter after CSP injection so restricted previews do not jump', () => {
+    render(
+      <HtmlPreviewFrame
+        html="<p>hi</p>"
+        title="common.html_preview"
+        sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX}
+        csp={HTML_PREVIEW_RESTRICTED_CSP}
+      />
+    )
+    const srcdoc = screen.getByTitle('common.html_preview').getAttribute('srcdoc') ?? ''
+
+    expect(srcdoc).toContain('scrollbar-gutter:stable')
+    expect(srcdoc.indexOf('Content-Security-Policy')).toBeLessThan(srcdoc.indexOf('data-cherry-html-preview-scrollbar'))
   })
 
   it('renders empty preview text when provided', () => {

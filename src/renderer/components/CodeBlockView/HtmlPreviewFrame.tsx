@@ -86,6 +86,21 @@ export function injectHtmlPreviewCsp(html: string, csp: string): string {
   )
 }
 
+// Classic scrollbars steal ~15px at the overflow threshold, reflow the preview, and
+// oscillate. `overflow-y:auto` makes `html` a scroll container so `stable` is reserved.
+export const HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER = 'data-cherry-html-preview-scrollbar'
+export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER}>html{overflow-y:auto;scrollbar-gutter:stable}</style>`
+
+export function injectHtmlPreviewScrollbarGutter(html: string): string {
+  if (!html.trim() || html.includes(HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER)) return html
+  return injectHtmlPreviewHeadElement(html, HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE)
+}
+
+export function applyHtmlPreviewScrollbarGutter(style: CSSStyleDeclaration): void {
+  style.overflowY = 'auto'
+  style.scrollbarGutter = 'stable'
+}
+
 export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
   ({
     html,
@@ -97,7 +112,8 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     iframeRef
   }) => {
     const withBase = injectHtmlPreviewBase(html, baseUrl)
-    const srcDoc = csp ? injectHtmlPreviewCsp(withBase, csp) : withBase
+    const withScrollbar = injectHtmlPreviewScrollbarGutter(withBase)
+    const srcDoc = csp ? injectHtmlPreviewCsp(withScrollbar, csp) : withScrollbar
     return (
       <div className="h-full w-full overflow-hidden bg-white">
         {html.trim() ? (

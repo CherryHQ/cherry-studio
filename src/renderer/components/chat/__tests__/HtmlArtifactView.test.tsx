@@ -8,7 +8,6 @@ import { ScrollOwnershipProvider } from '../messages/list/ScrollOwnershipContext
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
-  htmlPreviewRestrictedCsp: "default-src 'none'",
   resizeObserverCallbacks: [] as ResizeObserverCallback[],
   CodeViewer: vi.fn(({ value }) => <pre data-testid="code-viewer">{value}</pre>),
   HtmlPreviewFrame: vi.fn(
@@ -67,11 +66,13 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer }))
 vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ default: mocks.HtmlArtifactsPopup }))
-vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
-  HTML_PREVIEW_RESTRICTED_CSP: mocks.htmlPreviewRestrictedCsp,
-  injectHtmlPreviewHeadElement: (html: string, element: string) => `${element}${html}`,
-  default: mocks.HtmlPreviewFrame
-}))
+vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    default: mocks.HtmlPreviewFrame
+  }
+})
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ error: mocks.loggerError })
@@ -414,6 +415,7 @@ describe('HtmlArtifactView', () => {
     expect(instrumentedHtml).toContain('element.clientHeight + 1')
     expect(instrumentedHtml).toContain("style.overscrollBehaviorY === 'contain'")
     expect(instrumentedHtml).toContain('element.scrollHeight - 1')
+    expect(instrumentedHtml).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
   })
 
   it('routes webview boundary wheels through the scroll runtime', () => {
@@ -495,6 +497,33 @@ describe('HtmlArtifactView', () => {
       }),
       undefined
     )
+  })
+
+  it('keeps a stable scrollbar gutter when preview height crosses the overflow threshold', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    fireEvent.load(iframe)
+    const scrollRoot = iframe.contentDocument?.documentElement
+    if (!scrollRoot) throw new Error('Expected iframe document')
+
+    expect(scrollRoot.style.overflowY).toBe('auto')
+    expect(scrollRoot.style.scrollbarGutter).toBe('stable')
+
+    const setPreviewContentHeight = createPreviewContentHeightController()
+    setPreviewContentHeight(240)
+    expect(scrollRoot.style.overflowY).toBe('auto')
+    expect(scrollRoot.style.scrollbarGutter).toBe('stable')
+
+    setPreviewContentHeight(241)
+    expect(scrollRoot.style.overflowY).toBe('auto')
+    expect(scrollRoot.style.scrollbarGutter).toBe('stable')
+
+    for (const callback of mocks.resizeObserverCallbacks) {
+      act(() => callback([], {} as ResizeObserver))
+      expect(scrollRoot.style.overflowY).toBe('auto')
+      expect(scrollRoot.style.scrollbarGutter).toBe('stable')
+    }
   })
 
   it('stabilizes at the natural height when a nested bottom margin collapses through its wrapper', () => {

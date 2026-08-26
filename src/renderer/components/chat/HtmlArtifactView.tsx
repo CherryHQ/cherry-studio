@@ -18,8 +18,10 @@ import {
 } from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 import HtmlPreviewFrame, {
+  applyHtmlPreviewScrollbarGutter,
   HTML_PREVIEW_RESTRICTED_CSP,
-  injectHtmlPreviewHeadElement
+  injectHtmlPreviewHeadElement,
+  injectHtmlPreviewScrollbarGutter
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { toast } from '@renderer/services/toast'
@@ -402,6 +404,9 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       if (!frameDocument || !body) return
       observedDocument = frameDocument
 
+      const scrollRoot = (frameDocument.scrollingElement ?? frameDocument.documentElement) as HTMLElement
+      applyHtmlPreviewScrollbarGutter(scrollRoot.style)
+
       // Capture phase: the frame's own content must not be able to swallow the signal.
       frameDocument.addEventListener('wheel', forwardWheelIntent, { capture: true, passive: false })
 
@@ -528,7 +533,7 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   const src = useMemo(() => {
     const scrollActivationDelay = forwardBoundaryWheel ? SCROLL_ACTIVATION_DELAY_MS : 0
     const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix, scrollActivationDelay)}</script>`
-    const instrumentedHtml = injectHtmlPreviewHeadElement(html, bridgeScript)
+    const instrumentedHtml = injectHtmlPreviewHeadElement(injectHtmlPreviewScrollbarGutter(html), bridgeScript)
     return `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}${encodeURIComponent(instrumentedHtml)}`
   }, [forwardBoundaryWheel, html, messagePrefix])
 
