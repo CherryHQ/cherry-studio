@@ -300,7 +300,9 @@ const HomeWindow: FC<HomeWindowProps> = ({ draggable = true, showRestoreMain = f
 
   const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
   const handleRestoreMainWindow = useCallback(() => {
-    void ipcApi.request('quick_assistant.restore_main')
+    void ipcApi
+      .request('quick_assistant.restore_main')
+      .catch((error) => logger.error('Failed to restore Main window', error as Error))
   }, [])
 
   const handleSendMessage = useCallback(

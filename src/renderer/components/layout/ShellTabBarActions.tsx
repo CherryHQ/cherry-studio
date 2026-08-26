@@ -30,7 +30,9 @@ export function ShellTabBarActions() {
   }
 
   const handleQuickAssistantClick = () => {
-    void ipcApi.request('quick_assistant.show')
+    void ipcApi
+      .request('quick_assistant.show')
+      .catch((error) => logger.error('Failed to open Quick Assistant', error as Error))
   }
   const handleSettingsClick = () => {
     openSettingsTab()

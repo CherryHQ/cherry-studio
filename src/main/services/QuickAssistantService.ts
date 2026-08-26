@@ -118,6 +118,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
   // Captured before each show; hideQuickAssistant consults it to decide whether to call app.hide()
   // so that the previous foreground app gets focus back instead of an unrelated app.
   private wasMainWindowFocused = false
+  // Suppresses the normal blur hide path while Main is deliberately being restored.
+  // The guard remains set until the next Quick Assistant show so delayed macOS blur
+  // events cannot hide the whole application through hideQuickAssistant().
+  private isDismissingForMainWindow = false
   // Cached mainWindow reference — see file-level docstring for why this asymmetry exists.
   private mainWindowRef: BrowserWindow | null = null
 
@@ -197,6 +201,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     }
     this.isPinnedQuickAssistant = false
     this.hasBlurredSinceShow = false
+    this.isDismissingForMainWindow = false
     this.stopPostUnpinFocusPoll()
   }
 
@@ -324,6 +329,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // Window is freshly shown and focused — focus tracker is healthy, and
       // any post-unpin focus poll from a previous lifetime is irrelevant.
       this.hasBlurredSinceShow = false
+      this.isDismissingForMainWindow = false
       this.stopPostUnpinFocusPoll()
       if (this.windowId && !window.isDestroyed()) {
         application.get('IpcApiService').send(this.windowId, 'quick_assistant.shown', undefined)
@@ -372,9 +378,12 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   /** Dismiss Quick Assistant without hiding the application that Main belongs to. */
   private dismissQuickAssistantForMainWindow() {
+    if (this.isDismissingForMainWindow) return
+
     const window = this.getQuickAssistant()
     if (!window) return
 
+    this.isDismissingForMainWindow = true
     if (isWin) {
       window.setOpacity(0)
       window.minimize()
@@ -428,6 +437,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   public hideQuickAssistant() {
+    if (this.isDismissingForMainWindow) return
+
     const window = this.getQuickAssistant()
     if (!window) return
 

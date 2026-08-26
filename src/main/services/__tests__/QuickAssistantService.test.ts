@@ -1,4 +1,5 @@
 import { defaultServiceInstances } from '@test-mocks/main/application'
+import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { platformState } = vi.hoisted(() => ({
@@ -15,6 +16,10 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 import { QuickAssistantService } from '../QuickAssistantService'
+
+const appHide = vi.fn()
+Object.assign(app, { hide: appHide })
+Object.assign(process, { getSystemVersion: vi.fn(() => '15.0') })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -58,5 +63,24 @@ describe('QuickAssistantService.restoreMainWindow', () => {
     expect(quickWindow.setOpacity).toHaveBeenCalledWith(0)
     expect(quickWindow.minimize).toHaveBeenCalledTimes(1)
     expect(quickWindow.hide).not.toHaveBeenCalled()
+  })
+
+  it('does not hide the app when an unpinned Quick Assistant blurs while restoring Main on macOS', () => {
+    platformState.isMac = true
+    const service = Object.create(QuickAssistantService.prototype) as QuickAssistantService
+    const quickWindow = { hide: vi.fn(), minimize: vi.fn(), setOpacity: vi.fn() }
+
+    Object.assign(service, { isPinnedQuickAssistant: false, wasMainWindowFocused: false })
+    vi.spyOn(
+      service as unknown as { getQuickAssistant: () => typeof quickWindow },
+      'getQuickAssistant'
+    ).mockReturnValue(quickWindow)
+
+    service.restoreMainWindow()
+    service.hideQuickAssistant()
+
+    expect(defaultServiceInstances.MainWindowService.showMainWindow).toHaveBeenCalledTimes(1)
+    expect(quickWindow.hide).toHaveBeenCalledTimes(1)
+    expect(appHide).not.toHaveBeenCalled()
   })
 })

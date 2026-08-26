@@ -9,6 +9,7 @@ const { cacheState, mocks, preferenceState, updateState } = vi.hoisted(() => ({
   cacheState: { sidebarWidth: 50 },
   mocks: {
     ipcRequest: vi.fn(),
+    loggerError: vi.fn(),
     openSettingsTab: vi.fn(),
     showSearchPopup: vi.fn(),
     showUpdatePopup: vi.fn()
@@ -27,7 +28,7 @@ const { cacheState, mocks, preferenceState, updateState } = vi.hoisted(() => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn()
+      error: mocks.loggerError
     })
   }
 }))
@@ -142,6 +143,7 @@ afterEach(() => {
 
 describe('ShellTabBarActions', () => {
   beforeEach(() => {
+    mocks.ipcRequest.mockResolvedValue(undefined)
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: { error: vi.fn() }
@@ -187,6 +189,18 @@ describe('ShellTabBarActions', () => {
     await user.click(screen.getByRole('button', { name: 'Open Quick Assistant' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('quick_assistant.show')
+  })
+
+  it('logs Quick Assistant launcher failures', async () => {
+    const user = userEvent.setup()
+    const error = new Error('open failed')
+    preferenceState.quickAssistantEnabled = true
+    mocks.ipcRequest.mockRejectedValueOnce(error)
+
+    render(<ShellTabBarActions />)
+    await user.click(screen.getByRole('button', { name: 'Open Quick Assistant' }))
+
+    await waitFor(() => expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open Quick Assistant', error))
   })
 
   it('shows a ready update and opens its dialog directly', async () => {
