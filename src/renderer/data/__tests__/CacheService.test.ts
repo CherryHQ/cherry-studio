@@ -16,10 +16,8 @@ vi.unmock('@data/CacheService')
 const broadcastSync = vi.fn()
 const onSync = vi.fn()
 const getAllShared = vi.fn(async () => ({}))
-const createdServices: Array<{ cleanup: () => void }> = []
 
 beforeEach(() => {
-  localStorage.clear()
   broadcastSync.mockClear()
   onSync.mockClear()
   getAllShared.mockClear()
@@ -37,17 +35,12 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  createdServices.forEach((service) => service.cleanup())
-  createdServices.length = 0
-  localStorage.clear()
   vi.restoreAllMocks()
 })
 
 async function createService() {
   const { CacheService } = await import('../CacheService')
-  const service = new CacheService()
-  createdServices.push(service)
-  return service
+  return new CacheService()
 }
 
 describe('renderer CacheService equality semantics', () => {
