@@ -41,8 +41,25 @@ export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Pr
       password: app.config.cherryIn.password
     })
     await sendProtocolUrlToOwnedApp(app.record, callback)
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const response = await window.api.dataApi.request({
+              id: `regression-cherryin-${Date.now()}`,
+              method: 'GET',
+              path: '/providers/cherryin/api-keys'
+            })
+            const data = response.data as { keys?: Array<{ label?: string }> } | undefined
+            return data?.keys?.some((key) => key.label === 'OAuth') ?? false
+          }),
+        { timeout: 60_000 }
+      )
+      .toBe(true)
     await openSettingsSection(page, 'Model Provider')
-    await page.getByTestId('provider-list-item-cherryin').click()
+    const cherryIn = page.getByTestId('provider-list-item-cherryin')
+    await cherryIn.click()
+    await expect(cherryIn).toHaveAttribute('data-selected', 'true')
   }
   await expect(logout).toBeVisible({ timeout: 3 * 60_000 })
 }

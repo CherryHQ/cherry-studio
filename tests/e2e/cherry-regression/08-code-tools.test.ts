@@ -95,18 +95,15 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
   const baseline = new Set(listOwnedProcessIds(app.record))
   await openCodeTool(page, 'OpenClaw')
   await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
-  await page.getByRole('button', { name: 'Launch', exact: true }).click()
+  const codeView = page.locator('[data-ui="code.view"]:visible').first()
+  await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
+  const stop = codeView.getByRole('button', { name: 'Stop', exact: true })
+  await expect(stop).toBeVisible({ timeout: 2 * 60_000 })
   await expect
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
 
-  const stopSucceeded = await page.evaluate(async () => {
-    const response = (await window.api.ipcApi.request('openclaw.stop_gateway')) as {
-      data?: { success?: boolean }
-      ok?: boolean
-    }
-    return response.ok === true && response.data?.success === true
-  })
-  expect(stopSucceeded).toBe(true)
+  await stop.click()
+  await expect(codeView.getByRole('button', { name: 'Launch', exact: true })).toBeVisible({ timeout: 60_000 })
   await expect.poll(() => observeOwnedProcess(app.record, 'openclaw', false).passed, { timeout: 60_000 }).toBe(true)
 })

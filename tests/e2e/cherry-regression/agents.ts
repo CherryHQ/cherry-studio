@@ -7,23 +7,34 @@ import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
+export async function selectAgent(page: Page, name: string): Promise<void> {
+  await selectSidebarApp(page, 'Work')
+  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  await expect(agentView).toBeVisible({ timeout: 30_000 })
+  const agent = agentView.getByText(name, { exact: true }).first()
+  await expect(agent).toBeVisible()
+  await agent.click({ noWaitAfter: true })
+}
+
 export async function createAgent(
   app: RegressionApp,
   page: Page,
   options: { name: string; runtime: string; permission?: string }
 ): Promise<void> {
   await selectSidebarApp(page, 'Work')
+  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  await expect(agentView).toBeVisible({ timeout: 30_000 })
   if (
-    await page
+    await agentView
       .getByText(options.name, { exact: true })
       .isVisible()
       .catch(() => false)
   ) {
-    await page.getByText(options.name, { exact: true }).first().click()
+    await agentView.getByText(options.name, { exact: true }).first().click({ noWaitAfter: true })
     return
   }
 
-  await page.getByRole('button', { name: 'Add Agent', exact: true }).click()
+  await agentView.getByRole('button', { name: 'Add Agent', exact: true }).click()
   const dialog = page.getByRole('dialog').last()
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(options.name)
   await dialog.getByLabel('Runtime mode').getByText(options.runtime, { exact: true }).click()
@@ -41,7 +52,7 @@ export async function createAgent(
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(page.getByText(options.name, { exact: true }).first()).toBeVisible()
+  await expect(agentView.getByText(options.name, { exact: true }).first()).toBeVisible()
 }
 
 export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {

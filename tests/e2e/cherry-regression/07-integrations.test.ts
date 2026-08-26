@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 
 import { expect, test } from './fixture'
+import { selectAgent } from './agents'
 import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection, selectVisibleModel } from './models'
@@ -87,8 +88,7 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await selectSidebarApp(page, 'Work')
-  await page.getByText('Cherry Assistant', { exact: true }).first().click()
+  await selectAgent(page, 'Cherry Assistant')
   const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
   if (await model.isVisible().catch(() => false)) {
     await model.click()
