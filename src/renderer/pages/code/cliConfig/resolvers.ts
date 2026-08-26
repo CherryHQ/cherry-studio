@@ -7,6 +7,7 @@ import {
   CODEX_CHAT_ENDPOINT,
   CODEX_RESPONSES_ENDPOINT,
   GEMINI_AGGREGATOR_BASE_URLS,
+  HERMES_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
   PI_ENDPOINTS
 } from './constants'
@@ -21,6 +22,15 @@ export type PiApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-comp
 
 export interface PiProviderInfo {
   api: PiApi
+  baseUrl: string
+  endpointType: EndpointType
+}
+
+export const HERMES_API_MODES = ['anthropic_messages', 'chat_completions', 'codex_responses'] as const
+export type HermesApiMode = (typeof HERMES_API_MODES)[number]
+
+export interface HermesProviderInfo {
+  apiMode: HermesApiMode
   baseUrl: string
   endpointType: EndpointType
 }
@@ -147,6 +157,28 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
         : withoutTrailingSlash(rawBaseUrl ?? '')
 
   return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
+}
+
+export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): HermesProviderInfo {
+  const endpointType = resolveSupportedEndpointType(
+    provider,
+    modelEndpointTypes,
+    HERMES_ENDPOINTS,
+    'openai-chat-completions'
+  )
+  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const apiMode: HermesApiMode =
+    endpointType === 'anthropic-messages'
+      ? 'anthropic_messages'
+      : endpointType === 'openai-responses'
+        ? 'codex_responses'
+        : 'chat_completions'
+  const baseUrl =
+    endpointType === 'anthropic-messages'
+      ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false))
+      : formatApiHost(rawBaseUrl)
+
+  return { apiMode, baseUrl, endpointType }
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {

@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -110,6 +111,11 @@ const MISE_PRERELEASE_TOOLS = new Set(
 )
 const MISE_NPM_SHELL_OUT_TOOLS = new Set(
   CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
+)
+const MISE_REQUIRED_PEERS = new Map(
+  CODE_CLI_TOOL_PRESETS.flatMap((preset) =>
+    preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
+  )
 )
 
 // Main-owned session state. Renderer windows receive operations only through
@@ -233,7 +239,14 @@ type IsolatedEnvSnapshot = {
 // Derived from the two preset sources so their names and recipes stay the single
 // source of truth. Fixed definitions carry no requestedVersion — a version pin is
 // a per-install / runtime fact, never part of the canonical identity.
-const normalizeToolIdentity = (tool: string): string => (tool.startsWith('core:') ? tool.slice('core:'.length) : tool)
+// `mise ls --json` reports a backend's canonical key without bracketed tool
+// options (for example `pipx:hermes-agent` instead of
+// `pipx:hermes-agent[extras=web]`). Options affect installation but not the
+// installed package identity, so every comparison goes through this normalizer.
+// The normalized application fact does not prove bracketed install options such as
+// Hermes's `extras=web`; those options are not observable in the mise listing.
+const normalizeToolIdentity = (tool: string): string =>
+  (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
 
 const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, FixedToolDefinition>([
   ...PRESETS_BINARY_TOOLS.map((preset): [string, FixedToolDefinition] => [
@@ -496,9 +509,10 @@ export class BinaryManager extends BaseService {
     const bundled = this.probeBundled()
     const shimsDir = getBinaryShimsDir()
 
-    // The exact-application fact is independent of runnable availability. When the
+    // The application fact is independent of runnable availability. When the
     // backend cannot answer, every name is `unknown` with the reason — never a
-    // misleading `absent` inferred from an empty query.
+    // misleading `absent` inferred from an empty query. For backends that omit
+    // recipe options, `applied` proves package identity, not optional capabilities.
     const backendUnknown: BinaryApplication | null = !this.miseBin
       ? { status: 'unknown', reason: 'backend_unavailable' }
       : queryFailed
@@ -558,6 +572,9 @@ export class BinaryManager extends BaseService {
         // Update/Uninstall authority over a foreign provider. When mise omits
         // install_path, fall back to the runnable-only check above.
         if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) {
+          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+        }
+        if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical)) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {
@@ -1111,7 +1128,40 @@ export class BinaryManager extends BaseService {
     const activeEntry = entries.find((entry) => entry.active)
     if (!activeEntry) return false
     const runnable = await this.resolveRunnableShim(name, tool)
-    return runnable !== null && (await this.isWithinInstall(activeEntry, runnable.canonical))
+    return (
+      runnable !== null &&
+      (await this.isWithinInstall(activeEntry, runnable.canonical)) &&
+      this.hasRequiredRuntimeDependencies(tool, runnable.canonical)
+    )
+  }
+
+  /**
+   * Whether a recipe declaring a required peer still has it, resolved the way the
+   * tool's own runtime would. A recipe declaring none passes untouched, so this
+   * costs nothing for the tools that install completely.
+   */
+  private hasRequiredRuntimeDependencies(tool: string, entryPath: string): boolean {
+    const required = MISE_REQUIRED_PEERS.get(tool)
+    if (!required) return true
+    let hostEntry: string
+    try {
+      hostEntry = createRequire(entryPath).resolve(required.host)
+    } catch {
+      // An absent host means the recipe restructured its packages, which is not
+      // evidence that THIS install lost the peer — never fail a tool closed on it.
+      return true
+    }
+    try {
+      createRequire(hostEntry).resolve(required.peer)
+      return true
+    } catch (error) {
+      logger.warn('Managed tool dependency tree is incomplete', {
+        tool,
+        ...required,
+        error: this.errorMessage(error)
+      })
+      return false
+    }
   }
 
   private async resolveMiseBinaryForTool(
@@ -1959,11 +2009,15 @@ export class BinaryManager extends BaseService {
       throw new Error('mise returned invalid installed-tool state')
     }
 
-    const nameForSpec = (spec: string): string =>
-      definitions.find((entry) => entry.tool === spec)?.name ??
-      PRESETS_BINARY_TOOLS.find((preset) => preset.tool === spec)?.name ??
-      CODE_CLI_TOOL_PRESETS.find((preset) => preset.miseTool === spec)?.executable ??
-      spec
+    const nameForSpec = (spec: string): string => {
+      const identity = normalizeToolIdentity(spec)
+      return (
+        definitions.find((entry) => normalizeToolIdentity(entry.tool) === identity)?.name ??
+        PRESETS_BINARY_TOOLS.find((preset) => normalizeToolIdentity(preset.tool) === identity)?.name ??
+        CODE_CLI_TOOL_PRESETS.find((preset) => normalizeToolIdentity(preset.miseTool) === identity)?.executable ??
+        spec
+      )
+    }
 
     const dependents = new Set<string>()
     for (const [spec, entries] of Object.entries(installed)) {

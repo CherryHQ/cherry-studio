@@ -79,8 +79,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isSelectedForContext = !!message.isActiveBranch
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens =
-    renderConfig.showEstimatedTokens && variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
+  const showMessageTokens = variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
   const isUserBubbleStyleMessage = variant === 'footer' && isBubbleStyle && isUserMessage
 
   const actionContext = useMemo<MessageMenuBarActionContext>(

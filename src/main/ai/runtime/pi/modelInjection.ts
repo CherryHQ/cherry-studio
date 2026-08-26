@@ -196,6 +196,7 @@ export function buildPiProviderInjection(
       frozenModels: [
         {
           modelId: model.id,
+          apiModelId: modelId,
           modelName: model.name ?? model.id,
           aliases: [...new Set([model.id, modelId])],
           pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)

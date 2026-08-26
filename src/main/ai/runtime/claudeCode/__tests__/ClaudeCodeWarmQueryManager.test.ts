@@ -326,7 +326,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+        frozenModels: [
+          { modelId: 'sonnet', apiModelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }
+        ]
       }
     })
     const consumed = await manager.consume({
@@ -339,7 +341,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+        frozenModels: [
+          { modelId: 'sonnet', apiModelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }
+        ]
       }
     })
 

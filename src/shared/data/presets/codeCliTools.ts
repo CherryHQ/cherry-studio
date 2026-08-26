@@ -5,19 +5,30 @@ export interface CodeCliToolPreset {
   id: CodeCli
   executable: string
   packageName: string
-  install: 'registry' | 'npm'
+  install: 'registry' | 'npm' | 'pipx'
   miseTool: string
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
+  /**
+   * A peer this tool needs at runtime but whose absence an install still reports
+   * as success, named as `peer` resolved from `host`'s own entry point.
+   */
+  requiredPeer?: { host: string; peer: string }
 }
 
-type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
+type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'> & {
+  /** pipx extras required to install this tool's built-in capabilities. */
+  pipxExtras?: readonly string[]
+}
 
-function defineCodeCliTool(definition: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
+function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
+  const packageTool =
+    definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`
+  const extras = definition.install === 'pipx' && pipxExtras?.length ? pipxExtras.join(',') : ''
   return Object.freeze({
     ...definition,
-    miseTool: definition.install === 'npm' ? `npm:${definition.packageName}` : definition.executable
+    miseTool: extras ? `${packageTool}[extras=${extras}]` : packageTool
   })
 }
 
@@ -47,7 +58,10 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     install: 'npm',
     misePrerelease: true,
     // mise 2026.7.14 aube exceeds its 16-pass fixed-point limit on DSH's recursive peer graph.
-    miseNpmShellOut: true
+    miseNpmShellOut: true,
+    // dsh-scope is nowhere a real dependency, only a transitive peer, so an install
+    // reports success without it (#19313).
+    requiredPeer: { host: '@deepseek-ai/dsh-agent-loop', peer: '@deepseek-ai/dsh-scope' }
   }),
   defineCodeCliTool({
     id: CodeCli.GEMINI_CLI,
@@ -79,6 +93,13 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'pi',
     packageName: '@earendil-works/pi-coding-agent',
     install: 'npm'
+  }),
+  defineCodeCliTool({
+    id: CodeCli.HERMES,
+    executable: 'hermes',
+    packageName: 'hermes-agent',
+    install: 'pipx',
+    pipxExtras: ['web']
   })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 
