@@ -130,6 +130,14 @@ export type SidebarFavoriteItem =
       type: 'mini_app'
       id: string
     }
+  | {
+      type: 'agent'
+      id: string
+    }
+  | {
+      type: 'assistant'
+      id: string
+    }
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -301,7 +309,8 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'kimi-code',
   'qoder-cli',
   'github-copilot-cli',
-  'pi'
+  'pi',
+  'hermes'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

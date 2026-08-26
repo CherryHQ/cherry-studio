@@ -5,6 +5,7 @@ import {
   APP_ICON_MESH_STOPS_DARK,
   APP_ICON_MESH_STOPS_LIGHT,
   hexContrastRatio,
+  LAUNCHPAD_ICON_GRAIN,
   LAUNCHPAD_ICON_INK,
   MIN_LAUNCHPAD_ICON_CONTRAST
 } from '../appIconBackgrounds'
@@ -46,5 +47,16 @@ describe('launchpad mesh palettes', () => {
 
     expect(new Set(lightCores).size).toBe(lightCores.length)
     expect(new Set(darkCores).size).toBe(darkCores.length)
+  })
+
+  it('uses a different mesh per theme so light and dark tiles stay distinct', () => {
+    for (const id of Object.keys(APP_ICON_MESH_STOPS_LIGHT) as SidebarAppId[]) {
+      expect(APP_ICON_MESH_STOPS_LIGHT[id], id).not.toEqual(APP_ICON_MESH_STOPS_DARK[id])
+    }
+  })
+
+  it('encodes grayscale turbulence grain for the tile overlay', () => {
+    expect(LAUNCHPAD_ICON_GRAIN).toContain('feTurbulence')
+    expect(LAUNCHPAD_ICON_GRAIN).toContain("values='0'")
   })
 })

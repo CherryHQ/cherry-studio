@@ -1,7 +1,14 @@
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 import { parseDotenv } from './dotenv'
-import { parseJsonOrThrow, parseTomlOrThrow, readExternal, resolveAbs } from './file'
+import {
+  type CliConfigReadFiles,
+  parseJsonOrThrow,
+  parseTomlOrThrow,
+  parseYamlOrThrow,
+  readConfigFiles,
+  requireReadFile
+} from './file'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
 export function getDraftFile(
@@ -11,39 +18,73 @@ export function getDraftFile(
   return files?.find((file) => file.target === target)
 }
 
-export async function makeDraftFile(target: CliConfigTarget, content: string): Promise<CliConfigFileDraft> {
-  const spec = CLI_CONFIG_FILE_SPECS[target]
-  return {
-    target,
-    label: spec.label,
-    path: await resolveAbs(spec.path),
-    language: spec.language,
-    content
+/**
+ * Read view for a draft rebuild: targets covered by an in-progress draft are served
+ * from it (no disk IO — a failing read must not block a rebuild the draft already
+ * has everything for); only uncovered targets cross to `code_cli.read_config`.
+ */
+export async function readConfigFilesForDraft(
+  targets: readonly CliConfigTarget[],
+  files: CliConfigFileDraft[] | undefined
+): Promise<CliConfigReadFiles> {
+  const read = await readConfigFiles(targets.filter((target) => !getDraftFile(files, target)))
+  for (const target of targets) {
+    const draft = getDraftFile(files, target)
+    if (draft && !read.has(target)) read.set(target, { path: draft.path, content: draft.content })
   }
+  return read
 }
 
-export async function readDraftFileText(target: CliConfigTarget, files?: CliConfigFileDraft[]): Promise<string> {
+/** Draft entry for freshly-rendered content; the path is the main-resolved one from the batch read. */
+export function makeDraftFile(target: CliConfigTarget, content: string, read: CliConfigReadFiles): CliConfigFileDraft {
+  const spec = CLI_CONFIG_FILE_SPECS[target]
+  return { target, label: spec.label, path: requireReadFile(target, read).path, language: spec.language, content }
+}
+
+/** Current text of `target`: an in-progress draft overrides the on-disk file ('' when missing on disk). */
+export function readDraftFileText(
+  target: CliConfigTarget,
+  files: CliConfigFileDraft[] | undefined,
+  read: CliConfigReadFiles
+): string {
   const draft = getDraftFile(files, target)
   if (draft) return draft.content
-  const spec = CLI_CONFIG_FILE_SPECS[target]
-  return readExternal(await resolveAbs(spec.path))
+  return requireReadFile(target, read).content ?? ''
 }
 
-/** Read + parse a draft/on-disk config file, wrapping a parse failure with the file's label and path. */
-export async function readAndParseDraftFile<T>(
+/** Parse a draft/on-disk config file, wrapping a parse failure with the file's label and path. */
+export function readAndParseDraftFile<T>(
   target: CliConfigTarget,
   parseFn: (content: string) => T,
-  files?: CliConfigFileDraft[]
-): Promise<T> {
-  const content = await readDraftFileText(target, files)
+  files: CliConfigFileDraft[] | undefined,
+  read: CliConfigReadFiles
+): T {
+  const content = readDraftFileText(target, files, read)
   try {
     return parseFn(content)
   } catch (err) {
     // parseFn (parseJsonOrThrow/parseTomlOrThrow) already redacts its own message at the source.
     const spec = CLI_CONFIG_FILE_SPECS[target]
-    const path = getDraftFile(files, target)?.path ?? (await resolveAbs(spec.path))
+    const path = getDraftFile(files, target)?.path ?? requireReadFile(target, read).path
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(`Failed to parse ${spec.label} at ${path}: ${rawMessage}`)
+  }
+}
+
+/** Parse a draft file already in hand, wrapping a parse failure with the file's label and path. */
+export function parseDraftFileOrThrow<T>(
+  target: CliConfigTarget,
+  files: CliConfigFileDraft[] | undefined,
+  parseFn: (content: string) => T
+): T {
+  const draft = getDraftFile(files, target)
+  const spec = CLI_CONFIG_FILE_SPECS[target]
+  try {
+    return parseFn(draft?.content ?? '')
+  } catch (err) {
+    // parseFn already redacts its own message at the source, as in readAndParseDraftFile.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(`Failed to parse ${spec.label} at ${draft?.path ?? spec.path}: ${rawMessage}`)
   }
 }
 
@@ -55,6 +96,8 @@ function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<str
       return parseTomlOrThrow(file.content)
     case 'dotenv':
       return parseDotenv(file.content)
+    case 'yaml':
+      return parseYamlOrThrow(file.content)
   }
 }
 

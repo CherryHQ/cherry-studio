@@ -157,7 +157,7 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as n
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
-const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
+const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
 function appendedSystemPrompt(): string {
   return (mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()[0] ?? ''
@@ -346,7 +346,9 @@ beforeEach(() => {
       providerId: 'p',
       providerName: 'P',
       source: null,
-      frozenModels: [{ modelId: 'p::m', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }]
+      frozenModels: [
+        { modelId: 'p::m', apiModelId: 'm', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }
+      ]
     }
   })
   mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
@@ -1388,7 +1390,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1487,7 +1489,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1501,7 +1503,7 @@ describe('PiRuntimeConnection', () => {
       ])
     })
 
-    it('wraps agent instructions with the shared authority contract after the persona', async () => {
+    it('wraps agent instructions with the shared authority contract before the persona', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be terse.', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
@@ -1510,7 +1512,7 @@ describe('PiRuntimeConnection', () => {
       const prompt = appendedSystemPrompt()
       expect(prompt).toContain('## Instruction Precedence')
       expect(prompt).toContain('<agent_instructions>\nBe terse.\n</agent_instructions>')
-      expect(prompt.indexOf('AGENT PROMPT')).toBeLessThan(prompt.indexOf('<agent_instructions>'))
+      expect(prompt.indexOf('<agent_instructions>')).toBeLessThan(prompt.indexOf('AGENT PROMPT'))
     })
 
     it('resolves Agent System Prompt variables before injecting them', async () => {
@@ -1558,7 +1560,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         { id: 'chan-1' },
         AGENT_DATA_PATH,

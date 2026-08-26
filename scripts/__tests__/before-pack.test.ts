@@ -46,6 +46,16 @@ describe('assertPrebuiltPackages', () => {
 })
 
 describe('keepPackages', () => {
+  it.each([
+    ['x64', '@deepseek-ai/node-addon-landlock-run-linux-x64', '@deepseek-ai/node-addon-landlock-run-linux-arm64'],
+    ['arm64', '@deepseek-ai/node-addon-landlock-run-linux-arm64', '@deepseek-ai/node-addon-landlock-run-linux-x64']
+  ] as const)('keeps only the Linux %s Landlock executable', (arch, matchingPackage, otherArchPackage) => {
+    const keptPackages = keepPackages('linux', arch)
+
+    expect(keptPackages).toContain(matchingPackage)
+    expect(keptPackages).not.toContain(otherArchPackage)
+  })
+
   // The name matcher keys off arch and platform tokens, and this package name carries
   // neither. Left to it, a Mac build would drop the module the permission prompt needs,
   // and a Windows or Linux build cross-made on a Mac would ship its darwin-only `.node`.

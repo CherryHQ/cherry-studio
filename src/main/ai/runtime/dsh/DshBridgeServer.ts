@@ -21,9 +21,9 @@ import type {
 } from '@cherrystudio/dsh-bridge'
 import type { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { loggerService } from '@logger'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
@@ -43,8 +43,6 @@ export interface DshBridgeServerOptions {
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
-  /** The streamed `exit_plan_mode` call id, so the plan-review card anchors to its tool row. */
-  getPlanReviewAnchor?: () => string | undefined
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
   readyTimeoutMs?: number
 }
@@ -330,12 +328,13 @@ export class DshBridgeServer {
     if (!review || intent?.kind !== 'plan-review' || typeof review.detail !== 'string') {
       return Promise.reject(new Error('only plan-review questions are bridged to the host'))
     }
+    if (!ask.callId) return Promise.reject(new Error('dsh bridge plan review is missing its tool call id'))
     const interactionState = this.options.getInteractionState()
     if (interactionState.userResponse === 'unavailable') {
       return Promise.reject(new Error('no user is available to review the plan'))
     }
     const approvalId = randomUUID()
-    const toolCallId = this.options.getPlanReviewAnchor?.() ?? approvalId
+    const toolCallId = ask.callId
     const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
     const input = { plan: review.detail }
     return new Promise((resolve) => {

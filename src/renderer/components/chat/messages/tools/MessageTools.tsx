@@ -8,7 +8,12 @@ import { useMemo } from 'react'
 
 import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 import { useOptionalMessageListTopicId } from '../MessageListProvider'
-import { isReportArtifactsToolResponse, MessageChannelConfigTool } from './agent'
+import {
+  CreateAgentToolInline,
+  getCreateAgentResult,
+  isReportArtifactsToolResponse,
+  MessageChannelConfigTool
+} from './agent'
 import { isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
@@ -87,6 +92,8 @@ export default function MessageTools({ toolResponse }: Props) {
     return { ...toolResponse, response: normalizeToolOutputResponse(output) }
   }, [deferredOutput, error, isLoading, output, toolResponse])
 
+  const createAgentResult = getCreateAgentResult(resolvedToolResponse)
+  if (createAgentResult) return <CreateAgentToolInline result={createAgentResult} />
   if (isReportArtifactsToolResponse(resolvedToolResponse)) return null
   if (isChannelAuthQrToolResponse(resolvedToolResponse)) {
     return <MessageChannelConfigTool toolResponse={resolvedToolResponse} />

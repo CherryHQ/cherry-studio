@@ -235,44 +235,11 @@ describe('LaunchpadPage', () => {
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
   })
 
-  it('keeps the launchpad grid at the original compact density', () => {
-    mocks.pinnedMiniApps = [
-      {
-        appId: 'calculator',
-        name: 'Calculator',
-        logo: 'calc-logo',
-        url: 'https://example.com',
-        presetMiniAppId: 'calculator',
-        status: 'pinned',
-        orderKey: ''
-      }
-    ]
-
-    render(<LaunchpadPage />)
-
-    const appsHeading = screen.getByRole('heading', { name: 'Apps' })
-    const appsGrid = appsHeading.nextElementSibling
-    const miniAppsGrid = screen.getByRole('heading', { name: 'Mini Apps' }).nextElementSibling
-    const content = appsHeading.closest('section')?.parentElement
-
-    expect(content).toHaveClass('max-w-180', 'gap-5')
-    expect(appsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(appsGrid).not.toHaveClass('gap-x-14', 'gap-y-8')
-    expect(miniAppsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(screen.getByRole('button', { name: 'Chat' })).toHaveClass('mx-auto', 'w-[92px]')
-    expect(screen.getByRole('button', { name: 'Calculator' }).parentElement).toHaveClass(
-      'mx-auto',
-      'w-[92px]',
-      'justify-center'
-    )
-  })
-
   it('paints sidebar app tiles with distinct light-mode mesh gradients and grain', () => {
     render(<LaunchpadPage />)
 
     const chat = getAppTileFace('Chat')
     const knowledge = getAppTileFace('Knowledge')
-
     expect(chat).toHaveStyle({
       background: APP_ICON_BACKGROUNDS_LIGHT.assistants
     })
@@ -280,6 +247,8 @@ describe('LaunchpadPage', () => {
       background: APP_ICON_BACKGROUNDS_LIGHT.knowledge
     })
     expect(chat.style.background).not.toEqual(knowledge.style.background)
+    expect(chat.querySelector('img')).toBeInTheDocument()
+    expect(knowledge.querySelector('img')).toBeInTheDocument()
     expect(chat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
     expect(knowledge.querySelector('.mix-blend-overlay')).toBeInTheDocument()
   })
@@ -299,17 +268,18 @@ describe('LaunchpadPage', () => {
     expect(darkChat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
   })
 
-  it('keeps the DeepSeek Harness shortcut on its own muted tile, not the app mesh palette', () => {
+  it('keeps the DeepSeek Harness shortcut on its own outlined tile, not the app mesh palette', () => {
     render(<LaunchpadPage />)
 
     const shortcut = screen.getByRole('button', { name: 'DSH' })
     const face = shortcut.querySelector('span.size-14.rounded-2xl')
 
-    expect(face).toHaveClass('bg-muted', 'border-border-subtle')
+    expect(face).toHaveClass('bg-transparent', 'border-border-subtle')
     expect(face).not.toHaveStyle({
       background: APP_ICON_BACKGROUNDS_LIGHT.assistants
     })
     expect(shortcut.querySelector('.mix-blend-overlay')).not.toBeInTheDocument()
+    expect(shortcut.querySelector('img')).toBeInTheDocument()
   })
 
   it('orders app tiles by the launchpad app order, appending the rest canonically', () => {

@@ -16,7 +16,7 @@ const API_GATEWAY_PREFERENCE_KEYS = {
 /**
  * API Gateway hook.
  *
- * - Config flows through the DataApi preference layer (`feature.api_gateway.*`).
+ * - Config flows through the Preference subsystem (`feature.api_gateway.*`).
  * - Running state is published by Main to the shared cache (Main is
  *   authoritative); the renderer observes it read-only via `useSharedCacheValue`
  *   (no default write-back into the Main-owned key). No IPC ready-broadcast or
