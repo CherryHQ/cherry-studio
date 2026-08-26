@@ -59,7 +59,12 @@ export function hasTranslationParts(parts: CherryMessagePart[]): boolean {
  * message's new content and reused as conversation context in the next turn. All assistant
  * messages with text are editable uniformly — provider-derived metadata (item ids, citations,
  * cache hints, composer snapshots) is dropped with the old text, and translation parts are
- * derived and removed on save.
+ * derived and removed on save. Interleaved shapes such as `text → tool → text` or
+ * `file → text` are intentionally collapsed: the draft joins all text (`\n\n`), and
+ * `replaceComposerEditableMessageParts` replaces the first editable part with the rebuilt
+ * draft while dropping trailing text/file parts, so a no-op edit of `[text "before", tool, text "after"]`
+ * is persisted as `[text "before\n\nafter", tool]` — content survives via the joined draft
+ * but the interleaving position is normalized to the single Composer text field.
  */
 export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolean {
   return hasTextParts(parts)
