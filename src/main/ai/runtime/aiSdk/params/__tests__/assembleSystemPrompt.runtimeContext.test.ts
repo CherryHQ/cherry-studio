@@ -118,71 +118,34 @@ describe('assembleSystemPrompt runtime context contract', () => {
     expect(out).toBe('User: Unknown Username')
   })
 
-  it('grounds web search with a request-time ISO date when runtime context is off or absent', async () => {
-    // Bug: existing Assistants with Web Search on and an empty prompt send no current date,
-    // so relative phrases such as "this month" are expanded from training recency.
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0))
-
-    const disabled = await assembleSystemPrompt({
-      assistant: makeAssistant({
-        prompt: '',
-        settings: { ...makeAssistant().settings, enableWebSearch: true, enableRuntimeContext: false }
-      }),
-      model
-    })
-    const legacy = await assembleSystemPrompt({
-      assistant: makeAssistant({
-        prompt: '',
-        settings: {
-          ...makeAssistant().settings,
-          enableWebSearch: true,
-          enableRuntimeContext: undefined
-        }
-      }),
-      model
-    })
-
-    expect(disabled).toContain('2026-08-20')
-    expect(legacy).toContain('2026-08-20')
-    expect(disabled).not.toContain('Test User')
-    expect(disabled).not.toContain(os.platform())
-    expect(legacy).not.toContain('Test User')
-  })
-
-  it('does not add a current date when web search is disabled', async () => {
-    // Bug: a global date on unrelated prompts would change Assistants that never enabled Web Search.
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0))
-
+  it('does not add a web-search date when the request cannot execute web search', async () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: '' }),
-      model
+      model,
+      webSearchEnabled: false,
+      now: new Date(2026, 7, 20, 12, 0, 0)
     })
 
     expect(out).toBeUndefined()
   })
 
-  it('does not duplicate the current date when runtime context already supplies datetime', async () => {
-    // Bug: enabling Web Search on a new Assistant would emit both the runtime-context datetime
-    // and a second dedicated current-date section.
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0))
-
+  it('keeps the dedicated web-search date even when runtime context already includes datetime', async () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({
         prompt: '',
         settings: {
           ...makeAssistant().settings,
-          enableWebSearch: true,
           enableRuntimeContext: true
         }
       }),
-      model
+      model,
+      webSearchEnabled: true,
+      now: new Date(2026, 7, 20, 12, 0, 0)
     })
 
     expect(out).toContain('## Runtime Context')
     expect(out).toContain('- Current date and time:')
-    expect(out).not.toMatch(/(^|\n)Current date: 2026-08-20/)
+    expect(out).toContain('<current-date>2026-08-20</current-date>')
+    expect(out).toContain('this month')
   })
 })

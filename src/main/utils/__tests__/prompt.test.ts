@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const preferenceGet = vi.hoisted(() =>
   vi.fn((key: string) => {
@@ -22,7 +22,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { buildCurrentDateContext, buildRuntimeContextPrompt, shouldInjectCurrentDateContext } from '../prompt'
+import { buildRuntimeContextPrompt, buildWebSearchDateContext } from '../prompt'
 
 describe('buildRuntimeContextPrompt', () => {
   it('resolves the supported system variables into one context block', async () => {
@@ -60,46 +60,11 @@ describe('buildRuntimeContextPrompt', () => {
   })
 })
 
-describe('current date context', () => {
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('formats the local calendar date at request time', () => {
-    // Bug: a module-load Date would freeze "today" for the life of the Electron main process.
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0))
-
-    expect(buildCurrentDateContext()).toContain('2026-08-20')
-    expect(buildCurrentDateContext()).toMatch(/^Current date: 2026-08-20/)
-  })
-
-  it('injects only when web search is on and no existing date variable already supplies it', () => {
-    expect(
-      shouldInjectCurrentDateContext({
-        webSearchEnabled: true,
-        runtimeContextEnabled: false
-      })
-    ).toBe(true)
-    expect(shouldInjectCurrentDateContext({ webSearchEnabled: false })).toBe(false)
-    expect(
-      shouldInjectCurrentDateContext({
-        webSearchEnabled: true,
-        prompt: 'Today is {{date}}'
-      })
-    ).toBe(false)
-    expect(
-      shouldInjectCurrentDateContext({
-        webSearchEnabled: true,
-        runtimeContextEnabled: true
-      })
-    ).toBe(false)
-    expect(
-      shouldInjectCurrentDateContext({
-        webSearchEnabled: true,
-        runtimeContextEnabled: true,
-        runtimeContextPrompt: 'Device: {{system}}'
-      })
-    ).toBe(true)
+describe('buildWebSearchDateContext', () => {
+  it('formats the local calendar date from the supplied clock', () => {
+    expect(buildWebSearchDateContext(new Date(2026, 7, 20, 23, 59))).toContain(
+      '<current-date>2026-08-20</current-date>'
+    )
+    expect(buildWebSearchDateContext(new Date(2026, 7, 20, 23, 59))).toContain('this month')
   })
 })

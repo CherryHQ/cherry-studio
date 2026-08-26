@@ -169,12 +169,11 @@ export function PromptPolishActions({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
             aria-label={t('common.undo')}
             aria-disabled={undoDisabled}
             onClick={handleUndo}
-            className="text-muted-foreground hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
-            <Undo2 className="size-4" />
+            className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+            <Undo2 className="size-3" />
           </Button>
         </Tooltip>
       ) : null}
@@ -182,12 +181,11 @@ export function PromptPolishActions({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
           aria-label={actionLabel}
           aria-disabled={actionDisabled}
           onClick={() => void handlePolish()}
-          className="text-muted-foreground hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
-          {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+          {running ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
         </Button>
       </Tooltip>
     </>

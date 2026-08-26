@@ -414,7 +414,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
         const runtimeContext = snapshot
           ? await mocks.buildRuntimeContextPrompt(snapshot.modelName, snapshot.template)
           : undefined
-        const dateContext = webSearchEnabled ? 'Current date: 2026-08-20' : undefined
+        const dateContext = webSearchEnabled
+          ? '<current-date>2026-08-20</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.'
+          : undefined
         return [runtimeContext, dateContext].filter(Boolean).join('\n\n') || undefined
       }
     )
@@ -460,7 +462,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     mocks.consumeWarmQuery.mockResolvedValue({
@@ -471,7 +481,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
 
@@ -694,7 +712,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       snapshot: undefined,
       webSearchEnabled: false
     })
-    expect(result.value.message.content).not.toContain('Current date')
+    expect(result.value.message.content).not.toContain('<current-date>')
     void connection.close()
   })
 
@@ -710,7 +728,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       snapshot: undefined,
       webSearchEnabled: false
     })
-    expect(result.value.message.content).not.toContain('Current date')
+    expect(result.value.message.content).not.toContain('<current-date>')
     expect(result.value.message.content).toContain('hello')
     void connection.close()
   })
@@ -724,7 +742,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(iterator.next()).resolves.toMatchObject({
       value: {
         message: {
-          content: '<system-reminder>\nCurrent date: 2026-08-20\n</system-reminder>\n\nhello'
+          content:
+            '<system-reminder>\n<current-date>2026-08-20</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.\n</system-reminder>\n\nhello'
         }
       }
     })
@@ -745,7 +764,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(iterator.next()).resolves.toMatchObject({
       value: {
         message: {
-          content: '<system-reminder>\nRuntime context\n\nCurrent date: 2026-08-20\n</system-reminder>\n\nhello'
+          content:
+            '<system-reminder>\nRuntime context\n\n<current-date>2026-08-20</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.\n</system-reminder>\n\nhello'
         }
       }
     })
@@ -1720,8 +1740,20 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerName: 'Anthropic',
         source: null,
         frozenModels: [
-          { modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] },
-          { modelId: 'haiku', modelName: 'Haiku', pricingSnapshot: null, aliases: ['haiku-sdk'] }
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          },
+          {
+            modelId: 'haiku',
+            apiModelId: 'haiku-sdk',
+            modelName: 'Haiku',
+            pricingSnapshot: null,
+            aliases: ['haiku-sdk']
+          }
         ]
       }
     })
@@ -1883,7 +1915,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -1949,7 +1989,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -2025,7 +2073,13 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerName: 'LongCat',
         source: null,
         frozenModels: [
-          { modelId: 'LongCat-2.0', modelName: 'LongCat 2.0', pricingSnapshot: null, aliases: ['LongCat-2.0'] }
+          {
+            modelId: 'LongCat-2.0',
+            apiModelId: 'LongCat-2.0',
+            modelName: 'LongCat 2.0',
+            pricingSnapshot: null,
+            aliases: ['LongCat-2.0']
+          }
         ]
       }
     })
@@ -2138,7 +2192,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -2242,7 +2304,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: { type: 'agent', id: 'agent-1', name: 'Frozen Agent', icon: null },
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({

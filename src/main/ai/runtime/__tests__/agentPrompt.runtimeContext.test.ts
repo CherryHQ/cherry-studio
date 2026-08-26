@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const preferenceGet = vi.hoisted(() =>
   vi.fn((key: string) => {
@@ -80,36 +80,31 @@ describe('agent runtime context snapshot', () => {
 })
 
 describe('agent per-turn current date', () => {
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
   it('grounds cherry web_search with a request-time ISO date when runtime context is off', async () => {
     // Bug: Agent send() with cherry web_search and no runtime-context opt-in sent no current date,
     // so relative phrases stayed ungrounded on existing Agents.
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0))
-
-    const grounded = await resolveAgentTurnContextPrompt({ webSearchEnabled: true })
+    const grounded = await resolveAgentTurnContextPrompt({
+      webSearchEnabled: true,
+      now: new Date(2026, 7, 20, 12, 0, 0)
+    })
     const skipped = await resolveAgentTurnContextPrompt({ webSearchEnabled: false })
 
-    expect(grounded).toContain('2026-08-20')
+    expect(grounded).toContain('<current-date>2026-08-20</current-date>')
+    expect(grounded).toContain('this month')
     expect(grounded).not.toContain('Test User')
     expect(grounded).not.toContain(os.platform())
     expect(skipped).toBeUndefined()
   })
 
-  it('does not duplicate the current date when the runtime-context preset already supplies datetime', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0))
-
+  it('keeps the dedicated web-search date even when the runtime-context preset already supplies datetime', async () => {
     const resolved = await resolveAgentTurnContextPrompt({
       snapshot: { template: undefined, modelName: 'Claude' },
-      webSearchEnabled: true
+      webSearchEnabled: true,
+      now: new Date(2026, 7, 20, 12, 0, 0)
     })
 
     expect(resolved).toContain('## Runtime Context')
     expect(resolved).toContain('- Current date and time:')
-    expect(resolved).not.toMatch(/(^|\n)Current date: 2026-08-20/)
+    expect(resolved).toContain('<current-date>2026-08-20</current-date>')
   })
 })

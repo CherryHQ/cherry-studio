@@ -353,7 +353,9 @@ beforeEach(() => {
       providerId: 'p',
       providerName: 'P',
       source: null,
-      frozenModels: [{ modelId: 'p::m', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }]
+      frozenModels: [
+        { modelId: 'p::m', apiModelId: 'm', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }
+      ]
     }
   })
   mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
@@ -731,7 +733,7 @@ describe('PiRuntimeConnection', () => {
 
     const content = mocks.prompt.mock.calls[0][0] as string
     expect(content).toContain('hello')
-    expect(content).toMatch(/Current date: \d{4}-\d{2}-\d{2}/)
+    expect(content).toMatch(/<current-date>\d{4}-\d{2}-\d{2}<\/current-date>/)
     expect(mocks.prompt).toHaveBeenCalledWith(content, undefined)
     expect(mocks.compact).not.toHaveBeenCalled()
   })
@@ -788,7 +790,7 @@ describe('PiRuntimeConnection', () => {
     expect(content).toContain('The user sent the following message:')
     expect(content).toContain('/compact')
     expect(content).toContain('Please address this message and continue with your tasks.')
-    expect(content).toMatch(/Current date: \d{4}-\d{2}-\d{2}/)
+    expect(content).toMatch(/<current-date>\d{4}-\d{2}-\d{2}<\/current-date>/)
   })
 
   it('completes the host turn after a manual compact succeeds', async () => {
@@ -1392,7 +1394,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        new Set(['cherry-tools', 'agent-memory', 'skills']),
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1491,7 +1493,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'skills']),
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1505,7 +1507,7 @@ describe('PiRuntimeConnection', () => {
       ])
     })
 
-    it('wraps agent instructions with the shared authority contract after the persona', async () => {
+    it('wraps agent instructions with the shared authority contract before the persona', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be terse.', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
@@ -1514,7 +1516,7 @@ describe('PiRuntimeConnection', () => {
       const prompt = appendedSystemPrompt()
       expect(prompt).toContain('## Instruction Precedence')
       expect(prompt).toContain('<agent_instructions>\nBe terse.\n</agent_instructions>')
-      expect(prompt.indexOf('AGENT PROMPT')).toBeLessThan(prompt.indexOf('<agent_instructions>'))
+      expect(prompt.indexOf('<agent_instructions>')).toBeLessThan(prompt.indexOf('AGENT PROMPT'))
     })
 
     it('resolves Agent System Prompt variables before injecting them', async () => {
@@ -1562,7 +1564,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'skills']),
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         { id: 'chan-1' },
         AGENT_DATA_PATH,

@@ -73,6 +73,7 @@ import {
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
+import { buildPluginDirectoryIndex } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
 
@@ -105,6 +106,8 @@ export function registerMcpSessionCatalogSync(
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** Whether the connection model accepts native image input. */
+  supportsImages?: boolean
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
   /** Display name of the exact connection-scoped model selected by the request builder. */
@@ -201,7 +204,9 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     mountedServers,
     agentDataPath,
-    agentsMdLoader
+    agentsMdLoader,
+    await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
+    options?.supportsImages !== false
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -419,7 +424,9 @@ async function buildToolPermissions(
   agent: AgentEntity,
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
-  agentsMdLoader: AgentsMdLoader
+  agentsMdLoader: AgentsMdLoader,
+  pluginDirectories: ReadonlyMap<string, string>,
+  supportsImages: boolean
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -557,6 +564,8 @@ async function buildToolPermissions(
     agentDataPath,
     builtinRole,
     mountedServers,
+    pluginDirectories,
+    supportsImages,
     agentsMdLoader
   })
 

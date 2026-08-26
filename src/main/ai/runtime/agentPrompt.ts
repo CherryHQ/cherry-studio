@@ -2,12 +2,7 @@ import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
 import { getAppLanguage } from '@main/i18n'
-import {
-  buildCurrentDateContext,
-  buildRuntimeContextPrompt,
-  replacePromptVariables,
-  shouldInjectCurrentDateContext
-} from '@main/utils/prompt'
+import { buildRuntimeContextPrompt, buildWebSearchDateContext, replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { languageEnglishNameMap } from '@shared/utils/languages'
@@ -66,18 +61,14 @@ export function resolveAgentRuntimeContextPrompt(
 export async function resolveAgentTurnContextPrompt(input: {
   snapshot?: AgentRuntimeContextSnapshot
   webSearchEnabled: boolean
+  now?: Date
 }): Promise<string | undefined> {
   const runtimeContext = input.snapshot
     ? await buildRuntimeContextPrompt(input.snapshot.modelName, input.snapshot.template)
     : undefined
-  const injectDate = shouldInjectCurrentDateContext({
-    webSearchEnabled: input.webSearchEnabled,
-    runtimeContextEnabled: Boolean(input.snapshot),
-    runtimeContextPrompt: input.snapshot?.template
-  })
-  if (!injectDate) return runtimeContext
-  const dateContext = buildCurrentDateContext()
-  return runtimeContext ? `${runtimeContext}\n\n${dateContext}` : dateContext
+  const dateContext = input.webSearchEnabled ? buildWebSearchDateContext(input.now ?? new Date()) : undefined
+  if (runtimeContext && dateContext) return `${runtimeContext}\n\n${dateContext}`
+  return runtimeContext ?? dateContext
 }
 
 export interface BuildAgentRuntimePromptOptions {
@@ -126,14 +117,18 @@ export async function buildAgentRuntimePrompt({
     agentDataPath
   )
 
+  // Prefix-cache layout: Cherry-owned policy that is identical across sessions comes first. After
+  // that boundary, place configurable/runtime-derived sections in decreasing expected stability.
+  // The explicit precedence policy remains authoritative: physical placement is a cache concern,
+  // not a change to the instruction hierarchy declared above.
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
-    parts.context,
-    workspaceInstructions,
+    REPORT_ARTIFACTS_PROMPT,
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
+    workspaceInstructions,
+    parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,
-    REPORT_ARTIFACTS_PROMPT,
     getLanguageInstruction()
   ]
     .filter(Boolean)

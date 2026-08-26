@@ -20,7 +20,7 @@ const NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
   bypassApproval: 'enforce'
 }).map(toMcpRuntimeName)
-const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
   mountedServers: NON_HOST_MCP_SERVERS
@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
+  checkSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
@@ -121,6 +122,12 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
     getSkillPluginDirectory: mocks.getSkillPluginDirectory
   }
+}))
+
+vi.mock('../skillDependencies', () => ({
+  SKILL_TOOL_NAME: 'Skill',
+  buildPluginDirectoryIndex: vi.fn(async () => new Map()),
+  checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -331,6 +338,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   })
@@ -391,6 +399,56 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find((candidate) => candidate.name === hookName)
+    return hook?.(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Skill',
+        tool_input: { skill: 'parallel-web-search', args: 'latest React release' }
+      } as never,
+      'tool-use-1',
+      {} as never
+    )
+  }
+
+  it('denies a skill before forked execution when a declared dependency is provably absent', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      deny: 'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+    })
+
+    expect(await runSkillDependencyHook('toolGuardHook')).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+      }
+    })
+  })
+
+  it('lets an unresolved dependency through as context instead of a permission decision', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      warning: 'Skill "parallel-web-search" may be missing runtime dependencies.'
+    })
+
+    expect(await runSkillDependencyHook('skillDependencyAdvisoryHook')).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        additionalContext: 'Skill "parallel-web-search" may be missing runtime dependencies.'
+      }
+    })
   })
 
   it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
@@ -942,6 +1000,48 @@ describe('buildClaudeCodeSessionSettings', () => {
     const enabled = await runHooks('Read')
     expect(
       enabled.every(
+        (out) =>
+          (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
+          'deny'
+      )
+    ).toBe(true)
+  })
+
+  it('denies image Read calls before text-only model sessions can persist image tool results', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { supportsImages: false }
+    )
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const runHooks = (filePath: string) =>
+      Promise.all(
+        hooks.map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: filePath } } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+
+    const imageRead = await runHooks('/workspace/project/assets/Preview.png')
+    expect(imageRead).toContainEqual(
+      expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({
+          permissionDecision: 'deny',
+          permissionDecisionReason: expect.stringContaining('does not support image input')
+        })
+      })
+    )
+
+    const sourceRead = await runHooks('/workspace/project/src/Game.cs')
+    expect(
+      sourceRead.every(
         (out) =>
           (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
           'deny'
@@ -2502,8 +2602,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // toolGuardHook (the declarative guard table) + agentsMdHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(4)
+    // toolGuardHook (the declarative guard table) + skillDependencyAdvisoryHook + agentsMdHook +
+    // rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(5)
 
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string

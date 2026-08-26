@@ -61,9 +61,11 @@ import {
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
+  applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   extractAiSdkStandardParams,
-  mergeCustomProviderParameters
+  mergeCustomProviderParameters,
+  resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
@@ -212,6 +214,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const reasoningEndpointType =
     runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const serviceTierControl = providerRegistryService.resolveServiceTierControl(provider, model, endpointType)
   const invocationModel = reasoningProfile.support
     ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
     : model
@@ -229,7 +232,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
-    assistantSummary: provider.settings.summaryText
+    assistantSummary: assistant?.settings.reasoning_summary
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, {
     endpointType,
@@ -267,6 +270,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     reasoningProfile,
     reasoning,
+    serviceTierControl,
     requestContext,
     mcpToolIds,
     mcpResourceServerIds,
@@ -283,7 +287,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries, hasCitableTools })
+  const system = await assembleSystemPrompt({
+    assistant,
+    model,
+    tools,
+    deferredEntries,
+    hasCitableTools,
+    webSearchEnabled: finalWebToolRoutes.webSearch !== 'none'
+  })
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -546,7 +557,8 @@ function buildAgentOptions(
     request,
     aiSdkProviderId,
     endpointType,
-    reasoning
+    reasoning,
+    serviceTierControl
   } = scope
 
   // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
@@ -592,6 +604,23 @@ function buildAgentOptions(
           customBodyParams
         )
       }
+    }
+  }
+
+  if (serviceTierControl) {
+    providerOptions = applyServiceTierToProviderOptions(
+      providerOptions,
+      sdkConfig.providerOptionsKey,
+      serviceTierControl,
+      request.serviceTier ?? assistant?.settings.service_tier
+    )
+    if (serviceTierControl.wire.delivery.type === 'request-body') {
+      sdkConfig.providerSettings.fetch = createCustomParamsFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch, {
+        [serviceTierControl.wire.delivery.key]: resolveServiceTierWireValue(
+          serviceTierControl,
+          request.serviceTier ?? assistant?.settings.service_tier
+        )
+      })
     }
   }
 

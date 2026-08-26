@@ -1,16 +1,19 @@
+import type * as PromptModule from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/utils/prompt', () => ({
-  buildRuntimeContextPrompt: vi.fn(
-    async (_modelName: string, template?: string) => template ?? '## Runtime Context\n- Current date and time: now'
-  ),
-  replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20')),
-  shouldInjectCurrentDateContext: vi.fn(() => false),
-  buildCurrentDateContext: vi.fn(() => 'Current date: 2026-08-20')
-}))
+vi.mock('@main/utils/prompt', async (importOriginal) => {
+  const actual = await importOriginal<typeof PromptModule>()
+  return {
+    ...actual,
+    buildRuntimeContextPrompt: vi.fn(
+      async (_modelName: string, template?: string) => template ?? '## Runtime Context\n- Current date and time: now'
+    ),
+    replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
+  }
+})
 
 import { assembleSystemPrompt } from '../assembleSystemPrompt'
 
@@ -198,6 +201,30 @@ describe('assembleSystemPrompt', () => {
       tools: { web_search: {} } as unknown as ToolSet,
       hasCitableTools: false
     })
+    expect(out).toBe('base')
+  })
+
+  it('anchors relative dates to the runtime local date when web search is enabled', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      webSearchEnabled: true,
+      now: new Date(2026, 7, 20, 23, 59)
+    })
+
+    expect(out).toContain('<current-date>2026-08-20</current-date>')
+    expect(out).toContain('this month')
+    expect(out).toContain('Do not substitute dates remembered from training')
+  })
+
+  it('does not add volatile date context when web search is unavailable', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      webSearchEnabled: false,
+      now: new Date(2026, 7, 20)
+    })
+
     expect(out).toBe('base')
   })
 })
