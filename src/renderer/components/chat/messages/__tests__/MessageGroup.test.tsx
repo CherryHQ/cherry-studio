@@ -207,6 +207,12 @@ vi.mock('../MessageListProvider', () => ({
   }),
   useMessageListUi: () => ({}),
   useMessageListUiSelectors: () => mocks.messageListUiSelectors(),
+  useMessageListItemActivityState: (message: MessageListItem) =>
+    mocks.messageListUiSelectors().getMessageActivityState?.(message) ?? {
+      isProcessing: false,
+      isStreamTarget: false,
+      isApprovalAnchor: false
+    },
   useMessageListUiStatic: () => ({})
 }))
 
