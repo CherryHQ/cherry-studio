@@ -112,6 +112,10 @@ const MISE_PRERELEASE_TOOLS = new Set(
 const MISE_NPM_SHELL_OUT_TOOLS = new Set(
   CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
 )
+const MISE_NPM_ALLOW_SCRIPTS_TOOLS = new Set(
+  CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmAllowScripts).map((preset) => preset.miseTool)
+)
+const MISE_NPM_ALLOW_SCRIPTS_ARGS = '--ignore-scripts=false --foreground-scripts'
 const MISE_REQUIRED_PEERS = new Map(
   CODE_CLI_TOOL_PRESETS.flatMap((preset) =>
     preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
@@ -1317,7 +1321,10 @@ export class BinaryManager extends BaseService {
     const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
     const backend = definition.tool.split(':')[0]
     const runtime = await this.selectRuntime(definition, definitions)
-    const toolSpec = `${definition.tool}@${requested}`
+    const toolWithOptions = MISE_NPM_ALLOW_SCRIPTS_TOOLS.has(definition.tool)
+      ? `${definition.tool}[npm_args="${MISE_NPM_ALLOW_SCRIPTS_ARGS}"]`
+      : definition.tool
+    const toolSpec = `${toolWithOptions}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
