@@ -1183,6 +1183,26 @@ describe('AgentSessionMessageService', () => {
     })
   })
 
+  it('plans the global keyset range walk without a temporary order-by sort', () => {
+    const plan = dbh.sqlite
+      .prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT id
+         FROM agent_session_message
+         WHERE created_at >= ?
+           AND created_at <= ?
+           AND (created_at < ? OR (created_at = ? AND id > ?))
+         ORDER BY created_at DESC, id ASC
+         LIMIT ?`
+      )
+      .all(100, 300, 200, 200, 'cursor-id', 101) as Array<{ detail: string }>
+
+    expect(
+      plan.some(({ detail }) => detail.includes('USING COVERING INDEX agent_session_message_created_at_id_idx'))
+    ).toBe(true)
+    expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+  })
+
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {
     await dbh.db.insert(agentSessionMessageTable).values([
       {

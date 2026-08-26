@@ -119,6 +119,13 @@
       "when": 1787514273959,
       "tag": "0016_agent_session_message_reasoning_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1787715649955,
+      "tag": "0017_chief_revanche",
+      "breakpoints": true
     }
   ],
   "version": "7"

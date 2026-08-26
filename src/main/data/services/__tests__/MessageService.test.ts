@@ -594,6 +594,28 @@ describe('MessageService', () => {
         '1970-01-01T00:00:00.100Z'
       ])
     })
+
+    it('plans the global keyset range walk without a temporary order-by sort', () => {
+      const plan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT message.id
+           FROM message
+           INNER JOIN topic ON message.topic_id = topic.id
+           WHERE message.created_at >= ?
+             AND message.created_at <= ?
+             AND message.deleted_at IS NULL
+             AND topic.deleted_at IS NULL
+             AND message.role != 'root'
+             AND (message.created_at < ? OR (message.created_at = ? AND message.id > ?))
+           ORDER BY message.created_at DESC, message.id ASC
+           LIMIT ?`
+        )
+        .all(100, 300, 200, 200, 'cursor-id', 101) as Array<{ detail: string }>
+
+      expect(plan.some(({ detail }) => detail.includes('USING INDEX message_created_at_id_idx'))).toBe(true)
+      expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+    })
   })
 
   describe('markMessagesError', () => {
