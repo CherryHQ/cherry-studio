@@ -27,7 +27,7 @@ const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className }
     <Avatar
       className={`${borderClass} ${shape === 'circle' ? 'rounded-full' : 'rounded-[20%]'} ${className ?? ''}`.trim()}
       style={{ width: size, height: size }}>
-      <AvatarImage src={logo} />
+      <AvatarImage alt="" src={logo} />
     </Avatar>
   )
 }
