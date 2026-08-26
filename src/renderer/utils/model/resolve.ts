@@ -36,7 +36,9 @@ export async function readConversationSuggestionsModel(): Promise<Model | undefi
       // Deleted or unreadable dedicated ids must not fail generation.
     }
   }
-  return readDefaultModel()
+  const fallback = await readDefaultModel()
+  if (fallback && !isNonChatModel(fallback)) return fallback
+  return undefined
 }
 
 export async function readTranslateModel(): Promise<Model | undefined> {

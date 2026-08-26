@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
+import { knowledgeBaseToComposerToken } from '../chatComposerTokens'
 import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
@@ -1327,17 +1328,13 @@ describe('ChatComposer', () => {
 
   it('fills only the current topic draft while preserving its tokens and without sending', async () => {
     const onSend = vi.fn()
-    const tokens: ComposerSerializedToken[] = [
-      {
-        id: 'knowledge:kb-1',
-        kind: 'knowledge',
-        label: 'Knowledge One',
-        payload: { id: 'kb-1', name: 'Knowledge One' },
-        index: 0,
-        textOffset: 0
-      }
-    ]
-    mocks.getDraft.mockReturnValue({ text: '', tokens })
+    const knowledgeToken = {
+      ...knowledgeBaseToComposerToken({ id: 'kb-1', name: 'Knowledge One' } as KnowledgeBase),
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const tokens: ComposerSerializedToken[] = [knowledgeToken]
+    mocks.getDraft.mockReturnValue({ text: knowledgeToken.promptText, tokens })
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await waitFor(() => expect(mocks.eventListeners.has('FILL_CHAT_COMPOSER')).toBe(true))
@@ -1350,8 +1347,11 @@ describe('ChatComposer', () => {
       mocks.eventListeners.get('FILL_CHAT_COMPOSER')?.({ topicId: 'topic-1', text: 'Use this prompt' })
     })
 
-    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Use this prompt', tokens })
-    expect(mocks.surfaceProps?.text).toBe('Use this prompt')
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({
+      text: `${knowledgeToken.promptText} Use this prompt`,
+      tokens
+    })
+    expect(mocks.surfaceProps?.text).toBe(`${knowledgeToken.promptText} Use this prompt`)
     expect(onSend).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.focusComposer).toHaveBeenCalledWith('end'))
   })

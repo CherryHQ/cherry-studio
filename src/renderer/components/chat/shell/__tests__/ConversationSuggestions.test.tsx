@@ -38,7 +38,7 @@ describe('ConversationSuggestions', () => {
     render(
       <ConversationSuggestions
         focus={chatFocus}
-        conversationId="topic-1"
+        conversationId="conversation-1"
         topicId="topic-1"
         fallback={['Fallback one', 'Fallback two', 'Fallback three']}
       />
@@ -51,6 +51,10 @@ describe('ConversationSuggestions', () => {
       topicId: 'topic-1',
       text: 'Clarify the problem'
     })
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      'FILL_CHAT_COMPOSER',
+      expect.objectContaining({ topicId: 'conversation-1' })
+    )
   })
 
   it('does not expose selectable prompts while suggestions are loading', () => {

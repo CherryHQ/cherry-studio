@@ -2,14 +2,17 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RefObject } from 'react'
 import { useEffect, useEffectEvent, useRef } from 'react'
 
+import { hasComposerDraftUserText } from '../../composerDraft'
+import type { ComposerSerializedToken } from '../../tokens'
+
 interface ComposerFillActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
-  getDraft: () => { text: string }
+  getDraft: () => { text: string; tokens?: readonly ComposerSerializedToken[] }
 }
 
 /**
- * Fills the matching composer from FILL_CHAT_COMPOSER. Non-empty draft text is left
- * untouched so a greeting-chip click cannot replace a prompt the user already typed.
+ * Fills the matching composer from FILL_CHAT_COMPOSER. User-typed text is left
+ * untouched; serialized knowledge/skill promptText is not treated as typed input.
  */
 export function useComposerFill<T extends ComposerFillActions>(
   actionsRef: RefObject<T>,
@@ -20,7 +23,8 @@ export function useComposerFill<T extends ComposerFillActions>(
   const mountedRef = useRef(false)
 
   const fill = useEffectEvent((text: string) => {
-    if (actionsRef.current.getDraft().text.trim() !== '') return
+    const draft = actionsRef.current.getDraft()
+    if (hasComposerDraftUserText({ text: draft.text, tokens: draft.tokens ? [...draft.tokens] : [] })) return
     apply(text)
     if (focusFrameRef.current !== null) {
       window.cancelAnimationFrame(focusFrameRef.current)

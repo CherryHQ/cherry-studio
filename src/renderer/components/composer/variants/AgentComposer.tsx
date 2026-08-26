@@ -76,7 +76,7 @@ import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { excludeComposerDraftTokens } from '../composerDraft'
+import { excludeComposerDraftTokens, withComposerDraftUserText } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -1107,12 +1107,15 @@ const AgentComposerInner = ({
   useComposerFill(actionsRef, sessionTopicId, (text) => {
     const draftBeforeHistory = takeDraftBeforeHistory()
     const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
-    const nextDraftTokens = getAgentDraftTokens(currentDraft.tokens)
-    actionsRef.current.replaceDraft({ text, tokens: nextDraftTokens })
-    setText(text)
-    setDraftTokens(nextDraftTokens)
-    draftTokensRef.current = nextDraftTokens
-    setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
+    const nextDraft = withComposerDraftUserText(
+      { ...currentDraft, tokens: getAgentDraftTokens(currentDraft.tokens) },
+      text
+    )
+    actionsRef.current.replaceDraft(nextDraft)
+    setText(nextDraft.text)
+    setDraftTokens(nextDraft.tokens)
+    draftTokensRef.current = nextDraft.tokens
+    setSelectedSkills(getCachedSkillTokens(nextDraft.tokens).map(getSkillFromCachedToken))
     const savedTools = inputHistoryToolsRef.current
     inputHistoryToolsRef.current = null
     if (savedTools) {

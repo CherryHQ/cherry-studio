@@ -2,6 +2,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ComposerSerializedToken } from '../../../tokens'
 import { useComposerFill } from '../useComposerFill'
 
 describe('useComposerFill', () => {
@@ -33,13 +34,15 @@ describe('useComposerFill', () => {
     }
   }
 
-  function renderFill(topicId: string, draftText: string) {
+  function renderFill(topicId: string, draft: { text: string; tokens?: ComposerSerializedToken[] } | string) {
     const apply = vi.fn()
     const focus = vi.fn()
+    const serialized =
+      typeof draft === 'string' ? { text: draft, tokens: [] } : { text: draft.text, tokens: draft.tokens ?? [] }
     const actionsRef = {
       current: {
         focus,
-        getDraft: () => ({ text: draftText })
+        getDraft: () => serialized
       }
     }
 
@@ -107,5 +110,58 @@ describe('useComposerFill', () => {
     expect(first.focus).not.toHaveBeenCalled()
     expect(second.focus).not.toHaveBeenCalled()
     expect(second.apply).not.toHaveBeenCalled()
+  })
+
+  it('fills a chip-only knowledge or skill draft whose serialized promptText is not user-typed text', async () => {
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
+    const { apply, focus } = renderFill('topic-1', {
+      text: knowledgePrompt,
+      tokens: [
+        {
+          id: 'knowledge:kb-1',
+          kind: 'knowledge',
+          label: 'Knowledge One',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, { topicId: 'topic-1', text: 'Clarify the problem' })
+      flushAnimationFrames()
+    })
+
+    expect(apply).toHaveBeenCalledTimes(1)
+    expect(apply).toHaveBeenCalledWith('Clarify the problem')
+    expect(focus).toHaveBeenCalledWith('end')
+  })
+
+  it('still leaves a draft with real user-typed text next to chips untouched', async () => {
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
+    const { apply, focus } = renderFill('topic-1', {
+      text: `${knowledgePrompt} already typed`,
+      tokens: [
+        {
+          id: 'knowledge:kb-1',
+          kind: 'knowledge',
+          label: 'Knowledge One',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, { topicId: 'topic-1', text: 'Clarify the problem' })
+      flushAnimationFrames()
+    })
+
+    expect(apply).not.toHaveBeenCalled()
+    expect(focus).not.toHaveBeenCalled()
   })
 })

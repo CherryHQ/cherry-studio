@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createComposerDocumentContent,
+  createComposerDraftContent,
   createComposerMessageSnapshot,
   createComposerUserMessageParts,
   excludeComposerDraftTokens,
+  hasComposerDraftUserText,
   serializeComposerDocument,
-  trimComposerDraftBoundaryBlankLines
+  trimComposerDraftBoundaryBlankLines,
+  withComposerDraftUserText
 } from '../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 
@@ -779,5 +782,62 @@ describe('composer draft serialization', () => {
         text: 'Read report'
       }
     ])
+  })
+})
+
+describe('composer draft user text', () => {
+  const knowledgePrompt =
+    'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
+  const skillPrompt = 'Use the review-fast skill.'
+
+  const knowledgeToken = {
+    id: 'knowledge:kb-1',
+    kind: 'knowledge' as const,
+    label: 'Knowledge One',
+    promptText: knowledgePrompt,
+    index: 0,
+    textOffset: 0
+  }
+  const skillToken = {
+    id: 'skill:review-fast',
+    kind: 'skill' as const,
+    label: 'Review fast',
+    promptText: skillPrompt,
+    index: 0,
+    textOffset: 0
+  }
+
+  it('treats chip-only knowledge or skill prompt text as empty user text', () => {
+    expect(hasComposerDraftUserText({ text: knowledgePrompt, tokens: [knowledgeToken] })).toBe(false)
+    expect(hasComposerDraftUserText({ text: skillPrompt, tokens: [skillToken] })).toBe(false)
+    expect(hasComposerDraftUserText({ text: 'already typed', tokens: [] })).toBe(true)
+    expect(
+      hasComposerDraftUserText({
+        text: `${knowledgePrompt} already typed`,
+        tokens: [knowledgeToken]
+      })
+    ).toBe(true)
+  })
+
+  it('fills chip-only knowledge and skill drafts without dropping those tokens', () => {
+    const knowledgeDraft = withComposerDraftUserText(
+      { text: knowledgePrompt, tokens: [knowledgeToken] },
+      'Clarify the problem'
+    )
+    const restoredKnowledge = serializeComposerDocument(createComposerDraftContent(knowledgeDraft))
+    expect(restoredKnowledge.tokens).toEqual([
+      expect.objectContaining({ id: 'knowledge:kb-1', kind: 'knowledge', promptText: knowledgePrompt })
+    ])
+    expect(excludeComposerDraftTokens(restoredKnowledge, () => true).text.trim()).toBe('Clarify the problem')
+
+    const skillDraft = withComposerDraftUserText(
+      { text: skillPrompt, tokens: [skillToken] },
+      'Review the current changes'
+    )
+    const restoredSkill = serializeComposerDocument(createComposerDraftContent(skillDraft))
+    expect(restoredSkill.tokens).toEqual([
+      expect.objectContaining({ id: 'skill:review-fast', kind: 'skill', promptText: skillPrompt })
+    ])
+    expect(excludeComposerDraftTokens(restoredSkill, () => true).text.trim()).toBe('Review the current changes')
   })
 })

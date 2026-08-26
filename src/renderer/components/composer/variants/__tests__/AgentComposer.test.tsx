@@ -32,6 +32,7 @@ import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
   MissingAgentHomeComposer
 } from '../AgentComposer'
+import { agentSkillToComposerToken } from '../agentComposerTokens'
 import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
@@ -3436,15 +3437,11 @@ describe('AgentComposer', () => {
 
   it('fills only the current session draft while preserving its tokens and without sending', async () => {
     const skillToken: ComposerSerializedToken = {
-      id: 'skill:review-fast',
-      kind: 'skill',
-      label: 'Review fast',
-      promptText: 'Use the review skill.',
-      payload: reviewSkill,
+      ...agentSkillToComposerToken(reviewSkill),
       index: 0,
       textOffset: 0
     }
-    mocks.getDraft.mockImplementation(() => ({ text: '', tokens: [skillToken] }))
+    mocks.getDraft.mockImplementation(() => ({ text: skillToken.promptText, tokens: [skillToken] }))
     render(
       <AgentComposer
         agentId="agent-1"
@@ -3470,8 +3467,11 @@ describe('AgentComposer', () => {
       })
     })
 
-    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Review the current changes', tokens: [skillToken] })
-    expect(mocks.surfaceProps?.text).toBe('Review the current changes')
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({
+      text: `${skillToken.promptText} Review the current changes`,
+      tokens: [skillToken]
+    })
+    expect(mocks.surfaceProps?.text).toBe(`${skillToken.promptText} Review the current changes`)
     expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))

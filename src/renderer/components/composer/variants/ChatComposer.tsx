@@ -60,7 +60,11 @@ import { Eraser } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
+import {
+  createComposerUserMessageParts,
+  trimComposerDraftBoundaryBlankLines,
+  withComposerDraftUserText
+} from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -1353,9 +1357,10 @@ const ChatComposerInner = ({
   useComposerFill(actionsRef, streamScopeKey, (text) => {
     const historyPreview = exitInputHistoryPreview()
     const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
-    actionsRef.current.replaceDraft({ text, tokens: currentDraft.tokens })
-    setText(text)
-    setDraftTokens(currentDraft.tokens.length ? currentDraft.tokens : undefined)
+    const nextDraft = withComposerDraftUserText(currentDraft, text)
+    actionsRef.current.replaceDraft(nextDraft)
+    setText(nextDraft.text)
+    setDraftTokens(nextDraft.tokens.length ? nextDraft.tokens : undefined)
     if (historyPreview.tools) {
       setFiles(historyPreview.tools.files)
       setMentionedModels(historyPreview.tools.mentionedModels)

@@ -75,4 +75,18 @@ describe('readConversationSuggestionsModel', () => {
     expect(mockDataApiService.get).toHaveBeenCalledWith(`/models/${embeddingModel.id}`)
     expect(mockDataApiService.get).toHaveBeenCalledWith(`/models/${defaultModel.id}`)
   })
+
+  it('does not use a non-chat default model for generation', async () => {
+    const embeddingDefault: Model = {
+      ...defaultModel,
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    }
+    mockPreferenceService.get.mockImplementation(async (key: string) =>
+      key === 'chat.suggestions.model_id' ? null : embeddingDefault.id
+    )
+    MockDataApiUtils.setCustomResponse(`/models/${embeddingDefault.id}`, 'GET', embeddingDefault)
+
+    await expect(readConversationSuggestionsModel()).resolves.toBeUndefined()
+    expect(mockDataApiService.get).toHaveBeenCalledWith(`/models/${embeddingDefault.id}`)
+  })
 })

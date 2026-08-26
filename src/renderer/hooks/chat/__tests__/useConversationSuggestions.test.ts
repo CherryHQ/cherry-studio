@@ -426,4 +426,45 @@ describe('useConversationSuggestions', () => {
     await waitFor(() => expect(second.result.current.suggestions).toEqual(generated))
     expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2)
   })
+
+  it('does not generate against a non-chat default model', async () => {
+    stubModelQueries({ [modelPath(embeddingModel.id)]: embeddingModel })
+    enableSuggestions(null, embeddingModel.id)
+
+    const { result } = renderHook(
+      () =>
+        useConversationSuggestions({
+          focus: chatFocus,
+          conversationId: 'topic-non-chat-default',
+          outputLanguage: 'en-US',
+          fallback
+        }),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
+    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to a non-chat default when the dedicated model is also non-chat', async () => {
+    stubModelQueries({
+      [modelPath(embeddingModel.id)]: embeddingModel,
+      [modelPath(embeddingModel2.id)]: embeddingModel2
+    })
+    enableSuggestions(embeddingModel.id, embeddingModel2.id)
+
+    const { result } = renderHook(
+      () =>
+        useConversationSuggestions({
+          focus: chatFocus,
+          conversationId: 'topic-non-chat-both',
+          outputLanguage: 'en-US',
+          fallback
+        }),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
+    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
+  })
 })

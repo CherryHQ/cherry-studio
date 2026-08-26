@@ -40,17 +40,18 @@ export function useConversationSuggestions({
   const { model: dedicatedModel, isLoading: dedicatedLoading } = useModelById(dedicatedId)
   const { model: defaultModel, isLoading: defaultLoading } = useModelById(fallbackId)
   const dedicatedUsable = Boolean(active && dedicatedModel && !isNonChatModel(dedicatedModel))
-  const generationModel = active ? (dedicatedUsable ? dedicatedModel : defaultModel) : undefined
+  const defaultUsable = Boolean(active && defaultModel && !isNonChatModel(defaultModel))
+  const generationModel = dedicatedUsable ? dedicatedModel : defaultUsable ? defaultModel : undefined
   const modelPending =
     Boolean(dedicatedId && dedicatedLoading) || Boolean(!dedicatedUsable && fallbackId && defaultLoading)
   const key =
-    active && !modelPending
+    active && !modelPending && generationModel
       ? [
           'conversation-suggestions',
           focus,
           conversationId,
           outputLanguage,
-          generationModel?.id ?? '',
+          generationModel.id,
           persona?.name ?? '',
           persona?.description ?? ''
         ]
