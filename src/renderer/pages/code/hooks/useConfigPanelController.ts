@@ -4,6 +4,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -77,11 +78,14 @@ export function useConfigPanelController({
   // provider key). Returns undefined for non-gateway providers.
   const resolveGatewayWriteContext = useCallback(
     async (providerId: string): Promise<CliConfigGatewayContext | undefined> => {
-      if (!isApiGatewayProviderId(providerId) || !apiGatewayProvider) return undefined
-      const apiKey = await apiGatewayProvider.ensureReady()
+      if (!isFileConfiguredCli(selectedCliTool) || !isApiGatewayProviderId(providerId) || !apiGatewayProvider) {
+        return undefined
+      }
+      await apiGatewayProvider.ensureRunning()
+      const apiKey = await apiGatewayProvider.getFreshApiKey()
       return { provider: apiGatewayProvider.provider, apiKey }
     },
-    [apiGatewayProvider]
+    [apiGatewayProvider, selectedCliTool]
   )
   // Tracks tools with an in-flight enable/disable. writeCliConfigDraft / clearCliConfig write multiple
   // files sequentially with snapshot rollback and no cross-file lock, so a rapid second toggle for the
@@ -142,7 +146,8 @@ export function useConfigPanelController({
       if (isApiGatewayProviderId(editingProvider.id) && writePrimaryModel === false && !cliConfigModelId) {
         throw new Error('Cannot resolve the detailed gateway model')
       }
-      const shouldApplyCliConfig = currentProviderId === editingProvider.id || shouldEnableAfterSave
+      const shouldApplyCliConfig =
+        isFileConfiguredCli(selectedCliTool) && (currentProviderId === editingProvider.id || shouldEnableAfterSave)
       // Preference and the external CLI files are one user-visible config. The active provider owns
       // the current files, so with nothing addressing a model the write below is skipped and
       // persisting anyway would strand the files on their previous contents (e.g. flipping Claude's
@@ -167,7 +172,14 @@ export function useConfigPanelController({
         setCurrentCliConfigConnection(null)
         return
       }
-      if (!cliConfigModelId || !shouldApplyCliConfig) return
+      if (!cliConfigModelId) return
+      if (!shouldApplyCliConfig) {
+        if (shouldEnableAfterSave) {
+          await setCurrentProvider(editingProvider.id)
+          setCurrentCliConfigConnection(null)
+        }
+        return
+      }
 
       try {
         const gateway = isApiGatewayProviderId(editingProvider.id)
@@ -237,7 +249,9 @@ export function useConfigPanelController({
         // tool params back on. Finally mark the reserved id current (or clear it when re-toggled).
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           try {
-            await clearCliConfig({ cliTool: selectedCliTool })
+            if (isFileConfiguredCli(selectedCliTool)) {
+              await clearCliConfig({ cliTool: selectedCliTool })
+            }
             if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {
               await writeOwnLoginCliConfigDraft({
                 cliTool: selectedCliTool,
@@ -256,7 +270,7 @@ export function useConfigPanelController({
         }
         if (!isEnabling) {
           try {
-            if (selectedCliTool !== CodeCli.DEEPSEEK_HARNESS) {
+            if (isFileConfiguredCli(selectedCliTool)) {
               await clearCliConfig({ cliTool: selectedCliTool })
             }
             // Only clear the active selection after any required scrub succeeds; otherwise the UI could show
@@ -298,6 +312,17 @@ export function useConfigPanelController({
             setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to select DeepSeek Harness provider:', err as Error)
+            toast.error(t('code.apply_failed'))
+          }
+          return
+        }
+
+        if (!isFileConfiguredCli(selectedCliTool)) {
+          try {
+            await setCurrentProvider(provider.id)
+            setCurrentCliConfigConnection(null)
+          } catch (err) {
+            logger.error('Failed to select CLI provider:', err as Error)
             toast.error(t('code.apply_failed'))
           }
           return

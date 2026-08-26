@@ -5,6 +5,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -153,7 +154,10 @@ export function useLaunchDialogController({
       // config; re-verify it's serving and rewrite the config with the fresh context so the
       // CLI never launches against a dead endpoint or a stale key.
       if (isGatewayProvider && apiGatewayProvider) {
-        const apiKey = await apiGatewayProvider.ensureReady()
+        await apiGatewayProvider.ensureRunning()
+      }
+      if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+        const apiKey = await apiGatewayProvider.getFreshApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
           onDiskFiles = await readCliConfigFiles(selectedCliTool)
