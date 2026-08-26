@@ -750,6 +750,54 @@ describe('QuickPanelView', () => {
     expect(text).toBe('hello world')
   })
 
+  it('consumes a button-tracked live filter only once when selecting a non-menu resource', async () => {
+    // Bug: handleItemAction called consumeInputQuery(), then handleClose/consumeQueryOnDismiss
+    // consumed again and deleted the same prefix from the inserted resource text.
+    const inserted = 'card-note'
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const insertText = vi.fn((value: string) => {
+      text = `${text.slice(0, cursorOffset)}${value}${text.slice(cursorOffset)}`
+      cursorOffset += value.length
+    })
+    const action = vi.fn(({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
+      inputAdapter?.insertText(inserted)
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText,
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'card-note', label: 'Card note', icon: 'card', action }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('Card note'))
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(insertText).toHaveBeenCalledWith(inserted)
+    expect(text).toBe(inserted)
+  })
+
   it('does not consume composer text when the root tool panel is dismissed', async () => {
     // Bug: keepLiveFilter = trackInputQuery && type:button also matches the "+" root panel,
     // so Esc deleted real message draft typed while the menu was open.

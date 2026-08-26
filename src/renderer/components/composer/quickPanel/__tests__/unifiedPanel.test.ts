@@ -619,7 +619,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'popover',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -631,7 +631,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'root-panel',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -683,7 +683,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         title: 'Thinking',
         symbol: 'thinking',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         triggerInfo: { type: 'button' },
         trackInputQuery: true,
         list: [expect.objectContaining({ label: 'Low' })]
@@ -706,10 +706,173 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       expect.objectContaining({
         source: 'root-panel',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
       })
+    )
+  })
+
+  it('does not treat leftover slash text as a resource submenu live filter', () => {
+    // Bug: slash-open handleItemAction consumes `/prompt ` then still forwards queryAnchor 0
+    // into openUnifiedPanelSubmenu, so leftover `hello world` is tracked and later wiped.
+    const leftover = 'hello world'
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'sparkles',
+          sources: ['root-panel'],
+          submenu: [
+            {
+              id: 'skill-search',
+              kind: 'command',
+              label: 'Search files',
+              icon: 'search',
+              sources: ['root-panel']
+            }
+          ]
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: `/prompt ${leftover}` }
+      }
+    )
+    const skills = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    skills.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: skills,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'prompt'
+    })
+
+    const opened = vi.mocked(quickPanel.open).mock.calls[0][0]
+    expect(opened.queryAnchor).toBeUndefined()
+    expect(opened.triggerInfo).toEqual({ type: 'button' })
+
+    let text = leftover
+    let cursorOffset = leftover.length
+    const consumeQueryAnchor = opened.queryAnchor
+    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
+      text = `${text.slice(0, consumeQueryAnchor)}${text.slice(cursorOffset)}`
+      cursorOffset = consumeQueryAnchor
+    }
+    expect(text).toBe(leftover)
+  })
+
+  it('does not forward a slash queryAnchor into a panel launcher that opens a resource submenu', () => {
+    // Bug: production slash-open still passed queryAnchor 0 into onToolLauncherSelect, so
+    // Knowledge Base / Quick Phrases / skills opened with leftover text as a live filter.
+    const leftover = 'hello world'
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'quick-phrases',
+          kind: 'panel',
+          label: 'Quick Phrases',
+          icon: 'zap',
+          sources: ['root-panel']
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: `/prompt ${leftover}` }
+      }
+    )
+    const phrases = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    phrases.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: phrases,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'prompt'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'quick-phrases' }),
+      expect.objectContaining({
+        queryAnchor: undefined,
+        triggerInfo: { type: 'input', position: 0, originalText: `/prompt ${leftover}` }
+      })
+    )
+  })
+
+  it('keeps a button-opened queryAnchor when opening a resource submenu', () => {
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'knowledge',
+          kind: 'group',
+          label: 'Knowledge',
+          icon: 'book',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'knowledge-file',
+              kind: 'command',
+              label: 'File',
+              icon: 'file',
+              sources: ['popover']
+            }
+          ]
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 12,
+        triggerInfo: { type: 'button', position: 12 }
+      }
+    )
+    const knowledge = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    knowledge.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: knowledge,
+      parentPanel: options,
+      queryAnchor: 12,
+      searchText: 'card'
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryAnchor: 12,
+        triggerInfo: { type: 'button' }
+      })
+    )
+
+    const childPanelOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
+    childPanelOptions.list[0].action?.({
+      action: 'enter',
+      context: actionContext,
+      item: childPanelOptions.list[0],
+      parentPanel: options,
+      queryAnchor: 12,
+      searchText: 'card'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'knowledge-file' }),
+      expect.objectContaining({ queryAnchor: 12 })
     )
   })
 

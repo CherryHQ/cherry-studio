@@ -304,13 +304,16 @@ function createUnifiedPanelListItem(
     action: ({ context, parentPanel: actionParentPanel, queryAnchor, searchText }) => {
       const parentPanel = actionParentPanel ?? options.getRootPanelOptions?.()
       const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
+      // handleItemAction already consumed a type:input trigger. Forwarding that pre-consume
+      // queryAnchor would track leftover composer text as the submenu's live filter.
+      const nextQueryAnchor = triggerInfo?.type === 'input' ? undefined : queryAnchor
 
       if (children.length > 0) {
         openUnifiedPanelSubmenu(launcher, {
           ...options,
           ancestorLauncherIds: nextAncestorLauncherIds,
           parentPanel,
-          queryAnchor,
+          queryAnchor: nextQueryAnchor,
           searchText,
           triggerInfo
         })
@@ -322,7 +325,7 @@ function createUnifiedPanelListItem(
         createUnifiedPanelActionOptions({
           ...options,
           parentPanel,
-          queryAnchor,
+          queryAnchor: nextQueryAnchor,
           searchText,
           triggerInfo
         })

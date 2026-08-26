@@ -399,7 +399,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           consumeInputQuery()
         }
       } else {
-        consumeInputQuery()
+        consumeInputQueryOnce()
       }
       ctx.beforeAction?.(quickPanelCallBackOptions)
       item?.action?.(quickPanelCallBackOptions)
