@@ -421,6 +421,90 @@ describe('AgentSessionMessageService', () => {
       }
     )
 
+    it.each(['accepted', 'delivering'] as const)(
+      'does not resurrect a %s completion result in a cleared sender session',
+      async (status) => {
+        await seedAgent('agent-a', 'Agent A')
+        await seedAgent('agent-b', 'Agent B')
+        await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+        await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+        const request = agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'target',
+          content: 'Do the work',
+          replyPolicy: 'completion'
+        })
+        const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d091'
+        agentSessionMessageService.saveMessage({
+          sessionId: 'target',
+          message: {
+            id: assistantId,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'Late result' }] }
+          }
+        })
+        if (status === 'delivering') {
+          agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+            expected: ['accepted'],
+            turnRef: assistantId
+          })
+        }
+
+        agentSessionMessageService.clearSessionMessages('sender')
+
+        expect(agentSessionMessageService.hasSessionMessages('sender')).toBe(false)
+        expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+          status: 'failed',
+          outcome: 'failed',
+          error: { code: 'CALLER_SESSION_CLEARED' }
+        })
+        expect(agentSessionMessageService.getSessionMessage('target', assistantId).id).toBe(assistantId)
+
+        const finalized = agentSessionMessageService.finalizeSessionDelivery({
+          requestSessionId: 'target',
+          requestMessageId: request.id,
+          assistantMessageId: assistantId,
+          outcome: 'success'
+        })
+        const failed = agentSessionMessageService.failSessionDelivery(request, {
+          code: 'CANCELLED',
+          message: 'Late failure'
+        })
+
+        expect(finalized).toBeNull()
+        expect(failed).toBeNull()
+        expect(agentSessionMessageService.hasSessionMessages('sender')).toBe(false)
+        expect(
+          agentSessionMessageService
+            .listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+            .filter((message) => message.sessionId === 'sender' || message.delivery?.inReplyTo === request.id)
+        ).toEqual([])
+      }
+    )
+
+    it('leaves a none-policy target delivery intact when the sender is cleared', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Fire and forget'
+      })
+
+      agentSessionMessageService.clearSessionMessages('sender')
+
+      expect(agentSessionMessageService.hasSessionMessages('sender')).toBe(false)
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'accepted',
+        replyPolicy: 'none'
+      })
+    })
+
     it('does not invent a sender result when clearing a none-policy delivery', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
@@ -1053,6 +1137,53 @@ describe('AgentSessionMessageService', () => {
     expect(() => agentSessionMessageService.clearSessionMessages('missing-session')).toThrow(
       "Session with id 'missing-session' not found"
     )
+  })
+
+  it('updates an existing assistant placeholder and does not recreate it after clear', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      }
+    })
+
+    const updated = agentSessionMessageService.persistExistingAssistantMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'done' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+    expect(updated).toMatchObject({
+      id: ASSISTANT_MESSAGE_ID,
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'done' }] }
+    })
+
+    agentSessionMessageService.clearSessionMessages(SESSION_ID)
+    const latePersist = agentSessionMessageService.persistExistingAssistantMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'resurrected' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+
+    expect(latePersist).toBeNull()
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
   })
 
   it('publishes the data change derived from an inserted or updated message', () => {

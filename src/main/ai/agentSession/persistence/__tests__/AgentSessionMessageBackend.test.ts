@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   markTerminalError: vi.fn(),
-  saveMessage: vi.fn()
+  persistExistingAssistantMessage: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     markAssistantMessageTerminalError: mocks.markTerminalError,
-    saveMessage: mocks.saveMessage
+    persistExistingAssistantMessage: mocks.persistExistingAssistantMessage
   }
 }))
 
@@ -21,7 +21,7 @@ describe('AgentSessionMessageBackend', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('terminalizes its placeholder when the persistence listener catches a write failure', async () => {
-    mocks.saveMessage.mockImplementationOnce(() => {
+    mocks.persistExistingAssistantMessage.mockImplementationOnce(() => {
       throw new Error('write failed')
     })
     const backend = new AgentSessionMessageBackend({
@@ -51,7 +51,7 @@ describe('AgentSessionMessageBackend', () => {
 
     await listener.onDone({ status: 'success', finalMessage: undefined })
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith(
+    expect(mocks.persistExistingAssistantMessage).toHaveBeenCalledWith(
       {
         sessionId: 'session-1',
         message: {

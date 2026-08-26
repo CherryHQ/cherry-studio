@@ -155,7 +155,11 @@ describe('AgentChat clear messages command', () => {
       content: 'chat.input.clear.content',
       centered: true
     })
+    expect(stopLiveTurnMock).toHaveBeenCalled()
     expect(clearAgentSessionMessagesMock).toHaveBeenCalledWith('session-1')
+    expect(stopLiveTurnMock.mock.invocationCallOrder[0]).toBeLessThan(
+      clearAgentSessionMessagesMock.mock.invocationCallOrder[0]
+    )
   })
 
   it('drains the live turn before clearing so terminal persistence cannot recreate the assistant', async () => {

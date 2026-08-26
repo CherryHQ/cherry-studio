@@ -39,7 +39,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    agentSessionMessageService.saveMessage(
+    agentSessionMessageService.persistExistingAssistantMessage(
       {
         sessionId: this.opts.sessionId,
         ...(runtimeResumeToken ? { runtimeResumeToken } : {}),

@@ -147,7 +147,8 @@ export const AGENT_SESSION_DELIVERY_ERROR_CODES = {
   CANCELLED: 'CANCELLED',
   TARGET_SESSION_DELETED: 'TARGET_SESSION_DELETED',
   TARGET_SESSION_CLEARED: 'TARGET_SESSION_CLEARED',
-  CALLER_SESSION_DELETED: 'CALLER_SESSION_DELETED'
+  CALLER_SESSION_DELETED: 'CALLER_SESSION_DELETED',
+  CALLER_SESSION_CLEARED: 'CALLER_SESSION_CLEARED'
 } as const
 
 export type AgentSessionDeliveryErrorCode =
@@ -541,20 +542,21 @@ export class AgentSessionMessageService {
         .all()
       if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
-      const deliveryResults = this.prepareSessionDeletionTx(tx, [sessionId], {
+      const inboundResults = this.prepareSessionDeletionTx(tx, [sessionId], {
         code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_CLEARED,
         message: 'Target Session messages were cleared'
       })
+      const outboundFailed = this.prepareCallerSessionClearedTx(tx, sessionId)
       const rows = tx
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(eq(sessionMessagesTable.sessionId, sessionId))
         .all()
       const deletedIds = rows.map((row) => row.id)
-      if (deletedIds.length === 0) return { deletedIds, deliveryResults }
+      if (deletedIds.length === 0) return { deletedIds, inboundResults, outboundFailed }
 
       tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).run()
-      return { deletedIds, deliveryResults }
+      return { deletedIds, inboundResults, outboundFailed }
     })
 
     if (result.deletedIds.length > 0) {
@@ -567,7 +569,14 @@ export class AgentSessionMessageService {
         }
       ])
     }
-    this.publishDeliveryChanges(result.deliveryResults)
+    this.publishDeliveryChanges(result.inboundResults)
+    this.publishDeliveryMutation(
+      result.outboundFailed.map((message) => ({
+        sessionId: message.sessionId,
+        messageId: message.id,
+        kind: 'projection' as const
+      }))
+    )
 
     return { deletedIds: result.deletedIds }
   }
@@ -899,6 +908,41 @@ export class AgentSessionMessageService {
     const timestampMs = Date.now()
     if (db) return this.saveMessageTx(db, params, timestampMs).entity
     const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (result.entity.role === 'assistant') {
+      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
+    }
+    if (result.activityTimestamp !== null && !publishDataChange) {
+      agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
+    }
+    if (publishDataChange) {
+      notifyDataApiDataChange([
+        ...agentSessionReadModelEffects(result.activityTimestamp !== null ? [params.sessionId] : [], 'projection'),
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: result.dataChange,
+          routeParams: { sessionId: params.sessionId },
+          entityIds: [result.entity.id]
+        }
+      ])
+    }
+    return result.entity
+  }
+
+  /** Update an existing assistant placeholder; no-op if the row was cleared. */
+  persistExistingAssistantMessage(
+    params: SaveAgentSessionMessageParams,
+    options: { publishDataChange?: boolean } = {}
+  ): AgentSessionMessageEntity | null {
+    const { publishDataChange } = options
+    const timestampMs = Date.now()
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const messageId = params.message.id
+      if (!messageId) return null
+      const existing = this.findExistingMessageRow(tx, params.sessionId, messageId)
+      if (!existing) return null
+      return this.saveMessageTx(tx, params, timestampMs)
+    })
+    if (!result) return null
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
@@ -1457,6 +1501,9 @@ export class AgentSessionMessageService {
     const failed = application.get('DbService').withWriteTx((tx) => {
       const request = this.findExistingMessageRow(tx, message.sessionId, message.id)
       if (!request?.delivery || !request.deliveryStatus) return { requestId: null, result: null }
+      if (request.deliveryStatus !== 'accepted' && request.deliveryStatus !== 'delivering') {
+        return { requestId: null, result: null }
+      }
       const now = new Date().toISOString()
       let result: AgentSessionMessageEntity | null = null
       if (request.delivery.replyPolicy === 'completion') {
@@ -1598,6 +1645,47 @@ export class AgentSessionMessageService {
       )
     }
     return results
+  }
+
+  /** Fail outbound completion requests without writing a result into the cleared sender. */
+  private prepareCallerSessionClearedTx(tx: DbOrTx, sessionId: string): AgentSessionMessageEntity[] {
+    const requests = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.deliverySenderSessionId, sessionId),
+          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+        )
+      )
+      .all()
+    const changes: AgentSessionMessageEntity[] = []
+    const now = new Date().toISOString()
+    const error = {
+      code: AGENT_SESSION_DELIVERY_ERROR_CODES.CALLER_SESSION_CLEARED,
+      message: 'Caller Session messages were cleared'
+    }
+    for (const request of requests) {
+      if (!request.delivery || request.delivery.replyPolicy !== 'completion' || request.sessionId === sessionId)
+        continue
+      const failedRequest = tx
+        .update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'failed',
+          deliveryTurnRef: null,
+          delivery: { ...request.delivery, outcome: 'failed', error, statusAt: now }
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, request.id),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
+        )
+        .returning()
+        .get()
+      if (failedRequest) changes.push(this.rowToEntity(failedRequest))
+    }
+    return changes
   }
 
   /** Fail active requests before their target Agent is removed while the Session rows are retained. */
