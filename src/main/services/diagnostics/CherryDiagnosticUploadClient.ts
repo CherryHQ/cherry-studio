@@ -13,7 +13,6 @@ const DIAGNOSTIC_UPLOAD_URL = 'https://api.cherry-ai.com/diagnostics'
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 const MAX_RESPONSE_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 15 * 60 * 1000
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 export type CherryDiagnosticUploadFailureReason = DiagnosticUploadFailureReason
 
@@ -114,25 +113,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function isRoundTrippingIsoTimestamp(value: unknown): value is string {
-  if (typeof value !== 'string') return false
-  const timestamp = Date.parse(value)
-  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value
-}
-
-function uploadedResult(response: Response, body: Buffer): CherryDiagnosticUploadResult {
+function uploadedResult(body: Buffer): CherryDiagnosticUploadResult {
   try {
     const value = parseResponseJson(body)
-    if (!isRecord(value) || typeof value.id !== 'string' || !UUID_V4.test(value.id)) {
-      return { status: 'submission_unknown' }
-    }
-    const statusUrl = `${DIAGNOSTIC_UPLOAD_URL}/${value.id}`
-    if (
-      value.status !== 'pending' ||
-      value.status_url !== statusUrl ||
-      response.headers.get('location') !== statusUrl ||
-      !isRoundTrippingIsoTimestamp(value.created_at)
-    ) {
+    if (!isRecord(value) || typeof value.id !== 'string' || value.id.trim().length === 0) {
       return { status: 'submission_unknown' }
     }
     return { reportId: value.id, status: 'uploaded' }
@@ -209,7 +193,7 @@ export class CherryDiagnosticUploadClient {
           signal: controller.signal
         })
         const body = await readResponseBody(response)
-        return response.status === 201 ? uploadedResult(response, body) : rejectedResult(response, body)
+        return response.ok ? uploadedResult(body) : rejectedResult(response, body)
       } catch {
         return { status: 'submission_unknown' }
       } finally {

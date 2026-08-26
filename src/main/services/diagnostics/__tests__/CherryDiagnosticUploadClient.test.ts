@@ -281,16 +281,42 @@ describe('CherryDiagnosticUploadClient', () => {
   })
 
   it.each([
-    ['uppercase ID', reportResponse(reportPayload({ id: REPORT_ID.toUpperCase() }))],
-    ['non-v4 ID', reportResponse(reportPayload({ id: '123e4567-e89b-52d3-a456-426614174000' }))],
-    ['non-pending status', reportResponse(reportPayload({ status: 'complete' }))],
-    ['mismatched status URL', reportResponse(reportPayload({ status_url: `${ENDPOINT}/other` }))],
-    ['mismatched Location', reportResponse(undefined, { location: `${ENDPOINT}/other` })],
-    ['unparseable timestamp', reportResponse(reportPayload({ created_at: 'not-a-date' }))],
-    ['non-round-tripping ISO timestamp', reportResponse(reportPayload({ created_at: '2026-08-26T01:02:03Z' }))],
-    ['invalid JSON', reportResponse(undefined, { body: '{' })]
-  ])('returns submission_unknown for a 201 response with %s', async (_label, response) => {
-    fetchMock.mockResolvedValueOnce(response)
+    [200, 'opaque-report-200'],
+    [201, REPORT_ID.toUpperCase()],
+    [202, '123e4567-e89b-52d3-a456-426614174000'],
+    [299, '  report/with spaces  ']
+  ])('accepts HTTP %s with a nonblank opaque ID and returns it unchanged', async (status, reportId) => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ id: reportId }), { status }))
+
+    await expect(
+      client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
+    ).resolves.toEqual({ reportId, status: 'uploaded' })
+  })
+
+  it('accepts a 201 response with Go RFC3339Nano metadata and ignores other response metadata', async () => {
+    fetchMock.mockResolvedValueOnce(
+      reportResponse(
+        reportPayload({
+          created_at: '2026-08-26T01:02:03.123456789Z',
+          status: 'complete',
+          status_url: `${ENDPOINT}/other`
+        }),
+        { location: `${ENDPOINT}/other` }
+      )
+    )
+
+    await expect(
+      client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
+    ).resolves.toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+  })
+
+  it.each([
+    ['invalid JSON', 200, '{'],
+    ['a missing ID', 201, '{}'],
+    ['a non-string ID', 202, JSON.stringify({ id: 123 })],
+    ['a blank ID', 299, JSON.stringify({ id: ' \t\n' })]
+  ])('returns submission_unknown for a 2xx response with %s (HTTP %s)', async (_label, status, body) => {
+    fetchMock.mockResolvedValueOnce(new Response(body, { status }))
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
