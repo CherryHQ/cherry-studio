@@ -3448,6 +3448,7 @@
   "settings.data.nutstore.checkConnection.success": "Connecté à Nutstore",
   "settings.data.nutstore.isLogin": "Connecté",
   "settings.data.nutstore.login.button": "Se connecter",
+  "settings.data.nutstore.login.failed": "La connexion à Nutstore n'a pas abouti. Veuillez réessayer.",
   "settings.data.nutstore.logout.button": "Se déconnecter",
   "settings.data.nutstore.logout.content": "Après la déconnexion, il ne sera plus possible de sauvegarder vers Nutstore ni de restaurer depuis Nutstore.",
   "settings.data.nutstore.logout.title": "Êtes-vous sûr de vouloir vous déconnecter de Nutstore ?",

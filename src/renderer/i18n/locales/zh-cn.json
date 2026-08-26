@@ -3448,6 +3448,7 @@
   "settings.data.nutstore.checkConnection.success": "已连接坚果云",
   "settings.data.nutstore.isLogin": "已登录",
   "settings.data.nutstore.login.button": "登录",
+  "settings.data.nutstore.login.failed": "坚果云登录未完成，请重试。",
   "settings.data.nutstore.logout.button": "退出登录",
   "settings.data.nutstore.logout.content": "退出后将无法备份至坚果云和从坚果云恢复",
   "settings.data.nutstore.logout.title": "确定要退出坚果云登录？",

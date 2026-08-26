@@ -2046,6 +2046,41 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
+    it('passes a fixed npm lifecycle allowlist as typed mise tool options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@vendor/native-cli': [{ version: '1.2.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/native-cli\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).applyDefinition(
+          {
+            name: 'native-cli',
+            tool: 'npm:@vendor/native-cli',
+            npmAllowBuilds: ['@vendor/native-cli', 'better-sqlite3']
+          },
+          undefined,
+          []
+        )
+      ).resolves.toBeUndefined()
+
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'use',
+        '-g',
+        'node@22',
+        'npm:@vendor/native-cli[allow_builds=["\\u0040vendor/native-cli","better-sqlite3"]]@latest'
+      ])
+    })
+
     it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -2424,15 +2459,13 @@ describe('BinaryManager', () => {
     })
 
     it.each([
-      { nodeVersion: '20.19.4', expectedRuntime: 'node@22.19.0', expectedRuntimeVersion: '22.19.0' },
-      { nodeVersion: '24.11.1', expectedRuntime: 'core:node@24.11.1', expectedRuntimeVersion: '24.11.1' }
+      { nodeVersion: '20.19.4', expectedRuntime: 'node@22.19' },
+      { nodeVersion: '24.11.1', expectedRuntime: 'core:node@24.11.1' }
     ])('selects a compatible Node for MiniMax Code when custom Node is $nodeVersion', async (testCase) => {
       const service = makeService()
       manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: testCase.nodeVersion }]
       let installed = false
-      ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.19.0\n', stderr: '' }
         if (args[0] === 'ls' && args.length === 2) {
           return {
             stdout: JSON.stringify({
@@ -2448,29 +2481,21 @@ describe('BinaryManager', () => {
             stderr: ''
           }
         }
-        if (args[0] === 'use' && args.some((arg) => arg.startsWith('npm:@minimax-ai/code['))) installed = true
-        if (args[0] === 'which' && (args[1] === 'node' || args[1] === 'npm')) {
-          return {
-            stdout: `/mock/mise/installs/node/${testCase.expectedRuntimeVersion}/bin/${args[1]}\n`,
-            stderr: ''
-          }
-        }
+        if (args[0] === 'use') installed = true
         if (args[0] === 'which') return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
       await service.installByName({ name: 'mcode' })
 
-      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
-      expect(useCalls.map((call: any[]) => call[1])).toEqual([
-        ['use', '-g', '--pin', testCase.expectedRuntime],
-        ['use', '-g', 'npm:@minimax-ai/code[npm_args="--ignore-scripts=false --foreground-scripts"]@latest']
+      const useCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'use')
+      expect(useCall?.[1]).toEqual([
+        'use',
+        '-g',
+        testCase.expectedRuntime,
+        'npm:@minimax-ai/code[allow_builds=["better-sqlite3"]]@latest'
       ])
-      expect(useCalls[1]?.[2].env).toMatchObject({
-        PATH: `/mock/mise/installs/node/${testCase.expectedRuntimeVersion}/bin:/mock/mise/shims:/usr/bin`,
-        MISE_NPM_SHELL_OUT: '1',
-        MISE_NPM_PACKAGE_MANAGER: 'npm'
-      })
+      expect(useCall?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
     })
 
     it('does not adopt an unapplied custom runtime for a package install, using the default runtime', async () => {

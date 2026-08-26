@@ -112,10 +112,6 @@ const MISE_PRERELEASE_TOOLS = new Set(
 const MISE_NPM_SHELL_OUT_TOOLS = new Set(
   CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
 )
-const MISE_NPM_ALLOW_SCRIPTS_TOOLS = new Set(
-  CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmAllowScripts).map((preset) => preset.miseTool)
-)
-const MISE_NPM_ALLOW_SCRIPTS_ARGS = '--ignore-scripts=false --foreground-scripts'
 const MISE_REQUIRED_PEERS = new Map(
   CODE_CLI_TOOL_PRESETS.flatMap((preset) =>
     preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
@@ -227,8 +223,14 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type ToolDefinition = CustomToolDefinition & { runtimeRequirement?: Readonly<CodeCliRuntimeRequirement> }
-type FixedToolDefinition = ToolDefinition
+type FixedToolDefinition = {
+  name: string
+  tool: string
+  npmAllowBuilds?: readonly string[]
+  runtimeRequirement?: Readonly<CodeCliRuntimeRequirement>
+}
+type InstallableToolDefinition = CustomToolDefinition &
+  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'runtimeRequirement'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -253,16 +255,29 @@ type IsolatedEnvSnapshot = {
 const normalizeToolIdentity = (tool: string): string =>
   (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
 
+function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): string {
+  if (!packages?.length) return tool
+  // mise 2026.7.14 splits ToolArg on `@` before parsing options, so scoped values use TOML Unicode escapes.
+  const allowBuilds = JSON.stringify(packages).replaceAll('@', '\\u0040')
+  const option = `allow_builds=${allowBuilds}`
+  return tool.endsWith(']') ? `${tool.slice(0, -1)},${option}]` : `${tool}[${option}]`
+}
+
 const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, FixedToolDefinition>([
   ...PRESETS_BINARY_TOOLS.map((preset): [string, FixedToolDefinition] => [
     preset.name,
-    { name: preset.name, tool: preset.tool }
+    {
+      name: preset.name,
+      tool: preset.tool,
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+    }
   ]),
   ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => [
     preset.executable,
     {
       name: preset.executable,
       tool: preset.miseTool,
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
       ...(preset.runtimeRequirement ? { runtimeRequirement: preset.runtimeRequirement } : {})
     }
   ])
@@ -1291,7 +1306,7 @@ export class BinaryManager extends BaseService {
   }
 
   private async selectRuntime(
-    definition: ToolDefinition,
+    definition: InstallableToolDefinition,
     definitions: CustomToolDefinition[]
   ): Promise<string | undefined> {
     const backend = definition.tool.split(':')[0]
@@ -1314,17 +1329,14 @@ export class BinaryManager extends BaseService {
   }
 
   private async installWithMise(
-    definition: ToolDefinition,
+    definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
   ): Promise<string> {
     const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
     const backend = definition.tool.split(':')[0]
     const runtime = await this.selectRuntime(definition, definitions)
-    const toolWithOptions = MISE_NPM_ALLOW_SCRIPTS_TOOLS.has(definition.tool)
-      ? `${definition.tool}[npm_args="${MISE_NPM_ALLOW_SCRIPTS_ARGS}"]`
-      : definition.tool
-    const toolSpec = `${toolWithOptions}@${requested}`
+    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
@@ -1490,7 +1502,7 @@ export class BinaryManager extends BaseService {
    * is authoritative — it wins over any stale same-name Preference entry left by a
    * prior version. A custom name resolves only from the persisted custom registry.
    */
-  private resolveDefinition(name: string): ToolDefinition | undefined {
+  private resolveDefinition(name: string): InstallableToolDefinition | undefined {
     return this.resolveFixedDefinition(name) ?? this.getCustomDefinitions().find((entry) => entry.name === name)
   }
 
@@ -1527,7 +1539,7 @@ export class BinaryManager extends BaseService {
    * version, so there is no pin to hand back.
    */
   private async applyDefinition(
-    definition: ToolDefinition,
+    definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
   ): Promise<void> {

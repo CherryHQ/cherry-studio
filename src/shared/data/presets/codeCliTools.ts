@@ -15,8 +15,8 @@ export interface CodeCliToolPreset {
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
-  /** Let a reviewed npm dependency graph run lifecycle scripts required for a usable install. */
-  miseNpmAllowScripts?: boolean
+  /** Exact npm packages whose lifecycle scripts mise may run during installation. */
+  npmAllowBuilds?: readonly string[]
   runtimeRequirement?: Readonly<CodeCliRuntimeRequirement>
   /**
    * A peer this tool needs at runtime but whose absence an install still reports
@@ -92,10 +92,12 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'mcode',
     packageName: '@minimax-ai/code',
     install: 'npm',
-    // The official installer enables scripts for @minimax-ai/code and better-sqlite3.
-    // mise 2026.7.14 otherwise reports success without building the SQLite binding.
-    miseNpmShellOut: true,
-    miseNpmAllowScripts: true,
+    // The official npm installer also allows @minimax-ai/code so its postinstall
+    // verifier can run after dependency scripts. mise/aube runs that verifier
+    // before better-sqlite3's installer, aborting a clean install. Allow the
+    // native dependency itself; provider discovery exercises the resulting
+    // binding before Cherry applies a provider configuration.
+    npmAllowBuilds: ['better-sqlite3'],
     runtimeRequirement: {
       tool: 'node@22.19',
       versionRange: '>=22.19 <23 || >=24 <27'

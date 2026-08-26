@@ -3448,6 +3448,7 @@
   "settings.data.nutstore.checkConnection.success": "Nutstoreに接続しました",
   "settings.data.nutstore.isLogin": "ログイン済み",
   "settings.data.nutstore.login.button": "ログイン",
+  "settings.data.nutstore.login.failed": "Nutstoreへのログインが完了しませんでした。もう一度お試しください。",
   "settings.data.nutstore.logout.button": "ログアウト",
   "settings.data.nutstore.logout.content": "ログアウト後、Nutstoreへのバックアップや復元ができなくなります。",
   "settings.data.nutstore.logout.title": "Nutstoreからログアウトしますか？",
