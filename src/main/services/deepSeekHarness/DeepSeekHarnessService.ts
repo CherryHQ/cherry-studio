@@ -430,4 +430,3 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
     if (signal.aborted) onAbort()
   })
 }
-
