@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemUpdateIndexedRelativePathMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
   knowledgeItemUpdateSnapshotRelativePathMock: vi.fn(),
+  knowledgeItemUpdateNoteSnapshotContentMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
@@ -62,6 +63,7 @@ export const {
   knowledgeItemUpdateIndexedRelativePathMock,
   knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemUpdateSnapshotRelativePathMock,
+  knowledgeItemUpdateNoteSnapshotContentMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
@@ -134,6 +136,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateIndexedRelativePath: knowledgeItemUpdateIndexedRelativePathMock,
     updateSnapshotRelativePath: knowledgeItemUpdateSnapshotRelativePathMock,
+    updateNoteSnapshotContent: knowledgeItemUpdateNoteSnapshotContentMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
@@ -385,6 +388,10 @@ beforeEach(() => {
     (id: string, type: 'url' | 'note', relativePath: PosixRelativeFilePath) =>
       type === 'url' ? createUrlItem(id, relativePath) : createNoteItem(id, null, 'processing', relativePath)
   )
+  knowledgeItemUpdateNoteSnapshotContentMock.mockImplementation((id: string, content: string) => ({
+    ...createNoteItem(id, null, 'embedding'),
+    data: { ...createNoteItem(id).data, content }
+  }))
   loadKnowledgeItemDocumentsMock.mockResolvedValue([
     {
       text: 'hello world',

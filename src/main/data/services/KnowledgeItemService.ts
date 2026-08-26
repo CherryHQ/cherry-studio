@@ -5,11 +5,12 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
@@ -17,7 +18,8 @@ import {
   type KnowledgeItemData,
   KnowledgeItemSchema,
   type KnowledgeItemStatus,
-  type KnowledgeItemType
+  type KnowledgeItemType,
+  NoteItemDataSchema
 } from '@shared/data/types/knowledge'
 import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
@@ -693,6 +695,71 @@ export class KnowledgeItemService {
    */
   updateSnapshotRelativePath(id: string, type: 'url' | 'note', relativePath: string): KnowledgeItem {
     return this.patchItemData(id, [type], { relativePath }, `${type} snapshot relative path`)
+  }
+
+  /**
+   * Reconcile the canonical text read from a captured Note snapshot back into
+   * the main database. The per-base index stores the same text separately; this
+   * update keeps detail/preview consumers of `data.content` consistent after a
+   * successful refresh without changing the Note's source or snapshot path.
+   */
+  updateNoteSnapshotContent(id: string, content: string): KnowledgeItem {
+    const dbService = application.get('DbService')
+    const { item, blocked } = dbService.withWriteTx((tx) => {
+      const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
+
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
+      }
+
+      const existingItem = rowToKnowledgeItem(existingRow)
+      if (existingItem.type !== 'note') {
+        throw DataApiErrorFactory.validation({
+          type: [`Knowledge item ${id} must be of type note to update its snapshot content`]
+        })
+      }
+
+      if (existingItem.status === 'deleting') {
+        return { item: existingItem, blocked: true }
+      }
+
+      const nextDataValidation = NoteItemDataSchema.safeParse({ ...existingItem.data, content })
+      if (!nextDataValidation.success) {
+        throw toDataApiError(nextDataValidation.error, 'update note snapshot content')
+      }
+
+      const [updatedRow] = tx
+        .update(knowledgeItemTable)
+        .set({ data: nextDataValidation.data })
+        .where(eq(knowledgeItemTable.id, id))
+        .returning()
+        .all()
+
+      if (!updatedRow) {
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Knowledge item note snapshot content update result missing for id '${id}'`
+        )
+      }
+
+      return { item: rowToKnowledgeItem(updatedRow), blocked: false }
+    })
+
+    if (blocked) {
+      logger.warn('Skipped note snapshot content update for deleting item', { id })
+    } else {
+      logger.info('Updated knowledge item note snapshot content', { id, contentLength: content.length })
+      notifyDataApiDataChange([
+        { endpoint: '/knowledge-items/:id', routeParams: { id }, entityIds: [id] },
+        {
+          endpoint: '/knowledge-bases/:id/items',
+          kind: 'projection',
+          routeParams: { id: item.baseId },
+          entityIds: [id]
+        }
+      ])
+    }
+    return item
   }
 
   /**

@@ -6,10 +6,10 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
-import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { isDataApiNotFoundError, toDataApiError } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import { isCompletedVectorKnowledgeBase, NoteItemDataSchema } from '@shared/data/types/knowledge'
 
 import type { IndexableKnowledgeItem } from '../items'
 import { isIndexableKnowledgeItem, toMaterialRelativePath } from '../items'
@@ -93,6 +93,7 @@ export function createIndexDocumentsJobHandler(
       const readableItem = await ensureSnapshot(ctx, item, knowledgeLockManager)
       const documents = await readItemDocuments(ctx, readableItem)
       const chunked = await chunkItemDocuments(base, documents, ctx.signal)
+      validateNoteSnapshotContent(readableItem, chunked.contentText)
       if (chunked.chunks.length === 0) {
         // Deliberate: the item still completes (an empty material is written) so the
         // UI doesn't show a stuck/failed item, but leave a trace — an image-only PDF
@@ -131,6 +132,17 @@ export function createIndexDocumentsJobHandler(
     async onSettled(event) {
       await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
     }
+  }
+}
+
+function validateNoteSnapshotContent(item: IndexableKnowledgeItem, content: string): void {
+  if (item.type !== 'note') {
+    return
+  }
+
+  const validation = NoteItemDataSchema.safeParse({ ...item.data, content })
+  if (!validation.success) {
+    throw toDataApiError(validation.error, 'refresh note snapshot content')
   }
 }
 
@@ -379,6 +391,19 @@ async function writeItemMaterial(
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
     store.rebuildMaterial(itemId, input)
+
+    if (result.item.type === 'note') {
+      const updatedItem = knowledgeItemService.updateNoteSnapshotContent(itemId, input.content.text)
+      if (updatedItem.status === 'deleting') {
+        logger.info('Skipping completed status for note deleted during snapshot reconciliation', {
+          baseId,
+          itemId,
+          jobId: ctx.jobId
+        })
+        return
+      }
+    }
+
     knowledgeItemService.updateStatus(itemId, 'completed')
   })
 }

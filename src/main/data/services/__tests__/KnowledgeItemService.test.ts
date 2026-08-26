@@ -4,13 +4,17 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
-import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
+import { type CreateKnowledgeItemDto, KNOWLEDGE_NOTE_CONTENT_MAX } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`
@@ -46,6 +50,7 @@ describe('KnowledgeItemService', () => {
   let service: KnowledgeItemService
 
   beforeEach(async () => {
+    notifyDataApiDataChangeMock.mockClear()
     service = new KnowledgeItemService()
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
@@ -1393,6 +1398,115 @@ describe('KnowledgeItemService', () => {
       expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
+    })
+  })
+
+  describe('updateNoteSnapshotContent', () => {
+    it('updates the note snapshot while preserving its source and relative path', async () => {
+      await seedItem({
+        id: NOTE_A_ID,
+        type: 'note',
+        data: {
+          source: 'Meeting notes',
+          content: 'old body',
+          relativePath: 'Meeting notes.md' as PosixRelativeFilePath
+        },
+        status: 'embedding',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = service.updateNoteSnapshotContent(NOTE_A_ID, '# Meeting\n\nnew body')
+
+      expect(result).toMatchObject({
+        id: NOTE_A_ID,
+        type: 'note',
+        status: 'embedding',
+        data: {
+          source: 'Meeting notes',
+          content: '# Meeting\n\nnew body',
+          relativePath: 'Meeting notes.md' as PosixRelativeFilePath
+        }
+      })
+      expect(Date.parse(result.createdAt)).toBe(1)
+      expect(Date.parse(result.updatedAt)).toBeGreaterThan(1)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        {
+          endpoint: '/knowledge-items/:id',
+          routeParams: { id: NOTE_A_ID },
+          entityIds: [NOTE_A_ID]
+        },
+        {
+          endpoint: '/knowledge-bases/:id/items',
+          kind: 'projection',
+          routeParams: { id: KNOWLEDGE_BASE_ID },
+          entityIds: [NOTE_A_ID]
+        }
+      ])
+    })
+
+    it('accepts note content at the persisted size limit', async () => {
+      await seedItem({ id: NOTE_A_ID, status: 'embedding' })
+      const content = 'x'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX)
+
+      const result = service.updateNoteSnapshotContent(NOTE_A_ID, content)
+
+      if (result.type !== 'note') {
+        throw new Error(`Expected note item, received ${result.type}`)
+      }
+      expect(result.data.content).toBe(content)
+    })
+
+    it('rejects oversized content without changing the stored note', async () => {
+      await seedItem({ id: NOTE_A_ID, data: { source: 'note', content: 'old body' }, updatedAt: 1 })
+
+      let err: unknown
+      try {
+        service.updateNoteSnapshotContent(NOTE_A_ID, 'x'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX + 1))
+      } catch (e) {
+        err = e
+      }
+
+      expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      const [stored] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, NOTE_A_ID))
+      expect(stored.data).toMatchObject({ content: 'old body' })
+      expect(stored.updatedAt).toBe(1)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects updating snapshot content for a missing knowledge item', () => {
+      expect(() => service.updateNoteSnapshotContent(OTHER_ITEM_ID, 'new body')).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+    })
+
+    it('rejects updating snapshot content for a non-note item', async () => {
+      await seedItem({
+        id: ITEM_1_ID,
+        type: 'url',
+        data: { source: 'https://example.com', url: 'https://example.com' }
+      })
+
+      expect(() => service.updateNoteSnapshotContent(ITEM_1_ID, 'new body')).toThrowError(
+        expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+      )
+    })
+
+    it('does not update a note that is being deleted', async () => {
+      await seedItem({
+        id: DELETING_NOTE_ID,
+        data: { source: 'note', content: 'old body', relativePath: 'note.md' as PosixRelativeFilePath },
+        status: 'deleting',
+        updatedAt: 1
+      })
+
+      const result = service.updateNoteSnapshotContent(DELETING_NOTE_ID, 'new body')
+
+      expect(result).toMatchObject({ status: 'deleting', data: { content: 'old body' } })
+      const [stored] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, DELETING_NOTE_ID))
+      expect(stored.data).toMatchObject({ content: 'old body' })
+      expect(stored.updatedAt).toBe(1)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
   })
 

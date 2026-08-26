@@ -1,6 +1,6 @@
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,11 +30,21 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
   const {
     data: item,
     isLoading,
-    error
+    error,
+    refetch
   } = useQuery('/knowledge-items/:id', {
     params: { id: itemId },
     enabled: Boolean(itemId)
   })
+  useDataChange(
+    '/knowledge-items/:id',
+    (effects) => {
+      if (effects.some((effect) => !effect.entityIds || effect.entityIds.includes(itemId))) {
+        void refetch()
+      }
+    },
+    { routeParams: { id: itemId } }
+  )
   const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
   const content = item?.type === 'note' ? item.data.content : ''

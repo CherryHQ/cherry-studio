@@ -1,4 +1,5 @@
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { KNOWLEDGE_NOTE_CONTENT_MAX } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
@@ -21,6 +22,7 @@ import {
   FILE_ITEM_ID,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
+  knowledgeItemUpdateNoteSnapshotContentMock,
   knowledgeItemUpdateSnapshotRelativePathMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
@@ -72,6 +74,16 @@ describe('index-documents job handler', () => {
         units: expect.arrayContaining([expect.objectContaining({ unitType: 'chunk' })]),
         embeddings: expect.any(Array)
       })
+    )
+    expect(knowledgeItemUpdateNoteSnapshotContentMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'hello world')
+    expect(rebuildMaterialMock.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeItemUpdateNoteSnapshotContentMock.mock.invocationCallOrder[0]
+    )
+    const completedCallOrder = knowledgeItemUpdateStatusMock.mock.calls.findIndex(
+      ([id, status]) => id === NOTE_ITEM_ID && status === 'completed'
+    )
+    expect(knowledgeItemUpdateNoteSnapshotContentMock.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeItemUpdateStatusMock.mock.invocationCallOrder[completedCallOrder]
     )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID })).toBe('base.kb-1')
@@ -363,6 +375,7 @@ describe('index-documents job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))
 
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(expect.objectContaining({ id: FILE_ITEM_ID }))
+    expect(knowledgeItemUpdateNoteSnapshotContentMock).not.toHaveBeenCalled()
   })
 
   it('completes with empty vectors when the reader returns no documents', async () => {
@@ -391,6 +404,35 @@ describe('index-documents job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(rebuildMaterialMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateNoteSnapshotContentMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+  })
+
+  it('does not mark completed when the note becomes deleting during snapshot reconciliation', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateNoteSnapshotContentMock.mockReturnValueOnce(createNoteItem(NOTE_ITEM_ID, null, 'deleting'))
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
+
+    expect(rebuildMaterialMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeItemUpdateNoteSnapshotContentMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'hello world')
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+  })
+
+  it('rejects an oversized note snapshot before rebuilding its material', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([
+      { text: 'x'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX + 1), metadata: { source: NOTE_ITEM_ID } }
+    ])
+
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR'
+    })
+
+    expect(rebuildMaterialMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateNoteSnapshotContentMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 
@@ -406,6 +448,7 @@ describe('index-documents job handler', () => {
     )
 
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+    expect(knowledgeItemUpdateNoteSnapshotContentMock).not.toHaveBeenCalled()
   })
 
   it('stops before side effects when aborted before execution', async () => {
@@ -449,6 +492,7 @@ describe('index-documents job handler', () => {
     // item-id virtual placeholder — so it points at the bytes captureUrlSnapshotFile
     // wrote and agrees with what the v1→v2 migrator stamps for the same url.
     expect(lastRebuildInput().material.relativePath).toBe('example-page.md')
+    expect(knowledgeItemUpdateNoteSnapshotContentMock).not.toHaveBeenCalled()
     // README's lock-boundary contract: the network fetch must complete before the
     // (first) mutation lock is taken, never inside it.
     expect(fetchKnowledgeWebPageMock.mock.invocationCallOrder[0]).toBeLessThan(

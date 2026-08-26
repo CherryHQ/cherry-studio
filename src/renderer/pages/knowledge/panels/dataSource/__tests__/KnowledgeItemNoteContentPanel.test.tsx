@@ -1,12 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemNoteContentPanel from '../KnowledgeItemNoteContentPanel'
 import { createNoteItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
+const mockUseDataChange = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useDataChange: (...args: unknown[]) => mockUseDataChange(...args),
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
 }))
 
@@ -41,7 +43,8 @@ describe('KnowledgeItemNoteContentPanel', () => {
     mockUseQuery.mockReturnValue({
       data: createNoteItem({ id: 'note-1', content: '第一行标题\n第二行完整正文内容' }),
       isLoading: false,
-      error: undefined
+      error: undefined,
+      refetch: vi.fn()
     })
   })
 
@@ -67,11 +70,36 @@ describe('KnowledgeItemNoteContentPanel', () => {
   })
 
   it('shows a loading state while the item is being fetched', () => {
-    mockUseQuery.mockReturnValue({ data: undefined, isLoading: true, error: undefined })
+    mockUseQuery.mockReturnValue({ data: undefined, isLoading: true, error: undefined, refetch: vi.fn() })
 
     render(<KnowledgeItemNoteContentPanel itemId="note-1" onBack={vi.fn()} />)
 
     // Both the placeholder title and the body render the loading label while the item resolves.
     expect(screen.getAllByText('加载中').length).toBeGreaterThan(0)
+  })
+
+  it('refetches when the displayed note snapshot changes', () => {
+    const refetch = vi.fn()
+    mockUseQuery.mockReturnValue({
+      data: createNoteItem({ id: 'note-1', content: 'old body' }),
+      isLoading: false,
+      error: undefined,
+      refetch
+    })
+    let listener: ((effects: Array<{ entityIds?: string[] }>) => void) | undefined
+    mockUseDataChange.mockImplementation((_endpoint, nextListener) => {
+      listener = nextListener
+    })
+
+    render(<KnowledgeItemNoteContentPanel itemId="note-1" onBack={vi.fn()} />)
+
+    expect(mockUseDataChange).toHaveBeenCalledWith('/knowledge-items/:id', expect.any(Function), {
+      routeParams: { id: 'note-1' }
+    })
+    act(() => listener?.([{ entityIds: ['another-note'] }]))
+    expect(refetch).not.toHaveBeenCalled()
+
+    act(() => listener?.([{ entityIds: ['note-1'] }]))
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 })
