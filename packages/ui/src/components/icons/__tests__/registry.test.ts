@@ -29,6 +29,12 @@ describe('resolveProviderIconRef', () => {
     })
   }
 
+  it('Token Plan wears the same Tencent mark as TokenHub', () => {
+    const tokenPlan = resolveProviderIconRef('token-plan')
+    expect(tokenPlan?.key).toBe('tencent-cloud-ti')
+    expect(tokenPlan?.key).toBe(resolveProviderIconRef('tokenhub')?.key)
+  })
+
   it('falls back to the model catalog for provider IDs that only exist there', () => {
     // `claude` is a model-catalog key with no provider-catalog entry
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))
