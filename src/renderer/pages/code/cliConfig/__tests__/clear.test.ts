@@ -3,6 +3,7 @@ import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfi
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { parse as parseToml } from 'smol-toml'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig } from '../index'
 
@@ -289,6 +290,42 @@ describe('clearCliConfig', () => {
     })
   })
 
+  it('hermes: strips only the Cherry-managed custom runtime and credential', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = [
+      '# user-owned comment',
+      'user_top: keep',
+      'model:',
+      '  context_length: 200000 # keep inline comment',
+      '  label: "keep quoted"',
+      '  tags: [one, two]',
+      '  provider: custom',
+      '  default: cherry-model',
+      '  base_url: https://api.example.com/v1',
+      '  api_key: ${CHERRY_HERMES_API_KEY}',
+      '  api_mode: chat_completions',
+      'shared: &shared { enabled: true }',
+      'reuse: *shared',
+      ''
+    ].join('\n')
+    existing['/resolved~/.hermes/.env'] = 'USER_KEY=keep\nCHERRY_HERMES_API_KEY=sk-secret\n'
+
+    await clearCliConfig({ cliTool: CodeCli.HERMES })
+
+    expect(parseYaml(writes['/resolved~/.hermes/config.yaml'])).toEqual({
+      user_top: 'keep',
+      model: { context_length: 200000, label: 'keep quoted', tags: ['one', 'two'] },
+      shared: { enabled: true },
+      reuse: { enabled: true }
+    })
+    expect(writes['/resolved~/.hermes/config.yaml']).toContain('# user-owned comment')
+    expect(writes['/resolved~/.hermes/config.yaml']).toContain('context_length: 200000 # keep inline comment')
+    expect(writes['/resolved~/.hermes/config.yaml']).toContain('label: "keep quoted"')
+    expect(writes['/resolved~/.hermes/config.yaml']).toContain('tags: [ one, two ]')
+    expect(writes['/resolved~/.hermes/config.yaml']).toContain('shared: &shared { enabled: true }')
+    expect(writes['/resolved~/.hermes/config.yaml']).toContain('reuse: *shared')
+    expect(writes['/resolved~/.hermes/.env']).toBe('USER_KEY=keep\n')
+  })
+
   it('pi: strips Cherry-managed providers and defaults while preserving user config', async () => {
     existing['/resolved~/.pi/agent/models.json'] = JSON.stringify({
       userTop: 'keep',
@@ -394,6 +431,13 @@ describe('clearCliConfig', () => {
     it('pi: rejects and writes nothing', async () => {
       existing['/resolved~/.pi/agent/models.json'] = '{ not valid json'
       await expect(clearCliConfig({ cliTool: CodeCli.PI })).rejects.toThrow(/Failed to parse/)
+      expect(writes).toEqual({})
+    })
+
+    it('hermes: rejects and writes nothing', async () => {
+      existing['/resolved~/.hermes/config.yaml'] = 'api_key: "sk-ant-real-secret"\n  malformed: yaml'
+      await expect(clearCliConfig({ cliTool: CodeCli.HERMES })).rejects.toThrow(/Failed to parse/)
+      await expect(clearCliConfig({ cliTool: CodeCli.HERMES })).rejects.not.toThrow(/sk-ant-real-secret/)
       expect(writes).toEqual({})
     })
   })
