@@ -3,6 +3,7 @@ import { appendFile, mkdtemp, rename, rm, truncate, utimes, writeFile } from 'no
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type * as FileUtils from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +14,7 @@ const snapshotHooks = vi.hoisted(() => ({ onFirstRead: undefined as undefined | 
 vi.mock('@main/ai/provider/cherryai', () => signerMocks)
 
 vi.mock('@main/utils/file', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@main/utils/file')>()
+  const actual = await importOriginal<typeof FileUtils>()
   const { Readable } = await import('node:stream')
 
   return {
