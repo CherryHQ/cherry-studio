@@ -1,7 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import { useEffect } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 
@@ -26,10 +26,11 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
       <Alert
         type="error"
         message={i18n.t('error.boundary.default.message')}
-        description={formatErrorDetails(error)}
+        description={<ErrorFallbackDetails error={error} />}
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">
+        <ErrorFallbackCopyButton error={error} />
         <Button size="sm" onClick={() => void ipcApi.request('system.toggle_dev_tools')}>
           {i18n.t('error.boundary.default.devtools')}
         </Button>
