@@ -27,7 +27,6 @@ function createTabsContext(tabs: Tab[], closeTabs = vi.fn(), activeTabId = tabs[
     openRoute: vi.fn(),
     activateWorkspace: vi.fn(),
     closeWorkspace: vi.fn(),
-    openFocusedRoute: vi.fn(),
     closeFocusedRoute: vi.fn(),
     pinTab: vi.fn(),
     unpinTab: vi.fn(),

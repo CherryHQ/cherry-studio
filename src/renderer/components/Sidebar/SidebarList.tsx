@@ -52,7 +52,7 @@ function SidebarEntryStatus({
       role="img"
       aria-label={status.label}
       data-sidebar-status={status.value}
-      className={`${iconLayout ? 'absolute right-1 bottom-1 ring-2 ring-sidebar' : '-translate-y-1/2 absolute top-1/2 right-3'} size-2 rounded-full ${STATUS_DOT_CLASS[status.value]}`}
+      className={`${iconLayout ? 'absolute right-1 bottom-1 ring-2 ring-sidebar' : '-translate-y-1/2 absolute top-1/2 right-3'} pointer-events-none size-2 rounded-full ${STATUS_DOT_CLASS[status.value]}`}
     />
   )
 }

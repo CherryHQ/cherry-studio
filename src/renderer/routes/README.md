@@ -81,7 +81,7 @@ Open an application workspace or a focused page through the shell. `openTab` is 
 import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
-  const { openRoute, activateWorkspace, openFocusedRoute, closeFocusedRoute, closeTab } = useTabs()
+  const { openRoute, activateWorkspace, closeTab } = useTabs()
 
   // Sidebar-only: activate the app's unique workspace. Tabs/Both: reuse/create a tab.
   openRoute('/app/knowledge')
@@ -89,10 +89,9 @@ function MyComponent() {
   // Explicitly activate a stable Sidebar workspace without replacing its route.
   activateWorkspace('app:assistants', '/app/chat')
 
-  // Sidebar-only and Tabs-only use one focused page for utility routes.
+  // Streamlined layouts use one focused page for utility routes.
   // The legacy combined layout keeps them as ordinary tabs.
-  openFocusedRoute('/settings/general')
-  closeFocusedRoute()
+  openRoute('/settings/general')
 
   // Webviews remain ordinary tabs.
   openRoute('https://example.com', {
@@ -128,7 +127,7 @@ function SettingsPage() {
 | Scenario | Method | Result |
 |----------|--------|--------|
 | Open feature module | `openRoute('/app/knowledge')` | Activates its Sidebar-only workspace or opens a Tab |
-| Open settings / file preview | `openFocusedRoute(...)` | Opens a focused page in the streamlined layouts; the combined layout retains ordinary tabs |
+| Open settings / file preview | `openRoute(...)` | Opens a focused page in the streamlined layouts; the combined layout retains ordinary tabs |
 | Switch sub-page in settings | `navigate({ to: '/settings/provider' })` | Navigates within current Tab |
 | Switch conversation inside an app | `navigate(...)` | Keeps the app's workspace and component state |
 | Go back to previous page | `navigate({ to: '..' })` | Goes back within current Tab |
@@ -146,7 +145,6 @@ function SettingsPage() {
 | `openRoute(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | Layout-aware navigation; the combined layout preserves legacy tab behavior |
 | `openTab(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | Compatibility alias of `openRoute` |
 | `activateWorkspace(key, route, options?)` | `(string, string, OpenTabOptions?) => string` | Activate or create one stable workspace |
-| `openFocusedRoute(route, returnId?, options?)` | `(string, string?, OpenTabOptions?) => string` | Open/reuse the single focused page used by the streamlined layouts |
 | `closeFocusedRoute()` | `() => void` | Close the focused page and restore its source workspace |
 | `closeTab(id)` | `(id: string) => void` | Close specified Tab |
 | `setActiveTab(id)` | `(id: string) => void` | Switch to specified Tab |

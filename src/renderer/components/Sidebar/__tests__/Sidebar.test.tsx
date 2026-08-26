@@ -481,10 +481,11 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    expect(screen.getByRole('img', { name: 'Action required' })).toHaveAttribute(
-      'data-sidebar-status',
-      'action-required'
-    )
+    const status = screen.getByRole('img', { name: 'Action required' })
+
+    expect(status).toHaveAttribute('data-sidebar-status', 'action-required')
+    // The overlay must leave the underlying MenuItem as the pointer target.
+    expect(status).toHaveClass('pointer-events-none')
   })
 
   it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {

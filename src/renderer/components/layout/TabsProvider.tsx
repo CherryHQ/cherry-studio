@@ -1028,7 +1028,6 @@ export function TabsProvider({
     openRoute,
     activateWorkspace,
     closeWorkspace,
-    openFocusedRoute,
     closeFocusedRoute,
 
     // Pin operations

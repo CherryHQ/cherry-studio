@@ -50,7 +50,6 @@ export interface TabsContextValue {
   openRoute: (url: string, options?: OpenTabOptions) => string
   activateWorkspace: (workspaceKey: string, route: string, options?: OpenTabOptions) => string
   closeWorkspace: (workspaceKey: string) => void
-  openFocusedRoute: (route: string, returnWorkspaceId?: string, options?: OpenTabOptions) => string
   closeFocusedRoute: () => void
 
   // Pin operations

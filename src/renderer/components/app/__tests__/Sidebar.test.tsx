@@ -803,6 +803,20 @@ describe('app Sidebar', () => {
     expect(mocks.activateWorkspace).toHaveBeenCalledWith('app:agents', '/app/agents', { title: 'Work' })
   })
 
+  it('opens a pinned assistant in its existing Sidebar workspace', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarFavorites = []
+    mocks.sidebarAssistantFavorites = [assistantFavorite('assistant-1')]
+    mocks.assistants = [{ id: 'assistant-1', name: 'Helper' }]
+    mocks.tabs = [{ id: 'chat', type: 'route', url: '/app/chat?topicId=other', title: 'Other' }]
+
+    render(<Sidebar />)
+    await user.click(screen.getByRole('button', { name: 'Helper' }))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat?assistantId=assistant-1', { title: 'Helper' })
+    expect(mocks.activateWorkspace).not.toHaveBeenCalled()
+  })
+
   it('replaces the active unpinned tab from the Sidebar in the combined layout', () => {
     mocks.navigationLayout = 'both'
     mocks.sidebarFavorites = [appFavorite('agents')]

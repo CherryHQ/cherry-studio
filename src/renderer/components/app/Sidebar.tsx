@@ -267,22 +267,22 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   const handleOpenEntityTab = useCallback(
-    (path: string, title: string, workspaceKey: 'app:agents' | 'app:assistants', options?: { inNewTab?: boolean }) => {
+    (path: string, title: string, options?: { inNewTab?: boolean }) => {
       if (navigationLayout === 'sidebar') {
-        activateWorkspace(workspaceKey, path, { title })
+        openTab(path, { title })
         return
       }
 
       navigateRouteTab(path, title, options)
     },
-    [activateWorkspace, navigateRouteTab, navigationLayout]
+    [navigateRouteTab, navigationLayout, openTab]
   )
 
   const handleOpenAgentTab = useCallback(
     (agentId: string, options?: { inNewTab?: boolean }) => {
       const agent = installedAgents.get(agentId)
       if (!agent) return
-      handleOpenEntityTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, 'app:agents', options)
+      handleOpenEntityTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, options)
     },
     [handleOpenEntityTab, installedAgents]
   )
@@ -291,12 +291,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     (assistantId: string, options?: { inNewTab?: boolean }) => {
       const assistant = installedAssistants.get(assistantId)
       if (!assistant) return
-      handleOpenEntityTab(
-        `/app/chat?assistantId=${encodeURIComponent(assistantId)}`,
-        assistant.name,
-        'app:assistants',
-        options
-      )
+      handleOpenEntityTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name, options)
     },
     [handleOpenEntityTab, installedAssistants]
   )

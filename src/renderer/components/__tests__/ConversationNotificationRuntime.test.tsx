@@ -42,7 +42,6 @@ function tabsContext(activeTab?: TabsContextValue['activeTab']): TabsContextValu
     openRoute: vi.fn(() => 'new-tab'),
     activateWorkspace: vi.fn(() => 'workspace-tab'),
     closeWorkspace: vi.fn(),
-    openFocusedRoute: vi.fn(() => 'focused-tab'),
     closeFocusedRoute: vi.fn(),
     pinTab: vi.fn(),
     unpinTab: vi.fn(),

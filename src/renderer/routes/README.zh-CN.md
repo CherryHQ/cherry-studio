@@ -81,7 +81,7 @@ function SettingsLayout() {
 import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
-  const { openRoute, activateWorkspace, openFocusedRoute, closeFocusedRoute, closeTab } = useTabs()
+  const { openRoute, activateWorkspace, closeTab } = useTabs()
 
   // 纯 Sidebar：激活应用唯一 workspace；多标签/兼容布局：复用或新建 Tab
   openRoute('/app/knowledge')
@@ -89,10 +89,9 @@ function MyComponent() {
   // 显式激活稳定 workspace，不覆盖其当前内部路由
   activateWorkspace('app:assistants', '/app/chat')
 
-  // 纯 Sidebar 和纯多标签中的工具路由使用唯一专注页
+  // 精简布局中的工具路由使用唯一专注页
   // 兼容组合布局仍将它们作为普通标签处理
-  openFocusedRoute('/settings/general')
-  closeFocusedRoute()
+  openRoute('/settings/general')
 
   // Webview 仍使用普通 Tab
   openRoute('https://example.com', {
@@ -128,7 +127,7 @@ function SettingsPage() {
 | 场景 | 使用 | 效果 |
 |-----|------|------|
 | 打开功能模块 | `openRoute('/app/knowledge')` | 激活纯 Sidebar workspace 或打开 Tab |
-| 打开设置 / 文件预览 | `openFocusedRoute(...)` | 精简布局打开专注页；兼容组合布局保留普通标签行为 |
+| 打开设置 / 文件预览 | `openRoute(...)` | 精简布局打开专注页；兼容组合布局保留普通标签行为 |
 | 设置页内切换子页 | `navigate({ to: '/settings/provider' })` | 当前 Tab 内跳转 |
 | 应用内切换会话 | `navigate(...)` | 保留应用 workspace 和组件状态 |
 | 返回上一页 | `navigate({ to: '..' })` | 当前 Tab 内返回 |
@@ -146,7 +145,6 @@ function SettingsPage() {
 | `openRoute(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | 感知布局的导航；组合布局保留旧标签行为 |
 | `openTab(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | `openRoute` 的兼容别名 |
 | `activateWorkspace(key, route, options?)` | `(string, string, OpenTabOptions?) => string` | 激活或创建唯一稳定 workspace |
-| `openFocusedRoute(route, returnId?, options?)` | `(string, string?, OpenTabOptions?) => string` | 打开或复用精简布局使用的唯一专注页 |
 | `closeFocusedRoute()` | `() => void` | 关闭专注页并恢复来源 workspace |
 | `closeTab(id)` | `(id: string) => void` | 关闭指定 Tab |
 | `setActiveTab(id)` | `(id: string) => void` | 切换到指定 Tab |
