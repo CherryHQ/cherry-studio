@@ -496,6 +496,25 @@ describe('MessageGroup', () => {
     expect(grid.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))')
   })
 
+  it('makes every grid popover scroll owner keyboard-focusable', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [createMessage('msg-1', 0, 'grid'), createMessage('msg-2', 1, 'grid')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const popoverScrollOwners = container.querySelectorAll('.in-popover')
+    expect(popoverScrollOwners).toHaveLength(2)
+    popoverScrollOwners.forEach((scrollOwner) => expect(scrollOwner).toHaveAttribute('tabindex', '0'))
+  })
+
   it('keeps model identity in the existing selector for fold layout', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'fold',
