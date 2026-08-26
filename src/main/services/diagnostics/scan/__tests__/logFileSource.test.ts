@@ -144,6 +144,27 @@ describe('collectErrorLogRecords', () => {
     await expect(collectErrorLogRecords(path.join(logsDir, 'does-not-exist'), range)).rejects.toThrow()
   })
 
+  it('caps message and stack so one pathological line cannot blow the memory bound', async () => {
+    const inRange = now - 10 * 60 * 1_000
+    await writeFile(
+      path.join(logsDir, logFileName(now)),
+      logLine({
+        timestamp: localTimestamp(inRange),
+        level: 'error',
+        message: `boom ${'m'.repeat(50_000)}`,
+        stack: `Error: boom\n${'    at frame\n'.repeat(5_000)}`
+      })
+    )
+
+    const scan = await collectErrorLogRecords(logsDir, range)
+
+    const [record] = scan.records
+    expect(record.message.length).toBeLessThanOrEqual(4 * 1024)
+    expect(record.stack?.length).toBeLessThanOrEqual(4 * 1024)
+    // the cap must not eat the leading text rules anchor on
+    expect(record.message.startsWith('boom ')).toBe(true)
+  })
+
   it('caps each detail field so a bulky one cannot push out a later marker', async () => {
     const inRange = now - 10 * 60 * 1_000
     await writeFile(

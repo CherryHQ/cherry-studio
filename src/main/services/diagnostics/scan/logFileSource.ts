@@ -8,9 +8,15 @@ import { LOG_NAME, logMayOverlapRange, parseLogTimestampString, readRawLines } f
 import type { DiagnosticTimeRange } from '../types'
 import type { ErrorLogScan, LogRecord, ScanLevel } from './types'
 
-/** Upper bound on records held in memory for one scan (~20MB with truncated details). */
+/**
+ * Upper bound on records held in memory for one scan — roughly 14MB at observed log sizes
+ * (~700 bytes per record). Message, stack and detail are each capped below so that a single
+ * pathological line, valid up to the 16MiB raw-line limit, cannot blow that past a bound.
+ */
 export const MAX_SCAN_RECORDS = 20_000
 const MAX_DETAIL_CHARS = 8 * 1024
+/** Comfortably above the longest stack seen in the reference corpus (2.8K), so anchors survive. */
+const MAX_TEXT_CHARS = 4 * 1024
 
 const SCAN_LEVELS: readonly ScanLevel[] = ['error', 'warn']
 const KNOWN_KEYS = new Set(['timestamp', 'level', 'message', 'module', 'process', 'window', 'stack'])
@@ -71,11 +77,11 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
   return {
     timestampMs,
     level: value.level as ScanLevel,
-    message: value.message,
+    message: value.message.slice(0, MAX_TEXT_CHARS),
     ...(typeof value.module === 'string' && { module: value.module }),
     ...((value.process === 'main' || value.process === 'renderer') && { process: value.process }),
     ...(typeof value.window === 'string' && { window: value.window }),
-    ...(typeof value.stack === 'string' && { stack: value.stack }),
+    ...(typeof value.stack === 'string' && { stack: value.stack.slice(0, MAX_TEXT_CHARS) }),
     ...(detail !== undefined && { detail })
   }
 }
