@@ -25,6 +25,6 @@ export const emptyActions: ProviderActionHandlers = {
   replaceDraft: () => undefined,
   toggleExpanded: () => undefined,
   removeToken: () => undefined,
-  insertToken: () => undefined,
+  insertToken: () => false,
   getDraft: () => ({ text: '', tokens: [] })
 }

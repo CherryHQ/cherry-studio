@@ -39,6 +39,7 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/input'
@@ -146,6 +147,8 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  pendingQuote?: SelectionQuoteRequest
+  onQuoteInserted?: (requestId: string) => void
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -390,6 +393,8 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  pendingQuote,
+  onQuoteInserted,
   scopeKey,
   topicId,
   assistantId,
@@ -448,6 +453,8 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
+            pendingQuote={pendingQuote}
+            onQuoteInserted={onQuoteInserted}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -488,6 +495,8 @@ const ChatComposerInner = ({
   scopeKey,
   topicId,
   contextUsage,
+  pendingQuote,
+  onQuoteInserted,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -1333,12 +1342,15 @@ const ChatComposerInner = ({
     return items
   }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
 
+  const insertPendingQuote = useComposerQuoteInsertion(actionsRef, pendingQuote, onQuoteInserted)
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       surfaceGetDraftRef.current = actions.getDraft
       Object.assign(actionsRef.current, actions)
+      insertPendingQuote()
     },
-    [actionsRef]
+    [actionsRef, insertPendingQuote]
   )
 
   useEffect(() => {
@@ -1352,8 +1364,6 @@ const ChatComposerInner = ({
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
-
-  useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })

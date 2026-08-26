@@ -164,6 +164,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           }
         }
         requestRuntime()
+        return true
       },
       getDraft: getFallbackDraft
     }

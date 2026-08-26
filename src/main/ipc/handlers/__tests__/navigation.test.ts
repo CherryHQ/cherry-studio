@@ -4,7 +4,7 @@ const {
   acknowledgeMainWindowNavigationMock,
   conversationNavigationServiceMock,
   openRouteInMainWindowMock,
-  markMainRendererReadyForTabAttachMock,
+  markMainRendererReadyForDeliveryMock,
   protocolServiceMock,
   loggerMock
 } = vi.hoisted(() => ({
@@ -14,7 +14,7 @@ const {
     reportOwnership: vi.fn()
   },
   openRouteInMainWindowMock: vi.fn(),
-  markMainRendererReadyForTabAttachMock: vi.fn(),
+  markMainRendererReadyForDeliveryMock: vi.fn(),
   protocolServiceMock: {
     onMainRendererReady: vi.fn()
   },
@@ -37,7 +37,7 @@ vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   acknowledgeMainWindowNavigation: acknowledgeMainWindowNavigationMock,
   openRouteInMainWindow: openRouteInMainWindowMock,
-  markMainRendererReadyForTabAttach: markMainRendererReadyForTabAttachMock
+  markMainRendererReadyForDelivery: markMainRendererReadyForDeliveryMock
 }))
 
 vi.mock('@logger', () => ({
@@ -78,14 +78,14 @@ describe('navigationHandlers', () => {
     await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, ctx)
 
     expect(protocolServiceMock.onMainRendererReady).toHaveBeenCalledWith('w1')
-    expect(markMainRendererReadyForTabAttachMock).toHaveBeenCalledWith('w1')
+    expect(markMainRendererReadyForDeliveryMock).toHaveBeenCalledWith('w1')
   })
 
   it('ignores renderer readiness from an untracked caller', async () => {
     await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, { senderId: null })
 
     expect(protocolServiceMock.onMainRendererReady).not.toHaveBeenCalled()
-    expect(markMainRendererReadyForTabAttachMock).not.toHaveBeenCalled()
+    expect(markMainRendererReadyForDeliveryMock).not.toHaveBeenCalled()
   })
 
   it('acknowledges navigation init data for the caller window', async () => {

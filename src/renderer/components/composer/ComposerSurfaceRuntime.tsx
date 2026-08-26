@@ -118,7 +118,7 @@ export interface ComposerSurfaceActions {
   replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
-  insertToken: (token: ComposerDraftToken) => void
+  insertToken: (token: ComposerDraftToken) => boolean
   getDraft: () => ComposerSerializedDraft
 }
 
@@ -860,9 +860,9 @@ export default function ComposerSurfaceRuntime({
 
   const insertToken = useCallback((token: ComposerDraftToken) => {
     const editor = editorRef.current
-    if (!editor || editor.isDestroyed) return
+    if (!editor || editor.isDestroyed) return false
 
-    insertComposerTokenAtCursor(editor, token)
+    return insertComposerTokenAtCursor(editor, token)
   }, [])
 
   const getDraft = useCallback((): ComposerSerializedDraft => {

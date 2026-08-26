@@ -11,10 +11,13 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
-import { useMainWindowNavigation } from '@renderer/hooks/tab'
+import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { lazy, Suspense, useEffect } from 'react'
+import { routeSelectionQuoteToChat, selectionQuoteService } from '@renderer/services/SelectionQuoteService'
+import { IpcChannel } from '@shared/IpcChannel'
+import { lazy, Suspense, useEffect, useEffectEvent } from 'react'
+import { v4 as uuid } from 'uuid'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
@@ -70,6 +73,37 @@ function MainWindowRuntime(): null {
   return null
 }
 
+function SelectionQuoteNavigation(): null {
+  const { activeTab, openTab, setActiveTab, tabs, updateTab } = useTabs()
+
+  useEffect(() => {
+    selectionQuoteService.reconcileTabs(tabs)
+  }, [tabs])
+
+  const handleSelectionQuote = useEffectEvent((text: string) => {
+    if (!text) return
+
+    routeSelectionQuoteToChat({
+      activeTab,
+      openTab,
+      request: { id: uuid(), text },
+      setActiveTab,
+      tabs,
+      updateTab
+    })
+  })
+
+  useEffect(() => {
+    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, text: string) => {
+      handleSelectionQuote(text)
+    })
+    // `handleSelectionQuote` is an Effect Event that always reads the latest tab state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return null
+}
+
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
 
@@ -82,6 +116,7 @@ export function MainWindowContent(): React.ReactElement {
       ) : (
         <AppShell />
       )}
+      <SelectionQuoteNavigation />
       <MainWindowRuntime />
       <ConversationNotificationRuntime />
       <PopupHost />

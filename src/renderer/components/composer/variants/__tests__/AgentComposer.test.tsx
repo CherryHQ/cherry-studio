@@ -10,7 +10,6 @@ import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -85,8 +84,6 @@ const mocks = vi.hoisted(() => ({
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   topicFulfilled: false,
   markTopicSeen: vi.fn(),
-  ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
-  ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
   runtimeHostProps: undefined as
     | {
@@ -886,21 +883,7 @@ describe('AgentComposer', () => {
     mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
-    mocks.ipcListeners.clear()
-    mocks.ipcOn.mockReset()
-    mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
-      mocks.ipcListeners.set(channel, listener)
-      return () => mocks.ipcListeners.delete(channel)
-    })
     MockUseCacheUtils.resetMocks()
-    Object.defineProperty(window, 'electron', {
-      configurable: true,
-      value: {
-        ipcRenderer: {
-          on: mocks.ipcOn
-        }
-      }
-    })
     restoreRequestAnimationFrame = installSyncRafMock()
   })
 
@@ -4843,46 +4826,6 @@ describe('AgentComposer', () => {
     )
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
     expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
-  })
-
-  it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
-    vi.mocked(cacheService.get).mockReturnValue({
-      text: 'Existing draft',
-      tokens: [],
-      files: [],
-      knowledgeBaseIds: [],
-      workspaceKey: 'workspace-1\0/workspace',
-      agentId: 'agent-1'
-    })
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    await waitFor(() => {
-      expect(mocks.ipcOn).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, expect.any(Function))
-    })
-
-    act(() => {
-      mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
-    })
-
-    expect(mocks.insertToken).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'quote',
-        label: 'selection.action.builtin.quote',
-        description: 'Selected message text',
-        promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
-      })
-    )
-    expect(mocks.toggleExpanded).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
   it('opens the agent edit dialog for a session with history', async () => {

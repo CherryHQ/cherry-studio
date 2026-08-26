@@ -6,7 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import { deliverSelectionQuoteToMainRenderer, resetMainRendererDelivery } from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -74,21 +74,21 @@ export class MainWindowService extends BaseService {
         this.mainWindow = window
         this.setupMainWindow(window)
         this._onMainWindowCreated.fire(window)
-        // Tab attach delivery is only valid while the renderer's listener is
+        // Main-window delivery is only valid while the renderer's listeners are
         // mounted; a reload or crash tears it down. Mirrors ProtocolService's
         // readiness reset wiring.
-        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
-        window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
+        window.webContents.on('did-start-loading', resetMainRendererDelivery)
+        window.webContents.on('render-process-gone', resetMainRendererDelivery)
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.Main, () => {
         this.mainWindow = null
         // Destroyed-before-ready leaves the launch flag armed; clear it so the
-        // next rebuild is not suppressed. Also drops tab delivery readiness
-        // (queue is kept — it flushes into the next ready renderer).
+        // next rebuild is not suppressed. Also drops renderer delivery readiness
+        // (pending work is kept — it flushes into the next ready renderer).
         this.suppressInitialLaunchShow = false
-        resetMainRendererTabAttachDelivery()
+        resetMainRendererDelivery()
       })
     )
 
@@ -631,13 +631,7 @@ export class MainWindowService extends BaseService {
   public quoteToMainWindow(text: string): void {
     try {
       this.showMainWindow()
-
-      const mainWindow = this.mainWindow
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        setTimeout(() => {
-          mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
-        }, 100)
-      }
+      deliverSelectionQuoteToMainRenderer(text)
     } catch (error) {
       logger.error('Failed to quote to main window:', error as Error)
     }

@@ -23,6 +23,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { FC, ReactNode } from 'react'
@@ -57,6 +58,8 @@ interface Props {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  pendingQuote?: SelectionQuoteRequest
+  onQuoteInserted?: (requestId: string) => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   showResourceListControls?: boolean
@@ -208,6 +211,8 @@ const Chat: FC<Props> = (props) => {
       <ChatContent
         key={activeTopic.id}
         topic={activeTopic}
+        pendingQuote={props.pendingQuote}
+        onQuoteInserted={props.onQuoteInserted}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onNewTopic={props.onNewTopic}
         onCreateEmptyTopic={props.onCreateEmptyTopic}

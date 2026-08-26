@@ -3,6 +3,7 @@ import { WindowType } from '@main/core/window/types'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 
 /**
@@ -53,32 +54,34 @@ function resolveLiveMainWindowId(): string | undefined {
  * reports ready via `navigation.protocol_dispatch_ready`.
  */
 const pendingTabAttachQueue: Tab[] = []
-let isMainRendererReadyForTabAttach = false
+let pendingSelectionQuote: string | undefined
+let isMainRendererReadyForDelivery = false
 
 /**
- * Mark the main renderer ready and deliver any tabs queued while it was not.
+ * Mark the main renderer ready and flush window-scoped deliveries queued while it was not.
  * Called from the `navigation.protocol_dispatch_ready` handler, alongside
  * ProtocolService.onMainRendererReady. The renderer only sends that IPC after
  * its mount effects flush, so `useIpcOn('tab.attached')` is registered by the
  * time this delivers — keep the ready signal in a mount-time effect.
  */
-export function markMainRendererReadyForTabAttach(senderId: string): void {
+export function markMainRendererReadyForDelivery(senderId: string): void {
   if (application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
-  isMainRendererReadyForTabAttach = true
+  isMainRendererReadyForDelivery = true
   flushPendingTabAttaches()
+  flushPendingSelectionQuote()
 }
 
 /**
  * Invalidate renderer readiness (window destroyed, webContents reloading, or
- * renderer crashed). Queued tabs are kept — they flush into the next ready
- * renderer, with the target window resolved at flush time, not enqueue time.
+ * renderer crashed). Pending deliveries are kept — they flush into the next
+ * ready renderer, with the target window resolved at flush time, not enqueue time.
  */
-export function resetMainRendererTabAttachDelivery(): void {
-  isMainRendererReadyForTabAttach = false
+export function resetMainRendererDelivery(): void {
+  isMainRendererReadyForDelivery = false
 }
 
 function flushPendingTabAttaches(): void {
-  if (!isMainRendererReadyForTabAttach || pendingTabAttachQueue.length === 0) return
+  if (!isMainRendererReadyForDelivery || pendingTabAttachQueue.length === 0) return
   const mainWindowId = resolveLiveMainWindowId()
   if (!mainWindowId) return
   // splice clears in place, so a duplicate ready signal cannot replay the queue.
@@ -88,18 +91,47 @@ function flushPendingTabAttaches(): void {
   }
 }
 
+function sendSelectionQuote(mainWindowId: string, text: string): void {
+  application.get('WindowManager').getWindow(mainWindowId)?.webContents.send(IpcChannel.App_QuoteToMain, text)
+}
+
+function flushPendingSelectionQuote(): void {
+  if (!pendingSelectionQuote) return
+  const mainWindowId = resolveLiveMainWindowId()
+  if (!mainWindowId || !isMainRendererDeliveryReady(mainWindowId)) return
+
+  const text = pendingSelectionQuote
+  pendingSelectionQuote = undefined
+  sendSelectionQuote(mainWindowId, text)
+}
+
+/**
+ * Deliver selected text to the main renderer without racing its mount-time IPC listener.
+ * The renderer-side service also keeps one pending request per target tab, so the cold-start
+ * buffer intentionally follows the same latest-wins contract.
+ */
+export function deliverSelectionQuoteToMainRenderer(text: string): void {
+  const mainWindowId = resolveLiveMainWindowId()
+  if (mainWindowId && isMainRendererDeliveryReady(mainWindowId)) {
+    sendSelectionQuote(mainWindowId, text)
+    return
+  }
+
+  pendingSelectionQuote = text
+}
+
 /**
  * A live window id only proves the BrowserWindow exists — the renderer may still
- * be booting, reloading, or crashed, with no `tab.attached` listener mounted.
+ * be booting, reloading, or crashed, with no delivery listeners mounted.
  * The ready flag plus a synchronous webContents check covers the reload() →
  * did-start-loading gap that event-driven resets cannot see.
  */
-function isTabDeliveryReady(windowId: string): boolean {
-  if (!isMainRendererReadyForTabAttach) return false
+function isMainRendererDeliveryReady(windowId: string): boolean {
+  if (!isMainRendererReadyForDelivery) return false
   const win = application.get('WindowManager').getWindow(windowId)
   if (!win || win.isDestroyed()) return false
   if (win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()) {
-    isMainRendererReadyForTabAttach = false
+    isMainRendererReadyForDelivery = false
     return false
   }
   return true
@@ -178,7 +210,7 @@ export function openTabInMainWindow(tab: Tab): void {
   const mainWindowId = resolveLiveMainWindowId()
 
   if (mainWindowId) {
-    if (isTabDeliveryReady(mainWindowId)) {
+    if (isMainRendererDeliveryReady(mainWindowId)) {
       application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
     } else if (!pendingTabAttachQueue.some((queued) => queued.id === tab.id)) {
       // Renderer not ready (fresh boot/reload/crash): queue the tab instead of

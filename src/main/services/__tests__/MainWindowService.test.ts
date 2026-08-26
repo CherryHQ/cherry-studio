@@ -27,6 +27,8 @@ const {
   const windowManagerMock = {
     getWindow: vi.fn(),
     getWindowId: vi.fn(),
+    getWindowsByType: vi.fn(),
+    getWindowType: vi.fn(),
     // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
     // (see BehaviorController in src/main/core/window/behavior.ts).
     behavior: {
@@ -153,10 +155,12 @@ vi.mock('@main/core/lifecycle', async () => {
 })
 
 import { WindowType } from '@main/core/window/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { app } from 'electron'
 
 import { contextMenu } from '../ContextMenu'
+import { markMainRendererReadyForDelivery, resetMainRendererDelivery } from '../mainWindowNavigation'
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -174,7 +178,10 @@ interface MockBrowserWindow extends EventEmitter {
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
+    isCrashed: ReturnType<typeof vi.fn>
+    isLoadingMainFrame: ReturnType<typeof vi.fn>
     reload: ReturnType<typeof vi.fn>
+    send: ReturnType<typeof vi.fn>
     setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
@@ -197,7 +204,10 @@ function createMockWindow(): MockBrowserWindow {
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
+    isCrashed: vi.fn(() => false),
+    isLoadingMainFrame: vi.fn(() => false),
     reload: vi.fn(),
+    send: vi.fn(),
     setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
@@ -261,9 +271,14 @@ describe('MainWindowService', () => {
 
     svc = new MainWindowService()
     win = createMockWindow()
+    windowManagerMock.getWindowsByType.mockReturnValue([win])
+    windowManagerMock.getWindowId.mockReturnValue('main-1')
+    windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+    windowManagerMock.getWindow.mockReturnValue(win)
   })
 
   afterEach(() => {
+    resetMainRendererDelivery()
     vi.unstubAllEnvs()
     vi.clearAllMocks()
   })
@@ -618,6 +633,21 @@ describe('MainWindowService', () => {
         })
       )
       expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('quoteToMainWindow', () => {
+    it('keeps the quote pending until the main renderer reports ready', () => {
+      ;(svc as any).mainWindow = win
+
+      svc.quoteToMainWindow('Selected text')
+
+      expect(win.show).toHaveBeenCalled()
+      expect(win.webContents.send).not.toHaveBeenCalled()
+
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
     })
   })
 

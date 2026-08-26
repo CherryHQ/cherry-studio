@@ -1,4 +1,5 @@
 import { WindowType } from '@main/core/window/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiServiceMock } = vi.hoisted(() => {
@@ -31,17 +32,18 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 import {
   acknowledgeMainWindowNavigation,
+  deliverSelectionQuoteToMainRenderer,
   isAllowedRoute,
-  markMainRendererReadyForTabAttach,
+  markMainRendererReadyForDelivery,
   openRouteInMainWindow,
   openSettingsInMainWindow,
   openTabInMainWindow,
-  resetMainRendererTabAttachDelivery
+  resetMainRendererDelivery
 } from '../mainWindowNavigation'
 
 const aliveWindow = {
   isDestroyed: () => false,
-  webContents: { isLoadingMainFrame: () => false, isCrashed: () => false }
+  webContents: { isLoadingMainFrame: () => false, isCrashed: () => false, send: vi.fn() }
 }
 
 describe('mainWindowNavigation', () => {
@@ -58,8 +60,8 @@ describe('mainWindowNavigation', () => {
     // Flush any queued tabs so the module-level delivery state does not leak.
     windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
     windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
-    markMainRendererReadyForTabAttach('main-1')
-    resetMainRendererTabAttachDelivery()
+    markMainRendererReadyForDelivery('main-1')
+    resetMainRendererDelivery()
   })
 
   describe('acknowledgeMainWindowNavigation', () => {
@@ -167,7 +169,7 @@ describe('mainWindowNavigation', () => {
 
     it('sends the tab.attached event and raises the main window when its renderer is ready', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       openTabInMainWindow(tab)
 
@@ -190,7 +192,7 @@ describe('mainWindowNavigation', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
 
       openTabInMainWindow(tab)
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
@@ -200,8 +202,8 @@ describe('mainWindowNavigation', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
 
       openTabInMainWindow(tab)
-      markMainRendererReadyForTabAttach('main-1')
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
     })
@@ -211,7 +213,7 @@ describe('mainWindowNavigation', () => {
 
       openTabInMainWindow(tab)
       openTabInMainWindow(tab)
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
     })
@@ -222,7 +224,7 @@ describe('mainWindowNavigation', () => {
       openTabInMainWindow(tab)
       // Window was rebuilt between enqueue and ready: resolve at flush time.
       windowManagerMock.getWindowId.mockReturnValue('main-2')
-      markMainRendererReadyForTabAttach('main-2')
+      markMainRendererReadyForDelivery('main-2')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-2', 'tab.attached', tab)
     })
@@ -231,7 +233,7 @@ describe('mainWindowNavigation', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
       windowManagerMock.getWindowType.mockReturnValue('sub-window' as WindowType)
 
-      markMainRendererReadyForTabAttach('sub-1')
+      markMainRendererReadyForDelivery('sub-1')
       openTabInMainWindow(tab)
 
       // Still queued: the non-main ready cannot have armed delivery.
@@ -240,7 +242,7 @@ describe('mainWindowNavigation', () => {
 
     it('re-queues during a reload even when the ready flag is armed', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
       windowManagerMock.getWindow.mockReturnValue({
         isDestroyed: () => false,
         webContents: { isLoadingMainFrame: () => true, isCrashed: () => false }
@@ -252,7 +254,7 @@ describe('mainWindowNavigation', () => {
       expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
       // Once the new frame mounts, its ready report flushes the re-queued tab.
       windowManagerMock.getWindow.mockReturnValue(aliveWindow)
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
     })
 
@@ -261,9 +263,9 @@ describe('mainWindowNavigation', () => {
 
       openTabInMainWindow(tab)
       // Window destroyed / webContents reloading — readiness dropped, queue kept.
-      resetMainRendererTabAttachDelivery()
+      resetMainRendererDelivery()
       windowManagerMock.getWindowId.mockReturnValue('main-2')
-      markMainRendererReadyForTabAttach('main-2')
+      markMainRendererReadyForDelivery('main-2')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-2', 'tab.attached', tab)
     })
@@ -277,6 +279,58 @@ describe('mainWindowNavigation', () => {
         tab,
         requestId: expect.any(Number)
       })
+    })
+  })
+
+  describe('deliverSelectionQuoteToMainRenderer', () => {
+    it('queues a quote until the main renderer reports ready', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      deliverSelectionQuoteToMainRenderer('Selected text')
+
+      expect(aliveWindow.webContents.send).not.toHaveBeenCalled()
+
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(aliveWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+    })
+
+    it('keeps only the latest quote while the renderer is unavailable', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      deliverSelectionQuoteToMainRenderer('First selection')
+      deliverSelectionQuoteToMainRenderer('Second selection')
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(aliveWindow.webContents.send).toHaveBeenCalledOnce()
+      expect(aliveWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Second selection')
+    })
+
+    it('delivers immediately when the renderer is already ready', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      markMainRendererReadyForDelivery('main-1')
+
+      deliverSelectionQuoteToMainRenderer('Selected text')
+
+      expect(aliveWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+    })
+
+    it('queues a quote again while the main frame is reloading', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      markMainRendererReadyForDelivery('main-1')
+      windowManagerMock.getWindow.mockReturnValue({
+        isDestroyed: () => false,
+        webContents: { isLoadingMainFrame: () => true, isCrashed: () => false, send: vi.fn() }
+      })
+
+      deliverSelectionQuoteToMainRenderer('Selected text')
+
+      expect(aliveWindow.webContents.send).not.toHaveBeenCalled()
+
+      windowManagerMock.getWindow.mockReturnValue(aliveWindow)
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(aliveWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
     })
   })
 

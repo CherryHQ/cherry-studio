@@ -438,7 +438,9 @@ describe('deferred ComposerSurface', () => {
     )
 
     screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' }).setSelectionRange(2, 2)
-    act(() => actions!.insertToken(quote))
+    act(() => {
+      actions!.insertToken(quote)
+    })
 
     await screen.findByTestId('composer-runtime')
     // Writing the token straight into draftTokens leaves it without prompt text at that offset,
@@ -460,7 +462,9 @@ describe('deferred ComposerSurface', () => {
     )
 
     screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' }).setSelectionRange(1, 4)
-    act(() => actions!.insertToken(quote))
+    act(() => {
+      actions!.insertToken(quote)
+    })
 
     await screen.findByTestId('composer-runtime')
     expect(mocks.runtimeIntent?.insertToken?.selection).toEqual({ start: 1, end: 4 })

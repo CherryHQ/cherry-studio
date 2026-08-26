@@ -25,11 +25,10 @@ export function insertComposerTokenAtCursor(
 ) {
   const chain = editor.chain().focus().insertComposerToken(token)
   if (options.insertSeparator === false) {
-    chain.run()
-    return
+    return chain.run()
   }
 
-  chain.insertContent(' ').run()
+  return chain.insertContent(' ').run()
 }
 
 export function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {

@@ -34,7 +34,9 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { toast } from '@renderer/services/toast'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -91,6 +93,11 @@ const HomePage: FC = () => {
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
+  const routeQuoteRequestId = routeSearch.quoteRequestId
+  const currentTabId = useCurrentTabId()
+  const currentQuoteRequestId =
+    routeQuoteRequestId && currentTabId ? selectionQuoteService.getCurrentRequestId(currentTabId) : undefined
+  const [pendingQuote, setPendingQuote] = useState<SelectionQuoteRequest>()
   const routeAssistantId = routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
@@ -262,6 +269,43 @@ const HomePage: FC = () => {
   const manageAssistantsActive = activeResourceKind === 'assistant'
   const onManageAssistants = conversationResourcesEnabled ? toggleAssistantResourceView : undefined
 
+  const replaceQuoteRequestId = useCallback(
+    (nextRequestId?: string) => {
+      const search = {
+        ...(routeSearch.assistantId ? { assistantId: routeSearch.assistantId } : {}),
+        ...(routeSearch.topicId ? { topicId: routeSearch.topicId } : {}),
+        ...(routeSearch.view ? { view: routeSearch.view } : {}),
+        ...(nextRequestId ? { quoteRequestId: nextRequestId } : {})
+      }
+      void navigate({ to: '/app/chat', search, replace: true })
+    },
+    [navigate, routeSearch.assistantId, routeSearch.topicId, routeSearch.view]
+  )
+
+  useEffect(() => {
+    if (!routeQuoteRequestId) return
+    if (!currentTabId || currentQuoteRequestId !== routeQuoteRequestId) {
+      replaceQuoteRequestId(currentQuoteRequestId)
+      return
+    }
+
+    const request = selectionQuoteService.peek(currentTabId, routeQuoteRequestId)
+    if (!request) return
+
+    closeSurface()
+    setPendingQuote(request)
+  }, [closeSurface, currentQuoteRequestId, currentTabId, replaceQuoteRequestId, routeQuoteRequestId])
+  const handleQuoteInserted = useCallback(
+    (requestId: string) => {
+      if (!currentTabId) return
+
+      selectionQuoteService.ack(currentTabId, requestId)
+      setPendingQuote((current) => (current?.id === requestId ? undefined : current))
+      replaceQuoteRequestId(selectionQuoteService.getCurrentRequestId(currentTabId))
+    },
+    [currentTabId, replaceQuoteRequestId]
+  )
+
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
     setLastUsedAssistantId(null)
@@ -277,7 +321,6 @@ const HomePage: FC = () => {
   // All non-dormant tabs mount at once (Activity keep-alive), so each chat tab runs its
   // own HomePage. `currentTabId` is *this* tab; `useIsActiveTab` answers "am I the
   // globally-focused tab".
-  const currentTabId = useCurrentTabId()
   const isActiveTab = useIsActiveTab()
 
   const clearTopicRevealRequestAfterPaint = useCallback((requestId: number) => {
@@ -480,6 +523,19 @@ const HomePage: FC = () => {
     },
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
+
+  useEffect(() => {
+    if (!routeQuoteRequestId || currentQuoteRequestId !== routeQuoteRequestId) return
+    if (activeTopic || isActiveTopicLoading || !isAssistantListResolved) return
+    void createAndActivateEmptyTopic()
+  }, [
+    activeTopic,
+    createAndActivateEmptyTopic,
+    currentQuoteRequestId,
+    isActiveTopicLoading,
+    isAssistantListResolved,
+    routeQuoteRequestId
+  ])
 
   const handleCreateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
@@ -785,6 +841,8 @@ const HomePage: FC = () => {
           <Chat
             activeTopic={visibleTopic}
             topicPending={isActiveTopicLoading || isRouteTopicLoading}
+            pendingQuote={pendingQuote}
+            onQuoteInserted={handleQuoteInserted}
             centerSurface={centerSurface}
             pane={pane}
             paneOpen={shellPaneOpen}
