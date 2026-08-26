@@ -11,6 +11,7 @@ import {
   getFirstCharacter,
   getLeadingEmoji,
   getLowerBaseModelName,
+  getProviderDisplayNameById,
   isEmoji,
   removeLeadingEmoji,
   removeSpecialCharactersForTopicName,
@@ -371,6 +372,16 @@ describe('naming', () => {
         models: []
       }
       expect(getFancyProviderName(mockProvider)).toBe('好名字')
+    })
+  })
+
+  describe('getProviderDisplayNameById', () => {
+    it('uses the canonical label for a system provider id', () => {
+      expect(getProviderDisplayNameById('minimax')).toBe('MiniMax CN')
+    })
+
+    it('preserves a custom provider id when metadata is unavailable', () => {
+      expect(getProviderDisplayNameById('my-custom')).toBe('my-custom')
     })
   })
 

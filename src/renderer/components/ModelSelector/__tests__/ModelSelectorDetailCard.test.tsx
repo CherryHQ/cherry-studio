@@ -24,7 +24,8 @@ const { mockHoverCardContentProps, mockHoverCardProps, mockHoverCardOpenChange }
   mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
 }))
 
-vi.mock('@renderer/i18n/label', () => ({
+vi.mock('@renderer/i18n/label', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/i18n/label')>()),
   getProviderLabel: (id: string) => id
 }))
 
@@ -132,6 +133,7 @@ function makeItem(model: Model): ModelSelectorModelItem {
   return {
     key: model.id,
     type: 'model',
+    groupKind: 'provider',
     model,
     provider,
     modelId: model.id,
