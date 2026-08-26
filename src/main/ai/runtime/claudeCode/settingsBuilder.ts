@@ -44,7 +44,6 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -579,7 +578,6 @@ export async function buildSystemPrompt(
   /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
   agentsMdContext?: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
-  const isSupport = agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
   const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
@@ -605,9 +603,9 @@ export async function buildSystemPrompt(
 
   // Claude owns only the SDK mapping. Cherry policy and ordering are runtime-neutral.
   if (prompt.base.kind === 'native') {
-    return isSupport ? prompt.append : { type: 'preset', preset: 'claude_code', append: prompt.append }
+    return { type: 'preset', preset: 'claude_code', append: prompt.append }
   }
-  return prompt.base.content ? `${prompt.base.content}\n\n${prompt.append}` : prompt.append
+  return [prompt.base.content, prompt.append].filter(Boolean).join('\n\n')
 }
 
 /**

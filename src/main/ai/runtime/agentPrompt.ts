@@ -83,37 +83,40 @@ export async function buildAgentRuntimePrompt({
 
   const agentInstructions = hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined
   const workspaceCustomBase = parts.base.kind === 'custom' ? parts.base.content : undefined
-  // Prefix-cache layout for non-Support: Cherry-owned policy that is identical across sessions
-  // comes first. Support identity is standing system, so it leads and keeps latest-message language.
-  const append = (
-    isSupport
-      ? [
-          agentInstructions,
-          hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
-          workspaceCustomBase,
-          parts.context,
-          workspaceInstructions,
-          customBaseContext,
-          citationsGuidance,
-          REPORT_ARTIFACTS_PROMPT,
-          "IMPORTANT: Respond in the language of the user's latest message."
-        ]
-      : [
-          hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
-          REPORT_ARTIFACTS_PROMPT,
-          agentInstructions,
-          workspaceInstructions,
-          parts.context,
-          parts.base.kind === 'custom' ? customBaseContext : undefined,
-          citationsGuidance,
-          getLanguageInstruction()
-        ]
-  )
+
+  if (isSupport) {
+    // Custom base replaces runtime-native identity; workspace system.md follows standing identity.
+    const standing = [
+      agentInstructions,
+      hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
+      workspaceCustomBase,
+      parts.context,
+      workspaceInstructions,
+      customBaseContext,
+      citationsGuidance,
+      REPORT_ARTIFACTS_PROMPT,
+      "IMPORTANT: Respond in the language of the user's latest message."
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+    return { base: { kind: 'custom', content: standing }, append: '' }
+  }
+
+  // Prefix-cache layout: Cherry-owned policy that is identical across sessions comes first.
+  const append = [
+    hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
+    REPORT_ARTIFACTS_PROMPT,
+    agentInstructions,
+    workspaceInstructions,
+    parts.context,
+    parts.base.kind === 'custom' ? customBaseContext : undefined,
+    citationsGuidance,
+    getLanguageInstruction()
+  ]
     .filter(Boolean)
     .join('\n\n')
 
-  // Support identity replaces the runtime native base; workspace system.md is standing context after it.
-  return { base: isSupport ? { kind: 'native' } : parts.base, append }
+  return { base: parts.base, append }
 }
 
 function buildAgentInstructionsSection(instructions: string): string {

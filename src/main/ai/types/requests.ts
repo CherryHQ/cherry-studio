@@ -54,7 +54,7 @@ export interface CallOverrides {
 
 export interface AiBaseRequest {
   assistantId?: string
-  /** Main-internal standing instructions. Renderer IPC schemas deliberately omit this field. */
+  /** Standing instructions for in-process callers and `ai.text.generate`. Stream IPC omits this field. */
   system?: string
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId

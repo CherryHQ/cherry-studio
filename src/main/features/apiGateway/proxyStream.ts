@@ -100,10 +100,31 @@ function leadingStandingIdentityEnd(texts: readonly string[]): number {
   return cherryIndex === -1 ? texts.length : cherryIndex
 }
 
+function stripConflictingLeadingLines(section: string): string {
+  const lines = section.split('\n')
+  let start = 0
+  while (start < lines.length && lines[start].trim() === '') start++
+  while (start < lines.length && isConflictingSdkIdentity(lines[start])) start++
+  return lines.slice(start).join('\n')
+}
+
 function stripLeadingConflictingIdentityText(text: string): string | undefined {
   const sections = text.split('\n\n')
   const leadingEnd = leadingStandingIdentityEnd(sections)
-  const kept = sections.filter((section, index) => index >= leadingEnd || !isConflictingSdkIdentity(section))
+  const kept: string[] = []
+  for (let index = 0; index < sections.length; index++) {
+    const section = sections[index]
+    if (index > leadingEnd) {
+      kept.push(section)
+      continue
+    }
+    if (index < leadingEnd) {
+      if (!isConflictingSdkIdentity(section)) kept.push(section)
+      continue
+    }
+    const stripped = stripConflictingLeadingLines(section).trim()
+    if (stripped.length > 0) kept.push(stripped)
+  }
   const remaining = kept.join('\n\n').trim()
   return remaining.length > 0 ? remaining : undefined
 }
@@ -117,12 +138,16 @@ function removeConflictingSupportIdentity(params: MessageCreateParams): MessageC
   }
   if (!Array.isArray(params.system)) return params
   const leadingEnd = leadingStandingIdentityEnd(params.system.map((block) => (block.type === 'text' ? block.text : '')))
-  const system = params.system.filter((block, index) => {
-    if (block.type !== 'text') return true
-    if (index >= leadingEnd) return true
-    return !isConflictingSdkIdentity(block.text)
+  const system = params.system.flatMap((block, index) => {
+    if (block.type !== 'text') return [block]
+    if (index > leadingEnd) return [block]
+    const stripped = stripLeadingConflictingIdentityText(block.text)
+    if (!stripped) return []
+    return stripped === block.text ? [block] : [{ ...block, text: stripped }]
   })
-  return system.length === params.system.length ? params : { ...params, system }
+  return system.length === params.system.length && system.every((block, index) => block === params.system?.[index])
+    ? params
+    : { ...params, system }
 }
 
 /**

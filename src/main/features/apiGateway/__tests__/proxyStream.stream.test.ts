@@ -416,6 +416,76 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     )
   })
 
+  it('strips canonical official-CLI identity that does not use the You are Claude Code prefix', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      "Anthropic's official CLI for Claude.",
+      'You are Cherry Studio official built-in product support.'
+    ].join('\n\n')
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0].system).toBe('You are Cherry Studio official built-in product support.')
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'You are Cherry Studio official built-in product support.'
+      })
+    )
+  })
+
+  it('strips leading SDK identity from a mixed string system section', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      "You are Claude Code, Anthropic's official CLI for Claude.",
+      'You are Cherry Studio official built-in product support.'
+    ].join('\n')
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0].system).toBe('You are Cherry Studio official built-in product support.')
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'You are Cherry Studio official built-in product support.'
+      })
+    )
+  })
+
+  it('strips leading SDK identity from a mixed section that also contains Cherry Support', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const mixedSection = [
+      "You are Claude Code, Anthropic's official CLI for Claude.",
+      'You are Cherry Studio official built-in product support.'
+    ].join('\n')
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      { type: 'text', text: mixedSection },
+      { type: 'text', text: 'Workspace documentation may quote: You are Claude Code.' }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([
+      { type: 'text', text: 'You are Cherry Studio official built-in product support.' },
+      { type: 'text', text: 'Workspace documentation may quote: You are Claude Code.' }
+    ])
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: [
+          'You are Cherry Studio official built-in product support.',
+          'Workspace documentation may quote: You are Claude Code.'
+        ].join('\n')
+      })
+    )
+  })
+
   it('keeps SDK identity blocks for internal requests without the Cherry Support identity', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
