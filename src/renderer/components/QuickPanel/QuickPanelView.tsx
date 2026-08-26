@@ -306,27 +306,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     consumeInputQuery()
   }, [consumeInputQuery])
 
-  const consumeInputTriggerSymbol = useCallback(() => {
-    if (!inputAdapter) return
-
-    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
-    if (queryAnchor === undefined) return
-
-    const text = inputAdapter.getText()
-    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    if (cursorOffset <= queryAnchor) return
-
-    if (!inputTriggerSymbol) return
-
-    const triggerSymbol = text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length)
-    if (triggerSymbol !== inputTriggerSymbol) return
-
-    inputTriggerConsumedRef.current = true
-    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryAnchor + inputTriggerSymbol.length })
-    queryAnchorRef.current = queryAnchor
-    setInputSearchText(text.slice(queryAnchor + inputTriggerSymbol.length, cursorOffset))
-  }, [ctx.queryAnchor, inputAdapter, inputTriggerSymbol])
-
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
       // Read-only panels (e.g. MCP status) stay non-interactive, except for pinned footer actions
@@ -378,7 +357,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         if (ctx.triggerInfo?.type === 'button' && ctx.trackInputQuery) {
           consumeInputQueryOnce()
         } else {
-          consumeInputTriggerSymbol()
+          // Drop the whole trigger query so the submenu starts with an empty search.
+          inputTriggerConsumedRef.current = true
+          consumeInputQuery()
         }
       } else {
         consumeInputQuery()
@@ -405,7 +386,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       activeSearchQuery,
       getCurrentPanelOptions,
       activeIndex,
-      consumeInputTriggerSymbol,
       consumeInputQuery,
       consumeInputQueryOnce,
       inputAdapter,
@@ -927,7 +907,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             disabled: item.disabled
           })}
           active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
-          contentClassName="max-w-[60%]"
           dataId={item.id}
           hoverEnabled={isMouseOver}
           item={item}
@@ -954,6 +933,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         ctx.isVisible && 'visible',
         ctx.isVisible ? 'pointer-events-auto' : 'pointer-events-none'
       )}
+      inert={!ctx.isVisible}
       data-testid="quick-panel">
       <div
         ref={bodyRef}
@@ -961,11 +941,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         data-testid="quick-panel-body"
         style={constrainBody ? { height: panelMaxHeight } : undefined}
         className={classNames(
-          'relative isolate transform-gpu overflow-hidden rounded-xl bg-[color:color-mix(in_srgb,var(--popover)_76%,transparent)] py-1.25 text-popover-foreground backdrop-blur-2xl transition-[translate,opacity] will-change-[translate,opacity] [border:0.5px_solid_var(--border)] motion-reduce:translate-y-0 motion-reduce:transition-none dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--popover)_86%,var(--foreground)_14%)_90%,transparent)] [&::-webkit-scrollbar]:w-0.75',
+          'relative isolate transform-gpu overflow-hidden rounded-xl bg-[color-mix(in_srgb,var(--card)_76%,transparent)] py-1.25 text-card-foreground backdrop-blur-2xl transition-[translate,opacity] will-change-[translate,opacity] [border:0.5px_solid_var(--border)] motion-reduce:translate-y-0 motion-reduce:transition-none dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--card)_95%,var(--foreground)_5%)_90%,transparent)] [&::-webkit-scrollbar]:w-0.75',
           constrainBody && 'flex flex-col justify-end',
           ctx.isVisible
-            ? 'translate-y-0 opacity-100 shadow-none [transition-duration:140ms,200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1),ease-out]'
-            : 'translate-y-2 opacity-0 shadow-none [transition-delay:0ms,80ms] [transition-duration:80ms,100ms] [transition-timing-function:cubic-bezier(0.4,0,1,1),ease-out]'
+            ? 'translate-y-0 opacity-100 shadow-none duration-[140ms,200ms] ease-[cubic-bezier(0.16,1,0.3,1),ease-out]'
+            : 'translate-y-2 opacity-0 shadow-none duration-[80ms,100ms] ease-[cubic-bezier(0.4,0,1,1),ease-out] [transition-delay:0ms,80ms]'
         )}
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
@@ -989,7 +969,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
                 estimateSize={estimateSize}
                 overscan={5}
                 scrollerStyle={{
-                  pointerEvents: isMouseOver ? 'auto' : 'none'
+                  pointerEvents: ctx.isVisible && isMouseOver ? 'auto' : 'none'
                 }}>
                 {rowRenderer}
               </DynamicVirtualList>

@@ -15,10 +15,24 @@ export const EmojiAvatarPicker: FC<{
   disabled?: boolean
   portalContainer: HTMLElement | null
   size?: 'sm' | 'md'
-}> = ({ value, fallback, open, onOpenChange, onChange, ariaLabel, disabled, portalContainer, size = 'md' }) => {
+  avatarClassName?: string
+  avatarFontSize?: number
+}> = ({
+  value,
+  fallback,
+  open,
+  onOpenChange,
+  onChange,
+  ariaLabel,
+  disabled,
+  portalContainer,
+  size = 'md',
+  avatarClassName,
+  avatarFontSize
+}) => {
   // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
   const avatarSize = size === 'sm' ? 36 : 32
-  const fontSize = size === 'sm' ? 18 : 16
+  const fontSize = avatarFontSize ?? (size === 'sm' ? 18 : 16)
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -29,11 +43,14 @@ export const EmojiAvatarPicker: FC<{
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
-            'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50',
+            'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:bg-transparent focus-visible:opacity-80',
             size === 'sm' ? 'size-9' : 'size-8'
           )}>
           {/* Match the adjacent Input's rounded-lg + hairline border. */}
-          <EmojiAvatar size={avatarSize} fontSize={fontSize} className="rounded-lg border border-border">
+          <EmojiAvatar
+            size={avatarSize}
+            fontSize={fontSize}
+            className={cn('rounded-lg border border-border', avatarClassName)}>
             {value || fallback}
           </EmojiAvatar>
         </Button>
@@ -93,7 +110,7 @@ export const DialogModelTrigger = ({
     aria-labelledby={ariaLabelledBy}
     className={cn(
       // Mirrors the shared SelectTrigger recipe (bg-muted/50, borderless, rounded-lg).
-      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 aria-expanded:bg-muted',
+      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground aria-expanded:bg-muted',
       model ? 'text-foreground' : 'text-muted-foreground',
       className
     )}>
@@ -103,7 +120,7 @@ export const DialogModelTrigger = ({
     </span>
     <ChevronDown
       aria-hidden="true"
-      className={cn('size-3.5 shrink-0 text-muted-foreground/70 transition-opacity', chevronClassName)}
+      className={cn('size-3.5 shrink-0 text-muted-foreground transition-opacity', chevronClassName)}
     />
   </Button>
 )

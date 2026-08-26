@@ -220,23 +220,28 @@ pnpm icons:generate
 # General icons
 pnpm icons:generate --type=icons
 
-# Provider icons, Avatars, barrels, and catalogs
+# Provider icons, Avatars, barrels, catalogs, and per-icon loaders
 pnpm icons:generate --type=providers
 
-# Model icons, Avatars, barrels, and catalogs
+# Model icons, Avatars, barrels, and per-icon loaders
 pnpm icons:generate --type=models
 ```
 
 | Type        | SVG source                            | Generated output                                                                 |
 | ----------- | ------------------------------------- | -------------------------------------------------------------------------------- |
 | `icons`     | `icons/general/*.svg`                 | General React icon components and their barrel                                   |
-| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, and catalogs          |
-| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and catalogs             |
+| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, catalogs, and loaders |
+| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and loaders              |
+
+Import key-based lookup APIs from `@cherrystudio/ui/icons`. Static provider components intentionally use the
+separate `@cherrystudio/ui/icons/providers` entry so the ordinary lookup path does not evaluate the full provider barrel.
+Provider components are intentionally no longer re-exported from `@cherrystudio/ui/icons`; static consumers must use
+the provider entry explicitly.
 
 Generation uses a hash cache and skips unchanged SVG files. Use the optional arguments when a narrower or clean regeneration is needed:
 
 ```bash
-# Regenerate one provider and its Avatar/catalog entries
+# Regenerate one provider and its Avatar/catalog/loader entries
 pnpm icons:generate --type=providers --only=opencode
 
 # Regenerate multiple models
@@ -251,7 +256,7 @@ pnpm icons:generate --type=providers --force
 - `--only=<name[,name]>` limits Provider or Model component and Avatar generation to the listed names.
 - `--force` bypasses the SVG hash cache.
 
-Provider and Model generation runs the SVG component stage first and the Avatar/catalog stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
+Provider and Model generation runs the SVG component stage first and the Avatar plus lookup-artifact stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
 
 ## Package Surface
 
@@ -277,7 +282,7 @@ semantics and emits the corresponding public `data-ui` `part:*` tokens without r
 Existing renderer code, application tests, and custom themes that use `data-slot` continue to work; new selectors can
 use the generated semantic layer. The application-level token grammar, stability tiers, maintained anchors, and
 selector rules are defined by the
-[UI Semantic Contract](../../docs/references/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
+[UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
 are public selectors; inferred roles are best-effort discovery coordinates.
 
 ## Directory Structure
@@ -302,7 +307,7 @@ icons/                  # Raw icon assets for code generation
 
 ## Naming Conventions
 
-All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/naming-conventions.md`](../../docs/references/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
+All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/architecture/naming-conventions.md`](../../docs/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
 
 Examples:
 

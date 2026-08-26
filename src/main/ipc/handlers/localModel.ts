@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/inference/inferenceAcceleration'
 import {
   localEmbeddingDownloadService,
   localOcrDownloadService,
@@ -21,31 +22,43 @@ function siblingFor(model: LocalModelKind) {
   return model === 'embedding' ? localOcrDownloadService : localEmbeddingDownloadService
 }
 
+async function cleanupSharedRuntimeAfterInterruptedDownload(model: LocalModelKind): Promise<void> {
+  // 'downloading' counts as still needed — the sibling may be awaiting the same
+  // coalesced binary download.
+  const siblingStatus = siblingFor(model).getStatus()
+  try {
+    await onnxRuntimeBinaryService.removeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
+  } catch (cleanupError) {
+    // Best-effort: a locked file must not turn a cancellation into a failure or
+    // mask the original download error.
+    logger.warn('failed to clean up the shared onnxruntime binary after an interrupted download', {
+      error: String(cleanupError)
+    })
+  }
+}
+
 /**
- * Thin adapters for the local model routes — each dispatches by `model` to the
- * owning download service (`LocalEmbeddingDownloadService` for transformers.js,
- * `LocalOcrDownloadService` for PaddleOCR), which owns the on-disk lifecycle and
- * the download. `download` resolves only when the download finishes.
+ * Thin adapters for local model routes. Lifecycle routes dispatch by `model` to
+ * its owning download service, while the capability route reports platform
+ * support directly. `download` resolves only when the download finishes.
  */
 export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas> = {
-  'local_model.get_status': async ({ model }) => ({ status: serviceFor(model).getStatus() }),
+  'local_model.get_acceleration_capability': async () => ({
+    supported: isLocalInferenceHardwareAccelerationSupported()
+  }),
+  'local_model.get_status': async ({ model }) => serviceFor(model).getStatusInfo(),
   'local_model.download': async ({ model }) => {
     try {
-      await serviceFor(model).download()
-    } catch (error) {
-      // The service already dropped its own partial weights (cleanupAfterError)
-      // before rejecting; also drop the shared onnxruntime binary so a cancelled
-      // or failed download leaves no footprint. 'downloading' counts as still
-      // needed — the sibling may be awaiting the same coalesced binary download.
-      const siblingStatus = siblingFor(model).getStatus()
-      try {
-        await onnxRuntimeBinaryService.removeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
-      } catch (cleanupError) {
-        // Best-effort: a locked file must not mask the original download error.
-        logger.warn('failed to clean up the shared onnxruntime binary after an aborted download', {
-          error: String(cleanupError)
-        })
+      const result = await serviceFor(model).download()
+      if (result === 'cancelled') {
+        await cleanupSharedRuntimeAfterInterruptedDownload(model)
       }
+      return { result }
+    } catch (error) {
+      // Drop the shared onnxruntime binary so a half-installed runtime doesn't read as
+      // ready. The model weights are deliberately left alone — a failed download never
+      // writes partials, so whatever is on disk is a complete earlier download.
+      await cleanupSharedRuntimeAfterInterruptedDownload(model)
       throw error
     }
   },

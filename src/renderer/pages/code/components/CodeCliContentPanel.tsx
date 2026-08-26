@@ -4,7 +4,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { CircleAlert, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +22,7 @@ interface CodeCliContentPanelProps {
     launching: boolean
     running: boolean
     stopping: boolean
+    upgradeDisabled: boolean
   }
   installingTools: Set<string>
   upgradingTools: Set<string>
@@ -35,6 +36,7 @@ interface CodeCliContentPanelProps {
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
   currentProviderModelName?: string
+  providerActionsDisabled?: boolean
   resolveProviderMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onInstall: () => void
   onUpgrade: () => void
@@ -73,6 +75,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   providerConfigs,
   currentProviderId,
   currentProviderModelName,
+  providerActionsDisabled,
   resolveProviderMeta,
   onInstall,
   onUpgrade,
@@ -114,8 +117,14 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             stopping={versionCard.stopping}
             isInstalling={installingTools.has(selectedCliTool)}
             isUpgrading={upgradingTools.has(selectedCliTool)}
+            upgradeDisabled={versionCard.upgradeDisabled}
             installError={installError}
             onShowError={() => setShowInstallError(true)}
+            launchDisabledHint={
+              providerState.showSelectionHint
+                ? t('code.select_provider_before_launch', { toolName: activeMeta.label })
+                : undefined
+            }
           />
         )}
 
@@ -128,15 +137,8 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
           onOpenChange={(open) => !open && setShowInstallError(false)}
         />
 
-        {providerState.showSelectionHint && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning text-xs">
-            <CircleAlert className="size-3.5 shrink-0" />
-            <span>{t('code.select_provider_before_launch', { toolName: activeMeta.label })}</span>
-          </div>
-        )}
-
         {providerState.providerless ? (
-          <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
+          <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
             {t('code.providerless_hint')}
           </div>
         ) : (
@@ -170,6 +172,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
                 providerConfigs={providerConfigs}
                 currentProviderId={currentProviderId}
                 currentProviderModelName={currentProviderModelName}
+                providerActionsDisabled={providerActionsDisabled}
                 resolveMeta={resolveProviderMeta}
                 onConfigure={onConfigure}
                 onToggleCurrent={onToggleCurrent}
@@ -183,7 +186,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               variant="outline"
               size="sm"
               onClick={() => openSettingsTab('/settings/provider')}
-              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-foreground-secondary hover:border-border hover:text-foreground">
+              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-muted-foreground hover:border-border hover:text-foreground">
               {t(getAddProviderHintKey(selectedCliTool))}
               <ExternalLink size={10} />
             </Button>

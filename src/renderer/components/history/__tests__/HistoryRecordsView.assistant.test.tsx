@@ -1,23 +1,27 @@
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import deDE from '../../../i18n/locales/de-de.json'
+import elGR from '../../../i18n/locales/el-gr.json'
 import enUS from '../../../i18n/locales/en-us.json'
+import esES from '../../../i18n/locales/es-es.json'
+import frFR from '../../../i18n/locales/fr-fr.json'
+import jaJP from '../../../i18n/locales/ja-jp.json'
+import ptPT from '../../../i18n/locales/pt-pt.json'
+import roRO from '../../../i18n/locales/ro-ro.json'
+import ruRU from '../../../i18n/locales/ru-ru.json'
+import viVN from '../../../i18n/locales/vi-vn.json'
 import zhCN from '../../../i18n/locales/zh-cn.json'
-import deDE from '../../../i18n/translate/de-de.json'
-import elGR from '../../../i18n/translate/el-gr.json'
-import esES from '../../../i18n/translate/es-es.json'
-import frFR from '../../../i18n/translate/fr-fr.json'
-import jaJP from '../../../i18n/translate/ja-jp.json'
-import ptPT from '../../../i18n/translate/pt-pt.json'
-import roRO from '../../../i18n/translate/ro-ro.json'
-import ruRU from '../../../i18n/translate/ru-ru.json'
-import viVN from '../../../i18n/translate/vi-vn.json'
-import zhTW from '../../../i18n/translate/zh-tw.json'
+import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
+  cancelTopicRenaming: vi.fn(),
+  clearTopicMessagesTrigger: vi.fn(),
   deleteTopic: vi.fn(),
   deleteTopics: vi.fn(),
   batchUpdateTopics: vi.fn(),
@@ -131,17 +135,23 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: hookMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => hookMocks.useSessions(),
-  useAssistantTopicsSource: () => {
-    const source = hookMocks.useTopics()
-    return {
-      ...source,
-      isLoadingAll: source.isLoadingAll ?? source.isLoading,
-      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+vi.mock('@renderer/hooks/resourceViewSources', async () => {
+  // Resolves to the mocked useTopic module, so rendererTopics uses the same mapper as the test.
+  const { mapApiTopicToRendererTopic } = await import('@renderer/hooks/useTopic')
+  return {
+    useAgentSessionsSource: () => hookMocks.useSessions(),
+    useAssistantTopicsSource: () => {
+      const source = hookMocks.useTopics()
+      return {
+        ...source,
+        rendererTopics: (source.topics ?? []).map(mapApiTopicToRendererTopic),
+        orderSignature: '',
+        isLoadingAll: source.isLoadingAll ?? source.isLoading,
+        isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+      }
     }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
@@ -158,6 +168,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
+  cancelTopicRenaming: hookMocks.cancelTopicRenaming,
   finishTopicRenaming: hookMocks.finishTopicRenaming,
   getTopicMessages: hookMocks.getTopicMessages,
   mapApiTopicToRendererTopic: (topic: Topic) => ({
@@ -191,7 +202,6 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE'
   },
@@ -247,6 +257,7 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'chat.default.name': 'Default assistant',
         'chat.default.topic.name': 'New conversation',
+        'chat.input.clear.title': 'Clear all messages?',
         'chat.save.topic.knowledge.menu_title': 'Save to knowledge base',
         'chat.topics.auto_rename': 'Generate conversation name',
         'chat.topics.clear.title': 'Clear messages',
@@ -274,6 +285,7 @@ vi.mock('react-i18next', () => ({
         'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
+        'common.confirm': 'Confirm',
         'common.delete': 'Delete',
         'common.more': 'More',
         'common.name': 'Name',
@@ -339,6 +351,7 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
     assistantId: 'assistant-alpha',
     isNameManuallyEdited: false,
     orderKey: 'a',
+    lastActivityAt: '2026-05-14T08:00:00.000Z',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides
@@ -378,12 +391,52 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   } as Assistant
 }
 
+function setupAssistantHistory({
+  activeRecordId = null,
+  assistants = [createAssistant()],
+  pinnedIds,
+  topics = [createTopic()]
+}: {
+  activeRecordId?: string | null
+  assistants?: Assistant[]
+  pinnedIds?: string[]
+  topics?: Topic[]
+} = {}) {
+  hookMocks.useTopics.mockReturnValue({ topics, error: undefined, isLoading: false })
+  hookMocks.useAssistants.mockReturnValue({ assistants })
+  if (pinnedIds) {
+    hookMocks.usePins.mockReturnValue({ pinnedIds, togglePin: hookMocks.togglePin })
+  }
+
+  const onClose = vi.fn()
+  const onRecordSelect = vi.fn()
+  const rendered = render(
+    <HistoryRecordsView
+      mode="assistant"
+      open
+      activeRecordId={activeRecordId}
+      onClose={onClose}
+      onRecordSelect={onRecordSelect}
+    />
+  )
+
+  return { ...rendered, onClose, onRecordSelect }
+}
+
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 const flushCommandMenuAction = flushAnimationFrame
+let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
+    MockUseDataApiUtils.resetMocks()
+    hookMocks.clearTopicMessagesTrigger.mockReset().mockResolvedValue({ deletedIds: ['message-alpha'] })
+    MockUseDataApiUtils.mockMutationWithTrigger(
+      'DELETE',
+      '/topics/:topicId/messages',
+      hookMocks.clearTopicMessagesTrigger
+    )
     confirmActionShow.mockClear()
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
@@ -400,7 +453,6 @@ describe('HistoryRecordsView assistant mode', () => {
         joplin: true,
         markdown: true,
         markdown_reason: true,
-        notes: true,
         notion: true,
         obsidian: true,
         plain_text: true,
@@ -414,6 +466,7 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha'], deletedCount: 1 })
     hookMocks.batchUpdateTopics.mockReset()
     hookMocks.batchUpdateTopics.mockResolvedValue([])
+    hookMocks.cancelTopicRenaming.mockReset()
     hookMocks.finishTopicRenaming.mockReset()
     hookMocks.getTopicMessages.mockReset()
     hookMocks.getTopicMessages.mockResolvedValue([])
@@ -428,17 +481,22 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: hookMocks.togglePin })
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
-  })
+
+    if (!assistantHistoryLoaded) {
+      await import('../AssistantHistoryRecords')
+      hookMocks.useTopics.mockReturnValue({ topics: [], error: undefined, isLoading: false })
+      hookMocks.useAssistants.mockReturnValue({ assistants: [] })
+      const { unmount } = render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} />)
+
+      await screen.findByRole('region', { name: 'History' })
+      unmount()
+      vi.clearAllMocks()
+      assistantHistoryLoaded = true
+    }
+  }, 60_000)
 
   it('selects a topic when the history title is clicked', () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
-
-    const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
-
-    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    const { onClose, onRecordSelect } = setupAssistantHistory({ pinnedIds: ['topic-alpha'] })
 
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
@@ -495,13 +553,9 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('falls back to record selection when no conversation tab context exists', () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.openConversationTab.mockReturnValueOnce(undefined)
-    const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    const { onClose, onRecordSelect } = setupAssistantHistory()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha topic' }))
 
@@ -511,12 +565,7 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('does not select a topic when the selection checkbox is clicked', () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
-
-    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    const { onClose, onRecordSelect } = setupAssistantHistory()
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
     expect(alphaRow).not.toBeNull()
@@ -844,10 +893,7 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('renders the embedded shell without transition animation', () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    setupAssistantHistory()
 
     const page = screen.getByTestId('history-records-view')
     expect(page).toHaveClass('flex')
@@ -989,13 +1035,26 @@ describe('HistoryRecordsView assistant mode', () => {
     ])
   })
 
-  it('pins a topic from the history row context menu without selecting the row', async () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
+  it('clears a topic from history without an active conversation consumer', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory()
 
-    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Clear messages' }))
+
+    await vi.waitFor(() =>
+      expect(hookMocks.clearTopicMessagesTrigger).toHaveBeenCalledExactlyOnceWith({
+        params: { topicId: 'topic-alpha' }
+      })
+    )
+    expect(confirmActionShow).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Clear all messages?', okText: 'Confirm', action: expect.any(Function) })
+    )
+  })
+
+  it('pins a topic from the history row context menu without selecting the row', async () => {
+    const { onClose, onRecordSelect } = setupAssistantHistory()
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1010,10 +1069,7 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('clears a selected topic when pinning it from the history row action column', async () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    setupAssistantHistory()
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const checkbox = within(alphaRow).getByRole('checkbox')
@@ -1031,10 +1087,8 @@ describe('HistoryRecordsView assistant mode', () => {
 
   it('keeps a selected topic when pinning it from history fails', async () => {
     hookMocks.togglePin.mockRejectedValueOnce(new Error('pin failed'))
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    setupAssistantHistory()
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const checkbox = within(alphaRow).getByRole('checkbox')
@@ -1080,12 +1134,13 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('renames a topic from the history row context menu dialog without selecting the row', async () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
-
-    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    let resolveRename!: () => void
+    hookMocks.updateTopic.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveRename = resolve
+      })
+    )
+    const { onClose, onRecordSelect } = setupAssistantHistory()
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1115,15 +1170,22 @@ describe('HistoryRecordsView assistant mode', () => {
         isNameManuallyEdited: true
       })
     )
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveRename()
+    })
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
     expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
   it('shows an error when topic rename from history fails', async () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.updateTopic.mockRejectedValueOnce(new Error('Rename failed'))
 
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    setupAssistantHistory()
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1148,13 +1210,49 @@ describe('HistoryRecordsView assistant mode', () => {
     )
     expect(toast.error).toHaveBeenCalledWith('Rename failed')
     expect(toast.success).not.toHaveBeenCalled()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
+  })
+
+  it('clears automatic topic renaming without a success reveal after a failed history update', async () => {
+    let rejectUpdate!: (reason?: unknown) => void
+    hookMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
+    hookMocks.updateTopic.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectUpdate = reject
+        })
+    )
+    setupAssistantHistory()
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Generate conversation name' }))
+      await flushCommandMenuAction()
+    })
+
+    await vi.waitFor(() =>
+      expect(hookMocks.updateTopic).toHaveBeenCalledWith('topic-alpha', {
+        name: 'Auto title',
+        isNameManuallyEdited: false
+      })
+    )
+    expect(hookMocks.startTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.cancelTopicRenaming).not.toHaveBeenCalled()
+    expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
+
+    await act(async () => {
+      rejectUpdate(new Error('Automatic rename failed'))
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
+    expect(hookMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
 
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    const { unmount } = render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    const { unmount } = setupAssistantHistory()
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1171,7 +1269,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     unmount()
     hookMocks.updateTopic.mockClear()
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    setupAssistantHistory()
 
     const nextAlphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const nextMenuContent = nextAlphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1251,20 +1349,9 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('clears the active topic after bulk deleting the last history topic', async () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.deleteTopics.mockResolvedValueOnce({ deletedIds: ['topic-alpha'], deletedCount: 1 })
-    const onRecordSelect = vi.fn()
 
-    render(
-      <HistoryRecordsView
-        mode="assistant"
-        open
-        activeRecordId="topic-alpha"
-        onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
-      />
-    )
+    const { onRecordSelect } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -1408,34 +1495,22 @@ describe('HistoryRecordsView locale resources', () => {
 
     for (const resource of runtimeLocaleResources) {
       for (const key of requiredGlobalKeys) {
-        expect(getNestedValue(resource, key)).toEqual(expect.any(String))
+        expect(resource[key]).toEqual(expect.any(String))
       }
 
-      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
       for (const key of requiredRuntimeRecordKeys) {
-        const value = getNestedValue(records, key)
+        const value = resource[`history.records.${key}`]
         expect(value).toEqual(expect.any(String))
         expect(value).not.toMatch(/^\[to be translated]/)
       }
     }
 
     for (const resource of originalLocaleResources) {
-      const history = getNestedValue(resource, 'history') as Record<string, unknown>
-      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
-
-      expect(history.records).toBeTypeOf('object')
-      expect(history.v2).toBeUndefined()
+      // The `history.v2.*` namespace was renamed to `history.records.*`; no key may go back.
+      expect(Object.keys(resource).filter((key) => key.startsWith('history.v2.'))).toEqual([])
       for (const key of requiredRecordKeys) {
-        expect(getNestedValue(records, key)).toEqual(expect.any(String))
+        expect(resource[`history.records.${key}`]).toEqual(expect.any(String))
       }
     }
   })
 })
-
-function getNestedValue(source: Record<string, unknown>, key: string) {
-  return key.split('.').reduce<unknown>((value, segment) => {
-    if (!value || typeof value !== 'object') return undefined
-
-    return (value as Record<string, unknown>)[segment]
-  }, source)
-}

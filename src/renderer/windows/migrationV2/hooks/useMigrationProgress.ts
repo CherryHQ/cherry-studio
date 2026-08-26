@@ -70,7 +70,7 @@ export function useMigrationProgress() {
       }
     }
 
-    window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
+    const cleanupProgressListener = window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
 
     // Request initial progress
     window.electron.ipcRenderer
@@ -96,9 +96,7 @@ export function useMigrationProgress() {
         logger.error('Failed to get last migration error', error)
       })
 
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners(MigrationIpcChannels.Progress)
-    }
+    return cleanupProgressListener
   }, [applyMigrationStageTiming])
 
   return {

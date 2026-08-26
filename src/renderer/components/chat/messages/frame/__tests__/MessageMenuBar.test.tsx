@@ -64,6 +64,7 @@ const topic = {
   id: 'topic-1',
   assistantId: 'assistant-1',
   name: 'Topic',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: []
@@ -129,32 +130,16 @@ function renderWithProvider(children: ReactNode, renderConfig: Partial<typeof de
 }
 
 describe('MessageMenuBar', () => {
-  it('hides token usage when estimated tokens are disabled', () => {
+  it('shows assistant token usage in the bubble footer toolbar regardless of the estimated-tokens setting', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
-        isLastMessage
-        isAssistantMessage
-        isProcessing={false}
-        messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
-      />
-    )
-
-    expect(container.querySelector('.message-tokens')).toBeNull()
-  })
-
-  it('shows assistant token usage in the bubble footer toolbar', () => {
-    const { container } = renderWithProvider(
-      <MessageMenuBar
-        message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}
         messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
       />,
-      { showEstimatedTokens: true }
+      { showEstimatedTokens: false }
     )
 
     expect(container.querySelector('.message-tokens')).toHaveTextContent('42 Tokens')

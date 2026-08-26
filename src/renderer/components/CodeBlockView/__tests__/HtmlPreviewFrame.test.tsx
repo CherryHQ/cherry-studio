@@ -13,9 +13,8 @@ describe('HtmlPreviewFrame', () => {
   it('renders non-empty HTML in an iframe with the shared sandbox and default srcdoc base', () => {
     const html = '<html><head><title>Preview</title></head><body><a href="#">Home</a></body></html>'
 
-    const { container } = render(<HtmlPreviewFrame html={html} title="common.html_preview" />)
-
-    const iframe = container.querySelector('iframe')
+    render(<HtmlPreviewFrame html={html} title="common.html_preview" />)
+    const iframe = screen.getByTitle('common.html_preview')
 
     expect(iframe).not.toBeNull()
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
@@ -23,16 +22,17 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
   })
 
-  it('uses a white browser canvas when the HTML does not declare a background', () => {
-    const { container } = render(<HtmlPreviewFrame html="<main>Preview</main>" title="common.html_preview" />)
-    const iframe = container.querySelector('iframe')
+  it('uses a white browser canvas when HTML does not declare a background', () => {
+    render(<HtmlPreviewFrame html="<main>Preview</main>" title="common.html_preview" />)
+    const iframe = screen.getByTitle('common.html_preview')
 
+    // The white iframe and parent form the browser-canvas visual contract.
     expect(iframe).toHaveClass('bg-white')
-    expect(iframe?.parentElement).toHaveClass('bg-white')
+    expect(iframe.parentElement).toHaveClass('bg-white')
   })
 
   it('renders untrusted local files in a fully restricted, script-less sandbox with a strict CSP', () => {
-    const { container } = render(
+    render(
       <HtmlPreviewFrame
         html="<p>hi</p>"
         title="common.html_preview"
@@ -40,8 +40,7 @@ describe('HtmlPreviewFrame', () => {
         csp={HTML_PREVIEW_RESTRICTED_CSP}
       />
     )
-
-    const iframe = container.querySelector('iframe')
+    const iframe = screen.getByTitle('common.html_preview')
 
     // The main window runs with `webSecurity: false`, so an opaque-origin iframe is not a
     // reliable boundary — the only robust exfiltration guard is to run no scripts at all.

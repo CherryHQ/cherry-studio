@@ -1,7 +1,10 @@
 import type { ISeeder } from '../types'
+import { BuiltinMcpServerSeeder } from './seeders/builtinMcpServerSeeder'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
+import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
+import { LocalModelSeeder } from './seeders/LocalModelSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
@@ -19,9 +22,12 @@ import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 export const seeders: ISeeder[] = [
   new CherryAiDefaultModelSeeder(),
   new CherryAssistantSeeder(),
+  new CherrySupportSeeder(),
   new DefaultAssistantSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
-  new MiniAppSeeder()
+  new LocalModelSeeder(),
+  new MiniAppSeeder(),
+  new BuiltinMcpServerSeeder()
 ]

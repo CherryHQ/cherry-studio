@@ -73,6 +73,7 @@ export function UsageEntriesTable({
   const locale = i18n.resolvedLanguage
   const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
   const integerFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }), [locale])
+  const isInitialLoading = isLoading && entries.length === 0
   const getAriaSort = (column: AiUsageRecordListSortBy) =>
     sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'
   const renderSortHeader = (column: AiUsageRecordListSortBy, label: string, align: 'left' | 'right' = 'left') => {
@@ -107,12 +108,12 @@ export function UsageEntriesTable({
     <UsagePanel>
       <UsagePanelHeader className="flex min-w-0 items-center justify-between gap-3">
         <UsagePanelTitle>{t('settings.usage.explore.entries')}</UsagePanelTitle>
-        <div className="text-foreground-muted text-xs">
+        <div className="text-foreground-tertiary text-xs">
           {t('settings.usage.explore.totalEntries', { count: entryTotal })}
         </div>
       </UsagePanelHeader>
-      <div className="min-w-0 p-3">
-        {isLoading ? (
+      <div className="min-w-0 p-3" aria-busy={isLoading || isRefreshing}>
+        {isInitialLoading ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 6 }, (_, index) => (
               <Skeleton key={index} className="h-9 rounded-md" />

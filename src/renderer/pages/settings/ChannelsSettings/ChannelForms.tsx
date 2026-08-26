@@ -9,9 +9,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Switch
 } from '@cherrystudio/ui'
-import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
+import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -60,6 +61,7 @@ type ChannelFieldsFormProps = ChannelFormProps & {
 
 const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const selectedCard = permissionModeCards.find((card) => card.mode === channel.permissionMode)
   return (
     <div className="flex flex-col gap-1">
       <Label className="text-xs">{t('agent.channels.security.permissionMode')}</Label>
@@ -71,17 +73,21 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
           })
         }>
         <SelectTrigger size="sm" className="w-full">
-          <SelectValue />
+          {/* Own children so the trigger stays one line: the items below can be two. */}
+          <SelectValue>
+            {selectedCard ? (
+              <span className={selectedCard.dangerous ? 'text-destructive' : undefined}>
+                {t(selectedCard.titleKey, selectedCard.titleFallback)}
+              </span>
+            ) : (
+              t('agent.channels.security.inheritFromAgent')
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={INHERIT_PERMISSION_MODE_VALUE}>{t('agent.channels.security.inheritFromAgent')}</SelectItem>
           {permissionModeCards.map((card) => (
-            <SelectItem key={card.mode} value={card.mode}>
-              <div className="flex items-center gap-2">
-                <PermissionModeIcon mode={card.mode} size={14} />
-                <PermissionModeOptionLabel card={card} t={t} withDescription={false} />
-              </div>
-            </SelectItem>
+            <PermissionModeSelectItem key={card.mode} card={card} compact t={t} />
           ))}
         </SelectContent>
       </Select>
@@ -167,7 +173,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             placeholder={chatIdsConfig.placeholder}
             className="h-8 text-sm"
           />
-          <span className="mt-1 block text-foreground-muted text-xs">{chatIdsConfig.hint}</span>
+          <span className="mt-1 block text-muted-foreground text-xs">{chatIdsConfig.hint}</span>
           {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
             <span className="mt-1 block text-warning text-xs">{t('agent.channels.chatIdsAutoTrackHint')}</span>
           )}
@@ -363,6 +369,9 @@ export const DiscordForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =
 
 export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const cfg = channel.config
+  const mentionOnly = (cfg.mention_only as boolean) ?? true
+
   return (
     <ChannelFieldsForm
       channel={channel}
@@ -387,6 +396,18 @@ export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
         extraHint: t('agent.channels.qq.whoamiTip'),
         fullWidth: true
       }}
+      extraContent={
+        <div className="col-span-2 flex items-center gap-3 pt-1">
+          <Switch
+            checked={mentionOnly}
+            onCheckedChange={(checked) => onConfigChange({ config: { ...cfg, mention_only: checked } })}
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm">{t('agent.channels.qq.mentionOnlyLabel')}</span>
+            <span className="text-muted-foreground text-xs">{t('agent.channels.qq.mentionOnlyHint')}</span>
+          </div>
+        </div>
+      }
     />
   )
 }
@@ -462,7 +483,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
           )}
         </div>
         {loginUserId && status === 'confirmed' && (
-          <span className="text-foreground-muted text-xs">
+          <span className="text-foreground-tertiary text-xs">
             User ID: <code className="select-all rounded bg-muted px-1">{loginUserId}</code>
           </span>
         )}

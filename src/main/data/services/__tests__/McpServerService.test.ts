@@ -103,6 +103,51 @@ describe('McpServerService', () => {
     it('should throw validation error when name is whitespace only', () => {
       expect(() => mcpServerService.create({ name: '   ' })).toThrow(DataApiError)
     })
+
+    it('rejects an enabled QVeris server without an API key', () => {
+      expect(() =>
+        mcpServerService.create({
+          name: '@cherry/qveris',
+          type: 'inMemory',
+          env: { QVERIS_API_KEY: '' },
+          isActive: true
+        })
+      ).toThrow(DataApiError)
+
+      expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    })
+  })
+
+  describe('createMany', () => {
+    it('creates all servers atomically and preserves request order', () => {
+      const result = mcpServerService.createMany([
+        { name: 'first', command: 'uvx' },
+        { name: 'second', command: 'npx' }
+      ])
+
+      expect(result.map((server) => server.name)).toEqual(['first', 'second'])
+      expect(dbh.db.select().from(mcpServerTable).all()).toHaveLength(2)
+    })
+
+    it('rejects a name that already exists without inserting any batch rows', async () => {
+      await seedServer({ name: 'existing' })
+
+      expect(() =>
+        mcpServerService.createMany([
+          { name: 'new-server', command: 'uvx' },
+          { name: 'existing', command: 'npx' }
+        ])
+      ).toThrow(DataApiError)
+
+      const rows = dbh.db.select().from(mcpServerTable).all()
+      expect(rows.map((row) => row.name)).toEqual(['existing'])
+    })
+
+    it('rejects duplicate names within the request without inserting any rows', () => {
+      expect(() => mcpServerService.createMany([{ name: 'duplicate' }, { name: 'duplicate' }])).toThrow(DataApiError)
+
+      expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    })
   })
 
   describe('update', () => {
@@ -136,6 +181,16 @@ describe('McpServerService', () => {
         err = e
       }
       expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    })
+
+    it('requires an API key before enabling QVeris', async () => {
+      await seedServer({ name: '@cherry/qveris', type: 'inMemory', env: { QVERIS_API_KEY: '' }, isActive: false })
+
+      expect(() => mcpServerService.update('srv-1', { isActive: true })).toThrow(DataApiError)
+      expect(mcpServerService.getById('srv-1').isActive).toBe(false)
+
+      mcpServerService.update('srv-1', { env: { QVERIS_API_KEY: 'qveris-test-key' } })
+      expect(mcpServerService.update('srv-1', { isActive: true }).isActive).toBe(true)
     })
   })
 

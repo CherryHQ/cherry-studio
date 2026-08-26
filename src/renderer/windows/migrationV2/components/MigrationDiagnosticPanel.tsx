@@ -101,7 +101,7 @@ export function MigrationDiagnosticPanel({
           <>
             <p className="font-medium text-foreground">{t('migration.diagnostics.saved_local')}</p>
             {diagnosticStatus === 'saved_without_logs' && (
-              <p className="text-foreground-secondary">{t('migration.diagnostics.logs_not_included')}</p>
+              <p className="text-muted-foreground">{t('migration.diagnostics.logs_not_included')}</p>
             )}
           </>
         )}

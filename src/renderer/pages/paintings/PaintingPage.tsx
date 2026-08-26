@@ -7,10 +7,10 @@ import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
 import PaintingStrip from './components/PaintingStrip'
 import PaintingTemplateShowcase from './components/PaintingTemplateShowcase'
+import { usePaintingDraftDefaults } from './hooks/usePaintingDraftDefaults'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingHistory } from './hooks/usePaintingHistory'
-import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
-import { usePaintingInitialSelection } from './hooks/usePaintingInitialSelection'
+import { usePaintingInitialDraft } from './hooks/usePaintingInitialDraft'
 import { usePaintingList } from './hooks/usePaintingList'
 import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
@@ -26,9 +26,9 @@ const PaintingPage: FC = () => {
   const { t } = useTranslation()
   const { templates: promptPresets } = usePaintingTemplateCatalog()
   const providerOptions = usePaintingProviderOptions()
-  const { initialProviderId } = usePaintingInitialProvider(providerOptions)
+  const draftDefaults = usePaintingDraftDefaults(providerOptions)
 
-  const [currentPainting, setCurrentPainting] = useState<PaintingData>(() => createDefaultPainting(initialProviderId))
+  const [currentPainting, setCurrentPainting] = useState<PaintingData>(() => createDefaultPainting(draftDefaults))
 
   const patchPainting = useCallback((updates: Partial<PaintingData>) => {
     setCurrentPainting((current) => ({ ...current, ...updates }) as PaintingData)
@@ -36,11 +36,9 @@ const PaintingPage: FC = () => {
 
   const history = usePaintingHistory()
 
-  const initialSelectionReady = usePaintingInitialSelection({
+  usePaintingInitialDraft({
     currentPainting,
-    historyItems: history.items,
-    historyIsLoading: history.isLoading,
-    initialProviderId,
+    draftDefaults,
     setCurrentPainting
   })
 
@@ -54,20 +52,17 @@ const PaintingPage: FC = () => {
   const [cachedGeneration] = useCache(`painting.generation.${currentPainting.id}`)
   const liveGenerationState = useMemo(() => cacheToPaintingGenerationState(cachedGeneration), [cachedGeneration])
 
-  const currentProviderId = currentPainting.providerId || initialProviderId
-
   const modelCatalog = usePaintingModelCatalog({
     providerOptions,
     painting: currentPainting
   })
 
-  // Default model is a view/fallback concern, not stored state: a model-less painting
-  // (fresh draft, `+`-created) shows and generates with the first available model
-  // until the user picks or generation persists one. No mount effect writes it, so it
-  // can't race the history bootstrap and disarm usePaintingInitialSelection.
+  // Historical model-less rows and drafts without a valid configured default
+  // still need a usable view fallback. New drafts receive the configured model
+  // as stored in-memory state before reaching this path.
   const composerPainting = useMemo<PaintingData>(() => {
     if (currentPainting.model) return currentPainting
-    const fallback = modelCatalog.currentModelOptions[0]?.value
+    const fallback = modelCatalog.currentModelOptions.find((option) => option.isEnabled !== false)?.value
     return fallback ? { ...currentPainting, model: String(fallback) } : currentPainting
   }, [currentPainting, modelCatalog.currentModelOptions])
 
@@ -90,7 +85,6 @@ const PaintingPage: FC = () => {
   const showTemplateShowcase =
     !currentPainting.persistedAt &&
     currentPainting.files.length === 0 &&
-    initialSelectionReady &&
     !submitting &&
     !generating &&
     !currentPainting.generationStatus &&
@@ -105,8 +99,7 @@ const PaintingPage: FC = () => {
   const list = usePaintingList({
     painting: currentPainting,
     setCurrentPainting,
-    currentProviderId,
-    modelOptions: modelCatalog.currentModelOptions,
+    draftDefaults,
     historyItems: history.items,
     cancelGeneration
   })
@@ -122,7 +115,7 @@ const PaintingPage: FC = () => {
   }, [])
 
   return (
-    <div className={paintingClasses.page}>
+    <div data-ui="paintings.view" className={paintingClasses.page}>
       <div id="content-container" className={paintingClasses.content}>
         <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>
@@ -178,7 +171,6 @@ const PaintingPage: FC = () => {
                         generating={generating}
                         submitting={submitting}
                         onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                        onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
                         onGenerate={submit}
                         onCancel={onCancel}
                         onModelSelect={switchModel}

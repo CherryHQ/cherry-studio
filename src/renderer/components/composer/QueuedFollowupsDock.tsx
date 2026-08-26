@@ -17,6 +17,8 @@ interface QueuedFollowupsDockProps {
   onEdit: (id: string) => void
   onRemove: (id: string) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
+  isSteerDisabled?: (item: FollowupQueueItem) => boolean
+  steerDisabledReason?: string
 }
 
 /** Read-only chips for a queued draft's composer tokens (file / skill / knowledge / quote …). */
@@ -49,25 +51,30 @@ function QueuedFollowupRow({
   dragging,
   onSteer,
   onEdit,
-  onRemove
+  onRemove,
+  isSteerDisabled,
+  steerDisabledReason
 }: {
   item: FollowupQueueItem
   dragging: boolean
   onSteer: (id: string) => void
   onEdit: (id: string) => void
   onRemove: (id: string) => void
+  isSteerDisabled?: (item: FollowupQueueItem) => boolean
+  steerDisabledReason?: string
 }) {
   const { t } = useTranslation()
   const previewText = item.draft
     ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
     : item.payload.text
+  const steerDisabled = isSteerDisabled?.(item) ?? false
 
   return (
     <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
       <span
         aria-hidden
         data-dragging={dragging ? 'true' : 'false'}
-        className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+        className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
         <GripVertical className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
@@ -75,13 +82,20 @@ function QueuedFollowupRow({
         <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
       <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-        <Tooltip placement="top" content={t('chat.input.followup_queue.steer')}>
+        <Tooltip
+          placement="top"
+          content={
+            steerDisabled
+              ? (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
+              : t('chat.input.followup_queue.steer')
+          }>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             className="size-7 shadow-none"
             aria-label={t('chat.input.followup_queue.steer')}
+            disabled={steerDisabled}
             onClick={() => onSteer(item.id)}>
             <ArrowUp className="size-4" />
           </Button>
@@ -125,7 +139,9 @@ export function QueuedFollowupsDock({
   onSteer,
   onEdit,
   onRemove,
-  onReorder
+  onReorder,
+  isSteerDisabled,
+  steerDisabledReason
 }: QueuedFollowupsDockProps) {
   const { t } = useTranslation()
   if (items.length === 0) return null
@@ -160,7 +176,15 @@ export function QueuedFollowupsDock({
           direction="vertical"
           gap={4}
           renderItem={(item, _index, { dragging }) => (
-            <QueuedFollowupRow item={item} dragging={dragging} onSteer={onSteer} onEdit={onEdit} onRemove={onRemove} />
+            <QueuedFollowupRow
+              item={item}
+              dragging={dragging}
+              onSteer={onSteer}
+              onEdit={onEdit}
+              onRemove={onRemove}
+              isSteerDisabled={isSteerDisabled}
+              steerDisabledReason={steerDisabledReason}
+            />
           )}
         />
       </div>

@@ -108,7 +108,7 @@ describe('MigrationDiagnosticPanel', () => {
     ).toBeInTheDocument()
     const section = container.querySelector('section')
     expect(section).toHaveClass('space-y-3', 'rounded-xl', 'border', 'border-border', 'bg-muted/15', 'px-4', 'py-3')
-    expect(section).not.toHaveClass('border-warning', 'bg-warning-bg')
+    expect(section).not.toHaveClass('border-warning', 'bg-warning-subtle')
     expect(screen.queryByTestId('toast-host')).not.toBeInTheDocument()
   })
 
@@ -251,8 +251,8 @@ describe('MigrationDiagnosticPanel', () => {
   it('states that a metadata-only bundle is local, not uploaded, and contains only system information', async () => {
     await saveBundle('not_included')
 
-    expect(zhCN.migration.diagnostics.saved_local).toContain('未自动上传')
-    expect(enUS.migration.diagnostics.saved_local).toContain('was not uploaded automatically')
+    expect(zhCN['migration.diagnostics.saved_local']).toContain('未自动上传')
+    expect(enUS['migration.diagnostics.saved_local']).toContain('was not uploaded automatically')
     expect(
       screen.getByText(
         'Application logs could not be included. This diagnostic bundle contains only system information.'

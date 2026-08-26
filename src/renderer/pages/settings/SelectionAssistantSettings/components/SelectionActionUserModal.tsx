@@ -110,7 +110,10 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent aria-describedby={undefined} closeOnOverlayClick={false} className="sm:max-w-130">
+      <DialogContent
+        aria-describedby={undefined}
+        closeOnOverlayClick={false}
+        className="max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-130">
         <DialogHeader>
           <DialogTitle>
             {editingAction
@@ -118,7 +121,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               : t('selection.settings.user_modal.title.add')}
           </DialogTitle>
         </DialogHeader>
-        <div className="flex w-full min-w-0 flex-col gap-4">
+        <div className="flex min-h-0 w-full min-w-0 flex-col gap-4 overflow-y-auto pr-1">
           <ModalSection>
             <div className="flex flex-row">
               <div className="w-[70%] flex-auto pr-4">
@@ -146,7 +149,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     href="https://lucide.dev/icons/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary text-xs">
+                    className="inline-flex items-center gap-1 text-link text-xs">
                     {t('selection.settings.user_modal.icon.view_all')}
                     <ExternalLink size={12} />
                   </a>
@@ -252,7 +255,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <QuestionIcon size={14} />
               </Tooltip>
               <Spacer />
-              <div className="flex select-text items-center gap-1 text-foreground-secondary text-xs">
+              <div className="flex select-text items-center gap-1 text-muted-foreground text-xs">
                 {t('selection.settings.user_modal.prompt.placeholder_text')} {'{{text}}'}
                 <CopyButton
                   tooltip={t('selection.settings.user_modal.prompt.copy_placeholder')}
@@ -265,7 +268,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               value={formData.prompt || ''}
               onChange={(e) => handleInputChange('prompt', e.target.value)}
               rows={4}
-              className="resize-none"
+              className="max-h-40 resize-none overflow-y-auto"
             />
           </ModalSection>
         </div>
@@ -293,7 +296,7 @@ const ModalSectionTitleLabel = ({ className, ...props }: React.ComponentPropsWit
 )
 
 const QuestionIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 
 const ErrorText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -333,7 +336,7 @@ const CurrentTag = ({
   <span
     className={cn(
       'shrink-0 rounded px-1 py-0.5 text-xs',
-      isCurrent ? 'text-primary' : 'text-foreground-muted',
+      isCurrent ? 'text-primary' : 'text-foreground-tertiary',
       className
     )}
     {...props}
@@ -343,7 +346,7 @@ const CurrentTag = ({
 const DiceButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-foreground-secondary hover:[&_.btn-icon]:text-primary',
+      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-muted-foreground hover:[&_.btn-icon]:text-foreground',
       className
     )}
     {...props}

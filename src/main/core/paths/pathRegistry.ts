@@ -2,7 +2,7 @@
  * Path registry — single source of truth for all main-process paths.
  * See `./README.md` for naming conventions and namespace taxonomy.
  *
- * Default to `feature.*` for new keys; cherry/sys/app are effectively closed.
+ * Default to `feature.*` for active data; `v1.*` is cleanup-only.
  *
  * **File constraint**: No object literals besides the registry itself — the
  * ESLint rule `data-schema-key/valid-key` validates every string-keyed property.
@@ -47,6 +47,7 @@ export function buildPathRegistry() {
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
+  const appUserDataProviderRegistryOverride = path.join(appUserDataRuntime, 'provider-registry-override')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
   const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
@@ -84,6 +85,7 @@ export function buildPathRegistry() {
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
+    'app.session.webview': path.join(appSession, 'Partitions', 'webview'), // persist:webview Chromium partition
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
@@ -101,6 +103,10 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // Remote-updated override copy of the registry JSON, preferred over the
+    // bundled data when present (see ProviderRegistryUpdaterService). Writable.
+    'feature.provider_registry.override': appUserDataProviderRegistryOverride,
+
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
@@ -108,13 +114,28 @@ export function buildPathRegistry() {
     // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
+    // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
+    'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
+
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
+    // Cherry-provisioned CPython for pipx tools. mise is never told about it —
+    // naming a Python runtime there is what makes mise fetch its own from
+    // GitHub releases (see binaryManager/pythonRuntime.ts).
+    'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
     'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
     'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
+    // mise's rust recipe drives rustup, which keeps its toolchains outside the
+    // mise install dir. Pinning both homes keeps install and execution pointed at
+    // the same copy — the user's real ~/.rustup is never read or written.
+    'feature.binary.data.isolated.rustup': path.join(appUserDataToolchainMise, 'rustup'),
+    'feature.binary.data.isolated.cargo': path.join(appUserDataToolchainMise, 'cargo'),
+
+    // DeepSeek Harness
+    'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
@@ -122,12 +143,14 @@ export function buildPathRegistry() {
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+    // Server catalog `@cherry/mcp-auto-install` reads when a custom registry is configured
+    'feature.mcp.registry_file': path.join(CHERRY_HOME, 'config', 'mcp-registry.json'),
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
     // Trace
-    'feature.trace': path.join(CHERRY_HOME, 'trace'),
+    'feature.trace': path.join(appUserDataRuntime, 'trace'),
 
     // OVMS (OpenVINO Model Server)
     'feature.ovms': path.join(CHERRY_HOME, 'ovms'),
@@ -142,9 +165,23 @@ export function buildPathRegistry() {
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
+    // pi resume tokens persist the pi session id, never a filesystem path.
+    'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
+    'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
+    // NOTE(app-managed-dirs): dsh dirs are new in this PR and freely relocatable —
+    // dsh resume tokens persist the session id, never a filesystem path.
+    'feature.agents.dsh.root': path.join(appUserDataData, 'Agents', '.dsh'), // Cherry-owned dsh home (DSH_HOME) + per-connection compositions
+    'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
+    'feature.agents.assistant.manifest.file': path.join(
+      appRootResources,
+      'builtin-agents',
+      'cherry-assistant',
+      'product-manifest.json'
+    ),
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
@@ -175,22 +212,28 @@ export function buildPathRegistry() {
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
-    // CLI tools (code-cli) bun global install root ($BUN_INSTALL/install/global)
-    'feature.cli.install_global': path.join(CHERRY_HOME, 'install', 'global'),
-
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.file_processing.temp': path.join(appTemp, 'file-processing'),
+    'feature.mcp.resource_results.temp': path.join(appTemp, 'mcp-resource-results'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
+    'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
     // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
     // unique sub-directory under here.
     'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
 
-    // -- E. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    // -- E. v1.* — old-version data, cleanup-only and never auto-created --
+    'v1.trace': path.join(CHERRY_HOME, 'trace'),
+    'v1.cli.install': path.join(CHERRY_HOME, 'install'),
+    'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.agents.claude': path.join(appUserData, '.claude'),
+
+    // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
+    'external.deepseek_harness.config': path.join(os.homedir(), '.dsh'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
@@ -227,6 +270,7 @@ const NO_ENSURE = [
   // Namespace prefixes
   'sys.',
   'external.',
+  'v1.',
   // Individual read-only keys (build artifacts)
   'app.root',
   'app.install',
@@ -235,9 +279,11 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.agents.builtin',
+  'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

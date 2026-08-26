@@ -19,7 +19,6 @@ import p_doubao from './doubao'
 import p_fireworks from './fireworks'
 import p_gateway from './gateway'
 import p_gemini from './gemini'
-import p_github from './github'
 import p_gpustack from './gpustack'
 import p_grok from './grok'
 import p_grok_cli from './grok-cli'
@@ -49,6 +48,7 @@ import p_ph8 from './ph8'
 import p_poe from './poe'
 import p_ppio from './ppio'
 import p_qiniu from './qiniu'
+import p_radeon_cloud from './radeon-cloud'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
@@ -64,6 +64,7 @@ import p_zhipu from './zhipu'
 /** Every provider, in registry order. Source of truth for data/providers.json + data/provider-models.json. */
 export const PROVIDERS: Provider[] = [
   p_cherryin,
+  p_radeon_cloud,
   p_silicon,
   p_aihubmix,
   p_ovms,
@@ -93,7 +94,6 @@ export const PROVIDERS: Provider[] = [
   p_azure_openai,
   p_gemini,
   p_vertexai,
-  p_github,
   p_copilot,
   p_moonshot,
   p_baichuan,

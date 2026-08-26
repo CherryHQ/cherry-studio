@@ -1,8 +1,13 @@
-import type { InsertJobRow } from '@data/db/schemas/job'
+import { application } from '@application'
+import { jobFileRefTable } from '@data/db/schemas/fileRelations'
+import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
+import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
@@ -114,5 +119,146 @@ describe('JobService.list/count filters', () => {
 
     expect(jobService.list({ type: [] })).toHaveLength(2)
     expect(jobService.count({ type: [] })).toBe(2)
+  })
+})
+
+describe('JobService.getRunStatesByScheduleIds', () => {
+  setupTestDatabase()
+
+  const createSchedule = (name: string) =>
+    jobScheduleService.create({
+      type: 'agent.task',
+      name,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+  it('returns one prioritized run state per requested schedule', () => {
+    const runningSchedule = createSchedule('running-summary')
+    const unfinishedSchedule = createSchedule('unfinished-summary')
+    const terminalSchedule = createSchedule('terminal-summary')
+    const emptySchedule = createSchedule('empty-summary')
+    const now = Date.now()
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'completed',
+        scheduleId: runningSchedule.id,
+        startedAt: now - 3_000,
+        finishedAt: now - 2_000
+      })
+    )
+    jobService.create(baseRow({ type: 'agent.task', status: 'pending', scheduleId: runningSchedule.id }))
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'running', scheduleId: runningSchedule.id, startedAt: now - 1_000 })
+    )
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'failed',
+        scheduleId: unfinishedSchedule.id,
+        startedAt: now - 3_000,
+        finishedAt: now - 2_000
+      })
+    )
+    jobService.create(baseRow({ type: 'agent.task', status: 'delayed', scheduleId: unfinishedSchedule.id }))
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'failed',
+        scheduleId: terminalSchedule.id,
+        startedAt: now - 4_000,
+        finishedAt: now - 3_000
+      })
+    )
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'cancelled',
+        scheduleId: terminalSchedule.id,
+        startedAt: now - 2_000,
+        finishedAt: now - 1_000
+      })
+    )
+    jobService.create(baseRow({ type: 'other.type', status: 'running', scheduleId: terminalSchedule.id }))
+
+    expect(
+      jobService.getRunStatesByScheduleIds('agent.task', [
+        runningSchedule.id,
+        unfinishedSchedule.id,
+        terminalSchedule.id,
+        emptySchedule.id,
+        runningSchedule.id
+      ])
+    ).toEqual(
+      new Map([
+        [runningSchedule.id, { kind: 'running' }],
+        [unfinishedSchedule.id, { kind: 'unfinished' }],
+        [terminalSchedule.id, { kind: 'terminal', status: 'cancelled', finishedAt: now - 1_000 }]
+      ])
+    )
+  })
+})
+
+describe('JobService.addFileRefsTx', () => {
+  setupTestDatabase()
+
+  const seedEntry = (id: FileEntryId) =>
+    fileEntryService.create({
+      id,
+      origin: 'internal',
+      cleanupPolicy: 'delete_when_unreferenced',
+      name: 'in',
+      ext: 'png',
+      size: 4
+    })
+
+  const refsFor = (jobId: string) =>
+    application.get('DbService').getDb().select().from(jobFileRefTable).where(eq(jobFileRefTable.sourceId, jobId)).all()
+
+  it('writes input and mask refs for an enqueued job', () => {
+    const job = jobService.create(baseRow())
+    const input = seedEntry('019606a0-0000-7000-8000-0000000000f1' as FileEntryId)
+    const mask = seedEntry('019606a0-0000-7000-8000-0000000000f2' as FileEntryId)
+
+    application.get('DbService').withWriteTx((tx) => {
+      jobService.addFileRefsTx(tx, [
+        { fileEntryId: input.id, sourceId: job.id, role: 'input' },
+        { fileEntryId: mask.id, sourceId: job.id, role: 'mask' }
+      ])
+    })
+
+    expect(refsFor(job.id).map((r) => ({ fileEntryId: r.fileEntryId, role: r.role }))).toEqual(
+      expect.arrayContaining([
+        { fileEntryId: input.id, role: 'input' },
+        { fileEntryId: mask.id, role: 'mask' }
+      ])
+    )
+  })
+
+  it('is a no-op for an empty row list', () => {
+    const job = jobService.create(baseRow())
+    expect(() => application.get('DbService').withWriteTx((tx) => jobService.addFileRefsTx(tx, []))).not.toThrow()
+    expect(refsFor(job.id)).toHaveLength(0)
+  })
+
+  it('releases the refs when the job row is pruned (FK cascade frees the inputs for reclaim)', () => {
+    const job = jobService.create(baseRow({ status: 'completed' }))
+    const input = seedEntry('019606a0-0000-7000-8000-0000000000f3' as FileEntryId)
+    application.get('DbService').withWriteTx((tx) => {
+      jobService.addFileRefsTx(tx, [{ fileEntryId: input.id, sourceId: job.id, role: 'input' }])
+    })
+    expect(refsFor(job.id)).toHaveLength(1)
+
+    // Terminal-row pruning is what releases a job's inputs to the cleanup pass
+    // (file-entry-cleanup.md §5.1) — the entry itself must survive the cascade.
+    application.get('DbService').getDb().delete(jobTable).where(eq(jobTable.id, job.id)).run()
+
+    expect(refsFor(job.id)).toHaveLength(0)
+    expect(fileEntryService.findById(input.id)).not.toBeNull()
   })
 })

@@ -1,5 +1,6 @@
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
@@ -30,11 +31,18 @@ function deferred<T>() {
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
+  const translations: Record<string, string> = {
+    'settings.models.add.context_window.label': 'Context window',
+    'settings.models.add.max_input_tokens.label': 'Max input tokens',
+    'settings.models.add.max_output_tokens.label': 'Max output tokens',
+    'settings.models.add.max_output_tokens.placeholder': 'e.g. 65536',
+    'settings.models.add.quick_presets': 'Quick presets'
+  }
 
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string) => key
+      t: (key: string) => translations[key] ?? key
     })
   }
 })
@@ -142,6 +150,7 @@ describe('Model drawers', () => {
         endpointTypes: undefined
       })
     )
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
   })
 
   it('marks only the model ID as required and blocks empty submission', () => {
@@ -164,7 +173,8 @@ describe('Model drawers', () => {
     expect(createModelMock).not.toHaveBeenCalled()
   })
 
-  it('renders the New API model-purpose surface and keeps the default chat endpoint in create payload', async () => {
+  it('creates a New API model with multiple endpoint types', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }
     })
@@ -172,21 +182,21 @@ describe('Model drawers', () => {
     render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
 
     expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
-    expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
-    expect(screen.getByText('settings.models.add.purpose.label')).toBeInTheDocument()
+    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
+    const endpointSelect = within(endpointField).getByRole('combobox')
+    expect(endpointSelect).toHaveTextContent('endpoint_type.openai')
+    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
-      target: { value: 'claude-4-sonnet' }
-    })
-    await act(async () => {
-      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
-    })
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'claude-4-sonnet')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
 
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: 'new-api',
         modelId: 'claude-4-sonnet',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
       })
     )
   })
@@ -251,6 +261,27 @@ describe('Model drawers', () => {
         inputModalities: [MODALITY.AUDIO]
       })
     )
+  })
+
+  it('preserves an explicitly emptied input-modality selection when adding', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'explicit-text-model' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.audio' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.audio' }))
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [] }))
   })
 
   it('keeps the add-model submit disabled while creating and shows one inline error on failure', async () => {
@@ -414,6 +445,44 @@ describe('Model drawers', () => {
         outputModalities: [MODALITY.IMAGE]
       })
     )
+  })
+
+  it('does not overwrite the saved chat endpoint when opening the edit drawer', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="custom-provider"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'custom-provider::custom-openai-model',
+            providerId: 'custom-provider',
+            name: 'Custom OpenAI Model',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toHaveTextContent(
+        'settings.provider.more_endpoints.openai_chat'
+      )
+    })
+    expect(updateModelMock).not.toHaveBeenCalled()
   })
 
   it('keeps model type, capabilities, and input modalities independently editable', async () => {
@@ -730,20 +799,21 @@ describe('Model drawers', () => {
     ])
   })
 
-  it('auto-saves cherryin endpoint type changes from the edit drawer', async () => {
+  it('auto-saves New API endpoint type changes from the edit drawer', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: { id: 'new-api', name: 'New API' }
     })
 
     render(
       <EditModelDrawer
-        providerId="cherryin"
+        providerId="new-api"
         open
         onClose={vi.fn()}
         model={
           {
-            id: 'cherryin::claude-4-sonnet',
-            providerId: 'cherryin',
+            id: 'new-api::claude-4-sonnet',
+            providerId: 'new-api',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
             capabilities: [],
@@ -758,16 +828,17 @@ describe('Model drawers', () => {
       />
     )
 
-    await act(async () => {
-      fireEvent.click(
-        within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('button', {
-          name: 'endpoint_type.openai'
-        })
-      )
-    })
+    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
+    expect(within(endpointField).getByRole('button', { name: 'endpoint_type.openai-response' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(updateModelMock).not.toHaveBeenCalled()
+
+    await user.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai' }))
 
     expect(updateModelMock).toHaveBeenCalledWith(
-      'cherryin',
+      'new-api',
       'claude-4-sonnet',
       expect.objectContaining({
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
@@ -862,5 +933,164 @@ describe('Model drawers', () => {
       'claude-4-sonnet',
       expect.objectContaining({ endpointTypes: [] })
     )
+  })
+
+  it('offers independent token limit presets and keeps custom input available', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+
+    const contextGroup = screen.getByRole('group', {
+      name: 'Context window Quick presets'
+    })
+    const maxInputGroup = screen.getByRole('group', {
+      name: 'Max input tokens Quick presets'
+    })
+    const maxOutputGroup = screen.getByRole('group', {
+      name: 'Max output tokens Quick presets'
+    })
+    const contextPreset = within(contextGroup).getByRole('button', { name: /200K \(200000\)/ })
+    const maxInputPreset = within(maxInputGroup).getByRole('button', { name: /512K \(512000\)/ })
+    const maxOutputPreset = within(maxOutputGroup).getByRole('button', { name: /256K \(256000\)/ })
+
+    expect(within(contextGroup).getAllByRole('button')).toHaveLength(6)
+    expect(within(maxInputGroup).getAllByRole('button')).toHaveLength(5)
+    expect(within(maxOutputGroup).getAllByRole('button')).toHaveLength(5)
+    expect(screen.getByLabelText('Max output tokens')).toHaveAttribute('placeholder', 'e.g. 65536')
+
+    await user.click(contextPreset)
+    await user.click(maxInputPreset)
+    await user.click(maxOutputPreset)
+
+    expect(screen.getByLabelText('Context window')).toHaveValue('200000')
+    expect(screen.getByLabelText('Max input tokens')).toHaveValue('512000')
+    expect(screen.getByLabelText('Max output tokens')).toHaveValue('256000')
+    expect(contextPreset).toHaveAttribute('aria-pressed', 'true')
+    expect(maxInputPreset).toHaveAttribute('aria-pressed', 'true')
+    expect(maxOutputPreset).toHaveAttribute('aria-pressed', 'true')
+
+    const contextInput = screen.getByLabelText('Context window')
+    await user.clear(contextInput)
+    await user.type(contextInput, '777777')
+
+    expect(screen.getByLabelText('Context window')).toHaveValue('777777')
+    expect(contextPreset).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('submits the exact values selected from token limit presets', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'preset-model')
+    await user.click(screen.getByRole('button', { name: /512K \(524288\)/ }))
+    await user.click(screen.getByRole('button', { name: 'Max input tokens: 1M (1000000)' }))
+    await user.click(
+      within(
+        screen.getByRole('group', {
+          name: 'Max output tokens Quick presets'
+        })
+      ).getByRole('button', { name: /128K \(128000\)/ })
+    )
+    await user.click(screen.getByRole('button', { name: 'settings.models.add.add_model' }))
+
+    await waitFor(() =>
+      expect(createModelMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerId: 'openai',
+          modelId: 'preset-model',
+          contextWindow: 524288,
+          maxInputTokens: 1000000,
+          maxOutputTokens: 128000
+        })
+      )
+    )
+  })
+
+  it('auto-saves preset and manually entered token limits from the edit drawer', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::preset-model',
+            providerId: 'openai',
+            name: 'preset-model',
+            group: 'OpenAI',
+            capabilities: [],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /512K \(524288\)/ }))
+    await user.click(screen.getByRole('button', { name: 'Max input tokens: 256K (256000)' }))
+    await user.click(screen.getByRole('button', { name: /64K \(65536\)/ }))
+
+    await waitFor(() => {
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ contextWindow: 524288 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxInputTokens: 256000 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxOutputTokens: 65536 })
+      )
+    })
+
+    const contextInput = screen.getByLabelText('Context window')
+    const maxInput = screen.getByLabelText('Max input tokens')
+    const maxOutput = screen.getByLabelText('Max output tokens')
+
+    await user.clear(contextInput)
+    await user.type(contextInput, '777777')
+    await user.click(maxInput)
+    await user.clear(maxInput)
+    await user.type(maxInput, '666666')
+    await user.click(maxOutput)
+    await user.clear(maxOutput)
+    await user.type(maxOutput, '555555')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ contextWindow: 777777 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxInputTokens: 666666 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxOutputTokens: 555555 })
+      )
+    })
   })
 })

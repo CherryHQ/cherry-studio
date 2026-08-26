@@ -19,15 +19,12 @@ import type {
 
 const TOGGLE_TO_CAPABILITY: Record<ModelCapabilityToggle, ModelCapability> = {
   [MODEL_CAPABILITY.REASONING]: MODEL_CAPABILITY.REASONING,
-  [MODEL_CAPABILITY.FUNCTION_CALL]: MODEL_CAPABILITY.FUNCTION_CALL,
-  [MODEL_CAPABILITY.WEB_SEARCH]: MODEL_CAPABILITY.WEB_SEARCH
+  [MODEL_CAPABILITY.FUNCTION_CALL]: MODEL_CAPABILITY.FUNCTION_CALL
 }
 
 const CAPABILITY_TO_TOGGLE: Record<string, ModelCapabilityToggle> = Object.fromEntries(
   Object.entries(TOGGLE_TO_CAPABILITY).map(([key, value]) => [value, key as ModelCapabilityToggle])
 ) as Record<string, ModelCapabilityToggle>
-
-export const MODEL_DRAWER_CURRENCY_SYMBOLS = ['$', '¥'] as const
 
 export const MODEL_ENDPOINT_OPTIONS = [
   { id: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, label: 'endpoint_type.openai' },
@@ -80,10 +77,6 @@ export function splitModelIds(rawModelId: string): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
-}
-
-export function readCurrency(model: Model): string {
-  return model.pricing?.input?.currency ?? model.pricing?.output?.currency ?? '$'
 }
 
 export function capsToToggleSet(capabilities: string[]): Set<ModelCapabilityToggle> {

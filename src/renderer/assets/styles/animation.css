@@ -94,8 +94,24 @@
   animation: animation-chat-composer-dock-down 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes animation-usage-heatmap-cell-enter {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animation-usage-heatmap-cell-enter {
+  animation: animation-usage-heatmap-cell-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animation-chat-composer-dock-down {
+  .animation-chat-composer-dock-down,
+  .animation-usage-heatmap-cell-enter {
     transform: none;
     animation: none;
   }

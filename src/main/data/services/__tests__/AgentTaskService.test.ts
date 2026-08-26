@@ -7,23 +7,32 @@
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     getSubscribedChannels: vi.fn()
   }
 }))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    getByTaskScheduleId: vi.fn(),
+    getTaskSessionIdsByScheduleIds: vi.fn()
+  }
+}))
 vi.mock('@data/services/JobScheduleService', () => ({
-  jobScheduleService: { getById: vi.fn(), listAll: vi.fn() }
+  jobScheduleService: { getById: vi.fn(), listAll: vi.fn(), listAllTx: vi.fn(), updateTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { list: vi.fn() }
+  jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn() }
 }))
 
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 
-import { agentTaskService } from '../AgentTaskService'
+import { agentTaskService, readTaskSessionReuse, writeTaskSessionReuse } from '../AgentTaskService'
 
 const AGENT_ID = 'agent-a1'
 const TASK_ID = 'sched-1'
@@ -78,10 +87,17 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 
 describe('AgentTaskService (read side)', () => {
   beforeEach(() => {
+    notifyDataApiDataChangeMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
+    vi.mocked(agentSessionService.getByTaskScheduleId).mockReset()
+    vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValue(null)
+    vi.mocked(agentSessionService.getTaskSessionIdsByScheduleIds).mockReset()
+    vi.mocked(agentSessionService.getTaskSessionIdsByScheduleIds).mockReturnValue(new Map())
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(jobScheduleService.listAll).mockReset()
+    vi.mocked(jobService.getRunStatesByScheduleIds).mockReset()
+    vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValue(new Map())
     vi.mocked(jobService.list).mockReset()
   })
 
@@ -89,11 +105,36 @@ describe('AgentTaskService (read side)', () => {
     vi.clearAllMocks()
   })
 
+  it('owns and publishes every task read-model projection', () => {
+    agentTaskService.notifyReadModelChange([TASK_ID, TASK_ID])
+    agentTaskService.notifyReadModelChange([])
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
+      { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
+    ])
+  })
+
   describe('getTask', () => {
     it('returns a task by id without requiring the owning agent id', () => {
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
 
       expect(agentTaskService.getTaskById(TASK_ID)).toMatchObject({ id: TASK_ID, agentId: AGENT_ID })
+    })
+
+    it('projects the sticky session from the constrained relation, not schedule metadata', () => {
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        makeSnapshot({ metadata: { reuse: { enabled: true, sessionId: 'stale-json', revision: 0 } } })
+      )
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce({ id: 'sess-relation' } as never)
+
+      expect(agentTaskService.getTaskById(TASK_ID)).toMatchObject({
+        reuseSession: true,
+        reuseSessionId: 'sess-relation'
+      })
     })
 
     it('returns the entity when agentId matches the snapshot template', () => {
@@ -179,6 +220,7 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks).toHaveLength(1)
       expect(result.total).toBe(1)
       expect(result.tasks[0].id).toBe('s1')
+      expect(result.tasks[0]).not.toHaveProperty('runSummary')
     })
 
     it('returns heartbeat tasks when includeHeartbeat=true', () => {
@@ -211,6 +253,41 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks).toHaveLength(1)
       expect(result.tasks[0]).toMatchObject({ id: 'newer', agentId: 'other' })
     })
+
+    it('projects running and unfinished Job states for task cards', () => {
+      const running = makeSnapshot({ id: 'running-task', name: 'running-task' })
+      const unfinished = makeSnapshot({ id: 'unfinished-task', name: 'unfinished-task' })
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([running, unfinished])
+      vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValueOnce(
+        new Map([
+          [running.id, { kind: 'running' }],
+          [unfinished.id, { kind: 'unfinished' }]
+        ])
+      )
+
+      const result = agentTaskService.listAllTasks()
+
+      expect(result.tasks.find((task) => task.id === running.id)?.runSummary).toEqual({ status: 'running' })
+      expect(result.tasks.find((task) => task.id === unfinished.id)?.runSummary).toEqual({ status: 'queued' })
+    })
+
+    it('projects the newest terminal run and leaves tasks without jobs empty', () => {
+      const withJobs = makeSnapshot({ id: 'terminal-task', name: 'terminal-task' })
+      const withoutJobs = makeSnapshot({ id: 'empty-task', name: 'empty-task' })
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([withJobs, withoutJobs])
+      const now = Date.now()
+      vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValueOnce(
+        new Map([[withJobs.id, { kind: 'terminal', status: 'cancelled', finishedAt: now - 100 }]])
+      )
+
+      const result = agentTaskService.listAllTasks()
+
+      expect(result.tasks.find((task) => task.id === withJobs.id)?.runSummary).toEqual({
+        status: 'cancelled',
+        finishedAt: new Date(now - 100).toISOString()
+      })
+      expect(result.tasks.find((task) => task.id === withoutJobs.id)?.runSummary).toBeNull()
+    })
   })
 
   describe('getTaskLogs', () => {
@@ -237,6 +314,47 @@ describe('AgentTaskService (read side)', () => {
       expect(result.logs[0]).not.toHaveProperty('taskId')
       expect(result.logs[0]).not.toHaveProperty('runAt')
       expect(result.logs[0]).toHaveProperty('startedAt')
+    })
+  })
+
+  describe('session reuse metadata', () => {
+    it.each([
+      ['absent', {}],
+      ['null', { reuse: null }],
+      ['a primitive', { reuse: 'yes' }],
+      ['an array', { reuse: ['enabled'] }]
+    ])('reads %s reuse metadata as disabled and unbound', (_label, metadata) => {
+      expect(readTaskSessionReuse(metadata as Record<string, unknown>)).toEqual({
+        enabled: false,
+        revision: 0
+      })
+    })
+
+    it.each([undefined, -1, 1.5, Number.NaN, '1'])('normalizes a missing or corrupt revision to zero', (revision) => {
+      expect(readTaskSessionReuse({ reuse: { enabled: true, revision } }).revision).toBe(0)
+    })
+
+    it('preserves a valid reuse revision', () => {
+      expect(readTaskSessionReuse({ reuse: { enabled: true, revision: 4 } }).revision).toBe(4)
+    })
+
+    it('preserves unrelated keys and replaces only the reuse block', () => {
+      const merged = writeTaskSessionReuse(
+        { unrelated: 'keep', reuse: { enabled: false } },
+        { enabled: true, revision: 3 }
+      )
+
+      expect(merged).toEqual({ unrelated: 'keep', reuse: { enabled: true, revision: 3 } })
+    })
+
+    // A JSON column can legally hold an array; spreading it would produce numeric keys.
+    it('does not spread a non-record metadata column', () => {
+      const merged = writeTaskSessionReuse(['junk'] as unknown as Record<string, unknown>, {
+        enabled: true,
+        revision: 0
+      })
+
+      expect(merged).toEqual({ reuse: { enabled: true, revision: 0 } })
     })
   })
 })

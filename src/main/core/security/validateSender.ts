@@ -1,4 +1,5 @@
-import { isAbsolute, relative } from 'node:path'
+import { realpathSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
@@ -9,6 +10,41 @@ function isPathInside(childPath: string, parentDir: string): boolean {
   const rel = relative(parentDir, childPath)
   // `..` escapes the parent; an absolute `rel` means they share no common root.
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+}
+
+let cachedAppRoot: { input: string; realPath: string } | undefined
+
+function resolveAppRoot(appRootDir: string): string {
+  if (cachedAppRoot?.input === appRootDir) return cachedAppRoot.realPath
+
+  try {
+    const realPath = realpathSync.native(appRootDir)
+    cachedAppRoot = { input: appRootDir, realPath }
+    return realPath
+  } catch {
+    return appRootDir
+  }
+}
+
+/** Resolve aliases in the existing portion of a path while preserving an ASAR virtual suffix. */
+function resolveRendererPath(filePath: string): string | undefined {
+  let candidate = filePath
+  const missingSegments: string[] = []
+
+  while (true) {
+    try {
+      return join(realpathSync.native(candidate), ...missingSegments)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && code !== 'ENOTDIR') return undefined
+
+      const parent = dirname(candidate)
+      if (parent === candidate) return undefined
+
+      missingSegments.unshift(basename(candidate))
+      candidate = parent
+    }
+  }
 }
 
 /**
@@ -25,7 +61,9 @@ function isPathInside(childPath: string, parentDir: string): boolean {
  * that origin.
  *
  * A `file:` URL is trusted only when its path is **inside `appRootDir`** — not any
- * `file:` wholesale. Reaching IpcApi does not require the app preload (a
+ * `file:` wholesale. Filesystem aliases may appear on either side, so existing path
+ * portions are compared canonically while preserving the virtual path below `app.asar`.
+ * Reaching IpcApi does not require the app preload (a
  * `nodeIntegration` window can call `ipcRenderer.invoke` directly), so a
  * downloaded/exported HTML opened in such a window would otherwise be trusted, and
  * local HTML in a privileged context is a classic Electron RCE vector. Everything
@@ -55,7 +93,11 @@ export function isAppRendererUrl(
     } catch {
       return false
     }
-    return isPathInside(filePath, appRootDir)
+    const appRoot = resolveAppRoot(appRootDir)
+    if (isPathInside(filePath, appRoot)) return true
+
+    const resolvedFilePath = resolveRendererPath(filePath)
+    return resolvedFilePath !== undefined && isPathInside(resolvedFilePath, appRoot)
   }
 
   if (devServerUrl) {

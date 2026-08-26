@@ -7,9 +7,10 @@
 
 import * as z from 'zod'
 
+import { AssistantIdSchema } from '../../types/assistant'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
-import type { OrderEndpoints } from './_endpointHelpers'
+import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -41,6 +42,13 @@ export const UpdateTopicSchema = TopicSchema.pick({
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
+/** Atomically update a topic's assistant and global order. */
+export const MoveTopicSchema = z.strictObject({
+  assistantId: AssistantIdSchema,
+  order: OrderRequestSchema
+})
+export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
+
 /**
  * Query parameters for `GET /topics` (cursor pagination + search).
  */
@@ -53,6 +61,19 @@ export const ListTopicsQuerySchema = z.strictObject({
   q: z.string().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+/** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
+export const LatestTopicQuerySchema = z.strictObject({
+  assistantId: z.string().min(1).optional()
+})
+export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
+
+/** Exact creation target for atomically reusing or creating an empty topic. */
+export const ReuseOrCreateTopicSchema = z.strictObject({
+  assistantId: z.string().min(1).nullable(),
+  excludeTopicId: z.string().min(1).optional()
+})
+export type ReuseOrCreateTopicDto = z.infer<typeof ReuseOrCreateTopicSchema>
 
 /**
  * DTO for setting active node. Pins the exact `nodeId` — the conversation
@@ -105,9 +126,15 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** Response for `GET /topics/latest` — the globally most-recently-updated topic, or `null` when empty. */
+/** Response for `GET /topics/latest` — the most-recently-active topic in the requested scope, or `null`. */
 export interface LatestTopicResponse {
   topic: Topic | null
+}
+
+/** The reusable empty topic selected or created for the exact target. */
+export interface ReusableTopicPlaceholderResponse {
+  topic: Topic
+  created: boolean
 }
 
 const DeleteTopicsIdsQueryValueSchema = z
@@ -177,18 +204,32 @@ export type TopicSchemas = {
   }
 
   /**
-   * Most-recently-updated topic across all assistants.
+   * Most-recently-active topic, globally or within one owner scope.
    *
    * First-entry restore reads this to resume the last-touched conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
    * `latest` is never mistaken for a topic id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `lastActivityAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `assistantId=unlinked` covers topics without a live assistant.
    *
    * @example GET /topics/latest
+   * @example GET /topics/latest?assistantId=asst_123
    */
   '/topics/latest': {
     GET: {
+      query?: LatestTopicQuery
       response: LatestTopicResponse
+    }
+  }
+
+  /**
+   * Atomically reuse the latest structurally empty, untitled placeholder for
+   * one exact creation target, or create it when none exists.
+   */
+  '/topics/reusable-placeholder': {
+    POST: {
+      body: ReuseOrCreateTopicDto
+      response: ReusableTopicPlaceholderResponse
     }
   }
 
@@ -214,6 +255,15 @@ export type TopicSchemas = {
     DELETE: {
       params: { id: string }
       response: void
+    }
+  }
+
+  /** Atomically move a topic to another assistant and order position. */
+  '/topics/:id/move': {
+    POST: {
+      params: { id: string }
+      body: MoveTopicDto
+      response: Topic
     }
   }
 

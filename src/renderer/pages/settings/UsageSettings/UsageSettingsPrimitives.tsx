@@ -1,7 +1,6 @@
-import { Avatar, AvatarFallback, HoverCard, HoverCardContent, HoverCardTrigger, Skeleton } from '@cherrystudio/ui'
-import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { Avatar, AvatarFallback, Skeleton } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -11,50 +10,6 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { useMemo } from 'react'
 
 import { displayModelId } from './usageAnalytics'
-
-export function UsageProviderAvatar({
-  provider,
-  size,
-  className
-}: {
-  provider: { id: string; name: string }
-  size?: number
-  className?: string
-}) {
-  // Resolve the built-in brand icon synchronously from the ref; the component
-  // itself loads async and the primitive covers the loading window with initials.
-  const iconRef = resolveProviderIconRef(provider.id)
-  const icon = useIcon(iconRef)
-
-  return (
-    <ProviderAvatarPrimitive
-      providerId={provider.id}
-      providerName={provider.name}
-      logo={icon}
-      size={size}
-      className={className}
-    />
-  )
-}
-
-export function UsageProviderLabel({
-  provider,
-  children,
-  size = 18,
-  className
-}: {
-  provider: { id: string; name: string }
-  children?: ReactNode
-  size?: number
-  className?: string
-}) {
-  return (
-    <span className={cn('inline-flex min-w-0 items-center gap-2', className)}>
-      <UsageProviderAvatar provider={provider} size={size} className="shrink-0" />
-      <span className="min-w-0 break-words">{children ?? provider.name}</span>
-    </span>
-  )
-}
 
 export function UsageModelAvatar({
   modelId,
@@ -80,7 +35,7 @@ export function UsageModelAvatar({
 
   return (
     <Avatar className="shrink-0" style={{ width: size, height: size }}>
-      <AvatarFallback className="bg-muted font-medium text-[10px] text-foreground-muted">
+      <AvatarFallback className="bg-muted font-medium text-[10px] text-muted-foreground">
         {(modelName || providerId || '?').slice(0, 1).toUpperCase()}
       </AvatarFallback>
     </Avatar>
@@ -129,73 +84,11 @@ export function UsageSourceLabel({
         <EmojiIcon emoji={sourceIcon} size={size} fontSize={Math.max(10, Math.round(size * 0.58))} />
       ) : (
         <Avatar className="shrink-0" style={{ width: size, height: size }}>
-          <AvatarFallback className="bg-muted font-medium text-[10px] text-foreground-muted">{fallback}</AvatarFallback>
+          <AvatarFallback className="bg-muted font-medium text-[10px] text-muted-foreground">{fallback}</AvatarFallback>
         </Avatar>
       )}
       <span className="min-w-0 break-words">{children}</span>
     </span>
-  )
-}
-
-export function UsageDistributionHoverCard({
-  children,
-  label,
-  metric,
-  share,
-  tokens,
-  requests,
-  cost,
-  costCurrency,
-  labels
-}: {
-  children: ReactNode
-  label: ReactNode
-  metric: string
-  share: string
-  tokens: string
-  requests: number
-  cost: string
-  costCurrency?: string | null
-  labels: {
-    share: string
-    tokens: string
-    requests: string
-    cost: string
-  }
-}) {
-  return (
-    <HoverCard>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardContent side="top" align="center" className="w-64 p-0">
-        <div className="p-3">
-          <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="min-w-0 text-foreground text-sm">{label}</div>
-            <div className="shrink-0 rounded-md bg-muted px-2 py-1 font-medium text-foreground text-xs">{metric}</div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-border border-t pt-3">
-            <div>
-              <div className="text-foreground-muted text-xs">{labels.share}</div>
-              <div className="mt-0.5 font-medium text-foreground text-sm">{share}</div>
-            </div>
-            <div>
-              <div className="text-foreground-muted text-xs">{labels.tokens}</div>
-              <div className="mt-0.5 font-medium text-foreground text-sm">{tokens}</div>
-            </div>
-            <div>
-              <div className="text-foreground-muted text-xs">{labels.requests}</div>
-              <div className="mt-0.5 font-medium text-foreground text-sm">{requests}</div>
-            </div>
-            <div>
-              <div className="text-foreground-muted text-xs">
-                {labels.cost}
-                {costCurrency ? ` · ${costCurrency}` : ''}
-              </div>
-              <div className="mt-0.5 font-medium text-foreground text-sm">{cost}</div>
-            </div>
-          </div>
-        </div>
-      </HoverCardContent>
-    </HoverCard>
   )
 }
 
@@ -220,7 +113,7 @@ export function MetricCell({
 
   return (
     <div className="flex min-h-24 min-w-0 flex-col bg-background p-3 @[640px]/usage:px-4">
-      <div className="text-foreground-muted text-xs">{label}</div>
+      <div className="text-muted-foreground text-xs leading-5">{label}</div>
       <div className="mt-2 flex min-h-8 min-w-0 items-center gap-3">
         <div className="min-w-0 flex-1 text-pretty break-words font-semibold text-foreground text-xl leading-6">
           {value}
@@ -229,7 +122,7 @@ export function MetricCell({
       </div>
       <div className="mt-auto flex min-w-0 flex-col gap-1 pt-2">
         <MetricDelta change={delta} label={deltaLabel} formatDelta={formatDelta} />
-        {helper && <div className="min-w-0 text-pretty text-foreground-muted text-xs">{helper}</div>}
+        {helper && <div className="min-w-0 text-pretty text-foreground-tertiary text-xs leading-5">{helper}</div>}
       </div>
     </div>
   )
@@ -237,7 +130,7 @@ export function MetricCell({
 
 export function MetricStripSkeleton() {
   return (
-    <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
+    <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px bg-border">
       {Array.from({ length: 4 }, (_, index) => (
         <div key={index} className="bg-background p-3 @[640px]/usage:px-4">
           <Skeleton className="h-20 rounded-md" />
@@ -299,21 +192,23 @@ export function MetricDelta({
       <span
         className={cn(
           'font-medium',
-          change > 0 ? 'text-success' : change < 0 ? 'text-destructive' : 'text-foreground-muted'
+          change > 0 ? 'text-success' : change < 0 ? 'text-error' : 'text-muted-foreground'
         )}>
         {formatDelta(change)}
       </span>
-      <span className="text-foreground-muted">{label}</span>
+      <span className="text-foreground-tertiary">{label}</span>
     </div>
   )
 }
 
 export function InsightCell({ label, value, helper }: { label: string; value: ReactNode; helper?: ReactNode }) {
   return (
-    <div className="min-w-0 bg-background p-3 @[640px]/usage:px-4">
-      <div className="text-foreground-muted text-xs">{label}</div>
-      <div className="mt-1 min-w-0 break-words font-medium text-foreground text-sm">{value}</div>
-      {helper && <div className="mt-1 min-w-0 break-words text-foreground-muted text-xs">{helper}</div>}
+    <div className="flex min-h-24 min-w-0 flex-col bg-background p-3 @[640px]/usage:px-4">
+      <div className="text-muted-foreground text-xs leading-5">{label}</div>
+      <div className="mt-1 min-w-0 break-words font-semibold text-base text-foreground leading-6">{value}</div>
+      {helper && (
+        <div className="mt-auto min-w-0 break-words pt-1 text-foreground-tertiary text-xs leading-5">{helper}</div>
+      )}
     </div>
   )
 }
@@ -356,10 +251,18 @@ export function UsagePanelTitle({ className, ...props }: ComponentPropsWithoutRe
   return <h3 className={cn('font-medium text-foreground text-sm', className)} {...props} />
 }
 
-export function UsageControlRow({ label, children }: { label: string; children: ReactNode }) {
+export function UsageControlRow({
+  label,
+  children,
+  className
+}: {
+  label: string
+  children: ReactNode
+  className?: string
+}) {
   return (
-    <div className="min-w-0">
-      <div className="mb-1 text-foreground-muted text-xs">{label}</div>
+    <div className={cn('min-w-0', className)}>
+      <div className="mb-1 text-muted-foreground text-xs">{label}</div>
       <div className="-mx-1 max-w-[calc(100%+0.5rem)] overflow-x-auto px-1">{children}</div>
     </div>
   )

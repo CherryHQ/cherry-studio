@@ -57,7 +57,8 @@ function makeDeps(): FileManagerDeps {
     } as unknown as DanglingCache,
     fileEntryService: {} as never,
     fileRefService: {} as never,
-    versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() }
+    versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
+    contentWriteLock: {} as FileManagerDeps['contentWriteLock']
   }
 }
 

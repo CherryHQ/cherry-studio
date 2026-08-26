@@ -40,7 +40,7 @@ export function AzureApiVersionField({
       className={className}
       title={t('settings.provider.api_version')}
       help={
-        <div className="pt-1 text-[12px] text-foreground/55 leading-[1.35]">
+        <div className="pt-1 text-[12px] text-muted-foreground leading-[1.35]">
           {t('settings.provider.azure.apiversion.tip')}
         </div>
       }>
@@ -86,7 +86,7 @@ export function ApiHostField({
   const trimmedApiHost = apiHost.trim()
   const help = isVertexAI ? (
     <div className="space-y-1 pt-1">
-      <div className="text-[12px] text-foreground/55 leading-[1.35]">
+      <div className="text-[12px] text-muted-foreground leading-[1.35]">
         {t('settings.provider.vertex_ai.api_host_help')}
       </div>
     </div>
@@ -139,7 +139,7 @@ export function ApiHostField({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                    className="size-5 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                     aria-label={t('common.copy')}
                     onClick={() => {
                       void copyApiKeyToClipboard(trimmedApiHost, t)
@@ -209,7 +209,7 @@ export function AnthropicApiHostField({
         </span>
       }
       help={
-        <div className="break-all pt-1 text-[12px] text-foreground/55 leading-[1.35]">
+        <div className="break-all pt-1 text-[12px] text-muted-foreground leading-[1.35]">
           {t('settings.provider.anthropic_api_host_preview', { url: anthropicHostPreview || '—' })}
         </div>
       }>
@@ -232,7 +232,7 @@ export function AnthropicApiHostField({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                  className="size-5 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                   aria-label={t('common.copy')}
                   onClick={() => {
                     void copyApiKeyToClipboard(trimmedAnthropicApiHost, t)

@@ -1,8 +1,4 @@
-import type {
-  MessageListActions,
-  MessageStreamingLayers,
-  MessageToolApprovalInput
-} from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
@@ -21,8 +17,6 @@ interface AgentChatMainProps {
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
-  localSendGeneration: number
-  onBindRuntime: NonNullable<MessageListActions['bindRuntime']>
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
   hasOlder?: boolean
@@ -41,8 +35,6 @@ export default function AgentChatMain({
   activeAgent,
   partsByMessageId,
   streamingLayers,
-  localSendGeneration,
-  onBindRuntime,
   optimisticAskUserQuestionInputsByToolCallId,
   isLoading,
   hasOlder,
@@ -65,8 +57,6 @@ export default function AgentChatMain({
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
           streamingLayers={streamingLayers}
-          localSendGeneration={localSendGeneration}
-          onBindRuntime={onBindRuntime}
           optimisticAskUserQuestionInputsByToolCallId={optimisticAskUserQuestionInputsByToolCallId}
           isLoading={isLoading}
           hasOlder={hasOlder}

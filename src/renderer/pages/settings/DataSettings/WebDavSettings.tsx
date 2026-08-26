@@ -11,15 +11,15 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
@@ -38,18 +38,14 @@ const WebDavSettings: FC = () => {
 
   const { t } = useTranslation()
 
-  const { webdavSync } = getBackupSyncState()
-
-  // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
+  const webdavSync = useBackupSyncState('webdav')
 
   const onSyncIntervalChange = async (value: number) => {
-    void setWebdavSyncInterval(value)
+    await setWebdavSyncInterval(value)
     if (value === 0) {
       await setWebdavAutoSync(false)
-      stopAutoSync('webdav')
     } else {
       await setWebdavAutoSync(true)
-      void startAutoSync(false, 'webdav')
     }
   }
 
@@ -74,7 +70,7 @@ const WebDavSettings: FC = () => {
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
-            iconProps={{ color: 'red' }}
+            iconProps={{ color: 'var(--error)' }}
           />
         )}
         {webdavSync.lastSyncTime && (

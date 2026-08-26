@@ -1,7 +1,6 @@
+import { resolveDmxapiChatFamily, resolveDmxapiChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
-
-import { resolveDmxapiChatFamily, resolveDmxapiChatRoute } from '../dmxapi/dmxapiRouting'
 
 describe('resolveDmxapiChatFamily', () => {
   it.each([

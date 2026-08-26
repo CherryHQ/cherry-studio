@@ -50,7 +50,8 @@ describe('internal/content/read', () => {
         set: vi.fn(),
         invalidate: vi.fn(),
         clear: vi.fn()
-      }
+      },
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
     }
   })
 

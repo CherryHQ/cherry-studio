@@ -12,6 +12,7 @@ import {
   type DiagnosisResult,
   getKnowledgeBaseIdsFromParts,
   hasClearContextPart,
+  isBlankUserTurn,
   KnowledgeScopePartDataSchema,
   readCherryMeta,
   withCherryMeta,
@@ -161,6 +162,15 @@ describe('clear context parts', () => {
     expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
     expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
     expect(hasClearContextPart(undefined)).toBe(false)
+  })
+})
+
+describe('blank user turns', () => {
+  it('requires a successful user role with no parts', () => {
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [] })).toBe(true)
+    expect(isBlankUserTurn({ role: 'assistant', status: 'success', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'pending', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [{ type: 'text' }] })).toBe(false)
   })
 })
 

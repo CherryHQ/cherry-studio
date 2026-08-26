@@ -1,4 +1,11 @@
-import type { ReasoningWireProfile } from '@cherrystudio/provider-registry'
+import path from 'node:path'
+
+import {
+  inferReasoningControls,
+  REASONING_FORMAT_PROFILES,
+  type ReasoningWireProfile
+} from '@cherrystudio/provider-registry'
+import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures'
@@ -61,5 +68,65 @@ describe('resolveReasoningInvocation budget constraints', () => {
     const invocation = resolveReasoningInvocation({ selection: 'auto', model: toggleModel, profile })
 
     expect(encodeReasoningInvocation(invocation)).toEqual({ chat_template_kwargs: { thinking_mode: 'adaptive' } })
+  })
+
+  it('encodes Gemma 4 thinking control as Ollama booleans', () => {
+    const controls = inferReasoningControls('gemma4:31b')
+    expect(controls).toEqual([{ kind: 'toggle' }])
+
+    const gemma4 = makeModel({
+      reasoning: { controls, selectableEfforts: ['none', 'auto'] }
+    })
+    const profile = REASONING_FORMAT_PROFILES.ollama.wire
+
+    const enabled = resolveReasoningInvocation({ selection: 'auto', model: gemma4, profile })
+    const disabled = resolveReasoningInvocation({ selection: 'none', model: gemma4, profile })
+
+    expect(encodeReasoningInvocation(enabled)).toEqual({ think: true })
+    expect(encodeReasoningInvocation(disabled)).toEqual({ think: false })
+  })
+})
+
+describe('OpenAI Responses reasoning summary', () => {
+  const responsesWire = (providerId: string) =>
+    readProviderRegistry(path.join(process.cwd(), 'packages/provider-registry/data/providers.json')).providers.find(
+      (provider) => provider.id === providerId
+    )?.endpointConfigs?.['openai-responses']?.reasoningFormat?.wire
+  const openaiWire = responsesWire('openai')!
+  const arkWire = responsesWire('doubao')
+  const gpt5 = makeModel({
+    reasoning: {
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+      selectableEfforts: ['low', 'medium', 'high']
+    }
+  })
+
+  // Without `reasoning.summary` OpenAI returns no summary at all, so the provider default must
+  // travel even when the user never picks an effort tier.
+  it('emits the summary default on the Default selection, with no effort', () => {
+    const invocation = resolveReasoningInvocation({ selection: 'default', model: gpt5, profile: openaiWire })
+    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningSummary: 'auto' })
+  })
+
+  it('lets an explicit assistant selection override the default', () => {
+    const invocation = resolveReasoningInvocation({
+      selection: 'high',
+      model: gpt5,
+      profile: openaiWire,
+      assistantSummary: 'detailed'
+    })
+    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'high', reasoningSummary: 'detailed' })
+  })
+
+  // Ark rejects the field outright (400 `unknown field "summary"`).
+  it('never emits a summary for third-party Responses hosts', () => {
+    const profile = arkWire ?? REASONING_FORMAT_PROFILES['openai-responses'].wire
+    const invocation = resolveReasoningInvocation({
+      selection: 'high',
+      model: gpt5,
+      profile,
+      assistantSummary: 'detailed'
+    })
+    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'high' })
   })
 })

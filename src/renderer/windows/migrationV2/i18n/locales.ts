@@ -4,375 +4,306 @@
  */
 
 export const zhCN = {
-  common: { close: '关闭', error: '错误', loading: '加载中', success: '成功' },
-  error: { unknown: '未知错误' },
-  settings: {
-    theme: {
-      dark: '深色模式',
-      light: '浅色模式',
-      system: '跟随系统'
-    }
-  },
-  migration: {
-    title: '数据迁移向导',
-    stages: {
-      introduction: '介绍',
-      migration: '迁移',
-      completed: '完成'
-    },
-    buttons: {
-      start_migration: '开始迁移',
-      restart: '重启应用',
-      retry: '重试',
-      close: '关闭应用',
-      continue_v1: '继续使用 V1',
-      ignore_migration: '忽略并使用默认值',
-      skip_migration: '跳过迁移',
-      more_options: '更多选项'
-    },
-    window: {
-      minimize: '最小化',
-      close: '关闭',
-      confirm_close: {
-        title: '退出数据迁移',
-        message: '迁移流程尚未完成，关闭窗口将退出应用，下次启动需要重新开始。确定要退出吗？',
-        continue: '继续迁移',
-        quit: '退出',
-        quit_pending: '当前步骤完成后将自动退出应用，请稍候…'
-      }
-    },
-    language: {
-      select: '切换语言'
-    },
-    status: {
-      pending: '等待中',
-      running: '进行中',
-      completed: '完成',
-      failed: '失败'
-    },
-    diagnostics: {
-      title: '保存问题排查文件',
-      save: '保存诊断包',
-      saving: '正在保存…',
-      export_description:
-        '诊断包包含迁移错误、系统信息和可用的应用日志。日志可能包含文件路径、错误堆栈、用户内容或凭据；文件只会保存到本地，不会自动上传，请仅发送给 Cherry Studio 支持团队。',
-      open_from_error: '导出此错误的诊断包',
-      saved_title: '诊断包已保存',
-      privacy:
-        '应用日志可能包含文件路径、错误堆栈、用户内容或凭据，请勿分享到公开渠道或提供给 Cherry Studio 支持团队之外的人员。',
-      saved_local: '诊断包已保存到本地且未自动上传，请发送至问题反馈邮箱以协助排查。',
-      logs_not_included: '未能加入应用日志，当前诊断包仅包含系统信息。',
-      open_folder: '打开文件所在位置',
-      contact: '复制问题反馈邮箱',
-      copy_success: '问题反馈邮箱已复制',
-      copy_failed: '问题反馈邮箱复制失败',
-      save_failed: '诊断包保存失败',
-      open_folder_failed: '无法打开文件所在位置'
-    },
-    more_options: {
-      description: '请选择接下来的处理方式。无论选择哪一种，旧版原始数据都不会被删除。',
-      diagnostics_title: '保存问题信息',
-      use_v2_title: '直接使用 V2',
-      skip_description: '不导入旧版数据，以默认配置开始使用。',
-      continue_v1_description: '下载并安装 V1，继续使用当前保留的原始数据。',
-      diagnostics_description: '将错误信息和应用日志保存到本地，方便发送给支持团队排查问题。'
-    },
-    introduction: {
-      title: '将数据迁移到新的架构中',
-      subtitle: 'Cherry Studio V2 · 全新数据架构',
-      features: {
-        architecture: {
-          title: '全新数据架构',
-          description: '存储与使用方式重构，效率与安全性大幅提升。'
-        },
-        migration: {
-          title: '需要迁移数据',
-          description: '旧版数据需要迁移后，才能在 V2 中继续使用。'
-        },
-        safety: {
-          title: '安全且可重试',
-          description: '旧版数据会保留在磁盘中，迁移失败后可重新尝试。'
-        }
-      },
-      data_location: '数据迁移目录：{{path}}'
-    },
-    skip_dialog: {
-      title: '跳过数据迁移',
-      warning_prefix: '高危操作：',
-      warning_body: '将以默认配置启动，并不再自动提示迁移。',
-      points: {
-        cleared_strong: '已迁移到新版数据库的记录将被清除',
-        cleared_rest: '（如有），新版将以默认数据启动。',
-        retained_strong: '旧版原始数据不会被删除',
-        retained_rest: '，仍保留在磁盘中，但对话、设置、知识库等内容不会出现在新版中。',
-        files: '迁移过程中已复制的文件可能仍占用磁盘空间，但不会出现在新版中。',
-        skip_before: '仅当你确定要',
-        skip_strong: '放弃本次自动迁移',
-        skip_after: '时继续。'
-      },
-      cancel: '取消',
-      confirm: '已知晓风险，跳过并重启',
-      confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)',
-      failed: '跳过迁移失败，请重试。'
-    },
-    migration: {
-      title: '正在迁移数据...',
-      do_not_close: '迁移进行中，请勿关闭应用…'
-    },
-    progress: {
-      processing: '正在处理{{name}}...',
-      migrated_boot_config: '已迁移 {{processed}}/{{total}} 条启动配置',
-      migrated_chats: '已迁移 {{processed}}/{{total}} 个对话，{{messages}} 条消息',
-      migrated_preferences: '已迁移 {{processed}}/{{total}} 条配置',
-      migrated_knowledge: '已迁移 {{processed}}/{{total}} 条知识库记录',
-      migrated_knowledge_vectors: '已迁移 {{processed}}/{{total}} 个知识库向量工作单元',
-      migrated_assistants: '已迁移 {{processed}}/{{total}} 个助手',
-      migrated_files: '已迁移 {{processed}}/{{total}} 个文件',
-      migrated_mcp_servers: '已迁移 {{processed}}/{{total}} 个 MCP 服务器',
-      migrated_miniapps: '已迁移 {{processed}}/{{total}} 个小程序',
-      migrated_translate_languages: '已迁移 {{processed}}/{{total}} 种翻译语言',
-      migrated_translate_history: '已迁移 {{processed}}/{{total}} 条翻译记录',
-      prepared_chats: '已准备 {{processed}}/{{total}} 个对话',
-      agents_claude_config: '正在迁移 Agent 配置…',
-      agents_claude_config_scanning_start: '正在统计 Agent 配置文件…',
-      agents_claude_config_scanning: '正在扫描 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
-      agents_claude_config_copying: '正在迁移 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
-      agents_claude_config_verifying:
-        '正在验证 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
-      agents_messages: '正在准备 Agent 消息 {{processed}}/{{total}}…',
-      agents_database: '正在导入 Agent 数据库记录…',
-      agents_id_mapping: '正在更新 Agent 和会话标识…',
-      agents_identity: '正在迁移 Agent 身份文件 {{processed}}/{{total}}…',
-      agents_workspaces: '正在迁移 Agent 工作区 {{processed}}/{{total}}…',
-      agents_claude_cache: '正在迁移 Agent 会话缓存 {{processed}}/{{total}}…',
-      agents_validation: '正在验证 Agent 迁移数据…'
-    },
-    completed: {
-      title: '欢迎来到 Cherry Studio V2',
-      description: '迁移完成，你的数据已经全部就位。重启应用即可开始使用 V2。',
-      steps_label: '步骤已完成',
-      items_label: '迁移项',
-      duration_label: '迁移耗时',
-      warning_heading: '{{count}} 条迁移提示',
-      warning_description: '数据已迁移完成，但以下内容需要注意。',
-      warning_copy: '复制全部提示',
-      warning_copy_success: '迁移提示已复制',
-      warning_copy_failed: '无法复制迁移提示'
-    },
-    error: {
-      title: '迁移失败',
-      description: '迁移未完成，但您的原始数据仍完好保留。',
-      error_prefix: '错误信息：',
-      unknown: '未知错误',
-      v1_fallback: {
-        title: '下载并继续使用 V1',
-        description: '您的原始数据完好保存，下载并安装 V1 版本即可继续使用。',
-        download: '下载 V1 版本',
-        dismiss: '知道了',
-        open_failed: '无法打开下载页面'
-      }
-    },
-    version_incompatible: {
-      title: '版本升级提示',
-      preamble: 'Cherry Studio 对数据存储进行了重大重构，为了保证旧数据的安全迁移，我们对升级顺序有严格要求。',
-      no_version_log:
-        '无法确定您之前使用的版本。请先安装 {{requiredVersion}} 版本并运行一次，然后再安装此版本进行数据迁移。',
-      v1_too_old:
-        '您之前的版本（{{previousVersion}}）过旧，无法直接迁移。请先升级到 {{requiredVersion}} 版本并运行一次，然后再安装此版本。',
-      v2_gateway_skipped:
-        '无法从 {{previousVersion}} 直接升级到 {{currentVersion}}。请先安装 {{gatewayVersion}} 版本完成数据迁移，然后再升级到此版本。',
-      ignore_hint: '您也可以选择忽略旧数据，直接以全新默认配置启动。'
-    }
-  }
+  'common.close': '关闭',
+  'common.error': '错误',
+  'common.loading': '加载中',
+  'common.success': '成功',
+  'error.unknown': '未知错误',
+  'migration.buttons.close': '关闭应用',
+  'migration.buttons.continue_v1': '继续使用 V1',
+  'migration.buttons.ignore_migration': '忽略并使用默认值',
+  'migration.buttons.more_options': '更多选项',
+  'migration.buttons.restart': '重启应用',
+  'migration.buttons.retry': '重试',
+  'migration.buttons.skip_migration': '跳过迁移',
+  'migration.buttons.start_migration': '开始迁移',
+  'migration.completed.agent_database_unreadable': '旧版 Agent 数据库无法读取，未导入其中的数据；原始数据库文件已保留',
+  'migration.completed.agent_files_skipped_one': '已跳过 1 个路径重叠的 Agent 文件目标；旧版源数据已保留',
+  'migration.completed.agent_files_skipped_other': '已跳过 {{count}} 个路径重叠的 Agent 文件目标；旧版源数据已保留',
+  'migration.completed.description': '迁移完成，你的数据已经全部就位。重启应用即可开始使用 V2。',
+  'migration.completed.description_with_warnings': '迁移已完成，但部分内容未能完整迁移。请先查看迁移提示，再重启应用。',
+  'migration.completed.duration_label': '迁移耗时',
+  'migration.completed.items_label': '迁移项',
+  'migration.completed.steps_label': '步骤已完成',
+  'migration.completed.title': '欢迎来到 Cherry Studio V2',
+  'migration.completed.warning_copy': '复制全部提示',
+  'migration.completed.warning_copy_failed': '无法复制迁移提示',
+  'migration.completed.warning_copy_success': '迁移提示已复制',
+  'migration.completed.warning_description': '数据已迁移完成，但以下内容需要注意。',
+  'migration.completed.warning_heading': '{{count}} 条迁移提示',
+  'migration.diagnostics.contact': '复制问题反馈邮箱',
+  'migration.diagnostics.copy_failed': '问题反馈邮箱复制失败',
+  'migration.diagnostics.copy_success': '问题反馈邮箱已复制',
+  'migration.diagnostics.export_description':
+    '诊断包包含迁移错误、系统信息和可用的应用日志。日志可能包含文件路径、错误堆栈、用户内容或凭据；文件只会保存到本地，不会自动上传，请仅发送给 Cherry Studio 支持团队。',
+  'migration.diagnostics.logs_not_included': '未能加入应用日志，当前诊断包仅包含系统信息。',
+  'migration.diagnostics.open_folder': '打开文件所在位置',
+  'migration.diagnostics.open_folder_failed': '无法打开文件所在位置',
+  'migration.diagnostics.open_from_error': '导出此错误的诊断包',
+  'migration.diagnostics.privacy':
+    '应用日志可能包含文件路径、错误堆栈、用户内容或凭据，请勿分享到公开渠道或提供给 Cherry Studio 支持团队之外的人员。',
+  'migration.diagnostics.save': '保存诊断包',
+  'migration.diagnostics.save_failed': '诊断包保存失败',
+  'migration.diagnostics.saved_local': '诊断包已保存到本地且未自动上传，请发送至问题反馈邮箱以协助排查。',
+  'migration.diagnostics.saved_title': '诊断包已保存',
+  'migration.diagnostics.saving': '正在保存…',
+  'migration.diagnostics.title': '保存问题排查文件',
+  'migration.error.description': '迁移未完成，但您的原始数据仍完好保留。',
+  'migration.error.error_prefix': '错误信息：',
+  'migration.error.title': '迁移失败',
+  'migration.error.unknown': '未知错误',
+  'migration.error.v1_fallback.description': '您的原始数据完好保存，下载并安装 V1 版本即可继续使用。',
+  'migration.error.v1_fallback.dismiss': '知道了',
+  'migration.error.v1_fallback.download': '下载 V1 版本',
+  'migration.error.v1_fallback.open_failed': '无法打开下载页面',
+  'migration.error.v1_fallback.title': '下载并继续使用 V1',
+  'migration.introduction.data_location': '数据迁移目录：{{path}}',
+  'migration.introduction.features.architecture.description': '存储与使用方式重构，效率与安全性大幅提升。',
+  'migration.introduction.features.architecture.title': '全新数据架构',
+  'migration.introduction.features.migration.description': '旧版数据需要迁移后，才能在 V2 中继续使用。',
+  'migration.introduction.features.migration.title': '需要迁移数据',
+  'migration.introduction.features.safety.description': '旧版数据会保留在磁盘中，迁移失败后可重新尝试。',
+  'migration.introduction.features.safety.title': '安全且可重试',
+  'migration.introduction.subtitle': 'Cherry Studio V2 · 全新数据架构',
+  'migration.introduction.title': '将数据迁移到新的架构中',
+  'migration.language.select': '切换语言',
+  'migration.migration.do_not_close': '迁移进行中，请勿关闭应用…',
+  'migration.migration.title': '正在迁移数据...',
+  'migration.more_options.continue_v1_description': '下载并安装 V1，继续使用当前保留的原始数据。',
+  'migration.more_options.description': '请选择接下来的处理方式。无论选择哪一种，旧版原始数据都不会被删除。',
+  'migration.more_options.diagnostics_description': '将错误信息和应用日志保存到本地，方便发送给支持团队排查问题。',
+  'migration.more_options.diagnostics_title': '保存问题信息',
+  'migration.more_options.skip_description': '不导入旧版数据，以默认配置开始使用。',
+  'migration.more_options.use_v2_title': '直接使用 V2',
+  'migration.progress.agents_claude_cache': '正在迁移 Agent 会话缓存 {{processed}}/{{total}}…',
+  'migration.progress.agents_claude_config': '正在迁移 Agent 配置…',
+  'migration.progress.agents_claude_config_copying':
+    '正在迁移 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+  'migration.progress.agents_claude_config_scanning':
+    '正在扫描 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+  'migration.progress.agents_claude_config_scanning_start': '正在统计 Agent 配置文件…',
+  'migration.progress.agents_claude_config_verifying':
+    '正在验证 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+  'migration.progress.agents_database': '正在导入 Agent 数据库记录…',
+  'migration.progress.agents_id_mapping': '正在更新 Agent 和会话标识…',
+  'migration.progress.agents_identity': '正在迁移 Agent 身份文件 {{processed}}/{{total}}…',
+  'migration.progress.agents_messages': '正在准备 Agent 消息 {{processed}}/{{total}}…',
+  'migration.progress.agents_validation': '正在验证 Agent 迁移数据…',
+  'migration.progress.agents_workspaces': '正在迁移 Agent 工作区 {{processed}}/{{total}}…',
+  'migration.progress.migrated_assistants': '已迁移 {{processed}}/{{total}} 个助手',
+  'migration.progress.migrated_boot_config': '已迁移 {{processed}}/{{total}} 条启动配置',
+  'migration.progress.migrated_chats': '已迁移 {{processed}}/{{total}} 个对话，{{messages}} 条消息',
+  'migration.progress.migrated_files': '已迁移 {{processed}}/{{total}} 个文件',
+  'migration.progress.migrated_knowledge': '已迁移 {{processed}}/{{total}} 条知识库记录',
+  'migration.progress.migrated_knowledge_vectors': '已迁移 {{processed}}/{{total}} 个知识库向量工作单元',
+  'migration.progress.migrated_mcp_servers': '已迁移 {{processed}}/{{total}} 个 MCP 服务器',
+  'migration.progress.migrated_miniapps': '已迁移 {{processed}}/{{total}} 个小程序',
+  'migration.progress.migrated_preferences': '已迁移 {{processed}}/{{total}} 条配置',
+  'migration.progress.migrated_translate_history': '已迁移 {{processed}}/{{total}} 条翻译记录',
+  'migration.progress.migrated_translate_languages': '已迁移 {{processed}}/{{total}} 种翻译语言',
+  'migration.progress.prepared_chats': '已准备 {{processed}}/{{total}} 个对话',
+  'migration.progress.processing': '正在处理{{name}}...',
+  'migration.skip_dialog.cancel': '取消',
+  'migration.skip_dialog.confirm': '已知晓风险，跳过并重启',
+  'migration.skip_dialog.confirm_countdown': '已知晓风险，跳过并重启 ({{seconds}}s)',
+  'migration.skip_dialog.failed': '跳过迁移失败，请重试。',
+  'migration.skip_dialog.points.cleared_rest': '（如有），新版将以默认数据启动。',
+  'migration.skip_dialog.points.cleared_strong': '已迁移到新版数据库的记录将被清除',
+  'migration.skip_dialog.points.files': '迁移过程中已复制的文件可能仍占用磁盘空间，但不会出现在新版中。',
+  'migration.skip_dialog.points.retained_rest': '，仍保留在磁盘中，但对话、设置、知识库等内容不会出现在新版中。',
+  'migration.skip_dialog.points.retained_strong': '旧版原始数据不会被删除',
+  'migration.skip_dialog.points.skip_after': '时继续。',
+  'migration.skip_dialog.points.skip_before': '仅当你确定要',
+  'migration.skip_dialog.points.skip_strong': '放弃本次自动迁移',
+  'migration.skip_dialog.title': '跳过数据迁移',
+  'migration.skip_dialog.warning_body': '将以默认配置启动，并不再自动提示迁移。',
+  'migration.skip_dialog.warning_prefix': '高危操作：',
+  'migration.stages.completed': '完成',
+  'migration.stages.introduction': '介绍',
+  'migration.stages.migration': '迁移',
+  'migration.status.completed': '完成',
+  'migration.status.failed': '失败',
+  'migration.status.pending': '等待中',
+  'migration.status.running': '进行中',
+  'migration.title': '数据迁移向导',
+  'migration.version_incompatible.ignore_hint': '您也可以选择忽略旧数据，直接以全新默认配置启动。',
+  'migration.version_incompatible.no_version_log':
+    '无法确定您之前使用的版本。请先安装 {{requiredVersion}} 版本并运行一次，然后再安装此版本进行数据迁移。',
+  'migration.version_incompatible.preamble':
+    'Cherry Studio 对数据存储进行了重大重构，为了保证旧数据的安全迁移，我们对升级顺序有严格要求。',
+  'migration.version_incompatible.title': '版本升级提示',
+  'migration.version_incompatible.v1_too_old':
+    '您之前的版本（{{previousVersion}}）过旧，无法直接迁移。请先升级到 {{requiredVersion}} 版本并运行一次，然后再安装此版本。',
+  'migration.version_incompatible.v2_gateway_skipped':
+    '无法从 {{previousVersion}} 直接升级到 {{currentVersion}}。请先安装 {{gatewayVersion}} 版本完成数据迁移，然后再升级到此版本。',
+  'migration.window.close': '关闭',
+  'migration.window.confirm_close.continue': '继续迁移',
+  'migration.window.confirm_close.message':
+    '迁移流程尚未完成，关闭窗口将退出应用，下次启动需要重新开始。确定要退出吗？',
+  'migration.window.confirm_close.quit': '退出',
+  'migration.window.confirm_close.quit_pending': '当前步骤完成后将自动退出应用，请稍候…',
+  'migration.window.confirm_close.title': '退出数据迁移',
+  'migration.window.minimize': '最小化',
+  'settings.theme.dark': '深色模式',
+  'settings.theme.light': '浅色模式',
+  'settings.theme.system': '跟随系统'
 }
 
 export const enUS = {
-  common: { close: 'Close', error: 'Error', loading: 'Loading', success: 'Success' },
-  error: { unknown: 'Unknown error' },
-  settings: {
-    theme: {
-      dark: 'Dark mode',
-      light: 'Light mode',
-      system: 'System'
-    }
-  },
-  migration: {
-    title: 'Data Migration Wizard',
-    stages: {
-      introduction: 'Introduction',
-      migration: 'Migration',
-      completed: 'Completed'
-    },
-    buttons: {
-      start_migration: 'Start Migration',
-      restart: 'Restart App',
-      retry: 'Retry',
-      close: 'Close App',
-      continue_v1: 'Continue using V1',
-      ignore_migration: 'Ignore and Use Defaults',
-      skip_migration: 'Skip migration',
-      more_options: 'More options'
-    },
-    window: {
-      minimize: 'Minimize',
-      close: 'Close',
-      confirm_close: {
-        title: 'Exit data migration',
-        message:
-          "Migration isn't finished yet. Closing the window will quit the app and you'll need to start over next launch. Quit anyway?",
-        continue: 'Continue migration',
-        quit: 'Quit',
-        quit_pending: 'The app will close automatically once the current step finishes…'
-      }
-    },
-    language: {
-      select: 'Switch language'
-    },
-    status: {
-      pending: 'Pending',
-      running: 'Running',
-      completed: 'Completed',
-      failed: 'Failed'
-    },
-    diagnostics: {
-      title: 'Save troubleshooting file',
-      save: 'Save diagnostic bundle',
-      saving: 'Saving…',
-      export_description:
-        'The bundle includes migration errors, system information, and available application logs. Logs may contain file paths, error stacks, user content, or credentials. It is saved locally and never uploaded automatically; share it only with Cherry Studio support.',
-      open_from_error: 'Export a diagnostic bundle for this error',
-      saved_title: 'Diagnostic bundle saved',
-      privacy:
-        'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.',
-      saved_local:
-        'The diagnostic bundle was saved locally and was not uploaded automatically. Please send it to the feedback email to help us investigate.',
-      logs_not_included:
-        'Application logs could not be included. This diagnostic bundle contains only system information.',
-      open_folder: 'Open file location',
-      contact: 'Copy feedback email',
-      copy_success: 'Feedback email copied',
-      copy_failed: 'Failed to copy feedback email',
-      save_failed: 'Could not save diagnostic bundle',
-      open_folder_failed: 'Could not open file location'
-    },
-    more_options: {
-      description: 'Choose how you want to continue. Your original V1 data will not be deleted either way.',
-      diagnostics_title: 'Save troubleshooting information',
-      use_v2_title: 'Use V2 without importing V1 data',
-      skip_description: 'Start with default settings without importing your V1 data.',
-      continue_v1_description: 'Download and install V1 to keep using your original data.',
-      diagnostics_description: 'Save errors and app logs locally so you can share them with support.'
-    },
-    introduction: {
-      title: 'Migrate Data to New Architecture',
-      subtitle: 'Cherry Studio V2 · New Data Architecture',
-      features: {
-        architecture: {
-          title: 'New Data Architecture',
-          description: 'Storage and usage are rebuilt for major gains in efficiency and security.'
-        },
-        migration: {
-          title: 'Migration Required',
-          description: 'Legacy data must be migrated before it can be used in V2.'
-        },
-        safety: {
-          title: 'Safe and Retryable',
-          description: 'Your legacy data stays on disk, so you can retry if a migration fails.'
-        }
-      },
-      data_location: 'Data migration directory: {{path}}'
-    },
-    skip_dialog: {
-      title: 'Skip Data Migration',
-      warning_prefix: 'High-risk action: ',
-      warning_body: 'Starts with default settings, and migration will not be prompted again.',
-      points: {
-        cleared_strong: 'Records already migrated to the new database will be cleared',
-        cleared_rest: ' (if any), and the new version will start with default data.',
-        retained_strong: 'Original legacy data will not be deleted',
-        retained_rest:
-          ' and remains on disk, but chats, settings, knowledge bases, and related content will not appear in the new version.',
-        files:
-          'Files copied during migration may still take up disk space, but they will not appear in the new version.',
-        skip_before: 'Continue only if you are sure you want to ',
-        skip_strong: 'skip this automatic migration',
-        skip_after: '.'
-      },
-      cancel: 'Cancel',
-      confirm: 'I understand the risk, skip and restart',
-      confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)',
-      failed: 'Failed to skip migration. Please try again.'
-    },
-    migration: {
-      title: 'Migrating Data...',
-      do_not_close: 'Migration in progress, please do not close the app…'
-    },
-    progress: {
-      processing: 'Processing {{name}}...',
-      migrated_boot_config: 'Migrated {{processed}}/{{total}} boot config items',
-      migrated_chats: 'Migrated {{processed}}/{{total}} conversations, {{messages}} messages',
-      migrated_preferences: 'Migrated {{processed}}/{{total}} preferences',
-      migrated_knowledge: 'Migrated {{processed}}/{{total}} knowledge records',
-      migrated_knowledge_vectors: 'Migrated {{processed}}/{{total}} knowledge vector work units',
-      migrated_assistants: 'Migrated {{processed}}/{{total}} assistants',
-      migrated_files: 'Migrated {{processed}}/{{total}} files',
-      migrated_mcp_servers: 'Migrated {{processed}}/{{total}} MCP servers',
-      migrated_miniapps: 'Migrated {{processed}}/{{total}} mini apps',
-      migrated_translate_languages: 'Migrated {{processed}}/{{total}} translate languages',
-      migrated_translate_history: 'Migrated {{processed}}/{{total}} translate history records',
-      prepared_chats: 'Prepared {{processed}}/{{total}} conversations',
-      agents_claude_config: 'Migrating Agent configuration…',
-      agents_claude_config_scanning_start: 'Counting Agent configuration files…',
-      agents_claude_config_scanning:
-        'Scanning Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
-      agents_claude_config_copying:
-        'Migrating Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
-      agents_claude_config_verifying:
-        'Verifying Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
-      agents_messages: 'Preparing Agent messages {{processed}}/{{total}}…',
-      agents_database: 'Importing Agent database records…',
-      agents_id_mapping: 'Updating Agent and Session identifiers…',
-      agents_identity: 'Migrating Agent identity files {{processed}}/{{total}}…',
-      agents_workspaces: 'Migrating Agent workspaces {{processed}}/{{total}}…',
-      agents_claude_cache: 'Migrating Agent session cache {{processed}}/{{total}}…',
-      agents_validation: 'Validating migrated Agent data…'
-    },
-    completed: {
-      title: 'Welcome to Cherry Studio V2',
-      description: 'Migration is complete. Your data is ready. Restart the app to start using V2.',
-      steps_label: 'Steps completed',
-      items_label: 'Migration items',
-      duration_label: 'Migration time',
-      warning_heading: '{{count}} migration notice(s)',
-      warning_description: 'Migration completed, but the following items need attention.',
-      warning_copy: 'Copy all notices',
-      warning_copy_success: 'Migration notices copied',
-      warning_copy_failed: 'Failed to copy migration notices'
-    },
-    error: {
-      title: 'Migration Failed',
-      description: 'Migration did not finish, but your original data remains intact.',
-      error_prefix: 'Error: ',
-      unknown: 'Unknown error',
-      v1_fallback: {
-        title: 'Download and Continue Using V1',
-        description: 'Your original data is intact. Download and install V1 to keep working.',
-        download: 'Download V1',
-        dismiss: 'Got it',
-        open_failed: 'Could not open the download page'
-      }
-    },
-    version_incompatible: {
-      title: 'Version Upgrade Required',
-      preamble:
-        'Cherry Studio has undergone a major data storage refactoring. To ensure safe migration of your data, we have strict requirements on the upgrade order.',
-      no_version_log:
-        'Cannot determine your previous version. Please install version {{requiredVersion}} first and run it at least once, then install this version to complete the data migration.',
-      v1_too_old:
-        'Your previous version ({{previousVersion}}) is too old to migrate directly. Please install version {{requiredVersion}} first, then install this version.',
-      v2_gateway_skipped:
-        'Cannot upgrade directly from {{previousVersion}} to {{currentVersion}}. Please install version {{gatewayVersion}} first to complete the data migration, then upgrade to this version.',
-      ignore_hint: 'You can also choose to ignore old data and start fresh with default settings.'
-    }
-  }
+  'common.close': 'Close',
+  'common.error': 'Error',
+  'common.loading': 'Loading',
+  'common.success': 'Success',
+  'error.unknown': 'Unknown error',
+  'migration.buttons.close': 'Close App',
+  'migration.buttons.continue_v1': 'Continue using V1',
+  'migration.buttons.ignore_migration': 'Ignore and Use Defaults',
+  'migration.buttons.more_options': 'More options',
+  'migration.buttons.restart': 'Restart App',
+  'migration.buttons.retry': 'Retry',
+  'migration.buttons.skip_migration': 'Skip migration',
+  'migration.buttons.start_migration': 'Start Migration',
+  'migration.completed.agent_database_unreadable':
+    'The legacy Agent database was unreadable and was not imported; the original database file was preserved',
+  'migration.completed.agent_files_skipped_one':
+    'Skipped 1 overlapping Agent filesystem target; legacy source data was preserved',
+  'migration.completed.agent_files_skipped_other':
+    'Skipped {{count}} overlapping Agent filesystem targets; legacy source data was preserved',
+  'migration.completed.description': 'Migration is complete. Your data is ready. Restart the app to start using V2.',
+  'migration.completed.description_with_warnings':
+    'Migration completed with some content omitted. Review the migration notices before restarting the app.',
+  'migration.completed.duration_label': 'Migration time',
+  'migration.completed.items_label': 'Migration items',
+  'migration.completed.steps_label': 'Steps completed',
+  'migration.completed.title': 'Welcome to Cherry Studio V2',
+  'migration.completed.warning_copy': 'Copy all notices',
+  'migration.completed.warning_copy_failed': 'Failed to copy migration notices',
+  'migration.completed.warning_copy_success': 'Migration notices copied',
+  'migration.completed.warning_description': 'Migration completed, but the following items need attention.',
+  'migration.completed.warning_heading': '{{count}} migration notice(s)',
+  'migration.diagnostics.contact': 'Copy feedback email',
+  'migration.diagnostics.copy_failed': 'Failed to copy feedback email',
+  'migration.diagnostics.copy_success': 'Feedback email copied',
+  'migration.diagnostics.export_description':
+    'The bundle includes migration errors, system information, and available application logs. Logs may contain file paths, error stacks, user content, or credentials. It is saved locally and never uploaded automatically; share it only with Cherry Studio support.',
+  'migration.diagnostics.logs_not_included':
+    'Application logs could not be included. This diagnostic bundle contains only system information.',
+  'migration.diagnostics.open_folder': 'Open file location',
+  'migration.diagnostics.open_folder_failed': 'Could not open file location',
+  'migration.diagnostics.open_from_error': 'Export a diagnostic bundle for this error',
+  'migration.diagnostics.privacy':
+    'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.',
+  'migration.diagnostics.save': 'Save diagnostic bundle',
+  'migration.diagnostics.save_failed': 'Could not save diagnostic bundle',
+  'migration.diagnostics.saved_local':
+    'The diagnostic bundle was saved locally and was not uploaded automatically. Please send it to the feedback email to help us investigate.',
+  'migration.diagnostics.saved_title': 'Diagnostic bundle saved',
+  'migration.diagnostics.saving': 'Saving…',
+  'migration.diagnostics.title': 'Save troubleshooting file',
+  'migration.error.description': 'Migration did not finish, but your original data remains intact.',
+  'migration.error.error_prefix': 'Error: ',
+  'migration.error.title': 'Migration Failed',
+  'migration.error.unknown': 'Unknown error',
+  'migration.error.v1_fallback.description': 'Your original data is intact. Download and install V1 to keep working.',
+  'migration.error.v1_fallback.dismiss': 'Got it',
+  'migration.error.v1_fallback.download': 'Download V1',
+  'migration.error.v1_fallback.open_failed': 'Could not open the download page',
+  'migration.error.v1_fallback.title': 'Download and Continue Using V1',
+  'migration.introduction.data_location': 'Data migration directory: {{path}}',
+  'migration.introduction.features.architecture.description':
+    'Storage and usage are rebuilt for major gains in efficiency and security.',
+  'migration.introduction.features.architecture.title': 'New Data Architecture',
+  'migration.introduction.features.migration.description': 'Legacy data must be migrated before it can be used in V2.',
+  'migration.introduction.features.migration.title': 'Migration Required',
+  'migration.introduction.features.safety.description':
+    'Your legacy data stays on disk, so you can retry if a migration fails.',
+  'migration.introduction.features.safety.title': 'Safe and Retryable',
+  'migration.introduction.subtitle': 'Cherry Studio V2 · New Data Architecture',
+  'migration.introduction.title': 'Migrate Data to New Architecture',
+  'migration.language.select': 'Switch language',
+  'migration.migration.do_not_close': 'Migration in progress, please do not close the app…',
+  'migration.migration.title': 'Migrating Data...',
+  'migration.more_options.continue_v1_description': 'Download and install V1 to keep using your original data.',
+  'migration.more_options.description':
+    'Choose how you want to continue. Your original V1 data will not be deleted either way.',
+  'migration.more_options.diagnostics_description':
+    'Save errors and app logs locally so you can share them with support.',
+  'migration.more_options.diagnostics_title': 'Save troubleshooting information',
+  'migration.more_options.skip_description': 'Start with default settings without importing your V1 data.',
+  'migration.more_options.use_v2_title': 'Use V2 without importing V1 data',
+  'migration.progress.agents_claude_cache': 'Migrating Agent session cache {{processed}}/{{total}}…',
+  'migration.progress.agents_claude_config': 'Migrating Agent configuration…',
+  'migration.progress.agents_claude_config_copying':
+    'Migrating Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+  'migration.progress.agents_claude_config_scanning':
+    'Scanning Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+  'migration.progress.agents_claude_config_scanning_start': 'Counting Agent configuration files…',
+  'migration.progress.agents_claude_config_verifying':
+    'Verifying Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+  'migration.progress.agents_database': 'Importing Agent database records…',
+  'migration.progress.agents_id_mapping': 'Updating Agent and Session identifiers…',
+  'migration.progress.agents_identity': 'Migrating Agent identity files {{processed}}/{{total}}…',
+  'migration.progress.agents_messages': 'Preparing Agent messages {{processed}}/{{total}}…',
+  'migration.progress.agents_validation': 'Validating migrated Agent data…',
+  'migration.progress.agents_workspaces': 'Migrating Agent workspaces {{processed}}/{{total}}…',
+  'migration.progress.migrated_assistants': 'Migrated {{processed}}/{{total}} assistants',
+  'migration.progress.migrated_boot_config': 'Migrated {{processed}}/{{total}} boot config items',
+  'migration.progress.migrated_chats': 'Migrated {{processed}}/{{total}} conversations, {{messages}} messages',
+  'migration.progress.migrated_files': 'Migrated {{processed}}/{{total}} files',
+  'migration.progress.migrated_knowledge': 'Migrated {{processed}}/{{total}} knowledge records',
+  'migration.progress.migrated_knowledge_vectors': 'Migrated {{processed}}/{{total}} knowledge vector work units',
+  'migration.progress.migrated_mcp_servers': 'Migrated {{processed}}/{{total}} MCP servers',
+  'migration.progress.migrated_miniapps': 'Migrated {{processed}}/{{total}} mini apps',
+  'migration.progress.migrated_preferences': 'Migrated {{processed}}/{{total}} preferences',
+  'migration.progress.migrated_translate_history': 'Migrated {{processed}}/{{total}} translate history records',
+  'migration.progress.migrated_translate_languages': 'Migrated {{processed}}/{{total}} translate languages',
+  'migration.progress.prepared_chats': 'Prepared {{processed}}/{{total}} conversations',
+  'migration.progress.processing': 'Processing {{name}}...',
+  'migration.skip_dialog.cancel': 'Cancel',
+  'migration.skip_dialog.confirm': 'I understand the risk, skip and restart',
+  'migration.skip_dialog.confirm_countdown': 'I understand the risk, skip and restart ({{seconds}}s)',
+  'migration.skip_dialog.failed': 'Failed to skip migration. Please try again.',
+  'migration.skip_dialog.points.cleared_rest': ' (if any), and the new version will start with default data.',
+  'migration.skip_dialog.points.cleared_strong': 'Records already migrated to the new database will be cleared',
+  'migration.skip_dialog.points.files':
+    'Files copied during migration may still take up disk space, but they will not appear in the new version.',
+  'migration.skip_dialog.points.retained_rest':
+    ' and remains on disk, but chats, settings, knowledge bases, and related content will not appear in the new version.',
+  'migration.skip_dialog.points.retained_strong': 'Original legacy data will not be deleted',
+  'migration.skip_dialog.points.skip_after': '.',
+  'migration.skip_dialog.points.skip_before': 'Continue only if you are sure you want to ',
+  'migration.skip_dialog.points.skip_strong': 'skip this automatic migration',
+  'migration.skip_dialog.title': 'Skip Data Migration',
+  'migration.skip_dialog.warning_body': 'Starts with default settings, and migration will not be prompted again.',
+  'migration.skip_dialog.warning_prefix': 'High-risk action: ',
+  'migration.stages.completed': 'Completed',
+  'migration.stages.introduction': 'Introduction',
+  'migration.stages.migration': 'Migration',
+  'migration.status.completed': 'Completed',
+  'migration.status.failed': 'Failed',
+  'migration.status.pending': 'Pending',
+  'migration.status.running': 'Running',
+  'migration.title': 'Data Migration Wizard',
+  'migration.version_incompatible.ignore_hint':
+    'You can also choose to ignore old data and start fresh with default settings.',
+  'migration.version_incompatible.no_version_log':
+    'Cannot determine your previous version. Please install version {{requiredVersion}} first and run it at least once, then install this version to complete the data migration.',
+  'migration.version_incompatible.preamble':
+    'Cherry Studio has undergone a major data storage refactoring. To ensure safe migration of your data, we have strict requirements on the upgrade order.',
+  'migration.version_incompatible.title': 'Version Upgrade Required',
+  'migration.version_incompatible.v1_too_old':
+    'Your previous version ({{previousVersion}}) is too old to migrate directly. Please install version {{requiredVersion}} first, then install this version.',
+  'migration.version_incompatible.v2_gateway_skipped':
+    'Cannot upgrade directly from {{previousVersion}} to {{currentVersion}}. Please install version {{gatewayVersion}} first to complete the data migration, then upgrade to this version.',
+  'migration.window.close': 'Close',
+  'migration.window.confirm_close.continue': 'Continue migration',
+  'migration.window.confirm_close.message':
+    "Migration isn't finished yet. Closing the window will quit the app and you'll need to start over next launch. Quit anyway?",
+  'migration.window.confirm_close.quit': 'Quit',
+  'migration.window.confirm_close.quit_pending': 'The app will close automatically once the current step finishes…',
+  'migration.window.confirm_close.title': 'Exit data migration',
+  'migration.window.minimize': 'Minimize',
+  'settings.theme.dark': 'Dark mode',
+  'settings.theme.light': 'Light mode',
+  'settings.theme.system': 'System'
 }

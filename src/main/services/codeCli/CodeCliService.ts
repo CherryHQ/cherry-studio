@@ -20,12 +20,12 @@ import {
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
-import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import { REDACTED, redactRecord } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
-import { writeCliConfigFiles } from './configWriter'
-import { sanitizeEnvForLogging } from './envRedaction'
+import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -350,7 +350,15 @@ export class CodeCliService extends BaseService {
 
   /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
   public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
+    if (cliTool === CodeCli.HERMES) {
+      return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
+    }
     return writeCliConfigFiles(cliTool, files)
+  }
+
+  /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
+  public async readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
+    return readCliConfigFiles(targets)
   }
 
   async run(input: CodeCliRunInput): Promise<OperationResult> {
@@ -359,6 +367,16 @@ export class CodeCliService extends BaseService {
     logger.debug(`Launch mode: ${input.mode}`)
     if (cliTool === CodeCli.OPENCLAW) {
       const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message }
+    }
+    if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
+      const message = 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message }
+    }
+    if (cliTool === CodeCli.HERMES) {
+      const message = 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
       logger.error(message)
       return { success: false, message }
     }
@@ -440,7 +458,9 @@ export class CodeCliService extends BaseService {
     const rawPathEnv = Object.fromEntries(
       Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
     )
-    const env: Record<string, string> = usesCherryExecutionEnv ? mergeBinaryExecutionEnv(rawPathEnv) : {}
+    const env: Record<string, string> = usesCherryExecutionEnv
+      ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')])
+      : {}
     // For a managed Windows launch buildEnvPrefix rewrites PATH inside the
     // terminal from `env`, so the bundled-git tail must land here too, not only
     // in the spawn env assembled below.
@@ -460,7 +480,7 @@ export class CodeCliService extends BaseService {
       }
 
       logger.info('Setting environment variables:', Object.keys(env))
-      logger.debug('Environment variable values:', sanitizeEnvForLogging(env))
+      logger.debug('Environment variable values:', redactRecord(env))
 
       if (isWindows) {
         // Windows uses set command
@@ -483,7 +503,7 @@ export class CodeCliService extends BaseService {
         const envCommands = validEntries
           .map(([key, value]) => {
             const exportCmd = `export ${key}=${posixQuote(String(value))}`
-            logger.debug(`Setting env var: ${key}=<redacted>`)
+            logger.debug(`Setting env var: ${key}=${REDACTED}`)
             return exportCmd
           })
           .join(' && ')
@@ -697,12 +717,19 @@ export class CodeCliService extends BaseService {
         break
       }
       case 'linux': {
-        // Linux - Try to use common terminal emulators
+        // Linux - Prefer the XDG-configured default terminal, then try common emulators.
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
-        const linuxTerminals = ['gnome-terminal', 'konsole', 'deepin-terminal', 'xterm', 'x-terminal-emulator']
-        let foundTerminal = 'xterm' // Default to xterm
+        const linuxTerminals = [
+          'xdg-terminal-exec',
+          'gnome-terminal',
+          'konsole',
+          'deepin-terminal',
+          'x-terminal-emulator',
+          'xterm'
+        ]
+        let foundTerminal: string | undefined
 
         for (const terminal of linuxTerminals) {
           try {
@@ -725,7 +752,10 @@ export class CodeCliService extends BaseService {
           }
         }
 
-        if (foundTerminal === 'gnome-terminal') {
+        if (foundTerminal === 'xdg-terminal-exec') {
+          terminalCommand = 'xdg-terminal-exec'
+          terminalArgs = [`--dir=${directory}`, '--', 'bash', '-c', `clear && ${command}; exec bash`]
+        } else if (foundTerminal === 'gnome-terminal') {
           terminalCommand = 'gnome-terminal'
           terminalArgs = ['--working-directory', directory, '--', 'bash', '-c', `clear && ${command}; exec bash`]
         } else if (foundTerminal === 'konsole') {
@@ -734,6 +764,9 @@ export class CodeCliService extends BaseService {
         } else if (foundTerminal === 'deepin-terminal') {
           terminalCommand = 'deepin-terminal'
           terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
+        } else if (foundTerminal === 'x-terminal-emulator') {
+          terminalCommand = 'x-terminal-emulator'
+          terminalArgs = ['-e', 'bash', '-c', `cd ${posixQuote(directory)} && clear && ${command}; exec bash`]
         } else {
           // Default to xterm
           terminalCommand = 'xterm'

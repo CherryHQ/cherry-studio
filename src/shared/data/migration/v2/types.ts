@@ -42,6 +42,8 @@ export interface MigrationProgress {
   error?: string
   /** Non-fatal diagnostics aggregated across migrators, surfaced on the completion screen */
   warnings?: string[]
+  /** Non-fatal diagnostics translated by the migration renderer */
+  warningMessages?: I18nMessage[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
   /**
@@ -60,6 +62,7 @@ export interface PrepareResult {
   /** Fatal reason when `success === false`. Non-fatal diagnostics belong in `warnings`. */
   error?: string
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Execute phase result
@@ -69,6 +72,7 @@ export interface ExecuteResult {
   error?: string
   /** Non-fatal diagnostics recorded during execute (e.g. files kept but not reindexable) */
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Validation error detail
@@ -103,6 +107,7 @@ export interface MigratorResult {
   error?: string
   /** Non-fatal diagnostics from prepare + execute, surfaced in the migration report */
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Overall migration result
@@ -129,10 +134,17 @@ export interface LocalStorageRecord {
 }
 
 export interface StartMigrationPayload {
-  reduxData: Record<string, unknown>
+  reduxExportPath: string
   dexieExportPath: string
-  localStorageExportPath?: string
+  localStorageExportPath: string
 }
+
+export interface PreparedMigrationExportPaths extends StartMigrationPayload {
+  localStorageExportDirectory: string
+}
+
+/** localStorage keys that are still consumed by the v1 -> v2 migration. */
+export const MIGRATION_LOCAL_STORAGE_KEYS = ['onboarding-completed'] as const
 
 export type MigrationDiagnosticSaveResult =
   | { status: 'saved'; logs: 'included' | 'not_included' }
@@ -145,6 +157,7 @@ export interface MigrationDiagnosticSavePayload {
 }
 
 export type MigrationExportFileWriteMode = 'overwrite' | 'append'
+export type MigrationExportStage = { source: 'redux' } | { source: 'dexie'; table: string } | { source: 'localStorage' }
 
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
@@ -152,11 +165,13 @@ export const MigrationIpcChannels = {
   CheckNeeded: 'migration:check-needed',
   GetProgress: 'migration:get-progress',
   GetLastError: 'migration:get-last-error',
-  GetUserDataPath: 'migration:get-user-data-path',
 
   // Flow control
   Start: 'migration:start',
+  PrepareExport: 'migration:prepare-export',
   StartMigration: 'migration:start-migration',
+  // Main-process breadcrumb for renderer export OOM diagnostics.
+  ReportExportStage: 'migration:report-export-stage',
   // Renderer-local failure mirrored to main's terminal error stage.
   ReportError: 'migration:report-error',
   Retry: 'migration:retry',

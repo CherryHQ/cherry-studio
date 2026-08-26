@@ -15,6 +15,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { FILE_EDIT_MAX_SIZE_BYTES, useFileEditSession } from '../useFileEditSession'
 
 const path = '/ws/notes.txt' as AbsoluteFilePath
+const handle = { kind: 'path' as const, path }
 
 function utf8(content: string): Uint8Array {
   return new TextEncoder().encode(content)
@@ -38,7 +39,7 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 )
 
 function renderSession() {
-  return renderHook(() => useFileEditSession(path), { wrapper })
+  return renderHook(() => useFileEditSession(handle), { wrapper })
 }
 
 beforeEach(() => ipcMocks.request.mockReset())
@@ -86,7 +87,7 @@ describe('useFileEditSession', () => {
         await vi.advanceTimersByTimeAsync(1)
       })
       expect(ipcMocks.request).toHaveBeenCalledWith('file.write_if_unchanged', {
-        path,
+        handle,
         data: utf8('changed\n'),
         expectedVersion: { mtime: 1, size: 6 }
       })
@@ -303,6 +304,45 @@ describe('useFileEditSession', () => {
     }
   })
 
+  it('refreshes after committed-metadata-pending without replaying it, then saves a later user edit', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      const pending = new IpcError(fileErrorCodes.COMMITTED_METADATA_PENDING, 'metadata pending', {
+        entryId: 'entry-id',
+        version: { mtime: 2, size: 5 }
+      })
+      act(() => result.current.setDraft('saved'))
+      ipcMocks.request.mockRejectedValueOnce(pending).mockResolvedValueOnce(readResult(utf8('saved'), 2))
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+
+      expect(writeCalls()).toHaveLength(1)
+      expect(result.current.savedContent).toBe('saved')
+      expect(result.current.isDirty).toBe(false)
+      expect(result.current.saveError).toBe(pending)
+
+      ipcMocks.request.mockResolvedValueOnce(writeResult(3, 6))
+      act(() => result.current.setDraft('saved2'))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+
+      expect(writeCalls()).toHaveLength(2)
+      expect(result.current.savedContent).toBe('saved2')
+      expect(result.current.saveError).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('discards an unsaved draft after an IO save failure', async () => {
     vi.useFakeTimers()
     try {
@@ -470,7 +510,7 @@ describe('useFileEditSession', () => {
 
       expect(ipcMocks.request).toHaveBeenCalledWith(
         'file.write_if_unchanged',
-        expect.objectContaining({ path, data: utf8('flushed') })
+        expect.objectContaining({ handle, data: utf8('flushed') })
       )
       expect(result.current.isDirty).toBe(false)
     } finally {

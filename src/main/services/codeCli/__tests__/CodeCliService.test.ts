@@ -7,11 +7,13 @@ const binaryManagerMock = vi.hoisted(() => ({
   removeTool: vi.fn(() => Promise.resolve()),
   getToolSnapshots: vi.fn()
 }))
+const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 
 vi.mock('@application', () => ({
   application: {
     get: vi.fn().mockImplementation((name: string) => {
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'HermesDashboardService') return hermesDashboardMock
       return {}
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
@@ -146,6 +148,7 @@ describe('CodeCliService', () => {
       )
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
+    hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
@@ -257,8 +260,10 @@ describe('CodeCliService', () => {
 
     const { codeCliService } = await loadModules()
 
+    const path = (await import('node:path')).default
+
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
-    expect(fs.existsSync).toHaveBeenCalledWith('/home/me/.claude/.credentials.json')
+    expect(fs.existsSync).toHaveBeenCalledWith(path.join('/home/me/.claude', '.credentials.json'))
   })
 
   // A broken rc file makes the shell env probe throw. That is NOT "not signed
@@ -434,7 +439,9 @@ describe('CodeCliService', () => {
 
   // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
   // AppleScript). It must be single-quoted so a path with spaces / $() / backticks can't inject.
-  describe('run (launch command shell-quotes the directory)', () => {
+  // Skipped on win32: `process.platform` is pinned to darwin below, but `node:path` still follows
+  // the host, so the assembled command mixes `\` separators and `;` PATH delimiters into sh syntax.
+  describe.skipIf(process.platform === 'win32')('run (launch command shell-quotes the directory)', () => {
     const originalPlatform = process.platform
 
     beforeEach(async () => {
@@ -546,7 +553,7 @@ describe('CodeCliService', () => {
       const launchArgs = (launchCall[1] ?? []).join(' ')
       const launchEnv = launchCall[2]?.env as Record<string, string>
       expect(launchArgs).toContain(
-        "PATH='\\''/mock/binary-data/shims:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+        "PATH='\\''/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
       )
       expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
       expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
@@ -672,7 +679,7 @@ describe('CodeCliService', () => {
       }
     })
 
-    it('appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
+    it('includes cherry.bin and appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
       // Regression (PR #16402 review): the launch env must carry the bundled
       // git dir at the very tail so a terminal-launched CLI resolves a bare
       // `git` on a machine without system git, while any real git ahead wins.
@@ -694,6 +701,7 @@ describe('CodeCliService', () => {
 
         expect(result.success).toBe(true)
         const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path.split(';')).toContain('/mock/binary-data')
         expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)
         expect(spawnEnv.Path).toContain('C:\\Windows\\System32')
         // The bat rewrites PATH inside the terminal, so the tail must be in the
@@ -808,6 +816,44 @@ describe('CodeCliService', () => {
       expect(launch![2]).toMatchObject({ shell: false, detached: true })
     })
 
+    it('uses xdg-terminal-exec to respect the configured default terminal', async () => {
+      const spawn = await mockLinuxSpawn(['xdg-terminal-exec', 'gnome-terminal'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/my project'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('xdg-terminal-exec')
+      expect(launch?.[1]).toEqual([
+        '--dir=/home/me/my project',
+        '--',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
+    })
+
+    it('prefers x-terminal-emulator over xterm', async () => {
+      const spawn = await mockLinuxSpawn(['x-terminal-emulator', 'xterm'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('x-terminal-emulator')
+      expect(launch?.[1]).toEqual(['-e', 'bash', '-c', expect.stringContaining("cd '/home/me/proj' && clear && ")])
+    })
+
     it('reports a failed launch when the terminal process errors at spawn', async () => {
       const { spawn } = await import('child_process')
       vi.mocked(spawn).mockImplementation(((cmd: string) => {
@@ -861,6 +907,17 @@ describe('CodeCliService', () => {
     })
   })
 
+  describe('writeConfigFiles', () => {
+    it('delegates Hermes config writes to the Dashboard lifecycle lock', async () => {
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.writeConfigFiles(CodeCli.HERMES, [{ target: 'hermes-config', content: 'model: {}\n' }])
+
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledOnce()
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledWith(expect.any(Function))
+    })
+  })
+
   describe('run (provider/model validation is owned solely by the service)', () => {
     beforeEach(async () => {
       // Keep the directory guard failing so a launch that passes validation returns immediately
@@ -883,6 +940,41 @@ describe('CodeCliService', () => {
       expect(result).toEqual({ success: false, message: 'Provider ID is required for claude-code' })
     })
 
+    it('routes DeepSeek Harness launches through its managed IPC instead of a terminal', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.DEEPSEEK_HARNESS,
+        model: 'claude-sonnet',
+        providerId: 'anthropic',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
+      })
+    })
+
+    it('routes Hermes Agent launches through its managed IPC instead of a terminal', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.HERMES,
+        model: 'hermes-3',
+        providerId: 'deepseek',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
+      })
+      expect(binaryManagerMock.getToolSnapshots).not.toHaveBeenCalled()
+    })
+
     it('rejects a normal CLI launch when the model is empty', async () => {
       const { codeCliService } = await loadModules()
 
@@ -895,6 +987,20 @@ describe('CodeCliService', () => {
       })
 
       expect(result).toEqual({ success: false, message: 'Model is required for claude-code' })
+    })
+
+    it('requires a provider for a normal Pi launch', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.PI,
+        model: 'gpt-5',
+        providerId: '',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for pi' })
     })
 
     it('exempts the Claude login flow from the provider/model requirement', async () => {

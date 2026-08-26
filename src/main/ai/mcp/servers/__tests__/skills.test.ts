@@ -173,6 +173,42 @@ describe('SkillsServer', () => {
       expect(result.content[0].text).toContain('No installable skills found')
     })
 
+    it.each([
+      [
+        'repository-root blob link',
+        'https://github.com/Viy1204/recruiting-copilot/blob/master/SKILL.md',
+        'https://github.com/Viy1204/recruiting-copilot/blob/master/SKILL.md'
+      ],
+      [
+        'official raw link',
+        'https://github.com/Viy1204/recruiting-copilot/raw/refs/heads/master/SKILL.md',
+        'https://raw.githubusercontent.com/Viy1204/recruiting-copilot/refs/heads/master/SKILL.md'
+      ]
+    ])('resolves a %s without querying registries', async (_case, url, canonicalUrl) => {
+      const server = createServer()
+      installMock.mockResolvedValue({ id: 'skill-1', name: 'recruiting-copilot', folderName: 'recruiting-copilot' })
+      toggleMock.mockReturnValue({ id: 'skill-1', isEnabled: true })
+
+      const search = await callTool(server, 'search_skills', { query: url })
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(search.content[0].text).toContain(`github:${canonicalUrl}`)
+
+      const install = await callTool(server, 'install_skill', { install_source: `github:${canonicalUrl}` })
+      expect(installMock).toHaveBeenCalledWith({ installSource: `github:${canonicalUrl}` })
+      expect(install.isError).toBeFalsy()
+    })
+
+    it('still searches the registries for a query that only looks like a link', async () => {
+      mockMarketplace([])
+      const result = await callTool(createServer(), 'search_skills', {
+        query: 'https://github.com/Viy1204/recruiting-copilot'
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(result.content[0].text).toContain('No installable skills found')
+    })
+
     it('errors when the query is missing', async () => {
       const result = await callTool(createServer(), 'search_skills', {})
       expect(result.isError).toBe(true)

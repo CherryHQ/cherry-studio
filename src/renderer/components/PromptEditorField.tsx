@@ -14,8 +14,8 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-const PROMPT_EDITOR_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const PROMPT_EDITOR_SECONDARY_COLOR = 'var(--muted-foreground)'
+const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'var(--foreground-tertiary)'
 
 const promptEditorThemeSpec = {
   '&': {
@@ -55,7 +55,7 @@ const promptEditorHighlighting = syntaxHighlighting(
     { tag: tags.emphasis, color: 'var(--foreground)', fontStyle: 'italic' },
     {
       tag: [tags.link, tags.url],
-      color: 'var(--primary)',
+      color: 'var(--link)',
       textDecoration: 'underline'
     },
     { tag: [tags.monospace, tags.quote], color: 'var(--foreground)' },
@@ -145,7 +145,9 @@ export function PromptEditorField({
   }
 
   return (
-    <Field data-invalid={hasError || undefined} className={fill ? 'min-h-0 flex-1 gap-1.5' : 'gap-1.5'}>
+    <Field
+      data-invalid={hasError || undefined}
+      className={fill ? 'min-h-0 min-w-0 max-w-full flex-1 gap-1.5' : 'min-w-0 max-w-full gap-1.5'}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {label}
@@ -158,27 +160,28 @@ export function PromptEditorField({
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={value.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border px-2 py-[3px] font-normal text-muted-foreground text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-            {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
+            className="flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 font-normal text-muted-foreground! text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
             <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>
         </div>
       </div>
 
-      <FieldContent className={fill ? 'min-h-0' : undefined}>
+      <FieldContent className={fill ? 'min-h-0 min-w-0 max-w-full' : 'min-w-0 max-w-full'}>
         <div
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
+            'min-w-0 max-w-full overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
-            hasError
-              ? 'border-destructive/50 focus-within:border-destructive/60'
-              : 'border-border focus-within:border-border-hover'
+            hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring'
           )}>
           {effectiveShowPreview ? (
             <div
-              className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}
+              className={cn(
+                'prompt-preview markdown min-w-0 max-w-full overflow-auto p-3 text-foreground text-xs',
+                fill && 'min-h-0 flex-1'
+              )}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
               <Markdown id={previewId}>{previewValue || value}</Markdown>
@@ -203,7 +206,7 @@ export function PromptEditorField({
           )}
         </div>
         <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
-        <div className="flex justify-between text-muted-foreground/80 text-xs">
+        <div className="flex justify-between text-muted-foreground text-xs">
           <span>{t('library.config.prompt.dblclick_hint')}</span>
           <span className="tabular-nums">
             {t('library.config.prompt.tokens_label')}

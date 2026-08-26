@@ -1,7 +1,10 @@
 import attachmentTool from './definitions/attachmentTool'
 import generateImageTool from './definitions/generateImageTool'
 import knowledgeBaseTool from './definitions/knowledgeBaseTool'
+import mcpPromptTool from './definitions/mcpPromptTool'
+import mcpResourceTool from './definitions/mcpResourceTool'
 import mcpStatusTool from './definitions/mcpStatusTool'
+import noteReferenceTool from './definitions/noteReferenceTool'
 import permissionModeTool from './definitions/permissionModeTool'
 import quickPhrasesTool from './definitions/quickPhrasesTool'
 import slashCommandsTool from './definitions/slashCommandsTool'
@@ -22,7 +25,10 @@ export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
   generateImageTool,
   slashCommandsTool,
   permissionModeTool,
-  mcpStatusTool
+  mcpStatusTool,
+  mcpPromptTool,
+  mcpResourceTool,
+  noteReferenceTool
 ]
 
 export const getAllTools = (): ToolDefinition<any, any>[] => BUILTIN_COMPOSER_TOOLS

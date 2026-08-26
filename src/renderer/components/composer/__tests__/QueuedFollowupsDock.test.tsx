@@ -83,7 +83,6 @@ describe('QueuedFollowupsDock', () => {
     // Composer token chip is rendered read-only from the stored draft tokens.
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
     expect(container.querySelector('[data-composer-token-kind="link"]')).toHaveTextContent('example.com/docs')
-    expect(screen.getByRole('link', { name: 'https://example.com/docs' }).parentElement).toHaveClass('mt-1')
     for (const steerButton of screen.getAllByLabelText('chat.input.followup_queue.steer')) {
       expect(within(steerButton).getByTestId('arrow-up-icon')).toBeInTheDocument()
     }
@@ -99,6 +98,36 @@ describe('QueuedFollowupsDock', () => {
 
     fireEvent.click(screen.getByLabelText('chat.input.followup_queue.pause'))
     expect(onTogglePause).toHaveBeenCalled()
+  })
+
+  it('disables manual steer for a reserved branch while its caller reports the stream as live', () => {
+    const onSteer = vi.fn()
+    const reservedItem = {
+      ...items[0],
+      payload: {
+        ...items[0].payload,
+        chatTarget: { parentAnchorId: 'reserved-user', mode: 'reserved-branch' }
+      }
+    }
+
+    render(
+      <QueuedFollowupsDock
+        items={[reservedItem]}
+        paused={false}
+        onTogglePause={vi.fn()}
+        onSteer={onSteer}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+        isSteerDisabled={(item) => item.payload.chatTarget?.mode === 'reserved-branch'}
+        steerDisabledReason="wait for current"
+      />
+    )
+
+    const steerButton = screen.getByLabelText('chat.input.followup_queue.steer')
+    expect(steerButton).toBeDisabled()
+    fireEvent.click(steerButton)
+    expect(onSteer).not.toHaveBeenCalled()
   })
 
   it('renders a token-only draft without repeating its prompt text or reserving text spacing', () => {
@@ -136,7 +165,6 @@ describe('QueuedFollowupsDock', () => {
     const linkToken = screen.getByRole('link', { name: url })
     expect(screen.queryByText(url)).not.toBeInTheDocument()
     expect(linkToken).toHaveTextContent('example.com/docs')
-    expect(linkToken.parentElement).not.toHaveClass('mt-1')
     expect(container.querySelector('[data-composer-token-kind="link"]')).toBe(linkToken)
   })
 

@@ -87,7 +87,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['grok-4.3', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
-    ['deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
+    ['deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],
     ['deepseek-v3.1', [{ kind: 'toggle' }]],
     ['qwen3-32b', [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }]],
     // always-think SKU: budget only, no toggle
@@ -107,10 +107,11 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['glm-4.6', [{ kind: 'toggle' }]],
-    ['gemma-4-27b-it', [{ kind: 'effort', values: ['minimal', 'high'] }]],
+    ['gemma4:31b', [{ kind: 'toggle' }]],
+    ['gemma-4-31b-it', [{ kind: 'toggle' }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching
-    ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
+    ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],
     // ── new-generation forward coverage (both canonical-hyphen and API-dot ids) ──
     ['gpt-5.6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
     ['gpt-5-6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],

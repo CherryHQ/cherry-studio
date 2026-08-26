@@ -5,6 +5,7 @@
  * `@shared/data/types/agent` — import them from there directly. This file
  * intentionally does not re-export them.
  */
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { Tool } from '@shared/ai/tool'
 import {
   AgentBaseSchema,
@@ -30,6 +31,13 @@ export type PermissionModeCard = {
   descriptionFallback: string
   dangerous?: boolean
   unsupported?: boolean
+  /**
+   * Caveat the user needs before picking this mode, as opposed to `descriptionKey`,
+   * which only says what the mode does. Rendered even where the description is
+   * suppressed for space.
+   */
+  warningKey?: string
+  warningFallback?: string
 }
 
 // ------------------ Channel config (Feishu) ------------------
@@ -46,9 +54,8 @@ export type FeishuChannelConfig = {
 
 // ------------------ Type guards ------------------
 export const isAgentType = (type: unknown): type is AgentType => {
-  // Mirror the shared `AgentType = 'claude-code'` literal — kept inline so the
-  // guard stays a pure runtime check without dragging the zod schema in.
-  return type === 'claude-code'
+  // Runtime keys live in the shared capability descriptor; no zod schema needed.
+  return typeof type === 'string' && type in AGENT_RUNTIME_CAPABILITIES
 }
 
 export const isAgentEntity = (value: unknown): value is AgentEntity => {

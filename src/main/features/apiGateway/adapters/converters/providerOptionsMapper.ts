@@ -10,8 +10,12 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { ReasoningEffort } from '@cherrystudio/openai/resources'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint, resolveProviderOptionsKey } from '@main/ai/provider/endpoint'
+import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
+import {
+  resolveAiSdkProviderId,
+  resolveEffectiveEndpoint,
+  resolveEndpointProviderOptionsKey
+} from '@main/ai/provider/endpoint'
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
 import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { nearestEffortForBudget } from '@shared/ai/reasoning'
@@ -26,31 +30,41 @@ type GatewayReasoningEffort = ReasoningEffortOption
 type GeminiThinkingConfig = { includeThoughts?: boolean; thinkingBudget?: number; thinkingLevel?: string }
 type AnthropicThinkingConfig = NonNullable<MessageCreateParams['thinking']>
 
-function buildProviderOptions(
+function resolveProviderReasoningContext(
   provider: Provider,
   model: Model,
+  resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+) {
+  const { endpointType } = resolvedEndpoint
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+  return {
+    aiSdkProviderId: resolveAiSdkProviderId(provider, endpointType),
+    endpointType,
+    invocationModel: reasoningProfile.support
+      ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+      : model,
+    providerOptionsKey: resolveEndpointProviderOptionsKey(provider, resolvedEndpoint),
+    reasoningProfile
+  }
+}
+
+type ProviderReasoningContext = ReturnType<typeof resolveProviderReasoningContext>
+
+function buildProviderOptions(
+  context: ProviderReasoningContext,
   effort: GatewayReasoningEffort,
   maxTokens?: number
 ): ProviderOptions {
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const { endpointType } = resolvedEndpoint
-  const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
-  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
   const reasoning = resolveReasoningInvocation({
     selection: effort,
-    model,
-    profile: reasoningProfile.wire,
-    maxTokens,
-    assistantSummary: provider.settings?.summaryText
+    model: context.invocationModel,
+    profile: context.reasoningProfile.wire,
+    maxTokens
   })
   return buildResolvedReasoningProviderOptions({
-    aiSdkProviderId,
-    providerOptionsKey: resolveProviderOptionsKey(aiSdkProviderId, {
-      actualProviderId: provider.id,
-      endpointType,
-      gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-    }),
-    endpointType,
+    aiSdkProviderId: context.aiSdkProviderId,
+    providerOptionsKey: context.providerOptionsKey,
+    endpointType: context.endpointType,
     reasoning
   }) as ProviderOptions
 }
@@ -95,18 +109,39 @@ export function mapAnthropicThinkingToProviderOptions(
   effort?: GatewayReasoningEffort | null,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const { endpointType } = resolvedEndpoint
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     return passThroughAnthropicReasoning(config, effort)
   }
+  // Ollama's ChatHandler 400s when `think` is true for a model that lacks
+  // thinking capability. The SDK default ({type:'adaptive'}) would map to
+  // think:true, breaking agent mode for non-thinking models. Only emit think
+  // when the user explicitly enabled thinking or set a reasoning effort.
+  if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    if (config?.type !== 'disabled' && effort == null && config?.type !== 'enabled') return undefined
+    const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+    if (config?.type === 'disabled') return buildProviderOptions(context, 'none', maxTokens)
+    if (effort != null) return buildProviderOptions(context, effort, maxTokens)
+    if (config?.type === 'enabled') {
+      const budgetEffort =
+        nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
+      return buildProviderOptions(context, budgetEffort, maxTokens)
+    }
+    return undefined
+  }
 
-  if (effort != null) return buildProviderOptions(provider, model, effort, maxTokens)
+  if (effort != null) {
+    return buildProviderOptions(resolveProviderReasoningContext(provider, model, resolvedEndpoint), effort, maxTokens)
+  }
   if (!config) return undefined
-  if (config.type === 'disabled') return buildProviderOptions(provider, model, 'none', maxTokens)
-  if (config.type !== 'enabled') return buildProviderOptions(provider, model, 'auto', maxTokens)
+  const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+  if (config.type === 'disabled') return buildProviderOptions(context, 'none', maxTokens)
+  if (config.type !== 'enabled') return buildProviderOptions(context, 'auto', maxTokens)
 
-  const budgetEffort = nearestEffortForBudget(config.budget_tokens, model.reasoning?.thinkingTokenLimits) ?? 'high'
-  return buildProviderOptions(provider, model, budgetEffort, maxTokens)
+  const budgetEffort =
+    nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
+  return buildProviderOptions(context, budgetEffort, maxTokens)
 }
 
 /** Map a Gemini-native thinking configuration to the resolved model's target dialect. */
@@ -116,22 +151,30 @@ export function mapGeminiThinkingToProviderOptions(
   thinkingConfig: GeminiThinkingConfig,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const { endpointType } = resolvedEndpoint
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return passThroughGeminiThinking(thinkingConfig)
 
   const { includeThoughts, thinkingBudget, thinkingLevel } = thinkingConfig
   let effort: GatewayReasoningEffort | undefined
+  let context: ProviderReasoningContext | undefined
   if (thinkingLevel !== undefined) {
     const parsed = ReasoningEffortOptionSchema.safeParse(thinkingLevel)
     if (parsed.success) effort = parsed.data
   } else if (thinkingBudget === -1) effort = 'auto'
   else if (thinkingBudget === 0) effort = 'none'
   else if (typeof thinkingBudget === 'number' && thinkingBudget > 0) {
-    effort = nearestEffortForBudget(thinkingBudget, model.reasoning?.thinkingTokenLimits) ?? 'high'
+    context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+    effort = nearestEffortForBudget(thinkingBudget, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
   } else if (includeThoughts === true) effort = 'auto'
   else if (includeThoughts === false) effort = 'none'
 
-  return effort === undefined ? undefined : buildProviderOptions(provider, model, effort, maxTokens)
+  if (effort === undefined) return undefined
+  return buildProviderOptions(
+    context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint),
+    effort,
+    maxTokens
+  )
 }
 
 /** Map OpenAI-style reasoning_effort to the resolved model's target dialect. */
@@ -141,5 +184,7 @@ export function mapReasoningEffortToProviderOptions(
   reasoningEffort?: ReasoningEffort,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  return reasoningEffort == null ? undefined : buildProviderOptions(provider, model, reasoningEffort, maxTokens)
+  return reasoningEffort == null
+    ? undefined
+    : buildProviderOptions(resolveProviderReasoningContext(provider, model), reasoningEffort, maxTokens)
 }

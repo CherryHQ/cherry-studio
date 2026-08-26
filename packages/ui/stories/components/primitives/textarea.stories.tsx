@@ -57,7 +57,7 @@ export const WithCaption: Story = {
     <div className="flex w-full flex-col gap-2 w-[400px]">
       <div className="text-lg font-bold leading-[22px]">Comments</div>
       <Textarea.Input placeholder="Enter your comments..." />
-      <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
+      <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-tertiary">
         Please provide detailed feedback
       </div>
     </div>
@@ -104,7 +104,9 @@ export const WithCharacterCount: Story = {
           <Textarea.Input value={value} onValueChange={setValue} maxLength={280} placeholder="What's happening?" />
           <Textarea.CharCount value={value} maxLength={280} />
         </div>
-        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">Maximum 280 characters</div>
+        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-tertiary">
+          Maximum 280 characters
+        </div>
       </div>
     )
   }
@@ -119,7 +121,7 @@ export const AutoResize: Story = {
       <div className="flex w-full flex-col gap-2 w-[400px]">
         <div className="text-lg font-bold leading-[22px]">Auto-resizing Textarea</div>
         <Textarea.Input value={value} onValueChange={setValue} placeholder="This textarea grows with your content..." />
-        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
+        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-tertiary">
           Try typing multiple lines
         </div>
       </div>
@@ -296,7 +298,7 @@ export const RealWorldExamples: Story = {
               placeholder="Please share your thoughts..."
               rows={4}
             />
-            <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
+            <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-tertiary">
               Your feedback helps us improve
             </div>
           </div>
@@ -336,7 +338,7 @@ export const RealWorldExamples: Story = {
                 <span>{messageError}</span>
               </div>
             ) : (
-              <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
+              <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-tertiary">
                 Minimum 10 characters required
               </div>
             )}
@@ -408,7 +410,7 @@ export const CompositionExample: Story = {
           <Textarea.Input value={bio} onValueChange={setBio} placeholder="Tell us about yourself..." maxLength={500} />
           <Textarea.CharCount value={bio} maxLength={500} />
         </div>
-        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
+        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-tertiary">
           This will be displayed on your profile (max 500 characters)
         </div>
       </div>

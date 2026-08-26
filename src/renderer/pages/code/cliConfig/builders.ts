@@ -17,7 +17,7 @@ import {
   isCodexReasoningEffort,
   isOpenCodePermissionMode
 } from './permissionModes'
-import type { OpenCodeNpmInfo } from './resolvers'
+import type { OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import {
   asRecord,
@@ -133,7 +133,32 @@ export function buildCodexConfig(
 }
 
 export function buildCodexAuthConfig(existingAuth: Record<string, any>, apiKey: string): Record<string, any> {
-  return { ...existingAuth, OPENAI_API_KEY: apiKey }
+  return { ...existingAuth, auth_mode: 'apikey', OPENAI_API_KEY: apiKey }
+}
+
+function hasRestorableCodexChatgptAuth(auth: Record<string, any>): boolean {
+  const tokens = asRecord(auth.tokens)
+  const hasCompleteTokens = ['id_token', 'access_token', 'refresh_token'].every(
+    (key) => typeof tokens[key] === 'string' && tokens[key].trim().length > 0
+  )
+  const lastRefresh = auth.last_refresh
+  const hasValidLastRefresh =
+    typeof lastRefresh === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(lastRefresh) &&
+    Number.isFinite(Date.parse(lastRefresh))
+  return hasCompleteTokens && hasValidLastRefresh
+}
+
+export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<string, any> | null {
+  const nextAuth = { ...existingAuth }
+  delete nextAuth.OPENAI_API_KEY
+
+  if (hasRestorableCodexChatgptAuth(nextAuth)) {
+    nextAuth.auth_mode = 'chatgpt'
+    return nextAuth
+  }
+
+  return null
 }
 
 function buildOpenCodeModelOptions(
@@ -193,6 +218,10 @@ export function buildOpenCodeConfig(
   const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
   const cleaned: Record<string, any> = { ...existing }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
+  const compaction = { ...asRecord(existing.compaction) }
+  delete cleaned.compaction
+  delete compaction.auto
+  if (options.autoCompact === true) compaction.auto = true
   const merged: Record<string, any> = {
     $schema: OPENCODE_SCHEMA,
     ...cleaned,
@@ -214,7 +243,7 @@ export function buildOpenCodeConfig(
       }
     }
   }
-  if (options.autoCompact === true) merged.autoCompact = true
+  if (Object.keys(compaction).length > 0) merged.compaction = compaction
   if (isOpenCodePermissionMode(options.permissionMode)) merged.permission = options.permissionMode
   return merged
 }
@@ -296,4 +325,60 @@ export function buildKimiConfig(
   const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
   applyWritableTomlSettings(merged, sanitizedConfigBlob)
   return merged
+}
+
+export function buildHermesEnvConfig(envMap: Map<string, string>, apiKey: string): Map<string, string> {
+  const next = new Map(envMap)
+  next.delete('CHERRY_HERMES_API_KEY')
+  if (apiKey) next.set('CHERRY_HERMES_API_KEY', apiKey)
+  return next
+}
+
+export function buildPiModelsConfig(
+  existing: Record<string, any>,
+  resolved: {
+    api: PiApi
+    apiKey: string
+    baseUrl: string
+    contextWindow?: number
+    headers?: Record<string, string>
+    input: Array<'image' | 'text'>
+    maxTokens?: number
+    model: string
+    modelLabel: string
+    providerKey: string
+    reasoning: boolean
+  }
+): Record<string, any> {
+  const model: Record<string, any> = {
+    id: resolved.model,
+    name: resolved.modelLabel,
+    reasoning: resolved.reasoning,
+    input: resolved.input
+  }
+  if (resolved.contextWindow !== undefined) model.contextWindow = resolved.contextWindow
+  if (resolved.maxTokens !== undefined) model.maxTokens = resolved.maxTokens
+
+  const provider: Record<string, any> = {
+    baseUrl: resolved.baseUrl,
+    api: resolved.api,
+    apiKey: resolved.apiKey,
+    models: [model]
+  }
+  if (resolved.headers && Object.keys(resolved.headers).length > 0) provider.headers = resolved.headers
+
+  return {
+    ...existing,
+    providers: {
+      ...omitKeysByPrefix(asRecord(existing.providers), CHERRY_PROVIDER_PREFIX),
+      [resolved.providerKey]: provider
+    }
+  }
+}
+
+export function buildPiSettingsConfig(
+  existing: Record<string, any>,
+  resolved: { model: string; providerKey: string }
+): Record<string, any> {
+  return { ...existing, defaultProvider: resolved.providerKey, defaultModel: resolved.model }
 }

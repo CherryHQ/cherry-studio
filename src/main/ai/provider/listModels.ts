@@ -9,6 +9,7 @@ import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
   getFromApi as aiSdkGetFromApi,
+  postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
@@ -23,7 +24,7 @@ import {
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
@@ -35,7 +36,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -49,8 +50,8 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
-  GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
+  OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
@@ -173,6 +174,46 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
+/** The trained context length from `/api/show`, whose `model_info` keys carry an architecture prefix. */
+function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined): number | undefined {
+  const architecture = modelInfo?.['general.architecture']
+  if (typeof architecture !== 'string') return undefined
+  const contextLength = modelInfo?.[`${architecture}.context_length`]
+  return typeof contextLength === 'number' && contextLength > 0 ? contextLength : undefined
+}
+
+/**
+ * `/api/tags` carries no context length, so without this the model has no `contextWindow` and
+ * Ollama falls back to sizing by available VRAM — 4k below 24 GiB, where an agent's tool preamble
+ * alone overruns the window and Ollama truncates the conversation away (#18643). Its own guidance
+ * puts agent and coding workloads at 64k+, which only the model's real window can satisfy.
+ */
+async function fetchOllamaContextWindow(
+  baseUrl: string,
+  provider: Provider,
+  model: string,
+  signal?: AbortSignal
+): Promise<number | undefined> {
+  try {
+    const { value } = await postJsonToApi({
+      url: `${baseUrl}/api/show`,
+      headers: defaultHeaders(provider),
+      body: { model },
+      successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
+      failedResponseHandler: createJsonErrorResponseHandler({
+        errorSchema: zodSchema(ApiErrorSchema),
+        errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+      }),
+      abortSignal: signal
+    })
+    return readOllamaContextLength(value.model_info)
+  } catch (error) {
+    // A model that cannot be inspected still belongs in the list; it falls back to the default window.
+    logger.warn('failed to read Ollama context length', { model, error })
+    return undefined
+  }
+}
+
 const ollamaFetcher: ModelFetcher = {
   match: (p) => isOllamaProvider(p),
   fetch: async (provider, signal) => {
@@ -185,7 +226,17 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) => toModel(m.name, provider, { ownedBy: 'ollama' }))
+    const models = dedup(response.models, (m) => m.name)
+    const contextWindows = await Promise.all(
+      models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
+    )
+    return models.map((m, index) =>
+      toModel(m.name, provider, {
+        ownedBy: 'ollama',
+        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [],
+        ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+      })
+    )
   }
 }
 
@@ -322,27 +373,6 @@ const vertexFetcher: ModelFetcher = {
   }
 }
 
-const githubFetcher: ModelFetcher = {
-  match: (p) => matchesPreset(p, SystemProviderIds.github),
-  fetch: async (provider, signal) => {
-    const headers = defaultHeaders(provider)
-    const catalogResponse = await getFromApi({
-      url: 'https://models.github.ai/catalog/models',
-      headers,
-      responseSchema: GitHubModelsResponseSchema,
-      abortSignal: signal
-    })
-    const catalogModels = catalogResponse.map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        description: pickPreferredString([m.summary, m.description]),
-        ownedBy: m.publisher
-      })
-    )
-    return dedup(catalogModels, (m) => m.apiModelId)
-  }
-}
-
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
@@ -380,17 +410,23 @@ const copilotFetcher: ModelFetcher = {
 const ovmsFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ovms,
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, ''), true, 'v1')
+    // The servable-status document lives at /v1/config; the provider's chat base URL points at
+    // the OpenAI-compatible /v3 namespace, which has no GET /config. Strip whatever version the
+    // host carries so the version below is always the one OVMS actually serves this on.
+    const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1')
     const response = await getFromApi({
       url: `${baseUrl}/config`,
       headers: defaultHeaders(provider),
       responseSchema: OVMSConfigResponseSchema,
       abortSignal: signal
     })
-    const entries = Object.entries(response).filter(([, info]) =>
-      info?.model_version_status?.some((v) => v?.state === 'AVAILABLE')
+    // List every model registered in OVMS config regardless of its server-side
+    // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
+    // expect downloaded models to appear in the model manager even when OVMS
+    // fails to load them server-side — the UI communicates readiness, not OVMS.
+    return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
+      toModel(name, provider, { ownedBy: 'ovms' })
     )
-    return dedup(entries, ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
   }
 }
 
@@ -447,6 +483,13 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
       .filter((value): value is EndpointType => Boolean(value)),
     (value) => value
   )
+
+  if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
+    const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
+    if (chatEndpoint) {
+      return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
+    }
+  }
 
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }
@@ -721,6 +764,40 @@ const openAICompatibleFetcher: ModelFetcher = {
   }
 }
 
+// ── Ollama probe ──
+
+/** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
+export async function probeOllamaModel(
+  provider: Provider,
+  modelApiId: string | undefined,
+  signal?: AbortSignal,
+  apiKeyOverride?: string
+): Promise<{ latency: number }> {
+  const start = performance.now()
+  const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
+  const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
+  const headers: Record<string, string> = {
+    ...defaultAppHeaders(),
+    ...getExtraHeaders(provider),
+    'Content-Type': 'application/json'
+  }
+  if (resolved.value) {
+    headers.Authorization = `Bearer ${resolved.value}`
+    headers['X-Api-Key'] = resolved.value
+  }
+  const response = await fetch(`${baseUrl}/show`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: modelApiId ?? '' }),
+    signal
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => undefined)) as { error?: string; message?: string } | undefined
+    throw new Error(body?.error ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
+  }
+  return { latency: performance.now() - start }
+}
+
 // ── Registry (order matters: first match wins) ──
 
 const fetchers: ModelFetcher[] = [
@@ -728,7 +805,6 @@ const fetchers: ModelFetcher[] = [
   ollamaFetcher,
   geminiFetcher,
   vertexFetcher,
-  githubFetcher,
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,

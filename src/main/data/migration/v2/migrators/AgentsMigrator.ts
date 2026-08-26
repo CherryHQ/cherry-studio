@@ -129,8 +129,24 @@ export class AgentsMigrator extends BaseMigrator {
       }
     }
 
-    this.sourceSchemaInfo = reader.inspectSchema()
-    this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    try {
+      this.sourceSchemaInfo = reader.inspectSchema()
+      this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+      if (code !== 'SQLITE_NOTADB') throw error
+
+      logger.warn('Legacy agents database is not a valid SQLite database; skipping database import', {
+        dbPath,
+        code
+      })
+      this.sourceDbPath = null
+      return {
+        success: true,
+        itemCount: 0,
+        warningMessages: [{ key: 'migration.completed.agent_database_unreadable' }]
+      }
+    }
 
     // Debug: Log schema detection results
     logger.info('AgentsMigrator prepare:', {
@@ -236,6 +252,7 @@ export class AgentsMigrator extends BaseMigrator {
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
+    let skippedFilesystemTargetCount = 0
 
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
@@ -293,6 +310,7 @@ export class AgentsMigrator extends BaseMigrator {
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       backfillAgentOrderKeys(ctx.db)
       insertStagedLegacySessionMessages(ctx.db, stagedSessionMessageCount)
+      recomputeMigratedAgentSessionActivity(ctx.db, stagedSessionMessageCount)
       migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
@@ -337,7 +355,7 @@ export class AgentsMigrator extends BaseMigrator {
       dropLegacySessionMessageStaging(ctx.db)
       const workspaceCopyStartedAt = performance.now()
       let reportedFileProgress = 65
-      await stageLegacyAgentFiles({
+      const filesystemResult = await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
@@ -356,6 +374,7 @@ export class AgentsMigrator extends BaseMigrator {
           })
         }
       })
+      skippedFilesystemTargetCount = filesystemResult.skippedTargetCount
       logger.info('Agent migration phase completed', {
         phase: 'workspace-copy',
         agents: legacyAgentIds.length,
@@ -437,7 +456,17 @@ export class AgentsMigrator extends BaseMigrator {
     })
     return {
       success: true,
-      processedCount: getTotalAgentsRowCount(this.sourceCounts)
+      processedCount: getTotalAgentsRowCount(this.sourceCounts),
+      ...(skippedFilesystemTargetCount > 0
+        ? {
+            warningMessages: [
+              {
+                key: 'migration.completed.agent_files_skipped',
+                params: { count: skippedFilesystemTargetCount }
+              }
+            ]
+          }
+        : {})
     }
   }
 
@@ -876,6 +905,7 @@ type NormalizedLegacySessionMessage = {
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
   stats: MessageStats | null
+  assistantUpdatedAtIsCompletion: boolean
 }
 
 type PreparedLegacySessionMessage = {
@@ -892,6 +922,7 @@ type PreparedLegacySessionMessage = {
   runtimeResumeToken: string | null
   createdAt: number
   updatedAt: number
+  activityAt: number | null
 }
 
 function selectLegacySessionColumn(
@@ -1250,7 +1281,8 @@ async function normalizeLegacySessionMessage(
       status: 'success',
       modelId: null,
       modelSnapshot: null,
-      stats: null
+      stats: null,
+      assistantUpdatedAtIsCompletion: true
     }
   }
 
@@ -1264,7 +1296,8 @@ async function normalizeLegacySessionMessage(
       status: 'success',
       modelId: null,
       modelSnapshot: null,
-      stats: null
+      stats: null,
+      assistantUpdatedAtIsCompletion: false
     }
   }
 
@@ -1285,7 +1318,9 @@ async function normalizeLegacySessionMessage(
       normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole) === 'assistant'
         ? estimateLegacyRequestCount(blocks)
         : undefined
-    )
+    ),
+    assistantUpdatedAtIsCompletion:
+      message.status === 'success' || message.status === 'error' || message.status === 'paused'
   }
 }
 
@@ -1364,7 +1399,8 @@ function createLegacySessionMessageStaging(db: DbType, schemaInfo: AgentsSchemaI
          stats TEXT,
          runtime_resume_token TEXT,
          created_at INTEGER NOT NULL,
-         updated_at INTEGER NOT NULL
+         updated_at INTEGER NOT NULL,
+         activity_at INTEGER
        )`
     )
   )
@@ -1406,7 +1442,7 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
         INSERT INTO ${sql.raw(LEGACY_SESSION_MESSAGE_STAGING_TABLE)}
           (
             source_sequence, id, session_id, role, data, searchable_text, status, model_id,
-            model_snapshot, stats, runtime_resume_token, created_at, updated_at
+            model_snapshot, stats, runtime_resume_token, created_at, updated_at, activity_at
           )
         VALUES
           (
@@ -1422,7 +1458,8 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
             ${message.stats ? JSON.stringify(message.stats) : null},
             ${message.runtimeResumeToken},
             ${message.createdAt},
-            ${message.updatedAt}
+            ${message.updatedAt},
+            ${message.activityAt}
           )
       `)
     }
@@ -1496,7 +1533,8 @@ async function stageLegacySessionMessages(
           status: 'error',
           modelId: null,
           modelSnapshot: null,
-          stats: null
+          stats: null,
+          assistantUpdatedAtIsCompletion: false
         }
         logger.warn('Failed to normalize legacy agent session message', {
           legacyId: row.legacyId,
@@ -1521,7 +1559,15 @@ async function stageLegacySessionMessages(
         stats: normalized.stats,
         runtimeResumeToken: row.agentSessionId,
         createdAt,
-        updatedAt
+        updatedAt,
+        activityAt:
+          normalized.role === 'user'
+            ? createdAt
+            : normalized.role === 'assistant'
+              ? normalized.assistantUpdatedAtIsCompletion
+                ? Math.max(createdAt, updatedAt)
+                : createdAt
+              : null
       })
     }
 
@@ -1641,6 +1687,26 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
   }
 }
 
+/** Initialize parent recency from imported conversation messages. */
+function recomputeMigratedAgentSessionActivity(db: DbType, stagedCount: number): void {
+  if (stagedCount === 0) {
+    db.run(sql.raw('UPDATE agent_session SET last_activity_at = created_at'))
+    return
+  }
+
+  db.run(
+    sql.raw(`UPDATE agent_session
+      SET last_activity_at = max(
+        created_at,
+        coalesce((
+          SELECT max(activity_at)
+          FROM ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}
+          WHERE session_id = agent_session.id
+        ), created_at)
+      )`)
+  )
+}
+
 export async function importLegacySessionMessages(
   db: DbType,
   schemaInfo: AgentsSchemaInfo,
@@ -1664,15 +1730,41 @@ export async function importLegacySessionMessages(
  * legacy agent id, which that step rewrites alongside `agent.id`.
  */
 export function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): void {
-  const rows = db.all<{ agentId: string; oldMcpId: string }>(
+  const legacyRows = db.all<{ agentId: string; mcps: string | null }>(
     sql.raw(
-      `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
-       FROM agents_legacy.agents a, json_each(a.mcps) AS je
-       WHERE json_type(a.mcps) = 'array'
-         AND json_array_length(a.mcps) > 0
-         AND a.id IN (SELECT id FROM agent)`
+      `SELECT a.id AS agentId, a.mcps
+       FROM agents_legacy.agents a
+       WHERE a.id IN (SELECT id FROM agent)`
     )
   )
+  const normalizedAgentIds: string[] = []
+  const rows = legacyRows.flatMap(({ agentId, mcps }) => {
+    if (mcps === null) return []
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(mcps)
+    } catch {
+      normalizedAgentIds.push(agentId)
+      return []
+    }
+
+    if (!Array.isArray(parsed)) {
+      normalizedAgentIds.push(agentId)
+      return []
+    }
+
+    const mcpIds = parsed.filter((mcpId): mcpId is string => typeof mcpId === 'string')
+    if (mcpIds.length !== parsed.length) normalizedAgentIds.push(agentId)
+    return Array.from(new Set(mcpIds), (oldMcpId) => ({ agentId, oldMcpId }))
+  })
+
+  if (normalizedAgentIds.length > 0) {
+    logger.warn('Normalized invalid legacy agent MCP configuration', {
+      agentCount: normalizedAgentIds.length,
+      agentIds: normalizedAgentIds
+    })
+  }
   if (rows.length === 0) return
 
   if (!mcpServerIdMapping) {
