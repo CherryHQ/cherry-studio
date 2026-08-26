@@ -38,6 +38,8 @@ export interface ToolGuardContext {
   readonly agentDataPath: string
   /** Whether the connection model accepts native image input. Undefined preserves legacy behavior. */
   readonly supportsImages?: boolean
+  /** Whether a PDF Read can reach the connection model (native `document` blocks or gateway translation). Undefined preserves legacy behavior. */
+  readonly supportsPdf?: boolean
   readonly interaction: ToolGuardInteractionState
   /** Live disabled predicate; returns false when no snapshot is bound (canUseTool fails closed). */
   readonly isDisabled: (toolName: string) => boolean

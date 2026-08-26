@@ -198,6 +198,23 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed?.warmQuery).toBe(current)
   })
 
+  it('misses a parked query when the guard PDF capability flipped', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const stale = warmQuery()
+    startupMock.mockResolvedValueOnce(stale)
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any, guardSupportsPdf: true })
+    await Promise.resolve()
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      guardSupportsPdf: false
+    })
+
+    expect(consumed).toBeUndefined()
+    expect(stale.close).toHaveBeenCalledOnce()
+  })
+
   it('uses the same signature with or without abortController', () => {
     const withAbort = createClaudeCodeWarmQuerySignature({
       model: 'sonnet',

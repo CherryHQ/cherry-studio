@@ -43,6 +43,12 @@ export interface WarmQueryRequest {
    * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
    */
   knowledgeBaseIds?: readonly string[]
+  /**
+   * PDF capability baked into the PreToolUse guard hook closure. Hook functions are stripped from
+   * the signature source, so the value participates explicitly — a capability flip (e.g. a provider
+   * endpoint edit) must miss a parked query spawned with the old closure.
+   */
+  guardSupportsPdf?: boolean
 }
 
 export interface ConsumedWarmQuery {
@@ -130,7 +136,8 @@ function sanitizeSensitiveEnvForSignature(options: Options): Options {
 export function createClaudeCodeWarmQuerySignature(
   options: Options,
   credentialsFingerprint?: string,
-  knowledgeBaseIds: readonly string[] = []
+  knowledgeBaseIds: readonly string[] = [],
+  guardSupportsPdf?: boolean
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
@@ -139,7 +146,8 @@ export function createClaudeCodeWarmQuerySignature(
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
-    knowledgeBaseIds: [...knowledgeBaseIds].sort()
+    knowledgeBaseIds: [...knowledgeBaseIds].sort(),
+    guardSupportsPdf: guardSupportsPdf ?? null
   })
 }
 
@@ -205,7 +213,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.guardSupportsPdf
     )
     const existing = this.entries.get(request.key)
 
@@ -238,7 +247,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.guardSupportsPdf
     )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined

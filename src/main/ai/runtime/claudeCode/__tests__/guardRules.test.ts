@@ -132,6 +132,57 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('unsupported-document-read', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
+      'denies PDF reads for a document-incapable model under %s',
+      async (mode) => {
+        const decision = await evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/docs/Spec.PDF' },
+            permissionMode: mode,
+            supportsPdf: false
+          })
+        )
+
+        expect(decision).toEqual({
+          effect: 'deny',
+          reason:
+            'The selected model does not support PDF document input, so Read cannot open /ws/docs/Spec.PDF. Use a PDF-capable model or read a text extraction of the document instead.',
+          ruleId: 'unsupported-document-read'
+        })
+      }
+    )
+
+    it('denies PDF reads even for vision-capable models whose endpoint rejects document blocks', async () => {
+      const decision = await evaluate(
+        makeCtx({
+          toolName: 'Read',
+          input: { file_path: '/ws/docs/spec.pdf' },
+          supportsImages: true,
+          supportsPdf: false
+        })
+      )
+      expect(decision?.ruleId).toBe('unsupported-document-read')
+      expect(decision?.effect).toBe('deny')
+    })
+
+    it('allows PDF reads for document-capable models and non-PDF reads otherwise', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/docs/spec.pdf' },
+            supportsPdf: true
+          })
+        )
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ toolName: 'Read', input: { file_path: '/ws/docs/notes.md' }, supportsPdf: false }))
+      ).resolves.toBeUndefined()
+    })
+  })
+
   describe('builtin-destructive', () => {
     it('denies destructive Bash for protected built-in agents in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
