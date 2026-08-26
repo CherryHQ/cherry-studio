@@ -8,7 +8,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
+import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -128,7 +128,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Menu items
   const pathname = activeTab?.url || '/'
-  const activeMiniAppId = miniAppIdFromTabUrl(activeTab?.url) ?? undefined
   const openableMiniAppById = useMemo(() => {
     const appById = new Map<string, (typeof miniApps)[number]>()
     for (const app of miniApps) {
@@ -363,7 +362,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
     entries,
-    active: { activeItem, activeTabId: activeMiniAppId, tabs },
+    active: { activeItem, tabs, currentTab: activeTab },
     title: sidebarUser.name,
     logo: sidebarLogo,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (

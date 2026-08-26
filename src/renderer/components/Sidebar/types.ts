@@ -14,18 +14,14 @@ export interface SidebarMiniAppTab {
   miniApp: SidebarMiniApp
 }
 
-/** The active-route state a resolved entry matches itself against. */
-export interface SidebarActiveState {
-  /** Active built-in app id. */
+/** The tab state a resolved entry matches itself against. */
+export interface SidebarTabState {
+  /** Built-in app id of the current tab. */
   activeItem: string
-  /** Active mini app id (concrete mini app route). */
-  activeTabId?: string
-  /**
-   * Open tabs — lets conversation-backed entries (agents, assistants) decide
-   * "already open" by their tab's entity-ownership tag, the same signal the
-   * click handler uses.
-   */
+  /** Every open tab, foreground or not. */
   tabs?: readonly Tab[]
+  /** The foreground tab. */
+  currentTab?: Tab
 }
 
 /**
@@ -40,7 +36,10 @@ export interface ResolvedSidebarEntry {
   key: string
   label: string
   renderIcon: (size: number, miniAppSize: 'md' | 'lg') => ReactNode
-  isActive: (active: SidebarActiveState) => boolean
+  /** Open in some tab, foreground or not — drives the click (activate vs. create). */
+  isOpen: (state: SidebarTabState) => boolean
+  /** Open in the foreground tab. Implies `isOpen`. */
+  isCurrent: (state: SidebarTabState) => boolean
   onOpen: () => void
   onOpenNewTab?: () => void
   contextMenuItems?: readonly CommandContextMenuExtraItem[]

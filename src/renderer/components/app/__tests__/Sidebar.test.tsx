@@ -205,10 +205,13 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
   )
 }))
 
+type MockTabState = { activeItem: string; tabs?: FakeTab[]; currentTab?: FakeTab | null }
+
 type MockSidebarEntry = {
   key: string
   label: string
-  isActive: (active: { activeItem: string; activeTabId?: string; tabs?: FakeTab[] }) => boolean
+  isOpen: (state: MockTabState) => boolean
+  isCurrent: (state: MockTabState) => boolean
   onOpen: () => void
   onOpenNewTab?: () => void
   contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
@@ -246,7 +249,7 @@ vi.mock('../../Sidebar', async () => {
     }: {
       isFloating?: boolean
       isFloatingClosing?: boolean
-      active?: { activeItem: string; activeTabId?: string; tabs?: FakeTab[] }
+      active?: MockTabState
       entries?: MockSidebarEntry[]
       title?: string
       logo?: ReactNode
@@ -317,7 +320,8 @@ vi.mock('../../Sidebar', async () => {
               <div key={miniTab.key} role="group" aria-label={miniTab.label}>
                 <button
                   type="button"
-                  data-active={miniTab.isActive(activeState) ? 'true' : 'false'}
+                  data-open={miniTab.isOpen(activeState) ? 'true' : 'false'}
+                  data-active={miniTab.isCurrent(activeState) ? 'true' : 'false'}
                   data-testid={`sidebar-mini-app-${parseEntryKey(miniTab.key).id}`}
                   onClick={() => miniTab.onOpen()}
                   onAuxClick={(e) => {
@@ -343,7 +347,8 @@ vi.mock('../../Sidebar', async () => {
               <div key={agentItem.key} role="group" aria-label={agentItem.label}>
                 <button
                   type="button"
-                  data-active={agentItem.isActive(activeState) ? 'true' : 'false'}
+                  data-open={agentItem.isOpen(activeState) ? 'true' : 'false'}
+                  data-active={agentItem.isCurrent(activeState) ? 'true' : 'false'}
                   data-testid={`sidebar-agent-${parseEntryKey(agentItem.key).id}`}
                   onClick={() => agentItem.onOpen()}
                   onAuxClick={(e) => {
@@ -369,7 +374,8 @@ vi.mock('../../Sidebar', async () => {
               <div key={assistantItem.key} role="group" aria-label={assistantItem.label}>
                 <button
                   type="button"
-                  data-active={assistantItem.isActive(activeState) ? 'true' : 'false'}
+                  data-open={assistantItem.isOpen(activeState) ? 'true' : 'false'}
+                  data-active={assistantItem.isCurrent(activeState) ? 'true' : 'false'}
                   data-testid={`sidebar-assistant-${parseEntryKey(assistantItem.key).id}`}
                   onClick={() => assistantItem.onOpen()}
                   onAuxClick={(e) => {
@@ -573,6 +579,7 @@ describe('app Sidebar', () => {
       url: '/app/mini-app/calculator',
       title: 'Calculator'
     }
+    mocks.tabs = [mocks.activeTab]
 
     render(<Sidebar />)
 
@@ -1163,7 +1170,7 @@ describe('app Sidebar', () => {
     })
   })
 
-  it('highlights a pinned entity while any of its conversation tabs is open', () => {
+  it('marks a pinned entity open, but not current, while its tab sits in the background', () => {
     mocks.sidebarFavorites = []
     mocks.sidebarAgentFavorites = [agentFavorite('agent-1')]
     mocks.sidebarAssistantFavorites = [assistantFavorite('assistant-1')]
@@ -1183,8 +1190,43 @@ describe('app Sidebar', () => {
 
     render(<Sidebar />)
 
-    expect(screen.getByTestId('sidebar-agent-agent-1')).toHaveAttribute('data-active', 'true')
-    // The assistant has no open tab, so its row stays inactive.
+    expect(screen.getByTestId('sidebar-agent-agent-1')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('sidebar-agent-agent-1')).toHaveAttribute('data-active', 'false')
+    // The assistant has no tab at all — neither open nor current.
+    expect(screen.getByTestId('sidebar-assistant-assistant-1')).toHaveAttribute('data-open', 'false')
     expect(screen.getByTestId('sidebar-assistant-assistant-1')).toHaveAttribute('data-active', 'false')
+  })
+
+  it('marks a pinned entity current once its tab is in the foreground', () => {
+    mocks.sidebarFavorites = []
+    mocks.sidebarAgentFavorites = [agentFavorite('agent-1')]
+    mocks.agents = [{ id: 'agent-1', name: 'Code Reviewer' }]
+    mocks.activeTab = {
+      id: 'agent-open',
+      type: 'route',
+      url: '/app/agents?sessionId=s1',
+      title: 'Code Reviewer',
+      metadata: { conversationEntry: { type: 'agent', entityId: 'agent-1' } }
+    }
+    mocks.tabs = [mocks.activeTab]
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-agent-agent-1')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('sidebar-agent-agent-1')).toHaveAttribute('data-active', 'true')
+  })
+
+  it('keeps a pinned mini app open while another tab is in the foreground', () => {
+    configureMiniApps(['calculator'], [calculatorMiniApp])
+    mocks.activeTab = { id: 'chat', type: 'route', url: '/app/chat', title: 'Chat' }
+    mocks.tabs = [
+      mocks.activeTab,
+      { id: 'calc-tab', type: 'route', url: '/app/mini-app/calculator', title: 'Calculator' }
+    ]
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-mini-app-calculator')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('sidebar-mini-app-calculator')).toHaveAttribute('data-active', 'false')
   })
 })

@@ -1,6 +1,7 @@
 import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import type { Assistant } from '@renderer/types/assistant'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarFavoriteKey, getSidebarMenuPath, isSidebarAppId } from '@renderer/utils/sidebar'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -75,7 +76,8 @@ const appVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 
       key: getSidebarFavoriteKey(item),
       label: ctx.t(getSidebarIconLabelKey(id)),
       renderIcon: (size) => <Icon size={size} strokeWidth={1.6} />,
-      isActive: (active) => active.activeItem === id,
+      isOpen: () => false,
+      isCurrent: (state) => state.activeItem === id,
       onOpen: () => ctx.openApp(id),
       onOpenNewTab: () => ctx.openApp(id, { inNewTab: true }),
       contextMenuItems: [
@@ -109,7 +111,9 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
       key: getSidebarFavoriteKey(item),
       label: title,
       renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
-      isActive: (active) => active.activeTabId === app.appId,
+      // A mini app route keeps its id in the URL, so its tabs need no ownership tag.
+      isOpen: (state) => state.tabs?.some((tab) => miniAppIdFromTabUrl(tab.url) === app.appId) ?? false,
+      isCurrent: (state) => miniAppIdFromTabUrl(state.currentTab?.url) === app.appId,
       onOpen: () => ctx.openMiniApp(app.appId),
       onOpenNewTab: () => ctx.openMiniApp(app.appId),
       contextMenuItems: [
@@ -131,8 +135,8 @@ export interface ConversationEntryTag {
 }
 
 /**
- * Whether a tab belongs to this entity — the single "is this entity's conversation
- * open" signal shared by the active-state highlight and the click handler. A tab
+ * Whether a tab belongs to this entity — the single ownership test behind both
+ * `isOpen` / `isCurrent` and the click handler. A tab
  * is tagged with its owning entity at open time (its URL is rewritten to
  * sessionId/topicId by the route interceptor, so the URL cannot carry the entity
  * id back). Route tabs opened from a conversation history (history link, search)
@@ -161,10 +165,9 @@ const agentVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type
           ctx.defaultModelId,
           ENTITY_ICON_PIXEL_SIZE[iconSize]
         ),
-      // A pinned entity highlights while any of its conversation tabs is open,
-      // matching the click behavior below (open tab → activate, none → create).
-      isActive: (active) =>
-        active.tabs?.some((tab) => isTabForConversationEntry(tab, { type: 'agent', entityId: agent.id })) ?? false,
+      isOpen: (state) =>
+        state.tabs?.some((tab) => isTabForConversationEntry(tab, { type: 'agent', entityId: agent.id })) ?? false,
+      isCurrent: (state) => isTabForConversationEntry(state.currentTab, { type: 'agent', entityId: agent.id }),
       onOpen: () => ctx.openAgent(agent.id),
       onOpenNewTab: () => ctx.openAgent(agent.id, { inNewTab: true }),
       contextMenuItems: [
@@ -197,10 +200,10 @@ const assistantVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { 
           ctx.defaultModelId,
           ENTITY_ICON_PIXEL_SIZE[iconSize]
         ),
-      // Same shared "is this entity open" signal as the agent variant.
-      isActive: (active) =>
-        active.tabs?.some((tab) => isTabForConversationEntry(tab, { type: 'assistant', entityId: assistant.id })) ??
+      isOpen: (state) =>
+        state.tabs?.some((tab) => isTabForConversationEntry(tab, { type: 'assistant', entityId: assistant.id })) ??
         false,
+      isCurrent: (state) => isTabForConversationEntry(state.currentTab, { type: 'assistant', entityId: assistant.id }),
       onOpen: () => ctx.openAssistant(assistant.id),
       onOpenNewTab: () => ctx.openAssistant(assistant.id, { inNewTab: true }),
       contextMenuItems: [

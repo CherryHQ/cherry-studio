@@ -133,7 +133,8 @@ const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
     const Icon = item.icon
     return <Icon size={size} strokeWidth={1.6} />
   },
-  isActive: (active) => active.activeItem === item.id,
+  isOpen: () => false,
+  isCurrent: (state) => state.activeItem === item.id,
   onOpen: () => {},
   contextMenuItems: item.contextMenuItems
 })
@@ -144,7 +145,8 @@ const miniEntry = (
   key: `mini_app:${tab.miniApp.id}`,
   label: tab.title,
   renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
-  isActive: (active) => active.activeTabId === tab.miniApp.id,
+  isOpen: () => false,
+  isCurrent: (state) => state.activeItem === tab.miniApp.id,
   onOpen: () => {},
   contextMenuItems
 })
@@ -519,14 +521,16 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'chat',
+        isOpen: () => false,
+        isCurrent: (state) => state.activeItem === 'chat',
         onOpen: onChatOpen
       },
       {
         key: 'app:agent',
         label: 'Agent',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'agent',
+        isOpen: () => false,
+        isCurrent: (state) => state.activeItem === 'agent',
         onOpen: onAgentOpen
       }
     ]
@@ -560,7 +564,8 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'chat',
+        isOpen: () => false,
+        isCurrent: (state) => state.activeItem === 'chat',
         onOpen: vi.fn(),
         onOpenNewTab: onChatOpenNewTab
       },
@@ -568,7 +573,8 @@ describe('Sidebar resize handle', () => {
         key: 'app:agent',
         label: 'Agent',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'agent',
+        isOpen: () => false,
+        isCurrent: (state) => state.activeItem === 'agent',
         onOpen: vi.fn(),
         onOpenNewTab: onAgentOpenNewTab
       }
@@ -638,7 +644,8 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => <span>chat-icon</span>,
-        isActive: () => false,
+        isOpen: () => false,
+        isCurrent: () => false,
         onOpen: onChatOpen,
         onOpenNewTab: onChatOpenNewTab
       }
@@ -666,7 +673,8 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => <span>chat-icon</span>,
-        isActive: () => false,
+        isOpen: () => false,
+        isCurrent: () => false,
         onOpen: onChatOpen,
         onOpenNewTab: onChatOpenNewTab
       }
@@ -699,7 +707,8 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => <span>chat-icon</span>,
-        isActive: () => false,
+        isOpen: () => false,
+        isCurrent: () => false,
         onOpen: onChatOpen,
         onOpenNewTab: onChatOpenNewTab
       }

@@ -12,10 +12,10 @@ export { MiniAppIcon, UserAvatar } from './primitives'
 export { Sidebar, type SidebarProps } from './Sidebar'
 export type {
   ResolvedSidebarEntry,
-  SidebarActiveState,
   SidebarLayout,
   SidebarMiniApp,
   SidebarMiniAppTab,
+  SidebarTabState,
   SidebarUser,
   SidebarVisibleLayout
 } from './types'

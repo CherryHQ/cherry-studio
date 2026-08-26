@@ -6,12 +6,12 @@ import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarVisibleLayout } from './types'
+import type { ResolvedSidebarEntry, SidebarTabState, SidebarVisibleLayout } from './types'
 
 export interface SidebarListProps {
   layout: SidebarVisibleLayout
   entries: ResolvedSidebarEntry[]
-  active: SidebarActiveState
+  active: SidebarTabState
   onReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onContextMenuOpenChange?: (open: boolean) => void
 }
@@ -73,7 +73,8 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       onReorder={onReorder}
       className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
       {(entry, guardClick) => {
-        const isActive = entry.isActive(active)
+        const isCurrent = entry.isCurrent(active)
+        const isOpen = isCurrent || entry.isOpen(active)
 
         return (
           <SidebarTooltip key={entry.key} content={entry.label}>
@@ -85,11 +86,13 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
-                  isActive
+                  isCurrent
                     ? 'bg-[var(--sidebar-active-bg)] text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                    : isOpen
+                      ? 'text-foreground hover:bg-accent/60'
+                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
+                {isOpen && <ActiveIndicator className="rounded-full" />}
                 {entry.renderIcon(18, 'lg')}
               </button>
             </EntryContextMenu>
@@ -108,7 +111,8 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       onReorder={onReorder}
       className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
       {(entry, guardClick: SidebarClickGuard) => {
-        const isActive = entry.isActive(active)
+        const isCurrent = entry.isCurrent(active)
+        const isOpen = isCurrent || entry.isOpen(active)
 
         return (
           <div key={entry.key} className="relative">
@@ -117,14 +121,14 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 variant="ghost"
                 icon={entry.renderIcon(16, 'md')}
                 label={entry.label}
-                active={isActive}
+                active={isCurrent}
                 onClick={guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className="rounded-xl data-[active=true]:bg-[var(--sidebar-active-bg)]"
               />
             </EntryContextMenu>
-            {isActive && <ActiveIndicator className="rounded-xl" />}
+            {isOpen && <ActiveIndicator className="rounded-xl" />}
           </div>
         )
       }}

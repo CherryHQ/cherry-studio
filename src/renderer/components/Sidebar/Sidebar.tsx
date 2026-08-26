@@ -11,14 +11,14 @@ import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarTabState, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
   entries: ResolvedSidebarEntry[]
-  active: SidebarActiveState
+  active: SidebarTabState
   title?: string
   logo?: React.ReactNode
   user?: SidebarUser
