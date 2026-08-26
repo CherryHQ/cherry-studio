@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodeBlockView } from '../CodeBlockView'
+import { CodeBlockWrapLinesContext } from '../wrapLinesContext'
 
 const mocks = vi.hoisted(() => ({
   CodeEditor: vi.fn(({ value }: { value: string }) => (
@@ -12,7 +13,11 @@ const mocks = vi.hoisted(() => ({
       {value}
     </div>
   )),
-  CodeViewer: vi.fn(({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>),
+  CodeViewer: vi.fn(({ value, wrapped }: { value: string; wrapped?: boolean }) => (
+    <pre aria-label="Code viewer" data-wrapped={wrapped ? 'true' : 'false'}>
+      {value}
+    </pre>
+  )),
   runScript: vi.fn(),
   t: (key: string) => key,
   writeText: vi.fn()
@@ -205,5 +210,40 @@ describe('CodeBlockView', () => {
 
     expect(mocks.runScript).toHaveBeenCalledWith('print(42)', {}, 60_000)
     expect(await screen.findByText('completed')).toBeInTheDocument()
+  })
+
+  it('wraps long lines when an ancestor requests wrap even if chat wrap is off', () => {
+    // Regression: a narrow surface (selection-action results) must wrap without
+    // flipping the chat `chat.code.wrappable` preference.
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.wrappable': false,
+      'chat.code.editor.enabled': false
+    })
+    const longLine = `const token = '${'a'.repeat(240)}'`
+
+    render(
+      <CodeBlockWrapLinesContext value={true}>
+        <CodeBlockView language="javascript" editable={false}>
+          {longLine}
+        </CodeBlockView>
+      </CodeBlockWrapLinesContext>
+    )
+
+    expect(screen.getByLabelText('Code viewer')).toHaveAttribute('data-wrapped', 'true')
+  })
+
+  it('keeps chat wrap off when no ancestor requested wrap', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.wrappable': false,
+      'chat.code.editor.enabled': false
+    })
+
+    render(
+      <CodeBlockView language="javascript" editable={false}>
+        const token = 'short'
+      </CodeBlockView>
+    )
+
+    expect(screen.getByLabelText('Code viewer')).toHaveAttribute('data-wrapped', 'false')
   })
 })

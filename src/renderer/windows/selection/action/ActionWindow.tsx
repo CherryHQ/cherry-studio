@@ -273,10 +273,10 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           )}
         </div>
       </div>
-      <div className="flex h-full w-full justify-center overflow-auto">
+      <div className="flex h-full w-full min-w-0 justify-center overflow-auto">
         <div
           ref={contentElementRef}
-          className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
+          className="flex min-w-0 max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
           {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
           {action.id != 'translate' && (
             <ActionGeneral key={sessionId} action={action} scrollToBottom={handleScrollToBottom} />

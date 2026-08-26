@@ -175,7 +175,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   return (
     <>
-      <div className="flex w-full flex-col items-center justify-center">
+      <div className="flex w-full min-w-0 flex-col items-center justify-center">
         <div className="flex w-full flex-row items-center justify-end">
           <button
             type="button"
@@ -200,7 +200,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
             </div>
           </div>
         )}
-        <div className="mt-1 w-full">
+        <div className="mt-1 w-full min-w-0 max-w-full">
           {isPreparing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {!isPreparing && latestAssistantMessage && (
             <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
