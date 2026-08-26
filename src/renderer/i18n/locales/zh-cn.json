@@ -4687,6 +4687,7 @@
   "settings.tool.websearch.provider_description.fetch": "内置 URL 获取服务商，用于从指定 URL 获取网页内容，适合补全搜索结果正文。",
   "settings.tool.websearch.provider_description.firecrawl": "Firecrawl 网页抓取与搜索服务，支持将网页转换为 Markdown 格式。",
   "settings.tool.websearch.provider_description.jina": "Jina Reader 搜索与阅读接口，用于检索并提取网页正文。",
+  "settings.tool.websearch.provider_description.parallel": "面向 AI 智能体的网页搜索 API，返回按相关性排序的链接与高密度摘录。",
   "settings.tool.websearch.provider_description.querit": "Querit 搜索与内容接口，用于关键词检索与网页正文提取。",
   "settings.tool.websearch.provider_description.searxng": "可自托管的免费互联网元搜索引擎，聚合多个搜索源。",
   "settings.tool.websearch.provider_description.tavily": "专为 LLM 优化的搜索引擎。",

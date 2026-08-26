@@ -4687,6 +4687,7 @@
   "settings.tool.websearch.provider_description.fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
   "settings.tool.websearch.provider_description.firecrawl": "Firecrawl crawler and search service, optimized to turn websites into Markdown.",
   "settings.tool.websearch.provider_description.jina": "Jina Reader search and read APIs for retrieving clean web content.",
+  "settings.tool.websearch.provider_description.parallel": "Web search API for AI agents, returning ranked links and token-dense excerpts.",
   "settings.tool.websearch.provider_description.querit": "Querit search and contents APIs for AI apps, retrieving web results and page content.",
   "settings.tool.websearch.provider_description.searxng": "Self-hostable free internet metasearch engine across many sources.",
   "settings.tool.websearch.provider_description.tavily": "Search engine optimized for LLMs.",
