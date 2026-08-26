@@ -38,6 +38,7 @@ import { visit } from 'unist-util-visit'
 
 import {
   collectExportableImages,
+  hydrateDeferredImageOutputs,
   type ImageExportMode,
   type PendingImageWrite,
   serializeMessagesWithImages,
@@ -491,10 +492,14 @@ const buildMarkdownWithImages = async (
   build: (rawContentOverrides?: Map<string, string>) => Promise<string>,
   chooseImageMode?: ImageModeChooser
 ): Promise<{ markdown: string; pendingWrites: PendingImageWrite[] } | null> => {
-  const { refs, unresolvedCount } = await collectExportableImages(messages)
+  // Deferred generate_image outputs hydrate once here so collection and
+  // serialization share one resolved snapshot.
+  const { messages: hydrated, unresolvedCount: deferredUnresolved } = await hydrateDeferredImageOutputs(messages)
+  const { refs, unresolvedCount } = await collectExportableImages(hydrated)
+  const unresolved = deferredUnresolved + unresolvedCount
   if (refs.length === 0) {
-    if (unresolvedCount > 0) {
-      toast.warning(i18n.t('chat.topics.export.image_mode.skipped', { count: unresolvedCount }))
+    if (unresolved > 0) {
+      toast.warning(i18n.t('chat.topics.export.image_mode.skipped', { count: unresolved }))
     }
     return { markdown: await build(), pendingWrites: [] }
   }
@@ -507,8 +512,8 @@ const buildMarkdownWithImages = async (
   if (mode === null || mode === 'none') {
     return mode === null ? null : { markdown: await build(), pendingWrites: [] }
   }
-  const { overrides, pendingWrites, skippedCount } = await serializeMessagesWithImages(messages, mode, refs)
-  const totalSkipped = skippedCount + unresolvedCount
+  const { overrides, pendingWrites, skippedCount } = await serializeMessagesWithImages(hydrated, mode, refs)
+  const totalSkipped = skippedCount + unresolved
   if (totalSkipped > 0) {
     // Embed mode skips oversized OR unreadable images; folder mode has no size
     // cap, so its skips (and collection failures) are purely availability.

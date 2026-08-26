@@ -12,6 +12,7 @@
  * counted — export never aborts because of one image.
  */
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { getImageBlobFromSource } from '@renderer/utils/image'
 import { replaceComposerTokenPromptText } from '@renderer/utils/message/composerTokens'
@@ -19,6 +20,7 @@ import { getRenderableTextContent } from '@renderer/utils/message/find'
 import { extractOutputMetadata } from '@renderer/utils/message/toolOutput'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { toFileUrl } from '@shared/utils/file'
@@ -64,6 +66,47 @@ export type CollectResult = {
   unresolvedCount: number
 }
 
+/**
+ * Replace deferred `generate_image` outputs with their resolved values.
+ * Agent sessions read messages with `deferToolOutputs`, so any output over the
+ * transport limit — every inline image payload — arrives as `$deferredToolResult`.
+ * Resolve those refs once so collection and serialization below both see the
+ * real payload. A ref that cannot be resolved is counted and dropped, never fatal.
+ */
+export async function hydrateDeferredImageOutputs(
+  messages: ExportableMessage[]
+): Promise<{ messages: ExportableMessage[]; unresolvedCount: number }> {
+  let unresolvedCount = 0
+  let hydrated: ExportableMessage[] | undefined
+  for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
+    const parts = messages[messageIndex].parts
+    if (!parts) continue
+    let messageParts: typeof parts | undefined
+    for (let partIndex = 0; partIndex < parts.length; partIndex += 1) {
+      const part = parts[partIndex]
+      if (!isGenerateImageToolPart(part)) continue
+      const output = (part as { output?: unknown }).output
+      if (!isDeferredToolOutput(output)) continue
+      try {
+        const response = await ipcApi.request('ai.tool.get_result', output.$deferredToolResult)
+        if (!response.found) {
+          throw new Error(`Tool result is no longer available: ${output.$deferredToolResult.toolCallId}`)
+        }
+        messageParts ??= [...parts]
+        messageParts[partIndex] = { ...part, output: response.output } as (typeof parts)[number]
+      } catch (error) {
+        unresolvedCount += 1
+        logger.warn('Failed to resolve a deferred generate_image output, skipping it', { error })
+      }
+    }
+    if (messageParts) {
+      hydrated ??= [...messages]
+      hydrated[messageIndex] = { ...messages[messageIndex], parts: messageParts }
+    }
+  }
+  return { messages: hydrated ?? messages, unresolvedCount }
+}
+
 const isImageFilePart = (part: FileUIPart): boolean => part.mediaType?.startsWith('image/') ?? false
 
 function isGenerateImageToolPart(part: unknown): boolean {
@@ -82,7 +125,18 @@ function isGenerateImageToolPart(part: unknown): boolean {
 type GenerateImageItem = { key: string; entryId?: string; url?: string; filename?: string; mime?: string }
 
 function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
-  const { response } = extractOutputMetadata((part as { output?: unknown }).output)
+  const output = (part as { output?: unknown }).output
+  // An error result carries its explanation as content — check before the unwrap,
+  // because extractOutputMetadata may drop the envelope (and its isError flag).
+  if (
+    typeof output === 'object' &&
+    output !== null &&
+    !Array.isArray(output) &&
+    (output as { isError?: unknown }).isError === true
+  ) {
+    return []
+  }
+  const { response } = extractOutputMetadata(output)
   const parsed = generateImageOutputSchema.safeParse(response)
   if (parsed.success) {
     return parsed.data.map((item) => ({ key: item.id, entryId: item.id, filename: item.name }))
@@ -91,9 +145,6 @@ function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
   // mcp metadata keeps the envelope — accept both shapes.
   const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
   if (!Array.isArray(content)) return []
-  // An error result carries its explanation as content — the renderer treats it
-  // as failure, so the export must not ship it as an image.
-  if (!Array.isArray(response) && (response as { isError?: unknown }).isError === true) return []
   return content.flatMap((item) => {
     if (item?.type === 'image' && typeof item.data === 'string' && item.data) {
       const mime = typeof item.mimeType === 'string' && item.mimeType ? item.mimeType : 'image/png'

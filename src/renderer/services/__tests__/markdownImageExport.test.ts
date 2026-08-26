@@ -10,7 +10,12 @@ import {
   messageToMarkdown,
   messageToMarkdownWithReasoning
 } from '../ExportService'
-import { collectExportableImages, serializeMessagesWithImages, writeImageAssets } from '../markdownImageExport'
+import {
+  collectExportableImages,
+  hydrateDeferredImageOutputs,
+  serializeMessagesWithImages,
+  writeImageAssets
+} from '../markdownImageExport'
 
 // jsdom's Blob lacks the standard arrayBuffer(); shim it via FileReader so the
 // production `blob.arrayBuffer()` call works unmodified in tests.
@@ -86,6 +91,19 @@ function generateImageInlinePart(images: Array<{ data: string; mimeType?: string
     input: {},
     output: {
       content: images.map((img) => ({ type: 'image', data: img.data, mimeType: img.mimeType }))
+    }
+  }
+}
+
+/** Agent-session transport shape: an output over the limit arrives as a deferred ref. */
+function generateImageDeferredPart(toolCallId = 'call-1') {
+  return {
+    type: 'tool-mcp__cherry-tools__generate_image',
+    toolCallId,
+    state: 'output-available',
+    input: {},
+    output: {
+      $deferredToolResult: { topicId: 'agent-session:s1', messageId: 'm1', toolCallId }
     }
   }
 }
@@ -279,6 +297,78 @@ describe('collectExportableImages', () => {
 
     expect(refs).toEqual([])
     expect(unresolvedCount).toBe(0)
+  })
+
+  it('does not export an errored envelope whose flag the unwrap would drop (no metadata)', async () => {
+    // Without mcp metadata extractOutputMetadata unwraps to the bare content array,
+    // so the isError flag only survives a check made before the unwrap.
+    const part = {
+      ...generateImageInlinePart([{ data: PNG_1PX_RAW }]),
+      output: {
+        content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }],
+        isError: true
+      }
+    }
+    const message = view([part], 'assistant')
+
+    const { refs, unresolvedCount } = await collectExportableImages([message])
+
+    expect(refs).toEqual([])
+    expect(unresolvedCount).toBe(0)
+  })
+})
+
+// --- hydrateDeferredImageOutputs ---
+
+describe('hydrateDeferredImageOutputs', () => {
+  it('resolves a deferred generate_image ref into the stored output', async () => {
+    ipcApiRequest.mockResolvedValueOnce({
+      ok: true,
+      data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
+    })
+    const message = view([generateImageDeferredPart()], 'assistant')
+
+    const { messages, unresolvedCount } = await hydrateDeferredImageOutputs([message])
+
+    expect(unresolvedCount).toBe(0)
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.tool.get_result', {
+      topicId: 'agent-session:s1',
+      messageId: 'm1',
+      toolCallId: 'call-1'
+    })
+    expect(messages[0].parts?.[0]).toHaveProperty('output.content', [
+      { type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }
+    ])
+  })
+
+  it('counts an unresolvable ref, keeps the marker part, and leaves other messages untouched', async () => {
+    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { found: false } })
+    const deferred = view([generateImageDeferredPart()], 'assistant')
+    const plain = view([{ type: 'text', text: 'no tools here' }])
+
+    const { messages, unresolvedCount } = await hydrateDeferredImageOutputs([deferred, plain])
+
+    expect(unresolvedCount).toBe(1)
+    // the same array reference survives when nothing resolved
+    expect(messages[0]).toBe(deferred)
+    expect(messages[1]).toBe(plain)
+  })
+
+  it('does not fetch deferred outputs of other tools', async () => {
+    const part = {
+      type: 'tool-mcp__cherry-tools__web_search',
+      toolCallId: 'call-2',
+      state: 'output-available',
+      input: {},
+      output: { $deferredToolResult: { topicId: 'agent-session:s1', messageId: 'm1', toolCallId: 'call-2' } }
+    }
+    const message = view([part], 'assistant')
+
+    const { messages, unresolvedCount } = await hydrateDeferredImageOutputs([message])
+
+    expect(ipcApiRequest).not.toHaveBeenCalled()
+    expect(unresolvedCount).toBe(0)
+    expect(messages[0]).toBe(message)
   })
 })
 
@@ -630,6 +720,37 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（无法获取或读取）')
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).toContain('here is a painting')
+    expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
+  })
+
+  it('carries a deferred agent-session generate_image image once its ref is resolved (embed)', async () => {
+    // Agent sessions read with deferToolOutputs, so an inline image over the transport
+    // limit reaches the export as $deferredToolResult — hydrating it must surface the
+    // image instead of silently taking the text-only path.
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    ipcApiRequest.mockResolvedValueOnce({
+      ok: true,
+      data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
+    })
+    chooseImageMode.mockResolvedValue('embed')
+    const message = view([{ type: 'text', text: 'generated this' }, generateImageDeferredPart()], 'assistant')
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    expect(chooseImageMode).toHaveBeenCalledWith(1)
+    expect(fileApi.save.mock.calls[0][1]).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
+  })
+
+  it('exports text-only with a warning when a deferred output can no longer be resolved', async () => {
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { found: false } })
+    const message = view([generateImageDeferredPart()], 'assistant')
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    expect(chooseImageMode).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（无法获取或读取）')
+    expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
   })
 

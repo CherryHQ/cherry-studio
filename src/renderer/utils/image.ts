@@ -863,11 +863,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
       handle: createFilePathHandle(path),
       options: { mode: 'full', encoding: 'binary' }
     })
-    // Local entries may lack an extension (ext: null / renamed file), leaving mime
-    // sniffing at octet-stream — real image bytes still decode downstream, so pass.
-    return assertImageBlob(new Blob([content.slice() as unknown as BlobPart], { type: mime }), src, {
-      allowUnknownType: true
-    })
+    return assertImageBlob(new Blob([content.slice() as unknown as BlobPart], { type: mime }), src)
   }
 
   const response = await fetch(src)
@@ -880,8 +876,10 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
 }
 
 /** A 200 response is still not an image when its content type says otherwise (proxy/login pages). */
-function assertImageBlob(blob: Blob, src: string, opts?: { allowUnknownType?: boolean }): Blob {
-  const unknown = opts?.allowUnknownType && blob.type === 'application/octet-stream'
+function assertImageBlob(blob: Blob, src: string): Blob {
+  // octet-stream is a mislabel, not a non-image verdict: extension-less local entries and
+  // remote servers that skip MIME land here, and the bytes still decode like <img> does.
+  const unknown = blob.type === 'application/octet-stream'
   if (blob.type && !unknown && !blob.type.startsWith('image/')) {
     throw new Error(`Source is not an image (content type ${blob.type}): ${src}`)
   }

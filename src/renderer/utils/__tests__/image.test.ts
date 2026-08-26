@@ -679,6 +679,17 @@ describe('utils/image', () => {
       expect(blob.type).toBe('')
     })
 
+    it('accepts a remote image served as octet-stream (mislabelled, not a non-image)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['imagedata'], { type: 'application/octet-stream' })
+      })
+
+      const blob = await getImageBlobFromSource('https://cdn.example.com/mislabeled.png')
+
+      expect(blob.type).toBe('application/octet-stream')
+    })
+
     it('accepts an octet-stream local file (extension-less entries are real images)', async () => {
       ipcMocks.request.mockResolvedValueOnce({
         content: new Uint8Array([1, 2, 3]),
