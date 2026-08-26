@@ -73,8 +73,8 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   /**
    * pi keeps one flat `{timestamp}_{resumeToken}.jsonl` per session generation
    * (see `resolveResumeTokenSessionFile`), so the token is the stem after the
-   * last `_`. Every generation of a claimed token is kept — the connection
-   * resumes from the newest one.
+   * FIRST `_` — the timestamp pi owns has none, but a token legally can. Every
+   * generation of a claimed token is kept — the connection resumes from the newest.
    */
   async reclaimOrphanSessions(
     keptResumeTokens: ReadonlySet<string>,

@@ -1026,9 +1026,26 @@ export class AgentSessionService {
   }
 
   restore(id: string): AgentSessionEntity {
-    const [row] = application
-      .get('DbService')
-      .getDb()
+    const db = application.get('DbService').getDb()
+
+    // A session under an archived agent restores into an unusable state: it shows up
+    // in the list but cannot run. Refuse it — restoring the agent brings its sessions
+    // back anyway, so that is the operation the caller actually wants.
+    const [orphaned] = db
+      .select({ agentId: agentsTable.id })
+      .from(sessionsTable)
+      .innerJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+      .where(and(eq(sessionsTable.id, id), isNotNull(agentsTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (orphaned) {
+      throw DataApiErrorFactory.invalidOperation(
+        'restore session',
+        'its agent is archived — restore the agent instead, which restores its sessions'
+      )
+    }
+
+    const [row] = db
       .update(sessionsTable)
       .set({ deletedAt: null })
       .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
