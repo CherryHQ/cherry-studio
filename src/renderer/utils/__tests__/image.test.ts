@@ -690,6 +690,26 @@ describe('utils/image', () => {
       expect(blob.type).toBe('application/octet-stream')
     })
 
+    it('trims the content type before judging it (stray whitespace does not reject an image)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['png'], { type: ' image/png' })
+      })
+
+      const blob = await getImageBlobFromSource('https://cdn.example.com/padded.png')
+
+      expect(blob.type).toBe(' image/png')
+    })
+
+    it('rejects a non-image content type carrying header parameters', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html/>'], { type: 'text/html; charset=utf-8' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/signin')).rejects.toThrow('not an image')
+    })
+
     it('accepts an octet-stream local file (extension-less entries are real images)', async () => {
       ipcMocks.request.mockResolvedValueOnce({
         content: new Uint8Array([1, 2, 3]),

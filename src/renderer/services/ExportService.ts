@@ -471,15 +471,18 @@ export const exportMarkdownContentAsFile = async (title: string, markdown: strin
 /** Containing directory of a saved file path, tolerating both path separators. */
 const dirOf = (filePath: string): string => {
   const idx = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
-  // idx 0 is the POSIX-root file case (`/a.md`) — the root itself is the parent.
-  return idx > 0 ? filePath.slice(0, idx) : idx === 0 ? '/' : filePath
+  if (idx < 0) return filePath
+  const dir = filePath.slice(0, idx) || '/'
+  // A bare drive letter is not a usable directory — keep its separator ('C:\a.md' → 'C:\').
+  return /^[A-Za-z]:$/.test(dir) ? `${dir}\\` : dir
 }
 
 /**
  * UI decision injected by the hook entry points (services must not import
- * components or render UI — renderer-architecture §2). Returning null aborts.
+ * components or render UI — renderer-architecture §2). Null = the user cancelled;
+ * undefined = no implementation available (both abort).
  */
-export type ImageModeChooser = (imageCount: number) => Promise<ImageExportMode | null>
+export type ImageModeChooser = (imageCount: number) => Promise<ImageExportMode | null | undefined>
 
 /**
  * Image-mode gate for Markdown file exports: collect images, ask the user how to

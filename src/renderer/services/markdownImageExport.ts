@@ -23,6 +23,7 @@ import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 import { getToolName, isToolUIPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -109,6 +110,14 @@ export async function hydrateDeferredImageOutputs(
 
 const isImageFilePart = (part: FileUIPart): boolean => part.mediaType?.startsWith('image/') ?? false
 
+/** Resolve a FileEntry id to its current physical path through the typed IpcApi boundary. */
+async function resolvePhysicalPath(id: string): Promise<AbsoluteFilePath> {
+  const paths = await ipcApi.request('file.batch_get_physical_paths', { ids: [id] })
+  const path = paths[id]
+  if (!path) throw new Error(`File entry ${id} has no physical path`)
+  return path
+}
+
 function isGenerateImageToolPart(part: unknown): boolean {
   if (!isToolUIPart(part as never)) return false
   const toolPart = part as { state?: string }
@@ -180,7 +189,7 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
             // The entry's current physical path is authoritative; the persisted
             // part url is a snapshot that goes stale after a userData move.
             try {
-              const physicalPath = await window.api.file.getPhysicalPath({ id: fileEntryId })
+              const physicalPath = await resolvePhysicalPath(fileEntryId)
               push({
                 key: fileEntryId,
                 url: toFileUrl(physicalPath),
@@ -214,7 +223,7 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
                   mime: item.mime
                 })
               } else if (item.entryId) {
-                const physicalPath = await window.api.file.getPhysicalPath({ id: item.entryId })
+                const physicalPath = await resolvePhysicalPath(item.entryId)
                 push({
                   key: item.key,
                   url: toFileUrl(physicalPath),
@@ -289,13 +298,15 @@ export async function serializeMessagesWithImages(
     let segment: string | null = null
     try {
       const blob = await getImageBlobFromSource(ref.url)
-      const bytes = new Uint8Array(await blob.arrayBuffer())
-      if (bytes.byteLength > MAX_EMBED_IMAGE_BYTES) {
+      // blob.size avoids decoding an over-limit image just to discard it.
+      if (blob.size > MAX_EMBED_IMAGE_BYTES) {
         skipped.count += 1
-      } else {
-        const mime = ref.mime ?? blob.type ?? 'image/png'
-        segment = `![${altText(ref)}](data:${mime};base64,${bytesToBase64(bytes)})`
+        dataUriByKey.set(ref.key, null)
+        return null
       }
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      const mime = ref.mime ?? blob.type ?? 'image/png'
+      segment = `![${altText(ref)}](data:${mime};base64,${bytesToBase64(bytes)})`
     } catch (error) {
       skipped.count += 1
       logger.warn('Failed to read an image for markdown export, skipping it', { url: ref.url, error })
@@ -311,7 +322,8 @@ export async function serializeMessagesWithImages(
       fileNameByKey.set(ref.key, fileName)
       pendingWrites.push({ fileName, ref })
     }
-    return `![${altText(ref)}](assets/${encodeURI(fileName)})`
+    // Asset names are generated (uuid + extension), so no URL escaping is needed.
+    return `![${altText(ref)}](assets/${fileName})`
   }
 
   const renderRef = (ref: ExportableImageRef): Promise<string | null> =>
@@ -363,7 +375,8 @@ export async function serializeMessagesWithImages(
  */
 export async function writeImageAssets(dirPath: string, pendingWrites: PendingImageWrite[]): Promise<number> {
   if (pendingWrites.length === 0) return 0
-  const assetsDir = `${dirPath}/assets`
+  // Root directories ('/a.md' → '/', 'C:\a.md' → 'C:\') already end in the separator.
+  const assetsDir = /[\\/]$/.test(dirPath) ? `${dirPath}assets` : `${dirPath}/assets`
   try {
     await window.api.file.mkdir(assetsDir)
   } catch (error) {

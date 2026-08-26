@@ -108,17 +108,21 @@ function generateImageDeferredPart(toolCallId = 'call-1') {
   }
 }
 
-// --- window.api stub (file save/write/mkdir/getPhysicalPath + ipc bridge) ---
+// --- window.api stub (file save/write/mkdir + ipc bridge) ---
 
 const fileApi: Record<string, ReturnType<typeof vi.fn>> = {
   save: vi.fn(),
   write: vi.fn(),
   mkdir: vi.fn(),
-  getPhysicalPath: vi.fn(),
   read: vi.fn(),
   writeWithId: vi.fn()
 }
 const ipcApiRequest = vi.fn()
+
+/** One-shot mock of `file.batch_get_physical_paths`; a null path is a dangling entry. */
+function mockPhysicalPaths(entries: Record<string, string | null>) {
+  ipcApiRequest.mockResolvedValueOnce({ ok: true, data: entries })
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -135,13 +139,13 @@ beforeEach(() => {
 
 describe('collectExportableImages', () => {
   it("resolves a fileEntryId part to the entry's current physical path", async () => {
-    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/moved-a.png')
+    mockPhysicalPaths({ 'entry-a': '/data/Files/moved-a.png' })
     const message = view([{ type: 'text', text: 'look at this' }, imageFilePart('file:///data/Files/a.png', 'entry-a')])
 
     const { refs, unresolvedCount } = await collectExportableImages([message])
 
     expect(unresolvedCount).toBe(0)
-    expect(fileApi.getPhysicalPath).toHaveBeenCalledWith({ id: 'entry-a' })
+    expect(ipcApiRequest).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['entry-a'] })
     expect(refs).toEqual([
       {
         key: 'entry-a',
@@ -152,8 +156,8 @@ describe('collectExportableImages', () => {
     ])
   })
 
-  it('falls back to the stored url when the fileEntryId can no longer be resolved', async () => {
-    fileApi.getPhysicalPath.mockRejectedValueOnce(new Error('entry gone'))
+  it('falls back to the stored url when the entry resolves to no physical path (dangling)', async () => {
+    mockPhysicalPaths({ 'entry-a': null })
     const message = view([imageFilePart('file:///data/Files/a.png', 'entry-a')])
 
     const { refs, unresolvedCount } = await collectExportableImages([message])
@@ -173,11 +177,11 @@ describe('collectExportableImages', () => {
   })
 
   it('resolves generate_image output ids to file urls', async () => {
-    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/gen-1.png')
+    mockPhysicalPaths({ 'gen-1': '/data/Files/gen-1.png' })
     const message = view([generateImagePart([{ id: 'gen-1', name: 'painting.png' }])], 'assistant')
 
     const { refs } = await collectExportableImages([message])
-    expect(fileApi.getPhysicalPath).toHaveBeenCalledWith({ id: 'gen-1' })
+    expect(ipcApiRequest).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['gen-1'] })
 
     expect(refs).toEqual([
       {
@@ -189,9 +193,8 @@ describe('collectExportableImages', () => {
   })
 
   it('drops an unresolvable generate_image entry, counts it, and keeps the rest', async () => {
-    fileApi.getPhysicalPath
-      .mockRejectedValueOnce(new Error('entry cleaned up'))
-      .mockResolvedValueOnce('/data/Files/gen-2.png')
+    mockPhysicalPaths({ gone: null })
+    mockPhysicalPaths({ 'gen-2': '/data/Files/gen-2.png' })
     const message = view(
       [
         generateImagePart([
@@ -214,7 +217,7 @@ describe('collectExportableImages', () => {
     const { refs } = await collectExportableImages([message])
 
     expect(refs).toEqual([])
-    expect(fileApi.getPhysicalPath).not.toHaveBeenCalled()
+    expect(ipcApiRequest).not.toHaveBeenCalled()
   })
 
   it('dedupes the same image referenced from two messages', async () => {
@@ -237,7 +240,7 @@ describe('collectExportableImages', () => {
   })
 
   it('recognizes the mcp-prefixed agent generate_image tool name', async () => {
-    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/gen-9.png')
+    mockPhysicalPaths({ 'gen-9': '/data/Files/gen-9.png' })
     const part = {
       ...generateImagePart([{ id: 'gen-9', name: 'a.png' }]),
       type: 'tool-mcp__cherry-tools__generate_image'
@@ -261,7 +264,7 @@ describe('collectExportableImages', () => {
     expect(unresolvedCount).toBe(0)
     // identical inline payloads collapse to one data-URL ref; no FileEntry lookup happens
     expect(refs).toEqual([{ key: PNG_1PX, url: PNG_1PX, filename: undefined, mime: 'image/png' }])
-    expect(fileApi.getPhysicalPath).not.toHaveBeenCalled()
+    expect(ipcApiRequest).not.toHaveBeenCalled()
   })
 
   it('collects MCP inline payloads that keep the {content} envelope (mcp metadata)', async () => {
@@ -530,7 +533,7 @@ describe('serializeMessagesWithImages', () => {
   })
 
   it('serializes generate_image outputs in both modes (folder)', async () => {
-    fileApi.getPhysicalPath.mockResolvedValueOnce('/data/Files/gen-1.png')
+    mockPhysicalPaths({ 'gen-1': '/data/Files/gen-1.png' })
     ipcApiRequest.mockResolvedValue({ ok: true, data: { content: new Uint8Array([1, 2, 3]), mime: 'image/png' } })
     const message = view([generateImagePart([{ id: 'gen-1', name: 'painting.png' }])], 'assistant')
     const { refs } = await collectExportableImages([message])
@@ -707,7 +710,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
   it('exports text-only with a warning when the only image failed to resolve', async () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.getPhysicalPath.mockRejectedValueOnce(new Error('entry cleaned up'))
+    mockPhysicalPaths({ gone: null })
     const message = view([
       { type: 'text', text: 'here is a painting' },
       generateImagePart([{ id: 'gone', name: 'painting.png' }])
@@ -757,8 +760,8 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('toasts the combined skip count when unresolved and exported images coexist', async () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
     // one dead generate_image entry (collection failure) + one healthy attachment
-    // (no entryId, so the healthy part never touches getPhysicalPath)
-    fileApi.getPhysicalPath.mockRejectedValueOnce(new Error('entry cleaned up'))
+    // (no entryId, so the healthy part never touches the batch route)
+    mockPhysicalPaths({ gone: null })
     const message = view([imageFilePart(PNG_1PX), generateImagePart([{ id: 'gone', name: 'painting.png' }])])
     chooseImageMode.mockResolvedValue('embed')
 
@@ -828,6 +831,19 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     expect(fileApi.write).toHaveBeenCalledTimes(1)
     expect(fileApi.write.mock.calls[0][0]).toBe(`/tmp/exports/assets/${link}`)
     expect(fileApi.write.mock.calls[0][1]).toBeInstanceOf(Uint8Array)
+  })
+
+  it('derives the assets directory from root save paths (POSIX root and Windows drive root)', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+
+    fileApi.save.mockResolvedValueOnce('/a.md')
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
+    expect(fileApi.mkdir).toHaveBeenCalledWith('/assets')
+
+    // A bare drive letter is not a usable directory: 'C:\a.md' must keep its separator.
+    fileApi.save.mockResolvedValueOnce('C:\\a.md')
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
+    expect(fileApi.mkdir).toHaveBeenCalledWith('C:\\assets')
   })
 
   it('writes asset bytes identical to the source image (folder, save dialog branch)', async () => {

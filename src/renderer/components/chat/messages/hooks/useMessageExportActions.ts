@@ -1,6 +1,7 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { ipcApi } from '@renderer/ipc'
+import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { useCallback, useMemo } from 'react'
 
@@ -21,16 +22,6 @@ type MessageExportActions = Pick<
 
 interface MessageExportActionParams {
   topicName?: string
-}
-
-/**
- * Image-mode choice for Markdown exports, asked here in the hook layer because
- * services must stay free of component imports (renderer-architecture §2).
- * Cancelling the popup resolves null and aborts the export.
- */
-const chooseImageExportMode = async (imageCount: number) => {
-  const { default: MarkdownImageExportPopup } = await import('@renderer/components/MarkdownImageExportPopup')
-  return MarkdownImageExportPopup.show({ imageCount })
 }
 
 export function useMessageExportActions({ topicName }: MessageExportActionParams): MessageExportActions {

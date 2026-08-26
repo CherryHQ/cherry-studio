@@ -10,6 +10,7 @@ import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -19,16 +20,6 @@ import { useCallback, useMemo } from 'react'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
-
-/**
- * Image-mode choice for Markdown exports, asked here in the hook layer because
- * services must stay free of component imports (renderer-architecture §2).
- * Cancelling the popup resolves null and aborts the export.
- */
-const chooseImageExportMode = async (imageCount: number) => {
-  const { default: MarkdownImageExportPopup } = await import('@renderer/components/MarkdownImageExportPopup')
-  return MarkdownImageExportPopup.show({ imageCount })
-}
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions

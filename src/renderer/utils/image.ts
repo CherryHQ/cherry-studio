@@ -879,9 +879,11 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
 function assertImageBlob(blob: Blob, src: string): Blob {
   // octet-stream is a mislabel, not a non-image verdict: extension-less local entries and
   // remote servers that skip MIME land here, and the bytes still decode like <img> does.
-  const unknown = blob.type === 'application/octet-stream'
-  if (blob.type && !unknown && !blob.type.startsWith('image/')) {
-    throw new Error(`Source is not an image (content type ${blob.type}): ${src}`)
+  // Trim first — header params ('text/html; charset=utf-8') and stray OWS must not bypass the check.
+  const type = blob.type.trim()
+  const unknown = type === 'application/octet-stream'
+  if (type && !unknown && !type.startsWith('image/')) {
+    throw new Error(`Source is not an image (content type ${type}): ${src}`)
   }
   return blob
 }
