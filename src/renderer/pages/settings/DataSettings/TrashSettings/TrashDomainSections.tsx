@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -65,6 +66,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
     limit: 20
   })
   const topics = useInfiniteFlatItems(pages)
+  useDataChange('/topics', () => void refresh())
   const items = useMemo<TrashItem[]>(
     () => topics.map((topic) => ({ id: topic.id, name: topic.name, deletedAt: toEpochMs(topic.deletedAt) })),
     [topics]
@@ -131,6 +133,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
     [agents]
   )
   const totalPages = Math.ceil(total / 50)
+  useDataChange('/agents', () => void refresh())
 
   // `/agent-sessions` too: restoring an agent also restores the sessions archived with
   // it, and a stale session-trash row would still offer a purge that hard-deletes a live one.
@@ -194,6 +197,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays
     limit: 20
   })
   const sessions = useInfiniteFlatItems(pages)
+  useDataChange('/agent-sessions', () => void refresh())
   const items = useMemo<TrashItem[]>(
     () => sessions.map((session) => ({ id: session.id, name: session.name, deletedAt: toEpochMs(session.deletedAt) })),
     [sessions]
@@ -262,6 +266,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({ retentionDa
     [assistants]
   )
   const totalPages = Math.ceil(total / 50)
+  useDataChange('/assistants', () => void refresh())
 
   const restoreMutation = useMutation('POST', '/assistants/:id/restore', {
     refresh: ({ args }) => ['/assistants', `/assistants/${args!.params.id}`]
@@ -317,6 +322,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({ retentionDay
     limit: 20
   })
   const paintings = useInfiniteFlatItems(pages)
+  useDataChange('/paintings', () => void refresh())
   const items = useMemo<TrashItem[]>(
     () =>
       paintings.map((painting) => ({
@@ -373,6 +379,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, o
     limit: 20
   })
   const entries = useInfiniteFlatItems(pages)
+  useDataChange('/files/entries', () => void refresh())
   const items = useMemo<TrashItem[]>(
     () =>
       entries.map((entry) => ({
