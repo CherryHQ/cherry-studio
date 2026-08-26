@@ -787,7 +787,8 @@
         "kimi-code",
         "qoder-cli",
         "github-copilot-cli",
-        "pi"
+        "pi",
+        "hermes"
       ]
     }
   }

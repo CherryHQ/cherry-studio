@@ -302,6 +302,7 @@ describe('AiStreamManager', () => {
         messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
         listener: new FakeListener('gateway:request-1'),
         contextOwner: 'caller',
+        tokenUsageSource: 'agent',
         usageContext: {
           agentSessionId: 'session-1',
           assistantMessageId: 'message-1',
@@ -309,7 +310,9 @@ describe('AiStreamManager', () => {
         }
       })
 
-      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'session-1' }))
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: 'session-1', tokenUsageSource: 'agent' })
+      )
     })
   })
 
