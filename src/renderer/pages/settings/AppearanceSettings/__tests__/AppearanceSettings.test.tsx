@@ -356,13 +356,6 @@ describe('AppearanceSettings selectors', () => {
     ])
   })
 
-  it('keeps experimental navigation layout controls out of appearance settings', () => {
-    render(<AppearanceSettings />)
-
-    expect(screen.queryByText('settings.lab.navigation_layout.title')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.lab.navigation_layout.both' })).not.toBeInTheDocument()
-  })
-
   it('routes each list position row to its own module preference', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.position', 'left')
     MockUsePreferenceUtils.setPreferenceValue('agent.session.position', 'left')

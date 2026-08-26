@@ -207,6 +207,7 @@ const AppearanceSettings: FC = () => {
     ],
     [t]
   )
+
   const listPositionOptions = useMemo(
     () => [
       { value: 'left' as const, label: t('settings.topic.position.left') },
