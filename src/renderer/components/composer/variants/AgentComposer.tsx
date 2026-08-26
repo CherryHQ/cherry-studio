@@ -270,7 +270,6 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    inlineDescription: true,
     icon: <ToolCase size={16} />,
     suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
@@ -1161,7 +1160,7 @@ const AgentComposerInner = ({
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
       rootSearchItems: skillItems,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      action: ({ parentPanel, queryAnchor, quickPanel }) => {
         void refreshAvailableSkills().catch((error) => {
           logger.warn('Failed to refresh available skills when opening the skills panel', { error })
         })
@@ -1171,7 +1170,8 @@ const AgentComposerInner = ({
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          triggerInfo: { type: 'button' },
+          trackInputQuery: true
         })
       }
     }
@@ -1203,7 +1203,11 @@ const AgentComposerInner = ({
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
-    await chatStop()
+    try {
+      await chatStop()
+    } catch (error) {
+      logger.error('Failed to abort agent session', { sessionTopicId, error })
+    }
   }, [chatStop, sessionTopicId])
 
   const handleAgentChange = useCallback(

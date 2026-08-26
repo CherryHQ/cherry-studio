@@ -973,6 +973,48 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).toBe(true)
   })
 
+  it('denies image Read calls before text-only model sessions can persist image tool results', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { supportsImages: false }
+    )
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const runHooks = (filePath: string) =>
+      Promise.all(
+        hooks.map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: filePath } } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+
+    const imageRead = await runHooks('/workspace/project/assets/Preview.png')
+    expect(imageRead).toContainEqual(
+      expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({
+          permissionDecision: 'deny',
+          permissionDecisionReason: expect.stringContaining('does not support image input')
+        })
+      })
+    )
+
+    const sourceRead = await runHooks('/workspace/project/src/Game.cs')
+    expect(
+      sourceRead.every(
+        (out) =>
+          (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
+          'deny'
+      )
+    ).toBe(true)
+  })
+
   it('blocks permanent deletion and destructive Bash for protected built-in Agents', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
