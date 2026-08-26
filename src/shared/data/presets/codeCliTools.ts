@@ -10,6 +10,8 @@ export interface CodeCliToolPreset {
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
+  /** Exact npm packages whose lifecycle scripts mise may run during installation. */
+  npmAllowBuilds?: readonly string[]
   /**
    * A peer this tool needs at runtime but whose absence an install still reports
    * as success, named as `peer` resolved from `host`'s own entry point.

@@ -142,6 +142,8 @@ For a built-in Dependency settings preset, add an entry to `PRESETS_BINARY_TOOLS
 
 For a Code CLI, add its executable/specification to the Code CLI preset source. `getToolSnapshots()` already includes those candidates, so no BinaryManager adapter is needed.
 
+Fixed npm presets that require lifecycle scripts must list the exact packages in `npmAllowBuilds`. BinaryManager passes that list to mise's per-tool `allow_builds` option; packages not listed keep mise's default script blocking, and broad allow-all execution is not exposed.
+
 To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/binaryManager/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
 
 `scripts/download-binaries.js` fills `resources/binaries/<platform>-<arch>/`, which is what the app extracts from at boot. During packaging (`before-pack.js` passes `--packaging`) it downloads there directly.
