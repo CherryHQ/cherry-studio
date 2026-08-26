@@ -72,20 +72,21 @@ export function useConfigPanelController({
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
+  const writesCliConfig = isFileConfiguredCli(selectedCliTool)
 
   // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
   // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
   // provider key). Returns undefined for non-gateway providers.
   const resolveGatewayWriteContext = useCallback(
     async (providerId: string): Promise<CliConfigGatewayContext | undefined> => {
-      if (!isFileConfiguredCli(selectedCliTool) || !isApiGatewayProviderId(providerId) || !apiGatewayProvider) {
+      if (!writesCliConfig || !isApiGatewayProviderId(providerId) || !apiGatewayProvider) {
         return undefined
       }
       await apiGatewayProvider.ensureRunning()
       const apiKey = await apiGatewayProvider.getApiKey()
       return { provider: apiGatewayProvider.provider, apiKey }
     },
-    [apiGatewayProvider, selectedCliTool]
+    [apiGatewayProvider, writesCliConfig]
   )
   // Tracks tools with an in-flight enable/disable. writeCliConfigDraft / clearCliConfig write multiple
   // files sequentially with snapshot rollback and no cross-file lock, so a rapid second toggle for the
@@ -147,7 +148,7 @@ export function useConfigPanelController({
         throw new Error('Cannot resolve the detailed gateway model')
       }
       const shouldApplyCliConfig =
-        isFileConfiguredCli(selectedCliTool) && (currentProviderId === editingProvider.id || shouldEnableAfterSave)
+        writesCliConfig && (currentProviderId === editingProvider.id || shouldEnableAfterSave)
       // Preference and the external CLI files are one user-visible config. The active provider owns
       // the current files, so with nothing addressing a model the write below is skipped and
       // persisting anyway would strand the files on their previous contents (e.g. flipping Claude's
@@ -232,7 +233,8 @@ export function useConfigPanelController({
       setCurrentProvider,
       setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
-      gatewayModelsById
+      gatewayModelsById,
+      writesCliConfig
     ]
   )
 
@@ -249,7 +251,7 @@ export function useConfigPanelController({
         // tool params back on. Finally mark the reserved id current (or clear it when re-toggled).
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           try {
-            if (isFileConfiguredCli(selectedCliTool)) {
+            if (writesCliConfig) {
               await clearCliConfig({ cliTool: selectedCliTool })
             }
             if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {
@@ -270,7 +272,7 @@ export function useConfigPanelController({
         }
         if (!isEnabling) {
           try {
-            if (isFileConfiguredCli(selectedCliTool)) {
+            if (writesCliConfig) {
               await clearCliConfig({ cliTool: selectedCliTool })
             }
             // Only clear the active selection after any required scrub succeeds; otherwise the UI could show
@@ -306,18 +308,7 @@ export function useConfigPanelController({
           return
         }
 
-        if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
-          try {
-            await setCurrentProvider(provider.id)
-            setCurrentCliConfigConnection(null)
-          } catch (err) {
-            logger.error('Failed to select DeepSeek Harness provider:', err as Error)
-            toast.error(t('code.apply_failed'))
-          }
-          return
-        }
-
-        if (!isFileConfiguredCli(selectedCliTool)) {
+        if (!writesCliConfig) {
           try {
             await setCurrentProvider(provider.id)
             setCurrentCliConfigConnection(null)
@@ -363,6 +354,7 @@ export function useConfigPanelController({
       setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
       gatewayModelsById,
+      writesCliConfig,
       t
     ]
   )

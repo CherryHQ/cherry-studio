@@ -6,13 +6,7 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['claude-code', 'claude', '@anthropic-ai/claude-code', 'registry', 'claude'],
   ['openai-codex', 'codex', '@openai/codex', 'registry', 'codex'],
   ['opencode', 'opencode', 'opencode-ai', 'registry', 'opencode'],
-  [
-    'antigravity-cli',
-    'agy',
-    'google-antigravity/antigravity-cli',
-    'registry',
-    'aqua:google-antigravity/antigravity-cli'
-  ],
+  ['antigravity-cli', 'agy', 'google-antigravity/antigravity-cli', 'aqua', 'aqua:google-antigravity/antigravity-cli'],
   ['openclaw', 'openclaw', 'openclaw', 'npm', 'npm:openclaw'],
   ['deepseek-harness', 'dsh', '@deepseek-ai/dsh', 'npm', 'npm:@deepseek-ai/dsh'],
   ['gemini-cli', 'gemini', '@google/gemini-cli', 'npm', 'npm:@google/gemini-cli'],

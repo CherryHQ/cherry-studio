@@ -21,7 +21,7 @@ import {
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { REDACTED, redactLiterals } from '@shared/utils/redaction'
+import { REDACTED } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -822,8 +822,6 @@ export class CodeCliService extends BaseService {
     // Launch terminal process
     try {
       logger.info(`Launching terminal with command: ${terminalCommand}`)
-      const redactedTerminalArgs = terminalArgs.map((arg) => redactLiterals(arg, Object.values(env)))
-      logger.debug(`Terminal arguments:`, redactedTerminalArgs)
       logger.debug(`Working directory: ${directory}`)
       logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
 

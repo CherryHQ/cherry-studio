@@ -11,7 +11,7 @@ import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 type NormalRunInput = Extract<CodeCliRunInput, { mode: 'normal' }>
 
-export interface AntigravityLaunchConfig {
+interface AntigravityLaunchConfig {
   env: Record<string, string>
   geminiDir: string
   model: string

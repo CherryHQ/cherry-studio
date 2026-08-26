@@ -150,16 +150,8 @@ export function redactSecretText(text: string, extraKeys: readonly string[] = []
   return text.replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`).replace(withExtras, `$1"${REDACTED}"`)
 }
 
-/** Redact runtime-known literals in one pass so overlapping values cannot expose fragments. */
-export function redactLiterals(text: string, secrets: readonly (string | undefined)[]): string {
-  const escaped = [...new Set(secrets.filter((secret): secret is string => Boolean(secret)))]
-    .sort((left, right) => right.length - left.length)
-    .map((secret) => secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  if (escaped.length === 0) return text
-  return text.replace(new RegExp(escaped.join('|'), 'g'), REDACTED)
-}
-
 /** Redact an exact runtime-known secret literal wherever it occurs. */
 export function redactLiteral(text: string, secret: string | undefined): string {
-  return redactLiterals(text, [secret])
+  if (!secret) return text
+  return text.split(secret).join(REDACTED)
 }

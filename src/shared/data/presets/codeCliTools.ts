@@ -5,7 +5,7 @@ export interface CodeCliToolPreset {
   id: CodeCli
   executable: string
   packageName: string
-  install: 'registry' | 'npm' | 'pipx'
+  install: 'registry' | 'npm' | 'pipx' | 'aqua'
   miseTool: string
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
@@ -18,19 +18,13 @@ export interface CodeCliToolPreset {
 }
 
 type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'> & {
-  miseTool?: string
   /** pipx extras required to install this tool's built-in capabilities. */
   pipxExtras?: readonly string[]
 }
 
-function defineCodeCliTool({
-  miseTool,
-  pipxExtras,
-  ...definition
-}: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
+function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
   const packageTool =
-    miseTool ??
-    (definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`)
+    definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`
   const extras = definition.install === 'pipx' && pipxExtras?.length ? pipxExtras.join(',') : ''
   return Object.freeze({
     ...definition,
@@ -60,8 +54,7 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     id: CodeCli.ANTIGRAVITY_CLI,
     executable: 'agy',
     packageName: 'google-antigravity/antigravity-cli',
-    install: 'registry',
-    miseTool: 'aqua:google-antigravity/antigravity-cli'
+    install: 'aqua'
   }),
   defineCodeCliTool({ id: CodeCli.OPENCLAW, executable: 'openclaw', packageName: 'openclaw', install: 'npm' }),
   defineCodeCliTool({

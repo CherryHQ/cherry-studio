@@ -6,7 +6,6 @@ import {
   redactDeep,
   REDACTED,
   redactLiteral,
-  redactLiterals,
   redactRecord,
   redactSecretText,
   redactServerKey,
@@ -314,13 +313,5 @@ describe('redactLiteral', () => {
   it('ignores an empty secret instead of destroying the text', () => {
     expect(redactLiteral('text', '')).toBe('text')
     expect(redactLiteral('text', undefined)).toBe('text')
-  })
-})
-
-describe('redactLiterals', () => {
-  it('redacts overlapping values without exposing fragments of the longer value', () => {
-    expect(redactLiterals('key=cs-sk-101-secret flag=1', ['1', 'cs-sk-101-secret'])).toBe(
-      `key=${REDACTED} flag=${REDACTED}`
-    )
   })
 })
