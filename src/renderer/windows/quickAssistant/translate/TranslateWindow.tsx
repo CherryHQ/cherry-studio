@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { useTranslate } from '@renderer/hooks/translate'
 import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { toast } from '@renderer/services/toast'
 import { isEmpty } from 'es-toolkit/compat'
 import { ArrowLeftRight } from 'lucide-react'
@@ -20,12 +21,14 @@ const Translate: FC<Props> = ({ text }) => {
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.mini_window.target_lang')
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
+  const { reset: resetSmoothStream, update: updateSmoothStream } = useSmoothStream({ onUpdate: setResult })
   const { translate: runTranslate, cancel } = useTranslate({
     loggerContext: 'TranslateWindow',
-    onResponse: setResult
+    onResponse: updateSmoothStream
   })
 
   const translateCurrentText = useEffectEvent(() => {
+    resetSmoothStream('')
     if (!text.trim() || !translateModel) {
       cancel()
       return

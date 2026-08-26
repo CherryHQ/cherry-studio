@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +8,9 @@ const state = vi.hoisted(() => ({
   targetLanguage: 'en-us',
   translateModel: { id: 'openai::gpt-4o' } as { id: string } | undefined,
   setTargetLanguage: vi.fn(),
+  smoothOnUpdate: undefined as ((text: string) => void) | undefined,
+  smoothReset: vi.fn<(text?: string) => void>(),
+  smoothUpdate: vi.fn<(text: string, isComplete: boolean) => void>(),
   translateText:
     vi.fn<
       (
@@ -34,6 +37,19 @@ vi.mock('@renderer/components/LanguageSelect', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ translateModel: state.translateModel })
+}))
+
+vi.mock('@renderer/hooks/useSmoothStream', () => ({
+  useSmoothStream: ({ onUpdate }: { onUpdate: (text: string) => void }) => {
+    state.smoothOnUpdate = onUpdate
+    return {
+      reset: (text = '') => {
+        state.smoothReset(text)
+        onUpdate(text)
+      },
+      update: state.smoothUpdate
+    }
+  }
 }))
 
 vi.mock('@renderer/utils/translate', () => ({
@@ -63,8 +79,28 @@ describe('TranslateWindow', () => {
     state.targetLanguage = 'en-us'
     state.translateModel = { id: 'openai::gpt-4o' }
     state.setTargetLanguage.mockReset()
+    state.smoothOnUpdate = undefined
+    state.smoothReset.mockReset()
+    state.smoothUpdate.mockReset()
     state.translateText.mockReset()
     state.t.mockClear()
+  })
+
+  it('buffers bursty translation frames before rendering them', async () => {
+    state.translateText.mockImplementation((_text, _targetLanguage, onResponse) => {
+      onResponse?.('bursty translation', false)
+      return new Promise<string>(() => {})
+    })
+
+    render(<TranslateWindow text="hello" />)
+
+    await waitFor(() => expect(state.smoothUpdate).toHaveBeenCalledWith('bursty translation', false))
+    expect(state.smoothReset).toHaveBeenCalledWith('')
+    expect(screen.queryByText('bursty translation')).not.toBeInTheDocument()
+
+    act(() => state.smoothOnUpdate?.('smooth translation'))
+
+    expect(screen.getByText('smooth translation')).toBeInTheDocument()
   })
 
   it('does not start another translation after the current request settles', async () => {
