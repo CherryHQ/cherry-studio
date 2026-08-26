@@ -1,5 +1,4 @@
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index 307d626f3be710048a91324546bf76419d7e025e..93fdbb4f44c60e3f60c009e4ce2d5bc3ed96c173 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
 @@ -102,7 +102,7 @@ export const stream = (model, context, options) => {
