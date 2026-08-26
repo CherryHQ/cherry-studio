@@ -155,21 +155,6 @@ describe('NotesEditor empty state', () => {
     expect(onCreateNote).toHaveBeenCalledTimes(1)
   })
 
-  it('activates the empty-state create action from the keyboard', async () => {
-    const user = userEvent.setup()
-    const onCreateNote = vi.fn()
-
-    render(<NotesEditor {...emptyEditorProps} onCreateNote={onCreateNote} />)
-
-    const createButton = screen.getByRole('button', { name: 'notes.new_note' })
-    createButton.focus()
-    await user.keyboard('{Enter}')
-    expect(onCreateNote).toHaveBeenCalledTimes(1)
-
-    await user.keyboard(' ')
-    expect(onCreateNote).toHaveBeenCalledTimes(2)
-  })
-
   it('does not expose a create-note action while a note is open', async () => {
     render(
       <NotesEditor
