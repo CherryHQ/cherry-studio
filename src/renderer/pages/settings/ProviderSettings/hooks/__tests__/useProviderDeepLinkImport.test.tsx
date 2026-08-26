@@ -211,6 +211,119 @@ describe('useProviderDeepLinkImport', () => {
     expect(updateProviderByIdMock).toHaveBeenCalledWith('everyapi', { isEnabled: true })
   })
 
+  it('does not sync models or enable an existing provider when autoSyncModels is requested', async () => {
+    const onSelectProvider = vi.fn()
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'anthropic',
+        name: 'Anthropic',
+        type: 'anthropic',
+        apiKey: 'sk-anthropic',
+        apiHost: 'https://api.anthropic.com'
+      },
+      isNew: false,
+      displayName: 'Anthropic',
+      autoSyncModels: true
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'anthropic',
+          apiKey: 'sk-anthropic',
+          baseUrl: 'https://api.anthropic.com',
+          type: 'anthropic',
+          name: 'Anthropic',
+          autoSyncModels: true
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(onSelectProvider).toHaveBeenCalledWith('anthropic'))
+
+    expect(syncProviderModelsForProviderMock).not.toHaveBeenCalled()
+    expect(updateProviderByIdMock).not.toHaveBeenCalledWith('anthropic', { isEnabled: true })
+    expect(toast.success).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the import successful when consented model sync finds no models', async () => {
+    const onSelectProvider = vi.fn()
+    createProviderMock.mockResolvedValue({ id: 'everyapi' })
+    syncProviderModelsForProviderMock.mockResolvedValue([])
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'everyapi',
+        name: 'EveryAPI',
+        type: 'openai',
+        apiKey: 'sk-everyapi',
+        apiHost: 'https://api.everyapi.example/v1'
+      },
+      isNew: true,
+      displayName: 'EveryAPI',
+      autoSyncModels: true
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'everyapi',
+          apiKey: 'sk-everyapi',
+          baseUrl: 'https://api.everyapi.example/v1',
+          type: 'openai',
+          name: 'EveryAPI',
+          autoSyncModels: true
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(onSelectProvider).toHaveBeenCalledWith('everyapi'))
+
+    expect(syncProviderModelsForProviderMock).toHaveBeenCalledTimes(1)
+    expect(updateProviderByIdMock).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the import successful and warns when consented model sync fails', async () => {
+    const onSelectProvider = vi.fn()
+    createProviderMock.mockResolvedValue({ id: 'everyapi' })
+    syncProviderModelsForProviderMock.mockRejectedValue(new Error('upstream failed'))
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'everyapi',
+        name: 'EveryAPI',
+        type: 'openai',
+        apiKey: 'sk-everyapi',
+        apiHost: 'https://api.everyapi.example/v1'
+      },
+      isNew: true,
+      displayName: 'EveryAPI',
+      autoSyncModels: true
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'everyapi',
+          apiKey: 'sk-everyapi',
+          baseUrl: 'https://api.everyapi.example/v1',
+          type: 'openai',
+          name: 'EveryAPI',
+          autoSyncModels: true
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(onSelectProvider).toHaveBeenCalledWith('everyapi'))
+
+    expect(toast.warning).toHaveBeenCalledTimes(1)
+    expect(updateProviderByIdMock).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('shows an error toast and clears the search state for invalid input', async () => {
     const onSelectProvider = vi.fn()
 

@@ -26,8 +26,8 @@ interface SyncProviderModelsOptions {
 /**
  * Populate an empty provider from its remote model endpoint.
  *
- * Kept outside the hook so consented deep-link imports can request the same
- * supported sync path after the provider and API key have been persisted.
+ * Skips remote discovery when any local model already exists. Deep-link
+ * auto-sync must therefore only call this for a newly created provider.
  */
 export async function syncProviderModelsForProvider({
   providerId,
