@@ -91,8 +91,18 @@ export const appRequestSchemas = {
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.repair_topic_order': defineRoute({
     input: z.object({
-      assistants: z.array(z.object({ topics: z.array(z.object({ id: z.string().min(1) })).optional() })).optional(),
-      defaultAssistant: z.object({ topics: z.array(z.object({ id: z.string().min(1) })).optional() }).optional()
+      assistants: z
+        .array(
+          z.object({
+            topics: z.array(z.object({ id: z.string().min(1), pinned: z.boolean().optional() })).optional()
+          })
+        )
+        .optional(),
+      defaultAssistant: z
+        .object({
+          topics: z.array(z.object({ id: z.string().min(1), pinned: z.boolean().optional() })).optional()
+        })
+        .optional()
     }),
     output: z.object({
       applied: z.boolean(),

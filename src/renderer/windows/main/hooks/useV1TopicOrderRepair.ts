@@ -5,23 +5,30 @@ import { useEffect } from 'react'
 const logger = loggerService.withContext('V1TopicOrderRepair')
 const PERSIST_KEY = 'persist:cherry-studio'
 
-export interface V1AssistantsTopicSourcePayload {
-  assistants?: Array<{ topics?: Array<{ id: string }> }>
-  defaultAssistant?: { topics?: Array<{ id: string }> }
+export interface V1AssistantsTopicRef {
+  id: string
+  pinned?: boolean
 }
 
-function topicRefs(topics: unknown): Array<{ id: string }> {
+export interface V1AssistantsTopicSourcePayload {
+  assistants?: Array<{ topics?: V1AssistantsTopicRef[] }>
+  defaultAssistant?: { topics?: V1AssistantsTopicRef[] }
+}
+
+function topicRefs(topics: unknown): V1AssistantsTopicRef[] {
   if (!Array.isArray(topics)) return []
-  const refs: Array<{ id: string }> = []
+  const refs: V1AssistantsTopicRef[] = []
   for (const topic of topics) {
     if (!topic || typeof topic !== 'object' || !('id' in topic)) continue
     const id = (topic as { id?: unknown }).id
-    if (typeof id === 'string' && id.length > 0) refs.push({ id })
+    if (typeof id !== 'string' || id.length === 0) continue
+    const pinned = (topic as { pinned?: unknown }).pinned
+    refs.push(typeof pinned === 'boolean' ? { id, pinned } : { id })
   }
   return refs
 }
 
-function assistantRefs(assistants: unknown): Array<{ topics?: Array<{ id: string }> }> {
+function assistantRefs(assistants: unknown): Array<{ topics?: V1AssistantsTopicRef[] }> {
   if (!Array.isArray(assistants)) return []
   return assistants.map((assistant) => ({
     topics: topicRefs(

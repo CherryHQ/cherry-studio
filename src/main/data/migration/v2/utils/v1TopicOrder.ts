@@ -3,26 +3,29 @@
  * `updatedAt` is recency, not the user-deliberate list.
  */
 
-export interface V1TopicOrderSource {
-  assistants?: Array<{ topics?: Array<{ id?: string | null }> | null }> | null
-  defaultAssistant?: { topics?: Array<{ id?: string | null }> | null } | null
+export interface V1TopicOrderItem {
+  id?: string | null
+  pinned?: boolean | null
 }
 
-/**
- * Flatten topic ids from `assistants[]` then `defaultAssistant.topics[]`.
- * First write wins when the same id appears under more than one slot.
- */
-export function collectV1TopicOrderIds(source: V1TopicOrderSource | null | undefined): string[] {
-  const ids: string[] = []
+export interface V1TopicOrderSource {
+  assistants?: Array<{ topics?: Array<V1TopicOrderItem> | null }> | null
+  defaultAssistant?: { topics?: Array<V1TopicOrderItem> | null } | null
+}
+
+function collectFirstWriteV1Topics(
+  source: V1TopicOrderSource | null | undefined
+): Array<{ id: string; pinned: boolean }> {
+  const items: Array<{ id: string; pinned: boolean }> = []
   const seen = new Set<string>()
 
-  const visit = (topics: Array<{ id?: string | null }> | null | undefined): void => {
+  const visit = (topics: Array<V1TopicOrderItem> | null | undefined): void => {
     if (!Array.isArray(topics)) return
     for (const topic of topics) {
       const id = topic?.id
       if (!id || seen.has(id)) continue
       seen.add(id)
-      ids.push(id)
+      items.push({ id, pinned: topic.pinned === true })
     }
   }
 
@@ -32,7 +35,25 @@ export function collectV1TopicOrderIds(source: V1TopicOrderSource | null | undef
     }
   }
   visit(source?.defaultAssistant?.topics)
-  return ids
+  return items
+}
+
+/**
+ * Flatten topic ids from `assistants[]` then `defaultAssistant.topics[]`.
+ * First write wins when the same id appears under more than one slot.
+ */
+export function collectV1TopicOrderIds(source: V1TopicOrderSource | null | undefined): string[] {
+  return collectFirstWriteV1Topics(source).map((item) => item.id)
+}
+
+/**
+ * Same flatten, restricted to first-write `pinned === true`.
+ * A later slot cannot pin (or unpin) an id already seen.
+ */
+export function collectV1PinnedTopicOrderIds(source: V1TopicOrderSource | null | undefined): string[] {
+  return collectFirstWriteV1Topics(source)
+    .filter((item) => item.pinned)
+    .map((item) => item.id)
 }
 
 /** Dexie-only leftovers: recency then id, so the append is stable. */

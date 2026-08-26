@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  collectV1PinnedTopicOrderIds,
   collectV1TopicOrderIds,
   compareTopicLeftoversByUpdatedAtThenId,
   orderItemsByV1TopicSequence
@@ -28,6 +29,43 @@ describe('collectV1TopicOrderIds', () => {
   it('returns [] when Redux has no topic arrays', () => {
     expect(collectV1TopicOrderIds(undefined)).toEqual([])
     expect(collectV1TopicOrderIds({})).toEqual([])
+  })
+})
+
+describe('collectV1PinnedTopicOrderIds', () => {
+  it('keeps first-write pinned === true and ignores later pin flips', () => {
+    expect(
+      collectV1PinnedTopicOrderIds({
+        assistants: [
+          {
+            topics: [
+              { id: 'C', pinned: true },
+              { id: 'A', pinned: false }
+            ]
+          },
+          {
+            topics: [
+              { id: 'B', pinned: true },
+              { id: 'A', pinned: true }
+            ]
+          }
+        ],
+        defaultAssistant: {
+          topics: [
+            { id: 'C', pinned: false },
+            { id: 'D', pinned: true }
+          ]
+        }
+      })
+    ).toEqual(['C', 'B', 'D'])
+  })
+
+  it('does not treat missing or non-true pinned as a V1 pin', () => {
+    expect(
+      collectV1PinnedTopicOrderIds({
+        assistants: [{ topics: [{ id: 'A' }, { id: 'B', pinned: false }, { id: 'C', pinned: true }] }]
+      })
+    ).toEqual(['C'])
   })
 })
 

@@ -3,7 +3,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -107,6 +107,16 @@ describe('repairMigratedV1TopicOrder', () => {
     return row.orderKey
   }
 
+  function pinKey(entityId: string): string {
+    const row = dbh.db
+      .select({ orderKey: pinTable.orderKey })
+      .from(pinTable)
+      .where(and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, entityId)))
+      .get()
+    if (!row) throw new Error(`missing pin ${entityId}`)
+    return row.orderKey
+  }
+
   it('permutes only Redux-overlapping ids and keeps interleaved V2 rows in place', () => {
     seedTopic('t-e', 'a0', 500)
     seedTopic('t-b', 'a1', 300)
@@ -122,7 +132,15 @@ describe('repairMigratedV1TopicOrder', () => {
 
     expect(
       repairMigratedV1TopicOrder({
-        assistants: [{ topics: [{ id: 't-c' }, { id: 't-a' }, { id: 't-b' }] }]
+        assistants: [
+          {
+            topics: [
+              { id: 't-c', pinned: true },
+              { id: 't-a', pinned: true },
+              { id: 't-b', pinned: true }
+            ]
+          }
+        ]
       })
     ).toEqual({ applied: true, reason: 'repaired' })
 
@@ -141,6 +159,38 @@ describe('repairMigratedV1TopicOrder', () => {
     })
   })
 
+  it('restores V1 pin order without moving a V1 topic the user pinned after migration', () => {
+    seedTopic('t-b', 'a0', 300)
+    seedTopic('t-a', 'a1', 200)
+    seedTopic('t-c', 'a2', 100)
+    seedTopic('t-v2', 'a3', 400)
+    seedPin('pin-b', 't-b', 'p0')
+    seedPin('pin-a', 't-a', 'p1')
+    seedPin('pin-c', 't-c', 'p2')
+    seedPin('pin-v2', 't-v2', 'p3')
+
+    expect(
+      repairMigratedV1TopicOrder({
+        assistants: [
+          {
+            topics: [{ id: 't-c', pinned: true }, { id: 't-a', pinned: true }, { id: 't-b' }]
+          }
+        ]
+      })
+    ).toEqual({ applied: true, reason: 'repaired' })
+
+    expect(topicIdsByOrder()).toEqual(['t-c', 't-a', 't-b', 't-v2'])
+    expect(pinIdsByOrder()).toEqual(['t-b', 't-c', 't-a', 't-v2'])
+    expect(pinKey('t-b')).toBe('p0')
+    expect(pinKey('t-v2')).toBe('p3')
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/topics', kind: 'projection', entityIds: ['t-c', 't-a', 't-b'] },
+      { endpoint: '/topics', kind: 'order', dimension: 'orderKey', entityIds: ['t-c', 't-a', 't-b'] },
+      { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: ['pin-c', 'pin-a'] },
+      { endpoint: '/topics', kind: 'order', dimension: 'pinned', entityIds: ['t-c', 't-a'] }
+    ])
+  })
+
   it('notifies /topics and /pins after a successful repair commit', () => {
     seedTopic('t-c', 'a2', 100)
     seedTopic('t-a', 'a1', 200)
@@ -150,7 +200,11 @@ describe('repairMigratedV1TopicOrder', () => {
 
     expect(
       repairMigratedV1TopicOrder({
-        assistants: [{ topics: [{ id: 't-c' }, { id: 't-a' }, { id: 't-b' }] }]
+        assistants: [
+          {
+            topics: [{ id: 't-c', pinned: true }, { id: 't-a' }, { id: 't-b', pinned: true }]
+          }
+        ]
       })
     ).toEqual({ applied: true, reason: 'repaired' })
 

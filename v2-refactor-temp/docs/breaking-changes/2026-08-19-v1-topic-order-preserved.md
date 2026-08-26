@@ -12,7 +12,7 @@ Conversations migrated from V1 now keep the order the user set under each assist
 
 ## Why this matters to the user
 
-After upgrading, a profile that still has V1 Redux data (`persist:cherry-studio`) is repaired once so assistant-mode overlapping conversations match the old list. Conversations created after migration keep their current placement. Time mode and the right panel still group by recent activity and do not offer drag reorder.
+After upgrading, a profile that still has V1 Redux data (`persist:cherry-studio`) is repaired once so assistant-mode overlapping conversations match the old list. Conversations created after migration keep their current placement. Pins created in V2 after migration — including pins on conversations that existed in V1 — also keep their current placement. Time mode and the right panel still group by recent activity and do not offer drag reorder.
 
 ## What the user should do
 

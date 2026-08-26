@@ -9,7 +9,7 @@ import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { eq, isNull, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
-import { collectV1TopicOrderIds, type V1TopicOrderSource } from './utils/v1TopicOrder'
+import { collectV1PinnedTopicOrderIds, collectV1TopicOrderIds, type V1TopicOrderSource } from './utils/v1TopicOrder'
 
 const logger = loggerService.withContext('ChatMigrator')
 
@@ -99,7 +99,8 @@ function readRepairMarker(db: DbOrTx): z.infer<typeof V1TopicOrderRepairMarkerSc
 
 function stampOverlappingTopicAndPinOrder(
   db: DbOrTx,
-  reduxOrderIds: readonly string[]
+  reduxOrderIds: readonly string[],
+  reduxPinnedOrderIds: readonly string[]
 ): { topicIds: string[]; pinIds: string[]; pinnedEntityIds: string[] } {
   const topics = db
     .select({ id: topicTable.id, orderKey: topicTable.orderKey })
@@ -122,7 +123,8 @@ function stampOverlappingTopicAndPinOrder(
     .from(pinTable)
     .where(eq(pinTable.entityType, 'topic'))
     .all()
-  const pinUpdates = permuteOverlappingOrderKeys(pins, (pin) => pin.entityId, reduxOrderIds)
+  // Only V1 `pinned === true` ids. A V1 topic pinned after migration stays put.
+  const pinUpdates = permuteOverlappingOrderKeys(pins, (pin) => pin.entityId, reduxPinnedOrderIds)
   for (const update of pinUpdates) {
     db.update(pinTable)
       .set({
@@ -138,7 +140,7 @@ function stampOverlappingTopicAndPinOrder(
   const pinByEntityId = new Map(pins.map((pin) => [pin.entityId, pin.id]))
   const pinIds: string[] = []
   const pinnedEntityIds: string[] = []
-  for (const id of reduxOrderIds) {
+  for (const id of reduxPinnedOrderIds) {
     const pinId = pinByEntityId.get(id)
     if (!pinId) continue
     pinIds.push(pinId)
@@ -163,9 +165,10 @@ function notifyRepairedOrder(topicIds: string[], pinIds: string[], pinnedEntityI
 }
 
 /**
- * Rewrite already-migrated overlapping topic/pin orderKeys from preserved V1
- * Redux order. V2-only rows keep their keys. No-ops when the marker exists,
- * when Redux has no topic ids, or when none of those ids exist in SQLite.
+ * Rewrite already-migrated overlapping topic orderKeys from preserved V1
+ * Redux order, and pin orderKeys only for first-write `pinned === true`.
+ * V2-only rows and V2-created pins keep their keys. No-ops when the marker
+ * exists, when Redux has no topic ids, or when none of those ids exist in SQLite.
  */
 export function repairMigratedV1TopicOrder(source: V1TopicOrderSource): V1TopicOrderRepairResult {
   const result = application.get('DbService').withWriteTx((tx) => {
@@ -195,7 +198,7 @@ export function repairMigratedV1TopicOrder(source: V1TopicOrderSource): V1TopicO
       return { applied: false as const, reason: 'no_overlap' as const }
     }
 
-    const stamped = stampOverlappingTopicAndPinOrder(tx, reduxOrderIds)
+    const stamped = stampOverlappingTopicAndPinOrder(tx, reduxOrderIds, collectV1PinnedTopicOrderIds(source))
     writeV1TopicOrderRepairMarker(tx, 'repair')
     logger.info('Permuted overlapping topic/pin order from V1 Redux assistants[].topics[]', {
       reduxTopicCount: reduxOrderIds.length,

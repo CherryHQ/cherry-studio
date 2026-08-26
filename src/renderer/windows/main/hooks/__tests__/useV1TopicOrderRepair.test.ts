@@ -23,15 +23,23 @@ describe('readV1AssistantsTopicSource', () => {
       'persist:cherry-studio',
       JSON.stringify({
         assistants: JSON.stringify({
-          assistants: [{ topics: [{ id: 't-c' }, { id: 't-a' }, { id: 't-b' }] }],
-          defaultAssistant: { topics: [{ id: 't-c' }] }
+          assistants: [
+            {
+              topics: [{ id: 't-c', pinned: true }, { id: 't-a' }, { id: 't-b', pinned: false }]
+            }
+          ],
+          defaultAssistant: { topics: [{ id: 't-c', pinned: false }] }
         })
       })
     )
 
     expect(readV1AssistantsTopicSource()).toEqual({
-      assistants: [{ topics: [{ id: 't-c' }, { id: 't-a' }, { id: 't-b' }] }],
-      defaultAssistant: { topics: [{ id: 't-c' }] }
+      assistants: [
+        {
+          topics: [{ id: 't-c', pinned: true }, { id: 't-a' }, { id: 't-b', pinned: false }]
+        }
+      ],
+      defaultAssistant: { topics: [{ id: 't-c', pinned: false }] }
     })
   })
 
@@ -59,7 +67,11 @@ describe('requestV1TopicOrderRepair', () => {
       'persist:cherry-studio',
       JSON.stringify({
         assistants: JSON.stringify({
-          assistants: [{ topics: [{ id: 't-c' }, { id: 't-a' }, { id: 't-b' }] }]
+          assistants: [
+            {
+              topics: [{ id: 't-c', pinned: true }, { id: 't-a' }, { id: 't-b', pinned: false }]
+            }
+          ]
         })
       })
     )
@@ -67,7 +79,11 @@ describe('requestV1TopicOrderRepair', () => {
     await requestV1TopicOrderRepair()
 
     expect(requestMock).toHaveBeenCalledExactlyOnceWith('app.migration_v2.repair_topic_order', {
-      assistants: [{ topics: [{ id: 't-c' }, { id: 't-a' }, { id: 't-b' }] }]
+      assistants: [
+        {
+          topics: [{ id: 't-c', pinned: true }, { id: 't-a' }, { id: 't-b', pinned: false }]
+        }
+      ]
     })
   })
 })
