@@ -33,6 +33,7 @@ vi.mock('@application', async () => {
 // The global electron mock has no `session.fromPartition`, and the REAL uninstall
 // clears the app's partition on its way out.
 vi.mock('electron', () => ({
+  webContents: { fromId: () => undefined },
   session: {
     fromPartition: vi.fn(() => ({
       clearStorageData: vi.fn().mockResolvedValue(undefined),

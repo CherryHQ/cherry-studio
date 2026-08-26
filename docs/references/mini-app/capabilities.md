@@ -129,6 +129,7 @@ A flat namespace of named blobs, separate from `storage`, for larger payloads. N
 | `list()` | `file.list` | `{ names: string[] }`, sorted |
 | `delete(name)` | `file.delete` | `{ ok: true }` — idempotent |
 | `usage()` | sibling of `file.*` | `{ bytes, count, bytesLimit, countLimit }` — decoded bytes |
+| `export(name, { suggestedName? }?)` | `file.export` | `{ saved: boolean }` — `false` when the user cancels the save dialog |
 
 | Limit | Value |
 |---|---|
@@ -146,6 +147,20 @@ const bytes = new Uint8Array(await blob.arrayBuffer())
 await cherry.file.save('level1.bin', btoa(String.fromCharCode(...bytes)))
 ```
 
+### Exporting
+
+`export` is the only way a sandbox file reaches the user's disk: the host opens its own save dialog, parented to the window showing your app and titled with your app's name, and copies the file to whatever path the user picks. That path is never returned to you.
+
+| Rule | Value |
+|---|---|
+| Visibility | Only while the app's pane is visible — a hidden pooled app rejects `PermissionDenied` before any dialog opens. This is the pane's state, not the window's: see [Lifecycle](./lifecycle.md#events) |
+| Dialogs | One at a time; a second call while one is open rejects `RateLimited` |
+| Rate | 10 per minute per app |
+| `suggestedName` | Optional default file name in the dialog, same rules as a logical name; defaults to `name` |
+| Unknown `name` | `InvalidArgument` |
+
+Browser downloads (`<a download>`, `URL.createObjectURL` + click) and the File System Access pickers are blocked in the sandbox — see [Sandbox](./sandbox.md).
+
 ## `cherry.notification`
 
 | Method | Gate | Returns |
@@ -161,6 +176,23 @@ await cherry.file.save('level1.bin', btoa(String.fromCharCode(...bytes)))
 | User switch | If the user disabled mini app notifications, the call resolves `ok` and shows nothing |
 
 Notifications are one-way: there is no click event back to the app.
+
+## `cherry.clipboard`
+
+| Method | Gate | Returns |
+|---|---|---|
+| `read()` | `clipboard.read` | `{ text: string }` — `''` when the clipboard holds no text |
+| `write({ text })` | `clipboard.write` | `{ ok: true }` |
+
+Plain text only. Both calls require the app to be **visible and to have keyboard focus**: while the user is typing or clicking elsewhere in Cherry, or while your app sits hidden in the pool, they reject `PermissionDenied`. Focus is the one signal the user gives without a dialog; without it a background app could read what they copied elsewhere or replace what they are about to paste. Call from a click handler and you have it.
+
+| Limit | Value |
+|---|---|
+| `text` | ≤ 1,048,576 characters; longer rejects `InvalidArgument` |
+| Read | Clipped to 1,048,576 characters, never rejected for length |
+| Rate | 10 reads and 30 writes per minute per app — a read is one user action, never a poll |
+
+`navigator.clipboard` stays denied. Pasting into your own inputs with the keyboard is a browser behaviour and needs nothing.
 
 ## `cherry.network`
 
@@ -220,3 +252,5 @@ These run inside the page before anything is sent, so an oversized payload never
 | `callId` | 64 |
 | `network.fetch` url / header count / header name / header value / body | 2048 / 32 / 128 / 4096 / base64 of 1 MB |
 | `notification` title / body | 64 / 256 — **truncated**, not rejected |
+| `clipboard.write` text | 1,048,576 |
+| `file.export` suggestedName | 128 |

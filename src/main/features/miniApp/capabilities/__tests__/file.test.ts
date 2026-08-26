@@ -1,8 +1,11 @@
+import fs from 'node:fs'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
+import { BrowserWindow, dialog, webContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type CallLease, MiniAppQuiescingError } from '../../runtime/MiniAppRuntimeService'
@@ -10,55 +13,72 @@ import { base64CharCap, MINI_APP_QUOTAS } from '../quota'
 
 // Hoisted: the static `MiniAppRuntimeService` import above pulls `@application` in and
 // runs the mock factory before any top-level `const` of this file is initialised.
-const { created, mintEntry, createInternalEntry, readEntry, read, permanentDelete, generation } = vi.hoisted(() => {
-  const created: { id: string; data: Uint8Array }[] = []
-  // Faithful to FileManager where the capability depends on it: a real entry is a
-  // `file_entry` ROW (the ref table FK-points at it and usage sums its `size`).
-  const mintEntry = async ({
-    data,
-    cleanupPolicy
-  }: {
-    data: Uint8Array
-    cleanupPolicy: 'delete_when_unreferenced'
-  }) => {
-    const id = `f${created.length + 1}`
-    created.push({ id, data })
-    const entry = { id, origin: 'internal' as const, name: 'blob', ext: 'bin', size: data.byteLength, cleanupPolicy }
-    dbh.db.insert(fileEntryTable).values(entry).run()
-    return entry
+const { created, mintEntry, createInternalEntry, readEntry, read, permanentDelete, generation, visible } = vi.hoisted(
+  () => {
+    const created: { id: string; data: Uint8Array }[] = []
+    // Faithful to FileManager where the capability depends on it: a real entry is a
+    // `file_entry` ROW (the ref table FK-points at it and usage sums its `size`).
+    const mintEntry = async ({
+      data,
+      cleanupPolicy
+    }: {
+      data: Uint8Array
+      cleanupPolicy: 'delete_when_unreferenced'
+    }) => {
+      const id = `f${created.length + 1}`
+      created.push({ id, data })
+      const entry = { id, origin: 'internal' as const, name: 'blob', ext: 'bin', size: data.byteLength, cleanupPolicy }
+      dbh.db.insert(fileEntryTable).values(entry).run()
+      return entry
+    }
+    const createInternalEntry = vi.fn(mintEntry)
+    // Honours `encoding` the way FileManager does: 'binary' hands back bytes, and a guest
+    // cannot receive bytes — so a capability that asks for the wrong one must fail here.
+    const readEntry = async (id: string, options?: { encoding?: 'text' | 'base64' | 'binary' }) => {
+      const data = created.find((c) => c.id === id)!.data
+      const content = options?.encoding === 'base64' ? Buffer.from(data).toString('base64') : data
+      return { content, mime: 'application/octet-stream' }
+    }
+    const read = vi.fn(readEntry)
+    const permanentDelete = vi.fn(async (id: string) => {
+      dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
+    })
+    return {
+      created,
+      mintEntry,
+      createInternalEntry,
+      readEntry,
+      read,
+      permanentDelete,
+      generation: { value: 1 },
+      visible: { value: true }
+    }
   }
-  const createInternalEntry = vi.fn(mintEntry)
-  // Honours `encoding` the way FileManager does: 'binary' hands back bytes, and a guest
-  // cannot receive bytes — so a capability that asks for the wrong one must fail here.
-  const readEntry = async (id: string, options?: { encoding?: 'text' | 'base64' | 'binary' }) => {
-    const data = created.find((c) => c.id === id)!.data
-    const content = options?.encoding === 'base64' ? Buffer.from(data).toString('base64') : data
-    return { content, mime: 'application/octet-stream' }
-  }
-  const read = vi.fn(readEntry)
-  const permanentDelete = vi.fn(async (id: string) => {
-    dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
-  })
-  return { created, mintEntry, createInternalEntry, readEntry, read, permanentDelete, generation: { value: 1 } }
-})
+)
 
 // `save` takes a lease and re-checks it after the await, so the runtime service must
 // be mounted here too or every case throws before its first assertion.
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({
-    FileManager: { createInternalEntry, read, permanentDelete },
+    FileManager: { createInternalEntry, read, permanentDelete, getPhysicalPath: (id: string) => `/blobs/${id}.bin` },
     MiniAppRuntimeService: {
       leaseFor: (appId: string) => ({ appId, generation: generation.value }),
       assertLeaseValid: (lease: CallLease) => {
         if (lease.generation !== generation.value) throw new MiniAppQuiescingError(lease.appId)
-      }
+      },
+      isGuestVisible: () => visible.value,
+      displayNameOf: () => 'My Game'
     }
   })
 })
+// The dialog title is asserted by key: the catalog is not what is under test.
+vi.mock('@main/i18n', () => ({ t: (key: string, vars?: { name: string }) => `${key}:${vars?.name ?? ''}` }))
 
 const { fileCapability } = await import('../file')
-const { QuotaExceededError } = await import('../quota')
+const { QuotaExceededError, RateLimitedError } = await import('../quota')
+const { InvalidArgumentError } = await import('../../errors')
+const { PermissionDeniedError } = await import('../../grants')
 
 // Module-level so the hoisted FileManager mock can reach the same DB the capability writes.
 const dbh = setupTestDatabase()
@@ -302,5 +322,88 @@ describe('cherry.file', () => {
     seedFiles(A, MINI_APP_QUOTAS.file.count, 1)
 
     await expect(fileCapability.save(A, { name: 'one-too-many', data: 'eA==' })).rejects.toThrow(QuotaExceededError)
+  })
+
+  describe('export', () => {
+    const SENDER = 7
+    const guest = { id: SENDER, hostWebContents: { id: 1 } }
+    const parent = { id: 'host-window' }
+    const copyFile = vi.spyOn(fs.promises, 'copyFile').mockResolvedValue(undefined)
+
+    beforeEach(() => {
+      visible.value = true
+      vi.mocked(webContents.fromId).mockReturnValue(guest as unknown as Electron.WebContents)
+      Object.assign(BrowserWindow, { fromWebContents: vi.fn(() => parent) })
+      vi.mocked(dialog.showSaveDialog).mockReset()
+      copyFile.mockClear()
+    })
+
+    const saved = async (name = 'notes.txt') => {
+      insertApp(A)
+      await fileCapability.save(A, { name, data: Buffer.from('hello').toString('base64') })
+    }
+
+    it('opens the save dialog on the host window, named for the app, and copies the blob where the user chose', async () => {
+      await saved()
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/Users/u/out.txt' })
+
+      await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).resolves.toEqual({ saved: true })
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(parent, {
+        title: 'dialog.mini_app_export:My Game',
+        defaultPath: 'notes.txt'
+      })
+      expect(copyFile).toHaveBeenCalledWith(expect.stringMatching(/^\/blobs\/f\d+\.bin$/), '/Users/u/out.txt')
+    })
+
+    it('offers suggestedName as the default file name', async () => {
+      await saved()
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: '' })
+
+      await fileCapability.export(A, { name: 'notes.txt', suggestedName: 'My notes.txt' }, SENDER)
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+        parent,
+        expect.objectContaining({ defaultPath: 'My notes.txt' })
+      )
+    })
+
+    it('resolves saved:false when the user cancels, writing nothing', async () => {
+      await saved()
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: '' })
+
+      await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).resolves.toEqual({ saved: false })
+      expect(copyFile).not.toHaveBeenCalled()
+    })
+
+    it('refuses while the app is hidden, before any dialog opens', async () => {
+      // The bug this guards: a pooled app in the background popping a save dialog over
+      // whatever the user is doing — the dialog is the consent, so it must come from a
+      // pane they can see.
+      await saved()
+      visible.value = false
+
+      await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).rejects.toThrow(PermissionDeniedError)
+      expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+    })
+
+    it('rejects a name it does not have without opening a dialog', async () => {
+      insertApp(A)
+
+      await expect(fileCapability.export(A, { name: 'missing.txt' }, SENDER)).rejects.toThrow(InvalidArgumentError)
+      expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+    })
+
+    it('allows one dialog at a time', async () => {
+      await saved()
+      let finish: (value: Electron.SaveDialogReturnValue) => void = () => {}
+      vi.mocked(dialog.showSaveDialog).mockReturnValue(new Promise((resolve) => (finish = resolve)))
+
+      const first = fileCapability.export(A, { name: 'notes.txt' }, SENDER)
+      await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).rejects.toThrow(RateLimitedError)
+
+      finish({ canceled: true, filePath: '' })
+      await expect(first).resolves.toEqual({ saved: false })
+    })
   })
 })

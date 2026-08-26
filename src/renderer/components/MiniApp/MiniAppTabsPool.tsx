@@ -4,7 +4,7 @@ import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useCommandContextKey } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import {
   DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
   miniAppIdFromTabUrl,
@@ -231,14 +231,22 @@ const MiniAppTabsPool: React.FC = () => {
   // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
   useCommandContextKey('webview.focused', focusedAppId !== null)
 
+  // What each local app's guest was last told. `display: none` is invisible from inside a
+  // guest (Page Visibility never fires), so main relays it as `app.visibilityChange`.
+  const reportedVisibility = useRef(new Map<string, boolean>())
+
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {
     webviewRefs.current.forEach((ref, id) => {
       if (!ref) return
       const active = (id === currentMiniAppId || id === paneSplitId) && shouldShow
       ref.style.display = active ? 'inline-flex' : 'none'
+      if (apps.find((app) => app.appId === id)?.kind !== 'app') return
+      if (reportedVisibility.current.get(id) === active) return
+      reportedVisibility.current.set(id, active)
+      void ipcApi.request('mini_app.runtime.set_visible', { appId: id, visible: active }).catch(() => {})
     })
-  }, [currentMiniAppId, paneSplitId, shouldShow, apps.length])
+  }, [currentMiniAppId, paneSplitId, shouldShow, apps])
 
   /** When an entry is in the Map but no longer in openedKeepAlive, remove the ref (React unmounts the element itself) */
   useEffect(() => {
@@ -247,6 +255,7 @@ const MiniAppTabsPool: React.FC = () => {
     for (const id of webviewRefs.current.keys()) {
       if (!activeIds.has(id)) {
         webviewRefs.current.delete(id)
+        reportedVisibility.current.delete(id)
         if (getWebviewLoaded(id)) {
           setWebviewLoaded(id, false)
         }

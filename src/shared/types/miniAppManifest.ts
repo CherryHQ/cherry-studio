@@ -57,8 +57,17 @@ export const MINI_APP_METHODS = {
   'file.list': { gate: 'grant' },
   'file.delete': { gate: 'grant' },
   'file.usage': { gate: 'sibling' },
+  // `grant`, although every export also passes a save dialog: the dialog consents to ONE
+  // file, the grant is what lets the user stop an app that keeps asking.
+  'file.export': { gate: 'grant' },
 
   'notification.show': { gate: 'grant' },
+
+  // Both directions gated, and both refused unless the guest has keyboard focus: a
+  // background app reading what the user copied elsewhere, or swapping what they are
+  // about to paste, is the clipboard's classic abuse.
+  'clipboard.read': { gate: 'grant' },
+  'clipboard.write': { gate: 'grant' },
 
   // The revocable half of networking. `manifest.network` is the other half — the scope —
   // and it is not a grant: nothing can revoke one host, so it never reaches this table.

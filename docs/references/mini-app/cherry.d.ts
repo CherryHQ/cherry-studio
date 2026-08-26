@@ -34,6 +34,7 @@ declare global {
     file: CherryFile
     notification: CherryNotification
     network: CherryNetwork
+    clipboard: CherryClipboard
     /** The only inbound channel. Returns an unsubscribe function. */
     on<E extends CherryEvent>(event: E, handler: (payload: CherryEventPayload[E]) => void): () => void
   }
@@ -91,6 +92,11 @@ declare global {
     /** Idempotent: deleting a name that does not exist still resolves `ok`. */
     delete(name: string): Promise<{ ok: true }>
     usage(): Promise<CherryUsage>
+    /**
+     * Hands one of your files to the user through the host's save dialog; `{ saved: false }`
+     * when they cancel. Only while the app is visible, one dialog at a time.
+     */
+    export(name: string, options?: { suggestedName?: string }): Promise<{ saved: boolean }>
   }
 
   interface CherryApp {
@@ -103,6 +109,13 @@ declare global {
   interface CherryNotification {
     /** Over-long `title` / `body` are truncated, not rejected. */
     show(params: { title: string; body?: string }): Promise<{ ok: true }>
+  }
+
+  /** Plain text, both ways, and only while the app is visible and has keyboard focus — a background app is refused. */
+  interface CherryClipboard {
+    /** Whatever text is on the clipboard, clipped to 1 MB; `''` when there is none. */
+    read(): Promise<{ text: string }>
+    write(params: { text: string }): Promise<{ ok: true }>
   }
 
   interface CherryFetchParams {

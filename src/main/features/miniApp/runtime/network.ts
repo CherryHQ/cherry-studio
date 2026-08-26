@@ -72,6 +72,14 @@ export async function installNetworkPolicy(session: Electron.Session, appId: str
   session.setDevicePermissionHandler(() => false)
   session.setBluetoothPairingHandler(null)
 
+  // Chromium's default for an unhandled download is the system save dialog — a guest
+  // writing to the user's disk through `<a download>` or a blob URL, past every quota
+  // and every rate limit here. `cherry.file.export` is the one way out, and it runs in main.
+  session.on('will-download', (event, item) => {
+    event.preventDefault()
+    logger.debug('Blocked mini app download', { appId, url: item.getURL() })
+  })
+
   // The THIRD containment layer, and the only one that sees WebRTC. AWAITED: a proxy
   // is not in effect until `setProxy` resolves, and the guest may attach before then.
   await session.setProxy({ pacScript: `data:text/plain,${encodeURIComponent(DENY_ALL_PAC)}` })

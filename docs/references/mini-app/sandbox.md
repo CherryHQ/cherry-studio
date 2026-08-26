@@ -34,10 +34,12 @@ Read this before anything else. A mini app is a web page, but it does not run wh
 | `new Worker(...)`, `SharedWorker`, `navigator.serviceWorker.register` | Blocked | Run on the main thread, or inline the work |
 | `<iframe>`, `<embed>`, `<object>` | Blocked (`frame-src 'none'`, `object-src 'none'`) | Render in the page |
 | `window.open`, `<a target="_blank">` | Denied — no popup is created | Nothing. There is no "open in browser" in this release |
+| `<a download>`, `URL.createObjectURL(blob)` + click, navigating to a download | Cancelled — no save dialog appears | `cherry.file.export` |
+| `showOpenFilePicker`, `showSaveFilePicker`, `showDirectoryPicker` | Reject — the File System Access permission is denied | `<input type="file">` to read, `cherry.file.export` to write |
 | `location.href = 'https://...'`, `<form action>` | Navigation outside `cherry-miniapp://<appId>/` is cancelled | Navigate within your package only |
 | WebRTC (`RTCPeerConnection`) | UDP is blocked and TURN/TCP is routed to a dead proxy — connections never establish | Nothing |
 | `Notification.requestPermission()` | Always `denied` | `cherry.notification.show` |
-| `navigator.clipboard.*` | Rejects — the clipboard permission is denied | Nothing |
+| `navigator.clipboard.*` | Rejects — the clipboard permission is denied | `cherry.clipboard`, while the app has keyboard focus |
 | `navigator.language`, `languagechange` | Frozen at load; never updates | `cherry.app.getInfo().locale` and `cherry.on('app.localeChange', ...)` |
 | `document.visibilityState`, `visibilitychange` | Never changes while the app sits hidden in the keep-alive pool | `cherry.on('app.visibilityChange', ...)` |
 | `beforeunload`, `pagehide`, `unload` | May never fire — the app can be destroyed without notice | Save on every change; see [Lifecycle](./lifecycle.md) |
@@ -53,6 +55,8 @@ Read this before anything else. A mini app is a web page, but it does not run wh
 | Canvas, WebGL, WebGPU, Web Audio | Standard browser features with no network dependency |
 | `history.pushState`, hash routing | Same-origin navigation within the package is allowed |
 | `matchMedia('(prefers-color-scheme: dark)')` | Follows the user's Cherry theme, including changes |
+| `<input type="file">`, dropping a file onto the page | You get the `File` — contents and name, never a path. Handle `dragover` / `drop` with `preventDefault()` as on any page |
+| Pasting into your inputs | The keystroke works; reading the clipboard programmatically is `cherry.clipboard.read` |
 
 ## Fetching your own package files
 

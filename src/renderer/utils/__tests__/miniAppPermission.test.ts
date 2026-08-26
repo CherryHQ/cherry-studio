@@ -41,12 +41,14 @@ describe('mini app permission copy', () => {
         'notification.show',
         'file.save',
         'ai.chat',
+        'clipboard.write',
         'storage.get',
         'network.fetch'
       ])
     ).toEqual([
       { namespace: 'ai', leaves: ['ai.chat'] },
       { namespace: 'network', leaves: ['network.fetch'] },
+      { namespace: 'clipboard', leaves: ['clipboard.write'] },
       { namespace: 'file', leaves: ['file.save'] },
       { namespace: 'storage', leaves: ['storage.set', 'storage.get'] },
       { namespace: 'notification', leaves: ['notification.show'] }

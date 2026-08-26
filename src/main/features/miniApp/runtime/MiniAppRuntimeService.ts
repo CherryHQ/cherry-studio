@@ -25,7 +25,7 @@ import { sweepAbandonedStaging } from '../install/installer'
 import { recoverInterruptedPublishes } from '../install/publishJournal'
 import { miniAppInstallPath } from '../paths'
 import { handleBridgeRequest } from './bridge'
-import { emitToApp } from './events'
+import { emitToApp, emitToGuest } from './events'
 import { installNetworkPolicy } from './network'
 import { createMiniAppProtocolHandler } from './protocol'
 
@@ -92,6 +92,10 @@ export class MiniAppRuntimeService extends BaseService {
   private readonly guestAppIds = new Map<number, string>()
   /** AI streams this guest started, so they can be aborted when it dies (Task 21). */
   private readonly guestStreams = new Map<number, Set<string>>()
+  /** `hostWebContentsId:appId` → what the pool last reported; a guest attaching later inherits it. */
+  private readonly paneVisibility = new Map<string, boolean>()
+  /** Per guest, the last state it was told, so a repeated report emits nothing. */
+  private readonly guestVisible = new Map<number, boolean>()
   private readonly quiescingAppIds = new Set<string>()
   /** Bumped every time the app is taken offline — see `CallLease`. */
   private readonly appGeneration = new Map<string, number>()
@@ -217,6 +221,34 @@ export class MiniAppRuntimeService extends BaseService {
   registerGuest(appId: string, webContentsId: number): void {
     this.guestAppIds.set(webContentsId, appId)
     this.guestStreams.set(webContentsId, new Set())
+    // Shown unless the pool said otherwise: a guest attaches because a pane rendered it.
+    const hostId = webContents.fromId(webContentsId)?.hostWebContents?.id
+    this.guestVisible.set(
+      webContentsId,
+      hostId === undefined ? true : (this.paneVisibility.get(`${hostId}:${appId}`) ?? true)
+    )
+  }
+
+  /**
+   * The pool's report: in host window `hostWebContentsId`, `appId`'s pane is shown or hidden.
+   * Guests cannot see `display: none` — Page Visibility never fires — so this is the only
+   * source of `app.visibilityChange`. Delivered to the guests of THAT window alone: the same
+   * app in a detached window has its own pane and its own report.
+   */
+  setPaneVisible(hostWebContentsId: number, appId: string, visible: boolean): void {
+    this.paneVisibility.set(`${hostWebContentsId}:${appId}`, visible)
+    for (const [guestId, guestAppId] of this.guestAppIds) {
+      if (guestAppId !== appId) continue
+      if (webContents.fromId(guestId)?.hostWebContents?.id !== hostWebContentsId) continue
+      if (this.guestVisible.get(guestId) === visible) continue
+      this.guestVisible.set(guestId, visible)
+      emitToGuest(guestId, 'app.visibilityChange', { visible })
+    }
+  }
+
+  /** What the guest was last told. Unknown guests count as hidden — the gate, not the event, is the consumer. */
+  isGuestVisible(webContentsId: number): boolean {
+    return this.guestVisible.get(webContentsId) === true
   }
 
   /**
@@ -234,6 +266,7 @@ export class MiniAppRuntimeService extends BaseService {
     }
     this.guestStreams.delete(webContentsId)
     this.guestAppIds.delete(webContentsId)
+    this.guestVisible.delete(webContentsId)
     // The abort above never reaches a dead listener, so the calls settle here or never.
     aiCapability.forgetGuest(webContentsId)
   }

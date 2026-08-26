@@ -213,7 +213,12 @@ export const miniAppRequestSchemas = {
     output: z.void()
   }),
   /** Pull half of the attention badge — a window opened after the broadcast never saw it. */
-  'mini_app.runtime.attention_state': defineRoute({ input: z.void(), output: z.array(MiniAppAttentionSchema) })
+  'mini_app.runtime.attention_state': defineRoute({ input: z.void(), output: z.array(MiniAppAttentionSchema) }),
+  /** The pool's pane state for one app in the calling window — the source of the guest's `app.visibilityChange`. */
+  'mini_app.runtime.set_visible': defineRoute({
+    input: z.object({ appId: MiniAppIdSchema, visible: z.boolean() }),
+    output: z.void()
+  })
 }
 
 export type MiniAppEventSchemas = {

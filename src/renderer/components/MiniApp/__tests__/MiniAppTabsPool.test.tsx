@@ -68,8 +68,12 @@ const mocks = vi.hoisted(() => ({
 
 // `vi.hoisted` is required, not stylistic: `vi.mock` is hoisted above every `const`,
 // so a factory closing over a plain one hits the TDZ on first import.
-const ipc = vi.hoisted(() => ({ handlers: new Map<string, (payload: unknown) => void>() }))
+const ipc = vi.hoisted(() => ({
+  handlers: new Map<string, (payload: unknown) => void>(),
+  request: vi.fn(() => Promise.resolve())
+}))
 vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipc.request },
   useIpcOn: (event: string, handler: (payload: unknown) => void) => {
     ipc.handlers.set(event, handler)
   }
@@ -573,6 +577,70 @@ describe('MiniAppTabsPool', () => {
     )
 
     expect(effectOrder).toEqual(['pool', 'page'])
+  })
+
+  describe('pane visibility reports', () => {
+    const localApp = (id: string): MiniApp => ({
+      kind: 'app',
+      appId: id,
+      name: id,
+      url: `cherry-miniapp://${id}/index.html`,
+      presetMiniAppId: null,
+      status: 'enabled',
+      orderKey: 'a0',
+      version: '1.0.0',
+      nameI18n: { en: id },
+      aiModelId: null,
+      aiQuickModelId: null
+    })
+    const reports = () =>
+      ipc.request.mock.calls
+        .filter((c: unknown[]) => c[0] === 'mini_app.runtime.set_visible')
+        .map((c: unknown[]) => c[1])
+
+    it('tells main when a local app pane is shown or hidden, once per change', () => {
+      // The bug this guards: `app.visibilityChange` documented and subscribed to, with
+      // nothing in the host ever producing it — a guest cannot see `display: none`.
+      mocks.openedKeepAliveMiniApps = [localApp('alpha'), localApp('bravo')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      mocks.activeTabId = 'alpha-tab'
+      const { rerender } = render(<MiniAppTabsPool />)
+      expect(reports()).toEqual(
+        expect.arrayContaining([
+          { appId: 'alpha', visible: true },
+          { appId: 'bravo', visible: false }
+        ])
+      )
+
+      ipc.request.mockClear()
+      mocks.currentMiniAppId = 'bravo'
+      mocks.activeTabId = 'bravo-tab'
+      rerender(<MiniAppTabsPool />)
+      expect(reports()).toEqual(
+        expect.arrayContaining([
+          { appId: 'alpha', visible: false },
+          { appId: 'bravo', visible: true }
+        ])
+      )
+
+      ipc.request.mockClear()
+      rerender(<MiniAppTabsPool />)
+      expect(reports()).toEqual([])
+    })
+
+    it('reports nothing for site webviews, which have no guest bridge to tell', () => {
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.tabs = [{ id: 'alpha-tab', url: '/app/mini-app/alpha' }]
+      mocks.activeTabId = 'alpha-tab'
+      render(<MiniAppTabsPool />)
+
+      expect(reports()).toEqual([])
+    })
   })
 
   describe('host-initiated eviction', () => {

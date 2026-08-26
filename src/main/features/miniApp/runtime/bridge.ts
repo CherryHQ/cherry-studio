@@ -17,6 +17,7 @@ import { app } from 'electron'
 import * as z from 'zod'
 
 import { aiCapability } from '../capabilities/ai'
+import { clipboardCapability } from '../capabilities/clipboard'
 import { fileCapability } from '../capabilities/file'
 import { networkCapability } from '../capabilities/network'
 import { notificationCapability } from '../capabilities/notification'
@@ -103,8 +104,12 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
   'file.list': (appId) => fileCapability.list(appId),
   'file.delete': (appId, params) => fileCapability.delete(appId, params),
   'file.usage': (appId) => fileCapability.usage(appId),
+  'file.export': (appId, params, _emit, senderId) => fileCapability.export(appId, params, senderId),
 
   'notification.show': (appId, params) => notificationCapability.show(appId, params),
+
+  'clipboard.read': (appId, _params, _emit, senderId) => clipboardCapability.read(appId, senderId),
+  'clipboard.write': (appId, params, _emit, senderId) => clipboardCapability.write(appId, params, senderId),
 
   'network.fetch': (appId, params) => networkCapability.fetch(appId, params)
 }

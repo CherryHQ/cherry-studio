@@ -176,7 +176,12 @@ contextBridge.exposeInMainWorld('cherry', {
     load: async (name: string) => call('file.load', { name: gateName(name) }),
     list: async () => call('file.list'),
     delete: async (name: string) => call('file.delete', { name: gateName(name) }),
-    usage: async () => call('file.usage')
+    usage: async () => call('file.usage'),
+    export: async (name: string, opts: { suggestedName?: string } = {}) =>
+      call('file.export', {
+        name: gateName(name),
+        ...(opts.suggestedName === undefined ? {} : { suggestedName: gateName(opts.suggestedName) })
+      })
   },
   app: {
     getInfo: async () => call('app.getInfo'),
@@ -187,6 +192,13 @@ contextBridge.exposeInMainWorld('cherry', {
     fetch: async (params: { url?: unknown; headers?: unknown; body?: unknown } = {}) => {
       gateFetch(params)
       return call('network.fetch', params)
+    }
+  },
+  clipboard: {
+    read: async () => call('clipboard.read'),
+    write: async (params: { text?: unknown } = {}) => {
+      assertPayloadSize(String(params.text ?? ''), MINI_APP_GUEST_LIMITS.clipboardTextChars, 'clipboard text')
+      return call('clipboard.write', params)
     }
   },
   notification: {

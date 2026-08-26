@@ -19,8 +19,13 @@ import {
 } from '@main/features/miniApp/management'
 import { setMiniAppLogo } from '@main/services/entityLogo'
 import type { miniAppRequestSchemas } from '@shared/ipc/schemas/miniApp'
-import type { IpcHandlersFor } from '@shared/ipc/types'
+import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 import { dialog } from 'electron'
+
+function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
+  if (senderId == null) return undefined
+  return application.get('WindowManager').getWindow(senderId)?.webContents
+}
 
 /**
  * Mini-app imperative command handlers. Thin adapter: `mini_app.settings.set_logo`
@@ -57,6 +62,11 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
   // Detail-panel routes: every rule lives in `management.ts` / `webInstaller.ts`.
   'mini_app.detail': async ({ appId }) => miniAppDetail(appId),
   'mini_app.runtime.attention_state': async () => application.get('MiniAppRuntimeService').attentionState(),
+  'mini_app.runtime.set_visible': async ({ appId, visible }, ctx) => {
+    // Keyed by the host webContents the guest hangs off — an unmanaged sender has no pool.
+    const host = senderWebContents(ctx.senderId)
+    if (host) application.get('MiniAppRuntimeService').setPaneVisible(host.id, appId, visible)
+  },
   'mini_app.clear_data': async ({ appId }) => clearMiniAppData(appId),
   'mini_app.grant.approve_pending': async ({ appId }) => grantPendingAdditions(appId),
   'mini_app.grant.snooze_pending': async ({ appId }) => snoozePendingAdditions(appId),

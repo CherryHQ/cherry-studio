@@ -64,7 +64,9 @@ export const MINI_APP_GUEST_LIMITS = {
   chatContentChars: MINI_APP_MAX_INPUT_BYTES,
   callIdChars: 64,
   notificationTitleChars: 64,
-  notificationBodyChars: 256
+  notificationBodyChars: 256,
+  /** `cherry.clipboard.write({ text })` — plain text, the same 1 MB a storage value gets. */
+  clipboardTextChars: 1024 * 1024
 } as const
 
 /**

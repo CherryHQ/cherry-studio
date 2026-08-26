@@ -49,7 +49,10 @@ function fakeSession(setProxy = vi.fn().mockResolvedValue(undefined)) {
     onPermissionRequest: undefined as PermissionRequestHandler | undefined,
     permissionCheck: undefined as (() => boolean) | undefined,
     devicePermission: undefined as (() => boolean) | undefined,
-    displayMedia: undefined as ((req: unknown, cb: (streams: object) => void) => void) | undefined
+    displayMedia: undefined as ((req: unknown, cb: (streams: object) => void) => void) | undefined,
+    willDownload: undefined as
+      | ((event: { preventDefault: () => void }, item: { getURL: () => string }) => void)
+      | undefined
   }
   const session = {
     webRequest: {
@@ -61,12 +64,27 @@ function fakeSession(setProxy = vi.fn().mockResolvedValue(undefined)) {
     setDisplayMediaRequestHandler: vi.fn((h: typeof captured.displayMedia) => (captured.displayMedia = h)),
     setDevicePermissionHandler: vi.fn((h: () => boolean) => (captured.devicePermission = h)),
     setBluetoothPairingHandler: vi.fn(),
+    on: vi.fn((event: string, listener: typeof captured.willDownload) => {
+      if (event === 'will-download') captured.willDownload = listener
+    }),
     setProxy
   }
   return { session: session as unknown as Electron.Session, captured, setProxy }
 }
 
 describe('installNetworkPolicy', () => {
+  it('cancels every download, so a blob URL cannot open the system save dialog', async () => {
+    // Electron's default for an unhandled `will-download` is a save dialog — a way onto
+    // the user's disk that bypasses `cherry.file.export` and everything it checks.
+    const { session, captured } = fakeSession()
+    await installNetworkPolicy(session, APP)
+
+    const preventDefault = vi.fn()
+    captured.willDownload!({ preventDefault }, { getURL: () => 'blob:cherry-miniapp://com.example.a/uuid' })
+
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+  })
+
   it('injects the exact CSP the protocol handler sends', async () => {
     // Two delivery paths, one string. A copy here could drift, and then whichever
     // path Chromium honours for a custom scheme would sandbox a different document.

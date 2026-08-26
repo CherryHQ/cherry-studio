@@ -25,7 +25,7 @@ export const permissionLabel = (t: TFunction, leaf: string): string =>
   `${permissionNamespaceTitle(t, permissionNamespaceOf(leaf))} · ${permissionLeafLabel(t, leaf)}`
 
 /** The rows' order: what the app can reach out to first, then what it keeps in its sandbox. */
-const NAMESPACE_ORDER = ['ai', 'network', 'file', 'storage', 'notification']
+const NAMESPACE_ORDER = ['ai', 'network', 'clipboard', 'file', 'storage', 'notification']
 
 const namespaceRank = (namespace: string): number => {
   const index = NAMESPACE_ORDER.indexOf(namespace)

@@ -48,6 +48,13 @@ describe('the guest bridge', () => {
     expect(invoke).not.toHaveBeenCalled()
   })
 
+  it('stops an over-long clipboard write before it crosses the bridge', async () => {
+    const text = 'x'.repeat(MINI_APP_GUEST_LIMITS.clipboardTextChars + 1)
+
+    await expect(cherry.clipboard.write({ text })).rejects.toMatchObject({ name: 'InvalidArgument' })
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
   it('rebuilds the error name the IPC boundary erased', async () => {
     // `ipcMain.handle` hands the renderer only `message` (`electron.d.ts:8877`), so a
     // thrown name is gone by here. The envelope carries it; this is where it comes back.

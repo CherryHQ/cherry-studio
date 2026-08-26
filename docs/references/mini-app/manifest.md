@@ -65,9 +65,10 @@ Only methods gated `grant` are declarable. `sibling` methods become callable as 
 | `ai.cancel` | none | — |
 | `storage.get` / `set` / `delete` / `keys` | grant | leaf or `storage.*` |
 | `storage.usage` | sibling | — (follows any `storage.*` grant) |
-| `file.save` / `load` / `list` / `delete` | grant | leaf or `file.*` |
+| `file.save` / `load` / `list` / `delete` / `export` | grant | leaf or `file.*` |
 | `file.usage` | sibling | — (follows any `file.*` grant) |
 | `notification.show` | grant | `notification.show` or `notification.*` |
+| `clipboard.read` / `write` | grant | leaf or `clipboard.*` |
 | `network.fetch` | grant | `network.fetch` or `network.*` |
 
 Users never see these names raw: the consent card and the detail panel show the copy under `miniApp.permission.*` in the renderer catalog (namespace title and description, one label per leaf). Adding a `grant` method means adding that copy — a contract test fails until both `en-us` and `zh-cn` have it.

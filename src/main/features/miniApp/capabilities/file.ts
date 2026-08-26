@@ -8,17 +8,30 @@
  * bridge — a mini app's world has logical names and no concept of a path.
  */
 
+import fs from 'node:fs'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 import type { QuotaUsage, QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
 import { and, eq, sql } from 'drizzle-orm'
+import { BrowserWindow, dialog, webContents } from 'electron'
 import * as z from 'zod'
 
+import { InvalidArgumentError } from '../errors'
+import { PermissionDeniedError } from '../grants'
 import type { CallLease } from '../runtime/MiniAppRuntimeService'
-import { assertWithinQuota, base64CharCap, MINI_APP_QUOTAS, RateLimitedError, WriteRateLimiter } from './quota'
+import {
+  assertWithinQuota,
+  base64CharCap,
+  ConcurrentRateLimiter,
+  MINI_APP_QUOTAS,
+  RateLimitedError,
+  WriteRateLimiter
+} from './quota'
 
 const logger = loggerService.withContext('miniApp:file')
 
@@ -41,8 +54,12 @@ const NameParams = z.object({ name: LogicalName })
  * the string length that produces it.
  */
 const SaveParams = NameParams.extend({ data: z.base64().max(base64CharCap(MINI_APP_QUOTAS.file.single)) })
+/** The dialog's default file name obeys the same rules as a logical name — no separators, no `..`. */
+const ExportParams = NameParams.extend({ suggestedName: LogicalName.optional() })
 
 const limiter = new WriteRateLimiter()
+/** A save dialog is a modal the user has to dismiss: one at a time, and ten a minute is already a nuisance. */
+const exportLimiter = new ConcurrentRateLimiter('file.export', 10, 1)
 
 /**
  * Per-app serialization. `save()` has two awaits between reading usage and writing
@@ -283,5 +300,37 @@ export const fileCapability = {
   async usage(appId: string): Promise<QuotaUsageWithLimits> {
     const usage = readUsage(appId)
     return { ...usage, bytesLimit: MINI_APP_QUOTAS.file.bytes, countLimit: MINI_APP_QUOTAS.file.count }
+  },
+
+  /**
+   * The one way a sandbox file reaches the user's disk: their own save dialog, parented to
+   * the window showing the app and titled with the app's name — the dialog IS the consent,
+   * so it has to say who is asking. The chosen path never crosses back to the guest.
+   */
+  async export(appId: string, params: unknown, senderId: number) {
+    const { name, suggestedName } = ExportParams.parse(params)
+    const runtime = application.get('MiniAppRuntimeService')
+    const guest = webContents.fromId(senderId)
+    if (!guest || !runtime.isGuestVisible(senderId)) {
+      throw new PermissionDeniedError(appId, 'file.export', 'a save dialog can only be opened while the app is visible')
+    }
+    const release = exportLimiter.acquire(appId)
+    try {
+      const ref = findRef(appId, name)
+      if (!ref) throw new InvalidArgumentError(`No file named "${name}"`)
+      const options = {
+        title: t('dialog.mini_app_export', { name: runtime.displayNameOf(appId) }),
+        defaultPath: suggestedName ?? name
+      }
+      const parent = BrowserWindow.fromWebContents(guest.hostWebContents ?? guest)
+      const { canceled, filePath } = parent
+        ? await dialog.showSaveDialog(parent, options)
+        : await dialog.showSaveDialog(options)
+      if (canceled || !filePath) return { saved: false }
+      await fs.promises.copyFile(application.get('FileManager').getPhysicalPath(ref.fileEntryId), filePath)
+      return { saved: true }
+    } finally {
+      release()
+    }
   }
 }

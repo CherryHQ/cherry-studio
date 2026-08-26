@@ -54,6 +54,10 @@ Subscribe with `cherry.on(event, handler)`; it returns an unsubscribe function. 
 | `app.visibilityChange` | `{ visible: boolean }` | The user switched to (`true`) or away from (`false`) the app |
 | `app.localeChange` | `{ locale: string }` | The user changed the UI language, e.g. `zh-CN`, `en-US`. Read the initial value from `cherry.app.getInfo()` |
 
+You start visible — a guest is created because a pane is showing it — and hear about every change after that, per window: the same app open in a detached window has its own pane and its own events. Two capabilities read the same state: `cherry.file.export` needs the app visible, `cherry.clipboard` needs it visible **and** focused.
+
+Visibility is the **pane's**, not the window's. Switching tabs, closing a split pane or leaving the mini apps page hides you; minimizing or hiding the Cherry window does not — you stay "visible" and get no event. For the clipboard this changes nothing, since a minimized window has no keyboard focus; a `file.export` dialog opened from a minimized window belongs to that window and waits with it. Window state may be folded in later; do not build on it either way.
+
 There are exactly two, chosen by one criterion: the app cannot find the state out any other way. Anything you can query has no event:
 
 | Not an event | Do this instead |

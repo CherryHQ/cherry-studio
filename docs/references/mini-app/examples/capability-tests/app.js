@@ -28,10 +28,12 @@ const LABELS = {
     fileLimits: 'name and size limits',
     fileQuota: '20 MB budget (~3 s)',
     fileCount: '200 files (~10 s)',
+    fileExport: 'export via save dialog',
     aiBasics: 'capabilities / chat / both slots',
     aiCancel: 'cancel mid-stream',
     aiLimits: 'message limits / callId / in flight',
     notificationAll: 'show / truncation / 5 per minute',
+    clipboardAll: 'write / read / focus rule / 30 and 10 per minute',
     networkBasics: 'GET / POST / headers / non-2xx',
     networkRefusals: 'what is refused',
     networkLimits: '5 MB cap and 4 in flight (~10 s)',
@@ -52,10 +54,12 @@ const LABELS = {
     fileLimits: '文件名和大小上限',
     fileQuota: '20 MB 总额（约 3 秒）',
     fileCount: '200 个文件（约 10 秒）',
+    fileExport: '通过另存为对话框导出',
     aiBasics: 'capabilities / chat / 双槽位',
     aiCancel: '流式中途取消',
     aiLimits: '消息上限 / callId / 并发',
     notificationAll: 'show / 截断 / 每分钟 5 次',
+    clipboardAll: 'write / read / 焦点规则 / 每分钟 30 与 10 次',
     networkBasics: 'GET / POST / 头 / 非 2xx',
     networkRefusals: '哪些会被拒绝',
     networkLimits: '5 MB 上限与 4 路并发（约 10 秒）',
@@ -351,6 +355,24 @@ async function fileCount() {
   log(`${saved.length} files deleted`, true)
 }
 
+async function fileExport() {
+  const g = gate('file.export')
+  if (perms['file.save']) {
+    const body = `Exported from ${document.title} at ${new Date().toISOString()}\n`
+    await cherry.file.save(`${PREFIX}export.txt`, utf8ToBase64(body))
+  } else if (g === 'ok') {
+    log('file.save is needed to have something to export; grant it in Cherry', false)
+    return
+  }
+  await expect('export(unknown name)', g === 'ok' ? 'InvalidArgument' : g, () => cherry.file.export(`${PREFIX}missing`))
+  await expect('export(name with a separator) — guest gate', 'InvalidArgument', () => cherry.file.export('a/b'))
+  await expect('export → save dialog (save or cancel, both are fine)', g, async () => {
+    const { saved } = await cherry.file.export(`${PREFIX}export.txt`, { suggestedName: 'capability-tests-export.txt' })
+    return `saved: ${saved}`
+  })
+  if (g === 'ok') log('the dialog must carry this app’s name in its title and sit on Cherry’s window', true)
+}
+
 // ---- ai ----
 
 let callSeq = 0
@@ -500,6 +522,60 @@ async function notificationAll() {
     log('(if Cherry’s mini app notifications are switched off, the calls still resolve ok and nothing is shown)')
 }
 
+// ---- clipboard ----
+
+async function clipboardAll() {
+  const w = gate('clipboard.write')
+  const r = gate('clipboard.read')
+  const marker = `${PREFIX}${Date.now()}`
+  await expect('write (from a click, so the app is focused)', w, () => cherry.clipboard.write({ text: marker }))
+  await expect('read returns what was written', r, async () => {
+    const { text } = await cherry.clipboard.read()
+    if (w === 'ok' && text !== marker) throw mismatch(`read "${text.slice(0, 40)}"`)
+    return `"${text.slice(0, 40)}"`
+  })
+  await expect('write 1 MB + 1 — guest gate', 'InvalidArgument', () =>
+    cherry.clipboard.write({ text: 'x'.repeat(MB + 1) })
+  )
+  if (w === 'ok') {
+    const outcomes = []
+    for (let i = 0; i < 31; i++) {
+      try {
+        await cherry.clipboard.write({ text: marker })
+        outcomes.push('ok')
+      } catch (error) {
+        outcomes.push(error.name)
+      }
+    }
+    // One write was spent above: 29 more fit in the minute, the last 2 must be refused.
+    const pass = outcomes.slice(0, 29).every((o) => o === 'ok') && outcomes.slice(29).every((o) => o === 'RateLimited')
+    log(`31 more writes: ${outcomes.filter((o) => o === 'ok').length} ok, then ${outcomes.slice(29).join(', ')}`, pass)
+  }
+  if (r === 'ok') {
+    const outcomes = []
+    for (let i = 0; i < 10; i++) {
+      try {
+        await cherry.clipboard.read()
+        outcomes.push('ok')
+      } catch (error) {
+        outcomes.push(error.name)
+      }
+    }
+    // One read was spent above: 9 more fit in the minute, the 10th must be refused.
+    const pass = outcomes.slice(0, 9).every((o) => o === 'ok') && outcomes[9] === 'RateLimited'
+    log(`10 more reads: ${outcomes.filter((o) => o === 'ok').length} ok, then ${outcomes[9]}`, pass)
+  }
+  // The host refuses both directions unless this app has keyboard focus. `document.hasFocus()`
+  // is the guest's own view of that — the two must agree.
+  log('focus rule: click into Cherry’s own UI (e.g. the sidebar) within 3 s…')
+  await sleep(3000)
+  const focused = document.hasFocus()
+  const expected = w === 'ok' && !focused ? 'PermissionDenied' : w
+  await expect(`write while ${focused ? 'focused' : 'NOT focused'}`, expected, () =>
+    cherry.clipboard.write({ text: marker })
+  )
+}
+
 // ---- network ----
 
 const echoJson = (res) => JSON.parse(base64ToUtf8(res.body))
@@ -637,6 +713,31 @@ async function sandboxAll() {
   await expect('fetch(https) from the page', 'TypeError', () => fetch('https://example.com/'))
   await expect('navigator.clipboard.writeText', 'NotAllowedError', () => navigator.clipboard.writeText('x'))
   await expect('Notification.requestPermission', 'ok', async () => `→ ${await Notification.requestPermission()}`)
+
+  // Downloads are cancelled by the host: no save dialog may appear.
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(new Blob(['leak?'], { type: 'text/plain' }))
+  link.download = 'capability-tests-leak.txt'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  await sleep(500)
+  log('<a download> clicked — if a save dialog appeared, the sandbox leaked', true)
+
+  // The File System Access pickers must reject; the exact name depends on user activation.
+  for (const name of ['showOpenFilePicker', 'showSaveFilePicker', 'showDirectoryPicker']) {
+    if (typeof window[name] !== 'function') {
+      log(`${name}: not present`, true)
+      continue
+    }
+    try {
+      await window[name]()
+      log(`${name}: resolved — a picker opened`, false)
+    } catch (error) {
+      log(`${name}: ${error.name}`, true)
+    }
+  }
+  log('<input type="file"> and dropping a file onto this page are allowed: pick one to see name and size, never a path')
 }
 
 // ---- cleanup ----
@@ -680,10 +781,12 @@ const TESTS = {
   'file-limits': ['fileLimits', fileLimits],
   'file-quota': ['fileQuota', fileQuota],
   'file-count': ['fileCount', fileCount],
+  'file-export': ['fileExport', fileExport],
   'ai-basics': ['aiBasics', aiBasics],
   'ai-cancel': ['aiCancel', aiCancel],
   'ai-limits': ['aiLimits', aiLimits],
   'notification-all': ['notificationAll', notificationAll],
+  'clipboard-all': ['clipboardAll', clipboardAll],
   'network-basics': ['networkBasics', networkBasics],
   'network-refusals': ['networkRefusals', networkRefusals],
   'network-limits': ['networkLimits', networkLimits],
@@ -731,6 +834,13 @@ async function init() {
   el('refresh-permissions').addEventListener('click', () => refreshPermissions())
   el('clear-log').addEventListener('click', () => el('log').replaceChildren())
   for (const id of Object.keys(TESTS)) el(id).addEventListener('click', () => run(id))
+  const gotFile = (how, file) => file && log(`${how}: "${file.name}", ${fmt(file.size)}, no path`, true)
+  el('sandbox-file').addEventListener('change', (event) => gotFile('<input type="file">', event.target.files[0]))
+  document.addEventListener('dragover', (event) => event.preventDefault())
+  document.addEventListener('drop', (event) => {
+    event.preventDefault()
+    gotFile('drop', event.dataTransfer.files[0])
+  })
   await refreshPermissions()
 }
 
