@@ -1105,11 +1105,16 @@ describe('CherryCloudService', () => {
     expect(init.signal).toBeUndefined()
   })
 
-  it('revokes the current Product Session before clearing the local login', async () => {
+  it('clears the local login before waiting for remote Product Session revocation', async () => {
     const service = await createSignedInService()
-    mocks.netFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
+    const pendingRevoke = deferred<Response>()
+    mocks.netFetch.mockReturnValueOnce(pendingRevoke.promise)
 
-    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    const revoke = service.revokeCurrentSession()
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
+
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.savedSession).toBeNull()
 
     const [url, init] = mocks.netFetch.mock.calls[0]
     const headers = new Headers(init.headers)
@@ -1118,17 +1123,17 @@ describe('CherryCloudService', () => {
     expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
     expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
     expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
-    expect(mocks.savedSession).toBeNull()
+
+    await expect(revoke).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    pendingRevoke.resolve(new Response(null, { status: 204 }))
   })
 
   it('does not let an older logout response clear a newer Session', async () => {
     const service = await createSignedInService()
     const pendingRevoke = deferred<Response>()
-    mocks.netFetch.mockReturnValueOnce(pendingRevoke.promise).mockResolvedValueOnce(jsonResponse({}, 401))
+    mocks.netFetch.mockReturnValueOnce(pendingRevoke.promise)
 
-    const revoke = service.revokeCurrentSession()
-    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
-    await service.authenticatedFetch('/v1/messages', { method: 'POST' })
+    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
 
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
@@ -1136,15 +1141,15 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
       .mockResolvedValueOnce(jsonResponse({ data: [] }))
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[2][1].body as string)
+    const createBody = JSON.parse(mocks.netFetch.mock.calls[1][1].body as string)
     await service.handleCallback(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
     pendingRevoke.resolve(new Response(null, { status: 204 }))
+    await pendingRevoke.promise
 
-    await expect(revoke).resolves.toEqual({ phase: 'signed-in', displayName: 'Sora' })
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     expect(mocks.savedSession).not.toBeNull()
   })

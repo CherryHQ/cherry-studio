@@ -672,29 +672,32 @@ export class CherryCloudService extends BaseService {
 
   public async revokeCurrentSession(): Promise<CherryCloudStatus> {
     await this.pruneExpiredState()
-    if (!this.cloudState.session) return this.currentStatus()
-    const sessionGeneration = this.sessionGeneration
-    let revokeError: unknown
+    const session = this.cloudState.session
+    if (!session) return this.currentStatus()
+    await this.clearSession(session)
 
-    try {
-      const response = await this.authenticatedFetch('/api/v1/product-sessions/current', {
+    const url = this.resolveRequestUrl('/api/v1/product-sessions/current')
+    void this.signedFetch(
+      url,
+      {
         method: 'DELETE',
         signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+      },
+      session,
+      { bearer: true }
+    )
+      .then((response) => {
+        if (response.ok || response.status === 401) return
+        logger.warn('Cherry Cloud remote Session revocation failed after local logout', {
+          reason: `Cherry Cloud logout failed (${response.status})`
+        })
       })
-      if (!response.ok && response.status !== 401) {
-        revokeError = new Error(`Cherry Cloud logout failed (${response.status})`)
-      }
-    } catch (error) {
-      revokeError = error
-    } finally {
-      if (this.sessionGeneration === sessionGeneration) await this.clearSession()
-    }
+      .catch((error) => {
+        logger.warn('Cherry Cloud remote Session revocation failed after local logout', {
+          reason: error instanceof Error ? error.message : String(error)
+        })
+      })
 
-    if (revokeError) {
-      logger.warn('Cherry Cloud remote Session revocation failed after local logout', {
-        reason: revokeError instanceof Error ? revokeError.message : String(revokeError)
-      })
-    }
     return this.currentStatus()
   }
 
