@@ -6,8 +6,7 @@
  * Object.is → isEqual upgrade for setInternal / setSharedInternal,
  * and the deepEqual → isEqual refactor for setPersist, focusing on the
  * scenarios the upgrade actually changes: object/array/record values that
- * are reconstructed as new references on every write. It also covers
- * versioned transitions applied while loading renderer persist cache.
+ * are reconstructed as new references on every write.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -185,39 +184,11 @@ describe('renderer CacheService equality semantics', () => {
     })
   })
 
-  describe('artifact pane width default transition', () => {
-    it('moves the historical auto-seeded width to the current default and records the transition', async () => {
+  describe('persist load does not own product default transitions', () => {
+    it('leaves an unmarked 460 px artifact pane width unchanged', async () => {
       const service = await createServiceWithPersistedCache({ 'ui.chat.artifact_pane.width': 460 })
 
-      expect(service.getPersist('ui.chat.artifact_pane.width')).toBe(280)
-      expect(JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')).toMatchObject({
-        'ui.chat.artifact_pane.width': 280,
-        'ui.chat.artifact_pane.width_version': 1
-      })
-    })
-
-    it('records the transition without replacing a distinct saved width', async () => {
-      const service = await createServiceWithPersistedCache({ 'ui.chat.artifact_pane.width': 500 })
-
-      expect(service.getPersist('ui.chat.artifact_pane.width')).toBe(500)
-      expect(JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')).toMatchObject({
-        'ui.chat.artifact_pane.width': 500,
-        'ui.chat.artifact_pane.width_version': 1
-      })
-    })
-
-    it('preserves an explicit 460 px resize after the transition has run', async () => {
-      const migratedService = await createServiceWithPersistedCache({ 'ui.chat.artifact_pane.width': 460 })
-      migratedService.setPersist('ui.chat.artifact_pane.width', 460)
-      migratedService.cleanup()
-
-      const restartedService = await createService()
-
-      expect(restartedService.getPersist('ui.chat.artifact_pane.width')).toBe(460)
-      expect(JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')).toMatchObject({
-        'ui.chat.artifact_pane.width': 460,
-        'ui.chat.artifact_pane.width_version': 1
-      })
+      expect(service.getPersist('ui.chat.artifact_pane.width')).toBe(460)
     })
   })
 })

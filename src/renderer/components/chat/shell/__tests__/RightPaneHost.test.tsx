@@ -262,7 +262,8 @@ describe('RightPaneHost', () => {
   })
 
   it('uses the configured pane default when no persisted width exists', () => {
-    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
+    expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
+    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(280)
   })
 
   it('lets the pane and the center share space instead of clamping the pane to zero', () => {

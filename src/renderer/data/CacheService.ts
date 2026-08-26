@@ -37,8 +37,6 @@ import type {
 } from '@shared/data/cache/cacheTypes'
 import { isEqual } from 'es-toolkit/compat'
 
-import { migrateArtifactPaneWidthDefault } from './artifactPaneWidthMigration'
-
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
 const logger = loggerService.withContext('CacheService')
@@ -1073,8 +1071,6 @@ export class CacheService {
           this.persistCache.set(key, data[key])
         }
       }
-
-      migrateArtifactPaneWidthDefault(data, this.persistCache)
 
       // Clean up localStorage (remove invalid keys and save merged data)
       this.savePersistCache()
