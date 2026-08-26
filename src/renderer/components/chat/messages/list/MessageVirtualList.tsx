@@ -242,7 +242,14 @@ export function MessageVirtualList<T>({
         ref={setScrollerRef}
         data-message-virtual-list-scroller
         className={className}
-        style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          overflowAnchor: 'none',
+          clipPath: bottomPadding > 0 ? `inset(0 0 ${bottomPadding}px 0)` : undefined
+        }}>
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
