@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.actions.cancel': 'Cancel',
     'settings.about.diagnostics.actions.close': 'Close',
     'settings.about.diagnostics.actions.reveal': 'Show in folder',
+    'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
       'I understand that the description and selected diagnostic data will be sent privately to Cherry.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
@@ -125,9 +126,19 @@ describe('DiagnosticUploadDialog', () => {
     })
   })
 
-  it('requires a valid description and acknowledgement, then submits the trimmed description', async () => {
-    const user = userEvent.setup()
+  it('shows no description validation state when an empty dialog opens', async () => {
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    const description = screen.getByRole('textbox', { name: 'Problem description' })
+    expect(description).toHaveAttribute('aria-invalid', 'false')
+    expect(description).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByText('A problem description is required')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Inspecting diagnostic data…')).not.toBeInTheDocument())
+  })
+
+  it('validates an empty description on submit and keeps the error current while editing', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
     const description = screen.getByRole('textbox', { name: 'Problem description' })
@@ -135,19 +146,68 @@ describe('DiagnosticUploadDialog', () => {
       name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
     })
 
-    expect(submit).toBeDisabled()
+    await user.click(acknowledgement)
+    await waitFor(() => expect(submit).toBeEnabled())
+    await user.click(submit)
+
+    expect(description).toHaveAttribute('aria-invalid', 'true')
+    expect(description).toHaveAttribute('aria-describedby', 'diagnostic-description-error')
+    expect(screen.getByText('A problem description is required')).toBeInTheDocument()
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+
+    await user.type(description, 'App freezes on launch.')
+    expect(description).toHaveAttribute('aria-invalid', 'false')
+    expect(description).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByText('A problem description is required')).not.toBeInTheDocument()
+
+    await user.clear(description)
+    expect(screen.getByText('A problem description is required')).toBeInTheDocument()
+
+    rerender(<DiagnosticUploadDialog open={false} onOpenChange={vi.fn()} />)
+    rerender(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    const reopenedDescription = screen.getByRole('textbox', { name: 'Problem description' })
+    expect(reopenedDescription).toHaveValue('')
+    expect(reopenedDescription).toHaveAttribute('aria-invalid', 'false')
+    expect(screen.queryByText('A problem description is required')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Inspecting diagnostic data…')).not.toBeInTheDocument())
+  })
+
+  it('validates an overlong description only after submit', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
+    const description = screen.getByRole('textbox', { name: 'Problem description' })
     await user.click(description)
     await user.paste('x'.repeat(4097))
-    await user.click(acknowledgement)
-    expect(submit).toBeDisabled()
-    expect(screen.getByText('The problem description is too long')).toBeInTheDocument()
-    await user.clear(description)
-    await user.type(description, '  App freezes on launch.  ')
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
+      })
+    )
+
+    expect(screen.queryByText('The problem description is too long')).not.toBeInTheDocument()
     await waitFor(() => expect(submit).toBeEnabled())
+    await user.click(submit)
+
+    expect(screen.getByText('The problem description is too long')).toBeInTheDocument()
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+  })
+
+  it('submits a trimmed valid description', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    await completeReview(user)
+    const description = screen.getByRole('textbox', { name: 'Problem description' })
+    const acknowledgement = screen.getByRole('checkbox', {
+      name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
+    })
 
     await user.type(description, ' Please investigate. ')
     expect(acknowledgement).toBeChecked()
-    await user.click(submit)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {

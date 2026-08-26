@@ -29,7 +29,8 @@ import {
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
 import { LoaderCircle } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('DiagnosticUploadDialog')
@@ -58,10 +59,12 @@ function formatBytes(bytes: number): string {
 
 export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadDialogProps) {
   const { t } = useTranslation()
+  const uploadFormId = useId()
   const [range, setRange] = useState<DiagnosticRange>('24h')
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
   const [description, setDescription] = useState('')
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
   const [inspectError, setInspectError] = useState(false)
@@ -99,6 +102,10 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
     if (result || submissionStatus === 'submission_unknown_fallback_save_failed') primaryActionRef.current?.focus()
   }, [result, submissionStatus])
 
+  useEffect(() => {
+    if (!open) setHasAttemptedSubmit(false)
+  }, [open])
+
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
   const effectiveIncludeLogs = includeLogs && logsAvailable
@@ -108,14 +115,10 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
   const descriptionValid =
     normalizedDescription.length > 0 &&
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
+  const showDescriptionError = hasAttemptedSubmit && !descriptionValid
   const isSubmitting = submissionStatus === 'submitting'
-  const canUpload =
-    inspectResult !== null &&
-    !isInspectionPending &&
-    !inspectError &&
-    submissionStatus === 'idle' &&
-    descriptionValid &&
-    acknowledged
+  const canAttemptUpload =
+    inspectResult !== null && !isInspectionPending && !inspectError && submissionStatus === 'idle' && acknowledged
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && isSubmitting) return
@@ -150,7 +153,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
   }
 
   const uploadBundle = async () => {
-    if (!canUpload) return
+    if (!canAttemptUpload || !descriptionValid) return
     setSubmissionStatus('submitting')
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
@@ -170,6 +173,13 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
       setSubmissionStatus('idle')
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     }
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setHasAttemptedSubmit(true)
+    if (!descriptionValid || !canAttemptUpload) return
+    void uploadBundle()
   }
 
   const retryUpload = async () => {
@@ -213,7 +223,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
             ) : submissionStatus === 'submission_unknown_fallback_save_failed' ? (
               <SubmissionUnknownFallbackSaveFailedContent />
             ) : (
-              <div className="space-y-4">
+              <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
                 <section className="space-y-2">
                   <label htmlFor="diagnostic-description" className="font-medium text-sm">
                     {t('settings.about.diagnostics.report.description_label')}
@@ -225,10 +235,10 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                     placeholder={t('settings.about.diagnostics.report.description_placeholder')}
                     rows={4}
                     disabled={isSubmitting}
-                    hasError={!descriptionValid}
-                    aria-describedby={descriptionValid ? undefined : 'diagnostic-description-error'}
+                    hasError={showDescriptionError}
+                    aria-describedby={showDescriptionError ? 'diagnostic-description-error' : undefined}
                   />
-                  {!descriptionValid ? (
+                  {showDescriptionError ? (
                     <p id="diagnostic-description-error" className="text-error text-xs">
                       {t(
                         normalizedDescription.length === 0
@@ -315,7 +325,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                   />
                   <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
                 </label>
-              </div>
+              </form>
             )}
           </Scrollbar>
 
@@ -366,7 +376,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                 <Button variant="outline" onClick={() => handleOpenChange(false)}>
                   {t('settings.about.diagnostics.actions.cancel')}
                 </Button>
-                <Button variant="emphasis" disabled={!canUpload} onClick={() => void uploadBundle()}>
+                <Button type="submit" form={uploadFormId} variant="emphasis" disabled={!canAttemptUpload}>
                   {t('settings.about.diagnostics.upload.actions.consent_upload')}
                 </Button>
               </>
