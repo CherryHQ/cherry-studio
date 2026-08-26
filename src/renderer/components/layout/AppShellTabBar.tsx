@@ -624,7 +624,6 @@ export const AppShellTabBar = ({
   const animationFrameIdsRef = useRef(new Set<number>())
   const closeTimersRef = useRef<number[]>([])
   const thawTimerRef = useRef<number | null>(null)
-  const stripRef = useRef<HTMLDivElement | null>(null)
   const stripPointerInsideRef = useRef(false)
   const thawAfterCollapseRef = useRef(false)
   const handleStripMouseLeaveRef = useRef<() => void>(() => undefined)
@@ -744,16 +743,26 @@ export const AppShellTabBar = ({
 
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
-  const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({
-      pinnedTabs,
-      normalTabs,
-      normalReorderStartIndex,
-      canDetach: !!detachTab,
-      reorderTabs,
-      closeTab,
-      setActiveTab
-    })
+  const {
+    tabBarRef,
+    tabListRef: stripRef,
+    rightInsetRef,
+    tabRefs,
+    noTransition,
+    getTranslateX,
+    handlePointerDown,
+    handleTabClick,
+    isDragging,
+    isGhost
+  } = useTabDrag({
+    pinnedTabs,
+    normalTabs,
+    normalReorderStartIndex,
+    canDetach: !!detachTab,
+    reorderTabs,
+    closeTab,
+    setActiveTab
+  })
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
@@ -1123,6 +1132,7 @@ export const AppShellTabBar = ({
           {!isFocusedTab && (
             <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
               <button
+                ref={rightInsetRef}
                 type="button"
                 data-launchpad-button
                 aria-label={t('title.launchpad')}

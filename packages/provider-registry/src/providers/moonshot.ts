@@ -3,6 +3,8 @@ import { EFFORT, modeWire } from './wires'
 
 const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
 
+const fixedTopPParameterSupport = { topP: { supported: false } } as const
+
 export default openaiCompatible({
   id: 'moonshot',
   name: 'Moonshot AI',
@@ -32,10 +34,16 @@ export default openaiCompatible({
     models: 'https://platform.moonshot.cn/docs/',
     official: 'https://www.moonshot.cn/'
   },
-  overrides: ['kimi-k2.6', 'kimi-k3'].map((modelId) => ({
-    modelId,
-    reasoningContracts: {
-      'openai-chat-completions': { wire: effortWire }
-    }
-  }))
+  overrides: [
+    // Moonshot fixes top_p at 0.95 for these models. Omitting the non-configurable
+    // parameter uses that server default; sending Cherry's default of 1 is rejected.
+    { modelId: 'kimi-k2.5', parameterSupport: fixedTopPParameterSupport },
+    ...['kimi-k2.6', 'kimi-k3'].map((modelId) => ({
+      modelId,
+      ...(modelId === 'kimi-k3' ? { parameterSupport: fixedTopPParameterSupport } : {}),
+      reasoningContracts: {
+        'openai-chat-completions': { wire: effortWire }
+      }
+    }))
+  ]
 })

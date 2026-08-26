@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -70,7 +71,10 @@ import type {
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
-type ManagedAiStreamRequest = AiStreamRequest & { usageContext?: InProcessUsageContext }
+type ManagedAiStreamRequest = AiStreamRequest & {
+  usageContext?: InProcessUsageContext
+  tokenUsageSource?: TokenUsageSource
+}
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
 // router against `aiRequestSchemas` (src/shared/ipc/schemas/ai.ts) before reaching the
@@ -882,6 +886,8 @@ export class AiStreamManager extends BaseService {
     idleTimeoutMs?: number
     /** In-process agent correlation for gateway-owned provider-request records. */
     usageContext?: InProcessUsageContext
+    /** Trusted in-process classification for remote token analytics. */
+    tokenUsageSource?: TokenUsageSource
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -898,6 +904,7 @@ export class AiStreamManager extends BaseService {
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
+      ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
     }
     return this.send({
@@ -1178,6 +1185,43 @@ export class AiStreamManager extends BaseService {
     stream.status = 'aborted'
   }
 
+  /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
+  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+    await this.withDispatchLock(topicId, async () => {
+      const stream = this.activeStreams.get(topicId)
+      const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
+      const drainedLoops = new Set(loopPromises)
+
+      this.abort(topicId, reason)
+      await Promise.allSettled(loopPromises)
+
+      if (isAgentSessionTopic(topicId)) {
+        const runtimeClosing = application
+          .get('AgentSessionRuntimeService')
+          .closeSession(extractAgentSessionId(topicId))
+        const drainReplacementLoops = async (): Promise<void> => {
+          for (;;) {
+            const replacement = this.activeStreams.get(topicId)
+            const replacementLoops = replacement
+              ? [...replacement.executions.values()]
+                  .map((execution) => execution.loopPromise)
+                  .filter((loopPromise) => !drainedLoops.has(loopPromise))
+              : []
+            if (replacementLoops.length === 0) return
+
+            replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
+            this.abort(topicId, reason)
+            await Promise.allSettled(replacementLoops)
+          }
+        }
+
+        await drainReplacementLoops()
+        await runtimeClosing
+        await drainReplacementLoops()
+      }
+    })
+  }
+
   // ── Execution loop callbacks ──────────────────────────────────────
   // Driven internally by `createAndLaunchExecution`. Public because
   // tests invoke them directly to simulate chunk/done/error.
@@ -1338,6 +1382,11 @@ export class AiStreamManager extends BaseService {
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
+    // The awaited dispatch can outlive this stream's registry slot — a new stream for
+    // the topic may have replaced it while listeners ran. Everything below belongs to
+    // the current stream generation only; a stale callback must not touch it.
+    if (this.activeStreams.get(topicId) !== stream) return
+
     if (chatChaining) this.scheduleNextChatTurn(topicId)
     else if (topicDone && !chaining) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
@@ -1375,6 +1424,9 @@ export class AiStreamManager extends BaseService {
     if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
+
+    // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
+    if (this.activeStreams.get(topicId) !== stream) return
 
     if (isTopicDone) {
       // Aborted (stop button / idle timeout), not a clean steer-yield — drop any queued steer
@@ -1430,6 +1482,9 @@ export class AiStreamManager extends BaseService {
     }
 
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
+
+    // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
+    if (this.activeStreams.get(topicId) !== stream) return
 
     if (isTopicDone) {
       // Errored turn — drop any queued steer rather than chaining onto a failed turn.
