@@ -59,7 +59,7 @@ const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
     // Product-support capabilities intentionally exclude creation of arbitrary Agents. Support keeps
     // product lookups on channel-linked sessions; the sensitive tools still require a responder.
     hostTools: {
-      tools: ['navigate', 'diagnose', 'product_info', 'apply_setting'],
+      tools: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
       inChannelSessions: true,
       runtimes: ['claude-code']
     }

@@ -34,6 +34,20 @@ describe('resolveAgentCapabilities', () => {
     // Assistant declares no subset, which means the complete tool set.
     expect(assistant.hostTools?.tools).toBeUndefined()
   })
+
+  it('grants diagnostic draft preparation only through the explicit Support tool set', () => {
+    const support = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT } })
+    const assistant = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })
+
+    expect(support.hostTools?.tools).toEqual([
+      'navigate',
+      'diagnose',
+      'product_info',
+      'apply_setting',
+      'prepare_diagnostic_report'
+    ])
+    expect(assistant.hostTools?.tools).toBeUndefined()
+  })
 })
 
 describe('hostToolsEnabled', () => {

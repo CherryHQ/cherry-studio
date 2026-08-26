@@ -2374,7 +2374,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       'navigate',
       'diagnose',
       'product_info',
-      'apply_setting'
+      'apply_setting',
+      'prepare_diagnostic_report'
     ])
   })
 
