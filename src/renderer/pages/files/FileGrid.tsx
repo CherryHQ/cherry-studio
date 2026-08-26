@@ -164,7 +164,9 @@ export const FileGrid = memo(function FileGrid({
                           className="w-full px-1.5 text-center"
                         />
                       ) : (
-                        <p className="truncate font-medium text-foreground text-sm leading-5" title={file.name}>
+                        <p
+                          className="truncate font-medium text-foreground text-sm leading-5"
+                          title={file.sourcePath ?? file.name}>
                           {file.name}
                         </p>
                       )}

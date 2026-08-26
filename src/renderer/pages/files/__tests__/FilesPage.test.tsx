@@ -191,7 +191,7 @@ function renderFilesPage(entries: FileEntry[] = [entry]) {
 }
 
 function selectFileAt(index: number) {
-  fireEvent.click(screen.getAllByRole('checkbox', { name: 'files.select_file' })[index])
+  fireEvent.click(screen.getAllByRole('checkbox', { name: /files\.select_file(?:_with_path)?/ })[index])
 }
 
 beforeEach(() => {
@@ -467,6 +467,46 @@ describe('FilesPage file operations', () => {
       if (route === 'file.rename') return Promise.resolve({})
       return Promise.resolve(input)
     })
+  })
+
+  it('exposes distinct source paths for same-name files from different directories', async () => {
+    const first = {
+      ...imageEntry,
+      id: 'file-migrated-a',
+      origin: 'internal',
+      name: 'migrated-image',
+      ext: 'png'
+    } as unknown as FileEntry
+    const second = {
+      id: 'file-migrated-b',
+      origin: 'external',
+      name: 'migrated-image',
+      ext: 'png',
+      size: null,
+      externalPath: '/Users/b/Downloads/migrated-image.png',
+      createdAt: 1_719_216_000_000,
+      updatedAt: 1_719_216_000_000
+    } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') {
+        return Promise.resolve({
+          'file-migrated-a': '/Users/a/Pictures/migrated-image.png',
+          'file-migrated-b': '/Users/b/Downloads/migrated-image.png'
+        })
+      }
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([first, second])
+
+    await waitFor(() => {
+      const names = screen.getAllByText('migrated-image.png')
+      expect(names).toHaveLength(2)
+      expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
+      expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
+    })
+    expect(screen.queryByTitle('safe-file:///Users/a/Pictures/migrated-image.png')).not.toBeInTheDocument()
   })
 
   it('embeds the file preview across the Files page after resolving the physical path', async () => {

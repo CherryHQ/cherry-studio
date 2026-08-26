@@ -187,6 +187,7 @@ function toFileItem(
   const createdAt = metadata?.createdAt ?? entry.createdAt
   const updatedAt = metadata?.modifiedAt ?? entry.updatedAt
   const physicalPath = physicalPathById[entry.id]
+  const sourcePath = (entry.origin === 'external' ? entry.externalPath : physicalPath) ?? undefined
   const danglingState = entry.origin === 'external' ? danglingStateById[entry.id] : undefined
   const isMissing = danglingState === 'missing'
 
@@ -200,7 +201,8 @@ function toFileItem(
     updatedAt: formatDateTime(updatedAt),
     trashed: entry.origin === 'internal' && entry.deletedAt !== undefined,
     danglingState,
-    isMissing
+    isMissing,
+    ...(sourcePath ? { sourcePath } : {})
   }
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
@@ -416,12 +418,9 @@ function FilesPage() {
 
     let cancelled = false
     const ids = displayEntries.map((entry) => entry.id)
-    const imageIds = displayEntries
-      .filter((entry) => getFileTypeByExt(entry.ext ?? '') === 'image')
-      .map((entry) => entry.id)
     void Promise.all([
       requestBatchedFileRecords('file.batch_get_metadata', ids),
-      requestBatchedFileRecords('file.batch_get_physical_paths', imageIds),
+      requestBatchedFileRecords('file.batch_get_physical_paths', ids),
       requestBatchedFileRecords('file.batch_get_dangling_states', ids)
     ])
       .then(([metadata, physicalPaths, danglingStates]) => {

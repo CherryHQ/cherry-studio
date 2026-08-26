@@ -247,4 +247,42 @@ describe('FileList', () => {
     expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
   })
+
+  it('exposes distinct source paths for same-name files', () => {
+    virtualizerMocks.useVirtualizer.mockImplementation((options: VirtualizerOptionsMock) => ({
+      getTotalSize: () => options.count * options.estimateSize(),
+      getVirtualItems: () =>
+        Array.from({ length: options.count }, (_, index) => ({
+          index,
+          key: options.getItemKey?.(index) ?? index,
+          size: options.estimateSize(),
+          start: index * options.estimateSize()
+        })),
+      measureElement: vi.fn(),
+      scrollToIndex: virtualizerMocks.scrollToIndex
+    }))
+
+    const first: FileItem = {
+      ...file,
+      id: 'file-migrated-a',
+      name: 'migrated-image.png',
+      format: 'png',
+      type: 'image',
+      sourcePath: '/Users/a/Pictures/migrated-image.png'
+    }
+    const second: FileItem = {
+      ...first,
+      id: 'file-migrated-b',
+      sourcePath: '/Users/b/Downloads/migrated-image.png'
+    }
+
+    render(<FileList {...fileListProps(null)} files={[first, second]} />)
+
+    const names = screen.getAllByText('migrated-image.png')
+    expect(names).toHaveLength(2)
+    expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
+    expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
+    expect(screen.getAllByRole('checkbox', { name: 'files.select_file_with_path' })).toHaveLength(2)
+    expect(screen.queryByRole('checkbox', { name: 'files.select_file' })).not.toBeInTheDocument()
+  })
 })
