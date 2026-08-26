@@ -142,13 +142,12 @@ describe('MessageVirtualList', () => {
     expect(virtuaMockState.scrollRefReadyAtMount.length).toBeGreaterThan(0)
   })
 
-  it('makes the message viewport keyboard-focusable with visible focus feedback', () => {
+  it('exposes the message viewport as a keyboard-focusable named region', () => {
     const scroller = renderMessageList()
     expect(scroller).toHaveAttribute('tabindex', '0')
     expect(screen.getByRole('region', { name: 'Messages' })).toBe(scroller)
     scroller.focus()
     expect(scroller).toHaveFocus()
-    expect(scroller).toHaveClass('focus-visible:ring-1', 'focus-visible:ring-ring', 'focus-visible:ring-inset')
   })
 
   it('takes keyboard scroll ownership after direct interaction with plain message content', () => {

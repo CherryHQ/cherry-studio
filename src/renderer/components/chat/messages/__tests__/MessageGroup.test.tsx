@@ -545,6 +545,23 @@ describe('MessageGroup', () => {
     expect(contentContainer).not.toHaveAttribute('tabindex')
   })
 
+  it('keeps bubble-style user message content out of the keyboard tab order', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const messages = [{ ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
+  })
+
   it('renders adapter-owned tail content only after its target assistant message', () => {
     const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
 

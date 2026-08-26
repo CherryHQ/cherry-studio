@@ -674,6 +674,15 @@ export function useChatVirtualizerRuntime<T>({
     const pendingUserInput = pendingUserInputRef.current
     const deltaDirection = getScrollDirection(delta)
     const hasRecentUserScrollIntent = isUserScrollIntentPending(deltaDirection)
+    if (
+      pendingUserInput &&
+      performance.now() - pendingUserInput.at < USER_SCROLL_INPUT_WINDOW_MS &&
+      pendingUserInput.direction !== 'none' &&
+      deltaDirection !== 'none' &&
+      pendingUserInput.direction !== deltaDirection
+    ) {
+      pendingUserInputRef.current = null
+    }
     const isUserInitiated = scrollbarDragActiveRef.current || userScrollGestureRef.current || hasRecentUserScrollIntent
     const wheelDir = lastWheelDirRef.current
     const direction = wheelDir !== 'none' ? wheelDir : deltaDirection

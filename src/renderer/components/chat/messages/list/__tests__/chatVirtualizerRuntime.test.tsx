@@ -3442,6 +3442,14 @@ describe('useChatVirtualizerRuntime', () => {
       })
 
       expect(scrollTop).toBe(500)
+
+      // The corrective scroll back to the anchor must not reuse the rejected
+      // downward intent and become a new user gesture.
+      act(() => runtime!.scrollerProps.onScroll(500))
+      runtime!.scrollerProps.onScrollEnd()
+      scrollTop = 510
+      act(() => runtime!.scrollerProps.onScroll(510))
+      expect(scrollTop).toBe(500)
     } finally {
       nowSpy.mockRestore()
       restoreResizeObserver()
