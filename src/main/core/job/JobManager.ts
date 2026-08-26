@@ -1905,8 +1905,9 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
+    let written = false
     try {
-      jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
+      written = jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
@@ -1914,10 +1915,10 @@ export class JobManager extends BaseService {
 
     const persisted = jobService.getById(jobId)
 
-    // `setTerminalTx` only writes a non-terminal row, so a mismatch here means an
-    // earlier finalize (a forced cancel) already won — it published and resolved the
-    // waiters, and repeating that would emit a second contradictory state.
-    if (!txFailed && persisted && persisted.status !== status && isTerminalStatus(persisted.status)) {
+    // The write is skipped when the row is already terminal, so `written === false`
+    // means an earlier finalize won — it published and resolved the waiters. Repeating
+    // that emits a duplicate settle, even when the late status happens to match.
+    if (!txFailed && !written && persisted && isTerminalStatus(persisted.status)) {
       logger.warn('finalizeJob: already finalized — dropping the late terminal state', {
         jobId,
         attempted: status,
