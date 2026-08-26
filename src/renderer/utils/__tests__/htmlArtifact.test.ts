@@ -55,4 +55,15 @@ describe('stripMetaRefresh', () => {
     const html = '<div><h2>Fragment</h2></div>'
     expect(stripMetaRefresh(html)).toBe(html)
   })
+
+  it('neutralizes incorrectly-closed comments so a hidden meta cannot re-open in browsers', () => {
+    // Browsers close the comment at `--!>` (htmlparser2 does not): without breaking
+    // the sequence the meta would become live script-side of the comment again.
+    const html = '<div>a</div><!--c--!><meta http-equiv="refresh" content="0;url=https://evil.example">'
+
+    const stripped = stripMetaRefresh(html)
+
+    expect(stripped).not.toMatch(/--!>/)
+    expect(stripped).toContain('<div>a</div>')
+  })
 })

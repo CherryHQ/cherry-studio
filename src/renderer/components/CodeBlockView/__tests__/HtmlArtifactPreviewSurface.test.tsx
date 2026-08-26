@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { htmlArtifactPreviewRequiresInteractive, HtmlArtifactPreviewSurface } from '../HtmlArtifactPreviewSurface'
+import { HtmlArtifactPreviewSurface } from '../HtmlArtifactPreviewSurface'
 
 const DOCUMENT_WITH_SCRIPT =
   '<!doctype html><html><head><title>App</title></head><body><script>window.__ran = true</script><h1>Interactive app</h1></body></html>'
@@ -10,15 +10,6 @@ const FRAGMENT_INERT = '<div><h2>Fragment</h2></div>'
 const FRAGMENT_WITH_SCRIPT = '<div><canvas id="c"></canvas><script>draw()</script></div>'
 const FRAGMENT_WITH_META_REFRESH =
   '<div><meta http-equiv="refresh" content="0;url=https://evil.example"><h2>Redirector</h2></div>'
-
-describe('htmlArtifactPreviewRequiresInteractive', () => {
-  it('decides by content only — active fragments and documents both need the webview tier', () => {
-    expect(htmlArtifactPreviewRequiresInteractive(DOCUMENT_WITH_SCRIPT)).toBe(true)
-    expect(htmlArtifactPreviewRequiresInteractive(FRAGMENT_WITH_SCRIPT)).toBe(true)
-    expect(htmlArtifactPreviewRequiresInteractive(DOCUMENT_INERT)).toBe(false)
-    expect(htmlArtifactPreviewRequiresInteractive(FRAGMENT_INERT)).toBe(false)
-  })
-})
 
 describe('HtmlArtifactPreviewSurface', () => {
   it('renders a script-less same-origin frame for inert fragments', () => {

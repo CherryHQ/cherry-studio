@@ -26,6 +26,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { stripMetaRefresh } from '@renderer/utils/htmlArtifact'
 import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   lazy,
@@ -241,6 +242,9 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   const isScrollActiveRef = useDelayedScrollActivation(viewportRef)
   const scrollRuntime = useScrollRuntimeBoundary()
   const zoomScale = zoom / 100
+  // Same tier contract as StaticHtmlPreview: the static inline preview is a preview,
+  // never navigation, so meta-refresh is stripped before the frame sees the bytes.
+  const staticHtml = useMemo(() => stripMetaRefresh(html), [html])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -345,7 +349,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
         }}>
         {/* Keep same-origin only for parent-side sizing; generated scripts and forms stay blocked. */}
         <HtmlPreviewFrame
-          html={html}
+          html={staticHtml}
           title={title}
           iframeRef={iframeRef}
           sandbox="allow-same-origin"
