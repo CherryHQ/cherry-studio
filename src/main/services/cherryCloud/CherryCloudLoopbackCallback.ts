@@ -68,19 +68,17 @@ export class CherryCloudLoopbackCallback {
   }
 
   private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    const target = new URL(request.url ?? '/', `http://${LOOPBACK_HOST}`)
+    const target = new URL(request.url ?? '/', `http://${LOOPBACK_HOST}:${this.port}`)
     if (this.handled || request.method !== 'GET' || target.pathname !== CALLBACK_PATH) {
       response.writeHead(this.handled ? 410 : 404, { 'Cache-Control': 'no-store' }).end()
       return
     }
 
-    const callback = new URL('cherrystudio://cloud-auth/callback')
-    callback.search = target.search
     try {
-      await this.callback(callback)
+      await this.callback(target)
       this.handled = true
       this.dispose()
-      this.redirectToCompletion(response, callback.searchParams.has('error') ? 'failure' : 'success')
+      this.redirectToCompletion(response, target.searchParams.has('error') ? 'failure' : 'success')
     } catch {
       this.redirectToCompletion(response, 'invalid')
     }

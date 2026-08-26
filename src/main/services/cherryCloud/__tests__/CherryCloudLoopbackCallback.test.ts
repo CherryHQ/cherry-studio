@@ -24,7 +24,7 @@ describe('CherryCloudLoopbackCallback', () => {
     expect(response.headers.get('location')).toBe('http://127.0.0.1:8084/login/complete#desktop_result=success')
     expect(callback).toHaveBeenCalledTimes(1)
     expect(callback.mock.calls[0][0].toString()).toBe(
-      'cherrystudio://cloud-auth/callback?authorization_id=id&state=state&handoff_code=code'
+      `http://127.0.0.1:${receiver.port}/cloud-auth/callback?authorization_id=id&state=state&handoff_code=code`
     )
   })
 

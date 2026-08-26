@@ -188,7 +188,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
   const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
   await service.handleCallback(
     new URL(
-      `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+      `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
     )
   )
   await service.syncEntitledModels()
@@ -250,7 +250,7 @@ describe('CherryCloudService', () => {
     const callback = mocks.loopbackOpen.mock.calls[0][0] as (url: URL) => Promise<void>
     await callback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
@@ -308,7 +308,7 @@ describe('CherryCloudService', () => {
     await expect(
       service.handleCallback(
         new URL(
-          `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
       )
     ).rejects.toThrow('database is read-only')
@@ -317,15 +317,16 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession).toBeNull()
   })
 
-  it('uses the HTTPS production origin in packaged builds', async () => {
+  it('uses the HTTPS production origin and loopback callback in packaged builds', async () => {
     mocks.appIsPackaged = true
     mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
     const service = new CherryCloudService()
     await service._doInit()
 
     await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
-    expect(mocks.loopbackOpen).not.toHaveBeenCalled()
+    expect(mocks.loopbackOpen).toHaveBeenCalledOnce()
     expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com.cn/api/v1/desktop/authorizations')
+    expect(JSON.parse(mocks.netFetch.mock.calls[0][1].body as string).callback_port).toBe(49152)
   })
 
   it('returns to signed out when browser authorization expires without a callback', async () => {
@@ -365,7 +366,7 @@ describe('CherryCloudService', () => {
 
       const callback = service.handleCallback(
         new URL(
-          `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
       )
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
@@ -455,7 +456,7 @@ describe('CherryCloudService', () => {
 
     await service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}&error=access_denied`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}&error=access_denied`
       )
     )
 
@@ -522,7 +523,7 @@ describe('CherryCloudService', () => {
 
     const callback = service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
@@ -580,12 +581,12 @@ describe('CherryCloudService', () => {
 
     const invalidCallback = service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=wrong-state`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=wrong-state`
       )
     )
     const validCallback = service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
 
@@ -601,7 +602,9 @@ describe('CherryCloudService', () => {
     await service.startLogin()
     const callback = mocks.loopbackOpen.mock.calls[0][0] as (url: URL) => Promise<void>
 
-    await expect(callback(new URL('cherrystudio://cloud-auth/callback?state=wrong'))).rejects.toThrow('does not match')
+    await expect(callback(new URL('http://127.0.0.1/cloud-auth/callback?state=wrong'))).rejects.toThrow(
+      'does not match'
+    )
     await service._doStop()
 
     expect(mocks.loopbackReceiver.dispose).toHaveBeenCalledOnce()
@@ -619,13 +622,13 @@ describe('CherryCloudService', () => {
 
     const validCallback = service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     const errorCallback = service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}&error=access_denied`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}&error=access_denied`
       )
     )
 
@@ -646,7 +649,7 @@ describe('CherryCloudService', () => {
 
     await expect(
       service.handleCallback(
-        new URL(`cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}`)
+        new URL(`http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}`)
       )
     ).rejects.toThrow('missing the handoff code')
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
@@ -879,7 +882,7 @@ describe('CherryCloudService', () => {
     const createBody = JSON.parse(mocks.netFetch.mock.calls[3][1].body as string)
     await service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
 
@@ -1070,7 +1073,7 @@ describe('CherryCloudService', () => {
       const createBody = JSON.parse(mocks.netFetch.mock.calls[2][1].body as string)
       await service.handleCallback(
         new URL(
-          `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
       )
 
@@ -1136,7 +1139,7 @@ describe('CherryCloudService', () => {
     const createBody = JSON.parse(mocks.netFetch.mock.calls[2][1].body as string)
     await service.handleCallback(
       new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
     pendingRevoke.resolve(new Response(null, { status: 204 }))
@@ -1251,7 +1254,7 @@ describe('CherryCloudService', () => {
       const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
       await service.handleCallback(
         new URL(
-          `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
       )
       await service.syncEntitledModels()

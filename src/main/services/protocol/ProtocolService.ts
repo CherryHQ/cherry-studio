@@ -199,10 +199,7 @@ export class ProtocolService extends BaseService {
             .catch((error) => logger.error('Failed to handle OAuth callback', error as Error))
           return
         case 'cloud-auth':
-          application
-            .get('CherryCloudService')
-            .handleCallback(urlObj)
-            .catch((error) => logger.error('Failed to handle Cherry Cloud callback', error as Error))
+          // Cherry Cloud auth is HTTP-loopback only; never broadcast stale handoff credentials.
           return
       }
 

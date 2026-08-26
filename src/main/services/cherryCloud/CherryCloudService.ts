@@ -211,9 +211,9 @@ export class CherryCloudService extends BaseService {
 
     const device = this.cloudState.device ?? createDeviceKeyPair()
     const secrets = createAuthorizationSecrets()
-    const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback(lifecycleGeneration, operation)
+    const loopbackCallback = await this.openLoopbackCallback(lifecycleGeneration, operation)
     if (this.lifecycleGeneration !== lifecycleGeneration) {
-      loopbackCallback?.dispose()
+      loopbackCallback.dispose()
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
       this.assertLifecycleGeneration(lifecycleGeneration)
     }
@@ -236,7 +236,7 @@ export class CherryCloudService extends BaseService {
       )
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
-      loopbackCallback?.setExpiresAt(created.expires_at)
+      loopbackCallback.setExpiresAt(created.expires_at)
       pending = {
         authorizationId: created.authorization_id,
         state: secrets.state,
@@ -252,7 +252,7 @@ export class CherryCloudService extends BaseService {
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
     } catch (error) {
-      loopbackCallback?.dispose()
+      loopbackCallback.dispose()
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
       if (pending) this.clearPendingAuthorization(pending)
       else {
@@ -288,7 +288,7 @@ export class CherryCloudService extends BaseService {
   }
 
   public async handleCallback(url: URL): Promise<void> {
-    if (url.hostname.toLowerCase() !== 'cloud-auth' || url.pathname !== '/callback') {
+    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.pathname !== '/cloud-auth/callback') {
       throw new Error('Invalid Cherry Cloud callback')
     }
 
