@@ -438,7 +438,20 @@ describe('MessageTokens', () => {
     expect(locateMessage).toHaveBeenCalledTimes(2)
   })
 
-  it('closes details for keyboard activation without discarding focus', () => {
+  it('keeps details open for non-primary pointer presses', () => {
+    const message = createMessage('assistant', { totalTokens: 42 })
+    const { locateMessage } = renderWithProvider(message)
+    const trigger = openDetails()
+
+    fireEvent.mouseDown(trigger, { button: 1, clientX: 100, clientY: 100 })
+    expect(trigger).toHaveAttribute('data-state', 'open')
+
+    fireEvent.mouseDown(trigger, { button: 2, clientX: 100, clientY: 100 })
+    expect(trigger).toHaveAttribute('data-state', 'open')
+    expect(locateMessage).not.toHaveBeenCalled()
+  })
+
+  it('closes details for keyboard activation and reopens after deliberate pointer re-entry without discarding focus', () => {
     const message = createMessage('assistant', { totalTokens: 42 })
     const { locateMessage } = renderWithProvider(message)
     const trigger = openDetails()
@@ -452,7 +465,10 @@ describe('MessageTokens', () => {
     expect(trigger).not.toHaveAttribute('aria-describedby')
     expect(locateMessage).toHaveBeenCalledWith(message.id, false)
 
-    act(() => trigger.blur())
+    fireEvent.pointerLeave(trigger)
+    fireEvent.mouseLeave(trigger)
+    expect(trigger).toHaveFocus()
+
     fireEvent.pointerEnter(trigger)
     void act(() => vi.advanceTimersByTime(200))
     expect(trigger).toHaveAttribute('data-state', 'open')

@@ -62,13 +62,18 @@ function AssistantMessageTokens({
     setIsDetailsOpen(open)
   }
   const handleMouseDown = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return
+
     pointerDownPositionRef.current = { x: event.clientX, y: event.clientY }
     setIsDetailsDismissed(true)
     setIsDetailsOpen(false)
   }
   const handleMouseBoundary = (event: MouseEvent<HTMLButtonElement>) => {
     const pointerDownPosition = pointerDownPositionRef.current
-    if (!pointerDownPosition) return
+    if (!pointerDownPosition) {
+      setIsDetailsDismissed(false)
+      return
+    }
 
     const movedDistance = Math.hypot(event.clientX - pointerDownPosition.x, event.clientY - pointerDownPosition.y)
     if (movedDistance < 2) return
