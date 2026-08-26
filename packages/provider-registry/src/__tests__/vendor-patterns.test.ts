@@ -25,6 +25,18 @@ describe('matchVendor — anchored, order-independent (#5)', () => {
   })
 })
 
+describe('matchVendor — anthropic covers Bedrock inference-profile prefixes', () => {
+  it('matches bare and region/global-prefixed Bedrock ids', () => {
+    expect(matchVendor('anthropic.claude-opus-4-1-20250805-v1:0')).toBe('anthropic')
+    expect(matchVendor('global.anthropic.claude-fable-5')).toBe('anthropic')
+    expect(matchVendor('us.anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe('anthropic')
+  })
+
+  it('does not claim a dotted prefix chain that does not end in anthropic', () => {
+    expect(matchVendor('foo.claude-x')).toBeUndefined()
+  })
+})
+
 describe('matchVendor — hunyuan `hy-` is anchored (#6)', () => {
   it('matches the real hunyuan ids', () => {
     expect(matchVendor('hunyuan-t1')).toBe('hunyuan')
