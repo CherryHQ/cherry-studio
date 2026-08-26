@@ -22,10 +22,15 @@ import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 const logger = loggerService.withContext('AgentMcpServers')
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
-type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>
+export type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>
 export type LinkedChannelSnapshot = NotifyChannel | null
 
 export interface AgentNotificationContext {
+  /**
+   * Never read directly — it is hashed into the connection rebuild signature so that binding or
+   * unbinding a Session's channel rebuilds the connection (channel-linked sessions mount a
+   * different MCP server set). Dropping it silently strands a session on the wrong tool surface.
+   */
   sourceChannel: NotifyChannel | null
   channels: readonly NotifyChannel[]
   allowAnyOwnedChannel: boolean
@@ -132,8 +137,8 @@ export function resolveAgentNotificationContext(
   linkedChannelSnapshot?: LinkedChannelSnapshot
 ): AgentNotificationContext {
   const sourceChannel =
-    linkedChannelSnapshot === undefined ? resolveSourceChannel(agentId, sessionId) : linkedChannelSnapshot
-  const turnChannels = application.get('AgentSessionRuntimeService').getCurrentTurnNotificationTargetContext(sessionId)
+    linkedChannelSnapshot === undefined ? resolveSourceChannelSafely(sessionId, agentId) : linkedChannelSnapshot
+  const turnChannels = application.get('AgentSessionRuntimeService').getTurnTrustedNotifyChannels(sessionId)
   const channels = [...(turnChannels ?? (sourceChannel ? [sourceChannel] : []))].sort(
     (left, right) => left.id.localeCompare(right.id) || left.type.localeCompare(right.type)
   )
@@ -145,10 +150,18 @@ export function resolveAgentNotificationContext(
   }
 }
 
-function resolveSourceChannel(agentId: string, sessionId: string): LinkedChannelSnapshot {
+/**
+ * The Session's linked channel, or null unless it belongs to `agentId`. The ownership check is the
+ * boundary that keeps one Agent's task output out of another's channel — never project without it.
+ */
+export function resolveLinkedNotifyChannel(sessionId: string, agentId: string): LinkedChannelSnapshot {
+  const channel = channelService.findBySessionId(sessionId)
+  return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : null
+}
+
+function resolveSourceChannelSafely(sessionId: string, agentId: string): LinkedChannelSnapshot {
   try {
-    const channel = channelService.findBySessionId(sessionId)
-    return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : null
+    return resolveLinkedNotifyChannel(sessionId, agentId)
   } catch {
     return null
   }

@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
@@ -25,7 +25,7 @@ export async function startAgentSessionRun(input: {
   listeners: StreamListener[]
   headless?: boolean
   /** Recipients authorized only for this run; [] deliberately disables notify. */
-  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  trustedNotifyChannels?: readonly NotifyChannel[]
   requireIdle?: { expectedAgentId: string }
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {

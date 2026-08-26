@@ -14,7 +14,6 @@ import path from 'node:path'
 
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
-import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -24,7 +23,11 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
-import type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
+import {
+  type LinkedChannelSnapshot,
+  type McpServerSnapshotMap,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import {
   AgentSessionWorkspaceError,
@@ -156,10 +159,7 @@ export async function buildClaudeCodeSessionSettings(
   const builtinPluginDirectory = builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
   const linkedChannelSnapshot =
     options?.linkedChannelSnapshot === undefined
-      ? (() => {
-          const channel = channelService.findBySessionId(session.id)
-          return channel?.agentId === agent.id ? { id: channel.id, type: channel.type } : null
-        })()
+      ? resolveLinkedNotifyChannel(session.id, agent.id)
       : options.linkedChannelSnapshot
   const capabilities = resolveAgentCapabilities(agent)
   const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })

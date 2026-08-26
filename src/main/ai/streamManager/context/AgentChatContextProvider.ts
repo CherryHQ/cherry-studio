@@ -9,9 +9,9 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
@@ -56,7 +56,7 @@ export type ValidatedAgentDispatch = {
   fastMode?: boolean
   headless: boolean
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
-  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  trustedNotifyChannels?: readonly NotifyChannel[]
   messageSnapshot: MessageSnapshot
   userMessageId: string
   userMessageParts: CherryMessagePart[]

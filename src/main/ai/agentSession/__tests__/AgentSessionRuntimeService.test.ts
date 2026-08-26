@@ -826,12 +826,12 @@ describe('AgentSessionRuntimeService', () => {
     it('keeps an omitted recipient set distinct from an explicit empty set', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
-      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toBeUndefined()
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
 
       service.markTurnTerminal('session-1', 'success')
       await new Promise((resolve) => setTimeout(resolve, 0))
       service.beginTurn({ ...baseTurnInput, trustedNotifyChannels: [] })
-      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toEqual([])
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([])
     })
 
     it('uses queued task recipients only for that task turn', async () => {
@@ -845,7 +845,7 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toEqual(recipients)
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual(recipients)
 
       service.enqueueUserMessage('session-1', userMessage('user-ordinary'))
       service.markTurnTerminal('session-1', 'success')
@@ -853,7 +853,7 @@ describe('AgentSessionRuntimeService', () => {
 
       const entry = getEntry(service)
       expect(entry.currentTurn.userMessage.id).toBe('user-ordinary')
-      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toBeUndefined()
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
       expect((service as any).connectionTarget(entry).trustedNotifyChannels).toBeUndefined()
     })
 

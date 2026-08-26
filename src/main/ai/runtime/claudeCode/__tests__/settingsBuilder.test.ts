@@ -165,9 +165,9 @@ vi.mock('@application', () => ({
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
       if (name === 'AgentSessionRuntimeService') {
         try {
-          return { getCurrentTurnNotificationTargetContext: () => undefined, ...mocks.applicationGet(name) }
+          return { getTurnTrustedNotifyChannels: () => undefined, ...mocks.applicationGet(name) }
         } catch {
-          return { getCurrentTurnNotificationTargetContext: () => undefined }
+          return { getTurnTrustedNotifyChannels: () => undefined }
         }
       }
       return mocks.applicationGet(name)

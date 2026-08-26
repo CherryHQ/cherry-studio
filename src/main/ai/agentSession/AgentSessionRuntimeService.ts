@@ -4,6 +4,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -39,7 +40,6 @@ import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -121,8 +121,8 @@ function knowledgeScopeEquals(left: readonly string[], right: readonly string[])
 }
 
 function notifyChannelsEqual(
-  left: readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined,
-  right: readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined
+  left: readonly NotifyChannel[] | undefined,
+  right: readonly NotifyChannel[] | undefined
 ): boolean {
   if (left === undefined || right === undefined) return left === right
   if (left.length !== right.length) return false
@@ -152,7 +152,7 @@ export interface BeginAgentSessionTurnInput {
   userMessage?: AgentSessionMessageEntity
   headless?: boolean
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
-  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  trustedNotifyChannels?: readonly NotifyChannel[]
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
   /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
@@ -208,7 +208,7 @@ type AgentSessionTurn = {
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
   headless?: boolean
-  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  trustedNotifyChannels?: readonly NotifyChannel[]
 }
 
 type PendingAgentSessionTurn = {
@@ -222,7 +222,7 @@ type PendingAgentSessionTurn = {
   /** The follow-up must open a responder-less/headless turn. */
   headless?: boolean
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
-  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  trustedNotifyChannels?: readonly NotifyChannel[]
   /** Submit-time author snapshot so a mid-session agent/model change can't restamp the reply. */
   messageSnapshot?: MessageSnapshot
 }
@@ -820,7 +820,7 @@ export class AgentSessionRuntimeService extends BaseService {
     message: AgentSessionMessageEntity,
     opts: {
       headless?: boolean
-      trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+      trustedNotifyChannels?: readonly NotifyChannel[]
       messageSnapshot?: MessageSnapshot
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
@@ -1111,9 +1111,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
-  getCurrentTurnNotificationTargetContext(
-    sessionId: string
-  ): readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined {
+  getTurnTrustedNotifyChannels(sessionId: string): readonly NotifyChannel[] | undefined {
     const entry = this.entries.get(sessionId)
     if (!entry || entry.runtimeState.execution.kind === 'idle') return undefined
     return this.connectionTarget(entry).trustedNotifyChannels

@@ -13,14 +13,14 @@ const mocks = vi.hoisted(() => ({
   findMcp: vi.fn(),
   listTools: vi.fn(),
   findBySessionId: vi.fn(),
-  getCurrentTurnNotificationTargetContext: vi.fn()
+  getTurnTrustedNotifyChannels: vi.fn()
 }))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) =>
       name === 'AgentSessionRuntimeService'
-        ? { getCurrentTurnNotificationTargetContext: mocks.getCurrentTurnNotificationTargetContext }
+        ? { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
         : { listTools: mocks.listTools }
   }
 }))
@@ -70,7 +70,7 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
-  mocks.getCurrentTurnNotificationTargetContext.mockReturnValue(undefined)
+  mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
 })
 
 describe('capturePiConnectionSnapshot', () => {
@@ -128,17 +128,17 @@ describe('capturePiConnectionSnapshot', () => {
   })
 
   it('signs current turn notification recipients independent of input order', async () => {
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([
       { id: 'channel-2', type: 'feishu' },
       { id: 'channel-1', type: 'telegram' }
     ])
     const first = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([
       { id: 'channel-1', type: 'telegram' },
       { id: 'channel-2', type: 'feishu' }
     ])
     const reordered = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-3', type: 'telegram' }])
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-3', type: 'telegram' }])
     const changed = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
 
     expect(reordered.signature).toBe(first.signature)

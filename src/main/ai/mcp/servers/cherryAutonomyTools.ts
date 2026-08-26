@@ -17,6 +17,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -28,7 +29,6 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -42,7 +42,7 @@ export interface CherryAgentContext {
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
   /** Notification recipients authorized for this exact turn, supplied only by the runtime. */
-  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  trustedNotifyChannels?: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel?: boolean
   /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
@@ -369,7 +369,7 @@ export class CherryAutonomyTools {
   private sessionId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
-  private trustedNotifyChannels: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  private trustedNotifyChannels: readonly NotifyChannel[]
   private allowAnyOwnedNotifyChannel: boolean
 
   constructor(context: CherryAutonomyContext) {

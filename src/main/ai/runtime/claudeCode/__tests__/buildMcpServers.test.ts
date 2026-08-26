@@ -64,7 +64,7 @@ vi.mock('@application', async () => {
       ...module.application,
       get: (name: string) =>
         name === 'AgentSessionRuntimeService'
-          ? { getCurrentTurnNotificationTargetContext: () => undefined }
+          ? { getTurnTrustedNotifyChannels: () => undefined }
           : module.application.get(name as never),
       getPath: mockGetPath
     }

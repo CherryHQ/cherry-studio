@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
-  getCurrentTurnNotificationTargetContext: vi.fn()
+  getTurnTrustedNotifyChannels: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -85,7 +85,7 @@ vi.mock('@application', () => ({
         return { get: mocks.preferenceGet }
       }
       if (name === 'AgentSessionRuntimeService') {
-        return { getCurrentTurnNotificationTargetContext: mocks.getCurrentTurnNotificationTargetContext }
+        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -437,7 +437,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('carries the turn notification authority into the prewarm request that keys warm reuse', async () => {
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
 
     const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
 
@@ -1418,9 +1418,9 @@ describe('deriveConnectionConfig', () => {
   })
 
   it('rebuilds when task notification recipients change', async () => {
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
     const first = await deriveSignature()
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-2', type: 'feishu' }])
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-2', type: 'feishu' }])
 
     expect((await deriveSignature()).rebuildSignature).not.toBe(first.rebuildSignature)
   })
