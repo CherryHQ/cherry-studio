@@ -23,7 +23,7 @@ export async function startNewAgentTask(page: Page, name: string): Promise<void>
   await agentView.getByText(name, { exact: true }).first().hover()
   const newTask = agentView.getByRole('button', { name: 'New task', exact: true }).first()
   await expect(newTask).toBeVisible()
-  await newTask.click()
+  await newTask.press('Enter')
   await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
 }
 
