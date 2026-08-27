@@ -155,6 +155,43 @@ describe('customFetch', () => {
     expect(redirectHeaders.get('X-Custom')).toBe('custom')
   })
 
+  it.each(['file:///etc/passwd', 'cherry-media://files/private'])(
+    'rejects redirects to non-HTTP(S) protocol %s',
+    async (location) => {
+      vi.mocked(net.fetch).mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { Location: location }
+        })
+      )
+
+      await expect(customFetch('https://api.test/v1/chat')).rejects.toThrow('unsupported redirect protocol')
+      expect(net.fetch).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('allows 20 redirects before fetching the successful destination', async () => {
+    let requestCount = 0
+    vi.mocked(net.fetch).mockImplementation(async () => {
+      requestCount++
+      return requestCount <= 20
+        ? new Response(null, { status: 302, headers: { Location: `/hop-${requestCount}` } })
+        : new Response('ok')
+    })
+
+    const response = await customFetch('https://api.test/start')
+
+    expect(await response.text()).toBe('ok')
+    expect(net.fetch).toHaveBeenCalledTimes(21)
+  })
+
+  it('rejects when the successful destination would require a 21st redirect', async () => {
+    vi.mocked(net.fetch).mockResolvedValue(new Response(null, { status: 302, headers: { Location: '/next' } }))
+
+    await expect(customFetch('https://api.test/start')).rejects.toThrow('too many redirects')
+    expect(net.fetch).toHaveBeenCalledTimes(21)
+  })
+
   it.each([
     { method: 'POST', status: 302 },
     { method: 'PUT', status: 303 }
@@ -168,15 +205,18 @@ describe('customFetch', () => {
       )
       .mockResolvedValueOnce(new Response('ok'))
 
-    await customFetch('https://api.test/v1/chat', {
+    const slot: HttpTraceFinalBodySlot = {}
+    const init: RequestInit & { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } = {
       method,
       headers: {
         Authorization: 'Bearer secret',
         'Content-Encoding': 'gzip',
         'Content-Type': 'application/json'
       },
-      body: '{}'
-    })
+      body: '{}',
+      [HTTP_TRACE_FINAL_BODY_SLOT]: slot
+    }
+    await customFetch('https://api.test/v1/chat', init)
 
     const [redirectUrl, redirectInit] = vi.mocked(net.fetch).mock.calls[1]
     const redirectHeaders = new Headers(redirectInit?.headers)
@@ -185,6 +225,7 @@ describe('customFetch', () => {
     expect(redirectInit?.body).toBeUndefined()
     expect(redirectHeaders.get('Authorization')).toBe('Bearer secret')
     expect([...redirectHeaders.keys()].some((key) => key.startsWith('content-'))).toBe(false)
+    expect(slot.body).toBeNull()
   })
 })
 

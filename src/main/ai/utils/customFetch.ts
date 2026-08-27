@@ -85,21 +85,36 @@ function shouldRedirectWithGet(status: number, method: string): boolean {
   )
 }
 
-async function fetchFollowingRedirects(target: string, initialInit?: RequestInit): Promise<Response> {
+async function fetchFollowingRedirects(
+  target: string,
+  initialInit: RequestInit | undefined,
+  sendRequest: (target: string, init: RequestInit) => Promise<Response>
+): Promise<Response> {
   let url = target
   let requestInit = initialInit
+  let redirectCount = 0
 
-  for (let redirectCount = 0; redirectCount < MAX_REDIRECTS; redirectCount++) {
-    const response = await net.fetch(url, { ...requestInit, redirect: 'manual' })
+  while (true) {
+    const response = await sendRequest(url, { ...requestInit, redirect: 'manual' })
     if (!REDIRECT_STATUSES.has(response.status)) return response
 
     const location = response.headers.get('location')
     if (!location) return response
+    if (redirectCount === MAX_REDIRECTS) {
+      await response.body?.cancel()
+      throw new Error('fetch: too many redirects')
+    }
 
     const currentUrl = new URL(url)
     const nextUrl = new URL(location, currentUrl)
+    if (nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:') {
+      await response.body?.cancel()
+      throw new TypeError(`fetch: unsupported redirect protocol "${nextUrl.protocol}"`)
+    }
+
     const method = (requestInit?.method ?? 'GET').toUpperCase()
     const dropBody = shouldRedirectWithGet(response.status, method)
+
     requestInit = {
       ...requestInit,
       body: dropBody ? undefined : requestInit?.body,
@@ -107,10 +122,9 @@ async function fetchFollowingRedirects(target: string, initialInit?: RequestInit
       method: dropBody ? 'GET' : method
     }
     url = nextUrl.href
+    redirectCount++
     await response.body?.cancel()
   }
-
-  throw new Error('fetch: too many redirects')
 }
 
 /**
@@ -138,7 +152,10 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
   const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
-  if (finalBodySlot) finalBodySlot.body = init?.body
+  const sendRequest = (requestTarget: string | Request, requestInit?: RequestInit) => {
+    if (finalBodySlot) finalBodySlot.body = requestInit?.body ?? null
+    return net.fetch(requestTarget, requestInit)
+  }
 
   // A custom `User-Agent` in the request headers is overwritten by Chromium's net
   // stack, so smuggle it through PROVIDER_USER_AGENT_HEADER and let the default-session
@@ -150,13 +167,13 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
     headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
     const requestInit = { ...init, headers }
     return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
-      ? fetchFollowingRedirects(target, requestInit)
-      : net.fetch(target, requestInit)
+      ? fetchFollowingRedirects(target, requestInit, sendRequest)
+      : sendRequest(target, requestInit)
   }
 
   return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
-    ? fetchFollowingRedirects(target, init)
-    : net.fetch(target, init)
+    ? fetchFollowingRedirects(target, init, sendRequest)
+    : sendRequest(target, init)
 }
 
 /**
