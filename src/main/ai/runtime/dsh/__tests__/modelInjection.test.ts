@@ -38,7 +38,6 @@ import { buildDshCompositionYaml } from '../compositionBuilder'
 import {
   assertDshProviderUsable,
   buildDshGatewayInjection,
-  DshMissingContextWindowError,
   DshUnsupportedProviderError,
   resolveDshProviderInjectionFromSnapshot
 } from '../modelInjection'
@@ -136,12 +135,12 @@ describe('buildDshGatewayInjection', () => {
     expect(route.models[0].id).toBe('vertexai:gemini-2.5-pro')
   })
 
-  it('rejects models the gateway cannot route and still requires a context window', () => {
+  it('rejects models the gateway cannot route and defaults an undeclared context window', () => {
     const nonChat = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] })
     expect(() => buildDshGatewayInjection(vertexProvider, nonChat, GATEWAY)).toThrow(DshUnsupportedProviderError)
 
     const windowless = makeModel({ contextWindow: undefined })
-    expect(() => buildDshGatewayInjection(vertexProvider, windowless, GATEWAY)).toThrow(DshMissingContextWindowError)
+    expect(buildDshGatewayInjection(vertexProvider, windowless, GATEWAY).modelConfig.contextWindow).toBe(256_000)
   })
 })
 
