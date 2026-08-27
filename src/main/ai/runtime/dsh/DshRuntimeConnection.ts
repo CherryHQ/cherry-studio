@@ -414,7 +414,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     try {
       await bridge.request('session/prompt', {
         sessionId: this.input.sessionId,
-        contentBlocks: [{ type: 'text', text: content }]
+        contentBlocks: [{ type: 'text', text: content }],
+        // Refresh the root interaction facts in the same bridge request as the prompt. Full Access
+        // must not bypass the headless config hard limit before approval/request gets a chance to run.
+        policy: this.buildPolicy(this.currentRootInteraction())
       })
     } catch (error) {
       this.turnActive = false
@@ -612,7 +615,19 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       .catch((error) => logger.warn('dsh plan-mode policy refresh failed', { error }))
   }
 
-  private buildPolicy(): BridgePolicy {
+  private currentRootInteraction(): Pick<BridgePolicy, 'responder' | 'turn'> {
+    try {
+      const state = application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId)
+      const headless = state.currentTurn === 'headless' || state.userResponse === 'unavailable'
+      return { responder: state.userResponse, turn: headless ? 'headless' : 'interactive' }
+    } catch {
+      // Unit/test hosts and pre-admission startup have no interaction service. The real host updates
+      // these facts in session/prompt before any root tool dispatch.
+      return { responder: 'message', turn: 'interactive' }
+    }
+  }
+
+  private buildPolicy(interaction = this.currentRootInteraction()): BridgePolicy {
     return {
       permissionMode: this.permissionMode,
       disabledTools: [...this.disabledTools],
@@ -624,6 +639,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       safeTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
       sensitiveTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
       nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
+      responder: interaction.responder,
+      turn: interaction.turn,
       planActive: this.runtimePlanActive === true,
       // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved
       // bridged tools; the subagent tools stay out (delegation bypasses read-only).

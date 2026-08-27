@@ -63,6 +63,9 @@ export interface BridgePolicy {
   sensitiveTools: string[]
   /** Approval-required tools whose live-user ceiling remains in Full Access. */
   nonBypassableApprovalTools: string[]
+  /** Current root responder and turn kind, refreshed before each root dispatch. */
+  responder: 'stream' | 'message' | 'unavailable'
+  turn: 'interactive' | 'headless'
   /** Whether the independent native dsh plan overlay is active. */
   planActive: boolean
   /** Closed allow-list used only by the native plan overlay. */
@@ -111,7 +114,7 @@ export interface BridgeHostRequestMap {
     result: Record<string, never>
   }
   'session/prompt': {
-    params: { sessionId: string; contentBlocks: BridgeTextBlock[] }
+    params: { sessionId: string; contentBlocks: BridgeTextBlock[]; policy: BridgePolicy }
     result: Record<string, never>
   }
   'session/cancel': { params: { sessionId: string }; result: Record<string, never> }

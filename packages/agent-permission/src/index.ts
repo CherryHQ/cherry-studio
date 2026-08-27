@@ -1,3 +1,9 @@
+export {
+  detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
+  isLarkFormSubmissionCommand,
+  isPermanentDeletionToolName
+} from './conduct'
 export { detectGlobalInstall } from './dependencyGuard'
 export { detectDestructiveCommand } from './destructiveCommand'
 export type {

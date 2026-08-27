@@ -1,4 +1,11 @@
-import type { PermissionContext, ToolCategory } from '@cherrystudio/agent-permission'
+import {
+  detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
+  isLarkFormSubmissionCommand,
+  isPermanentDeletionToolName,
+  type PermissionContext,
+  type ToolCategory
+} from '@cherrystudio/agent-permission'
 import { evaluatePermission, type PermissionCall } from '@cherrystudio/agent-permission/node'
 
 import type { BridgePolicy } from './protocol'
@@ -54,16 +61,14 @@ function conductTags(
 
   if (
     policy.builtinRole &&
-    ((category === 'shell' && /\b(?:rm|unlink|shred|srm|rmdir|del|erase|remove-item|clear-content)\b/i.test(command)) ||
-      /(?:^|__)delete(?:_file|_directory)?$/i.test(toolName))
+    ((category === 'shell' && detectDestructiveAssistantCommand(command)) || isPermanentDeletionToolName(toolName))
   ) {
     tags.push('permanent-delete')
   }
   if (
     policy.builtinRole === 'assistant' &&
     category === 'shell' &&
-    (/(?:^|[\s;&|])[^\s;&|]*lark-cli\s+base\s+\+form-submit(?:\s|$)/i.test(command) ||
-      /(?:^|[\s;&|])(?:[^\s;&|]*[\\/])?gh(?:\.exe)?\s+issue\s+create(?:\s|$)/i.test(command))
+    (isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command))
   ) {
     tags.push('feedback-submission')
   }
@@ -94,8 +99,8 @@ function contextFor(policy: BridgePolicy, delegated: boolean): PermissionContext
       agentData: policy.allowedRoots[1] ?? ''
     },
     isDisabled: (toolName) => policy.disabledTools.includes(toolName),
-    responder: delegated ? 'unavailable' : 'message',
-    turn: delegated ? 'headless' : 'interactive',
+    responder: delegated ? 'unavailable' : policy.responder,
+    turn: delegated ? 'headless' : policy.turn,
     delegated,
     builtinRole: policy.builtinRole
   }

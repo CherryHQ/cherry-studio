@@ -84,7 +84,8 @@ export function apply(ctx: Context): void {
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {
-        const { sessionId, contentBlocks } = params as BridgeHostParams<'session/prompt'>
+        const { sessionId, contentBlocks, policy } = params as BridgeHostParams<'session/prompt'>
+        policies.set(sessionId, policy)
         requireAgent(sessionId).followup(createUserMessage({ content: contentBlocks, source: { kind: 'user' } }))
         return {}
       }

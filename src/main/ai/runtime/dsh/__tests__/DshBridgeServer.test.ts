@@ -233,6 +233,8 @@ describe('DshBridgeServer', () => {
         safeTools: [],
         sensitiveTools: [],
         nonBypassableApprovalTools: [],
+        responder: 'message',
+        turn: 'interactive',
         planActive: false,
         planOverlayTools: []
       },
@@ -247,7 +249,25 @@ describe('DshBridgeServer', () => {
 
   it('rejects a request the plugin answers with an error', async () => {
     const harness = await makeHarness()
-    const prompt = harness.server.request('session/prompt', { sessionId: SESSION_ID, contentBlocks: [] })
+    const prompt = harness.server.request('session/prompt', {
+      sessionId: SESSION_ID,
+      contentBlocks: [],
+      policy: {
+        permissionMode: 'default',
+        disabledTools: [],
+        allowedRoots: ['/tmp/ws', '/tmp/agent-data'],
+        readTools: [],
+        editTools: [],
+        shellTools: [],
+        safeTools: [],
+        sensitiveTools: [],
+        nonBypassableApprovalTools: [],
+        responder: 'message',
+        turn: 'interactive',
+        planActive: false,
+        planOverlayTools: []
+      }
+    })
     ;(await harness.nextRequest()).fail('no live agent')
     await expect(prompt).rejects.toThrow('no live agent')
   })

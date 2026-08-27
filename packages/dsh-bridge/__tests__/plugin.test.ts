@@ -94,6 +94,8 @@ const openParams = {
     safeTools: [],
     sensitiveTools: [],
     nonBypassableApprovalTools: [],
+    responder: 'message',
+    turn: 'interactive',
     planActive: false,
     planOverlayTools: []
   },

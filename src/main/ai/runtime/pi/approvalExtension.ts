@@ -19,17 +19,18 @@
  */
 import { randomUUID } from 'node:crypto'
 
-import type { ToolCategory } from '@cherrystudio/agent-permission'
-import { type AgentPermissionMode, normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
-import { evaluatePermission, type PermissionCall } from '@cherrystudio/agent-permission/node'
-import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
-import { loggerService } from '@logger'
 import {
+  type AgentPermissionMode,
   detectDestructiveAssistantCommand,
   isGitHubIssueCreationCommand,
   isLarkFormSubmissionCommand,
-  isPermanentDeletionToolName
-} from '@main/ai/agents/builtin/assistantCommandSafety'
+  isPermanentDeletionToolName,
+  normalizeLegacyPermissionMode,
+  type ToolCategory
+} from '@cherrystudio/agent-permission'
+import { evaluatePermission, type PermissionCall } from '@cherrystudio/agent-permission/node'
+import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
+import { loggerService } from '@logger'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'

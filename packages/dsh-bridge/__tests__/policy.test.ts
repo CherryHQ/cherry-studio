@@ -29,6 +29,8 @@ const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   safeTools: [],
   sensitiveTools: [],
   nonBypassableApprovalTools: [],
+  responder: 'message',
+  turn: 'interactive',
   planActive: false,
   planOverlayTools: [],
   ...overrides
@@ -59,6 +61,22 @@ describe('decideToolCall', () => {
     const full = policy({ permissionMode: 'full', builtinRole: 'assistant' })
     expect(JSON.parse(JSON.stringify(full))).toEqual(full)
     await expect(decideToolCall(full, 'bash', { command: 'rm -rf ./x' })).resolves.toMatchObject({ kind: 'deny' })
+    await expect(decideToolCall(full, 'bash', { command: 'git reset --hard HEAD~1' })).resolves.toMatchObject({
+      kind: 'deny'
+    })
+    await expect(decideToolCall(full, 'bash', { command: 'dd if=/dev/zero of=/dev/disk2' })).resolves.toMatchObject({
+      kind: 'deny'
+    })
+    await expect(
+      decideToolCall(full, 'bash', { command: '"gh" issue create --title feedback' })
+    ).resolves.toMatchObject({ kind: 'ask' })
+    await expect(
+      decideToolCall(
+        policy({ permissionMode: 'full', responder: 'unavailable', turn: 'headless' }),
+        'mcp__cherry-tools__config',
+        { action: 'rename' }
+      )
+    ).resolves.toMatchObject({ kind: 'deny' })
     await expect(
       decideDelegatedToolCall(policy({ permissionMode: 'full', builtinRole: 'assistant' }), 'bash', {
         command: 'echo hi'
