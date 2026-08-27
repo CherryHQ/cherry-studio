@@ -44,7 +44,6 @@ import {
 import {
   type AgentConversationRef,
   type ConversationActivityId,
-  ConversationActivityKind,
   type ConversationEffectId,
   type ConversationExecutionId,
   ConversationKind,
@@ -71,7 +70,7 @@ import type {
   ResumeSuspendedConversationExecutionEffect,
   SuspendConversationExecutionEffect
 } from '../conversation'
-import { ConversationResponderKind } from '../conversation'
+import { ConversationActivityKind, ConversationResponderKind } from '../conversation'
 import { deriveRootSpanId } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'

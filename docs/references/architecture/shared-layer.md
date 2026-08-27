@@ -100,6 +100,10 @@ Two gates, in order, then categorize:
 
 - **Exported instance singleton** — `export const x = new XService()`, or any registry / manager / service instance. Violates Invariant 1.2.
 - **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Former epicenter: the now-dissolved `config/constant.ts` — §6. The Cache schema registry is the one sanctioned exception — §1.1.1.)*
+- **Main aggregate vocabulary in `@shared`** — Conversation phase, execution,
+  interaction, activity, and durability enums belong to the Main owner. Only
+  identities, inbox commands, status, and attach contracts used by Renderer stay
+  in `@shared/ai`.
 - **Junk-drawer file or dir** — a `config/` bucket or a `constant.ts` accumulating unrelated globals across domains and processes. Decompose by domain + process; do not relocate as a blob.
 - **A new top-level dir per capability** — every capability decomposes by shape; the top level is closed (§2).
 - **A stateful "service" in `@shared`** — state has no coherent shared owner; it belongs to `main` or `renderer`.

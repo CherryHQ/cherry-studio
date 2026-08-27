@@ -1,14 +1,7 @@
 import {
-  ConversationActivityKind,
-  ConversationExecutionPhase,
-  ConversationInteractionKind,
-  ConversationInteractionResumeMode,
   ConversationKind,
   ConversationOutcomeKind,
-  ConversationPhase,
   type ConversationRef,
-  ConversationTerminalDurability,
-  ConversationTurnKind,
   toConversationActivityId,
   toConversationEffectId,
   toConversationExecutionId,
@@ -20,15 +13,22 @@ import { describe, expect, it } from 'vitest'
 
 import { toAgentRuntimeRedirectId, toAgentRuntimeSegmentId } from '../../runtime/types'
 import {
+  ConversationActivityKind,
   ConversationCommandType,
   ConversationEffectType,
   ConversationExecutionDriverKind,
+  ConversationExecutionPhase,
   ConversationInputProvenance,
+  ConversationInteractionKind,
+  ConversationInteractionResumeMode,
+  ConversationPhase,
   ConversationPreemptionPhase,
   ConversationResponderKind,
   ConversationRunMode,
   ConversationRuntimeOwnership,
   ConversationTerminalAudience,
+  ConversationTerminalDurability,
+  ConversationTurnKind,
   createConversationState,
   isConversationQuiescent,
   transitionConversation

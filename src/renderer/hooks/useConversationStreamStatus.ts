@@ -1,4 +1,5 @@
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { executionStreamOverlayService } from '@renderer/services/aiTransport'
 import { type ConversationRef, conversationRefKey, ConversationStatus } from '@shared/ai/conversation'
 import { classifyTurn, type ConversationExecutionProjection } from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -50,22 +51,17 @@ export function useConversationAwaitingInteraction(conversation: ConversationRef
   return classifyTurn(entry?.status).isAwaitingInteraction
 }
 
-export function useConversationDbRefreshOnAwaitingInteraction(
-  conversation: ConversationRef,
-  refresh: () => Promise<unknown>
-): void {
+export function useConversationDbRefreshOnAwaitingInteraction(conversation: ConversationRef): void {
   const key = conversationRefKey(conversation)
   const entry = useSharedCacheValue(`conversation.statuses.${key}` as const)
   const status = entry?.status
-  const refreshRef = useRef(refresh)
-  refreshRef.current = refresh
   const previousRef = useRef<{ status: typeof status; key: string } | undefined>(undefined)
   useEffect(() => {
     const previous = previousRef.current
     const previousStatus = previous?.key === key ? previous.status : undefined
     previousRef.current = { status, key }
     if (classifyTurn(previousStatus).isStreamLive && classifyTurn(status).isAwaitingInteraction) {
-      void refreshRef.current().catch(() => {})
+      executionStreamOverlayService.requestDurableRefresh(conversation)
     }
-  }, [key, status])
+  }, [conversation, key, status])
 }

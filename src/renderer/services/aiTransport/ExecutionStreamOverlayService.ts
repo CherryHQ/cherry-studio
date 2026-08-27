@@ -114,6 +114,7 @@ interface HandoffState {
   pendingTurnIds: Set<ConversationTurnId>
   retireRecoveries: Map<string, ConversationStreamRecoveryRequest>
   retryRecoveries: Map<string, ConversationStreamRecoveryRequest>
+  refreshRequests: Set<symbol>
   attempt: number
   retryTimer: number | null
   inFlight: boolean
@@ -530,6 +531,29 @@ export class ExecutionStreamOverlayService {
     this.#publishView(entry)
   }
 
+  requestDurableRefresh(conversation: ConversationRef): boolean {
+    const entry = this.#entries.get(conversationRefKey(conversation))
+    if (!entry || entry.durability !== ConversationOverlayDurability.Durable) return false
+    const handoff =
+      entry.handoff ??
+      (entry.handoff = {
+        pendingTurnIds: new Set(),
+        retireRecoveries: new Map(),
+        retryRecoveries: new Map(),
+        refreshRequests: new Set(),
+        attempt: 0,
+        retryTimer: null,
+        inFlight: false
+      })
+    handoff.refreshRequests.add(Symbol('durable-refresh'))
+    handoff.attempt = 0
+    if (!handoff.inFlight) {
+      this.#clearHandoffTimer(entry)
+      this.#runHandoffRefresh(entry)
+    }
+    return true
+  }
+
   disposeOverlay(conversation: ConversationRef, messageId: string): void {
     const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return
@@ -584,6 +608,7 @@ export class ExecutionStreamOverlayService {
         pendingTurnIds: new Set([turnId]),
         retireRecoveries: new Map(),
         retryRecoveries: new Map(),
+        refreshRequests: new Set(),
         attempt: 0,
         retryTimer: null,
         inFlight: false
@@ -605,6 +630,7 @@ export class ExecutionStreamOverlayService {
         pendingTurnIds: new Set(),
         retireRecoveries: new Map(),
         retryRecoveries: new Map(),
+        refreshRequests: new Set(),
         attempt: 0,
         retryTimer: null,
         inFlight: false
@@ -628,6 +654,7 @@ export class ExecutionStreamOverlayService {
     const turnIds = new Set(handoff.pendingTurnIds)
     const retireRecoveries = new Map(handoff.retireRecoveries)
     const retryRecoveries = new Map(handoff.retryRecoveries)
+    const refreshRequests = new Set(handoff.refreshRequests)
     this.setRefreshError(entry.conversation, null)
     void (async () => {
       try {
@@ -662,7 +689,13 @@ export class ExecutionStreamOverlayService {
       for (const turnId of turnIds) handoff.pendingTurnIds.delete(turnId)
       for (const recoveryId of retireRecoveries.keys()) handoff.retireRecoveries.delete(recoveryId)
       for (const recoveryId of retryRecoveries.keys()) handoff.retryRecoveries.delete(recoveryId)
-      if (handoff.pendingTurnIds.size > 0 || handoff.retireRecoveries.size > 0 || handoff.retryRecoveries.size > 0) {
+      for (const request of refreshRequests) handoff.refreshRequests.delete(request)
+      if (
+        handoff.pendingTurnIds.size > 0 ||
+        handoff.retireRecoveries.size > 0 ||
+        handoff.retryRecoveries.size > 0 ||
+        handoff.refreshRequests.size > 0
+      ) {
         this.#runHandoffRefresh(entry)
       } else {
         entry.handoff = null

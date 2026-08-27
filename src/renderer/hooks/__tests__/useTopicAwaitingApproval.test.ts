@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockEntry = vi.fn()
+const { requestDurableRefresh } = vi.hoisted(() => ({ requestDurableRefresh: vi.fn() }))
 let lastSeenCompletion: number | null = null
 const setLastSeenCompletion = vi.fn((next: number | null) => {
   lastSeenCompletion = next
@@ -11,6 +12,9 @@ const setLastSeenCompletion = vi.fn((next: number | null) => {
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useSharedCache: () => [lastSeenCompletion, setLastSeenCompletion],
   useSharedCacheValue: () => mockEntry()
+}))
+vi.mock('@renderer/services/aiTransport', () => ({
+  executionStreamOverlayService: { requestDurableRefresh }
 }))
 
 import {
@@ -33,6 +37,7 @@ function setEntry(status: ConversationStatus | undefined, lastCompletedAt?: numb
 describe('useConversationAwaitingInteraction', () => {
   beforeEach(() => {
     mockEntry.mockReset()
+    requestDurableRefresh.mockReset()
     setLastSeenCompletion.mockClear()
     lastSeenCompletion = null
   })
@@ -71,41 +76,38 @@ describe('useConversationAwaitingInteraction', () => {
   it.each([ConversationStatus.Pending, ConversationStatus.Streaming])(
     'refreshes once on %s to WaitingInteraction',
     async (liveStatus) => {
-      const refresh = vi.fn(async () => {})
       setEntry(liveStatus)
-      const { rerender } = renderHook(() => useConversationDbRefreshOnAwaitingInteraction(conversation, refresh))
+      const { rerender } = renderHook(() => useConversationDbRefreshOnAwaitingInteraction(conversation))
 
       setEntry(ConversationStatus.AwaitingInteraction)
       await act(async () => rerender())
       await act(async () => rerender())
-      expect(refresh).toHaveBeenCalledOnce()
+      expect(requestDurableRefresh).toHaveBeenCalledExactlyOnceWith(conversation)
     }
   )
 
   it.each([ConversationStatus.Done, ConversationStatus.Error, ConversationStatus.Aborted])(
     'does not refresh on Streaming to %s',
     async (terminalStatus) => {
-      const refresh = vi.fn(async () => {})
       setEntry(ConversationStatus.Streaming)
-      const { rerender } = renderHook(() => useConversationDbRefreshOnAwaitingInteraction(conversation, refresh))
+      const { rerender } = renderHook(() => useConversationDbRefreshOnAwaitingInteraction(conversation))
 
       setEntry(terminalStatus)
       await act(async () => rerender())
-      expect(refresh).not.toHaveBeenCalled()
+      expect(requestDurableRefresh).not.toHaveBeenCalled()
     }
   )
 
   it('does not carry a live edge across Conversation identities', async () => {
-    const refresh = vi.fn(async () => {})
     setEntry(ConversationStatus.Streaming)
     const { rerender } = renderHook(
-      ({ value }: { value: ConversationRef }) => useConversationDbRefreshOnAwaitingInteraction(value, refresh),
+      ({ value }: { value: ConversationRef }) => useConversationDbRefreshOnAwaitingInteraction(value),
       { initialProps: { value: conversation as ConversationRef } }
     )
 
     const other = { kind: ConversationKind.Chat, id: 'topic-2' } as const
     setEntry(ConversationStatus.AwaitingInteraction)
     await act(async () => rerender({ value: other }))
-    expect(refresh).not.toHaveBeenCalled()
+    expect(requestDurableRefresh).not.toHaveBeenCalled()
   })
 })

@@ -115,6 +115,50 @@ describe('PromptStreamManager', () => {
     expect(manager.hasLiveStreams()).toBe(false)
   })
 
+  it('isolates a failing chunk observer from the provider outcome and remaining observers', async () => {
+    let controller!: ReadableStreamDefaultController<UIMessageChunk>
+    streamText.mockResolvedValue(
+      new ReadableStream<UIMessageChunk>({
+        start(value) {
+          controller = value
+        }
+      })
+    )
+    const failed = listener()
+    failed.onChunk.mockImplementation(() => {
+      throw new Error('renderer closed')
+    })
+    const healthy = listener()
+    const persisted = vi.fn()
+    const manager = new PromptStreamManager()
+    manager.streamPrompt({
+      streamId: 'prompt-observer-failure',
+      uniqueModelId: createUniqueModelId('provider', 'model'),
+      prompt: 'hello',
+      listener: [failed, healthy],
+      persistencePorts: [
+        {
+          id: 'persist-1',
+          onDone: persisted,
+          onPaused: vi.fn(),
+          onError: vi.fn()
+        }
+      ]
+    })
+
+    controller.enqueue({ type: 'text-start', id: 'text-1' })
+    controller.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
+    controller.enqueue({ type: 'text-end', id: 'text-1' })
+    controller.close()
+
+    await vi.waitFor(() => expect(healthy.onDone).toHaveBeenCalledOnce())
+    expect(healthy.onChunk).toHaveBeenCalledTimes(3)
+    expect(failed.onChunk).toHaveBeenCalledOnce()
+    expect(failed.onDone).not.toHaveBeenCalled()
+    expect(failed.onError).not.toHaveBeenCalled()
+    expect(persisted).toHaveBeenCalledOnce()
+  })
+
   it('settles an aborted prompt open as paused instead of reporting a provider error', async () => {
     streamText.mockImplementation(
       ({ requestOptions }: { requestOptions?: { signal?: AbortSignal } }) =>

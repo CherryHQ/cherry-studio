@@ -5,14 +5,11 @@ import {
   ConversationAdmissionReason,
   type ConversationEffectId,
   type ConversationExecutionId,
-  ConversationExecutionPhase,
   type ConversationInputId,
   type ConversationInteractionId,
   ConversationKind,
-  ConversationPhase,
   type ConversationRef,
   type ConversationTurnId,
-  ConversationTurnKind,
   toConversationTurnId
 } from '@shared/ai/conversation'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -34,9 +31,12 @@ import {
   type ConversationEffect,
   type ConversationEffectType,
   ConversationExecutionDriverKind,
+  ConversationExecutionPhase,
   ConversationInputProvenance,
+  ConversationPhase,
   type ConversationResponderKind,
   ConversationRunMode,
+  ConversationTurnKind,
   createConversationState,
   isConversationQuiescent,
   transitionConversation

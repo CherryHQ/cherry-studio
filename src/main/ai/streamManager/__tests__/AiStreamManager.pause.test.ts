@@ -10,7 +10,6 @@ import {
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
-  ConversationPhase,
   type ConversationRef
 } from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -20,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AiExecutionManager,
   type ConversationNamingTaskExecutor,
+  ConversationPhase,
   ConversationRuntimeService,
   PromptStreamManager
 } from '../../conversation'

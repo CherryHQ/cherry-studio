@@ -16,7 +16,6 @@ import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionCo
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import {
-  ConversationActivityKind,
   ConversationKind,
   toConversationActivityId,
   toConversationEffectId,
@@ -63,7 +62,7 @@ vi.mock('@application', () => ({
   }
 }))
 
-import { ConversationEffectType, ConversationResponderKind } from '../../conversation'
+import { ConversationActivityKind, ConversationEffectType, ConversationResponderKind } from '../../conversation'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import {
   AgentApprovalLifetime,

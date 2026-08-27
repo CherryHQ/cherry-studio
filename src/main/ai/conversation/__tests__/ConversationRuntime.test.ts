@@ -1,12 +1,8 @@
 import {
   ConversationAdmissionReason,
-  ConversationExecutionPhase,
   ConversationKind,
   ConversationOutcomeKind,
-  ConversationPhase,
   type ConversationRef,
-  ConversationTerminalDurability,
-  ConversationTurnKind,
   toConversationEffectId,
   toConversationExecutionId,
   toConversationInputId,
@@ -22,15 +18,19 @@ import {
   ConversationExecutionAbortResultKind,
   ConversationExecutionAdmissionKind,
   ConversationExecutionDriverKind,
+  ConversationExecutionPhase,
   type ConversationExecutionSink,
   ConversationHistoryCommitKind,
   ConversationInputProvenance,
+  ConversationPhase,
   ConversationResponderKind,
   ConversationRunMode,
   type ConversationRuntimeIdFactory,
   type ConversationRuntimePortSet,
+  ConversationTerminalDurability,
   type ConversationTerminalPersistenceResult,
-  ConversationTerminalPersistenceResultKind
+  ConversationTerminalPersistenceResultKind,
+  ConversationTurnKind
 } from '..'
 
 const chat = { kind: ConversationKind.Chat, id: 'topic-1' } as const

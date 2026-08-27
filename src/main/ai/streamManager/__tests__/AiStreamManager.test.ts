@@ -1,13 +1,7 @@
 import {
-  ConversationExecutionPhase,
-  ConversationInteractionKind,
-  ConversationInteractionResumeMode,
   ConversationKind,
   ConversationOutcomeKind,
-  ConversationPhase,
   type ConversationRef,
-  ConversationTerminalDurability,
-  ConversationTurnKind,
   toConversationEffectId,
   toConversationExecutionId,
   toConversationInputId,
@@ -19,16 +13,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ConversationActor,
   ConversationExecutionDriverKind,
+  ConversationExecutionPhase,
   type ConversationExecutionPlan,
   type ConversationExecutionSink,
   ConversationInputProvenance,
+  ConversationInteractionKind,
+  ConversationInteractionResumeMode,
+  ConversationPhase,
   ConversationResponderKind,
   type ConversationRuntimeIdFactory,
   type ConversationRuntimePortSet,
+  ConversationTerminalDurability,
   type ConversationTerminalPersistenceResult,
   ConversationTerminalPersistenceResultKind
 } from '../../conversation'
-import { ConversationRedirectPhase } from '../../conversation/conversationState'
+import { ConversationRedirectPhase, ConversationTurnKind } from '../../conversation/conversationState'
 import { AgentRuntimeRedirectReceiptKind, toAgentRuntimeRedirectId, toAgentRuntimeSegmentId } from '../../runtime/types'
 
 const chat = { kind: ConversationKind.Chat, id: 'topic-1' } as const

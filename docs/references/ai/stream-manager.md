@@ -49,6 +49,10 @@ One-shot translation and API-gateway requests are not conversations.
 optional terminal projection, and releases them immediately. They do not create
 a Conversation aggregate or synthetic Topic lifecycle.
 
+Prompt observers are projection-only. Chunk and terminal callbacks are isolated
+per observer; a throwing or dead observer is detached without interrupting the
+provider loop, changing the persisted outcome, or blocking healthy observers.
+
 ## Persistence order
 
 For Conversation executions, terminal delivery is:

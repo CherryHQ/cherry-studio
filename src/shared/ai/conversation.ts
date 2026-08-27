@@ -4,29 +4,6 @@ export enum ConversationKind {
   Agent = 'agent'
 }
 
-/** Business lifecycle owned by the Conversation aggregate. */
-export enum ConversationPhase {
-  Idle = 'idle',
-  Running = 'running',
-  Stopping = 'stopping'
-}
-
-/** Why one logical turn was opened. */
-export enum ConversationTurnKind {
-  Submit = 'submit',
-  Regenerate = 'regenerate',
-  RuntimeInitiated = 'runtime-initiated'
-}
-
-/** Control lifecycle for one logical execution inside a turn. */
-export enum ConversationExecutionPhase {
-  Starting = 'starting',
-  Active = 'active',
-  WaitingInteraction = 'waiting-interaction',
-  Persisting = 'persisting',
-  Settled = 'settled'
-}
-
 /** Inbox boundary selected for accepted input. */
 export enum ConversationInputTarget {
   NextTurn = 'next-turn',
@@ -46,40 +23,6 @@ export enum ConversationOutcomeKind {
   Success = 'success',
   Error = 'error',
   Paused = 'paused'
-}
-
-/** Whether the published terminal already has its durable row. */
-export enum ConversationTerminalDurability {
-  Durable = 'durable',
-  DeferredRecovery = 'deferred-recovery'
-}
-
-/** Interaction kind presented while an execution waits for input. */
-export enum ConversationInteractionKind {
-  ToolApproval = 'tool-approval',
-  AskUser = 'ask-user'
-}
-
-/** Lifecycle for an interaction owned by the active turn. */
-export enum ConversationInteractionPhase {
-  Observed = 'observed',
-  Available = 'available',
-  Resolving = 'resolving',
-  Resolved = 'resolved'
-}
-
-/** How an ExecutionDriver continues after an interaction is resolved. */
-export enum ConversationInteractionResumeMode {
-  NewRun = 'new-run',
-  InPlace = 'in-place'
-}
-
-/** Work outside the foreground provider run that affects admission or quiescence. */
-export enum ConversationActivityKind {
-  Background = 'background',
-  Compaction = 'compaction',
-  Autonomous = 'autonomous',
-  TerminalRecovery = 'terminal-recovery'
 }
 
 export enum ConversationAdmissionReason {

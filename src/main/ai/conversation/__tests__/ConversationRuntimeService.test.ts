@@ -1,18 +1,15 @@
 import { BaseService } from '@main/core/lifecycle'
 import {
   ConversationActiveNodeMove,
-  ConversationActivityKind,
   ConversationAttachStatus,
   ConversationContinuationTrigger,
   ConversationExecutionAttachState,
-  ConversationExecutionPhase,
   ConversationInboxMutationKind,
   ConversationInputTarget,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
   ConversationOutcomeKind,
-  ConversationPhase,
   ConversationStatus,
   ConversationStreamTerminalStatus,
   toConversationEffectId,
@@ -50,11 +47,14 @@ import {
 } from '../../streamManager/context/ConversationHistoryPort'
 import {
   AiExecutionManager as ResourceExecutionManager,
+  ConversationActivityKind,
   type ConversationActor,
   type ConversationExecutionDriver,
   ConversationExecutionDriverKind,
+  ConversationExecutionPhase,
   ConversationInputProvenance,
   type ConversationNamingTaskExecutor,
+  ConversationPhase,
   type ConversationQuiescenceTaskExecutor,
   ConversationResponderKind,
   ConversationRunMode,

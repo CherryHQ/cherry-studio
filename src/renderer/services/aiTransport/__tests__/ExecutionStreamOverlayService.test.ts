@@ -406,6 +406,37 @@ describe('ExecutionStreamOverlayService', () => {
     expect(service.getView(conversation).activeNodeOverride).toBeNull()
   })
 
+  it('retains a settled overlay after refresh rejection and retires it only after retry succeeds', async () => {
+    vi.useFakeTimers()
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('refresh-retry')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    const refresh = vi.fn().mockRejectedValueOnce(new Error('database unavailable')).mockResolvedValueOnce(undefined)
+
+    service.acquire(conversation)
+    registerDurable(service, conversation, refresh)
+    service.syncExecutions(conversation, {}, [activeExecution], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'retained')
+    settle(subscription, activeExecution)
+    for (let index = 0; index < 24; index++) await Promise.resolve()
+
+    subscription.quiesce(activeExecution.turnId)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(refresh).toHaveBeenCalledOnce()
+    expect(service.getView(conversation).records).toEqual([
+      expect.objectContaining({ executionId: activeExecution.executionId, phase: ExecutionOverlayPhase.Settled })
+    ])
+    expect(service.getView(conversation).refreshError?.message).toBe('database unavailable')
+
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(refresh).toHaveBeenCalledTimes(2)
+    expect(service.getView(conversation).records).toHaveLength(0)
+    expect(service.getView(conversation).refreshError).toBeNull()
+  })
+
   it('rebases one live reader from a standalone retained snapshot and keeps streaming', async () => {
     const service = new ExecutionStreamOverlayService()
     const conversation = chat('live-replay-gap')

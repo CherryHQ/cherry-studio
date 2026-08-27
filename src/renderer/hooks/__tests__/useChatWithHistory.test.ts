@@ -29,21 +29,20 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const mockConversationStreamStatus = vi.fn()
+const requestAwaitingRefresh = vi.fn()
 const LIVE_STATUSES = new Set([ConversationStatus.Streaming, ConversationStatus.Pending])
 vi.mock('../useConversationStreamStatus', () => ({
   useConversationStreamStatus: (conversation: ConversationRef) => mockConversationStreamStatus(conversation),
-  useConversationDbRefreshOnAwaitingInteraction: (conversation: ConversationRef, refresh: () => Promise<unknown>) => {
+  useConversationDbRefreshOnAwaitingInteraction: (conversation: ConversationRef) => {
     const status = mockConversationStreamStatus(conversation)?.status as ConversationStatus | undefined
     const prevRef = useRef<ConversationStatus | undefined>(undefined)
-    const refreshRef = useRef(refresh)
-    refreshRef.current = refresh
     useEffect(() => {
       const prev = prevRef.current
       prevRef.current = status
       if (prev && LIVE_STATUSES.has(prev) && status === ConversationStatus.AwaitingInteraction) {
-        void refreshRef.current().catch(() => {})
+        requestAwaitingRefresh(conversation)
       }
-    }, [status])
+    }, [conversation, status])
   }
 }))
 
@@ -170,15 +169,15 @@ describe('useChatWithHistory', () => {
     const { rerender } = renderHook(() => useChatWithHistory(chat('topic-1'), [], refresh))
 
     await waitFor(() => expect(resumeStream).toHaveBeenCalled())
-    refresh.mockClear()
+    requestAwaitingRefresh.mockClear()
 
     setMockStatus('topic-1', ConversationStatus.AwaitingInteraction)
     rerender()
-    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(requestAwaitingRefresh).toHaveBeenCalledExactlyOnceWith(chat('topic-1')))
 
     // Idempotent on re-render at the same paused status.
     rerender()
-    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(requestAwaitingRefresh).toHaveBeenCalledTimes(1))
   })
 
   it('does not re-resume when the SDK status flaps after the mount attach', async () => {

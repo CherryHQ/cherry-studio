@@ -28,7 +28,7 @@ interface PromptResource {
   readonly streamId: string
   readonly modelId: UniqueModelId
   readonly abortController: AbortController
-  readonly listeners: readonly StreamListener[]
+  readonly listeners: Set<StreamListener>
   readonly persistencePorts: readonly StreamPersistencePort[]
   readonly cleanupPorts: readonly StreamCleanupPort[]
   readonly request: AiStreamRequest & { usageContext?: InProcessUsageContext }
@@ -80,7 +80,7 @@ export class PromptStreamManager extends BaseService {
       streamId: input.streamId,
       modelId: input.uniqueModelId,
       abortController: new AbortController(),
-      listeners: Array.isArray(input.listener) ? input.listener : [input.listener],
+      listeners: new Set(Array.isArray(input.listener) ? input.listener : [input.listener]),
       persistencePorts: input.persistencePorts ?? [],
       cleanupPorts: input.cleanupPorts ?? [],
       request,
@@ -150,8 +150,21 @@ export class PromptStreamManager extends BaseService {
       )
       const result = await pipeStreamLoop(withReasoningTimingMetadata(stream), signal, {
         onChunk: (chunk) => {
-          for (const listener of resource.listeners) {
-            if (listener.isAlive()) listener.onChunk(chunk)
+          for (const listener of [...resource.listeners]) {
+            try {
+              if (!listener.isAlive()) {
+                resource.listeners.delete(listener)
+                continue
+              }
+              listener.onChunk(chunk)
+            } catch (error) {
+              resource.listeners.delete(listener)
+              logger.warn('Prompt stream chunk observer failed; detaching observer', {
+                streamId: resource.streamId,
+                listenerId: listener.id,
+                error
+              })
+            }
           }
         },
         onAccumulatedSnapshot: (snapshot) => {
@@ -224,13 +237,17 @@ export class PromptStreamManager extends BaseService {
         turnTerminal: true
       }
     }
-    for (const listener of resource.listeners) {
-      if (!listener.isAlive()) continue
+    for (const listener of [...resource.listeners]) {
       try {
+        if (!listener.isAlive()) {
+          resource.listeners.delete(listener)
+          continue
+        }
         if (terminal.status === ConversationOutcomeKind.Success) await listener.onDone(terminal)
         else if (terminal.status === ConversationOutcomeKind.Paused) await listener.onPaused(terminal)
         else await listener.onError(terminal)
       } catch (error) {
+        resource.listeners.delete(listener)
         logger.warn('Prompt stream listener terminal failed', {
           streamId: resource.streamId,
           listenerId: listener.id,

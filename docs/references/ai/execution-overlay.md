@@ -79,6 +79,10 @@ the Turn quiescent. `ExecutionStreamOverlayService` then:
 On refresh failure the overlay is retained and exposes `refreshError`; durable
 content is never replaced by a known-stale projection.
 
+The live-to-WaitingInteraction edge submits a refresh request to this same
+owner. It does not start a second fire-and-forget fetch in the Chat hook, so a
+rejected refresh follows the same retained retry path as terminal handoff.
+
 Every committed execution follows this refresh-before-retire path, including
 explicit reset and overlay disposal. Those APIs may delete only uncommitted
 optimistic rows immediately.

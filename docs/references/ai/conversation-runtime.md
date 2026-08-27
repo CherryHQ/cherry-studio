@@ -45,6 +45,9 @@ The unified runtime moves the boundary up to Conversation and Turn. Provider str
 - `OwnedOperationRegistry` records process-local obligations separately from
   their execution attempts. A failed attempt may retain an obligation for a
   later retry; only `Complete` or `Abandon` removes it from owner accounting.
+- An ended Agent connection retains its exact SessionMessage approval teardown
+  operation until the cards are durable and the connection resource closes.
+  Prewarm, successor admission, and backup drain all observe that obligation.
 - Stream chunks are data-plane traffic. The execution resource owns their ring and sequence; only first-chunk, interaction, and terminal control facts re-enter the Conversation owner.
 - Normal terminal notifications follow durable persistence. An explicit Stop may settle through deferred recovery after the existing exact retry policy; deferred results never produce external Channel delivery.
 
@@ -68,7 +71,7 @@ Agent branching is disabled. The common history API still exposes a tree: the Ag
 | retry failed or paused model | preview exact execution retry | reset the same assistant row and start one model | open ack; exact execution terminal |
 | append model | append to the exact live group, or open Regenerate when it has settled | add one sibling execution; preserve the live branch when applicable | open ack; exact execution terminal |
 | queued-input batch boundary | claim the consecutive compatible NextTurn prefix | commit its user rows and one successor execution atomically | committed/retained on failure |
-| inbox remove or reorder | serialize the visible mutation in the Actor admission FIFO | remove one input or reorder visible slots while preserving hidden control inputs | updated snapshot/rejected |
+| inbox remove, reorder, or retarget | serialize the mutation in the Actor admission FIFO | reuse the exact input identity while changing its target; preserve hidden control inputs | updated snapshot/rejected |
 | inbox pause or resume | retain committed inputs while settling the current turn presentation | delay successor admission; final hold release kicks one retained batch | updated snapshot/started |
 | first provider chunk | move execution to Active | publish streaming status | none |
 | later provider chunks | no control transition | ring append and listener broadcast | none |

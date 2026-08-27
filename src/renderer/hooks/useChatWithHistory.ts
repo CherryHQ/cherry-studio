@@ -170,7 +170,7 @@ export function useChatWithHistory(
   // Approval pauses need the persisted row refreshed while the live card stays
   // visible. Final done/error/aborted refresh is handled by the page-level
   // overlay handoff so it can refresh before dropping live overlay parts.
-  useConversationDbRefreshOnAwaitingInteraction(binding.conversation, refresh)
+  useConversationDbRefreshOnAwaitingInteraction(binding.conversation)
 
   // Resume-on-pending — distinct purpose from the invalidation signal: it
   // re-attaches a stream that started while this window was unmounted /

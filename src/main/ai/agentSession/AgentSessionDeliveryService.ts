@@ -7,7 +7,7 @@ import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorks
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionDeliveryReplyPolicy } from '@shared/ai/agentSessionDelivery'
 import { AgentSessionDeliveryOutcome, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
-import { ConversationKind, ConversationOutcomeKind, ConversationTerminalDurability } from '@shared/ai/conversation'
+import { ConversationKind, ConversationOutcomeKind } from '@shared/ai/conversation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
@@ -17,7 +17,7 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
-import type { ConversationTurnTerminalEvent } from '../conversation'
+import { ConversationTerminalDurability, type ConversationTurnTerminalEvent } from '../conversation'
 import type { StreamListener } from '../streamManager'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')

@@ -4,7 +4,6 @@ import {
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
-  ConversationPhase,
   type ConversationRef
 } from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -12,7 +11,7 @@ import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AiService } from '../AiService'
-import { AiExecutionManager, ConversationRuntimeService } from '../conversation'
+import { AiExecutionManager, ConversationPhase, ConversationRuntimeService } from '../conversation'
 import { markTrustedLocalToolTerminalFailure } from '../runtime/aiSdk/loop/localToolTerminalOutcome'
 import {
   type ConversationExecutionPreparationDescriptor,

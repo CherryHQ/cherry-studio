@@ -11,8 +11,6 @@ import {
   type ConversationEffectId,
   type ConversationExecutionId,
   type ConversationInteractionId,
-  ConversationInteractionKind,
-  type ConversationInteractionResumeMode,
   ConversationOutcomeKind,
   type ConversationRef,
   conversationRefKey,
@@ -63,7 +61,12 @@ import type {
   SuspendConversationExecutionEffect
 } from './conversationPorts'
 import { ConversationExecutionAbortResultKind } from './conversationPorts'
-import { ConversationEffectType, type ConversationOutcome } from './conversationState'
+import {
+  ConversationEffectType,
+  ConversationInteractionKind,
+  type ConversationInteractionResumeMode,
+  type ConversationOutcome
+} from './conversationState'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
