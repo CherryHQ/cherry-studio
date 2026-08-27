@@ -15,6 +15,9 @@ import { net, session } from 'electron'
  * (mirrors `WebviewService.initSessionUserAgent`).
  */
 const PROVIDER_USER_AGENT_HEADER = 'x-cherry-studio-user-agent'
+const MAX_REDIRECTS = 20
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+const SENSITIVE_REDIRECT_HEADERS = new Set(['authorization', 'cookie', 'cookie2', 'proxy-authorization'])
 
 /**
  * Symbol-keyed slot carried on a `RequestInit` between the HTTP-trace wrapper
@@ -52,6 +55,64 @@ function resolveUserAgent(headers: HeadersInit): string | null {
   return userAgent
 }
 
+function canPreserveSensitiveHeaders(from: URL, to: URL): boolean {
+  if (from.origin === to.origin) return true
+
+  return (
+    from.protocol === 'http:' &&
+    to.protocol === 'https:' &&
+    from.hostname === to.hostname &&
+    (from.port === to.port || (from.port === '' && to.port === ''))
+  )
+}
+
+function redirectHeaders(headersInit: HeadersInit | undefined, preserveSensitive: boolean, dropBody: boolean) {
+  const headers = new Headers(headersInit)
+  for (const key of [...headers.keys()]) {
+    const normalizedKey = key.toLowerCase()
+    const isSensitive = SENSITIVE_REDIRECT_HEADERS.has(normalizedKey) || normalizedKey.endsWith('api-key')
+    if ((!preserveSensitive && isSensitive) || (dropBody && normalizedKey.startsWith('content-'))) {
+      headers.delete(key)
+    }
+  }
+  return headers
+}
+
+function shouldRedirectWithGet(status: number, method: string): boolean {
+  return (
+    ((status === 301 || status === 302) && method === 'POST') ||
+    (status === 303 && method !== 'GET' && method !== 'HEAD')
+  )
+}
+
+async function fetchFollowingRedirects(target: string, initialInit?: RequestInit): Promise<Response> {
+  let url = target
+  let requestInit = initialInit
+
+  for (let redirectCount = 0; redirectCount < MAX_REDIRECTS; redirectCount++) {
+    const response = await net.fetch(url, { ...requestInit, redirect: 'manual' })
+    if (!REDIRECT_STATUSES.has(response.status)) return response
+
+    const location = response.headers.get('location')
+    if (!location) return response
+
+    const currentUrl = new URL(url)
+    const nextUrl = new URL(location, currentUrl)
+    const method = (requestInit?.method ?? 'GET').toUpperCase()
+    const dropBody = shouldRedirectWithGet(response.status, method)
+    requestInit = {
+      ...requestInit,
+      body: dropBody ? undefined : requestInit?.body,
+      headers: redirectHeaders(requestInit?.headers, canPreserveSensitiveHeaders(currentUrl, nextUrl), dropBody),
+      method: dropBody ? 'GET' : method
+    }
+    url = nextUrl.href
+    await response.body?.cancel()
+  }
+
+  throw new Error('fetch: too many redirects')
+}
+
 /**
  * Base `fetch` for AI provider HTTP calls.
  *
@@ -87,10 +148,15 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
   if (userAgent) {
     const headers = new Headers(init?.headers)
     headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
-    return net.fetch(target, { ...init, headers })
+    const requestInit = { ...init, headers }
+    return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
+      ? fetchFollowingRedirects(target, requestInit)
+      : net.fetch(target, requestInit)
   }
 
-  return net.fetch(target, init)
+  return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
+    ? fetchFollowingRedirects(target, init)
+    : net.fetch(target, init)
 }
 
 /**
