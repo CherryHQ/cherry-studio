@@ -958,10 +958,16 @@ const AgentComposerInner = ({
     },
     [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
-  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } =
-    useInputHistory({
-      applyDraft: applyHistoryDraft
-    })
+  const {
+    isInputHistoryActive,
+    navigateHistory,
+    resetHistoryIndex,
+    peekDraftBeforeHistory,
+    takeDraftBeforeHistory,
+    saveHistory
+  } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
   const handleTextChange = useCallback(
     (nextText: string) => {
       resetHistoryIndex()
@@ -1104,25 +1110,30 @@ const AgentComposerInner = ({
     })
   }, [actionsRef, sessionTopicId])
 
-  useComposerFill(actionsRef, sessionTopicId, (text) => {
-    const draftBeforeHistory = takeDraftBeforeHistory()
-    const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
-    const nextDraft = withComposerDraftUserText(
-      { ...currentDraft, tokens: getAgentDraftTokens(currentDraft.tokens) },
-      text
-    )
-    actionsRef.current.replaceDraft(nextDraft)
-    setText(nextDraft.text)
-    setDraftTokens(nextDraft.tokens)
-    draftTokensRef.current = nextDraft.tokens
-    setSelectedSkills(getCachedSkillTokens(nextDraft.tokens).map(getSkillFromCachedToken))
-    const savedTools = inputHistoryToolsRef.current
-    inputHistoryToolsRef.current = null
-    if (savedTools) {
-      setFiles(savedTools.files)
-      setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
-    }
-  })
+  useComposerFill(
+    actionsRef,
+    sessionTopicId,
+    (text) => {
+      const draftBeforeHistory = takeDraftBeforeHistory()
+      const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
+      const nextDraft = withComposerDraftUserText(
+        { ...currentDraft, tokens: getAgentDraftTokens(currentDraft.tokens) },
+        text
+      )
+      actionsRef.current.replaceDraft(nextDraft)
+      setText(nextDraft.text)
+      setDraftTokens(nextDraft.tokens)
+      draftTokensRef.current = nextDraft.tokens
+      setSelectedSkills(getCachedSkillTokens(nextDraft.tokens).map(getSkillFromCachedToken))
+      const savedTools = inputHistoryToolsRef.current
+      inputHistoryToolsRef.current = null
+      if (savedTools) {
+        setFiles(savedTools.files)
+        setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      }
+    },
+    () => peekDraftBeforeHistory() ?? actionsRef.current.getDraft()
+  )
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return

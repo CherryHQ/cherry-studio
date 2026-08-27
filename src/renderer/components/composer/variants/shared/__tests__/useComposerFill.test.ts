@@ -34,7 +34,11 @@ describe('useComposerFill', () => {
     }
   }
 
-  function renderFill(topicId: string, draft: { text: string; tokens?: ComposerSerializedToken[] } | string) {
+  function renderFill(
+    topicId: string,
+    draft: { text: string; tokens?: ComposerSerializedToken[] } | string,
+    getFillDraft?: () => { text: string; tokens?: ComposerSerializedToken[] }
+  ) {
     const apply = vi.fn()
     const focus = vi.fn()
     const serialized =
@@ -46,7 +50,7 @@ describe('useComposerFill', () => {
       }
     }
 
-    const hook = renderHook(() => useComposerFill(actionsRef, topicId, apply))
+    const hook = renderHook(() => useComposerFill(actionsRef, topicId, apply, getFillDraft))
     return { apply, focus, actionsRef, unmount: hook.unmount, rerender: hook.rerender }
   }
 
@@ -137,6 +141,34 @@ describe('useComposerFill', () => {
     expect(apply).toHaveBeenCalledTimes(1)
     expect(apply).toHaveBeenCalledWith('Clarify the problem')
     expect(focus).toHaveBeenCalledWith('end')
+  })
+
+  it('fills an empty parked draft while the visible overlay shows history text', async () => {
+    const { apply, focus } = renderFill('topic-1', 'previous chat prompt', () => ({ text: '', tokens: [] }))
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, { topicId: 'topic-1', text: 'Use this prompt' })
+      flushAnimationFrames()
+    })
+
+    expect(apply).toHaveBeenCalledTimes(1)
+    expect(apply).toHaveBeenCalledWith('Use this prompt')
+    expect(focus).toHaveBeenCalledWith('end')
+  })
+
+  it('does not replace a typed parked draft while the visible overlay shows history text', async () => {
+    const { apply, focus } = renderFill('topic-1', 'previous chat prompt', () => ({
+      text: 'already typed',
+      tokens: []
+    }))
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, { topicId: 'topic-1', text: 'Use this prompt' })
+      flushAnimationFrames()
+    })
+
+    expect(apply).not.toHaveBeenCalled()
+    expect(focus).not.toHaveBeenCalled()
   })
 
   it('still leaves a draft with real user-typed text next to chips untouched', async () => {

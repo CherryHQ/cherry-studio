@@ -17,13 +17,15 @@ interface ComposerFillActions {
 export function useComposerFill<T extends ComposerFillActions>(
   actionsRef: RefObject<T>,
   topicId: string,
-  apply: (text: string) => void
+  apply: (text: string) => void,
+  getFillDraft?: () => { text: string; tokens?: readonly ComposerSerializedToken[] }
 ): void {
   const focusFrameRef = useRef<number | null>(null)
   const mountedRef = useRef(false)
 
   const fill = useEffectEvent((text: string) => {
-    const draft = actionsRef.current.getDraft()
+    // Judge the draft apply() would write (parked), not the history overlay.
+    const draft = getFillDraft?.() ?? actionsRef.current.getDraft()
     if (hasComposerDraftUserText({ text: draft.text, tokens: draft.tokens ? [...draft.tokens] : [] })) return
     apply(text)
     if (focusFrameRef.current !== null) {

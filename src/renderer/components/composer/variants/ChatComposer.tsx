@@ -645,10 +645,16 @@ const ChatComposerInner = ({
       setSelectedKnowledgeBases
     ]
   )
-  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } =
-    useInputHistory({
-      applyDraft: applyHistoryDraft
-    })
+  const {
+    isInputHistoryActive,
+    navigateHistory,
+    resetHistoryIndex,
+    peekDraftBeforeHistory,
+    takeDraftBeforeHistory,
+    saveHistory
+  } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
@@ -1354,19 +1360,24 @@ const ChatComposerInner = ({
     })
   }, [actionsRef, streamScopeKey])
 
-  useComposerFill(actionsRef, streamScopeKey, (text) => {
-    const historyPreview = exitInputHistoryPreview()
-    const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
-    const nextDraft = withComposerDraftUserText(currentDraft, text)
-    actionsRef.current.replaceDraft(nextDraft)
-    setText(nextDraft.text)
-    setDraftTokens(nextDraft.tokens.length ? nextDraft.tokens : undefined)
-    if (historyPreview.tools) {
-      setFiles(historyPreview.tools.files)
-      setMentionedModels(historyPreview.tools.mentionedModels)
-      setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
-    }
-  })
+  useComposerFill(
+    actionsRef,
+    streamScopeKey,
+    (text) => {
+      const historyPreview = exitInputHistoryPreview()
+      const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
+      const nextDraft = withComposerDraftUserText(currentDraft, text)
+      actionsRef.current.replaceDraft(nextDraft)
+      setText(nextDraft.text)
+      setDraftTokens(nextDraft.tokens.length ? nextDraft.tokens : undefined)
+      if (historyPreview.tools) {
+        setFiles(historyPreview.tools.files)
+        setMentionedModels(historyPreview.tools.mentionedModels)
+        setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
+      }
+    },
+    () => peekDraftBeforeHistory() ?? actionsRef.current.getDraft()
+  )
 
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })

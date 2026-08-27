@@ -3501,6 +3501,86 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).not.toHaveBeenCalled()
   })
 
+  it('fills an empty parked draft while input history is previewed', async () => {
+    seedInputHistory(['previous agent prompt'])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
+    })
+
+    mocks.replaceDraft.mockClear()
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({
+      text: 'Review the current changes',
+      tokens: []
+    })
+    expect(mocks.surfaceProps?.text).toBe('Review the current changes')
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not replace a typed parked draft while input history is previewed', async () => {
+    seedInputHistory(['previous agent prompt'])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('already typed')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('already typed'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
+    })
+
+    mocks.replaceDraft.mockClear()
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
   it('adopts launch options that arrive after the restored session first renders', async () => {
     const issueReporterToken = {
       id: 'skill:issue-reporter',
