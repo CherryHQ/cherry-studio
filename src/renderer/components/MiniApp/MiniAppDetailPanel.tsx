@@ -7,6 +7,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Tooltip
 } from '@cherrystudio/ui'
 import { useMutation } from '@data/hooks/useDataApi'
@@ -270,7 +274,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
             no `overflow` on the card itself — tooltips portal into it and a clipping box would cut them. */}
         <DialogContent
           aria-describedby={undefined}
-          className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-lg">
+          className="max-h-[85vh] min-h-[60vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-2xl">
           {/* `min-w-0` on BOTH grid items: a truncated title is unbreakable, and a grid item's min-content width would widen the whole card. */}
           <DialogHeader className="min-w-0">
             <div className="flex min-w-0 items-center gap-3">
@@ -356,171 +360,201 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                 />
               )}
 
-              <section className="flex flex-col gap-2">
-                <h3 className="font-medium">{t('miniApp.detail.permissions_title')}</h3>
-                <PermissionChecklist
-                  items={detail.declared.map((leaf) => ({
-                    key: leaf.key,
-                    checked: leaf.granted,
-                    fixed: !leaf.optional
-                  }))}
-                  hosts={detail.network}
-                  disabled={busy}
-                  onToggle={(key, on) =>
-                    run(() =>
-                      ipcApi.request(on ? 'mini_app.grant.approve' : 'mini_app.grant.revoke', {
-                        appId,
-                        permission: key
-                      })
-                    )
-                  }
-                />
-              </section>
-
-              <section className="flex flex-col gap-2">
-                <h3 className="font-medium">{t('miniApp.detail.model_title')}</h3>
-                {/* The same two slots Cherry keeps globally; an empty slot follows the global one. */}
-                {[
-                  {
-                    key: 'default',
-                    label: t('miniApp.detail.model_default_label'),
-                    placeholder: t('miniApp.detail.model_default'),
-                    model: defaultModel,
-                    set: detail.aiModelId !== null,
-                    write: (id: UniqueModelId | null) => patchModels({ aiModelId: id })
-                  },
-                  {
-                    key: 'quick',
-                    label: t('miniApp.detail.model_quick_label'),
-                    placeholder: t('miniApp.detail.model_quick_default'),
-                    model: quickModel,
-                    set: detail.aiQuickModelId !== null,
-                    write: (id: UniqueModelId | null) => patchModels({ aiQuickModelId: id })
-                  }
-                ].map((slot) => (
-                  <div key={slot.key} data-testid={`model-slot-${slot.key}`} className="flex items-center gap-2">
-                    <span className="w-20 shrink-0 text-muted-foreground text-sm">{slot.label}</span>
-                    <DefaultModelSelector
-                      model={slot.model}
-                      providers={providers}
-                      filter={chatModelFilter}
-                      placeholder={slot.placeholder}
-                      onSelect={(model) => run(() => slot.write(model?.id ?? null))}
-                    />
-                    {slot.set && (
-                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => slot.write(null))}>
-                        {t('miniApp.detail.model_use_default')}
+              <Tabs defaultValue="permissions" className="gap-3">
+                <TabsList className="w-full">
+                  <TabsTrigger value="permissions" className="flex-1">
+                    {t('miniApp.detail.permissions_title')}
+                  </TabsTrigger>
+                  <TabsTrigger value="space" className="flex-1">
+                    {t('miniApp.detail.storage_title')}
+                  </TabsTrigger>
+                  <TabsTrigger value="activity" className="flex-1">
+                    {t('miniApp.activity.title')}
+                  </TabsTrigger>
+                  <TabsTrigger value="settings" className="flex-1">
+                    {t('miniApp.detail.settings_title')}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="permissions" className="flex flex-col gap-2 px-3">
+                  <PermissionChecklist
+                    items={detail.declared.map((leaf) => ({
+                      key: leaf.key,
+                      checked: leaf.granted,
+                      fixed: !leaf.optional
+                    }))}
+                    hosts={detail.network}
+                    disabled={busy}
+                    onToggle={(key, on) =>
+                      run(() =>
+                        ipcApi.request(on ? 'mini_app.grant.approve' : 'mini_app.grant.revoke', {
+                          appId,
+                          permission: key
+                        })
+                      )
+                    }
+                  />
+                </TabsContent>
+                <TabsContent value="space" className="flex flex-col gap-3 px-3">
+                  <div data-testid="package-size" className="flex items-center justify-between text-xs">
+                    <span>{t('miniApp.detail.package_size')}</span>
+                    <span className="text-muted-foreground">{formatFileSize(detail.packageBytes)}</span>
+                  </div>
+                  {detail.snapshotBytes > 0 && (
+                    <div data-testid="snapshot-size" className="flex items-center justify-between text-xs">
+                      <span>{t('miniApp.detail.snapshot_size')}</span>
+                      <span className="text-muted-foreground">{formatFileSize(detail.snapshotBytes)}</span>
+                    </div>
+                  )}
+                  <Usage label={t('miniApp.detail.storage_usage')} usage={detail.storage} testId="storage-usage" />
+                  <Usage label={t('miniApp.detail.file_usage')} usage={detail.file} testId="file-usage" />
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => setPendingAction('clear_data')}>
+                      {t('miniApp.detail.clear_data')}
+                    </Button>
+                  </div>
+                </TabsContent>
+                <TabsContent value="activity" className="flex flex-col gap-3 px-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                      {activity.days > 0 && (
+                        <span data-testid="activity-size">
+                          {t('miniApp.activity.size', { bytes: formatFileSize(activity.bytes), days: activity.days })}
+                        </span>
+                      )}
+                      <Tooltip content={t('miniApp.activity.hint')}>
+                        <Info size={14} aria-label={t('miniApp.activity.hint')} />
+                      </Tooltip>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => void loadActivity()}>
+                        {t('miniApp.activity.refresh')}
                       </Button>
-                    )}
-                  </div>
-                ))}
-              </section>
-
-              <section className="flex flex-col gap-2">
-                <h3 className="font-medium">{t('miniApp.detail.updates_title')}</h3>
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* A local package has no endpoint to check; every app can be handed a new package. */}
-                  {detail.source !== 'file' && (
-                    <Button size="sm" variant="outline" disabled={locked} onClick={() => void update.check()}>
-                      {t('miniApp.detail.check_update')}
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" disabled={locked || replace.busy} onClick={handlePickReplacement}>
-                    {t('miniApp.detail.replace_package')}
-                  </Button>
-                  {detail.canRollback && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={locked}
-                      onClick={() => run(() => ipcApi.request('mini_app.update.rollback', { appId }))}>
-                      {t('miniApp.detail.rollback')}
-                    </Button>
-                  )}
-                </div>
-                {update.current && <p className="text-muted-foreground text-xs">{t('miniApp.detail.up_to_date')}</p>}
-              </section>
-
-              <section className="flex flex-col gap-3">
-                <h3 className="font-medium">{t('miniApp.detail.storage_title')}</h3>
-                <Usage label={t('miniApp.detail.storage_usage')} usage={detail.storage} testId="storage-usage" />
-                <Usage label={t('miniApp.detail.file_usage')} usage={detail.file} testId="file-usage" />
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setPendingAction('clear_data')}>
-                    {t('miniApp.detail.clear_data')}
-                  </Button>
-                </div>
-              </section>
-
-              <section className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-medium">{t('miniApp.activity.title')}</h3>
-                    <Tooltip content={t('miniApp.activity.hint')}>
-                      <Info size={14} className="text-muted-foreground" aria-label={t('miniApp.activity.hint')} />
-                    </Tooltip>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => void loadActivity()}>
-                      {t('miniApp.activity.refresh')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={deniedOnly ? 'default' : 'outline'}
-                      aria-pressed={deniedOnly}
-                      onClick={() => setDeniedOnly((value) => !value)}>
-                      {t('miniApp.activity.denied_only')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() =>
-                        run(() => ipcApi.request('mini_app.activity.open_folder', { appId }), { reloadAfter: false })
-                      }>
-                      {t('miniApp.activity.open_folder')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy || activity.entries.length === 0}
-                      onClick={() =>
-                        run(
-                          async () => {
-                            await ipcApi.request('mini_app.activity.clear', { appId })
-                            await loadActivity()
-                          },
-                          { reloadAfter: false }
-                        )
-                      }>
-                      {t('miniApp.activity.clear')}
-                    </Button>
-                  </div>
-                </div>
-                {activity.days > 0 && (
-                  <p className="text-muted-foreground text-xs" data-testid="activity-size">
-                    {t('miniApp.activity.size', { bytes: formatFileSize(activity.bytes), days: activity.days })}
-                  </p>
-                )}
-                {activity.entries.length === 0 ? (
-                  <p className="text-muted-foreground text-xs">{t('miniApp.activity.empty')}</p>
-                ) : (
-                  <ul
-                    className="flex max-h-56 flex-col gap-1 overflow-y-auto font-mono text-xs"
-                    data-testid="activity-list">
-                    {activity.entries.map((entry, index) => (
-                      <li
-                        key={`${entry.ts}-${index}`}
-                        className={
-                          entry.kind === 'call' && entry.outcome !== 'ok' ? 'flex gap-2 text-destructive' : 'flex gap-2'
+                      <Button
+                        size="sm"
+                        variant={deniedOnly ? 'default' : 'outline'}
+                        aria-pressed={deniedOnly}
+                        onClick={() => setDeniedOnly((value) => !value)}>
+                        {t('miniApp.activity.denied_only')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() =>
+                          run(() => ipcApi.request('mini_app.activity.open_folder', { appId }), { reloadAfter: false })
                         }>
-                        <span className="shrink-0 text-muted-foreground">{timeOf(entry.ts)}</span>
-                        <span className="truncate">{describeActivity(t, entry)}</span>
-                      </li>
+                        {t('miniApp.activity.open_folder')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy || activity.entries.length === 0}
+                        onClick={() =>
+                          run(
+                            async () => {
+                              await ipcApi.request('mini_app.activity.clear', { appId })
+                              await loadActivity()
+                            },
+                            { reloadAfter: false }
+                          )
+                        }>
+                        {t('miniApp.activity.clear')}
+                      </Button>
+                    </div>
+                  </div>
+                  {activity.entries.length === 0 ? (
+                    <p className="text-muted-foreground text-xs">{t('miniApp.activity.empty')}</p>
+                  ) : (
+                    <ul
+                      className="flex max-h-56 flex-col gap-1 overflow-y-auto font-mono text-xs"
+                      data-testid="activity-list">
+                      {activity.entries.map((entry, index) => (
+                        <li
+                          key={`${entry.ts}-${index}`}
+                          className={
+                            entry.kind === 'call' && entry.outcome !== 'ok'
+                              ? 'flex gap-2 text-destructive'
+                              : 'flex gap-2'
+                          }>
+                          <span className="shrink-0 text-muted-foreground">{timeOf(entry.ts)}</span>
+                          <span className="truncate">{describeActivity(t, entry)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </TabsContent>
+                <TabsContent value="settings" className="flex flex-col gap-5 px-3">
+                  <section className="flex flex-col gap-2">
+                    <h3 className="font-medium">{t('miniApp.detail.model_title')}</h3>
+                    {/* The same two slots Cherry keeps globally; an empty slot follows the global one. */}
+                    {[
+                      {
+                        key: 'default',
+                        label: t('miniApp.detail.model_default_label'),
+                        placeholder: t('miniApp.detail.model_default'),
+                        model: defaultModel,
+                        set: detail.aiModelId !== null,
+                        write: (id: UniqueModelId | null) => patchModels({ aiModelId: id })
+                      },
+                      {
+                        key: 'quick',
+                        label: t('miniApp.detail.model_quick_label'),
+                        placeholder: t('miniApp.detail.model_quick_default'),
+                        model: quickModel,
+                        set: detail.aiQuickModelId !== null,
+                        write: (id: UniqueModelId | null) => patchModels({ aiQuickModelId: id })
+                      }
+                    ].map((slot) => (
+                      <div key={slot.key} data-testid={`model-slot-${slot.key}`} className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 text-muted-foreground text-sm">{slot.label}</span>
+                        <DefaultModelSelector
+                          model={slot.model}
+                          providers={providers}
+                          filter={chatModelFilter}
+                          placeholder={slot.placeholder}
+                          onSelect={(model) => run(() => slot.write(model?.id ?? null))}
+                        />
+                        {slot.set && (
+                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => slot.write(null))}>
+                            {t('miniApp.detail.model_use_default')}
+                          </Button>
+                        )}
+                      </div>
                     ))}
-                  </ul>
-                )}
-              </section>
+                  </section>
+
+                  <section className="flex flex-col gap-2">
+                    <h3 className="font-medium">{t('miniApp.detail.updates_title')}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* A local package has no endpoint to check; every app can be handed a new package. */}
+                      {detail.source !== 'file' && (
+                        <Button size="sm" variant="outline" disabled={locked} onClick={() => void update.check()}>
+                          {t('miniApp.detail.check_update')}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={locked || replace.busy}
+                        onClick={handlePickReplacement}>
+                        {t('miniApp.detail.replace_package')}
+                      </Button>
+                      {detail.canRollback && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={locked}
+                          onClick={() => run(() => ipcApi.request('mini_app.update.rollback', { appId }))}>
+                          {t('miniApp.detail.rollback')}
+                        </Button>
+                      )}
+                    </div>
+                    {update.current && (
+                      <p className="text-muted-foreground text-xs">{t('miniApp.detail.up_to_date')}</p>
+                    )}
+                  </section>
+                </TabsContent>
+              </Tabs>
             </div>
           )}
 

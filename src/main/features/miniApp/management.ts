@@ -1,7 +1,10 @@
+import fs from 'node:fs'
+
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
 import { getAppLanguage } from '@main/i18n'
+import { getDirectorySize } from '@main/utils/fileOperations'
 import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
 import {
   declaredGrantKeys,
@@ -17,6 +20,7 @@ import { storageCapability } from './capabilities/storage'
 import { grantMiniAppPermissionsTx, listGrants, pendingDeclaredAdditions, revokeGrant } from './grants'
 import { installationOf, wipeMiniAppData } from './install/installer'
 import { checkForUpdate, type UpdateStatus } from './install/webInstaller'
+import { miniAppBackupPath, miniAppInstallPath } from './paths'
 
 export async function miniAppDetail(appId: string): Promise<MiniAppDetail> {
   const row = installationOf(appId)
@@ -57,9 +61,14 @@ export async function miniAppDetail(appId: string): Promise<MiniAppDetail> {
     sourceUrl: row.sourceUrl,
     // `storageCapability.usage` is synchronous and `fileCapability.usage` is not (Tasks 19/20).
     storage: storageCapability.usage(appId),
-    file: await fileCapability.usage(appId)
+    file: await fileCapability.usage(appId),
+    packageBytes: await directoryBytes(miniAppInstallPath(appId)),
+    snapshotBytes: await directoryBytes(miniAppBackupPath(appId))
   }
 }
+
+/** Zero for a tree that is not there — `.backup` exists only while a rollback is possible. */
+const directoryBytes = (dir: string) => (fs.existsSync(dir) ? getDirectorySize(dir) : Promise.resolve(0))
 
 /** `packages/<appId>/` is deliberately untouched: "clear data" keeps the app installed and runnable (design §11). */
 export async function clearMiniAppData(appId: string): Promise<void> {

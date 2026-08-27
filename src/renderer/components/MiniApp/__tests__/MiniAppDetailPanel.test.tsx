@@ -72,7 +72,9 @@ const detail: MiniAppDetail = {
     { key: 'storage.set', optional: true, granted: true }
   ],
   storage: { bytes: 2048, count: 3, bytesLimit: 1048576, countLimit: 1000 },
-  file: { bytes: 10485760, count: 4, bytesLimit: 20971520, countLimit: 200 }
+  file: { bytes: 10485760, count: 4, bytesLimit: 20971520, countLimit: 200 },
+  packageBytes: 3 * 1024 * 1024,
+  snapshotBytes: 0
 }
 
 /** Every other route resolves the detail, as before; the activity list has its own shape. */
@@ -284,6 +286,16 @@ describe('MiniAppDetailPanel', () => {
     expect(screen.queryByRole('button', { name: /check for update/i })).toBeNull()
   })
 
+  it('groups the panel into permissions, space, activity and settings tabs', async () => {
+    await open()
+
+    const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent ?? '')
+    expect(tabs).toHaveLength(4)
+    for (const [i, label] of [/permissions/i, /space/i, /activity/i, /settings/i].entries()) {
+      expect(tabs[i]).toMatch(label)
+    }
+  })
+
   it('shows storage and file usage against their quotas', async () => {
     await open()
     expect(screen.getByTestId('storage-usage')).toHaveTextContent('3 / 1000 items')
@@ -324,6 +336,20 @@ describe('MiniAppDetailPanel', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/action failed: disk full/i)
     expect(screen.getByRole('heading', { name: 'My Game' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'storage.set' })).toBeEnabled()
+  })
+
+  it('shows how much disk the app itself takes', async () => {
+    await open()
+
+    expect(screen.getByTestId('package-size')).toHaveTextContent(/3(\.0)? ?MB/i)
+    expect(screen.queryByTestId('snapshot-size')).toBeNull()
+  })
+
+  it('shows the rollback snapshot only when one is retained', async () => {
+    answerWith({ ...detail, snapshotBytes: 512 * 1024 })
+    render(<MiniAppDetailPanel appId={detail.appId} />)
+
+    expect(await screen.findByTestId('snapshot-size')).toHaveTextContent(/512(\.0)? ?KB/i)
   })
 
   it('lists granted capabilities and network domains', async () => {

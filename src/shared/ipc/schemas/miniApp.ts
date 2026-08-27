@@ -129,6 +129,10 @@ export interface MiniAppDetail {
   /** Usage AND the ceiling it is measured against — the panel draws a bar, not a number. */
   storage: QuotaUsageWithLimits
   file: QuotaUsageWithLimits
+  /** What the installed package itself takes on disk. */
+  packageBytes: number
+  /** The previous version kept for rollback, or 0 when none is retained. */
+  snapshotBytes: number
 }
 
 /**

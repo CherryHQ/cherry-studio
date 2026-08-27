@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeStorage } from '../capabilities/storageFile'
 import { pendingDeclaredAdditions } from '../grants'
 import type * as WebInstallerModule from '../install/webInstaller'
+import { miniAppBackupPath, miniAppInstallPath } from '../paths'
 
 const spy = vi.hoisted(() => ({ order: [] as string[], attention: [] as string[][], rowsOnEntry: -1 }))
 // `reclaimEntries` reaches FileManager after the commit; without it in the mock the
@@ -24,6 +25,8 @@ const permanentDelete = vi.hoisted(() => vi.fn(async () => undefined))
 // dies inside Electron instead of asserting anything.
 const closeAllConnections = vi.hoisted(() => vi.fn(async () => undefined))
 vi.mock('electron', () => ({
+  // `miniAppDetail` resolves the display locale through `getAppLanguage`.
+  app: { getLocale: () => 'en-US' },
   dialog: { showOpenDialog: vi.fn() },
   // The REAL clear-data clears the app's partition on its way out.
   session: {
@@ -104,7 +107,9 @@ vi.mock('../install/webInstaller', async (importOriginal) => ({
   checkForUpdate
 }))
 
-const { checkUpdateOnOpen, clearMiniAppData, grantPendingAdditions, revokeMiniAppGrant } = await import('../management')
+const { checkUpdateOnOpen, clearMiniAppData, grantPendingAdditions, miniAppDetail, revokeMiniAppGrant } = await import(
+  '../management'
+)
 const { listGrants } = await import('../grants')
 
 const APP_ID = 'com.example.mygame'
@@ -185,6 +190,22 @@ describe('mini app management', () => {
     dbh.db.insert(miniAppFileRefTable).values({ fileEntryId: FILE_ID, sourceId: APP_ID, logicalName: 'save.bin' }).run()
     dbh.db.insert(miniAppGrantTable).values({ appId: APP_ID, permission: 'storage.get', grantedVersion: '1.0.0' }).run()
   }
+
+  it('reports how much disk the installed package and its rollback snapshot take', async () => {
+    seedInstalled()
+    const install = miniAppInstallPath(APP_ID)
+    fs.mkdirSync(path.join(install, 'assets'), { recursive: true })
+    fs.writeFileSync(path.join(install, 'index.html'), Buffer.alloc(1000))
+    fs.writeFileSync(path.join(install, 'assets', 'a.png'), Buffer.alloc(24))
+
+    expect(await miniAppDetail(APP_ID)).toMatchObject({ packageBytes: 1024, snapshotBytes: 0 })
+
+    // A successful update leaves the old tree in `.backup` for rollback: disk the app owns too.
+    const backup = miniAppBackupPath(APP_ID)
+    fs.mkdirSync(backup, { recursive: true })
+    fs.writeFileSync(path.join(backup, 'index.html'), Buffer.alloc(512))
+    expect(await miniAppDetail(APP_ID)).toMatchObject({ packageBytes: 1024, snapshotBytes: 512 })
+  })
 
   it('clearMiniAppData takes the app offline before it deletes anything', async () => {
     // Asserts ORDER: a wrapper that deletes first and quiesces afterwards satisfies
