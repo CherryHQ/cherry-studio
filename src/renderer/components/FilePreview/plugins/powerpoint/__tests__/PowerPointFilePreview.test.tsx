@@ -151,6 +151,75 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('PowerPointFilePreview', () => {
+  /** Selects text inside a rendered slide, the way the pptx renderer's output would be selected. */
+  function selectInSlide(text: string, slideIndex: string | null) {
+    const container = screen.getByTestId('pptx-viewer-container')
+    const slide = document.createElement('div')
+    if (slideIndex !== null) slide.setAttribute('data-slide-index', slideIndex)
+    const textNode = document.createTextNode(text)
+    slide.appendChild(textNode)
+    container.appendChild(slide)
+
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, textNode.length)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  }
+
+  it('turns a slide selection into a reference for the host', async () => {
+    const onSelectionReference = vi.fn()
+    render(
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 1024, modifiedAt: 9 }}
+        refreshKey={0}
+        onSelectionReference={onSelectionReference}
+      />
+    )
+    await waitFor(() => expect(screen.getByTestId('pptx-viewer-container')).toBeInTheDocument())
+
+    selectInSlide('Roadmap for Q3', '1')
+
+    await waitFor(() => expect(onSelectionReference).toHaveBeenCalled())
+    expect(onSelectionReference).toHaveBeenLastCalledWith({
+      path: filePath,
+      // data-slide-index is zero-based; the anchor is one-based.
+      anchor: { format: 'pptx', slide: 2 },
+      excerpt: 'Roadmap for Q3',
+      fileStamp: { size: 1024, mtimeMs: 9 }
+    })
+  })
+
+  it('reports null when the selection is outside any slide', async () => {
+    const onSelectionReference = vi.fn()
+    render(
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 1024, modifiedAt: 9 }}
+        refreshKey={0}
+        onSelectionReference={onSelectionReference}
+      />
+    )
+    await waitFor(() => expect(screen.getByTestId('pptx-viewer-container')).toBeInTheDocument())
+
+    const outside = document.createElement('div')
+    outside.textContent = 'chrome around the deck'
+    document.body.appendChild(outside)
+    const range = document.createRange()
+    range.selectNodeContents(outside)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+
+    await waitFor(() => expect(onSelectionReference).toHaveBeenLastCalledWith(null))
+  })
+
   it('loads and renders PPTX slides with a centered standalone toolbar', async () => {
     render(
       <PowerPointFilePreview

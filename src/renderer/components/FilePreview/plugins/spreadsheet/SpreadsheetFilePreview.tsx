@@ -110,7 +110,7 @@ export default function SpreadsheetFilePreview({
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [activeSheetName, setActiveSheetName] = useState<string | null>(null)
   // The sheet is stored with the selection: an A1 range means nothing without the sheet it was taken from.
-  const [selectedCell, setSelectedCell] = useState<(SelectedCellInfo & { sheetName: string }) | null>(null)
+  const [selectedCell, setSelectedCell] = useState<(SelectedCellInfo & { sheet: SheetRenderModel }) | null>(null)
   const [chartRenderer, setChartRenderer] = useState<ChartRenderer | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({})
 
@@ -131,8 +131,7 @@ export default function SpreadsheetFilePreview({
   }, [sheets, activeSheetName])
 
   const handleSelectCell = useCallback(
-    (info: SelectedCellInfo | null) =>
-      setSelectedCell(info && activeSheet ? { ...info, sheetName: activeSheet.name } : null),
+    (info: SelectedCellInfo | null) => setSelectedCell(info && activeSheet ? { ...info, sheet: activeSheet } : null),
     [activeSheet]
   )
 
@@ -140,7 +139,7 @@ export default function SpreadsheetFilePreview({
   // selection — including the sheet switch and model replacement handled above — reports null on its own. The
   // sheet is compared rather than assumed: the switch resets the selection in an effect, one commit later.
   const selectionReference = useMemo(() => {
-    if (!selectedCell || !activeSheet || selectedCell.sheetName !== activeSheet.name) return null
+    if (!selectedCell || !activeSheet || selectedCell.sheet !== activeSheet) return null
     return createSelectionReference({
       filePath,
       anchor: { format: 'xlsx', sheet: activeSheet.name, range: selectedCell.range },
@@ -248,7 +247,7 @@ export default function SpreadsheetFilePreview({
     // The sheet is compared for the same reason selectionReference compares it: the effect that clears
     // selectedCell on a sheet switch runs one commit later, so the new sheet's tabs would otherwise render
     // beside the previous sheet's range for a frame.
-    const cellOnActiveSheet = selectedCell && selectedCell.sheetName === activeSheet.name ? selectedCell : null
+    const cellOnActiveSheet = selectedCell && selectedCell.sheet === activeSheet ? selectedCell : null
     const selectedCellContent = cellOnActiveSheet?.cell?.formula
       ? `= ${cellOnActiveSheet.cell.formula}`
       : cellOnActiveSheet?.cell?.text
