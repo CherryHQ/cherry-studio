@@ -814,6 +814,13 @@ export async function rollbackUpdate(appId: string): Promise<void> {
         throw new Error(`No previous record retained for ${appId}`)
       }
 
+      // The snapshot path is derived from the appId, so its EXISTENCE proves nothing about
+      // its contents. Publishing an unverified tree would run it under this app's identity,
+      // version and grants; `previousContentHash` is what the records actually promise.
+      if ((await hashTree(backup)) !== row.previousContentHash) {
+        throw new Error(`Retained version of ${appId} does not match the recorded content hash`)
+      }
+
       const previous = MiniAppManifestSchema.parse(row.previousManifestJson)
       const previousGrants = row.previousGrantsJson ?? []
 

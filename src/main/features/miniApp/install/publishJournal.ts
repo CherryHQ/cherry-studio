@@ -127,20 +127,23 @@ export function clearPublishJournal(appId: string): void {
   fs.rmSync(journalPath(appId), { force: true })
 }
 
-function installedHash(appId: string): string | undefined {
+function installedRow(appId: string) {
   const [row] = application
     .get('DbService')
     .getDb()
-    .select({ contentHash: miniAppInstallationTable.contentHash })
+    .select({
+      contentHash: miniAppInstallationTable.contentHash,
+      previousContentHash: miniAppInstallationTable.previousContentHash
+    })
     .from(miniAppInstallationTable)
     .where(eq(miniAppInstallationTable.appId, appId))
     .all()
-  return row?.contentHash
+  return row
 }
 
 /** Did the transaction this entry was opened for actually commit? */
 function isCommitted(entry: PublishEntry): boolean {
-  const hash = installedHash(entry.appId)
+  const hash = installedRow(entry.appId)?.contentHash
   // An uninstall commits by REMOVING the row, so its witness is absence.
   if (entry.kind === 'uninstall') return hash === undefined
   return hash === entry.contentHash
@@ -167,6 +170,10 @@ async function rollForward(entry: PublishEntry): Promise<void> {
     // The save data too, as the in-process path does: a reinstall must not read it back.
     await rm(miniAppDataPath(entry.appId))
   }
+  // A reinstall journals as `update` yet records no previous version, so its parked tree
+  // is one nothing can roll back to — the in-process path removes it right after the
+  // commit, and a crash in that window is the only way it survives.
+  if (entry.kind === 'update' && !installedRow(entry.appId)?.previousContentHash) return rm(t.backup)
   // install / update: the files already are what the committed rows describe, and
   // `update` deliberately keeps `.backup` — it is the user-facing rollback entry.
 }

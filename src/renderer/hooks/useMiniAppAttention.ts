@@ -7,13 +7,16 @@ import { useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppAttention')
 
+/** Module-level, per the `useSharedCacheValue` contract: an inline `[]` is a new identity each render. */
+const NO_ATTENTION: CacheMiniAppAttention[] = []
+
 /**
  * Read-only. The single writer is `useWindowRuntime`; every list item and detail
  * entry reads. Shared tier because the set is identical in every window — a per-window
  * copy would let two windows disagree about which app has a dot.
  */
 export function useMiniAppAttention(): CacheMiniAppAttention[] {
-  return useSharedCacheValue('mini_app.attention') ?? []
+  return useSharedCacheValue('mini_app.attention') ?? NO_ATTENTION
 }
 
 /** This app's dot and its reasons, or `undefined` when it has none. */

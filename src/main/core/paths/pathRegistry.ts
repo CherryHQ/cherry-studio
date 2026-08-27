@@ -191,6 +191,9 @@ export function buildPathRegistry() {
     // Mini apps
     // Installed mini app packages, one directory per appId
     'feature.mini_app.packages': path.join(appUserDataData, 'MiniApps', 'packages'),
+    // Rollback snapshots, PARALLEL to packages/ — `.` is a legal appId character, so a
+    // snapshot held beside the install trees is also a legal appId's own directory
+    'feature.mini_app.snapshots': path.join(appUserDataData, 'MiniApps', 'snapshots'),
     // Per-app data (saves), OUTSIDE the package tree — updates rename packages/<id> wholesale
     'feature.mini_app.data': path.join(appUserDataData, 'MiniApps', 'data'),
     // Publish journals, one `<appId>.json` per app

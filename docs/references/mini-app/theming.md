@@ -49,7 +49,7 @@ Two groups of unprefixed variables are the public contract: the host keeps their
 | Content | `--code-block` `--inline-code` `--inline-code-foreground` `--reference` `--reference-foreground` `--reference-subtle` `--highlight` `--highlight-foreground` `--highlight-accent` `--chat-user` |
 | Lists | `--resource-list-row-hover` `--resource-list-row-active` `--resource-list-row-active-foreground` `--resource-list-row-selected` `--resource-list-row-selected-foreground` |
 
-Color values are `oklch(...)`; use them directly in `color`, `background`, `border-color`.
+Use them directly in `color`, `background`, `border-color`. Do not parse the values: most are `oklch(...)`, but the Content group holds hex and `rgba()` too, and the format is not part of the contract.
 
 **Foundation tokens** (`--cs-*`: palettes such as `--cs-brand-500`, typography `--cs-font-family-body`, `--cs-font-size-body-md`, `--cs-font-weight-medium`, radius and spacing scales) are present in the file but are **not** part of the contract — they can change between host versions. Prefer the semantic variables; reach for `--cs-*` only for one-off accents.
 

@@ -41,12 +41,23 @@ export function miniAppBuiltinPath(appId: string): string {
   return path.join(application.getPath('feature.mini_app.builtin'), appId)
 }
 
+/**
+ * Snapshots live in their OWN root, never beside the install trees. `.` is a legal appId
+ * character, so `packages/<appId>.backup` is at the same time the install directory of an
+ * app legitimately called `<appId>.backup`: installing that app would reclaim the other
+ * app's snapshot as an orphan, and rolling the other app back would publish this app's
+ * tree under the wrong identity and grants.
+ */
+function miniAppSnapshotPath(appId: string, suffix: string): string {
+  return path.join(application.getPath('feature.mini_app.snapshots'), `${appId}.${suffix}`)
+}
+
 /** The previous tree, retained after an update so a rollback is one rename. */
 export function miniAppBackupPath(appId: string): string {
-  return `${miniAppInstallPath(appId)}.backup`
+  return miniAppSnapshotPath(appId, 'backup')
 }
 
 /** The tree a rollback sets aside, so an interrupted rollback can be undone. */
 export function miniAppRollingPath(appId: string): string {
-  return `${miniAppInstallPath(appId)}.rolling`
+  return miniAppSnapshotPath(appId, 'rolling')
 }

@@ -145,6 +145,10 @@ const remote = (over: Record<string, unknown> = {}) => {
 describe('web install and update', () => {
   const dbh = setupTestDatabase()
   let root: string
+  // Mirrors the registry: snapshots are a SIBLING of packages, not a child. Collapsing
+  // them onto one directory here would hide exactly the collision the layout prevents.
+  let packages: string
+  let snapshots: string
 
   /**
    * A real staged file under a real scratch dir, disposed by the resource itself.
@@ -168,6 +172,10 @@ describe('web install and update', () => {
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'miniapp-web-'))
+    packages = path.join(root, 'packages')
+    snapshots = path.join(root, 'snapshots')
+    fs.mkdirSync(packages)
+    fs.mkdirSync(snapshots)
     cleanups.length = 0
     // Package contents are module-level and this file sets neither `clearMocks` nor
     // `restoreMocks`; without a reset one case's swapped bytes reach the next one.
@@ -182,7 +190,12 @@ describe('web install and update', () => {
     // Key-aware AND filename-aware: ignoring either collapses every journal onto
     // the packages root — `writeFileSync` on a directory.
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
-      const dir = key === 'feature.mini_app.publish_journal' ? path.join(root, '.publish-journal') : root
+      const roots: Record<string, string> = {
+        'feature.mini_app.publish_journal': path.join(root, '.publish-journal'),
+        'feature.mini_app.snapshots': snapshots,
+        'feature.mini_app.packages': packages
+      }
+      const dir = roots[key] ?? root
       return filename ? path.join(dir, filename) : dir
     })
   })
@@ -191,7 +204,7 @@ describe('web install and update', () => {
     MockMainPreferenceServiceUtils.resetMocks()
   })
 
-  const seedInstalled = (
+  const seedInstalled = async (
     over: {
       consentedDeclaredJson?: string[]
       icon?: { path: string; sha256: string }
@@ -250,8 +263,14 @@ describe('web install and update', () => {
     }
     // An installed app has FILES as well as rows — an update renames the tree away,
     // and `rename` on a missing source fails before any of the logic under test runs.
-    fs.mkdirSync(path.join(root, APP_ID), { recursive: true })
-    fs.writeFileSync(path.join(root, APP_ID, 'index.html'), '<h1>old</h1>')
+    fs.mkdirSync(path.join(packages, APP_ID), { recursive: true })
+    fs.writeFileSync(path.join(packages, APP_ID, 'index.html'), '<h1>old</h1>')
+    // A real install records the hash of the tree it published, and rollback checks the
+    // retained tree against it. A placeholder here would make every rollback case pass
+    // against a snapshot nobody verified.
+    const contentHash = await realInstaller.hashTree(path.join(packages, APP_ID))
+    dbh.db.update(miniAppInstallationTable).set({ contentHash }).where(eq(miniAppInstallationTable.appId, APP_ID)).run()
+    return contentHash
   }
 
   const grantsOf = () =>
@@ -264,14 +283,14 @@ describe('web install and update', () => {
       .sort()
 
   it('reports current when the remote version matches', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.0.0' }))
     expect(await checkForUpdate(APP_ID)).toMatchObject({ status: 'current' })
   })
 
   it('shares one in-flight check between concurrent callers', async () => {
     // Every open fires a check; while a server hangs, reopening must not stack requests.
-    seedInstalled()
+    await seedInstalled()
     let answer: (value: unknown) => void = () => undefined
     fetchManifest.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
     const first = checkForUpdate(APP_ID)
@@ -286,19 +305,19 @@ describe('web install and update', () => {
   })
 
   it('reports ready when the declared set is unchanged', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     expect(await checkForUpdate(APP_ID)).toMatchObject({ status: 'ready', version: '1.1.0' })
   })
 
   it('requires consent when a capability is added', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ permissions: ['storage.get', 'ai.chat'] }))
     expect(await checkForUpdate(APP_ID)).toMatchObject({ status: 'needs-consent', added: ['ai.chat'] })
   })
 
   it('requires consent when a network domain is added', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ network: ['evil.com'] }))
     // Hosts are not grants, but an ADDED host still has to stop the update: this is the
     // one check standing between a compromised update server and silent exfiltration.
@@ -306,7 +325,7 @@ describe('web install and update', () => {
   })
 
   it('refuses a manifest served from a different origin', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(
       remote({ update: { url: 'https://attacker.io/m.json', urlCn: 'https://attacker.cn/m.json' } })
     )
@@ -314,7 +333,7 @@ describe('web install and update', () => {
   })
 
   it('never applies an update as a side effect of checking', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     await checkForUpdate(APP_ID)
     expect(fetchPackage).not.toHaveBeenCalled()
@@ -323,14 +342,14 @@ describe('web install and update', () => {
   it('still reports an update when the on-open check is disabled', async () => {
     // The preference gates the on-open check only. A manual check must always work,
     // or turning it off would also disable the button the user just pressed.
-    seedInstalled()
+    await seedInstalled()
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.check_updates_on_open', false)
     fetchManifest.mockResolvedValue(remote())
     expect(await checkForUpdate(APP_ID)).toMatchObject({ status: 'ready', version: '1.1.0' })
   })
 
   it('refuses to apply an update that needs consent without it', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ permissions: ['storage.get', 'ai.chat'] }))
     const checked = await checkForUpdate(APP_ID)
 
@@ -340,13 +359,13 @@ describe('web install and update', () => {
   it('refuses to apply without a token — consent alone is not a mandate', async () => {
     // The bug this guards: re-fetching the manifest at apply time lets the server swap
     // the payload, so "yes to 1.1.0 + ai" becomes "yes to whatever ships next".
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     await expect(applyUpdate(APP_ID, { consented: true } as never)).rejects.toThrow(/token/i)
   })
 
   it('refuses a token that was already spent', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -358,7 +377,7 @@ describe('web install and update', () => {
   it('grants a newly offered optional leaf unless the user unticked it', async () => {
     // Same model as install: offered optional leaves start on. Two tokens because apply
     // spends one, and the default and the explicit choice must both be observed.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ optionalPermissions: ['notification.show'] }))
     const offered = await checkForUpdate(APP_ID)
     expect(offered).toMatchObject({ status: 'ready', addedOptional: ['notification.show'] })
@@ -387,7 +406,7 @@ describe('web install and update', () => {
   })
 
   it('refuses a token issued for a different app', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
 
@@ -395,7 +414,7 @@ describe('web install and update', () => {
   })
 
   it('downloads exactly the package the reviewed manifest named', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -414,7 +433,7 @@ describe('web install and update', () => {
   })
 
   it('applies an update that needs consent once consented', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ permissions: ['storage.get', 'ai.chat'] }))
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -429,7 +448,7 @@ describe('web install and update', () => {
   it('restores the grants the user actually held, not the ones the old manifest declared', async () => {
     // The bug this guards: rebuilding grants from `previousManifestJson` hands back a
     // permission the user revoked.
-    seedInstalled()
+    await seedInstalled()
     // The user revoked `storage.get` before the update; `storage.set` they kept.
     dbh.db.delete(miniAppGrantTable).where(eq(miniAppGrantTable.permission, 'storage.get')).run()
 
@@ -518,7 +537,7 @@ describe('web install and update', () => {
   it('publishes a /mini-apps projection change after an applied update and a rollback', async () => {
     // Both rewrite name/version/url on an EXISTING row — IpcApi writes DataApi never
     // sees, so this signal is what refreshes the launcher's stale projection.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -534,7 +553,7 @@ describe('web install and update', () => {
 
   it('publishes nothing when the update stops at needs-consent', async () => {
     // Refusal is not a commit: a signal here would refetch a list that did not change.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ permissions: ['storage.get', 'ai.chat'] }))
     const checked = await checkForUpdate(APP_ID)
     notifyDataApiDataChange.mockClear()
@@ -547,7 +566,7 @@ describe('web install and update', () => {
   it('disposes the download through the resource, never by deleting its parent', async () => {
     // The bug this guards: a caller computing `path.dirname(...)` of a returned file
     // recursively deleted /tmp. Ownership belongs to the resource, not the caller.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
     const pkg = downloadedFixture()
@@ -573,7 +592,7 @@ describe('web install and update', () => {
   it('refuses a packaged manifest whose update endpoint left the pinned origin', async () => {
     // The hole this closes: `update` was not compared, so a package could point the
     // NEXT check at another origin — and omitting `update` fell back and passed.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     const checked = await checkForUpdate(APP_ID)
     packagedManifest = {
@@ -590,7 +609,7 @@ describe('web install and update', () => {
   it('never requests an off-origin endpoint, even one already stored', async () => {
     // Defence in depth: the check must refuse BEFORE fetching. Asserting on the throw
     // alone passes for a version that fetches first and validates after.
-    seedInstalled({ manifestUpdateUrl: 'https://evil.com/m.json' })
+    await seedInstalled({ manifestUpdateUrl: 'https://evil.com/m.json' })
     fetchManifest.mockClear()
 
     await expect(checkForUpdate(APP_ID)).rejects.toThrow(/left its origin/i)
@@ -632,7 +651,7 @@ describe('web install and update', () => {
   it('refuses to download a package hosted on another origin', async () => {
     // The bug this guards: pinning only `update.url` guards the pointer, not the
     // payload — a source pinned to example.com could still ship attacker.io bytes.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(
       remote({
         package: {
@@ -653,7 +672,7 @@ describe('web install and update', () => {
   it('surfaces a rename in the update preview', async () => {
     // The bug this guards: a silent rename in a routine update. Combined with the
     // notification grant it is a phishing primitive, and the user never saw it.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ name: 'Cherry Studio' }))
 
     expect(await checkForUpdate(APP_ID)).toMatchObject({
@@ -664,14 +683,14 @@ describe('web install and update', () => {
   it('surfaces a rename that only happens in a locale the user is not reading', async () => {
     // The bug this guards: diffing resolved strings. An English reader would see no
     // change while every Chinese user's list now says "Cherry Studio".
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ name: { en: 'My Game', zh: 'Cherry Studio' } }))
 
     expect(await checkForUpdate(APP_ID)).toMatchObject({ identityChange: { name: expect.anything() } })
   })
 
   it('refuses a package whose manifest renames the app behind the preview', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
     packagedManifest = { ...packagedManifest, name: 'Cherry Studio' }
@@ -684,7 +703,7 @@ describe('web install and update', () => {
     // The bug this guards: compensating on "`.backup` exists". After one successful
     // update `.backup` is the RETAINED previous version, so a refusal before any tree
     // moved would delete the current tree and rename v1 under rows that still say v2.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     const toV2 = await checkForUpdate(APP_ID)
     packagedEntryHtml = '<h1>v2</h1>'
@@ -698,13 +717,13 @@ describe('web install and update', () => {
     fetchPackage.mockResolvedValue(downloadedFixture())
     await expect(applyUpdate(APP_ID, { updateToken: toV3.updateToken! })).rejects.toThrow(/does not match/i)
 
-    expect(fs.readFileSync(path.join(root, APP_ID, 'index.html'), 'utf8')).toBe('<h1>v2</h1>')
-    expect(fs.readFileSync(path.join(root, `${APP_ID}.backup`, 'index.html'), 'utf8')).toBe('<h1>old</h1>')
+    expect(fs.readFileSync(path.join(packages, APP_ID, 'index.html'), 'utf8')).toBe('<h1>v2</h1>')
+    expect(fs.readFileSync(path.join(snapshots, `${APP_ID}.backup`, 'index.html'), 'utf8')).toBe('<h1>old</h1>')
     const [row] = dbh.db.select().from(miniAppInstallationTable).where(eq(miniAppInstallationTable.appId, APP_ID)).all()
     expect(row.version).toBe('1.1.0')
     // The retained version is still usable — the records still promise it.
     await expect(rollbackUpdate(APP_ID)).resolves.toBeUndefined()
-    expect(fs.readFileSync(path.join(root, APP_ID, 'index.html'), 'utf8')).toBe('<h1>old</h1>')
+    expect(fs.readFileSync(path.join(packages, APP_ID, 'index.html'), 'utf8')).toBe('<h1>old</h1>')
   })
 
   it('refuses a manifest that points its own updates at another origin', async () => {
@@ -720,7 +739,7 @@ describe('web install and update', () => {
   it('does not accumulate tokens the on-open check never consumes', async () => {
     // The bug this guards: `expiresAt` gates validity but nothing gates lifetime, so
     // every app-open leaks an entry for the life of the process.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const first = await checkForUpdate(APP_ID)
 
@@ -743,7 +762,7 @@ describe('web install and update', () => {
   it('refuses a token whose baseline no longer matches the installed version', async () => {
     // The bug this guards: two tokens issued at v1. Applying the second replays a
     // v1-relative diff onto v2.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const first = await checkForUpdate(APP_ID)
     const second = await checkForUpdate(APP_ID)
@@ -756,7 +775,7 @@ describe('web install and update', () => {
   })
 
   it('serializes two applies of the same app', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const a = await checkForUpdate(APP_ID)
     const b = await checkForUpdate(APP_ID)
@@ -775,7 +794,7 @@ describe('web install and update', () => {
   it('sets the current tree aside so an interrupted rollback can be undone', async () => {
     // The bug this guards: journalling a rollback as `update`. `.backup` is already
     // consumed, so the repair restores nothing.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -783,14 +802,33 @@ describe('web install and update', () => {
 
     await rollbackUpdate(APP_ID)
 
-    expect(fs.existsSync(path.join(root, `${APP_ID}.rolling`))).toBe(false)
-    expect(fs.existsSync(path.join(root, `${APP_ID}.backup`))).toBe(false)
+    expect(fs.existsSync(path.join(snapshots, `${APP_ID}.rolling`))).toBe(false)
+    expect(fs.existsSync(path.join(snapshots, `${APP_ID}.backup`))).toBe(false)
+  })
+
+  it('refuses to publish a snapshot whose contents no longer match the record', async () => {
+    // The bug this guards: rollback treated "a directory is there" as proof it holds the
+    // recorded previous version. The snapshot path is derived from the appId, so anything
+    // that writes to that path — a bug, a restored backup, a hand-edit — would be
+    // published under this app's identity, version and grants.
+    await seedInstalled()
+    fetchManifest.mockResolvedValue(remote())
+    const checked = await checkForUpdate(APP_ID)
+    fetchPackage.mockResolvedValue(downloadedFixture())
+    await applyUpdate(APP_ID, { updateToken: checked.updateToken! })
+
+    fs.writeFileSync(path.join(snapshots, `${APP_ID}.backup`, 'index.html'), '<h1>not what was recorded</h1>')
+
+    await expect(rollbackUpdate(APP_ID)).rejects.toThrow(/does not match/i)
+    // Still on the version the records describe, with the snapshot left for inspection.
+    expect(fs.readFileSync(path.join(packages, APP_ID, 'index.html'), 'utf8')).toBe(packagedEntryHtml)
+    expect(fs.existsSync(path.join(snapshots, `${APP_ID}.backup`))).toBe(true)
   })
 
   it('restores the current tree when a rollback fails midway', async () => {
     // The bug this guards: with no compensation the RUNNING process serves from a
     // missing directory until restart — not a recovery story for a button press.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote())
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -806,17 +844,17 @@ describe('web install and update', () => {
 
     await expect(rollbackUpdate(APP_ID)).rejects.toThrow('SQLITE_BUSY')
 
-    expect(fs.existsSync(path.join(root, APP_ID))).toBe(true)
-    expect(fs.existsSync(path.join(root, `${APP_ID}.rolling`))).toBe(false)
+    expect(fs.existsSync(path.join(packages, APP_ID))).toBe(true)
+    expect(fs.existsSync(path.join(snapshots, `${APP_ID}.rolling`))).toBe(false)
     // The retained version must still be retained — the records still promise it.
-    expect(fs.existsSync(path.join(root, `${APP_ID}.backup`))).toBe(true)
+    expect(fs.existsSync(path.join(snapshots, `${APP_ID}.backup`))).toBe(true)
     await expect(rollbackUpdate(APP_ID)).resolves.toBeUndefined()
   })
 
   it('rolls version, manifest and grants back together', async () => {
     // Seeded as a real install leaves it: every v1 required leaf granted, so the snapshot
     // taken at update time is `['storage.get', 'storage.set']` and the rollback must restore both.
-    seedInstalled()
+    const v1Hash = await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ permissions: ['storage.get', 'ai.chat'] }))
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -826,7 +864,7 @@ describe('web install and update', () => {
 
     const [row] = dbh.db.select().from(miniAppInstallationTable).where(eq(miniAppInstallationTable.appId, APP_ID)).all()
     expect(row.version).toBe('1.0.0')
-    expect(row.contentHash).toBe('sha256:old')
+    expect(row.contentHash).toBe(v1Hash)
     expect(grantsOf()).toEqual(['storage.get', 'storage.set'])
   })
 
@@ -835,7 +873,7 @@ describe('web install and update', () => {
     // version bump would mark a later-added leaf consented, and the prompt never fires.
     // v1 declared `storage.*` when the host only had two leaves; both versions still say
     // `storage.*`, so the diff adds nothing and the baseline may not grow on its own.
-    seedInstalled({ permissions: ['storage.*'], consentedDeclaredJson: ['storage.get', 'storage.set'] })
+    await seedInstalled({ permissions: ['storage.*'], consentedDeclaredJson: ['storage.get', 'storage.set'] })
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0', permissions: ['storage.*'] }))
     const checked = await checkForUpdate(APP_ID)
     expect(checked).toMatchObject({ status: 'ready' })
@@ -855,7 +893,7 @@ describe('web install and update', () => {
   it('extends the consent baseline by exactly what the user just agreed to', async () => {
     // The mirror: consent must still GROW when a human actually said yes, or the
     // prompt would come back forever.
-    seedInstalled({ consentedDeclaredJson: ['storage.get'] })
+    await seedInstalled({ consentedDeclaredJson: ['storage.get'] })
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0', permissions: ['storage.get', 'ai.chat'] }))
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -869,7 +907,7 @@ describe('web install and update', () => {
   it('restores the consent baseline on rollback', async () => {
     // The bug this guards: rolling back everything but `consentedDeclaredJson` — a
     // leaf stays "consented" for a version that no longer exists.
-    seedInstalled({ consentedDeclaredJson: ['storage.get'] })
+    await seedInstalled({ consentedDeclaredJson: ['storage.get'] })
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0', permissions: ['storage.get', 'ai.chat'] }))
     const checked = await checkForUpdate(APP_ID)
     fetchPackage.mockResolvedValue(downloadedFixture())
@@ -884,7 +922,7 @@ describe('web install and update', () => {
   it('takes the app offline before applying an update', async () => {
     // Asserts ORDER, not just "was called": a wrapper that mutates first and quiesces
     // after satisfies `toHaveBeenCalled`, and a missing one is invisible elsewhere.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     fetchPackage.mockResolvedValue(downloadedFixture())
     const checked = await checkForUpdate(APP_ID)
@@ -898,7 +936,7 @@ describe('web install and update', () => {
   it('lights the badge when a manual check finds a version, and clears it when it does not', async () => {
     // The bug this guards: wiring only the on-open check, so a manual check sets no
     // dot and an app that went current keeps one.
-    seedInstalled()
+    await seedInstalled()
     const runtime = application.get('MiniAppRuntimeService')
 
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
@@ -911,7 +949,7 @@ describe('web install and update', () => {
   })
 
   it('marks the app as updating for the whole apply, reporting download progress', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     fetchPackage.mockImplementation(
       async (_urls: string[], _expected: unknown, onProgress?: (r: number, t: number) => void) => {
@@ -930,7 +968,7 @@ describe('web install and update', () => {
   })
 
   it('refuses a second apply while one is in flight, before any download, and always ends the update', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     const runtime = application.get('MiniAppRuntimeService')
     const checked = await checkForUpdate(APP_ID)
@@ -952,7 +990,7 @@ describe('web install and update', () => {
   it('clears the attention badge after an update is applied', async () => {
     // The bug this guards: a badge that only ever gets SET. If apply never clears it,
     // the dot stays lit on an up-to-date app and nobody trusts the dot.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     fetchPackage.mockResolvedValue(downloadedFixture())
     const checked = await checkForUpdate(APP_ID)
@@ -965,7 +1003,7 @@ describe('web install and update', () => {
   })
 
   it('clears it after a rollback too', async () => {
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     fetchPackage.mockResolvedValue(downloadedFixture())
     const checked = await checkForUpdate(APP_ID)
@@ -981,7 +1019,7 @@ describe('web install and update', () => {
   it('takes the app offline before rolling back', async () => {
     // Rollback needs something to roll back TO: with no committed update there are no
     // `previous*` columns, and the call fails before reaching the wrapper.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
     fetchPackage.mockResolvedValue(downloadedFixture())
     const checked = await checkForUpdate(APP_ID)
@@ -996,7 +1034,7 @@ describe('web install and update', () => {
   it('surfaces a same-path icon swap at CHECK time, from the digest', async () => {
     // The bug this guards: comparing the icon PATH. `icon.png -> icon.png` with new
     // bytes is the ordinary way to change a face, and the same primitive as a rename.
-    seedInstalled({ icon: { path: 'icon.png', sha256: 'a'.repeat(64) } })
+    await seedInstalled({ icon: { path: 'icon.png', sha256: 'a'.repeat(64) } })
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0', icon: { path: 'icon.png', sha256: 'b'.repeat(64) } }))
 
     const checked = await checkForUpdate(APP_ID)
@@ -1008,7 +1046,7 @@ describe('web install and update', () => {
     // The mirror. Without it the previous case passes for a version that flags every
     // update as an icon change, which is the same as flagging none.
     const icon = { path: 'icon.png', sha256: 'a'.repeat(64) }
-    seedInstalled({ icon })
+    await seedInstalled({ icon })
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0', icon }))
 
     const checked = await checkForUpdate(APP_ID)
@@ -1020,7 +1058,7 @@ describe('web install and update', () => {
     // What makes the digest trustworthy: without it a manifest can claim any digest and
     // ship a different face — the same hole, one layer up.
     const icon = { path: 'icon.png', sha256: sha256Of(ICON_V2) }
-    seedInstalled({ icon: { path: 'icon.png', sha256: sha256Of(ICON_V1) } })
+    await seedInstalled({ icon: { path: 'icon.png', sha256: sha256Of(ICON_V1) } })
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0', icon }))
     fetchPackage.mockResolvedValue(downloadedFixture({ iconBytes: 'not-what-the-digest-says' }))
     const checked = await checkForUpdate(APP_ID)
@@ -1036,7 +1074,7 @@ describe('web install and update', () => {
     // The regression this guards is a DEADLOCK: comparing bytes at apply time aborts
     // with "check again", and the re-check reports "no change". Digests are real.
     const icon = { path: 'icon.png', sha256: sha256Of(ICON_V2) }
-    seedInstalled({ icon: { path: 'icon.png', sha256: sha256Of(ICON_V1) } })
+    await seedInstalled({ icon: { path: 'icon.png', sha256: sha256Of(ICON_V1) } })
     fetchManifest.mockResolvedValue(remote({ version: '1.1.0', icon }))
     fetchPackage.mockResolvedValue(downloadedFixture({ iconBytes: ICON_V2 }))
     const checked = await checkForUpdate(APP_ID)
@@ -1054,7 +1092,7 @@ describe('web install and update', () => {
   ])('reports current for %s', async (_name, version) => {
     // `!==` accepts the downgrade, and a string compare puts 1.10.0 below 1.9.0.
     // Same-version-new-bytes is current on purpose — not bumping is saying nothing changed.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(remote({ version }))
 
     await expect(checkForUpdate(APP_ID)).resolves.toEqual({ status: 'current' })
@@ -1063,7 +1101,7 @@ describe('web install and update', () => {
   it('refuses an update that changes the pinned origins', async () => {
     // Adding a mirror is as much a supply-chain move as replacing one: whoever controls
     // the endpoint could otherwise walk the app onto a host the user never approved.
-    seedInstalled()
+    await seedInstalled()
     fetchManifest.mockResolvedValue(
       remote({ version: '1.1.0', update: { url: MANIFEST_URL, urlCn: 'https://evil.cn/m.json' } })
     )
@@ -1212,7 +1250,7 @@ describe('web install and update', () => {
     it('upgrades from a newer manifest at the install entry through the update flow, without lighting the dot', async () => {
       // Same token, same quiesce, same rollback snapshot, same "only what was consented
       // to" grant rule as a web update — the whole reason this is not a second install path.
-      seedInstalled({ consentedDeclaredJson: ['storage.get', 'storage.set'] })
+      const v1Hash = await seedInstalled({ consentedDeclaredJson: ['storage.get', 'storage.set'] })
       fetchManifest.mockResolvedValue(
         remote({ version: '1.1.0', permissions: ['storage.get', 'storage.set', 'ai.chat'] })
       )
@@ -1233,7 +1271,7 @@ describe('web install and update', () => {
       fetchPackage.mockResolvedValue(downloadedFixture())
       await applyUpdate(APP_ID, { updateToken: preview.update.updateToken, consented: true })
 
-      expect(installedRow()).toMatchObject({ version: '1.1.0', previousContentHash: 'sha256:old', source: 'url' })
+      expect(installedRow()).toMatchObject({ version: '1.1.0', previousContentHash: v1Hash, source: 'url' })
       expect(grantsOf()).toEqual(['ai.chat', 'storage.get', 'storage.set'])
       expect(spy.order).toEqual([`quiesce:${APP_ID}`, 'mutate'])
     })
@@ -1241,7 +1279,7 @@ describe('web install and update', () => {
     it('moves a file-installed app onto the web source it was upgraded from', async () => {
       // The user typed the address themselves: the row is re-pinned to it, and the app
       // that could never check for updates now can.
-      seedInstalled({ source: 'file' })
+      await seedInstalled({ source: 'file' })
       fetchManifest.mockResolvedValue(remote({ version: '1.1.0' }))
 
       const preview = await previewUrlRaw(MANIFEST_URL, 'win-1')
@@ -1262,7 +1300,7 @@ describe('web install and update', () => {
     })
 
     it('reinstalls the same version only when the confirm says so, and keeps the row in place', async () => {
-      seedInstalled()
+      await seedInstalled()
       fetchManifest.mockResolvedValue(remote({ version: '1.0.0' }))
 
       const shown = await previewUrlRaw(MANIFEST_URL, 'win-1')
@@ -1284,7 +1322,7 @@ describe('web install and update', () => {
     })
 
     it('names an older package a downgrade', async () => {
-      seedInstalled()
+      await seedInstalled()
       fetchManifest.mockResolvedValue(remote({ version: '0.9.0' }))
 
       await expect(previewUrlRaw(MANIFEST_URL, 'win-1')).resolves.toMatchObject({

@@ -17,7 +17,7 @@ Cherry keeps a per-app **activity log** and shows it on the app's detail panel. 
 | Refusal | Any `cherry.*` call that rejects — `PermissionDenied`, `RateLimited`, `QuotaExceeded`, `InvalidArgument`, `Unavailable`, `Cancelled`, `Internal` | method, outcome, duration |
 | Outward call | `network.fetch`, `clipboard.read` / `write`, `file.export`, `notification.show`, `ai.chat` | method, outcome, duration, and a metadata facet: the host, status and response size of a fetch; the character count of a clipboard read or write; whether an export was saved; the model slot, message count and prompt size of a chat |
 | Permission decision | Install, reinstall, update, rollback, a grant or revoke in the detail panel, newly requested permissions granted or snoozed, data cleared | the decision, the version, the leaves involved |
-| Count | Every other call — `storage.*`, `file.save` / `load` / `list` / `delete`, `usage`, `app.*` — added up per method | calls, failures, bytes moved, flushed once a minute |
+| Count | Every other call — `storage.*`, `file.save` / `load` / `list` / `delete`, `usage`, `app.*` — added up per method | calls, bytes moved, flushed once a minute |
 
 ## What is never recorded
 

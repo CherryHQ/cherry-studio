@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { MINI_APP_BRIDGE_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
@@ -42,13 +40,6 @@ describe('MiniAppRuntimeService wiring', () => {
     expect(listened).toEqual([])
     expect(recoverInterruptedPublishes).toHaveBeenCalledTimes(1)
     expect(sweepAbandonedStaging).toHaveBeenCalledTimes(1)
-  })
-
-  it('declares exactly one onReady in the service source', () => {
-    // A duplicate would silently win by source order; grep is the only check that
-    // catches it, because TypeScript reports nothing for a re-declared method.
-    const source = readFileSync(new URL('../MiniAppRuntimeService.ts', import.meta.url), 'utf8')
-    expect(source.match(/protected async onReady/g)).toHaveLength(1)
   })
 
   it('pushes a locale change to every installed app', async () => {

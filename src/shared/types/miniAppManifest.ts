@@ -269,10 +269,17 @@ export function resolveLocalizedText(text: LocalizedText, locale: string): strin
   return table[locale] ?? table[locale.split('-')[0]] ?? table.en ?? table.zh!
 }
 
-/** Bare hostname only: a scheme or path would make allowlist matching ambiguous. */
+/**
+ * Bare hostname only: a scheme or path would make allowlist matching ambiguous. A last
+ * label that is a number is refused here rather than at runtime — that is WHATWG's
+ * "ends in a number" rule, so the URL parser reads such a host as an IPv4 address and
+ * `network.fetch` refuses every request to it. Accepting it at install would promise
+ * access the host can never grant.
+ */
 const HostnameSchema = z
   .string()
   .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/, 'must be a bare hostname')
+  .refine((host) => !/(^|\.)(\d+|0x[0-9a-f]*)$/.test(host), 'must be a hostname, not an IP address')
 
 export const MiniAppManifestSchema = z
   .object({

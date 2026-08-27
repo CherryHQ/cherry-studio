@@ -115,7 +115,7 @@ describe('activity log', () => {
     activity.days = 0
   })
 
-  it('shows what the whole log weighs and how many activity days it spans', async () => {
+  it('shows what the whole log weighs and how many files it is kept in', async () => {
     await open()
 
     const size = await screen.findByTestId('activity-size')
@@ -174,6 +174,18 @@ describe('activity log', () => {
 
     await waitFor(() => expect(request).toHaveBeenCalledWith('mini_app.activity.clear', { appId: detail.appId }))
     await waitFor(() => expect(screen.queryByTestId('activity-list')).toBeNull())
+  })
+
+  it('says the log could not be read instead of showing it as empty', async () => {
+    // The bug this guards: the catch only logged, so a refused read rendered the same
+    // "no activity yet" as a genuinely empty log — the one screen a user opens to find
+    // out what an app did would quietly claim it did nothing.
+    request.mockImplementation((route: string) =>
+      route === 'mini_app.activity.list' ? Promise.reject(new Error('log directory is gone')) : Promise.resolve(detail)
+    )
+    render(<MiniAppDetailPanel appId={detail.appId} />)
+
+    expect(await screen.findByText(/log directory is gone/)).toBeInTheDocument()
   })
 
   it('explains what the log is, whether or not it has lines', async () => {

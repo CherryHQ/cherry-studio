@@ -67,7 +67,7 @@ describe('miniAppActivityLog', () => {
 
     const lines = linesOf(A)
     expect(lines).toHaveLength(1)
-    expect(lines[0]).toMatchObject({ kind: 'count', name: 'storage.set', calls: 25, failures: 0, bytes: 100 })
+    expect(lines[0]).toMatchObject({ kind: 'count', name: 'storage.set', calls: 25, bytes: 100 })
     expect(JSON.stringify(lines[0])).not.toContain('vvvv')
   })
 

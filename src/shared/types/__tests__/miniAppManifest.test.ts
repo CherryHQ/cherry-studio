@@ -182,6 +182,21 @@ describe('MiniAppManifestSchema', () => {
     expect(() => MiniAppManifestSchema.parse({ ...valid, network: ['https://a.com/x'] })).toThrow()
   })
 
+  it('rejects hosts that end in a number, which network.fetch always refuses', () => {
+    // The bug this guards: the regex accepted these, so an author shipped a manifest that
+    // installed cleanly and then had every fetch refused as "a host the manifest declares"
+    // — the one message that rules out the actual cause.
+    for (const host of ['1.2.3.4', '0x7f.1', 'example.123']) {
+      expect(() => MiniAppManifestSchema.parse({ ...valid, permissions: ['network.fetch'], network: [host] })).toThrow(
+        /hostname/
+      )
+    }
+    // Digits are fine anywhere but the last label.
+    expect(
+      MiniAppManifestSchema.parse({ ...valid, permissions: ['network.fetch'], network: ['123.example'] }).network
+    ).toEqual(['123.example'])
+  })
+
   it('defaults permissions and network to empty', () => {
     const parsed = MiniAppManifestSchema.parse(omit(valid, 'permissions', 'network'))
     expect(parsed.permissions).toEqual([])

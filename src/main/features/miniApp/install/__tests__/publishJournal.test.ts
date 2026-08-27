@@ -29,7 +29,8 @@ describe('publish journal', () => {
   const dbh = setupTestDatabase()
   let root: string
 
-  const seedCommitted = (appId: string, contentHash: string) => {
+  /** `previousContentHash` is what an UPDATE records and a reinstall deliberately does not. */
+  const seedCommitted = (appId: string, contentHash: string, previousContentHash?: string) => {
     dbh.db
       .insert(miniAppTable)
       .values({
@@ -49,7 +50,15 @@ describe('publish journal', () => {
         version: '1.0.0',
         contentHash,
         source: 'file',
-        manifestJson: manifestOf(appId)
+        manifestJson: manifestOf(appId),
+        ...(previousContentHash
+          ? {
+              previousContentHash,
+              previousManifestJson: manifestOf(appId),
+              previousGrantsJson: [],
+              previousConsentedDeclaredJson: []
+            }
+          : {})
       })
       .run()
   }
@@ -140,11 +149,24 @@ describe('publish journal', () => {
   it('keeps the retained backup when the update DID commit', async () => {
     makeDir(A, 'new')
     makeDir(`${A}.backup`, 'old')
-    seedCommitted(A, 'sha256:new')
+    seedCommitted(A, 'sha256:new', 'sha256:old')
     writePublishJournal({ kind: 'update', appId: A, contentHash: 'sha256:new' })
 
     expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
     expect(fs.existsSync(path.join(root, `${A}.backup`))).toBe(true)
+  })
+
+  it('reclaims the parked tree of a reinstall that crashed before removing it', async () => {
+    // A reinstall journals as `update` but records NO previous version, so nothing can
+    // roll back to the parked tree. Kept, it is a directory no code path will ever read
+    // and one the panel still reports as a rollback snapshot under "Space".
+    makeDir(A, 'new')
+    makeDir(`${A}.backup`, 'parked')
+    seedCommitted(A, 'sha256:new')
+    writePublishJournal({ kind: 'update', appId: A, contentHash: 'sha256:new' })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(fs.existsSync(path.join(root, `${A}.backup`))).toBe(false)
   })
 
   it('keeps the previous version retrievable when a rollback did not commit', async () => {

@@ -25,7 +25,12 @@ beforeEach(() => {
   fs.writeFileSync(path.join(assets, 'miniAppTheme.css'), ':root { --cs-bg: #fff; }')
   handler = createMiniAppProtocolHandler(APP_ID, (id) => (id === APP_ID ? root : undefined), assets)
 })
-afterEach(() => fs.rmSync(work, { recursive: true, force: true }))
+afterEach(() => {
+  // This file spies on `fs.promises` and there is no global `restoreMocks`: a case that
+  // fails before its own `mockRestore` would hand the next one a queued rejection.
+  vi.restoreAllMocks()
+  fs.rmSync(work, { recursive: true, force: true })
+})
 
 const get = (url: string) => handler(new Request(url))
 

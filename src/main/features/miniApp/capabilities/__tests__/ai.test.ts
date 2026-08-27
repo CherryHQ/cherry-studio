@@ -6,6 +6,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MiniAppUnavailableError } from '../../errors'
+
 // `vi.mocked(x)` is a TYPE cast and replaces nothing: without this `vi.mock` the real
 // `getByKey` runs and `.mockReturnValue(...)` throws. `vi.mock` also hoists it.
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: vi.fn() } }))
@@ -140,6 +142,17 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('cherry.ai.chat — input contract', () => {
+  it('tells the app a model is missing instead of reporting a host bug', async () => {
+    // The bug this guards: a bare Error falls through `publicErrorOf` to `Internal`,
+    // whose message is frozen at 'Internal error'. An app cannot then tell "you have no
+    // model configured" — actionable, and the common state for a fresh install — from
+    // "the host is broken", so it cannot point the user at their own settings.
+    dbh.db.update(miniAppInstallationTable).set({ aiModelId: null }).where(eq(miniAppInstallationTable.appId, A)).run()
+
+    // `bridge.test.ts` pins the other half: this class reaches the guest as `Unavailable`.
+    await expect(chat(A, HI)).rejects.toBeInstanceOf(MiniAppUnavailableError)
+  })
+
   it('takes no slot at all when the model cannot be resolved', async () => {
     // The ordering `chat()` depends on: everything failable runs BEFORE `admit()`.
     // The leak is only visible on the NEXT call, never on a `rejects.toThrow()`.

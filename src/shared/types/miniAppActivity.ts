@@ -52,7 +52,6 @@ export const MiniAppActivityCountSchema = z.object({
   kind: z.literal('count'),
   name: z.string(),
   calls: z.number(),
-  failures: z.number(),
   bytes: z.number()
 })
 

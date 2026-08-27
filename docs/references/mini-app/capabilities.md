@@ -29,7 +29,7 @@ Everything the host offers is on `window.cherry`. Types are in [`cherry.d.ts`](.
 | `PermissionDenied` | The method is not granted, or `network.fetch` was given a URL outside the declared hosts |
 | `QuotaExceeded` | A byte or item budget would be exceeded (storage file, file sandbox, request or response body) |
 | `RateLimited` | Too many writes, notifications, AI calls or requests in the window; too many in flight. Wait, then retry |
-| `Unavailable` | The host cannot serve the call right now: the app is being updated, rolled back, reinstalled, cleared or uninstalled, or a remote request timed out or failed |
+| `Unavailable` | The host cannot serve the call right now: the app is being updated, rolled back, reinstalled, cleared or uninstalled, a remote request timed out or failed, or `ai.*` found no model configured for the requested slot and no global default |
 | `InvalidArgument` | Argument validation failed, an unknown method, or `ai.chat` reused a `callId` that is still in flight |
 | `Cancelled` | An `ai.chat` stream was aborted and the abort surfaced as an error |
 | `Internal` | Anything else. The message is always `Internal error` |

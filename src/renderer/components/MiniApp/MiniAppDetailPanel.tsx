@@ -86,7 +86,6 @@ function describeActivity(t: TFunction, entry: MiniAppActivityEntry): string {
       return t('miniApp.activity.count', {
         name: entry.name,
         calls: entry.calls,
-        failures: entry.failures,
         bytes: formatFileSize(entry.bytes)
       })
     case 'truncated':
@@ -166,8 +165,11 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
       setActivity(await ipcApi.request('mini_app.activity.list', { appId, limit: 100, deniedOnly }))
     } catch (e) {
       logger.error('Failed to load mini app activity', e as Error)
+      // Not a silent empty list: this panel is where a user goes to find out what an app
+      // did, and "nothing recorded" is the one answer a failed read must never give.
+      setError(t('miniApp.activity.load_error', { message: errorMessage(e) }))
     }
-  }, [appId, deniedOnly])
+  }, [appId, deniedOnly, t])
   // Pulled on open, on the filter, and on the user's refresh — never pushed: a log that
   // grows all day would broadcast to every window for a panel that is rarely open.
   useEffect(() => {
@@ -418,7 +420,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                     <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
                       {activity.days > 0 && (
                         <span data-testid="activity-size">
-                          {t('miniApp.activity.size', { bytes: formatFileSize(activity.bytes), days: activity.days })}
+                          {t('miniApp.activity.size', { bytes: formatFileSize(activity.bytes), files: activity.days })}
                         </span>
                       )}
                       <Tooltip content={t('miniApp.activity.hint')}>

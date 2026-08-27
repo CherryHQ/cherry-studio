@@ -106,9 +106,7 @@ export class MiniAppRuntimeService extends BaseService {
   private readonly sessionAppIds = new WeakMap<Electron.Session, string>()
 
   /**
-   * The service's ONE `onReady`. Every mini-app wiring lands here — a second
-   * definition on the same class silently replaces this one, and what it would drop
-   * is the crash recovery.
+   * The service's ONE `onReady` — every mini-app wiring lands here.
    *
    * All of it belongs here rather than at module load: `ipcOn`/`ipcHandle` are
    * auto-cleaned on stop/destroy, and recovery needs DbService (a BeforeReady

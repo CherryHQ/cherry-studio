@@ -151,7 +151,6 @@ async function dayFiles(dir: string): Promise<string[]> {
 
 interface Counter {
   calls: number
-  failures: number
   bytes: number
 }
 
@@ -181,7 +180,7 @@ export class MiniAppActivityLog {
     const p = params && typeof params === 'object' ? (params as Record<string, unknown>) : undefined
     if (TIER[method] === 'count' && outcome === 'ok') {
       const perApp = this.counters.get(appId) ?? new Map<string, Counter>()
-      const counter = perApp.get(method) ?? { calls: 0, failures: 0, bytes: 0 }
+      const counter = perApp.get(method) ?? { calls: 0, bytes: 0 }
       counter.calls += 1
       counter.bytes += bytesOf(method, p, result)
       perApp.set(method, counter)
@@ -316,7 +315,7 @@ export class MiniAppActivityLog {
     const apps = appId === undefined ? [...this.counters.keys()] : [appId]
     for (const id of apps) {
       for (const [name, counter] of this.counters.get(id) ?? []) {
-        if (counter.calls === 0 && counter.failures === 0) continue
+        if (counter.calls === 0) continue
         this.append(id, { v: 1, ts: now, kind: 'count', name, ...counter })
       }
       this.counters.delete(id)

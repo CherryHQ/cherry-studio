@@ -18,7 +18,7 @@ import { isReasoningModel } from '@shared/utils/model'
 import { eq } from 'drizzle-orm'
 import * as z from 'zod'
 
-import { InvalidArgumentError } from '../errors'
+import { InvalidArgumentError, MiniAppUnavailableError } from '../errors'
 import { RateLimitedError } from './quota'
 
 /**
@@ -130,8 +130,9 @@ function toCherryUIMessage(m: { role: 'user' | 'assistant' | 'system'; content: 
 /**
  * The app's own slot first, then the global slot of the same name; `quick` ends on
  * the default model the way Cherry's own quick model does (`useDefaultModel`). Throws
- * when nothing is set: a mini app asking for AI with no model configured anywhere is
- * a setup problem the app must see, not a silent no-op.
+ * `Unavailable` when nothing is set — NOT the default `Internal`, whose message is
+ * frozen at 'Internal error': "no model configured" is the ordinary state of a fresh
+ * install and the app is the only surface that can point the user at their settings.
  */
 function resolveModelFor(appId: string, slot: ModelSlot): UniqueModelId {
   const [row] = application
@@ -148,7 +149,9 @@ function resolveModelFor(appId: string, slot: ModelSlot): UniqueModelId {
         preferences.get('feature.quick_assistant.model_id') ??
         preferences.get('chat.default_model_id'))
       : (row?.aiModelId ?? preferences.get('chat.default_model_id'))
-  if (!id) throw new Error(`No ${slot} model configured for ${appId} and no global default is set`)
+  if (!id) {
+    throw new MiniAppUnavailableError(`No ${slot} model configured for ${appId} and no global default is set`)
+  }
   // Parsed, not cast: `UniqueModelId` is a template-literal type, and a stored value
   // that lost its separator must fail here, not halfway through a provider call.
   return UniqueModelIdSchema.parse(id)
