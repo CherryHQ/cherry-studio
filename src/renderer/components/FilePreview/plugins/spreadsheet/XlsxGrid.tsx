@@ -329,7 +329,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const [selected, setSelected] = useState<GridSelection | null>(null)
   // Pointer and key handlers extend the live selection, so they read it from a ref instead of the render snapshot.
   const selectionRef = useRef<GridSelection | null>(null)
-  const dragRef = useRef<{ pointerId: number; selection: GridSelection; extended: boolean } | null>(null)
+  const dragRef = useRef<{ pointerId: number; selection: GridSelection } | null>(null)
   const suppressClickRef = useRef(false)
   const pendingKeyCommitRef = useRef(false)
   const [viewport, setViewport] = useState<ViewportRect>({ top: 0, left: 0, bottom: 0, right: 0 })
@@ -648,7 +648,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       const extending = e.shiftKey && current !== null
       const next: GridSelection = extending ? { anchor: current.anchor, active: cell } : { anchor: cell, active: cell }
       applySelection(next)
-      dragRef.current = { pointerId: e.pointerId, selection: next, extended: extending }
+      dragRef.current = { pointerId: e.pointerId, selection: next }
       e.currentTarget.setPointerCapture?.(e.pointerId)
     },
     [applySelection, cellAtPointer, findMerge, sheet.colCount, sheet.rowCount]
@@ -669,7 +669,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       }
       if (active.row === drag.selection.active.row && active.col === drag.selection.active.col) return
       const next: GridSelection = { anchor: drag.selection.anchor, active }
-      dragRef.current = { pointerId: drag.pointerId, selection: next, extended: true }
+      dragRef.current = { pointerId: drag.pointerId, selection: next }
       applySelection(next)
     },
     [applySelection, cellAtPointer, sheet.colCount, sheet.rowCount]
