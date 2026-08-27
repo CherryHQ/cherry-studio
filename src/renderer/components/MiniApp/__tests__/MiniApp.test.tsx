@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   updateAppStatus: vi.fn(() => Promise.resolve()),
   removeCustomMiniApp: vi.fn(() => Promise.resolve()),
-  exitMiniApp: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   miniApps: [] as MiniAppType[],
   pinned: [] as MiniAppType[],
@@ -73,7 +72,6 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     miniApps: mocks.miniApps,
     pinned: mocks.pinned,
-    exitMiniApp: mocks.exitMiniApp,
     updateAppStatus: mocks.updateAppStatus,
     removeCustomMiniApp: mocks.removeCustomMiniApp
   })
@@ -164,7 +162,7 @@ describe('MiniApp launchpad pin menu', () => {
     ])
   })
 
-  it('exits a hidden mini app — a hidden app keeps no tile to reopen it', async () => {
+  it('hides a mini app through the single-item status command', () => {
     const enabledApp = { ...calculatorApp, status: 'enabled' as const }
     mocks.miniApps = [enabledApp]
 
@@ -172,7 +170,6 @@ describe('MiniApp launchpad pin menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.hide.title' }))
 
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('calculator', 'disabled')
-    await waitFor(() => expect(mocks.exitMiniApp).toHaveBeenCalledWith('calculator'))
   })
 
   it('removes a pinned mini app from launchpad by restoring enabled status', () => {

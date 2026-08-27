@@ -197,7 +197,7 @@ export const useMiniAppPopup = () => {
     setSplitOpen(true)
   }, [setSplitOpen])
 
-  /** Leave split view. Apps stay in the pool; only the pane closes. */
+  /** Leave split view. The pool evicts the split app unless a tab still references it. */
   const closeSplit = useCallback(() => {
     setSplitOpen(false)
     setSplitMiniAppId('')

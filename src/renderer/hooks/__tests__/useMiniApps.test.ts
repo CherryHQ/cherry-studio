@@ -521,7 +521,7 @@ describe('useMiniApps', () => {
   // === updateAppStatus ===
 
   describe('updateAppStatus', () => {
-    it('should call the patch mutation trigger with the new status', async () => {
+    it('exits a mini app after disabling it through the single-item status path', async () => {
       const mockTrigger = vi.fn().mockResolvedValue({ success: true })
       const { mockUseMutation } = await import('@test-mocks/renderer/useDataApi')
       mockUseMutation.mockImplementation((method: string, path: string) => {
@@ -531,8 +531,10 @@ describe('useMiniApps', () => {
         return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
       })
 
-      const apps = [createMiniApp('app1', { status: 'enabled' })]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      const hidden = createMiniApp('app1', { status: 'enabled' })
+      const shown = createMiniApp('app2', { status: 'enabled' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([hidden, shown]))
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [hidden, shown])
       const { result } = renderHook(() => useMiniApps())
 
       await act(async () => {
@@ -540,6 +542,8 @@ describe('useMiniApps', () => {
       })
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([shown])
+      expect(mockClearWebviewState).toHaveBeenCalledWith('app1')
     })
   })
 

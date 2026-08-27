@@ -325,7 +325,7 @@ describe('MiniAppTabsPool', () => {
     expect(clearWebviewState).not.toHaveBeenCalled()
   })
 
-  it('keeps a split-opened app pooled after the split closes', async () => {
+  it('evicts a split-only app after the pane closes', async () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
     mocks.currentMiniAppId = 'alpha'
     mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
@@ -336,15 +336,14 @@ describe('MiniAppTabsPool', () => {
     const { rerender } = render(<MiniAppTabsPool />)
     expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha', 'bravo'])
 
-    // closeSplit's contract: only the pane closes; the app stays pooled for the cap-LRU.
     mocks.splitOpen = false
     mocks.splitMiniAppId = ''
     act(() => {
       rerender(<MiniAppTabsPool />)
     })
 
-    expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha', 'bravo'])
-    expect(clearWebviewState).not.toHaveBeenCalledWith('bravo')
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
+    expect(clearWebviewState).toHaveBeenCalledWith('bravo')
   })
 
   it('realigns a current id that references an app missing from the pool', async () => {

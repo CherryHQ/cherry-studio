@@ -128,14 +128,8 @@ const MiniAppTabsPool: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
 
-  // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember
-  // every app the split pane ever showed: orphan cleanup only evicts entries no tab references
-  // and the split never owned.
-  const splitPooledIds = useRef(new Set<string>())
-
   useEffect(() => {
-    if (splitOpen && splitMiniAppId) splitPooledIds.current.add(splitMiniAppId)
-    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || splitPooledIds.current.has(appId)
+    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || (splitOpen && splitMiniAppId === appId)
     const orphanedApps = openedKeepAliveMiniApps.filter((app) => !isReferenced(app.appId))
     if (orphanedApps.length === 0) return
 

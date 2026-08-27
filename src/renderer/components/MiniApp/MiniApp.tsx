@@ -39,7 +39,7 @@ const MiniApp: FC<Props> = ({
   disabled = false
 }) => {
   const { t } = useTranslation()
-  const { miniApps, pinned, exitMiniApp, updateAppStatus, removeCustomMiniApp } = useMiniApps()
+  const { miniApps, pinned, updateAppStatus, removeCustomMiniApp } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
@@ -110,9 +110,7 @@ const MiniApp: FC<Props> = ({
   }
 
   const handleHide = () => {
-    updateAppStatus(app.appId, 'disabled')
-      .then(() => exitMiniApp(app.appId))
-      .catch(reportFailure('miniApp.hide_failed'))
+    updateAppStatus(app.appId, 'disabled').catch(reportFailure('miniApp.hide_failed'))
   }
 
   const handleRemoveCustom = async () => {

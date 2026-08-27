@@ -297,13 +297,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const updateAppStatus = useCallback(
     async (appId: string, status: MiniApp['status']) => {
       try {
-        return await patchAppTrigger({ params: { appId }, body: { status } })
+        const updated = await patchAppTrigger({ params: { appId }, body: { status } })
+        if (status === 'disabled') exitMiniApp(appId)
+        return updated
       } catch (error) {
         logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [patchAppTrigger]
+    [exitMiniApp, patchAppTrigger]
   )
 
   /**

@@ -2,7 +2,7 @@
 title: Mini-app "running" dot removed; hiding a mini app now closes it
 category: removed
 severity: notice
-introduced_in_pr: #19395
+introduced_in_pr: '#19395'
 date: 2026-08-25
 ---
 
