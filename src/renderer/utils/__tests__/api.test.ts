@@ -12,17 +12,17 @@ describe('api', () => {
 
     it('should mask keys longer than 24 characters', () => {
       const key = '1234567890abcdefghijklmnopqrstuvwxyz'
-      expect(maskApiKey(key)).toBe('12345678****stuvwxyz')
+      expect(maskApiKey(key)).toBe('12****wxyz')
     })
 
     it('should mask keys longer than 16 characters but not longer than 24', () => {
       const key = '1234567890abcdefgh'
-      expect(maskApiKey(key)).toBe('1234****efgh')
+      expect(maskApiKey(key)).toBe('12****efgh')
     })
 
     it('should mask keys longer than 8 characters but not longer than 16', () => {
       const key = '1234567890'
-      expect(maskApiKey(key)).toBe('12****90')
+      expect(maskApiKey(key)).toBe('12****7890')
     })
 
     it('should not mask keys that are 8 characters or shorter', () => {
@@ -32,10 +32,10 @@ describe('api', () => {
 
     it('should handle keys at exactly the boundary conditions', () => {
       // 24 characters
-      expect(maskApiKey('123456789012345678901234')).toBe('1234****1234')
+      expect(maskApiKey('123456789012345678901234')).toBe('12****1234')
 
       // 16 characters
-      expect(maskApiKey('1234567890123456')).toBe('12****56')
+      expect(maskApiKey('1234567890123456')).toBe('12****3456')
 
       // 8 characters
       expect(maskApiKey('12345678')).toBe('12345678')

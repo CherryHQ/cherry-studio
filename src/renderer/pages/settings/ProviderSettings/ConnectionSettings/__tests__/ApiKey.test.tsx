@@ -97,7 +97,7 @@ describe('ApiKey', () => {
 
     render(<ApiKey providerId="openai" />)
 
-    const maskedKey = screen.getByText('1234****1234')
+    const maskedKey = screen.getByText('12****1234')
     expect(maskedKey).toBeInTheDocument()
     expect(screen.queryByText('123456789012345678901234')).not.toBeInTheDocument()
     const keyListButtons = screen.getAllByRole('button', { name: 'settings.provider.api.key.list.title' })
