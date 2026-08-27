@@ -43,15 +43,22 @@ type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { 
 type OperationStatus = 'idle' | 'saving' | 'submitting'
 
 interface DiagnosticUploadDialogProps {
+  readonly fixedRange?: DiagnosticRange
   readonly initialDescription?: string
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }
 
-export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open }: DiagnosticUploadDialogProps) {
+export function DiagnosticUploadDialog({
+  fixedRange,
+  initialDescription,
+  onOpenChange,
+  open
+}: DiagnosticUploadDialogProps) {
   const { t } = useTranslation()
   const uploadFormId = useId()
-  const [range, setRange] = useState<DiagnosticRange>('24h')
+  const [selectedRange, setSelectedRange] = useState<DiagnosticRange>('24h')
+  const effectiveRange = fixedRange ?? selectedRange
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
   const [includeChatRecords, setIncludeChatRecords] = useState(false)
@@ -73,7 +80,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     setIsInspecting(true)
     setInspectError(false)
     void ipcApi
-      .request('diagnostics.bundle.inspect', { range })
+      .request('diagnostics.bundle.inspect', { range: effectiveRange })
       .then((inspection) => {
         if (active) setInspectResult(inspection)
       })
@@ -89,7 +96,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     return () => {
       active = false
     }
-  }, [open, range])
+  }, [effectiveRange, open])
 
   useEffect(() => {
     if (result) primaryActionRef.current?.focus()
@@ -168,7 +175,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
         includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
-        range
+        range: effectiveRange
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {
@@ -271,19 +278,21 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   ) : null}
                 </section>
 
-                <section className="space-y-2">
-                  <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-                  <SegmentedControl<DiagnosticRange>
-                    value={range}
-                    onValueChange={(nextRange) => {
-                      setRange(nextRange)
-                      setInspectResult(null)
-                      setAcknowledged(false)
-                    }}
-                    options={rangeOptions}
-                    disabled={isBusy}
-                  />
-                </section>
+                {fixedRange === undefined ? (
+                  <section className="space-y-2">
+                    <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
+                    <SegmentedControl<DiagnosticRange>
+                      value={selectedRange}
+                      onValueChange={(nextRange) => {
+                        setSelectedRange(nextRange)
+                        setInspectResult(null)
+                        setAcknowledged(false)
+                      }}
+                      options={rangeOptions}
+                      disabled={isBusy}
+                    />
+                  </section>
+                ) : null}
 
                 <section className="divide-y divide-border rounded-xl border border-border">
                   <SourceRow

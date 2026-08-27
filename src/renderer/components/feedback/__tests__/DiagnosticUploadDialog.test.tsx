@@ -41,7 +41,10 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
+    'settings.about.diagnostics.range_title': 'Time range',
+    'settings.about.diagnostics.ranges.24h': 'Last 24 hours',
     'settings.about.diagnostics.ranges.3d': 'Last 3 days',
+    'settings.about.diagnostics.ranges.7d': 'Last 7 days',
     'settings.about.diagnostics.sources.chat_records.title': 'Chat history',
     'settings.about.diagnostics.sources.logs.title': 'App logs',
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
@@ -166,6 +169,22 @@ describe('DiagnosticUploadDialog', () => {
 
     expect(description).toHaveValue('draft A with user edits')
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+  })
+
+  it('uses a fixed range without rendering range controls', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog fixedRange="24h" open onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByText('Time range')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Last 3 days' })).not.toBeInTheDocument()
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
+
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', expect.objectContaining({ range: '24h' }))
+    )
   })
 
   it('validates an empty description on submit and keeps the error current while editing', async () => {
