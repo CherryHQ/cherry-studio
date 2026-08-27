@@ -70,6 +70,13 @@ location. Two cases need care because the two sides are not directly comparable 
   difference. That join drops the cell boundaries on both sides, so a match proves the text is
   unchanged, not the grid — the same words re-split across cells still reads as a match. The
   freshness check above is what catches that; never skip it on a passing anchor check.
+  Number formats are the second asymmetry: the `excerpt` holds what Excel *displays*, because
+  that is what the user pointed at (`1,234.50`, `45.67%`), while extraction writes the stored
+  value (`1234.5`, `0.4567`). Neither side is wrong, so a formatted cell never matches
+  literally. Compare those cells by value, and leave them out of the joined strings so the
+  containment test runs on the text cells alone. A difference that is only the number format is
+  not a moved anchor, and stopping on one sends the user back to re-select a selection that
+  never moved.
 - **docx with `charRange`**: the slice is only part of what patch-copy compares and replaces —
   it rewrites the **whole paragraph**. Extract the paragraph *without* `charRange` as well, and
   read "Edit docx" below before writing.
