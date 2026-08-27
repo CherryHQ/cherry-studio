@@ -1,5 +1,6 @@
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -34,6 +35,7 @@ import { type FileStat } from 'webdav'
 import NutstorePathPopup from './NutstorePathPopup'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
+const logger = loggerService.withContext('NutstoreSettings')
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -107,7 +109,14 @@ const NutstoreSettings: FC = () => {
   const handleCheckConnection = async () => {
     if (!nutstoreToken) return
     setCheckConnectionLoading(true)
-    const isConnectedToNutstore = await checkConnection()
+    // A non-404 probe failure (403/5xx) rejects rather than returning false;
+    // treat it as a failed check so the loading state can never hang.
+    let isConnectedToNutstore = false
+    try {
+      isConnectedToNutstore = await checkConnection()
+    } catch (error) {
+      logger.error('[NutstoreSettings] Check connection failed:', error as Error)
+    }
 
     toast[isConnectedToNutstore ? 'success' : 'error']({
       timeout: 2000,
