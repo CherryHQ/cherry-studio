@@ -5,8 +5,12 @@ export default defineProvider({
   name: 'Hugging Face',
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    'anthropic-messages': {
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://router.huggingface.co/v1/'
+    },
     'openai-responses': {
-      adapterFamily: 'huggingface',
+      adapterFamily: 'open-responses',
       baseUrl: 'https://router.huggingface.co/v1/'
     }
   },

@@ -48,12 +48,15 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.providerGetById }
 }))
 
-import AssistantServer, {
-  type AssistantToolName,
-  isAllowedAssistantNavigationPath,
-  isBlockedSourceFile,
-  SUPPORT_ASSISTANT_TOOL_NAMES
-} from '../assistant'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import type { AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+
+import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
+
+const SUPPORT_ASSISTANT_TOOL_NAMES = resolveAgentCapabilities({
+  configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
+}).hostTools?.tools
 
 const temporaryDirectories: string[] = []
 
@@ -346,7 +349,10 @@ describe('create_agent', () => {
     const server = new AssistantServer()
     const result = await (
       server as unknown as {
-        createAgent: (args: Record<string, string>) => Promise<{ content: Array<{ text: string }> }>
+        createAgent: (args: Record<string, string>) => Promise<{
+          content: Array<{ text: string }>
+          structuredContent: unknown
+        }>
       }
     ).createAgent({
       name: ' Reviewer ',
@@ -367,7 +373,14 @@ describe('create_agent', () => {
       }
     })
     expect(mocks.modelGetByKey).toHaveBeenCalledWith('anthropic', 'claude-sonnet')
-    expect(result.content[0].text).toContain('agent-created')
+    const output = {
+      ok: true,
+      agentId: 'agent-created',
+      name: 'Reviewer',
+      model: 'anthropic::claude-sonnet'
+    }
+    expect(result.structuredContent).toEqual(output)
+    expect(JSON.parse(result.content[0].text)).toEqual(output)
   })
 
   it("defaults to Cherry Assistant's current model when model is omitted", async () => {

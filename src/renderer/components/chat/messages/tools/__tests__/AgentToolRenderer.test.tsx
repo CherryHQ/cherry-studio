@@ -1,5 +1,5 @@
 import type * as CherryUi from '@cherrystudio/ui'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
@@ -43,7 +43,7 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
-  useOptionalMessageListUi: () => ({ externalCodeEditors: [] }),
+  useOptionalMessageListUi: () => ({}),
   useOptionalMessageListTopicId: () => undefined
 }))
 
@@ -170,6 +170,8 @@ describe('AgentToolRenderer', () => {
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
     'agent.sidebar_title': 'Agents',
+    'common.create_success': 'Created successfully',
+    'library.assistant_catalog.go_to_chat': 'Go to chat',
     'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
@@ -341,6 +343,38 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan },
+        response: { plan, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
+    it('does not duplicate an ExitPlanMode plan that differs only by surrounding whitespace', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan: `${plan}   ` },
+        response: { plan: `  ${plan}\n`, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
     it('should render newly supported structured agent tools', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'TaskCreate', name: 'TaskCreate', description: 'Create task', type: 'provider' },
@@ -843,6 +877,48 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
       fireEvent.click(screen.getAllByRole('button')[0])
       expect(screen.getByText('Winston')).toBeVisible()
+    })
+  })
+
+  describe('assistant create_agent tool rendering', () => {
+    it('opens the newly created Agent conversation from the success action', async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      const result = {
+        ok: true,
+        agentId: 'agent-created',
+        name: 'Reviewer',
+        model: 'anthropic::claude-sonnet'
+      }
+      const toolResponse: McpToolResponse = {
+        id: 'call-create-agent',
+        tool: {
+          id: 'assistant__mcp__assistant__create_agent',
+          runtimeName: 'mcp__assistant__createAgent__2a307a1740c0',
+          name: 'create_agent',
+          description: 'Create Agent',
+          type: 'mcp',
+          serverId: 'assistant',
+          serverName: 'assistant',
+          inputSchema: { type: 'object', properties: {}, required: [] }
+        },
+        arguments: undefined,
+        status: 'done',
+        response: {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result
+        },
+        toolCallId: 'call-create-agent'
+      }
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      await user.click(screen.getByRole('button', { name: 'Go to chat: Reviewer' }))
+      expect(navigateToRoute).toHaveBeenCalledWith({
+        path: '/app/agents',
+        query: { agentId: 'agent-created' }
+      })
     })
   })
 

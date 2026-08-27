@@ -37,6 +37,7 @@ import {
   WEB_SEARCH_TOOL_NAME,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
@@ -95,11 +96,22 @@ function sourceIdToNumber(sourceId: unknown): number | undefined {
   return Number.isFinite(value) && value >= 0 ? value + 1 : undefined
 }
 
+/** `mcp__cherry-tools__web_search` → `web_search`; null for any other server or tool. */
+function citableCherryToolName(wireName: string): string | null {
+  const builtin = getBuiltinMcpToolIdentity(wireName)
+  if (builtin?.serverId === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(builtin.name)) {
+    return builtin.name
+  }
+  const parsed = parseFunctionCallToolName(wireName)
+  if (!parsed || parsed.serverPart !== CHERRY_TOOLS_MCP_SERVER) return null
+  return CITABLE_TOOL_NAMES.has(parsed.toolPart) ? parsed.toolPart : null
+}
+
 /**
  * The builtin lookup tool a part's completed output belongs to, across all
- * three wire shapes (static AI-SDK part, tool_invoke wrapper, cherry-tools
- * MCP dynamic-tool). Third-party MCP tools that happen to share a name are
- * deliberately excluded.
+ * four wire shapes (static AI-SDK part, tool_invoke wrapper, cherry-tools
+ * MCP dynamic-tool, pi's tool_call wrapper). Third-party MCP tools that happen
+ * to share a name are deliberately excluded.
  */
 function resolveCitableToolName(part: CherryMessagePart): string | null {
   if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
@@ -123,15 +135,14 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     return null
   }
 
-  const builtin = getBuiltinMcpToolIdentity(rawName)
-  if (builtin?.serverId === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(builtin.name)) {
-    return builtin.name
+  // pi runs every tool through its code-mode `tool_call` wrapper, so the target's wire name lives
+  // in the input rather than the part's own name — the `tool_invoke` shape with an MCP-style name.
+  if (rawName === PI_TOOL_CALL_TOOL_NAME) {
+    const input = toolPart.input
+    return isRecord(input) && typeof input.name === 'string' ? citableCherryToolName(input.name) : null
   }
-  const parsed = parseFunctionCallToolName(rawName)
-  if (parsed && parsed.serverPart === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(parsed.toolPart)) {
-    return parsed.toolPart
-  }
-  return null
+
+  return citableCherryToolName(rawName)
 }
 
 /**

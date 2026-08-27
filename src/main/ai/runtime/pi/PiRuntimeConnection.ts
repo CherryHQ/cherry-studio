@@ -9,32 +9,32 @@ import type {
   AgentSessionEvent,
   CompactionResult,
   ContextUsage,
-  ProviderConfig
+  ProviderConfig,
+  ToolDefinition
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
+import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { listBuiltinToolPolicies, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
+import {
+  getBinarySearchDirs,
+  getBinaryShimsDir,
+  mergeBinaryExecutionEnv,
+  mergePathSuffixes
+} from '@main/utils/binaryEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
-import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -42,12 +42,10 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
-import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -61,12 +59,7 @@ import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExt
 import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
-import {
-  buildMcpToolDefinitions,
-  buildPiMcpToolName,
-  type PiMcpToolBridge,
-  warmMcpToolCatalogs
-} from './piMcpToolAdapter'
+import { buildMcpToolDefinitions, type PiMcpToolBridge, warmMcpToolCatalogs } from './piMcpToolAdapter'
 import { loadPiAiCompat, loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
@@ -74,23 +67,35 @@ import { createPiProviderExtension } from './providerExtension'
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
-const toPiMcpRuntimeName = (runtimeName: string): string => runtimeName
-const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.agentMemory, 'memory'),
-  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.skills, 'search_skills'),
-  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
-])
-const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
+const PI_AUTO_APPROVED_MCP_TOOLS = new Set(listBuiltinToolPolicies({ approval: 'auto' }).map(toMcpRuntimeName))
+const PI_APPROVAL_REQUIRED_TOOLS = new Set([
   PI_TOOL_EXEC_TOOL_NAME,
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
+  ...listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
 ])
 const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
-  [SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME].map(toCherryBuiltinRuntimeName)
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(toMcpRuntimeName)
 )
+
+function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const definedEnv = Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  )
+  const binarySearchDirs = getBinarySearchDirs()
+  const managedShimsDir = getBinaryShimsDir()
+  const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
+  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
+
+  if (callerOwnsMiseEnvironment) {
+    // A generic shell may already be activated against the user's mise installation. Do not
+    // redirect that installation to Cherry's isolated data directory or expose Cherry's shims
+    // under an incompatible MISE_* contract. Bundled standalone binaries remain a safe fallback,
+    // but stay behind the caller's PATH so they cannot replace the user's own tool versions.
+    return mergePathSuffixes(definedEnv, standaloneBinaryDirs, [managedShimsDir])
+  }
+
+  return mergeBinaryExecutionEnv(definedEnv, standaloneBinaryDirs)
+}
+
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -222,15 +227,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const linkedChannel = initialSnapshot.linkedChannel
       const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
       const isToolEnabled = (serverName: string, toolName: string) =>
-        !this.disabledTools.has(
-          serverName === 'cherry-tools'
-            ? getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.cherryTools, toolName)
-            : buildPiMcpToolName(serverName, toolName)
-        )
+        !this.disabledTools.has(toMcpRuntimeName({ serverName, toolName }))
       const citationsGuidance = buildCitationsGuidance({
         web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
         kb:
-          (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
+          (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
           (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
       })
       const prompt = await buildAgentRuntimePrompt({
@@ -248,10 +249,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         getPermissionMode: () => this.permissionMode,
         isDisabled: (toolName: string) => this.disabledTools.has(toolName),
+        additionalReadOnlyRoots: additionalSkillPaths,
         // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
         // disabledTools hard-blocks every class at fire-time.
         autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-        approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS,
+        approvalRequiredTools: PI_APPROVAL_REQUIRED_TOOLS,
         nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
       }
       const authorizeTool = createPiToolAuthorizer(approvalContext)
@@ -289,12 +291,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
+      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,
           agent,
-          assistantMcpEnabled,
+          mountedServers,
           initialSnapshot.mcpServerSnapshots,
           linkedChannel,
           agentDataPath,
@@ -306,6 +308,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         (toolName) => this.disabledTools.has(toolName),
         authorizeTool
       )
+      // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
+      // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
+      const managedBashTool = pi.createBashToolDefinition(workspacePath, {
+        spawnHook: (context) => ({
+          ...context,
+          env: mergePiBashExecutionEnv(context.env)
+        })
+      }) as ToolDefinition
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,
@@ -328,7 +338,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         model,
         // pi treats `tools` as the complete active-tool allowlist, not just a built-in selector.
         tools: [...PI_BUILTIN_TOOL_NAMES, ...customTools.map((tool) => tool.name)],
-        customTools,
+        customTools: [managedBashTool, ...customTools],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
         ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
@@ -586,8 +596,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.session?.clearQueue()
       this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
     }
-    if (error || this.lastStopReason === 'error') {
-      const failure = error instanceof Error ? error : new Error(this.lastAgentError ?? 'pi agent turn failed')
+    if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
+      let failure: Error
+      if (error instanceof Error) {
+        failure = error
+      } else if (this.lastStopReason === 'length') {
+        failure = new Error(
+          this.lastAgentError ??
+            'Response truncated at the model output limit (stopReason: length). The reply may be incomplete or empty — try continuing the turn or retrying with a higher maximum output.'
+        )
+      } else {
+        failure = new Error(this.lastAgentError ?? 'pi agent turn failed')
+      }
       logger.error('pi prompt failed', failure)
       this.eventQueue.push({ type: 'error', error: failure })
     } else {
@@ -826,11 +846,17 @@ function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
   providerEnvironment: Record<string, string> | undefined
 ): NonNullable<ProviderConfig['streamSimple']> {
-  return (model, context, options) =>
-    streamSimple(model, context, {
+  return (model, context, options) => {
+    const proxyEnvironment = getProxyEnvironment(process.env)
+    const usesAuthenticatedNodeProxy = proxyUrlHasCredentials(proxyEnvironment[CHERRY_NODE_PROXY_RULES_ENV])
+
+    // Electron net.fetch cannot authenticate these proxies; retain NodeProxyBackend's credential-aware dispatcher.
+    return streamSimple(model, context, {
       ...options,
-      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+      env: { ...options?.env, ...proxyEnvironment, ...providerEnvironment },
+      ...(!usesAuthenticatedNodeProxy && { fetch: customFetch })
     })
+  }
 }
 
 function finiteTokenCount(value: number | undefined): number {

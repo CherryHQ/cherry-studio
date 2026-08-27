@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f5477a41-e2e4-4847-b9b1-262e32dac170",
+  "id": "f0cb0475-dec3-4b5b-bcfc-7ab54578dd0a",
   "prevId": "f88ffda1-c02a-42a5-a3f7-15eb419fb3c3",
   "tables": {
     "agent": {
@@ -3305,13 +3305,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "server_wire_name": {
-          "name": "server_wire_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "type": {
           "name": "type",
           "type": "text",
@@ -3531,16 +3524,6 @@
           "columns": ["name"],
           "isUnique": false
         },
-        "mcp_server_wire_name_idx": {
-          "name": "mcp_server_wire_name_idx",
-          "columns": ["server_wire_name"],
-          "isUnique": false
-        },
-        "mcp_server_wire_name_unique": {
-          "name": "mcp_server_wire_name_unique",
-          "columns": ["server_wire_name"],
-          "isUnique": true
-        },
         "mcp_server_is_active_idx": {
           "name": "mcp_server_is_active_idx",
           "columns": ["is_active"],
@@ -3563,10 +3546,6 @@
         "mcp_server_install_source_check": {
           "name": "mcp_server_install_source_check",
           "value": "\"mcp_server\".\"install_source\" IS NULL OR \"mcp_server\".\"install_source\" IN ('builtin', 'manual', 'protocol', 'unknown')"
-        },
-        "mcp_server_wire_name_nonempty_check": {
-          "name": "mcp_server_wire_name_nonempty_check",
-          "value": "length(trim(\"mcp_server\".\"server_wire_name\")) > 0"
         }
       }
     },
@@ -4863,13 +4842,6 @@
         },
         "auth_config": {
           "name": "auth_config",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_features": {
-          "name": "api_features",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

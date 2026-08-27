@@ -9,7 +9,8 @@ vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false
+    isPackaged: false,
+    setAppLogsPath: vi.fn()
   }
 }))
 
@@ -45,12 +46,30 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps conditional Code Mate skill templates in read-only app resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.code_cli.skills.builtin']).toBe(
+      path.join(registry['app.root.resources'], 'code-cli-skills')
+    )
+    expect(shouldAutoEnsure('feature.code_cli.skills.builtin')).toBe(false)
+  })
+
   it('keeps pi runtime state under the Agents data directory', () => {
     const registry = buildPathRegistry()
     const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+  })
+
+  it('keeps the provider registry override under userData Runtime', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.provider_registry.override']).toBe(
+      path.join('/mock/userData', 'Runtime', 'provider-registry-override')
+    )
+    expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
   })
 
   it('keeps the isolated mise tree under the userData toolchain', () => {
@@ -164,6 +183,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for feature.files.data', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
+    })
+
+    it('returns true for the provider registry override (writable, not opted out)', () => {
+      // The remote-updated override dir under Runtime is Cherry-owned and
+      // writable — unlike the read-only bundled feature.provider_registry.data.
+      expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
     })
 
     it('returns true for feature.mcp', () => {

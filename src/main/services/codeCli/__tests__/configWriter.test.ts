@@ -30,15 +30,16 @@ vi.mock('@main/utils/file/fs', async (importOriginal) => {
   return {
     ...actual,
     atomicWriteFile: vi.fn(actual.atomicWriteFile),
+    read: vi.fn(actual.read),
     remove: vi.fn(actual.remove)
   }
 })
 
 import { application } from '@application'
 import type * as fsUtils from '@main/utils/file/fs'
-import { atomicWriteFile, remove } from '@main/utils/file/fs'
+import { atomicWriteFile, read, remove } from '@main/utils/file/fs'
 
-import { writeCliConfigFiles } from '../configWriter'
+import { readCliConfigFiles, writeCliConfigFiles } from '../configWriter'
 
 const isWin = process.platform === 'win32'
 
@@ -46,6 +47,11 @@ const isWin = process.platform === 'win32'
 async function actualWrite(...args: Parameters<typeof atomicWriteFile>) {
   const { atomicWriteFile: actual } = await vi.importActual<typeof fsUtils>('@main/utils/file/fs')
   return actual(...args)
+}
+
+async function actualRead(...args: Parameters<typeof read>) {
+  const { read: implementation } = await vi.importActual<typeof fsUtils>('@main/utils/file/fs')
+  return implementation(...args)
 }
 
 describe('writeCliConfigFiles', () => {
@@ -190,5 +196,75 @@ describe('writeCliConfigFiles', () => {
 
     expect(await readFile(codexConfig(), 'utf-8')).toBe('config_old = true\n')
     expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining('roll back'), expect.any(Error))
+  })
+})
+
+describe('readCliConfigFiles', () => {
+  let home: string
+  const claudeSettings = () => path.join(home, '.claude', 'settings.json')
+  const codexConfig = () => path.join(home, '.codex', 'config.toml')
+  const codexAuth = () => path.join(home, '.codex', 'auth.json')
+
+  beforeEach(async () => {
+    home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
+    vi.mocked(application.getPath).mockImplementation((key: string) => {
+      if (key === 'sys.home') return home
+      throw new Error(`Unexpected getPath(${key})`)
+    })
+  })
+
+  afterEach(async () => {
+    vi.mocked(read).mockReset()
+    vi.mocked(read).mockImplementation(actualRead)
+    await rm(home, { recursive: true, force: true })
+  })
+
+  it('reads targets concurrently while preserving their input mapping', async () => {
+    let resolveConfig!: (value: string) => void
+    let resolveAuth!: (value: string) => void
+    const config = new Promise<string>((resolve) => {
+      resolveConfig = resolve
+    })
+    const auth = new Promise<string>((resolve) => {
+      resolveAuth = resolve
+    })
+    vi.mocked(read).mockImplementation(((absPath: Parameters<typeof read>[0]) => {
+      if (absPath === codexConfig()) return config
+      if (absPath === codexAuth()) return auth
+      throw new Error(`Unexpected read(${absPath})`)
+    }) as typeof read)
+    vi.mocked(read).mockClear()
+
+    const reading = readCliConfigFiles(['codex-config', 'codex-auth'])
+
+    expect(read).toHaveBeenCalledTimes(2)
+    resolveAuth('{"auth_mode":"apikey"}\n')
+    resolveConfig('model = "gpt-5"\n')
+
+    await expect(reading).resolves.toEqual([
+      { target: 'codex-config', path: codexConfig(), content: 'model = "gpt-5"\n' },
+      { target: 'codex-auth', path: codexAuth(), content: '{"auth_mode":"apikey"}\n' }
+    ])
+  })
+
+  it('returns the real content under the spec-resolved absolute path', async () => {
+    await mkdir(path.dirname(claudeSettings()), { recursive: true })
+    await writeFile(claudeSettings(), '{"env":{}}\n')
+
+    await expect(readCliConfigFiles(['claude-settings'])).resolves.toEqual([
+      { target: 'claude-settings', path: claudeSettings(), content: '{"env":{}}\n' }
+    ])
+  })
+
+  it('maps a missing file to content null while still resolving its path', async () => {
+    await expect(readCliConfigFiles(['claude-settings'])).resolves.toEqual([
+      { target: 'claude-settings', path: claudeSettings(), content: null }
+    ])
+  })
+
+  it('rejects on a non-ENOENT read error (EISDIR) instead of treating it as missing', async () => {
+    await mkdir(claudeSettings(), { recursive: true })
+
+    await expect(readCliConfigFiles(['claude-settings'])).rejects.toThrow()
   })
 })

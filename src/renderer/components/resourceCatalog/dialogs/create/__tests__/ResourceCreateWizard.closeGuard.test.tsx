@@ -35,6 +35,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
   resourceDialogCloseButtonClassName: '',
   resourceDialogHeaderClassName: '',
+  resourceDialogRailItemClassName: '',
   resourceDialogTitleClassName: '',
   KnowledgeBaseField: ({ disabled, onOpenKnowledgePage }: { disabled?: boolean; onOpenKnowledgePage?: () => void }) => (
     <button type="button" disabled={disabled} onClick={onOpenKnowledgePage}>
@@ -157,6 +158,11 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
     EmojiAvatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Form: ({ children }: { children: ReactNode }) => <>{children}</>,
+    MenuItem: ({ label, disabled, onClick }: { label: ReactNode; disabled?: boolean; onClick?: () => void }) => (
+      <button type="button" disabled={disabled} onClick={onClick}>
+        {label}
+      </button>
+    ),
     Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
   }
 })

@@ -115,7 +115,7 @@ function toPiToolDefinition(server: AgentMcpServer, tool: Tool, client: Client):
       if (result.isError) throw new Error(joinErrorText(result.content))
       return {
         content: result.content.map(toPiContent),
-        details: result.structuredContent
+        details: result.structuredContent ?? null
       }
     }
   }

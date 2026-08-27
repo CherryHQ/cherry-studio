@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -23,6 +24,8 @@ export async function startAgentSessionRun(input: {
   userParts: CherryMessagePart[]
   listeners: StreamListener[]
   headless?: boolean
+  /** Recipients authorized only for this run; [] deliberately disables notify. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
   requireIdle?: { expectedAgentId: string }
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
@@ -66,7 +69,7 @@ export async function startAgentSessionRun(input: {
 
     let prepared
     try {
-      prepared = await agentChatContextProvider.prepareDispatch(
+      prepared = await agentChatContextProvider.prepareAgentSessionDispatch(
         primary,
         {
           trigger: 'submit-message',
@@ -74,6 +77,7 @@ export async function startAgentSessionRun(input: {
           userMessageParts: input.userParts,
           headless: input.headless === true
         },
+        { trustedNotifyChannels: input.trustedNotifyChannels },
         {
           hasLiveStream: false,
           requireIdle: input.requireIdle !== undefined,

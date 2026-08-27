@@ -4,21 +4,11 @@ import { application } from '@application'
 import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/dsh-bridge'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
-import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+import { listBuiltinToolPolicies, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
 import { createMcpToolBinding } from '../mcpToolBinding'
@@ -62,21 +52,17 @@ export function buildDshCherryToolName(serverName: string, toolName: string): st
   return `${safePrefix.slice(0, 50)}_${hash}`
 }
 
-const toDshRuntimeName = (runtimeName: string): string => runtimeName
+export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'auto' }).map(toMcpRuntimeName)
+)
 
-export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.agentMemory, 'memory'),
-  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.skills, 'search_skills'),
-  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName),
-  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName)
-])
+export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
+)
 
-export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName),
-  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName)
-])
+export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(toMcpRuntimeName)
+)
 
 /** Warm user-configured catalogs before the connection snapshot captures their tool schemas. */
 export async function warmDshMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {

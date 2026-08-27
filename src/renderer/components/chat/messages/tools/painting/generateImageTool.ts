@@ -7,10 +7,15 @@ import { getToolName, isToolUIPart } from 'ai'
 
 import { buildToolResponseFromPart } from '../toolResponse'
 
+const LEGACY_CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
 const CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME = MCP_BUILTIN_RUNTIME_NAMES.cherryTools.generateImage
 
 export function isGenerateImageToolName(toolName: string): boolean {
-  return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME
+  return (
+    toolName === GENERATE_IMAGE_TOOL_NAME ||
+    toolName === LEGACY_CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME ||
+    toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME
+  )
 }
 
 export function parseGeneratedImageOutput(response: unknown) {

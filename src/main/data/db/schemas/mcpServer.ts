@@ -62,7 +62,7 @@ export const mcpServerTable = sqliteTable(
     ),
     check(
       'mcp_server_install_source_check',
-      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'protocol', 'unknown')`
+      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'ai_assisted', 'protocol', 'unknown')`
     ),
     check('mcp_server_wire_name_nonempty_check', sql`length(trim(${t.serverWireName})) > 0`)
   ]

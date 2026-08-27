@@ -16,7 +16,7 @@ import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-token-meter'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
-import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'
+import { type AskUserQuestionRequest, UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 
 import { type BridgeLink, connectBridgeLink } from './link'
 import { decideDelegatedToolCall, decideToolCall, detectGlobalInstall } from './policy'
@@ -299,7 +299,11 @@ export function apply(ctx: Context): void {
           try {
             return await link.request(
               'question/ask',
-              { sessionId: request.agent?.id ?? '', questions: request.questions },
+              {
+                sessionId: request.agent?.id ?? '',
+                callId: correlatePlanReviewCallId(request),
+                questions: request.questions
+              },
               request.signal
             )
           } catch (error) {
@@ -391,7 +395,7 @@ export function apply(ctx: Context): void {
     if (req.signal?.aborted) return 'cancelled'
     if (!link.connected) return 'rejected'
     try {
-      const { outcome } = await link.request(
+      const { outcome, rejectionReason } = await link.request(
         'approval/ask',
         {
           sessionId: req.agent.id,
@@ -402,6 +406,20 @@ export function apply(ctx: Context): void {
         },
         req.signal
       )
+      if (outcome === 'rejected' && rejectionReason) {
+        setImmediate(() => {
+          try {
+            req.agent.followup(
+              createUserMessage({
+                content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
+                source: { kind: 'user' }
+              })
+            )
+          } catch (error) {
+            console.error('[cherry-bridge] failed to deliver tool rejection feedback:', error)
+          }
+        })
+      }
       return outcome
     } catch {
       // Fail closed: a host disconnect (or error response) denies the call.
@@ -430,4 +448,26 @@ function correlateCallArguments(req: ApprovalRequest): unknown {
     }
   }
   return undefined
+}
+
+/** Correlate the plan-review question with the newest matching durable tool call. */
+function correlatePlanReviewCallId(request: AskUserQuestionRequest): string {
+  const review = request.questions.length === 1 ? request.questions[0] : undefined
+  const plan = review?.intent?.kind === 'plan-review' ? review.detail : undefined
+  if (!request.agent || typeof plan !== 'string') {
+    throw new UserQuestionError('only an agent plan review can cross the Cherry bridge', 'UNSUPPORTED_QUESTION')
+  }
+
+  const events = request.agent.session.events
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i]
+    if (event.type !== 'tool/call' || event.data.name !== 'exit_plan_mode') continue
+    try {
+      const args = JSON.parse(event.data.arguments) as { plan?: unknown } | null
+      if (args?.plan === plan) return String(event.data.callId)
+    } catch {
+      continue
+    }
+  }
+  throw new UserQuestionError('the current exit_plan_mode call could not be correlated', 'CALL_NOT_FOUND')
 }

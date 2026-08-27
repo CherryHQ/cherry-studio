@@ -1,5 +1,5 @@
 import { trace } from '@opentelemetry/api'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeTraceContext } from '../../types'
 
@@ -29,7 +29,8 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 
 const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
-  bridgeRequest: vi.fn().mockResolvedValue(undefined)
+  bridgeRequest: vi.fn().mockResolvedValue(undefined),
+  harnessOptions: undefined as Record<string, any> | undefined
 }))
 
 const baseSnapshot = () => ({
@@ -123,16 +124,20 @@ vi.mock('../DshCherryToolBridge', () => ({
   buildDshCherryToolName: (server: string, tool: string) => `mcp__${server}__${tool}`,
   warmDshMcpToolCatalogs: vi.fn().mockResolvedValue(undefined),
   DSH_AUTO_APPROVED_BRIDGED_TOOLS: new Set<string>(),
-  DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: new Set<string>()
+  DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: new Set<string>(),
+  DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: new Set<string>()
 }))
 vi.mock('../dshSdk', () => ({
   loadDshSdk: vi.fn().mockResolvedValue({
-    HarnessClient: vi.fn(() => ({
-      start: vi.fn(),
-      initialize: vi.fn().mockResolvedValue(undefined),
-      subscribe: vi.fn(() => (subscription = new FakeSubscription())),
-      close: vi.fn().mockResolvedValue(undefined)
-    }))
+    HarnessClient: vi.fn((options: Record<string, unknown>) => {
+      runtimeMocks.harnessOptions = options
+      return {
+        start: vi.fn(),
+        initialize: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn(() => (subscription = new FakeSubscription())),
+        close: vi.fn().mockResolvedValue(undefined)
+      }
+    })
   })
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
@@ -145,6 +150,7 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
 vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
 
+const { DshBridgeServer } = await import('../DshBridgeServer')
 const { DshRuntimeConnection } = await import('../DshRuntimeConnection')
 
 const traceContext: AgentRuntimeTraceContext = {
@@ -168,11 +174,36 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
+  runtimeMocks.harnessOptions = undefined
+  vi.mocked(DshBridgeServer).mockClear()
   spans.length = 0
   startSpan.mockClear()
 })
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 describe('DshRuntimeConnection tracing', () => {
+  it('exposes managed CLIs without leaking the main-process environment', async () => {
+    vi.stubEnv('PATH', '/usr/bin')
+    vi.stubEnv('CHERRY_TEST_SECRET', 'do-not-copy')
+
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+
+    expect(env.PATH?.split(':')).toEqual(['/mock/feature.binary.data/shims', '/usr/bin'])
+    expect(env).toMatchObject({
+      MISE_DATA_DIR: '/mock/feature.binary.data',
+      MISE_CONFIG_DIR: '/mock/feature.binary.data/config',
+      MISE_CACHE_DIR: '/mock/feature.binary.data/cache',
+      MISE_STATE_DIR: '/mock/feature.binary.data/state',
+      MISE_SHIMS_DIR: '/mock/feature.binary.data/shims'
+    })
+    expect(env).not.toHaveProperty('CHERRY_TEST_SECRET')
+    await connection.close()
+  })
+
   it('feeds runtime session events to the trace recorder', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     subscription.push({
@@ -248,6 +279,40 @@ describe('DshRuntimeConnection tracing', () => {
       await connection.close()
     }
   )
+
+  it('opens the plan-review tool part before its raced tool/call event', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const events = connection.events[Symbol.asyncIterator]()
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
+    await connection.send({ message: {} } as never)
+
+    const { emit } = vi.mocked(DshBridgeServer).mock.calls[0][0]
+    emit({
+      type: 'tool-approval-request',
+      request: {
+        approvalId: 'approval-1',
+        toolCallId: 'call-1',
+        toolName: 'exit_plan_mode',
+        input: { plan: '# Ship it' },
+        presentation: 'stream'
+      }
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'call-1' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'chunk',
+        chunk: { type: 'tool-input-available', toolCallId: 'call-1', input: { plan: '# Ship it' } }
+      }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'tool-approval-request', request: { approvalId: 'approval-1' } }
+    })
+
+    await connection.close()
+  })
 
   it('sends cross-Session provenance and forged instructions inside the untrusted delivery boundary', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()

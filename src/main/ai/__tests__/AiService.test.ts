@@ -231,13 +231,7 @@ describe('AiService', () => {
       name: 'Test Provider',
       apiKeys: [],
       authType: 'api-key',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      },
+      reportsActualCost: false,
       settings: {},
       isEnabled: true
     })
@@ -345,7 +339,8 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
     })
   })
 
@@ -377,7 +372,41 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
+    })
+  })
+
+  it('reports explicitly classified token analytics as agent usage', async () => {
+    const service = createService()
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart(
+      {
+        id: 'test-model',
+        providerId: 'test-provider',
+        apiModelId: 'test-api-model'
+      },
+      'agent'
+    )
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onFinish()
+
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5,
+      source: 'agent'
     })
   })
 
@@ -661,7 +690,7 @@ describe('AiService', () => {
         provider: {
           id: 'test-provider',
           name: 'Test Provider',
-          apiFeatures: { reportsActualCost: false }
+          reportsActualCost: false
         },
         model: {
           id: 'test-provider::test-embedding-model',
@@ -1103,7 +1132,7 @@ describe('AiService tool approval', () => {
       provider: {
         id: 'test-provider',
         name: 'Test Provider',
-        apiFeatures: { reportsActualCost: false }
+        reportsActualCost: false
       },
       model: {
         id: 'test-provider::test-reranker',
@@ -1166,7 +1195,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-embed', name: 'Test Embed' }
     } as never)
     mockReadRetryPolicy.mockReturnValue({
@@ -1201,7 +1230,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-embed', name: 'Test Embed' }
     } as never)
     mockReadRetryPolicy.mockReturnValue({
@@ -1223,7 +1252,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-reranker', name: 'Test Reranker' },
       options: {}
     } as never)
@@ -1246,7 +1275,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-reranker', name: 'Test Reranker' },
       options: {}
     } as never)
@@ -1268,7 +1297,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: undefined,
       plugins: [],
@@ -1303,7 +1332,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: undefined,
       plugins: [],
@@ -1345,7 +1374,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: undefined,
       plugins: [],
@@ -1378,7 +1407,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: { search: {} },
       plugins: [],
@@ -1643,13 +1672,7 @@ describe('AiService tool approval', () => {
       name: 'Ollama',
       apiKeys: [],
       authType: 'api-key',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      },
+      reportsActualCost: false,
       settings: {},
       isEnabled: true,
       endpointConfigs: {
@@ -1692,13 +1715,7 @@ describe('AiService tool approval', () => {
       name: 'Ollama',
       apiKeys: [],
       authType: 'api-key',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      },
+      reportsActualCost: false,
       settings: {},
       isEnabled: true,
       endpointConfigs: {
@@ -1723,14 +1740,9 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
-    expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('/api/show'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-Api-Key': 'sk-selected'
-        })
-      })
-    )
+    const [url, init] = fetchSpy.mock.calls.at(-1) as [string, RequestInit]
+    expect(url).toContain('/api/show')
+    expect(new Headers(init.headers).get('x-api-key')).toBe('sk-selected')
   })
 
   it('surfaces Ollama string error from /api/show', async () => {
@@ -1745,13 +1757,7 @@ describe('AiService tool approval', () => {
       name: 'Ollama',
       apiKeys: [],
       authType: 'api-key',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      },
+      reportsActualCost: false,
       settings: {},
       isEnabled: true,
       endpointConfigs: {

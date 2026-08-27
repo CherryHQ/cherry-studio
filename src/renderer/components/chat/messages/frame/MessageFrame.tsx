@@ -206,6 +206,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       <Scrollbar
         data-ui="part:message-content"
         className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
+        tabIndex={isHorizontalMultiModelLayout ? 0 : undefined}
         style={{
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize,

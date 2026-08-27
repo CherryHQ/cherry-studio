@@ -23,6 +23,7 @@ export const MCP_BUILTIN_RUNTIME_NAMES = {
     cliInstall: 'mcp__cherry_tools__cliInstall__0a5f833ae0d9'
   },
   agentMemory: { memory: 'mcp__agent_memory__memory__b472a1250bce' },
+  mcpManager: { installMcpServer: 'mcp__mcp_manager__installMcpServer__15c915834e62' },
   skills: {
     searchSkills: 'mcp__skills__searchSkills__73d6e4100870',
     installSkill: 'mcp__skills__installSkill__75e07e762fcb'
@@ -88,6 +89,12 @@ export const MCP_BUILTIN_TOOL_IDENTITIES: readonly BuiltinMcpToolIdentity[] = [
     serverId: 'agent-memory',
     serverName: 'agent-memory',
     name: 'memory'
+  },
+  {
+    runtimeName: MCP_BUILTIN_RUNTIME_NAMES.mcpManager.installMcpServer,
+    serverId: 'mcp-manager',
+    serverName: 'mcp-manager',
+    name: 'install_mcp_server'
   },
   ...(
     [

@@ -10,6 +10,7 @@ export const MCP_BUILTIN_SERVER_IDS = {
   assistant: 'builtin:assistant',
   assistantFiles: 'builtin:assistant-files',
   cherryTools: 'builtin:cherry-tools',
+  mcpManager: 'builtin:mcp-manager',
   skills: 'builtin:skills'
 } as const
 
@@ -19,6 +20,7 @@ export const MCP_BUILTIN_SERVER_WIRE_NAMES = {
   assistant: 'assistant',
   assistantFiles: 'assistant_files',
   cherryTools: 'cherry_tools',
+  mcpManager: 'mcp_manager',
   skills: 'skills'
 } as const
 

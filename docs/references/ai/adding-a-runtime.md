@@ -1,6 +1,14 @@
+---
+description: Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package
+sources:
+  - src/shared/ai/agentRuntimeCapabilities.ts
+  - src/main/ai/runtime/types.ts
+  - src/main/ai/runtime/registerDrivers.ts
+---
+
 # Adding an Agent Runtime
 
-How to add a third agent runtime alongside `claude-code` and `pi`. For the
+How to add another agent runtime alongside `claude-code`, `pi`, and `dsh`. For the
 host/driver architecture itself (turn lifecycle, resume tokens, follow-up
 queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
 document is the operational checklist.
@@ -21,16 +29,17 @@ Most registration points fail loudly if you miss them:
 | `AGENT_RUNTIME_CAPABILITIES` entry | `satisfies Record<AgentType, AgentRuntimeCapabilities>` — compile error on a missing key |
 | Driver registration in `registerDrivers.ts` | `src/main/ai/runtime/__tests__/registerDrivers.test.ts` — every `AgentType` must resolve to a registered agent-session driver |
 | Descriptor structural invariants | `src/shared/ai/__tests__/agentRuntimeCapabilities.test.ts` |
-| i18n keys present and translated in all locales | `pnpm i18n:check` in pull request CI |
+| i18n keys present and translated in all locales | `pnpm lint` in pull request CI |
 
 The only registration points *nothing* enforces are the design rules at the
 bottom of this document — read them.
 
 ## Step 1 — shared layer
 
-1. **Extend the type.** Add the literal to both:
-   - `AgentType` in `src/shared/data/types/agent.ts`
-   - the `type: z.enum([...])` in `src/shared/data/api/schemas/agents.ts`
+1. **Extend the type.** Add the literal to `AGENT_TYPES` in
+   `src/shared/data/api/schemas/agents.ts`. `AgentTypeSchema` and `AgentType`
+   derive from that tuple; `src/shared/data/types/agent.ts` only re-exports the
+   inferred type.
 
 2. **Add the capability descriptor** in
    `src/shared/ai/agentRuntimeCapabilities.ts`. This single entry drives all
@@ -59,7 +68,7 @@ bottom of this document — read them.
    `agent.tools.builtin.<id>.*` entries for each builtin tool. Add the canonical English
    and Chinese reference values to `src/renderer/i18n/locales/{en-us,zh-cn}.json`, run
    `pnpm i18n:sync`, then translate every remaining locale manually or with an available
-   translation tool. Finish with `pnpm i18n:check`.
+   translation tool. Finish with `pnpm lint`.
 
 ## Step 2 — main-process driver package
 
@@ -113,7 +122,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 4. **Stream adapter** — convert runtime-native events into
    `UIMessageChunk`s. Import your transport constant from the descriptor
    (single source), never re-declare the string. Reference implementations:
-   `claudeCode/streamAdapter.ts`, `pi/piStreamAdapter.ts`.
+   `claudeCode/streamAdapter.ts`, `pi/piStreamAdapter.ts`, and
+   `dsh/dshStreamAdapter.ts`.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
@@ -133,10 +143,6 @@ known exceptions, only if you need them:
 - Bespoke tool-card rendering: `src/renderer/components/chat/messages/tools/`
   keys card renderers by transport tag; a new runtime's tool parts render
   with the generic card until you add specific ones.
-- `useAgentTools.ts` surfaces MCP-origin tools for the runtimes that bridge them
-  (claude-code and pi) plus the Claude built-in registry tools (claude-code
-  only); it returns `[]` for any other runtime. Built-in tool catalogs come from
-  the descriptor instead.
 
 ## Design rules (learned from the pi integration)
 
@@ -168,7 +174,7 @@ These are the choices nothing enforces:
   [pi driver resource boundary](./agent-session-runtime.md#pi-driver-resource-boundary)
   for the concrete enforcement pattern.
 - **Permission posture matches the trust roots.** `claude-code` defaults to
-  `default`, with its SDK brokering tool execution. An in-process
+  `auto`, with its SDK brokering tool execution. An in-process
   runtime may default to `acceptEdits` only when automatic writes are confined
   to canonical user-selected roots; shell, external paths, third-party tools,
   symlink escapes, and Cherry approval-required mutations must remain gated.
@@ -181,8 +187,8 @@ These are the choices nothing enforces:
 ## Verification
 
 - `pnpm test` — includes the registry-pairing and descriptor-invariant tests.
-- `pnpm typecheck:node && pnpm typecheck:web`
-- `pnpm build:check` before committing (covers i18n and doc links).
+- `pnpm lint` — format, typecheck, and i18n checks.
+- `pnpm build:check` for this broad cross-process change.
 - Manual smoke: create an agent of the new type (selector shows the label),
   open a session, run a turn with a mutating tool (approval prompt
   appears), send a mid-turn follow-up (steers or queues per your `redirect`

@@ -12,6 +12,7 @@ const SERVER_ENTRIES = [
   ['assistant', MCP_BUILTIN_SERVER_IDS.assistant, MCP_BUILTIN_SERVER_WIRE_NAMES.assistant],
   ['assistantFiles', MCP_BUILTIN_SERVER_IDS.assistantFiles, MCP_BUILTIN_SERVER_WIRE_NAMES.assistantFiles],
   ['cherryTools', MCP_BUILTIN_SERVER_IDS.cherryTools, MCP_BUILTIN_SERVER_WIRE_NAMES.cherryTools],
+  ['mcpManager', MCP_BUILTIN_SERVER_IDS.mcpManager, MCP_BUILTIN_SERVER_WIRE_NAMES.mcpManager],
   ['skills', MCP_BUILTIN_SERVER_IDS.skills, MCP_BUILTIN_SERVER_WIRE_NAMES.skills]
 ] as const
 
