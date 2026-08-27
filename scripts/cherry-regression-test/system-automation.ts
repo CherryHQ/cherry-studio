@@ -57,7 +57,7 @@ function runWindowsHotkey(keys: string[]): void {
   if (!key) throw new Error('A hotkey must include a non-modifier key')
   const keyCode = virtualKeys[key] ?? key.toUpperCase().charCodeAt(0)
   const script = [
-    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public struct NativeRect { public int Left; public int Top; public int Right; public int Bottom; } public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out NativeRect rect); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); }'`,
     activeWindowsExternalTextPid
       ? `$notepad = Get-Process -Id ${activeWindowsExternalTextPid} -ErrorAction SilentlyContinue`
       : '$notepad = $null',
@@ -67,6 +67,11 @@ function runWindowsHotkey(keys: string[]): void {
     '  Start-Sleep -Milliseconds 200',
     '  $shell.SendKeys("^a")',
     '  Start-Sleep -Milliseconds 200',
+    // selection-hook reads the window under the pointer on Windows.
+    '  $rect = [NativeRect]::new()',
+    '  if (-not [NativeKeyboard]::GetWindowRect($notepad.MainWindowHandle, [ref]$rect)) { throw "Notepad bounds could not be read" }',
+    '  $null = [NativeKeyboard]::SetCursorPos([int](($rect.Left + $rect.Right) / 2), [int](($rect.Top + $rect.Bottom) / 2))',
+    '  Start-Sleep -Milliseconds 100',
     '}',
     ...modifiers.map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 0, [UIntPtr]::Zero)`),
     'Start-Sleep -Milliseconds 100',

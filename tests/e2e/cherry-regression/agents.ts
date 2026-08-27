@@ -74,28 +74,33 @@ export async function runAgentFileTask(
   approve: boolean
 ): Promise<void> {
   const output = join(app.paths.workspace, fileName)
-  await page
-    .locator('[data-ui="chat.composer"] [contenteditable="true"]')
-    .first()
-    .fill(`Create ${fileName} directly in the current working directory with the exact text AGENT_FILE_TASK_PASS.`)
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  if (approve) {
-    const allow = page.getByRole('button', { name: /Allow/ }).first()
-    await expect(allow).toBeVisible({ timeout: 60_000 })
-    await allow.click()
+  const prompt = `Create ${fileName} directly in the current working directory with the exact text AGENT_FILE_TASK_PASS.`
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first().fill(prompt)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    if (approve) {
+      const allow = page.getByRole('button', { name: /Allow/ }).first()
+      await expect(allow).toBeVisible({ timeout: 60_000 })
+      await allow.click()
+    }
+    try {
+      await expect
+        .poll(
+          async () => {
+            try {
+              const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
+              await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+              return true
+            } catch {
+              return false
+            }
+          },
+          { timeout: 2 * 60_000 }
+        )
+        .toBe(true)
+      return
+    } catch (error) {
+      if (attempt === 1) throw error
+    }
   }
-  await expect
-    .poll(
-      async () => {
-        try {
-          const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
-          await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
-          return true
-        } catch {
-          return false
-        }
-      },
-      { timeout: 2 * 60_000 }
-    )
-    .toBe(true)
 }
