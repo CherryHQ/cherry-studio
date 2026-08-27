@@ -2,6 +2,7 @@ import { COMPOSER_INPUT_MAX_LENGTH } from '@renderer/components/composer/compose
 import { createSelectionReferenceToken } from '@renderer/components/composer/selectionReferenceToken'
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { act, render } from '@testing-library/react'
@@ -9,14 +10,6 @@ import { useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useComposerSelectionReferenceInsertion } from '../composerSelectionReference'
-
-const mocks = vi.hoisted(() => ({
-  toastError: vi.fn()
-}))
-
-vi.mock('@renderer/services/toast', () => ({
-  toast: { error: mocks.toastError }
-}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -59,7 +52,7 @@ describe('useComposerSelectionReferenceInsertion', () => {
     await emit({ topicId: TOPIC_ID, reference: REFERENCE })
 
     expect(onInsert).toHaveBeenCalledTimes(1)
-    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
   })
 
   it('refuses the insertion instead of pushing the draft past the input limit', async () => {
@@ -70,7 +63,7 @@ describe('useComposerSelectionReferenceInsertion', () => {
     await emit({ topicId: TOPIC_ID, reference: REFERENCE })
 
     expect(onInsert).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.reference_panel.no_room_selection')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('chat.input.reference_panel.no_room_selection')
   })
 
   it('counts the separator space insertToken appends, not just promptText', async () => {
@@ -83,7 +76,7 @@ describe('useComposerSelectionReferenceInsertion', () => {
     await emit({ topicId: TOPIC_ID, reference: REFERENCE })
 
     expect(onInsert).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.reference_panel.no_room_selection')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('chat.input.reference_panel.no_room_selection')
   })
 
   it('still inserts when the block and its separator both fit exactly', async () => {
@@ -94,7 +87,7 @@ describe('useComposerSelectionReferenceInsertion', () => {
     await emit({ topicId: TOPIC_ID, reference: REFERENCE })
 
     expect(onInsert).toHaveBeenCalledTimes(1)
-    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
   })
 
   it('ignores selections addressed to another composer in the same window', async () => {
@@ -104,6 +97,6 @@ describe('useComposerSelectionReferenceInsertion', () => {
     await emit({ topicId: 'a-different-topic', reference: REFERENCE })
 
     expect(onInsert).not.toHaveBeenCalled()
-    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
   })
 })

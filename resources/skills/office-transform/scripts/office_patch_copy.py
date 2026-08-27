@@ -262,9 +262,21 @@ def make_tag(sample_tag: str, local_name: str) -> str:
     return local_name
 
 
+# The whitespace class shared with the renderer's normalizeSelectionText, written out rather than
+# left to `\s`. The two runtimes disagree on `\s` — Python counts U+0085 and U+001C-U+001F, JavaScript
+# counts U+FEFF, and neither is a superset of the other — so "both sides call \s" is two different
+# rules, not one shared one. Spelling the set out is what makes it a contract.
+SELECTION_WHITESPACE = re.compile(
+    "[\t\n\x0b\x0c\r \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff\x1c-\x1f]+"
+)
+
+
 def normalize_text(text: str) -> str:
     """Mirror of the renderer's normalizeSelectionText: NFC, collapse whitespace, trim."""
-    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", text)).strip()
+    return SELECTION_WHITESPACE.sub(" ", unicodedata.normalize("NFC", text)).strip(
+        "\t\n\x0b\x0c\r \x85\xa0\u1680\u2028\u2029\u202f\u205f\u3000\ufeff\x1c\x1d\x1e\x1f"
+        "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    )
 
 
 def paragraph_para_id(paragraph) -> str:
