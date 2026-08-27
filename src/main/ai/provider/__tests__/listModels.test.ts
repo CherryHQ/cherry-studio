@@ -217,7 +217,7 @@ describe('listModels — geminiFetcher API key transport', () => {
     expect(call.headers['x-goog-api-key']).toBe('AIza-secret-key')
   })
 
-  it('forwards provider extraHeaders alongside x-goog-api-key', async () => {
+  it('merges provider extraHeaders over application defaults case-insensitively', async () => {
     const provider = makeProvider({
       id: 'gemini',
       defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
@@ -226,7 +226,9 @@ describe('listModels — geminiFetcher API key transport', () => {
           baseUrl: 'https://generativelanguage.googleapis.com/v1beta'
         }
       },
-      settings: { extraHeaders: { 'X-Custom': 'on' } } as never
+      settings: {
+        extraHeaders: { 'http-referer': 'https://provider.example', 'X-Custom': 'on' }
+      } as never
     })
 
     await listModels(provider)
@@ -235,6 +237,8 @@ describe('listModels — geminiFetcher API key transport', () => {
     const headers = new Headers(call.headers)
     expect(headers.get('x-goog-api-key')).toBe('AIza-secret-key')
     expect(headers.get('x-custom')).toBe('on')
+    expect(headers.get('http-referer')).toBe('https://provider.example')
+    expect(Object.keys(call.headers).filter((name) => name.toLowerCase() === 'http-referer')).toHaveLength(1)
   })
 
   it('maps the listed models, stripping the models/ prefix from the id', async () => {

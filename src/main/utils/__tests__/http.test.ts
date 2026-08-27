@@ -24,6 +24,7 @@ describe('mergeHeaders', () => {
   it('drops undefined values and skips absent parts', () => {
     const merged = mergeHeaders({ Authorization: 'Bearer k' }, undefined, { 'X-Api-Key': undefined })
 
-    expect(merged).toEqual({ authorization: 'Bearer k' })
+    expect(merged.authorization).toBe('Bearer k')
+    expect(Object.hasOwn(merged, 'x-api-key')).toBe(false)
   })
 })
