@@ -1,4 +1,6 @@
 import { useCache } from '@data/hooks/useCache'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -58,6 +60,14 @@ export const AppShell = () => {
   const isFullscreen = useNativeFullscreen()
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const {
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    openedOneOffMiniApp,
+    setOpenedKeepAliveMiniApps,
+    setCurrentMiniAppId,
+    setMiniAppShow
+  } = useMiniApps()
 
   // Split state is window-wide and does not follow the last mini-app tab out, so
   // the next mini app would open into a stale split with its app still pooled.
@@ -74,6 +84,46 @@ export const AppShell = () => {
     [setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
   )
 
+  const evictMiniAppsForClosedTabs = useCallback(
+    (closedIds: readonly string[]) => {
+      if (closedIds.length === 0) return
+      const closedIdSet = new Set(closedIds)
+      // Collect mini app ids whose tabs are being closed
+      const closingMiniAppIds = new Set<string>()
+      for (const id of closedIds) {
+        const tab = tabs.find((t) => t.id === id)
+        const appId = miniAppIdFromTabUrl(tab?.url)
+        if (appId) closingMiniAppIds.add(appId)
+      }
+      if (closingMiniAppIds.size === 0) return
+      // Check which of those ids still have a surviving tab after the close
+      const survivingMiniAppIds = new Set<string>()
+      for (const tab of tabs) {
+        if (closedIdSet.has(tab.id)) continue
+        const appId = miniAppIdFromTabUrl(tab.url)
+        if (appId) survivingMiniAppIds.add(appId)
+      }
+      const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
+      if (orphanedIds.length === 0) return
+      const orphanedSet = new Set(orphanedIds)
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
+      for (const appId of orphanedIds) clearWebviewState(appId)
+      // If the current mini app was among the orphaned, clear its global show state
+      if (currentMiniAppId && orphanedSet.has(currentMiniAppId) && openedOneOffMiniApp?.appId !== currentMiniAppId) {
+        setCurrentMiniAppId('')
+        setMiniAppShow(false)
+      }
+    },
+    [
+      tabs,
+      currentMiniAppId,
+      openedOneOffMiniApp,
+      setOpenedKeepAliveMiniApps,
+      setCurrentMiniAppId,
+      setMiniAppShow
+    ]
+  )
+
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
@@ -82,9 +132,34 @@ export const AppShell = () => {
         return
       }
       clearSplitWithLastMiniAppTab(id, tab?.url)
+      evictMiniAppsForClosedTabs([id])
       closeTab(id)
     },
-    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, tabs]
+    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, tabs, evictMiniAppsForClosedTabs]
+  )
+
+  const handleCloseTabs = useCallback(
+    (ids: readonly string[], activateId?: string) => {
+      const miniAppIdsToClose = new Set<string>()
+      for (const id of ids) {
+        const tab = tabs.find((t) => t.id === id)
+        const appId = miniAppIdFromTabUrl(tab?.url)
+        if (appId) miniAppIdsToClose.add(appId)
+      }
+      // Clear split if the last mini-app tab is among those being closed
+      if (miniAppIdsToClose.size > 0 && splitOpen) {
+        const hasSurvivingMiniAppTab = tabs.some(
+          (t) => !ids.includes(t.id as string) && miniAppIdFromTabUrl(t.url) !== null
+        )
+        if (!hasSurvivingMiniAppTab) {
+          setSplitOpen(false)
+          setSplitMiniAppId('')
+        }
+      }
+      evictMiniAppsForClosedTabs(ids)
+      closeTabs(ids, activateId)
+    },
+    [tabs, splitOpen, setSplitOpen, setSplitMiniAppId, evictMiniAppsForClosedTabs, closeTabs]
   )
 
   const handleDetachTab = useCallback(
@@ -188,7 +263,7 @@ export const AppShell = () => {
       isFocusedTab={isSettingsTabActive}
       setActiveTab={setActiveTab}
       closeTab={handleCloseTab}
-      closeTabs={closeTabs}
+      closeTabs={handleCloseTabs}
       reorderTabs={reorderTabs}
       pinTab={pinTab}
       unpinTab={unpinTab}

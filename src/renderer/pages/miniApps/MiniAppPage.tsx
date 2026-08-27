@@ -34,7 +34,8 @@ const MiniAppPage: FC = () => {
   const isActiveTab = useIsActiveTab()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
-  const { openMiniAppKeepAlive, openSplit, closeSplit } = useMiniAppPopup()
+  const { openMiniAppKeepAlive, openSplit, closeSplit, closeMiniApp } = useMiniAppPopup()
+  const closeTab = tabsContext?.closeTab
   const { allApps, openedKeepAliveMiniApps, splitOpen, splitMiniAppId, isLoading, error } = useMiniApps()
 
   // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
@@ -121,6 +122,28 @@ const MiniAppPage: FC = () => {
     if (!splitOpen) setActivePane('primary')
   }, [splitOpen])
 
+  const handleClose = useCallback(() => {
+    if (!appId || !app) return
+    // Prefer closing the tab that hosts this mini app — the pool's orphan
+    // cleanup then ends the webview process. Fall back to direct pool
+    // eviction when no tab exists (detached window or orphaned pool entry).
+    const tabId =
+      currentTabId && currentTab && isMiniAppTabUrl(currentTab.url, app.appId) ? currentTabId : null
+    if (tabId && closeTab) {
+      closeTab(tabId)
+    } else {
+      const fallbackTab = tabsContext?.tabs.find((t) => {
+        try {
+          return new URL(t.url, 'https://www.cherry-ai.com').pathname === `/app/mini-app/${app.appId}`
+        } catch {
+          return t.url === `/app/mini-app/${app.appId}`
+        }
+      })
+      if (fallbackTab?.id && tabsContext?.closeTab) tabsContext.closeTab(fallbackTab.id)
+      else closeMiniApp(app.appId)
+    }
+  }, [app, appId, currentTab, currentTabId, closeTab, closeMiniApp, tabsContext])
+
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
     return (
@@ -170,6 +193,7 @@ const MiniAppPage: FC = () => {
         splitMode="open"
         splitActive={splitOpen}
         onSplit={splitOpen ? closeSplit : openSplit}
+        onClose={handleClose}
         hostShortcutEnabled={!splitOpen || activePane === 'primary'}
         onActivate={activatePrimaryPane}
         className={splitOpen ? 'w-1/2' : 'w-full'}
