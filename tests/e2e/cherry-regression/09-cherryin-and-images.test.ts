@@ -34,7 +34,12 @@ async function generateAndSaveImage(
   await selectSidebarApp(page, 'Paintings')
   const modelButton = page.locator('[data-selector-shell-root="true"] > button').first()
   const modelName = model.split('/').at(-1) ?? model
-  if (!(await modelButton.textContent())?.includes(modelName)) {
+  const selectedModelRestored = await modelButton
+    .filter({ hasText: modelName })
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false)
+  if (!selectedModelRestored) {
     await modelButton.click()
     await selectVisibleModel(page, model)
   }

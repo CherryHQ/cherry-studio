@@ -100,18 +100,16 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
     )
   } else {
     const script = [
-      `Start-Process notepad.exe -ArgumentList '${escapePowerShell(filePath)}'`,
-      `$filename = '${escapePowerShell(basename(filePath))}'`,
+      `$expected = (Get-Content -Raw -LiteralPath '${escapePowerShell(filePath)}').Trim()`,
+      '$notepad = Start-Process notepad.exe -PassThru',
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
-      '$notepad = $null',
-      'do {',
-      '  $notepad = Get-Process -Name notepad -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle.Contains($filename) } | Sort-Object StartTime -Descending | Select-Object -First 1',
-      '  if (-not $notepad) { Start-Sleep -Milliseconds 200 }',
-      '} while (-not $notepad -and [DateTime]::UtcNow -lt $deadline)',
-      'if (-not $notepad) { throw "Notepad window was not found" }',
+      'do { $notepad.Refresh(); if ($notepad.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 200 } } while ($notepad.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)',
+      'if ($notepad.MainWindowHandle -eq 0) { throw "Notepad window was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
       'if (-not $shell.AppActivate($notepad.Id)) { throw "Notepad window could not be activated" }',
       'Start-Sleep -Milliseconds 300',
+      '$shell.SendKeys($expected)',
+      'Start-Sleep -Milliseconds 200',
       '$shell.SendKeys("^a")',
       'Start-Sleep -Milliseconds 500'
     ].join('\n')
@@ -154,6 +152,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'Add-Type -AssemblyName UIAutomationClient',
       'Add-Type -AssemblyName UIAutomationTypes',
       'Add-Type -AssemblyName System.Windows.Forms',
+      `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeDialog { [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
       `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
@@ -177,11 +176,9 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
             '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
             '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
             'if (-not $dialog) { throw "Native folder dialog closed before selection" }',
-            '$acceptCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1")',
-            '$acceptButton = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $acceptCondition)',
-            'if (-not $acceptButton) { throw "Native folder accept button was not found" }',
-            '$acceptButton.SetFocus()',
-            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
+            '$acceptHandle = [NativeDialog]::GetDlgItem([IntPtr]$dialog.Current.NativeWindowHandle, 1)',
+            'if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native folder accept button was not found" }',
+            '$null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
             'Start-Sleep -Milliseconds 500'
           ]
         : [
