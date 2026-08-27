@@ -19,9 +19,10 @@ xlsx: each cell is overwritten with the JSON value (number, string, or
 boolean); an ordinary formula in that cell is replaced by the value, while a
 cell belonging to a shared, array, or data-table formula group is refused (see
 reject_shared_formula and grouped_formula_ranges). The worksheet's <dimension>
-is widened when edits create cells outside it. Replacing a formula also drops
-xl/calcChain.xml (see drop_calc_chain); that and [Content_Types].xml /
-workbook.xml.rels are the only parts besides the edited worksheet this script
+is widened when edits create cells outside it. Any write also sets fullCalcOnLoad
+on xl/workbook.xml (see request_full_recalc), and replacing a formula additionally
+drops xl/calcChain.xml (see drop_calc_chain); those, plus [Content_Types].xml /
+workbook.xml.rels, are the only parts besides the edited worksheet this script
 ever rewrites.
 docx: 'paragraph' is the zero-based ordinal among BODY-LEVEL paragraphs
 (direct w:body children; tables excluded); the paragraph keeps its paragraph
@@ -41,6 +42,7 @@ import contextlib
 import json
 import math
 import os
+import posixpath
 import re
 import sys
 import tempfile
@@ -58,6 +60,7 @@ A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
 CONTENT_TYPES_PART = "[Content_Types].xml"
 WORKBOOK_RELS_PART = "xl/_rels/workbook.xml.rels"
 CALC_CHAIN_PART = "xl/calcChain.xml"
+WORKBOOK_PART = "xl/workbook.xml"
 
 MAX_ZIP_ENTRIES = 10_000
 MAX_ENTRY_BYTES = 256 * 1024 * 1024
@@ -246,8 +249,15 @@ def serialize_part(doc: minidom.Document) -> bytes:
 
 
 def resolve_rel_target(target: str) -> str:
-    """Package-absolute part name for a Target declared in xl/_rels/workbook.xml.rels."""
-    return target.lstrip("/") if target.startswith("/") else f"xl/{target}"
+    """Package-absolute part name for a Target declared in xl/_rels/workbook.xml.rels.
+
+    A Target is a URI resolved against the directory holding the part that owns the .rels file, so
+    `./worksheets/sheet1.xml` names the same member as the plain relative form every mainstream
+    producer writes. Joined without normalizing, it yields a name no member has: the worksheet
+    lookup fails on a file Excel and openpyxl both read, and drop_calc_chain leaves behind exactly
+    the dangling `<Relationship>` it exists to remove.
+    """
+    return posixpath.normpath(target.lstrip("/") if target.startswith("/") else f"xl/{target}")
 
 
 def resolve_worksheet_part(archive: zipfile.ZipFile, sheet_name: str) -> str:
@@ -289,6 +299,45 @@ def drop_calc_chain(archive: zipfile.ZipFile) -> dict[str, bytes]:
             relationship.parentNode.removeChild(relationship)
 
     return {CONTENT_TYPES_PART: serialize_part(content_types), WORKBOOK_RELS_PART: serialize_part(rels)}
+
+
+# Children CT_Workbook orders after <calcPr>. The sequence is ordered, so a calcPr appended at the
+# end lands behind one of these and Excel opens the file in repair mode.
+AFTER_CALC_PR = {
+    "oleSize",
+    "customWorkbookViews",
+    "pivotCaches",
+    "smartTagPr",
+    "smartTagTypes",
+    "webPublishing",
+    "fileRecoveryPr",
+    "webPublishObjects",
+    "extLst",
+}
+
+
+def request_full_recalc(archive: zipfile.ZipFile) -> dict[str, bytes]:
+    """Set calcPr/@fullCalcOnLoad, so Excel recomputes the formulas that read an edited cell.
+
+    A formula cell stores its expression and the value Excel last computed for it. Writing a cell
+    does not touch the cached values of the formulas reading it, and Excel recalculates on open only
+    when the file asks — otherwise it trusts the caches and shows the stale numbers. Dropping
+    calcChain.xml is not a substitute: that part is the order a recalculation would run in, not a
+    request to run one. Verified: with it dropped, a dependent cell still read back its old value.
+    openpyxl sets this same flag on every write.
+    """
+    workbook = minidom.parseString(read_xml_part(archive, WORKBOOK_PART))
+    root = workbook.documentElement
+    calc_pr = first_child(root, "calcPr")
+    if calc_pr is None:
+        calc_pr = workbook.createElement(make_tag(root.tagName, "calcPr"))
+        before = next(
+            (child for child in element_children(root) if child.tagName.rsplit(":", 1)[-1] in AFTER_CALC_PR),
+            None,
+        )
+        root.insertBefore(calc_pr, before)
+    calc_pr.setAttribute("fullCalcOnLoad", "1")
+    return {WORKBOOK_PART: serialize_part(workbook)}
 
 
 def reject_shared_formula(formula, ref: str) -> None:
@@ -486,7 +535,7 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         edited.append((column, row_number))
     update_dimension(worksheet, edited)
 
-    replaced = {part_name: serialize_part(doc)}
+    replaced = {part_name: serialize_part(doc), **request_full_recalc(archive)}
     dropped: set[str] = set()
     if replaced_formula and CALC_CHAIN_PART in archive.namelist():
         replaced.update(drop_calc_chain(archive))
@@ -519,9 +568,12 @@ PARAGRAPH_ALLOWED = {
 
 # Inside the run: the text and its typographic separators. These ARE the old text, so losing them is
 # the edit's intent rather than collateral damage. lastRenderedPageBreak is a layout cache Word redoes.
+# w:sym is deliberately not here. That reasoning needs the caller to have seen what it is dropping,
+# and a symbol's glyph lives in w:font/w:char rather than in text — extracting the paragraph reads
+# exactly as if it were absent, so the caller cannot intend its loss the way it intends a tab's.
 RUN_ALLOWED = {
     (WORDPROCESSING_NS, name)
-    for name in ("rPr", "t", "tab", "br", "cr", "ptab", "sym", "softHyphen", "noBreakHyphen", "lastRenderedPageBreak")
+    for name in ("rPr", "t", "tab", "br", "cr", "ptab", "softHyphen", "noBreakHyphen", "lastRenderedPageBreak")
 }
 
 # Friendlier names for what we expect to meet; anything absent is reported by its qualified name.
@@ -549,6 +601,7 @@ CONTENT_DESCRIPTIONS = {
     (WORDPROCESSING_NS, "sdt"): "a content control",
     (WORDPROCESSING_NS, "smartTag"): "a smart tag",
     (WORDPROCESSING_NS, "subDoc"): "a subdocument reference",
+    (WORDPROCESSING_NS, "sym"): "a symbol character",
     ("http://schemas.openxmlformats.org/officeDocument/2006/math", "oMath"): "an equation",
     ("http://schemas.openxmlformats.org/officeDocument/2006/math", "oMathPara"): "an equation",
 }
