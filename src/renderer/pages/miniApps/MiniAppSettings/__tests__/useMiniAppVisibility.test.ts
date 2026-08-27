@@ -170,6 +170,44 @@ describe('useMiniAppVisibility', () => {
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
   })
 
+  it('restores the latest dragged visible order after hide then show', () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(2, 0))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'a', 'b'])
+
+    const dragged = result.current.visible[0]
+    act(() => result.current.hide(dragged))
+    act(() => result.current.show(dragged))
+
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('keeps a still-hidden app in its remembered slot when the visible list is dragged', () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(stubApp('b')))
+    act(() => result.current.reorderVisible(1, 0))
+    act(() => result.current.show(stubApp('b')))
+
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('still appends an app that was hidden before the panel opened after a visible drag', () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b')]
+    mocks.disabled = [stubApp('c')]
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(1, 0))
+    act(() => result.current.show(stubApp('c')))
+
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['b', 'a', 'c'])
+  })
+
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.reorderVisible(0, 0))

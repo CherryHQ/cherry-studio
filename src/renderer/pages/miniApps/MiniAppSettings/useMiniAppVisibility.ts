@@ -48,6 +48,24 @@ function insertMiniAppInOriginalOrder(
   return next
 }
 
+/** Visible subsequence follows `nextVisibleIds`; still-hidden ids keep their previous slots. */
+function withUpdatedVisibleOrder(originalVisibleIds: readonly string[], nextVisibleIds: readonly string[]): string[] {
+  const nextIds = new Set(nextVisibleIds)
+  let nextIndex = 0
+  const nextRanking: string[] = []
+  for (const appId of originalVisibleIds) {
+    if (!nextIds.has(appId)) {
+      nextRanking.push(appId)
+      continue
+    }
+    nextRanking.push(nextVisibleIds[nextIndex++])
+  }
+  if (nextIndex < nextVisibleIds.length) {
+    nextRanking.push(...nextVisibleIds.slice(nextIndex))
+  }
+  return nextRanking
+}
+
 function restoreHiddenMiniApps(
   visible: MiniApp[],
   hidden: MiniApp[],
@@ -167,6 +185,10 @@ export function useMiniAppVisibility() {
       const next = [...visible]
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
+      originalVisibleIdsRef.current = withUpdatedVisibleOrder(
+        originalVisibleIdsRef.current,
+        next.map((app) => app.appId)
+      )
       setVisible(next)
       reorderMiniAppsByStatus('visible', next).catch(reportFailure(t, 'miniApp.reorder_failed'))
     },

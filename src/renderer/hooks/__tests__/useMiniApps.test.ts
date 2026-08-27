@@ -540,6 +540,40 @@ describe('useMiniApps', () => {
       expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'pinned' }, body: { position: 'first' } })
       expect(patchBatchTrigger).not.toHaveBeenCalled()
     })
+
+    it('reorders against post-refresh cache membership, not the stale render snapshot', async () => {
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      const patchBatchTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/order:batch') {
+          return { trigger: patchBatchTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const chatgptDisabled = createMiniApp('chatgpt', { status: 'disabled', orderKey: 'a0' })
+      const claude = createMiniApp('claude', { status: 'enabled', orderKey: 'a1' })
+      const chatgptEnabledTail = createMiniApp('chatgpt', { status: 'enabled', orderKey: 'a2' })
+
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([chatgptDisabled, claude]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([chatgptDisabled, claude]))
+
+      const { result } = renderHook(() => useMiniApps())
+      expect(result.current.allApps.find((app) => app.appId === 'chatgpt')?.status).toBe('disabled')
+
+      // Status PATCH + refresh already wrote SWR; React has not re-rendered.
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([claude, chatgptEnabledTail]))
+
+      await act(async () => {
+        await result.current.reorderMiniAppsByStatus('visible', [chatgptEnabledTail, claude])
+      })
+
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'chatgpt' }, body: { position: 'first' } })
+      expect(patchBatchTrigger).not.toHaveBeenCalled()
+    })
   })
 
   // === Edge Cases ===

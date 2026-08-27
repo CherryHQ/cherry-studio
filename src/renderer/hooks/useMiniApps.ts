@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery, useReadCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
@@ -228,6 +228,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
+  const readCache = useReadCache()
 
   // Batch PATCH/DELETE via dataApiService (for Promise.allSettled batch ops where
   // a single template useMutation would share isMutating/error state incorrectly)
@@ -486,7 +487,9 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (status: MiniAppStatus | 'visible', orderedPartition: MiniApp[]) => {
       const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
       const orderedIds = new Set(orderedPartition.map((app) => app.appId))
-      const currentPartition = allApps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
+      // Status mutate+refresh writes SWR before React re-renders; peek that membership.
+      const apps = readCache<MiniApp[]>('/mini-apps') ?? allApps
+      const currentPartition = apps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
       const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
       if (moves.length === 0) return
 
@@ -503,7 +506,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         throw toDataApiError(error)
       }
     },
-    [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger]
+    [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger, readCache]
   )
 
   return {
