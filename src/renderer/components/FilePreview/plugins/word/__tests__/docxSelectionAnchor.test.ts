@@ -21,7 +21,11 @@ function selectionOver(range: Range, isCollapsed = false): Selection {
   return {
     isCollapsed,
     rangeCount: 1,
-    getRangeAt: () => range
+    getRangeAt: () => range,
+    // The anchor reads its excerpt off the selection, not the range. Chromium returns the rendered
+    // selection here, which is why it is the one being read; jsdom has no layout, so this stand-in
+    // can only be the range's text and the difference between the two is not observable in tests.
+    toString: () => range.toString()
   } as unknown as Selection
 }
 
