@@ -74,6 +74,10 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
   })
 
+  it('shows estimated input tokens by default for new users', () => {
+    expect(DefaultPreferences.default['chat.input.show_estimated_tokens']).toBe(true)
+  })
+
   it('does not keep legacy classic/modern layout preferences', () => {
     expect('topic.layout' in DefaultPreferences.default).toBe(false)
     expect('agent.layout' in DefaultPreferences.default).toBe(false)

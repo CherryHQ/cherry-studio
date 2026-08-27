@@ -93,6 +93,22 @@ describe('getTopP', () => {
     expect(getTopP(a, makeModel(), OMIT_REASONING)).toBe(0.9)
   })
 
+  it('omits topP when the resolved provider-model marks it unsupported', () => {
+    const a = makeAssistant({ enableTopP: true, topP: 1 })
+    const model = makeModel({
+      id: 'moonshot::kimi-k3',
+      providerId: 'moonshot',
+      parameterSupport: {
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
+  })
+
   it('clamps topP to [0.95, 1] from the resolved request reasoning', () => {
     // `enableTemperature: false` — Claude 4.5 has mutually-exclusive
     // temperature/topP (`isTemperatureTopPMutuallyExclusiveModel`); leaving

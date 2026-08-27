@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { act, render, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   targetLanguage: 'en-us',
@@ -67,6 +67,10 @@ describe('TranslateWindow', () => {
     state.t.mockClear()
   })
 
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('does not start another translation after the current request settles', async () => {
     const firstRequest = createDeferred<string>()
     state.translateText
@@ -104,6 +108,14 @@ describe('TranslateWindow', () => {
   })
 
   it('cancels the active translation when the configured model becomes unavailable', async () => {
+    let pendingFrame: FrameRequestCallback | undefined
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      pendingFrame = callback
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => {
+      pendingFrame = undefined
+    })
     let activeSignal: AbortSignal | undefined
     state.translateText.mockImplementation((_text, _targetLanguage, _onResponse, signal) => {
       activeSignal = signal
@@ -119,5 +131,12 @@ describe('TranslateWindow', () => {
 
     await waitFor(() => expect(activeSignal?.aborted).toBe(true))
     expect(state.translateText).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      const callback = pendingFrame
+      pendingFrame = undefined
+      callback?.(performance.now())
+    })
+    expect(pendingFrame).toBeUndefined()
   })
 })

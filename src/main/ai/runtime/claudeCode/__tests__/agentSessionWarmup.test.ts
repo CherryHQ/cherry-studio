@@ -617,6 +617,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       frozenModels: [
         {
           modelId: 'model-1',
+          apiModelId: 'claude-sonnet',
           modelName: 'model-1',
           pricingSnapshot: null,
           aliases: ['claude-sonnet', 'model-1']
@@ -740,9 +741,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toMatchObject({
       owner: 'agent-sdk',
       frozenModels: [
-        { modelId: 'model-1', aliases: ['model-1-api', 'model-1'] },
-        { modelId: 'model-2', aliases: ['model-2-api', 'model-2'] },
-        { modelId: 'model-3', aliases: ['model-3-api', 'model-3'] }
+        { modelId: 'model-1', apiModelId: 'model-1-api', aliases: ['model-1-api', 'model-1'] },
+        { modelId: 'model-2', apiModelId: 'model-2-api', aliases: ['model-2-api', 'model-2'] },
+        { modelId: 'model-3', apiModelId: 'model-3-api', aliases: ['model-3-api', 'model-3'] }
       ]
     })
   })
@@ -1045,6 +1046,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       frozenModels: [
         {
           modelId: 'sonnet',
+          apiModelId: 'sonnet-api',
           modelName: 'sonnet',
           pricingSnapshot: null,
           aliases: ['sonnet-api', 'sonnet']

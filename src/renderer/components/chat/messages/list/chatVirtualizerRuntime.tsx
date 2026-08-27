@@ -139,13 +139,7 @@ export interface ChatVirtualizerRuntime<T> {
    * `scrollerProps.onWheel`; the host calls this for pointer drags and
    * keyboard scroll commands.
    */
-  markUserInput(): void
-  /**
-   * True while a recent keyboard/pointer/wheel intent is still inside the
-   * `USER_SCROLL_INPUT_WINDOW_MS` grace period. Used by the ResizeObserver
-   * to skip its snap-back before a real `onScroll` can claim the gesture.
-   */
-  hasRecentUserScrollIntent(): boolean
+  markUserInput(direction?: ScrollDirection): void
   /** Keep native scrollbar ownership latched until the pointer is actually released. */
   beginScrollbarDrag(): void
   /** Finish a native scrollbar drag and anchor the viewport at its final position. */
@@ -153,6 +147,8 @@ export interface ChatVirtualizerRuntime<T> {
 }
 
 const SCROLL_WHEEL_DEBOUNCE_MS = 100
+type ScrollDirection = 'up' | 'down' | 'none'
+type PendingUserInput = { at: number; direction: ScrollDirection }
 // scrollToKey animates smoothly for nearby targets but jumps instantly once the
 // distance exceeds this many viewports — see the behavior choice in scrollToKey.
 const LONG_JUMP_VIEWPORTS = 3
@@ -167,6 +163,10 @@ const USER_SCROLL_INPUT_WINDOW_MS = 250
 const FREEZE_REASSERT_TOLERANCE_PX = 2
 const FREEZE_SEMANTIC_ANCHOR_SELECTOR =
   'button,[role="button"],a,input,textarea,select,h1,h2,h3,h4,h5,h6,.block-wrapper,[data-message-id],p,pre,li,table'
+
+function getScrollDirection(delta: number): ScrollDirection {
+  return delta < 0 ? 'up' : delta > 0 ? 'down' : 'none'
+}
 
 function keysMatchAt(container: readonly string[], candidate: readonly string[], offset: number): boolean {
   return candidate.every((key, index) => container[index + offset] === key)
@@ -202,23 +202,23 @@ export function useChatVirtualizerRuntime<T>({
   // or late render makes content shorter while the user owns the viewport.
   const freezeSpacerHeightRef = useRef(0)
   const freezeBaselineScrollHeightRef = useRef<number | null>(null)
-  // A timestamp only starts a genuine scroll gesture. Trackpad/keyboard motion
-  // remains active until scrollend; a native scrollbar drag has its own latch.
-  const lastUserInputAtRef = useRef(0)
-  const lastUserInputDirectionRef = useRef<'up' | 'down' | 'none'>('none')
+  // Pending input only starts a genuine scroll gesture when a matching scroll arrives.
+  // Trackpad/keyboard motion then remains active until scrollend; a native drag has its own latch.
+  const pendingUserInputRef = useRef<PendingUserInput | null>(null)
   const userScrollGestureRef = useRef(false)
   const scrollbarDragActiveRef = useRef(false)
   const readNavigationActiveRef = useRef(false)
   const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
-  const markUserInput = useCallback(() => {
-    lastUserInputAtRef.current = performance.now()
-    lastUserInputDirectionRef.current = 'none'
+  const markUserInput = useCallback((direction: ScrollDirection = 'none') => {
+    pendingUserInputRef.current = { at: performance.now(), direction }
   }, [])
-  const hasRecentUserScrollIntent = useCallback(
-    () => performance.now() - lastUserInputAtRef.current < USER_SCROLL_INPUT_WINDOW_MS,
-    []
-  )
+  const isUserScrollIntentPending = useCallback((direction: ScrollDirection = 'none') => {
+    const input = pendingUserInputRef.current
+    if (!input) return false
+    const directionMatches = input.direction === 'none' || direction === 'none' || input.direction === direction
+    return performance.now() - input.at < USER_SCROLL_INPUT_WINDOW_MS && directionMatches
+  }, [])
   const itemsRef = useRef(items)
   itemsRef.current = items
   const getItemKeyRef = useRef(getItemKey)
@@ -439,16 +439,14 @@ export function useChatVirtualizerRuntime<T>({
   }, [markUserInput])
 
   const beginUserScrollGesture = useCallback(() => {
+    // A real scroll has claimed the latest input, even when the gesture is already active.
+    pendingUserInputRef.current = null
     if (userScrollGestureRef.current) return
     explicitNavigationBaseRef.current = null
     // Any slack belongs to the old resting position. Once the user moves the
     // native thumb, its live scroll range must be the only range in play.
     setFreezeSpacerHeight(0)
     freezeBaselineScrollHeightRef.current = getNaturalScrollHeight()
-    // Consume the pre-scroll intent: a real onScroll now owns the gesture, so
-    // the ResizeObserver must not keep suppressing reassertFreeze for the
-    // remainder of the input window.
-    lastUserInputAtRef.current = 0
     userScrollGestureRef.current = true
   }, [getNaturalScrollHeight, setFreezeSpacerHeight])
 
@@ -531,15 +529,23 @@ export function useChatVirtualizerRuntime<T>({
     [dataKeys, items]
   )
 
-  const wrappedRenderItem = useCallback((item: WrappedItem<T>) => {
-    // Tag with data-message-index so the selectionchange listener can
-    // map a text selection back to a data index for keepMounted.
-    return (
-      <div key={item.key} data-message-index={item.originalIndex} data-message-key={item.key} style={{ width: '100%' }}>
-        {renderItemRef.current(item.value, item.originalIndex)}
-      </div>
-    )
-  }, [])
+  const wrappedRenderItem = useCallback(
+    (item: WrappedItem<T>) => {
+      // Keep the bottom inset inside the measured live item. Streaming growth
+      // then expands the native scroll range before virtua refreshes its cache.
+      const isLastItem = item.originalIndex === itemsRef.current.length - 1
+      return (
+        <div
+          key={item.key}
+          data-message-index={item.originalIndex}
+          data-message-key={item.key}
+          style={{ width: '100%', paddingBottom: isLastItem ? bottomPadding : undefined }}>
+          {renderItemRef.current(item.value, item.originalIndex)}
+        </div>
+      )
+    },
+    [bottomPadding]
+  )
 
   // ---- per-topic scroll position memory -------------------------------
 
@@ -584,7 +590,7 @@ export function useChatVirtualizerRuntime<T>({
         // but the gesture latch is not set yet (onScroll hasn't fired).
         // Suppress the snap-back so the native scroll can land; onScroll will
         // call beginUserScrollGesture() once it observes the real offset.
-        if (!hasRecentUserScrollIntent()) {
+        if (!isUserScrollIntentPending()) {
           reassertFreeze()
         }
       }
@@ -599,12 +605,21 @@ export function useChatVirtualizerRuntime<T>({
     return () => observer.disconnect()
   }, [
     autoStick,
-    hasRecentUserScrollIntent,
+    isUserScrollIntentPending,
     maintainFreezeScrollRange,
     reassertFreeze,
     updateScrollToBottomButtonVisibility,
     viewportFollow
   ])
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!content || typeof MutationObserver === 'undefined') return
+
+    const observer = new MutationObserver(() => autoStick.onContentSizeChange())
+    observer.observe(content, { childList: true, characterData: true, subtree: true })
+    return () => observer.disconnect()
+  }, [autoStick])
 
   // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
   // restores the saved anchor for this topic, or scrolls to the newest message
@@ -613,13 +628,12 @@ export function useChatVirtualizerRuntime<T>({
   // ---- scroll / wheel handlers ---------------------------------------
 
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastWheelDirRef = useRef<'up' | 'down' | 'none'>('none')
+  const lastWheelDirRef = useRef<ScrollDirection>('none')
 
   const notifyWheelIntent = useCallback(
     (deltaY: number) => {
-      markUserInput()
-      const dir: 'up' | 'down' | 'none' = deltaY < 0 ? 'up' : deltaY > 0 ? 'down' : 'none'
-      lastUserInputDirectionRef.current = dir
+      const dir = getScrollDirection(deltaY)
+      markUserInput(dir)
       if (readNavigationActiveRef.current && dir !== 'none') {
         takeUserControl('navigation')
       }
@@ -674,17 +688,23 @@ export function useChatVirtualizerRuntime<T>({
     // Only a genuine user scroll (recent wheel / pointer / keyboard) is treated as
     // intent. virtua's remeasure-compensation jumps and child `scrollIntoView`
     // calls also fire scroll events, with no preceding input.
-    const recentInputDirection = lastUserInputDirectionRef.current
-    const inputDirectionMatchesScroll =
-      recentInputDirection === 'none' || delta === 0 || (recentInputDirection === 'up' ? delta < 0 : delta > 0)
-    const hasRecentUserScrollIntent =
-      performance.now() - lastUserInputAtRef.current < USER_SCROLL_INPUT_WINDOW_MS && inputDirectionMatchesScroll
+    const pendingUserInput = pendingUserInputRef.current
+    const deltaDirection = getScrollDirection(delta)
+    const hasRecentUserScrollIntent = isUserScrollIntentPending(deltaDirection)
+    if (
+      pendingUserInput &&
+      performance.now() - pendingUserInput.at < USER_SCROLL_INPUT_WINDOW_MS &&
+      pendingUserInput.direction !== 'none' &&
+      deltaDirection !== 'none' &&
+      pendingUserInput.direction !== deltaDirection
+    ) {
+      pendingUserInputRef.current = null
+    }
     const isUserInitiated = scrollbarDragActiveRef.current || userScrollGestureRef.current || hasRecentUserScrollIntent
     const wheelDir = lastWheelDirRef.current
-    const direction: 'up' | 'down' | 'none' =
-      wheelDir !== 'none' ? wheelDir : delta < 0 ? 'up' : delta > 0 ? 'down' : 'none'
-    if (hasRecentUserScrollIntent && recentInputDirection === 'none' && direction !== 'none') {
-      lastUserInputDirectionRef.current = direction
+    const direction = wheelDir !== 'none' ? wheelDir : deltaDirection
+    if (hasRecentUserScrollIntent && pendingUserInput?.direction === 'none' && direction !== 'none') {
+      pendingUserInput.direction = direction
     }
 
     // Smooth scrolling is reserved for explicit reading navigation. Any real
@@ -752,6 +772,7 @@ export function useChatVirtualizerRuntime<T>({
   }, [
     beginUserScrollGesture,
     enterFollowingMode,
+    isUserScrollIntentPending,
     maintainFreezeScrollRange,
     maybeNotifyReachTop,
     reassertFreeze,
@@ -1009,7 +1030,6 @@ export function useChatVirtualizerRuntime<T>({
     notifyWheelIntent,
     scrollByWheel,
     markUserInput,
-    hasRecentUserScrollIntent,
     beginScrollbarDrag,
     endScrollbarDrag
   }

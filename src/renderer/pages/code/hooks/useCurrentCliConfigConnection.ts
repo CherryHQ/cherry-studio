@@ -4,7 +4,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   type CliConfigConnection,
@@ -33,9 +33,16 @@ export function useCurrentCliConfigConnection({
   selectedCliTool: CodeCli
   currentProviderConfig?: CliProviderConfig | null
   apiGatewayProvider?: ApiGatewayProviderBundle | null
-}): [CliConfigConnection | null, (connection: CliConfigConnection | null) => void] {
+}): {
+  connection: CliConfigConnection | null
+  setConnection: (connection: CliConfigConnection | null) => void
+  reload: () => void
+} {
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useState<CliConfigConnection | null>(null)
+  const [reloadRevision, setReloadRevision] = useState(0)
+  const readGenerationRef = useRef(0)
   const { models } = useModels({ enabled: true })
+  const reload = useCallback(() => setReloadRevision((revision) => revision + 1), [])
 
   const isGateway = !!enabledProvider && isApiGatewayProviderId(enabledProvider.id)
   const gatewayApiKey = apiGatewayProvider?.apiKey ?? null
@@ -47,6 +54,7 @@ export function useCurrentCliConfigConnection({
   }, [isGateway, currentProviderConfig?.modelId, models])
 
   useEffect(() => {
+    const readGeneration = ++readGenerationRef.current
     let cancelled = false
     // The virtual own-login entry has no app-side credential to reconcile against a CLI config file.
     if (!enabledProvider || enabledProvider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
@@ -58,7 +66,7 @@ export function useCurrentCliConfigConnection({
       const files = await readCliConfigFiles(selectedCliTool)
       const connection = extractConnectionFromCliConfigDraft(selectedCliTool, files)
       if (!connection) {
-        if (!cancelled) setCurrentCliConfigConnection(null)
+        if (!cancelled && readGeneration === readGenerationRef.current) setCurrentCliConfigConnection(null)
         return
       }
       // Gateway: match against the synthetic gateway key (no DataApi record) and the gateway-addressed
@@ -77,7 +85,7 @@ export function useCurrentCliConfigConnection({
         )
         expectedModel = currentCliConfigContext?.writePrimaryModel ? currentCliConfigContext.rawModelId : undefined
       }
-      if (cancelled) return
+      if (cancelled || readGeneration !== readGenerationRef.current) return
       setCurrentCliConfigConnection(
         cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, apiKeys, expectedModel)
           ? null
@@ -85,13 +93,21 @@ export function useCurrentCliConfigConnection({
       )
     })().catch((error) => {
       logger.error('Failed to read current CLI config connection:', error as Error)
-      if (!cancelled) setCurrentCliConfigConnection(null)
+      if (!cancelled && readGeneration === readGenerationRef.current) setCurrentCliConfigConnection(null)
     })
 
     return () => {
       cancelled = true
     }
-  }, [enabledProvider, selectedCliTool, currentProviderConfig, isGateway, gatewayApiKey, gatewayApiModelId])
+  }, [
+    enabledProvider,
+    selectedCliTool,
+    currentProviderConfig,
+    isGateway,
+    gatewayApiKey,
+    gatewayApiModelId,
+    reloadRevision
+  ])
 
-  return [currentCliConfigConnection, setCurrentCliConfigConnection]
+  return { connection: currentCliConfigConnection, setConnection: setCurrentCliConfigConnection, reload }
 }

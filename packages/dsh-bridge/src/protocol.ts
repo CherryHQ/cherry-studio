@@ -132,7 +132,7 @@ export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
   'approval/ask': {
     params: { sessionId: string; toolName: string; callId?: string; args?: unknown; reason?: string }
-    result: { outcome: 'allowed-once' | 'rejected' }
+    result: { outcome: 'allowed-once' | 'rejected'; rejectionReason?: string }
   }
   'tool/call': {
     /** `sessionId` is always the root session id — the host rejects child session ids. */

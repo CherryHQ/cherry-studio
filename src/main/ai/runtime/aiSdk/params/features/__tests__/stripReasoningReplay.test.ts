@@ -42,7 +42,7 @@ describe('strip middleware', () => {
       params: { prompt } as never,
       model: {} as never
     })
-    expect((result.prompt as LanguageModelV3Prompt)[1].content).toEqual([{ type: 'text', text: 'answer' }])
-    expect((result.prompt as LanguageModelV3Prompt)[0]).toEqual(prompt[0])
+    expect(result.prompt[1].content).toEqual([{ type: 'text', text: 'answer' }])
+    expect(result.prompt[0]).toEqual(prompt[0])
   })
 })

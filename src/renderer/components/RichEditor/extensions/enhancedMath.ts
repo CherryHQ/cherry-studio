@@ -41,6 +41,10 @@ export const EnhancedMath = Extension.create({
   addExtensions() {
     return [
       BlockMath.extend({
+        renderText({ node }) {
+          const latex = node.attrs.latex
+          return latex ? ['$$', latex, '$$'].join('\n') : ''
+        },
         addInputRules() {
           return [
             new InputRule({
@@ -57,6 +61,10 @@ export const EnhancedMath = Extension.create({
         }
       }).configure({ ...this.options.blockOptions, katexOptions: this.options.katexOptions }),
       InlineMath.extend({
+        renderText({ node }) {
+          const latex = node.attrs.latex
+          return latex ? `$${latex}$` : ''
+        },
         addInputRules() {
           return [
             new InputRule({

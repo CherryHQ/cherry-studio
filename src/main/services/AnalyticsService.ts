@@ -100,7 +100,7 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.isActivated || !this.desiredEnabled) return
+    if (!this.isActivated || !this.desiredEnabled || (data.input_tokens === 0 && data.output_tokens === 0)) return
     this.client!.trackTokenUsage(data)
   }
 

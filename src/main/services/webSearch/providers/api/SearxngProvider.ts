@@ -81,7 +81,8 @@ export class SearxngProvider extends BaseWebSearchProvider {
     })
 
     const engines = payload.engines
-      .filter((engine) => engine.enabled && engine.categories.includes('general') && engine.categories.includes('web'))
+      .filter((engine) => engine.enabled && engine.categories.includes('general'))
+      .sort((left, right) => Number(right.categories.includes('web')) - Number(left.categories.includes('web')))
       .map((engine) => engine.name)
 
     if (engines.length === 0) {

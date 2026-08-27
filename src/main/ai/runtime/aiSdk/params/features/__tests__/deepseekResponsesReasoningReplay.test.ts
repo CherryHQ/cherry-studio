@@ -25,7 +25,7 @@ async function transform(prompt: LanguageModelV3Prompt): Promise<LanguageModelV3
     params: { prompt } as any,
     model: {} as any
   })
-  return result.prompt as LanguageModelV3Prompt
+  return result.prompt
 }
 
 const model = (id: string): Model => ({ id, apiModelId: id, providerId: 'cherryin', name: id }) as Model

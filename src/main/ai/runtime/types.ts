@@ -31,6 +31,7 @@ export type AgentSessionUsageCapture =
       source: SourceSnapshot | null
       frozenModels: ReadonlyArray<{
         modelId: string
+        apiModelId: string
         modelName: string | null
         aliases: readonly string[]
         pricingSnapshot: AiUsagePricingSnapshot | null

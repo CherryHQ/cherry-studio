@@ -10,8 +10,6 @@
 !cherry-pr-test/**
 !create-skill/
 !create-skill/**
-!demand-first-review/
-!demand-first-review/**
 !gh-create-issue/
 !gh-create-issue/**
 !gh-create-pr/

@@ -181,6 +181,7 @@ function buildUsageModels(
   const byModelId = new Map<
     string,
     {
+      apiModelId: string
       modelName: string | null
       pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
       aliases: Set<string>
@@ -188,6 +189,7 @@ function buildUsageModels(
   >()
   for (const { sdkModelId, ref } of entries) {
     const current = byModelId.get(ref.modelId) ?? {
+      apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
       pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
       aliases: new Set<string>()
@@ -199,6 +201,7 @@ function buildUsageModels(
   }
   return [...byModelId].map(([modelId, snapshot]) => ({
     modelId,
+    apiModelId: snapshot.apiModelId,
     modelName: snapshot.modelName,
     pricingSnapshot: snapshot.pricingSnapshot,
     aliases: [...snapshot.aliases]

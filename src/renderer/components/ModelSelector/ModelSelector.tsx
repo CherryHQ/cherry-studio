@@ -179,8 +179,10 @@ function ModelRow({
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier
-    ? `${providerName} · ${item.modelIdentifier}`
-    : item.isPinned
+    ? item.groupKind === 'pinned'
+      ? `${providerName} · ${item.modelIdentifier}`
+      : item.modelIdentifier
+    : item.groupKind === 'pinned'
       ? providerName
       : undefined
 

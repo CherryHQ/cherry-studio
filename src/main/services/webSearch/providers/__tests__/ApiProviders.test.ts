@@ -841,6 +841,96 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('selects enabled Searxng engines whose categories are general only', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          engines: [
+            { categories: ['general'], enabled: true, name: 'wikipedia' },
+            { categories: ['images'], enabled: true, name: 'google_images' }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: []
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.calls[1] as [string, RequestInit | undefined]).url).toBe(
+      'https://searx.example/search?q=hello&language=auto&format=json&engines=wikipedia'
+    )
+  })
+
+  it('prefers enabled dual general+web Searxng engines and excludes specialized engines', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          engines: [
+            { categories: ['images'], enabled: true, name: 'google_images' },
+            { categories: ['general'], enabled: true, name: 'wikipedia' },
+            { categories: ['science'], enabled: true, name: 'arxiv' },
+            { categories: ['general', 'web'], enabled: true, name: 'duckduckgo' },
+            { categories: ['general', 'web'], enabled: false, name: 'google' }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: []
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.calls[1] as [string, RequestInit | undefined]).url).toBe(
+      'https://searx.example/search?q=hello&language=auto&format=json&engines=duckduckgo%2Cwikipedia'
+    )
+  })
+
+  it('throws when Searxng config has no enabled general search engines', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        engines: [
+          { categories: ['images'], enabled: true, name: 'google_images' },
+          { categories: ['science'], enabled: true, name: 'arxiv' },
+          { categories: ['general'], enabled: false, name: 'google' }
+        ]
+      })
+    )
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: []
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
+      'No enabled general web search engines found in Searxng configuration'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('filters empty fetched content from Searxng results', async () => {
     fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
     fetchRemoteTextMock.mockResolvedValueOnce('<html><body><div></div></body></html>')

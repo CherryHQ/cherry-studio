@@ -45,6 +45,7 @@ const MiniAppTabsPool: React.FC = () => {
     currentMiniAppId,
     splitOpen,
     splitMiniAppId,
+    openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
     setMiniAppShow
@@ -140,15 +141,20 @@ const MiniAppTabsPool: React.FC = () => {
     const orphanedApps = openedKeepAliveMiniApps.filter((app) => !isReferenced(app.appId))
     if (orphanedApps.length === 0) return
 
-    const kept = openedKeepAliveMiniApps.filter((app) => isReferenced(app.appId))
+    // The updater filters the latest stored pool, which can hold apps this render never
+    // saw — current/show must not be derived here; the realign effect below owns that.
     setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => isReferenced(app.appId)))
     for (const app of orphanedApps) clearWebviewState(app.appId)
+  }, [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps, splitMiniAppId, splitOpen, tabMiniAppIds])
 
-    // Realign whenever the current id no longer resolves to a pooled app — the stale id may
-    // predate this cleanup rather than be part of it.
-    if (kept.some((app) => app.appId === currentMiniAppId)) return
+  // Realign a current id that resolves to no shown app. Always-on, not gated behind orphan
+  // cleanup: a stale-snapshot decision then self-heals on the fresh-pool re-run.
+  useEffect(() => {
+    // One-off apps live outside the keep-alive pool but legitimately own the current id.
+    if (currentMiniAppId === openedOneOffMiniApp?.appId) return
+    if (openedKeepAliveMiniApps.some((app) => app.appId === currentMiniAppId)) return
 
-    if (activeMiniAppId && kept.some((app) => app.appId === activeMiniAppId)) {
+    if (activeMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeMiniAppId)) {
       setCurrentMiniAppId(activeMiniAppId)
       setMiniAppShow(true)
       return
@@ -160,12 +166,9 @@ const MiniAppTabsPool: React.FC = () => {
     activeMiniAppId,
     currentMiniAppId,
     openedKeepAliveMiniApps,
+    openedOneOffMiniApp,
     setCurrentMiniAppId,
-    setMiniAppShow,
-    setOpenedKeepAliveMiniApps,
-    splitMiniAppId,
-    splitOpen,
-    tabMiniAppIds
+    setMiniAppShow
   ])
 
   /** 设置 ref 回调 */

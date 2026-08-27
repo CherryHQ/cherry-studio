@@ -26,6 +26,8 @@ export interface DebouncedRenderResult {
   isLoading: boolean
   /** 手动触发渲染 */
   triggerRender: (content: string) => void
+  /** 立即触发渲染（跳过防抖） */
+  triggerImmediateRender: (content: string) => void
   /** 取消渲染 */
   cancelRender: () => void
   /** 清除错误状态 */
@@ -120,6 +122,22 @@ export const useDebouncedRender = (
     [debouncedRender]
   )
 
+  // 立即触发渲染（跳过防抖），用于流式完成时立即渲染最终内容
+  const triggerImmediateRender = useCallback(
+    (content: string) => {
+      if (content) {
+        setIsLoading(true)
+        debouncedRender.cancel()
+        void wrappedRenderFunction(content)
+      } else {
+        debouncedRender.cancel()
+        setIsLoading(false)
+        setError(null)
+      }
+    },
+    [debouncedRender, wrappedRenderFunction]
+  )
+
   const cancelRender = useCallback(() => {
     debouncedRender.cancel()
     setIsLoading(false)
@@ -160,6 +178,7 @@ export const useDebouncedRender = (
     error,
     isLoading,
     triggerRender,
+    triggerImmediateRender,
     cancelRender,
     clearError,
     setLoading: setLoadingState

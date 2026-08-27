@@ -13,14 +13,18 @@ low or high risk depending on scope and impact.
 
 ## Handling by Risk Level
 
-| `FIX_MODE` | Low risk | Medium risk | High risk |
-|------------|----------|-------------|-----------|
-| full       | Auto-fix | Auto-fix    | Auto-fix  |
-| low_medium | Auto-fix | Auto-fix    | Confirm   |
-| low        | Auto-fix | Confirm     | Confirm   |
+| Mode | Low risk | Medium risk | High risk |
+|------|----------|-------------|-----------|
+| Report-only (default — any target) | Report | Report | Report |
+| Authorized fix (explicit `fix` invocation, local targets) | Auto-fix | Report options and trade-offs | Report options and trade-offs |
 
-**Special rule for "full" mode**: issues that would change test baselines
-(screenshot comparisons, golden files) are always deferred for user confirmation,
+Authority comes from the invocation, never from the target type or reviewer
+confidence. Medium and high risk can have multiple reasonable fixes: surface
+the feasible options and key trade-offs, optionally identify a reviewer
+recommendation, and leave the implementation choice with the user. Never
+present an option as already chosen, and never ask mid-flow which issues to
+fix. **Test-baseline rule**: fixes that would change test baselines (screenshot
+comparisons, golden files) are never auto-applied — report them instead,
 regardless of risk level.
 
 **Legacy-data rule on `main`**: Redux is removed, and Dexie/ElectronStore are
@@ -62,6 +66,16 @@ defines **whether to fix** a discovered issue.
   them for the user's awareness rather than auto-fixing.
 - `console.log` → `loggerService`: always worth fixing (project convention).
 - Hardcoded UI strings → i18n: always worth fixing (project convention).
+- Mandatory-doc violations (naming conventions, process architecture docs,
+  data docs, plus on-demand lifecycle/IPC/window/job docs when touched):
+  always worth reporting at Warning minimum; never excluded as style
+  preference or "matches nearby code".
+- Entity leakage into a generic surface (cross-module or intra-module): always
+  worth reporting. The only valid fix restores ownership — relocating the
+  concern to its owning domain or an explicit extension point. Side tables,
+  metadata flags on generic contracts, or additional special cases are not
+  fixes and must not be applied or suggested as such. Typically medium risk
+  when the extension point already exists, high when it must be designed.
 - DataApi misuse for pure side effects: always worth reporting; fixing is high
   risk if it changes IPC/API contracts.
 - Handler-level business logic: worth fixing when the owning service and

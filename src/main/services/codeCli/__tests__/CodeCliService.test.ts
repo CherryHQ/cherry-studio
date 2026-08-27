@@ -7,11 +7,13 @@ const binaryManagerMock = vi.hoisted(() => ({
   removeTool: vi.fn(() => Promise.resolve()),
   getToolSnapshots: vi.fn()
 }))
+const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 
 vi.mock('@application', () => ({
   application: {
     get: vi.fn().mockImplementation((name: string) => {
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'HermesDashboardService') return hermesDashboardMock
       return {}
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
@@ -146,6 +148,7 @@ describe('CodeCliService', () => {
       )
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
+    hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
@@ -904,6 +907,17 @@ describe('CodeCliService', () => {
     })
   })
 
+  describe('writeConfigFiles', () => {
+    it('delegates Hermes config writes to the Dashboard lifecycle lock', async () => {
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.writeConfigFiles(CodeCli.HERMES, [{ target: 'hermes-config', content: 'model: {}\n' }])
+
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledOnce()
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledWith(expect.any(Function))
+    })
+  })
+
   describe('run (provider/model validation is owned solely by the service)', () => {
     beforeEach(async () => {
       // Keep the directory guard failing so a launch that passes validation returns immediately
@@ -941,6 +955,24 @@ describe('CodeCliService', () => {
         success: false,
         message: 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
       })
+    })
+
+    it('routes Hermes Agent launches through its managed IPC instead of a terminal', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.HERMES,
+        model: 'hermes-3',
+        providerId: 'deepseek',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
+      })
+      expect(binaryManagerMock.getToolSnapshots).not.toHaveBeenCalled()
     })
 
     it('rejects a normal CLI launch when the model is empty', async () => {

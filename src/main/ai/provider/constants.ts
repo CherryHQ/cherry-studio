@@ -8,7 +8,5 @@ export const COPILOT_DEFAULT_HEADERS = {
   'User-Agent': COPILOT_USER_AGENT,
   'Editor-Version': COPILOT_EDITOR_VERSION,
   'Editor-Plugin-Version': COPILOT_PLUGIN_VERSION,
-  'editor-version': COPILOT_EDITOR_VERSION,
-  'editor-plugin-version': COPILOT_PLUGIN_VERSION,
   'copilot-vision-request': 'true'
 } as const

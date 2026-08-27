@@ -350,6 +350,9 @@ export class CodeCliService extends BaseService {
 
   /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
   public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
+    if (cliTool === CodeCli.HERMES) {
+      return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
+    }
     return writeCliConfigFiles(cliTool, files)
   }
 
@@ -369,6 +372,11 @@ export class CodeCliService extends BaseService {
     }
     if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
       const message = 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message }
+    }
+    if (cliTool === CodeCli.HERMES) {
+      const message = 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
       logger.error(message)
       return { success: false, message }
     }

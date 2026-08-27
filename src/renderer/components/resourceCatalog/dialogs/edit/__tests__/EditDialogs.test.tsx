@@ -387,6 +387,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
           'library.config.basic.custom_params_name': 'Parameter name',
+          'library.config.basic.custom_params_value': 'Parameter value',
           'library.config.basic.default_value': 'Model default',
           'library.config.basic.field.model.hint': 'Default chat model.',
           'library.config.basic.field.name.hint': 'Shown in the selector.',
@@ -1319,6 +1320,30 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  it('names custom parameter value inputs for screen-reader users', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            customParameters: [
+              { name: 'stop', type: 'string', value: 'END' },
+              { name: '', type: 'number', value: 0 }
+            ]
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    expect(await screen.findByRole('textbox', { name: 'Parameter value: stop' })).toHaveValue('END')
+    expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue(0)
   })
 
   it('names the context override for what it does and states what is inherited while off', async () => {

@@ -4,7 +4,7 @@ import { type ComponentType, lazy, type RefObject } from 'react'
 /**
  * 特殊视图语言列表
  */
-export const SPECIAL_VIEWS = ['mermaid', 'plantuml', 'svg', 'dot', 'graphviz']
+export const SPECIAL_VIEWS = ['mermaid', 'plantuml', 'svg', 'dot', 'graphviz', 'echarts']
 
 type SpecialViewProps = BasicPreviewProps & { ref?: RefObject<BasicPreviewHandles | null> }
 
@@ -26,6 +26,9 @@ export const SPECIAL_VIEW_COMPONENTS = {
   ),
   graphviz: lazy<ComponentType<SpecialViewProps>>(() =>
     import('@renderer/components/Preview/GraphvizPreview').then((module) => ({ default: module.default }))
+  ),
+  echarts: lazy<ComponentType<SpecialViewProps>>(() =>
+    import('@renderer/components/Preview/EChartsPreview').then((module) => ({ default: module.default }))
   )
 } as const
 

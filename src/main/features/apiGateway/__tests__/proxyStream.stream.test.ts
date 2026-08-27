@@ -570,6 +570,7 @@ describe('processMessage (streaming)', () => {
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     }
+    mockIsInternalAgentRequest.mockReturnValue(true)
     mockResolveAgentSessionUsage.mockReturnValue(usageContext)
     const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
     const response = processMessage({
@@ -581,7 +582,26 @@ describe('processMessage (streaming)', () => {
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ usageContext }))
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
+
+    commit(captured.listener!)
+    await captured.listener!.onDone({} as any)
+    await response
+  })
+
+  it('marks internal Agent usage when no active turn correlation is available', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const response = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    const streamPromptInput = mockStreamPrompt.mock.calls[0][0]
+    expect(streamPromptInput).toEqual(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    expect(streamPromptInput).not.toHaveProperty('usageContext')
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)
@@ -690,6 +710,21 @@ describe('processMessage (streaming)', () => {
     const res = await resPromise
     expect(res.headers.get('Content-Type')).toBe('application/json')
     await expect(res.json()).resolves.toEqual({ done: true })
+  })
+
+  it('marks non-streaming internal Agent usage as agent usage', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const resPromise = processMessage({
+      params: { model: 'openai:gpt-4', messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    })
+
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    await captured.listener!.onDone({} as any)
+    await resPromise
   })
 })
 

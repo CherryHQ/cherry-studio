@@ -215,12 +215,19 @@ export function useModelSelectorData({
   )
 
   const createModelItem = useCallback(
-    (model: Model, provider: Provider, isPinned: boolean, showIdentifier: boolean): ModelSelectorModelItem => {
+    (
+      model: Model,
+      provider: Provider,
+      groupKind: ModelSelectorModelItem['groupKind'],
+      isPinned: boolean,
+      showIdentifier: boolean
+    ): ModelSelectorModelItem => {
       const modelId = model.id
 
       return {
-        key: isPinned ? `${modelId}_pinned` : modelId,
+        key: groupKind === 'pinned' ? `${modelId}_pinned` : modelId,
         type: 'model',
+        groupKind,
         model,
         provider,
         modelId,
@@ -241,14 +248,16 @@ export function useModelSelectorData({
       return (!showTagFilter || tagFilter(model, provider)) && baseModelFilter(model, provider)
     }
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
-    // result so duplicate-name detection and the list below share one pass per provider.
+    // result so provider-local duplicate-name detection and the list below share one pass.
     const tagFilteredModelsByProvider = new Map<string, Model[]>(
       sortedProviders.map((provider) => [
         provider.id,
         searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model, provider)))
       ])
     )
-    const duplicateModelNames = getDuplicateModelNames([...tagFilteredModelsByProvider.values()].flat())
+    const duplicateModelNamesByProvider = new Map(
+      [...tagFilteredModelsByProvider].map(([providerId, models]) => [providerId, getDuplicateModelNames(models)])
+    )
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
       const pinnedItems = pinnedIds.flatMap((modelId) => {
@@ -258,7 +267,15 @@ export function useModelSelectorData({
           return []
         }
 
-        return [createModelItem(model, provider, true, duplicateModelNames.has(model.name))]
+        return [
+          createModelItem(
+            model,
+            provider,
+            'pinned',
+            true,
+            duplicateModelNamesByProvider.get(provider.id)?.has(model.name) ?? false
+          )
+        ]
       })
 
       if (pinnedItems.length > 0) {
@@ -295,8 +312,9 @@ export function useModelSelectorData({
           createModelItem(
             model,
             provider,
+            'provider',
             showPinnedModels && pinnedIdSet.has(model.id),
-            duplicateModelNames.has(model.name)
+            duplicateModelNamesByProvider.get(provider.id)?.has(model.name) ?? false
           )
         )
       )

@@ -345,6 +345,42 @@ describe('ComposerToken', () => {
     )
   })
 
+  it('renders link tokens with the fixed link affordance color instead of the theme primary', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'link:1',
+          kind: 'link',
+          label: 'Cherry Studio',
+          promptText: 'https://cherry-ai.com'
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="link"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveClass('text-link')
+    expect(token).not.toHaveClass('text-primary')
+  })
+
+  it('keeps unparseable link tokens on the fixed link affordance color too', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'link:2',
+          kind: 'link',
+          label: 'Broken Link',
+          promptText: 'not-a-valid-url'
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="link"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveClass('text-link')
+    expect(token).not.toHaveClass('text-primary')
+  })
+
   it('renders folder tokens as compact inline chips with the full path in a tooltip', () => {
     const { container } = render(
       <ComposerToken

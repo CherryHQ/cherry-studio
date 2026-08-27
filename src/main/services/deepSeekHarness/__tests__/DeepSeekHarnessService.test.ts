@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
 import { BaseService } from '@main/core/lifecycle'
+import type * as ProcessRunner from '@main/utils/processRunner'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -41,7 +42,10 @@ vi.mock('@main/core/platform', () => ({
     return mocks.isWin
   }
 }))
-vi.mock('@main/utils/processRunner', () => ({ crossPlatformSpawn: mocks.spawn }))
+vi.mock('@main/utils/processRunner', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProcessRunner>()),
+  crossPlatformSpawn: mocks.spawn
+}))
 vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: vi.fn(async () => ({
     PATH: '/system/bin',

@@ -10,6 +10,7 @@ import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -83,11 +84,11 @@ export function createTopicActionContext({
     },
     onExportMarkdown: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic)
+      return exportTopicAsMarkdown(topic, false, undefined, chooseImageExportMode)
     },
     onExportMarkdownReason: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic, true)
+      return exportTopicAsMarkdown(topic, true, undefined, chooseImageExportMode)
     },
     onExportNotion: async (topic) => {
       const { exportTopicToNotion } = await import('@renderer/services/ExportService')

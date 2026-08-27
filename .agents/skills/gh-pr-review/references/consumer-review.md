@@ -1,9 +1,22 @@
----
-name: demand-first-review
-description: Use when reviewing a PR, API, IPC channel, endpoint, parameter, type, config, or architectural extension point that adds or expands shared surface area, especially when consumers are absent, exports are unused or speculative, existing consumers are hack-heavy, forward compatibility is claimed, or multiple similar APIs may express one demand.
----
+# Consumer Review
 
-# Demand-First Review
+The second review stage (after the Product Demand gate, before Architecture-First).
+It audits whether an added or expanded shared surface has real, legitimate
+consumers — code consumer archaeology, not implementation quality.
+
+**Trigger**: decided by diff semantics, never by change label. Run this stage
+whenever the diff adds or expands shared surface area — an API, DataApi/IpcApi
+route, endpoint, parameter, type, field, config key, or architectural
+extension point — regardless of whether the change is labelled `feat`, `fix`,
+`refactor`, `docs`, `test`, `chore`, or tooling. A fix or a skill/tooling doc
+change that introduces a new route, parameter, or extension point gets the
+same consumer archaeology. Skip only when the diff adds and expands no shared
+surface.
+
+**Output**: surviving surfaces (with their decision) proceed to
+Architecture-First review; removed, deferred, or consolidated surfaces are
+reported with their decision and are not reviewed further for implementation
+quality.
 
 ## Principle
 
@@ -61,7 +74,7 @@ Place behavior by ownership, not line count. Centralize security, permissions, t
 
 Compare contracts by semantics, owner, permissions, exposure, atomicity, lifecycle, failure model, and cost. Shared data alone does not prove duplication; reuse only when these are equivalent.
 
-### 7. Decide, then review implementation
+### 7. Decide, then hand off
 
 Choose one outcome per surface or normalized group:
 
@@ -73,7 +86,14 @@ Choose one outcome per surface or normalized group:
 - **Defer**: do not commit a possible demand yet.
 - **Remove**: no demand remains or an equivalent contract owns it.
 
-Report root outcome, evidence, consumer legitimacy, essential differences, owner, alternatives, and decision first. Review implementation quality only for survivors.
+Report root outcome, evidence, consumer legitimacy, essential differences, owner, alternatives, and decision first. Only surviving surfaces continue to Architecture-First and Implementation review.
+
+Ownership findings here and in Architecture-First overlap by design: this stage
+asks whether the surface should exist and who should own it;
+`cherry-review-guidance.md` asks whether the code that exists respects the
+documented boundaries. Report one finding per defect at the earlier stage, and
+apply the fix-altitude rule from `cherry-review-guidance.md` § Fix
+Recommendation Policy to both.
 
 ## Rationalization Guards
 

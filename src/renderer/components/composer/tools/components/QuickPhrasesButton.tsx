@@ -207,7 +207,8 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     () => ({
       title: t('settings.prompts.title'),
       list: phraseItems,
-      symbol: ComposerPanelSymbol.QuickPhrases
+      symbol: ComposerPanelSymbol.QuickPhrases,
+      trackInputQuery: true
     }),
     [phraseItems, t]
   )
@@ -225,12 +226,12 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
   }, [isQuickPanelVisible, phraseItems, quickPanelSymbol, updateQuickPanelList])
 
   const openQuickPanel = useCallback(
-    (parentPanel?: QuickPanelOpenOptions, queryAnchor?: number, triggerInfo?: QuickPanelOpenOptions['triggerInfo']) => {
+    (parentPanel?: QuickPanelOpenOptions, queryAnchor?: number) => {
       openQuickPanelContext({
         ...quickPanelOpenOptionsRef.current,
         parentPanel,
         queryAnchor,
-        triggerInfo
+        triggerInfo: { type: 'button' }
       })
     },
     [openQuickPanelContext]
@@ -244,9 +245,9 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
         label: t('settings.prompts.title'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
-        action: ({ parentPanel, queryAnchor, triggerInfo }) => {
+        action: ({ parentPanel, queryAnchor }) => {
           setPromptsEnabled(true)
-          openQuickPanel(parentPanel, queryAnchor, triggerInfo)
+          openQuickPanel(parentPanel, queryAnchor)
         }
       }
     ])
