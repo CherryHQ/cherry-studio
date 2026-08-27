@@ -1,5 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1547,54 +1547,6 @@ describe('AiService tool approval', () => {
         prompt: 'hi'
       })
     )
-  })
-
-  it.each(['openai-codex', 'grok-cli'])('checks %s through its streaming OAuth transport', async (providerId) => {
-    const service = createService()
-    const uniqueModelId = `${providerId}::test-model` as UniqueModelId
-    const streamSpy = vi.spyOn(service, 'streamText').mockResolvedValue(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: 'finish' } as never)
-          controller.close()
-        }
-      })
-    )
-    const generateSpy = vi.spyOn(service, 'generateText')
-    mockProviderGetByProviderId.mockReturnValueOnce({
-      id: providerId,
-      name: providerId,
-      apiKeys: [],
-      authType: 'oauth',
-      reportsActualCost: false,
-      settings: {},
-      isEnabled: true
-    })
-    mockModelGetByKey.mockReturnValueOnce({
-      id: uniqueModelId,
-      providerId,
-      apiModelId: 'test-model',
-      name: 'Test Model',
-      capabilities: [],
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    })
-
-    await service.checkModel({ uniqueModelId })
-
-    expect(streamSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatId: 'model-health-check',
-        contextOwner: 'caller',
-        messages: [expect.objectContaining({ role: 'user', parts: [{ type: 'text', text: 'Reply OK.' }] })],
-        requestOptions: expect.objectContaining({ maxRetries: 0, signal: expect.any(AbortSignal) }),
-        trigger: 'submit-message',
-        uniqueModelId
-      })
-    )
-    expect(generateSpy).not.toHaveBeenCalled()
   })
 
   it('disables reasoning on the text-generation probe', async () => {

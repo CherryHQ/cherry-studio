@@ -222,39 +222,6 @@ describe('ProviderApiSetupDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('finishes the exit animation before returning to the provider list', async () => {
-    vi.useFakeTimers()
-    const onBack = vi.fn()
-    const onClose = vi.fn()
-
-    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onBack={onBack} onClose={onClose} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.back_to_providers' }))
-
-    expect(onBack).not.toHaveBeenCalled()
-    await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
-    expect(onBack).toHaveBeenCalledTimes(1)
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('returns to the provider list without an intermediate animation in the guided flow', () => {
-    const onBack = vi.fn()
-
-    render(
-      <ProviderApiSetupDialog
-        providerId="openai"
-        initialStep="api-key"
-        seamlessTransitions
-        onBack={onBack}
-        onClose={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.back_to_providers' }))
-
-    expect(onBack).toHaveBeenCalledTimes(1)
-  })
-
   it('allows the model-loading dialog to close while the request is still pending', async () => {
     const onClose = vi.fn()
     fetchResolvedProviderModelsMock.mockReturnValue(new Promise(() => {}))
@@ -326,37 +293,6 @@ describe('ProviderApiSetupDialog', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows only models compatible with the current conversation', async () => {
-    render(
-      <ProviderApiSetupDialog
-        providerId="openai"
-        initialStep="models"
-        modelFilter={(model) => model.apiModelId === 'beta'}
-        onClose={vi.fn()}
-      />
-    )
-
-    await screen.findAllByText('beta')
-    expect(screen.queryByText('alpha')).not.toBeInTheDocument()
-    expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')).toHaveLength(1)
-  })
-
-  it('explains when a provider has models but none are compatible', async () => {
-    render(
-      <ProviderApiSetupDialog
-        providerId="openai"
-        initialStep="models"
-        modelFilter={() => false}
-        onBack={vi.fn()}
-        onClose={vi.fn()}
-      />
-    )
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('settings.provider.api_setup.no_compatible_models')
-    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.back_to_providers' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'common.retry' })).toBeEnabled()
-  })
-
   it('stays on the key step when the explicit save fails', async () => {
     addApiKeyMock.mockRejectedValueOnce(new Error('storage unavailable'))
 
@@ -402,16 +338,7 @@ describe('ProviderApiSetupDialog', () => {
     const canonicalBeta = { ...createModel('beta'), name: 'Canonical Beta' }
     createModelsMock.mockResolvedValueOnce([canonicalBeta])
     const onClose = vi.fn()
-    const onSetupSuccess = vi.fn()
-
-    render(
-      <ProviderApiSetupDialog
-        providerId="openai"
-        initialStep="models"
-        onClose={onClose}
-        onSetupSuccess={onSetupSuccess}
-      />
-    )
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={onClose} />)
 
     await screen.findAllByText('alpha')
     const modelCheckboxes = screen.getAllByLabelText('settings.provider.api_setup.select_model')
@@ -459,7 +386,6 @@ describe('ProviderApiSetupDialog', () => {
 
     resolveCheck?.({ latency: 12 })
     await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
-    expect(onSetupSuccess).toHaveBeenCalledWith([createModel('alpha'), canonicalBeta])
     expect(await screen.findByText('settings.provider.api_setup.success')).toBeInTheDocument()
     expect(toastSuccessMock).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
@@ -566,22 +492,6 @@ describe('ProviderApiSetupDialog', () => {
     expect(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' })).toBeEnabled()
   })
 
-  it('keeps an incompatible manually added model out of the selection', async () => {
-    provider = { ...provider, presetProviderId: undefined }
-    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('models endpoint unsupported'))
-
-    render(
-      <ProviderApiSetupDialog providerId="openai" initialStep="models" modelFilter={() => false} onClose={vi.fn()} />
-    )
-
-    await screen.findByRole('alert')
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_model_manually' }))
-    fireEvent.click(screen.getByRole('button', { name: 'save-manual-model' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('settings.provider.api_setup.no_compatible_models')
-    expect(screen.queryByLabelText('settings.provider.api_setup.select_model')).not.toBeInTheDocument()
-  })
-
   it('keeps the provider disabled and can return to the preserved selection after a real check fails', async () => {
     checkApiMock.mockRejectedValueOnce(new Error('insufficient balance')).mockResolvedValueOnce({ latency: 9 })
 
@@ -637,7 +547,6 @@ describe('ProviderApiSetupDialog', () => {
 
   it('keeps partial model creation and does not check or enable when a later batch fails', async () => {
     const models = Array.from({ length: 501 }, (_, index) => createModel(`model-${index}`))
-    const onSetupSuccess = vi.fn()
     fetchResolvedProviderModelsMock.mockResolvedValue(models)
     createModelsMock
       .mockImplementationOnce(async (dtos: Array<{ modelId: string; name: string }>) =>
@@ -645,14 +554,7 @@ describe('ProviderApiSetupDialog', () => {
       )
       .mockRejectedValueOnce(new Error('second batch failed'))
 
-    render(
-      <ProviderApiSetupDialog
-        providerId="openai"
-        initialStep="models"
-        onClose={vi.fn()}
-        onSetupSuccess={onSetupSuccess}
-      />
-    )
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
     await screen.findAllByText('model-0')
     fireEvent.click(screen.getByRole('button', { name: 'common.select_all' }))
@@ -668,21 +570,12 @@ describe('ProviderApiSetupDialog', () => {
     expect(createModelsMock.mock.calls[1]?.[0]).toHaveLength(1)
     expect(checkApiMock).not.toHaveBeenCalled()
     expect(enableProviderMock).not.toHaveBeenCalled()
-    expect(onSetupSuccess).not.toHaveBeenCalled()
   })
 
   it('adds high-cost models without probing or enabling the provider', async () => {
-    const onSetupSuccess = vi.fn()
     getModelHealthCheckSkipReasonMock.mockReturnValue({ kind: 'generation_cost', output: 'image' })
 
-    render(
-      <ProviderApiSetupDialog
-        providerId="openai"
-        initialStep="models"
-        onClose={vi.fn()}
-        onSetupSuccess={onSetupSuccess}
-      />
-    )
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
     await screen.findAllByText('alpha')
     fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
@@ -712,6 +605,5 @@ describe('ProviderApiSetupDialog', () => {
     expect(createModelsMock).toHaveBeenCalledTimes(1)
     expect(checkApiMock).not.toHaveBeenCalled()
     expect(enableProviderMock).not.toHaveBeenCalled()
-    expect(onSetupSuccess).not.toHaveBeenCalled()
   })
 })

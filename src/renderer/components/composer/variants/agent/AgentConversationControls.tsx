@@ -152,18 +152,10 @@ function ModelControl({
   side,
   iconOnly = false,
   onModelSelect,
-  modelFilter,
-  onAgentDialogCloseAutoFocus
+  modelFilter
 }: Pick<
   AgentConversationControlsProps,
-  | 'model'
-  | 'selectModelLabel'
-  | 'canChangeModel'
-  | 'side'
-  | 'iconOnly'
-  | 'onModelSelect'
-  | 'modelFilter'
-  | 'onAgentDialogCloseAutoFocus'
+  'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
 >) {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
@@ -194,7 +186,6 @@ function ModelControl({
       value={model}
       onSelect={onModelSelect}
       filter={modelFilter}
-      modelServiceSetup={{ setupContext: 'agent', onCloseAutoFocus: onAgentDialogCloseAutoFocus }}
       shortcut={canChangeModel ? 'chat.model.select' : undefined}
       side={side}
       align="start"

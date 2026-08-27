@@ -149,22 +149,6 @@ describe('Dialog primitive', () => {
     )
   })
 
-  it('omits content and overlay animation classes when motion is disabled', () => {
-    render(
-      <Dialog open>
-        <DialogContent motion="none" aria-describedby={undefined}>
-          <DialogTitle>Next setup step</DialogTitle>
-        </DialogContent>
-      </Dialog>
-    )
-
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
-    const content = document.querySelector('[data-slot="dialog-content"]')
-
-    expect(overlay).not.toHaveClass('data-[state=open]:animate-in', 'data-[state=closed]:animate-out')
-    expect(content).not.toHaveClass('data-[state=open]:animate-in', 'data-[state=closed]:animate-out')
-  })
-
   it('marks dialog content as no-drag so it stays clickable over titlebar drag regions', () => {
     render(
       <Dialog open>

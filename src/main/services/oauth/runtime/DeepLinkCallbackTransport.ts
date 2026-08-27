@@ -75,12 +75,6 @@ export class DeepLinkCallbackTransport {
     return { authUrl, state }
   }
 
-  cancelAuthorizationRequest(state: string, initiatorWindowId: WindowId): boolean {
-    const flow = this.pendingFlows.get(state)
-    if (!flow || flow.initiatorWindowId !== initiatorWindowId) return false
-    return this.pendingFlows.delete(state)
-  }
-
   consumeCallback(url: URL): DeepLinkAuthorizationCallback | null {
     if (`${url.protocol}//${url.host}${url.pathname}` !== this.config.redirectUri) {
       return null

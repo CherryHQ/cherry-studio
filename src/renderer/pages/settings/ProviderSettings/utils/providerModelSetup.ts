@@ -15,7 +15,6 @@ interface PersistProviderModelsOptions {
   knownModels?: Iterable<Model>
   createModels: (models: CreateModelsDto) => Promise<Model[]>
   updateModels: (models: BulkUpdateModelsDto) => Promise<Model[]>
-  signal?: AbortSignal
   onPersisted?: (models: Model[]) => void
 }
 
@@ -26,7 +25,6 @@ export async function persistProviderModels({
   knownModels = [],
   createModels,
   updateModels,
-  signal,
   onPersisted
 }: PersistProviderModelsOptions): Promise<Model[]> {
   const uniqueSelectedModels = [...new Map(selectedModels.map((model) => [model.id, model])).values()]
@@ -36,7 +34,6 @@ export async function persistProviderModels({
     .filter((model): model is Model => model != null && (!model.isEnabled || model.isHidden))
 
   for (const modelChunk of chunkArray(modelsToRestore, MODELS_BULK_UPDATE_MAX_ITEMS)) {
-    signal?.throwIfAborted()
     const updatedModels = await updateModels(
       modelChunk.map((model) => ({
         uniqueModelId: model.id,
@@ -54,7 +51,6 @@ export async function persistProviderModels({
 
   const missingModels = uniqueSelectedModels.filter((model) => !persistedModels.has(model.id))
   for (const modelChunk of chunkArray(missingModels, MODELS_BATCH_MAX_ITEMS)) {
-    signal?.throwIfAborted()
     const createdModels = await createModels(
       modelChunk.map((model) => toCreateModelDto(provider.id, model, resolveCreateModelEndpointTypes(provider, model)))
     )
@@ -67,7 +63,6 @@ export async function persistProviderModels({
     onPersisted?.(createdModels)
   }
 
-  signal?.throwIfAborted()
   return uniqueSelectedModels.map((model) => persistedModels.get(model.id) as Model)
 }
 

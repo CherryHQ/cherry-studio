@@ -42,7 +42,5 @@ export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
   // caller with no window (`senderId === null`) is rejected inside the runtime.
   // Per-provider host validation lives in the provider definition's createClient.
   'oauth.start_deep_link_flow': ({ providerId, oauthServer, apiHost }, ctx) =>
-    runtime().startDeepLinkFlow(ctx.senderId, providerId, { oauthServer, apiHost: apiHost ?? oauthServer }),
-  'oauth.cancel_deep_link_flow': ({ providerId, state }, ctx) =>
-    runtime().cancelDeepLinkFlow(ctx.senderId, providerId, state)
+    runtime().startDeepLinkFlow(ctx.senderId, providerId, { oauthServer, apiHost: apiHost ?? oauthServer })
 }

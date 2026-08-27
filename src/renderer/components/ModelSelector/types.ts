@@ -1,4 +1,3 @@
-import type { ModelServiceSetupContext } from '@renderer/services/ModelServiceSetupService'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CommandId } from '@shared/utils/command'
@@ -11,11 +10,6 @@ export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
 export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
 export type ModelSelectorFilter = (model: Model, provider?: Provider) => boolean
-
-export interface ModelSelectorServiceSetupOptions {
-  setupContext: ModelServiceSetupContext
-  onCloseAutoFocus?: () => void
-}
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
@@ -36,7 +30,6 @@ interface ModelSelectorCommonProps {
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
-  modelServiceSetup?: ModelSelectorServiceSetupOptions
   shortcut?: CommandId
 }
 

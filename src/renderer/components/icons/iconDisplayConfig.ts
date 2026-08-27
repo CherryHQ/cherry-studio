@@ -31,8 +31,7 @@ const ICON_DISPLAY_CONFIG: Readonly<Record<IconDisplayContext, Readonly<Record<s
     anthropic: providerListContainedIcon,
     yi: providerListContainedIcon,
     groq: providerListContainedIcon,
-    'aws-bedrock': providerListContainedIcon,
-    'radeon-cloud': providerListContainedIcon
+    'aws-bedrock': providerListContainedIcon
   }
 }
 

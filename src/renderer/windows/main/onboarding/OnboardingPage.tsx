@@ -13,12 +13,12 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
-import { modelServiceSetupService } from '@renderer/services/ModelServiceSetupService'
+import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
+import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
@@ -27,10 +27,9 @@ import type { Model } from '@shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { defaultLanguage } from '@shared/utils/languages'
 import { isNonChatModel } from '@shared/utils/model'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { ArrowLeft, Check, KeyRound, Languages, LogIn } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
@@ -39,6 +38,8 @@ type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
 type PrivacyChoiceAction = () => void | Promise<void>
 
+const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
+const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 const isOnboardingModel = (model: Model) => model.providerId !== CHERRYAI_PROVIDER_ID && !isNonChatModel(model)
 const ONBOARDING_PREFERENCE_KEYS = {
@@ -64,6 +65,8 @@ export default function OnboardingPage() {
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
+  const { addApiKey, updateProvider } = useProvider('cherryin')
+  const { syncProviderModels } = useProviderModelSync('cherryin')
   const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
   const { models: enabledModels, isLoading: isModelsLoading } = useModels({ enabled: true })
   const { defaultModel, quickModel, translateModel } = useDefaultModel()
@@ -73,6 +76,8 @@ export default function OnboardingPage() {
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(true)
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
+  const loginAttemptRef = useRef(0)
+  const loginLoadingTimeoutRef = useRef<number | null>(null)
   const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
     (model) => model && isOnboardingModel(model)
   )
@@ -220,21 +225,71 @@ export default function OnboardingPage() {
     [persistPrivacyChoice]
   )
 
+  useEffect(
+    () => () => {
+      if (loginLoadingTimeoutRef.current !== null) {
+        window.clearTimeout(loginLoadingTimeoutRef.current)
+      }
+    },
+    []
+  )
+
   const handleCherryInLogin = useCallback(async () => {
-    setIsLoggingIn(true)
-    try {
-      const configuredModels = await modelServiceSetupService.open({
-        setupContext: 'chat',
-        initialProviderId: SystemProviderIds.cherryin,
-        modelFilter: isOnboardingModel
-      })
-      if (configuredModels) setStep('select-model')
-    } catch {
-      toast.error(t('settings.provider.oauth.error'))
-    } finally {
-      setIsLoggingIn(false)
+    const attemptId = ++loginAttemptRef.current
+
+    if (loginLoadingTimeoutRef.current !== null) {
+      window.clearTimeout(loginLoadingTimeoutRef.current)
     }
-  }, [t])
+
+    setIsLoggingIn(true)
+    loginLoadingTimeoutRef.current = window.setTimeout(() => {
+      if (loginAttemptRef.current === attemptId) {
+        loginLoadingTimeoutRef.current = null
+        setIsLoggingIn(false)
+      }
+    }, CHERRYIN_LOGIN_LOADING_TIMEOUT_MS)
+
+    try {
+      await oauthWithCherryIn(
+        async (apiKeys) => {
+          if (loginAttemptRef.current !== attemptId) return
+
+          const keys = apiKeys
+            .split(',')
+            .map((key) => key.trim())
+            .filter(Boolean)
+
+          await Promise.all(keys.map((key) => addApiKey(key, 'OAuth')))
+          await updateProvider({ isEnabled: true })
+        },
+        { oauthServer: CHERRYIN_OAUTH_SERVER }
+      )
+      if (loginAttemptRef.current !== attemptId) return
+
+      const cherryInModels = await syncProviderModels()
+      if (loginAttemptRef.current !== attemptId) return
+
+      if (!cherryInModels.some((model) => model.isEnabled)) {
+        toast.error(t('onboarding.provider_setup.missing_model'))
+        setStep('provider')
+        return
+      }
+      toast.success(t('onboarding.toast.connected'))
+      setStep('select-model')
+    } catch {
+      if (loginAttemptRef.current === attemptId) {
+        toast.error(t('settings.provider.oauth.error'))
+      }
+    } finally {
+      if (loginAttemptRef.current === attemptId) {
+        if (loginLoadingTimeoutRef.current !== null) {
+          window.clearTimeout(loginLoadingTimeoutRef.current)
+          loginLoadingTimeoutRef.current = null
+        }
+        setIsLoggingIn(false)
+      }
+    }
+  }, [addApiKey, syncProviderModels, t, updateProvider])
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">

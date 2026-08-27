@@ -11,7 +11,6 @@ import {
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
-import type { ModelServiceSetupFilter } from '@renderer/services/ModelServiceSetupService'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { AlertCircle, ArrowLeft, CheckCircle2, Circle, CircleAlert, CircleX, LoaderCircle } from 'lucide-react'
@@ -40,12 +39,7 @@ interface ProviderApiSetupDialogProps {
   providerId: string
   initialStep: ProviderApiSetupInitialStep
   modelSelectionMode?: ProviderApiSetupModelSelectionMode
-  modelFilter?: ModelServiceSetupFilter
-  seamlessTransitions?: boolean
-  onBack?: () => void
   onClose: () => void
-  onCloseAutoFocus?: () => void
-  onSetupSuccess?: (models: Model[]) => void
 }
 
 type SetupBusyState = 'saving-key' | 'loading-models' | 'creating-models' | 'checking' | 'enabling' | null
@@ -62,12 +56,7 @@ export default function ProviderApiSetupDialog({
   providerId,
   initialStep,
   modelSelectionMode = 'setup',
-  modelFilter,
-  seamlessTransitions = false,
-  onBack,
-  onClose,
-  onCloseAutoFocus,
-  onSetupSuccess
+  onClose
 }: ProviderApiSetupDialogProps) {
   const { t } = useTranslation()
   const { provider, addApiKey, updateApiKey, updateProvider, enableProvider } = useProvider(providerId)
@@ -75,8 +64,8 @@ export default function ProviderApiSetupDialog({
   const { data: apiKeysData, isLoading: isLoadingApiKeys } = useProviderApiKeys(providerId)
   const { createModels, updateModels } = useModelMutations()
   const {
-    allModels: unfilteredAvailableModels,
-    localModels: unfilteredLocalModels,
+    allModels: availableModels,
+    localModels,
     reloadModels,
     isLoadingModels
   } = useProviderModelPullReconcile(providerId)
@@ -93,12 +82,10 @@ export default function ProviderApiSetupDialog({
   const [manualModelDialogOpen, setManualModelDialogOpen] = useState(false)
   const [pendingManualModelIds, setPendingManualModelIds] = useState<UniqueModelId[]>([])
   const [dialogOpen, setDialogOpen] = useState(true)
-  const [useDefaultDialogMotion, setUseDefaultDialogMotion] = useState(!seamlessTransitions)
   const initializedRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const closeIntentRef = useRef<'back' | 'dismiss' | 'manual'>('dismiss')
   const persistedModelsRef = useRef(new Map<UniqueModelId, Model>())
-  const configuredModelsRef = useRef<Model[]>([])
+  const modelsPersistedRef = useRef(false)
   const probeSucceededModelIdRef = useRef<string | null>(null)
 
   const isBusy = busyState !== null
@@ -112,14 +99,6 @@ export default function ProviderApiSetupDialog({
         : modelSelectionMode === 'check'
           ? 'settings.provider.api_setup.models_check_title'
           : 'settings.provider.api_setup.models_title'
-  )
-  const availableModels = useMemo(
-    () => unfilteredAvailableModels.filter((model) => modelFilter?.(model, provider) ?? true),
-    [modelFilter, provider, unfilteredAvailableModels]
-  )
-  const localModels = useMemo(
-    () => unfilteredLocalModels.filter((model) => modelFilter?.(model, provider) ?? true),
-    [modelFilter, provider, unfilteredLocalModels]
   )
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
   const modelListView = useModelListSyncView({
@@ -172,30 +151,14 @@ export default function ProviderApiSetupDialog({
 
   useEffect(() => clearCloseTimer, [clearCloseTimer])
 
-  const requestExit = useCallback(
-    (intent: 'back' | 'dismiss', callback: () => void) => {
-      clearCloseTimer()
-      closeIntentRef.current = intent
-      setUseDefaultDialogMotion(intent === 'dismiss')
-      setDialogOpen(false)
-      if (seamlessTransitions && intent === 'back') {
-        callback()
-        return
-      }
-      closeTimerRef.current = setTimeout(() => {
-        closeTimerRef.current = null
-        callback()
-      }, DIALOG_UNMOUNT_DELAY_MS)
-    },
-    [clearCloseTimer, seamlessTransitions]
-  )
-
-  const requestClose = useCallback(() => requestExit('dismiss', onClose), [onClose, requestExit])
-  const requestBack = useCallback(() => {
-    if (onBack) {
-      requestExit('back', onBack)
-    }
-  }, [onBack, requestExit])
+  const requestClose = useCallback(() => {
+    clearCloseTimer()
+    setDialogOpen(false)
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null
+      onClose()
+    }, DIALOG_UNMOUNT_DELAY_MS)
+  }, [clearCloseTimer, onClose])
 
   useEffect(() => {
     if (!setupSucceeded) {
@@ -233,7 +196,7 @@ export default function ProviderApiSetupDialog({
     setCompletedVerificationSteps(new Set())
     setSelectedModelIds(new Set(localModelIds))
     setModelViewResetVersion((version) => version + 1)
-    configuredModelsRef.current = []
+    modelsPersistedRef.current = false
     probeSucceededModelIdRef.current = null
 
     try {
@@ -244,19 +207,8 @@ export default function ProviderApiSetupDialog({
       }
       if (result.error) {
         setError(createError('models', 'settings.models.manage.sync_pull_failed', result.error))
-      } else {
-        const compatibleRemoteModels = result.models.filter((model) => modelFilter?.(model, provider) ?? true)
-        if (compatibleRemoteModels.length === 0 && localModelIds.size === 0) {
-          const hasUnfilteredModels = result.models.length > 0 || unfilteredLocalModels.length > 0
-          setError({
-            kind: 'models',
-            message: t(
-              hasUnfilteredModels
-                ? 'settings.provider.api_setup.no_compatible_models'
-                : 'settings.provider.api_setup.no_models'
-            )
-          })
-        }
+      } else if (result.models.length === 0 && localModelIds.size === 0) {
+        setError({ kind: 'models', message: t('settings.provider.api_setup.no_models') })
       }
     } catch (cause) {
       setSelectedModelIds(new Set())
@@ -264,7 +216,7 @@ export default function ProviderApiSetupDialog({
     } finally {
       setBusyState(null)
     }
-  }, [createError, keepProviderDisabled, localModelIds, modelFilter, provider, reloadModels, t, unfilteredLocalModels])
+  }, [createError, keepProviderDisabled, localModelIds, reloadModels, t])
 
   useEffect(() => {
     if (pendingManualModelIds.length === 0) {
@@ -272,21 +224,16 @@ export default function ProviderApiSetupDialog({
     }
 
     const pendingIdSet = new Set(pendingManualModelIds)
-    const addedModels = unfilteredLocalModels.filter((model) => pendingIdSet.has(model.id))
+    const addedModels = localModels.filter((model) => pendingIdSet.has(model.id))
     if (addedModels.length !== pendingManualModelIds.length) {
       return
     }
 
-    const compatibleModels = addedModels.filter((model) => modelFilter?.(model, provider) ?? true)
-    if (compatibleModels.length === 0) {
-      setError({ kind: 'models', message: t('settings.provider.api_setup.no_compatible_models') })
-    } else {
-      setError(null)
-      setSelectedModelIds((current) => new Set([...current, ...compatibleModels.map((model) => model.id)]))
-    }
+    setError(null)
+    setSelectedModelIds((current) => new Set([...current, ...addedModels.map((model) => model.id)]))
     setPendingManualModelIds([])
     setModelViewResetVersion((version) => version + 1)
-  }, [modelFilter, pendingManualModelIds, provider, t, unfilteredLocalModels])
+  }, [localModels, pendingManualModelIds])
 
   useEffect(() => {
     if (initializedRef.current || initialStep !== 'models' || isLoadingApiKeys) {
@@ -382,12 +329,12 @@ export default function ProviderApiSetupDialog({
     setRequiresManualConfirmation(false)
     setSetupSucceeded(false)
     setCompletedVerificationSteps(new Set())
-    configuredModelsRef.current = []
+    modelsPersistedRef.current = false
     probeSucceededModelIdRef.current = null
 
     try {
       await keepProviderDisabled()
-      configuredModelsRef.current = await persistProviderModels({
+      await persistProviderModels({
         provider,
         selectedModels,
         localModels,
@@ -398,6 +345,7 @@ export default function ProviderApiSetupDialog({
           for (const model of models) persistedModelsRef.current.set(model.id, model)
         }
       })
+      modelsPersistedRef.current = true
     } catch (cause) {
       setBusyState(null)
       setError(createError('create', 'settings.models.manage.operation_failed', cause))
@@ -423,7 +371,7 @@ export default function ProviderApiSetupDialog({
   ])
 
   const verifyAndEnable = useCallback(async () => {
-    if (!probeModel || configuredModelsRef.current.length === 0 || isBusy) {
+    if (!probeModel || !modelsPersistedRef.current || isBusy) {
       return
     }
 
@@ -453,13 +401,12 @@ export default function ProviderApiSetupDialog({
       await enableProvider()
       setCompletedVerificationSteps((current) => new Set(current).add('enable'))
       setBusyState(null)
-      onSetupSuccess?.(configuredModelsRef.current)
       setSetupSucceeded(true)
     } catch (cause) {
       setBusyState(null)
       setError(createError('enable', 'settings.provider.api_setup.enable_failed', cause))
     }
-  }, [createError, enableProvider, isBusy, onSetupSuccess, probeModel, verificationApiKey])
+  }, [createError, enableProvider, isBusy, probeModel, verificationApiKey])
 
   const returnToModels = useCallback(() => {
     if (isBusy) {
@@ -470,33 +417,26 @@ export default function ProviderApiSetupDialog({
     setRequiresManualConfirmation(false)
     setSetupSucceeded(false)
     setCompletedVerificationSteps(new Set())
-    configuredModelsRef.current = []
+    modelsPersistedRef.current = false
     probeSucceededModelIdRef.current = null
     setStep('models')
   }, [isBusy])
 
   const handleManualModelSuccess = useCallback((modelIds: UniqueModelId[]) => {
     setManualModelDialogOpen(false)
-    closeIntentRef.current = 'dismiss'
     setPendingManualModelIds(modelIds)
   }, [])
 
-  const openManualModelDialog = useCallback(() => {
-    closeIntentRef.current = 'manual'
-    setManualModelDialogOpen(true)
-  }, [])
+  const openManualModelDialog = useCallback(() => setManualModelDialogOpen(true), [])
 
-  const closeManualModelDialog = useCallback(() => {
-    setManualModelDialogOpen(false)
-    closeIntentRef.current = 'dismiss'
-  }, [])
+  const closeManualModelDialog = useCallback(() => setManualModelDialogOpen(false), [])
 
   const editSavedKey = useCallback(() => {
     setError(null)
     setRequiresManualConfirmation(false)
     setSetupSucceeded(false)
     setCompletedVerificationSteps(new Set())
-    configuredModelsRef.current = []
+    modelsPersistedRef.current = false
     probeSucceededModelIdRef.current = null
     setApiKey((current) => current || storedApiKey?.key || '')
     setStep('api-key')
@@ -510,6 +450,14 @@ export default function ProviderApiSetupDialog({
     },
     [canDismissDialog, requestClose]
   )
+  const headerBackAction =
+    step === 'verification' && !setupSucceeded
+      ? {
+          label: t('settings.provider.api_setup.back_to_models'),
+          disabled: isBusy,
+          onClick: returnToModels
+        }
+      : null
 
   return (
     <>
@@ -518,17 +466,6 @@ export default function ProviderApiSetupDialog({
           closeOnOverlayClick={canDismissDialog}
           showCloseButton={step !== 'verification' || !isBusy}
           size="lg"
-          motion={useDefaultDialogMotion ? 'directional' : 'none'}
-          onCloseAutoFocus={(event) => {
-            if (closeIntentRef.current !== 'dismiss') {
-              event.preventDefault()
-              return
-            }
-            if (onCloseAutoFocus) {
-              event.preventDefault()
-              onCloseAutoFocus()
-            }
-          }}
           className={cn(
             'gap-5 [&_[data-slot=dialog-close]]:top-7',
             step === 'models' &&
@@ -537,15 +474,15 @@ export default function ProviderApiSetupDialog({
           )}>
           <DialogHeader className="pr-8">
             <div className="flex min-w-0 items-center gap-2">
-              {step !== 'verification' && onBack ? (
-                <Tooltip content={t('settings.provider.api_setup.back_to_providers')}>
+              {headerBackAction ? (
+                <Tooltip content={headerBackAction.label}>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={t('settings.provider.api_setup.back_to_providers')}
-                    disabled={!canDismissDialog}
-                    onClick={requestBack}>
+                    aria-label={headerBackAction.label}
+                    disabled={headerBackAction.disabled}
+                    onClick={headerBackAction.onClick}>
                     <ArrowLeft className="size-4" />
                   </Button>
                 </Tooltip>
@@ -727,30 +664,17 @@ export default function ProviderApiSetupDialog({
                   return <VerificationProgressRow key={id} label={label} status={status} statusText={statusText} />
                 })}
               </ol>
-
-              {requiresManualConfirmation ? (
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button type="button" variant="outline" onClick={returnToModels}>
-                    {t('settings.provider.api_setup.back_to_models')}
-                  </Button>
-                </div>
-              ) : null}
             </div>
           )}
 
           {step === 'verification' ? (
             !setupSucceeded && !requiresManualConfirmation ? (
-              <DialogFooter className="flex-row items-center justify-between sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="ghost" disabled={isBusy} onClick={returnToModels}>
-                    {t('settings.provider.api_setup.back_to_models')}
+              <DialogFooter className="flex-row items-center justify-end sm:justify-end">
+                {error && editableApiKeyId ? (
+                  <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
+                    {t('settings.provider.api_setup.edit_key')}
                   </Button>
-                  {error && editableApiKeyId ? (
-                    <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
-                      {t('settings.provider.api_setup.edit_key')}
-                    </Button>
-                  ) : null}
-                </div>
+                ) : null}
                 <Button type="button" loading={isBusy} disabled={!probeModel} onClick={() => void verifyAndEnable()}>
                   {t('settings.provider.api_setup.verify_and_enable')}
                 </Button>

@@ -363,17 +363,17 @@ describe('OAuthRuntimeService', () => {
     expect(h.providerStore.get('cherryin')?.isEnabled).toBeUndefined()
   })
 
-  // Authentication alone is not provider readiness: guided setup must add and
-  // verify a model before its renderer flow enables the provider.
-  it('signIn persists tokens without enabling the provider and closes the transport', async () => {
+  // The loopback happy path: exchange the code, persist tokens, enable the
+  // provider, and always release the transport.
+  it('signIn persists tokens, enables the provider, and closes the transport', async () => {
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
 
     const account = await service.signIn('codex', 'sign-in-request')
 
     const stored = h.providerStore.get('codex')
     expect(stored?.authConfig).toMatchObject({ accessToken: 'at' })
-    expect(stored?.isEnabled).toBeUndefined()
-    expect(h.providerServiceMock.update).not.toHaveBeenCalledWith('codex', { isEnabled: true })
+    expect(stored?.isEnabled).toBe(true)
+    expect(h.providerServiceMock.update).toHaveBeenCalledWith('codex', { isEnabled: true })
     expect(account).toEqual({ accountId: null })
     expect(h.transportMock.close).toHaveBeenCalled()
   })
@@ -404,31 +404,7 @@ describe('OAuthRuntimeService', () => {
     expect(h.transportMock.waitForAuthorizationCode).not.toHaveBeenCalled()
   })
 
-  it('detaches a cancelled observer without aborting the shared sign-in', async () => {
-    let resolveCode: (code: string) => void = () => {}
-    let callbackSignal: AbortSignal | undefined
-    h.transportMock.waitForAuthorizationCode.mockImplementation((_state: string, signal: AbortSignal) => {
-      callbackSignal = signal
-      return new Promise<string>((resolve) => {
-        resolveCode = resolve
-      })
-    })
-    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
-
-    const owner = service.signIn('codex', 'owner-request')
-    const attached = service.joinActiveSignIn('codex', 'attached-request')
-    const attachedOutcome = attached.catch((error: unknown) => error)
-    await vi.waitFor(() => expect(callbackSignal).toBeInstanceOf(AbortSignal))
-
-    await service.cancelSignIn('codex', 'attached-request')
-
-    expect(await attachedOutcome).toBeInstanceOf(OAuthSignInCancelledError)
-    expect(callbackSignal?.aborted).toBe(false)
-    resolveCode('auth-code')
-    await expect(owner).resolves.toEqual({ accountId: null })
-  })
-
-  it('cancels an active sign-in when its last observer leaves and allows an immediate retry', async () => {
+  it('cancels an active sign-in and allows an immediate retry', async () => {
     let callbackSignal: AbortSignal | undefined
     h.transportMock.waitForAuthorizationCode.mockImplementation((_state: string, signal: AbortSignal) => {
       callbackSignal = signal
@@ -438,14 +414,20 @@ describe('OAuthRuntimeService', () => {
     })
 
     const first = service.signIn('codex', 'first-request')
+    const second = service.signIn('codex', 'second-request')
+    const attached = service.joinActiveSignIn('codex', 'attach-request')
     const firstOutcome = first.catch((error: unknown) => error)
+    const secondOutcome = second.catch((error: unknown) => error)
+    const attachedOutcome = attached.catch((error: unknown) => error)
     await vi.waitFor(() => expect(callbackSignal).toBeInstanceOf(AbortSignal))
 
     await service.cancelSignIn('codex', 'stale-request')
     expect(callbackSignal?.aborted).toBe(false)
 
-    await service.cancelSignIn('codex', 'first-request')
+    await service.cancelSignIn('codex', 'attach-request')
     expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(await secondOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(await attachedOutcome).toBeInstanceOf(OAuthSignInCancelledError)
     await expect(service.joinActiveSignIn('codex', 'later-attach')).resolves.toEqual({ status: 'not-found' })
 
     const retryOutcome = service.signIn('codex', 'retry-request').catch((error: unknown) => error)
@@ -556,7 +538,7 @@ describe('OAuthRuntimeService', () => {
     await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
 
     expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'at' })
-    expect(h.providerServiceMock.update).not.toHaveBeenCalledWith('cherryin', { isEnabled: true })
+    expect(h.providerServiceMock.update).toHaveBeenCalledWith('cherryin', { isEnabled: true })
     expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { apiKeys: '' })
   })
 

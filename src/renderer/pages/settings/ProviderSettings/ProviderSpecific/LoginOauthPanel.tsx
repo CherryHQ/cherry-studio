@@ -54,23 +54,17 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     [invalidateCache, providerId]
   )
 
-  const reflectSignInSuccess = useCallback(
+  const applySignInSuccess = useCallback(
     async (account: { accountId: string | null }) => {
       if (mountedRef.current) {
         setLoggedIn(true)
         setAccountId(account.accountId)
       }
+      // The main process owns the write; revalidate this window's DataApi reads.
       await refreshProviderData()
-    },
-    [refreshProviderData]
-  )
-
-  const applyOwnedSignInSuccess = useCallback(
-    async (account: { accountId: string | null }) => {
-      await reflectSignInSuccess(account)
       if (mountedRef.current) toast.success(t(`${ns}.sign_in_success`))
     },
-    [ns, reflectSignInSuccess, t]
+    [ns, refreshProviderData, t]
   )
 
   const startSignIn = useCallback((): Promise<void> => {
@@ -83,7 +77,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     const request = Promise.resolve().then(async () => {
       try {
         const account = await ipcApi.request('oauth.sign_in', { providerId, requestId })
-        await applyOwnedSignInSuccess(account)
+        await applySignInSuccess(account)
       } catch (error) {
         if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
         if (!mountedRef.current) return
@@ -99,7 +93,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     })
     signInRequestRef.current = request
     return request
-  }, [applyOwnedSignInSuccess, providerId, ns, t])
+  }, [applySignInSuccess, providerId, ns, t])
 
   const attachActiveSignIn = useCallback(async () => {
     const requestId = crypto.randomUUID()
@@ -108,7 +102,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     try {
       const result = await ipcApi.request('oauth.sign_in.attach', { providerId, requestId })
       if (result.status === 'completed') {
-        await reflectSignInSuccess(result.account)
+        await applySignInSuccess(result.account)
         return
       }
 
@@ -116,7 +110,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       if (!mountedRef.current) return
       if (hasToken) {
         const account = showAccountId ? await ipcApi.request('oauth.get_account', { providerId }) : { accountId: null }
-        await reflectSignInSuccess(account)
+        await applySignInSuccess(account)
         return
       }
 
@@ -133,7 +127,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
         if (mountedRef.current) setSigningIn(false)
       }
     }
-  }, [ns, providerId, reflectSignInSuccess, showAccountId, t])
+  }, [applySignInSuccess, ns, providerId, showAccountId, t])
 
   const refreshStatus = useCallback(async () => {
     try {

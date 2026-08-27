@@ -12,16 +12,12 @@ import { registerImageModeChooser } from '@renderer/services/imageExportModeChoo
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 import { useEffect } from 'react'
 
-import { registerModelServiceSetupPopup } from '../ModelServiceSetupPopup'
-
 // Headless behavior leaf inside the providers: the shared window runtime (same route
 // tree as main, so it needs the same window-level side effects). It renders nothing;
 // the popup/toast hosts are explicit siblings in the App JSX below. The subWindow has
 // none of the main-only concerns (boot spinner/timer, update/storage notification).
 function SubWindowRuntime(): null {
   useWindowRuntime()
-  useEffect(() => registerModelServiceSetupPopup(), [])
-
   // Same route tree as main, so topic/message exports run here too — register the
   // image-mode popup behind the services seam like MainApp does.
   useEffect(() => {

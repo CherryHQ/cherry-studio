@@ -17,7 +17,6 @@ import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { lazy, Suspense, useEffect } from 'react'
 
-import { registerModelServiceSetupPopup } from '../ModelServiceSetupPopup'
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
@@ -72,8 +71,6 @@ function MainWindowRuntime(): null {
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
   }, [])
-
-  useEffect(() => registerModelServiceSetupPopup(), [])
 
   useAppUpdateHandler()
   useAutoBackupEvents()

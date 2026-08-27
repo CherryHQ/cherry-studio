@@ -29,7 +29,6 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
@@ -1189,22 +1188,6 @@ export class AiService extends BaseService {
         paramValues: {},
         cleanupPolicy: 'delete_when_unreferenced'
       })
-    } else if (hasRuntimeTransportAdapter(provider.id)) {
-      // Subscription-backed OAuth transports are stream-only, so a generateText probe is a false negative.
-      probe = this.streamText({
-        ...probeRequest,
-        chatId: 'model-health-check',
-        trigger: 'submit-message',
-        messages: [
-          {
-            id: 'model-health-check-user',
-            role: 'user',
-            parts: [{ type: 'text', text: 'Reply OK.' }]
-          }
-        ],
-        contextOwner: 'caller',
-        requestOptions: { ...probeRequest.requestOptions, maxRetries: 0 }
-      }).then((stream) => stream.pipeTo(new WritableStream()))
     } else {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
