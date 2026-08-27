@@ -85,7 +85,8 @@ export async function runAgentFileTask(
   approve: boolean
 ): Promise<void> {
   const output = join(app.paths.workspace, fileName)
-  const prompt = `Create ${fileName} directly in the current working directory with the exact text AGENT_FILE_TASK_PASS.`
+  const promptPath = output.replaceAll('\\', '/')
+  const prompt = `Create the file at the exact absolute path ${JSON.stringify(promptPath)} with the exact text AGENT_FILE_TASK_PASS.`
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first().fill(prompt)
     await page.getByRole('button', { name: 'Send', exact: true }).click()
