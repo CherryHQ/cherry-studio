@@ -16,7 +16,7 @@ test('[M-01] 登录 CherryIN 并完成聊天 @cherryin-chat', async ({ app, main
   await addCherryInModel(page, app.config.cherryIn.chatModel)
   await closeSettings(page)
   await selectChatModel(page, app.config.cherryIn.chatModel)
-  await sendChatMarker(page, 'Reply with exactly CHERRYIN_CHAT_PASS and nothing else.', 'CHERRYIN_CHAT_PASS')
+  await sendChatMarker(page, 'Reply with exactly CHERRYIN_CHAT_PASS and nothing else.', 'CHERRYIN_CHAT_PASS', false)
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
@@ -36,7 +36,7 @@ async function generateAndSaveImage(
   const modelName = model.split('/').at(-1) ?? model
   if (!(await modelButton.textContent())?.includes(modelName)) {
     await modelButton.click()
-    await selectVisibleModel(page, modelName)
+    await selectVisibleModel(page, model)
   }
   await page.locator('[contenteditable="true"]').fill(IMAGE_PROMPT)
   await page.getByRole('button', { name: 'Send', exact: true }).click()
@@ -60,6 +60,7 @@ async function generateAndSaveImage(
 
   await selectSidebarApp(page, 'Chat')
   await selectSidebarApp(page, 'Paintings')
+  await page.getByRole('button', { name: 'Select Image', exact: true }).last().click()
   await expect(page.getByTestId('artboard-image-transform').last()).toBeVisible()
 }
 

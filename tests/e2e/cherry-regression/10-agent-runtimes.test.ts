@@ -26,7 +26,8 @@ test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWind
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await selectSidebarApp(page, 'Work')
-  await expect(page.getByText(name, { exact: true })).toBeVisible()
+  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  await expect(agentView.getByRole('button', { name, exact: true })).toBeVisible()
 })
 
 test('[A-04] Pi Runtime @pi-runtime', async ({ app, mainWindow: page }) => {
@@ -85,5 +86,18 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
       { timeout: 5 * 60_000 }
     )
     .toBe(true)
-  await expect(page.getByText('cherry-regression-31415.pptx', { exact: true })).toBeVisible()
+  await expect
+    .poll(
+      async () => {
+        const allow = page.getByRole('button', { name: /Allow/ }).first()
+        if (await allow.isVisible().catch(() => false)) await allow.click()
+        return page
+          .getByText('cherry-regression-31415.pptx', { exact: true })
+          .last()
+          .isVisible()
+          .catch(() => false)
+      },
+      { timeout: 2 * 60_000 }
+    )
+    .toBe(true)
 })

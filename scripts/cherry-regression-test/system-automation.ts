@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, statSync } from 'node:fs'
-import { basename, dirname } from 'node:path'
+import { basename, dirname, extname } from 'node:path'
 
 import { readAppRecord } from './lifecycle'
 import type { RunPaths } from './paths'
@@ -106,20 +106,30 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       `$expected = (Get-Content -Raw -LiteralPath '${escapePowerShell(filePath)}').Trim()`,
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
       '$documentCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)',
+      '$editCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
       '$document = $null',
       '$range = $null',
       'do {',
-      '  $documents = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $documentCondition)',
-      '  foreach ($candidate in $documents) {',
+      '  $documents = @($root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $documentCondition))',
+      '  $edits = @($root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition))',
+      '  foreach ($candidate in (@($documents) + @($edits))) {',
+      '    $candidateRange = $null',
+      '    $candidateText = $null',
       '    try {',
       '      $candidateRange = $candidate.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern).DocumentRange',
-      '      if ($candidateRange.GetText(-1).Trim().Contains($expected)) {',
-      '        $document = $candidate',
-      '        $range = $candidateRange',
-      '        break',
-      '      }',
-      '    } catch {}',
+      '      $candidateText = $candidateRange.GetText(-1)',
+      '    } catch {',
+      '      try {',
+      '        $candidateValue = $candidate.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
+      '        $candidateText = $candidateValue.Current.Value',
+      '      } catch {}',
+      '    }',
+      '    if ($candidateText -and $candidateText.Trim().Contains($expected)) {',
+      '      $document = $candidate',
+      '      $range = $candidateRange',
+      '      break',
+      '    }',
       '  }',
       '  if (-not $document) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $document -and [DateTime]::UtcNow -lt $deadline)',
@@ -127,7 +137,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       '$shell = New-Object -ComObject WScript.Shell',
       'if (-not $shell.AppActivate($document.Current.ProcessId)) { throw "Notepad window could not be activated" }',
       '$document.SetFocus()',
-      '$range.Select()',
+      'if ($range) { $range.Select() } else { $shell.SendKeys("^a") }',
       'Start-Sleep -Milliseconds 500'
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
@@ -186,9 +196,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
         ? [
             '[System.Windows.Forms.SendKeys]::SendWait("^l")',
             'Start-Sleep -Milliseconds 200',
-            '$pathInput = [System.Windows.Automation.AutomationElement]::FocusedElement',
-            '$valuePattern = $pathInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
-            `$valuePattern.SetValue('${escapePowerShell(filePath)}')`,
+            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
             '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
             'Start-Sleep -Milliseconds 750',
             '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
@@ -237,7 +245,9 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
       'end tell',
       'end run'
     ].join('\n')
-    execFileSync('osascript', ['-e', script, '--', directory, basename(filePath), String(electronPid)], {
+    const extension = extname(filePath)
+    const saveName = extension ? basename(filePath, extension) : basename(filePath)
+    execFileSync('osascript', ['-e', script, '--', directory, saveName, String(electronPid)], {
       stdio: 'ignore',
       timeout: 15_000
     })

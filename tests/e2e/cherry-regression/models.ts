@@ -12,7 +12,7 @@ export async function selectVisibleModel(page: Page, model: string): Promise<voi
   const modelName = model.split('/').at(-1) ?? model
   const search = selector.getByTestId('model-selector-search')
   await search.fill(modelName)
-  const option = selector.getByRole('option').first()
+  const option = selector.locator(`[role="option"][data-testid$="::${model}"]`).first()
   await expect(option).toBeVisible()
   await option.click()
 }
@@ -23,7 +23,11 @@ async function closeOpenSettingsDrawer(page: Page): Promise<void> {
 
   await page.keyboard.press('Escape')
   if (await drawer.isVisible().catch(() => false)) {
-    await drawer.getByRole('button', { name: 'Close', exact: true }).click()
+    const closed = await drawer
+      .waitFor({ state: 'hidden', timeout: 1_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (!closed) await drawer.getByRole('button', { name: 'Close', exact: true }).click()
   }
   await expect(drawer).toBeHidden()
 }
