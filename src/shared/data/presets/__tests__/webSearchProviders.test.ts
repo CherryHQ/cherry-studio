@@ -82,6 +82,15 @@ describe('web search provider schemas', () => {
     )
   })
 
+  it('models Duckduckgo as a hostless keyless keyword search provider', () => {
+    const duckduckgo = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'duckduckgo')
+
+    expect(duckduckgo).toBeDefined()
+    expect(duckduckgo!.capabilities).toEqual([
+      { feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }
+    ])
+  })
+
   it('accepts valid provider overrides', () => {
     const result = WebSearchProviderOverridesSchema.safeParse({
       tavily: {
@@ -146,6 +155,10 @@ describe('client web provider readiness', () => {
     expect(isWebSearchProviderReady(provider('exa-mcp'), 'searchKeywords')).toBe(true)
     expect(isWebSearchProviderReady(provider('searxng'), 'searchKeywords')).toBe(true)
     expect(isWebSearchProviderReady(provider('firecrawl'), 'searchKeywords')).toBe(true)
+  })
+
+  it('accepts hostless keyless keyword search providers without any configuration', () => {
+    expect(isWebSearchProviderReady(provider('duckduckgo'), 'searchKeywords')).toBe(true)
   })
 
   it('requires an API key for providers that authenticate every search request', () => {

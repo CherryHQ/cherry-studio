@@ -36,6 +36,7 @@ vi.mock('electron', () => ({
 
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
+import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { JinaProvider } from '../api/JinaProvider'
@@ -69,6 +70,7 @@ describe('createWebSearchProvider', () => {
   it('registers every supported provider id', () => {
     expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       'bocha',
+      'duckduckgo',
       'exa',
       'exa-mcp',
       'fetch',
@@ -108,5 +110,8 @@ describe('createWebSearchProvider', () => {
         rotationState
       )
     ).toBeInstanceOf(JinaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'duckduckgo' }), rotationState)).toBeInstanceOf(
+      DuckduckgoProvider
+    )
   })
 })

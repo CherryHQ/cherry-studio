@@ -4691,6 +4691,7 @@
   "settings.tool.websearch.errors.zhipu_sync_failed": "Не удалось синхронизировать ключ API Zhipu с веб-поиском. Повторно сохраните ключ или проверьте настройки веб-поиска.",
   "settings.tool.websearch.fetch_urls_provider": "Провайдер загрузки URL",
   "settings.tool.websearch.provider_description.bocha": "Китайский API поиска с ИИ, обеспечивающий веб-результаты в реальном времени и структурированные данные.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Бесплатный поиск по ключевым словам через HTML-точку DuckDuckGo. API-ключ не требуется.",
   "settings.tool.websearch.provider_description.exa": "API нейропоиска для ИИ-приложений, оптимизированный для семантического поиска в вебе.",
   "settings.tool.websearch.provider_description.exa_mcp": "Предоставьте агентам доступ к поиску Exa через сервер Exa MCP.",
   "settings.tool.websearch.provider_description.fetch": "Встроенный провайдер извлечения URL. Извлекает содержимое веб-страницы по URL для обогащения результатов поиска.",

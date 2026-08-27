@@ -84,6 +84,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('firecrawl'),
     officialWebsite: 'https://firecrawl.dev',
     apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
+  },
+  duckduckgo: {
+    descriptionKey: 'settings.tool.websearch.provider_description.duckduckgo',
+    iconRef: providerIconRef('duck'),
+    officialWebsite: 'https://duckduckgo.com'
   }
 }
 

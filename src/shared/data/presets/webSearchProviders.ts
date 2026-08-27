@@ -194,6 +194,11 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
         apiHost: 'https://api.firecrawl.dev'
       }
     ]
+  },
+  duckduckgo: {
+    name: 'DuckDuckGo',
+    type: 'api',
+    capabilities: [{ feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }]
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 

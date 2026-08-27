@@ -4691,6 +4691,7 @@
   "settings.tool.websearch.errors.zhipu_sync_failed": "Không thể đồng bộ khóa API Zhipu với Tìm kiếm Web. Vui lòng lưu lại khóa hoặc kiểm tra cài đặt Tìm kiếm Web.",
   "settings.tool.websearch.fetch_urls_provider": "Nhà cung cấp tìm nạp URL",
   "settings.tool.websearch.provider_description.bocha": "API tìm kiếm AI Trung Quốc với kết quả web thời gian thực và có cấu trúc.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Tìm kiếm từ khóa miễn phí qua điểm cuối HTML của DuckDuckGo. Không cần khóa API.",
   "settings.tool.websearch.provider_description.exa": "API tìm kiếm thần kinh cho ứng dụng AI, được tối ưu hóa cho việc truy xuất web ngữ nghĩa.",
   "settings.tool.websearch.provider_description.exa_mcp": "Cung cấp tìm kiếm Exa cho Agent qua máy chủ Exa MCP.",
   "settings.tool.websearch.provider_description.fetch": "Nhà cung cấp tìm nạp URL tích hợp. Tìm nạp nội dung trang web từ một URL để làm phong phú kết quả tìm kiếm.",

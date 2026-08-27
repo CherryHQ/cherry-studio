@@ -166,7 +166,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const apiKeyWebsite = getWebSearchProviderApiKeyWebsite(provider.id)
   const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
-  const showApiKeySettings = provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng'
+  const showApiKeySettings =
+    provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng' && provider.id !== 'duckduckgo'
   const showInlineApiKeySettings = showApiKeySettings && !usesLlmProviderApiKey
   const supportsBasicAuth = provider.id === 'searxng'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)

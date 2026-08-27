@@ -2,6 +2,7 @@ import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 import type { ApiKeyRotationState } from '../utils/provider'
 import { BochaProvider } from './api/BochaProvider'
+import { DuckduckgoProvider } from './api/DuckduckgoProvider'
 import { ExaProvider } from './api/ExaProvider'
 import { FetchProvider } from './api/FetchProvider'
 import { FirecrawlProvider } from './api/FirecrawlProvider'
@@ -28,5 +29,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   querit: QueritProvider,
   fetch: FetchProvider,
   jina: JinaProvider,
-  firecrawl: FirecrawlProvider
+  firecrawl: FirecrawlProvider,
+  duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>
