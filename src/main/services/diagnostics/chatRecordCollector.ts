@@ -238,13 +238,6 @@ export function addChatRecordStats(
   stats.recordCount += 1
 }
 
-export function chatRecordStats(candidates: readonly ChatRecordCandidate[]): ChatRecordStats {
-  const contextRecordKeys = new Set<string>()
-  const stats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
-  for (const candidate of candidates) addChatRecordStats(stats, contextRecordKeys, candidate)
-  return stats
-}
-
 export async function scanChatRecordStats(candidates: AsyncIterable<ChatRecordCandidate>): Promise<ChatRecordStats> {
   const contextRecordKeys = new Set<string>()
   const stats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }

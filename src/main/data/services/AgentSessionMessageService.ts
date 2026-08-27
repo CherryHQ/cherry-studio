@@ -76,7 +76,7 @@ const MESSAGE_CURSOR_CONFIG = {
   errorMessage: 'Invalid message cursor'
 }
 
-export interface DiagnosticAgentSessionMessageMetadata {
+export interface AgentSessionMessageRangeMetadata {
   readonly createdAt: string
   readonly entityJsonBytes: number
   readonly id: string
@@ -474,12 +474,12 @@ export class AgentSessionMessageService {
     toMs: number
     cursor?: string
     limit: number
-  }): CursorPaginationResponse<DiagnosticAgentSessionMessageMetadata> {
+  }): CursorPaginationResponse<AgentSessionMessageRangeMetadata> {
     const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
       major: 'desc',
       tie: 'asc'
     })
-    const cursor = decodeListCursor(rawCursor, asNumericKey, 'diagnostic-agent-session-message')
+    const cursor = decodeListCursor(rawCursor, asNumericKey, 'agent-session-message-range-metadata')
     const rows = application
       .get('DbService')
       .getDb()

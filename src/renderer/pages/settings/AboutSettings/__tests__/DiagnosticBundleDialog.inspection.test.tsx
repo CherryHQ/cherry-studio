@@ -57,12 +57,15 @@ describe('DiagnosticBundleDialog inspection state', () => {
     })
   })
 
-  it('keeps inspection feedback in source descriptions without adding a layout row', async () => {
-    let resolveInspection: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
-    mocks.request.mockImplementation((route: string) => {
+  it('keeps one status node mounted while range inspection feedback changes', async () => {
+    const user = userEvent.setup()
+    let resolve24h: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
+    let resolve3d: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
+    mocks.request.mockImplementation((route: string, input?: { range?: string }) => {
       if (route !== 'diagnostics.bundle.inspect') return Promise.resolve(undefined)
       return new Promise((resolve) => {
-        resolveInspection = resolve
+        if (input?.range === '3d') resolve3d = resolve
+        else resolve24h = resolve
       })
     })
 
@@ -75,11 +78,22 @@ describe('DiagnosticBundleDialog inspection state', () => {
     const inspectionStatus = screen.getByRole('status')
     expect(inspectionStatus).toHaveClass('sr-only')
     expect(inspectionStatus.parentElement).not.toHaveClass('space-y-4')
+    expect(inspectionStatus).toHaveTextContent('settings.about.diagnostics.inspecting')
 
-    await act(async () => resolveInspection(inspectResult))
+    await act(async () => resolve24h(inspectResult))
     await waitFor(() =>
       expect(screen.queryByText('settings.about.diagnostics.sources.inspecting')).not.toBeInTheDocument()
     )
+    expect(screen.getByRole('status')).toBe(inspectionStatus)
+    expect(inspectionStatus).toBeEmptyDOMElement()
+
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
+    expect(screen.getByRole('status')).toBe(inspectionStatus)
+    expect(inspectionStatus).toHaveTextContent('settings.about.diagnostics.inspecting')
+
+    await act(async () => resolve3d(inspectResult))
+    await waitFor(() => expect(inspectionStatus).toBeEmptyDOMElement())
   })
 
   it('ignores stale inspection results and disables export while a new range is inspected', async () => {

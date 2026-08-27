@@ -10,7 +10,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { type ChatRecordCandidate, chatRecordStats, collectChatRecords, stageChatRecords } from '../chatRecordCollector'
+import { type ChatRecordCandidate, collectChatRecords, stageChatRecords } from '../chatRecordCollector'
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getSessionMessage: vi.fn(), listCreatedInRangeMetadataPage: vi.fn() }
@@ -110,6 +110,10 @@ const agentMessageMetadata = {
   sessionId: agentMessage.sessionId
 }
 
+function jsonlBytes(...entities: unknown[]): number {
+  return entities.reduce<number>((bytes, entity) => bytes + Buffer.byteLength(`${JSON.stringify(entity)}\n`, 'utf8'), 0)
+}
+
 describe('chat record collection', () => {
   let tempRoot: AbsoluteFilePath
 
@@ -145,13 +149,9 @@ describe('chat record collection', () => {
   it('collects metadata without message bodies and hydrates only while staging UTF-8 JSONL', async () => {
     const collection = collectChatRecords({ fromMs: 1_000, toMs: 2_000 })
     const candidates = await collectCandidates(collection)
+    const expectedBytes = jsonlBytes(normalTopic, ...normalMessages, agentSession, agentMessage)
 
     expect(candidates).toHaveLength(3)
-    expect(chatRecordStats(candidates)).toEqual({
-      bytes: expect.any(Number),
-      messageCount: 3,
-      recordCount: 5
-    })
     expect(candidates[0]).toMatchObject({
       messageRecord: { archiveName: 'chats/messages.jsonl', key: 'message:message-new' },
       source: 'normal-chat'
@@ -179,7 +179,7 @@ describe('chat record collection', () => {
       ])
     )
     expect(staged).toHaveLength(4)
-    expect(result.included).toEqual(chatRecordStats(candidates))
+    expect(result.included).toEqual({ bytes: expectedBytes, messageCount: 3, recordCount: 5 })
     expect(result.observedByteDelta).toBe(0)
     expect(result.warnings).toEqual(new Set())
     expect(messageService.getById).toHaveBeenCalledTimes(2)

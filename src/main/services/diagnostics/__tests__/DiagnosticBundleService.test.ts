@@ -99,6 +99,10 @@ function chatCollection(
   }
 }
 
+function jsonlBytes(...entities: unknown[]): number {
+  return entities.reduce<number>((bytes, entity) => bytes + Buffer.byteLength(`${JSON.stringify(entity)}\n`, 'utf8'), 0)
+}
+
 function formatLogDate(timestamp: number): string {
   const date = new Date(timestamp)
   const pad = (value: number) => String(value).padStart(2, '0')
@@ -304,7 +308,7 @@ describe('DiagnosticBundleService', () => {
       expect(JSON.parse(zip.contents['chats/agent-session-messages.jsonl'].toString('utf8'))).toEqual(agentMessage)
 
       const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-      const expectedBytes = chatRecordCollector.chatRecordStats(candidates).bytes
+      const expectedBytes = jsonlBytes(topic, message, session, agentMessage)
       expect(manifest).toMatchObject({
         schemaVersion: 2,
         privacy: { containsUnredactedData: true },
@@ -395,9 +399,7 @@ describe('DiagnosticBundleService', () => {
       chatRecordReference('chats/topics.jsonl', 'topic:topic-1', topic)
     ])
     const budgetBytes =
-      Buffer.byteLength(newerLog, 'utf8') +
-      Buffer.byteLength(trace, 'utf8') +
-      chatRecordCollector.chatRecordStats([candidate]).bytes
+      Buffer.byteLength(newerLog, 'utf8') + Buffer.byteLength(trace, 'utf8') + jsonlBytes(message, topic)
     vi.mocked(messageService.getById).mockReturnValue(message as never)
     vi.mocked(topicService.getById).mockReturnValue(topic as never)
     const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(chatCollection([candidate]))
@@ -512,9 +514,11 @@ describe('DiagnosticBundleService', () => {
       path.join(logsDir, logFileName),
       `${JSON.stringify({ message: 'recent', timestamp: new Date(now - 1_000).toISOString() })}\n`
     )
+    const message = { id: 'message-1' }
+    const topic = { id: 'topic-1' }
     const candidate = chatCandidate('message:1', now - 2_000, [
-      chatRecordReference('chats/messages.jsonl', 'message:1', { id: 'message-1' }),
-      chatRecordReference('chats/topics.jsonl', 'topic:1', { id: 'topic-1' })
+      chatRecordReference('chats/messages.jsonl', 'message:1', message),
+      chatRecordReference('chats/topics.jsonl', 'topic:1', topic)
     ])
     const collection = chatCollection([candidate])
     const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(collection)
@@ -535,7 +539,7 @@ describe('DiagnosticBundleService', () => {
       expect(manifest.sources.chatRecords).toEqual({
         included: { bytes: 0, messageCount: 0, recordCount: 0 },
         omitted: {
-          bytes: chatRecordCollector.chatRecordStats([candidate]).bytes,
+          bytes: jsonlBytes(message, topic),
           messageCount: 1,
           recordCount: 2
         }

@@ -315,11 +315,9 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
           </DialogHeader>
 
           <Scrollbar className="min-h-0 px-6 py-2">
-            {isInspectionPending && (
-              <span className="sr-only" role="status" aria-live="polite">
-                {t('settings.about.diagnostics.inspecting')}
-              </span>
-            )}
+            <span className="sr-only" role="status">
+              {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+            </span>
             {status === 'saved' && savedResult ? (
               <div className="space-y-4">
                 <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">

@@ -159,8 +159,7 @@ async function selectBundleSources(
   }
 
   const trySelect = (candidate: DiagnosticBudgetCandidate<BundleSourceCandidate>): void => {
-    const result = selector.trySelect(candidate)
-    if (!result.selected) return
+    if (!selector.trySelect(candidate)) return
     if (candidate.item.kind === 'chatRecords') {
       selectedChats.push(candidate.item)
     } else {

@@ -21,31 +21,24 @@ export function compareBudgetCandidates(
   return b.latestAt - a.latestAt || (a.key > b.key ? 1 : a.key < b.key ? -1 : 0)
 }
 
-export interface DiagnosticBudgetSelectionResult {
-  readonly selected: boolean
-  readonly selectedPartKeys: string[]
-}
-
 export function createDiagnosticBudgetSelector(limitBytes: number): {
-  trySelect(candidate: DiagnosticBudgetCandidate<unknown>): DiagnosticBudgetSelectionResult
+  trySelect(candidate: DiagnosticBudgetCandidate<unknown>): boolean
 } {
   const selectedPartKeys = new Set<string>()
   let remainingBytes = limitBytes
 
-  const trySelect = (candidate: DiagnosticBudgetCandidate<unknown>): DiagnosticBudgetSelectionResult => {
+  const trySelect = (candidate: DiagnosticBudgetCandidate<unknown>): boolean => {
     const candidatePartKeys = new Set<string>()
-    const newlySelectedPartKeys: string[] = []
     let bytes = 0
     for (const part of candidate.parts) {
       if (selectedPartKeys.has(part.key) || candidatePartKeys.has(part.key)) continue
       candidatePartKeys.add(part.key)
-      newlySelectedPartKeys.push(part.key)
       bytes += part.bytes
     }
-    if (bytes > remainingBytes) return { selected: false, selectedPartKeys: [] }
+    if (bytes > remainingBytes) return false
     remainingBytes -= bytes
-    for (const key of newlySelectedPartKeys) selectedPartKeys.add(key)
-    return { selected: true, selectedPartKeys: newlySelectedPartKeys }
+    for (const key of candidatePartKeys) selectedPartKeys.add(key)
+    return true
   }
 
   return { trySelect }

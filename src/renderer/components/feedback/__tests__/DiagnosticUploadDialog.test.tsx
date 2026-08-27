@@ -87,7 +87,11 @@ describe('DiagnosticUploadDialog', () => {
         range: '24h'
       })
     )
-    const successStatus = await screen.findByRole('status')
+    await screen.findByText('settings.about.diagnostics.upload.success.title')
+    const successStatus = screen
+      .getAllByRole('status')
+      .find((element) => element.textContent?.includes('settings.about.diagnostics.upload.success.title'))
+    if (!successStatus) throw new Error('Expected upload success status')
     expect(successStatus).toHaveAttribute('aria-live', 'polite')
     expect(successStatus).toHaveTextContent('settings.about.diagnostics.upload.success.title')
     await waitFor(() =>
@@ -154,7 +158,7 @@ describe('DiagnosticUploadDialog', () => {
     )
   })
 
-  it('keeps range inspection feedback out of the dialog layout', async () => {
+  it('keeps one status node mounted while range inspection feedback changes', async () => {
     let resolveRangeInspection: (result: typeof inspectResult) => void = () => undefined
     mocks.request.mockImplementation((route: string, input?: { range?: string }) => {
       if (route === 'diagnostics.bundle.inspect' && input?.range === '3d') {
@@ -170,15 +174,21 @@ describe('DiagnosticUploadDialog', () => {
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
     await screen.findByText('settings.about.diagnostics.sources.message_summary')
+    const inspectionStatus = screen.getByRole('status')
+    expect(inspectionStatus).toHaveClass('sr-only')
+    expect(inspectionStatus).toBeEmptyDOMElement()
+
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
     expect(screen.getAllByText('settings.about.diagnostics.sources.inspecting')).toHaveLength(3)
     // The live announcement must not add a normal-flow row that changes the centered dialog height.
-    expect(screen.getByRole('status')).toHaveClass('sr-only')
+    expect(screen.getByRole('status')).toBe(inspectionStatus)
+    expect(inspectionStatus).toHaveTextContent('settings.about.diagnostics.inspecting')
 
     resolveRangeInspection(inspectResult)
-    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    await waitFor(() => expect(inspectionStatus).toBeEmptyDOMElement())
+    expect(screen.getByRole('status')).toBe(inspectionStatus)
   })
 
   it('locks the dialog while upload is in progress', async () => {

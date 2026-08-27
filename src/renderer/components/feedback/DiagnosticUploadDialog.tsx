@@ -174,6 +174,9 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
         </DialogHeader>
 
         <Scrollbar className="min-h-0 px-6 py-2">
+          <span className="sr-only" role="status">
+            {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+          </span>
           {result ? (
             <UploadResultContent result={result} />
           ) : submissionUnknownFallbackSaveFailed ? (
@@ -237,11 +240,6 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                 </div>
               </section>
 
-              {isInspectionPending ? (
-                <span className="sr-only" role="status" aria-live="polite">
-                  {t('settings.about.diagnostics.inspecting')}
-                </span>
-              ) : null}
               {inspectError ? (
                 <p className="text-error text-sm" role="alert">
                   {t('settings.about.diagnostics.errors.inspect_failed')}

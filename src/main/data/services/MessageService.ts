@@ -96,7 +96,7 @@ export interface CreateUserMessageWithPlaceholdersResult {
   placeholders: Message[]
 }
 
-export interface DiagnosticMessageMetadata {
+export interface LiveMessageRangeMetadata {
   readonly createdAt: string
   readonly entityJsonBytes: number
   readonly id: string
@@ -865,10 +865,10 @@ export class MessageService {
     toMs: number
     cursor?: string
     limit: number
-  }): CursorPaginationResponse<DiagnosticMessageMetadata> {
+  }): CursorPaginationResponse<LiveMessageRangeMetadata> {
     const db = application.get('DbService').getDb()
     const ordering = keysetOrdering(messageTable.createdAt, messageTable.id, { major: 'desc', tie: 'asc' })
-    const cursor = decodeListCursor(rawCursor, asNumericKey, 'diagnostic-message')
+    const cursor = decodeListCursor(rawCursor, asNumericKey, 'message-range-metadata')
     const rows = db
       .select({
         createdAt: messageTable.createdAt,

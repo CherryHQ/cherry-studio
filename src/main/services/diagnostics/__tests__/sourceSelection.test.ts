@@ -4,7 +4,7 @@ import type { ChatRecordCandidate } from '../chatRecordCollector'
 import { createDiagnosticBudgetSelector, toChatBudgetCandidate } from '../sourceSelection'
 
 describe('diagnostic source budget selection', () => {
-  it('reports only newly budgeted parts for incremental chat retention', () => {
+  it('charges a shared chat context only once while selecting within budget', () => {
     const topic = { archiveName: 'chats/topics.jsonl', bytes: 10, key: 'topic:1' } as const
     const newer: ChatRecordCandidate = {
       contextId: '1',
@@ -28,13 +28,7 @@ describe('diagnostic source budget selection', () => {
     }
     const selector = createDiagnosticBudgetSelector(20)
 
-    expect(selector.trySelect(toChatBudgetCandidate(newer))).toEqual({
-      selected: true,
-      selectedPartKeys: ['message:newer', 'topic:1']
-    })
-    expect(selector.trySelect(toChatBudgetCandidate(older))).toEqual({
-      selected: true,
-      selectedPartKeys: ['message:older']
-    })
+    expect(selector.trySelect(toChatBudgetCandidate(newer))).toBe(true)
+    expect(selector.trySelect(toChatBudgetCandidate(older))).toBe(true)
   })
 })
