@@ -160,6 +160,7 @@ export function useAgentMessageListProviderValue({
   messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
@@ -234,6 +235,10 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId]
   )
+  const diagnosticReport = useMemo(
+    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.agent') } : undefined),
+    [normalInteractionsEnabled, t]
+  )
   const {
     errorActions,
     exportActions,
@@ -252,9 +257,9 @@ export function useAgentMessageListProviderValue({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    diagnosticReport,
     persistDiagnosis
   })
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const openPath = useCallback(
     (path: string) => {

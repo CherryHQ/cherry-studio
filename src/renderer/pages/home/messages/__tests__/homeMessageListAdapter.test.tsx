@@ -370,8 +370,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      diagnosticReport: { location: string }
       persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
     }
+    expect(options.diagnosticReport).toEqual({ location: 'error.diagnostic_report.locations.home' })
     await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
 
     expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
@@ -521,6 +523,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         topic={createTopic('topic-a')}
         onValue={(nextValue) => (value = nextValue)}
       />
+    )
+
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
     )
 
     const runtime: MessageListRuntime = {
