@@ -162,6 +162,13 @@ the fallback (keep loading them where they are, retry on a later run) costs noth
 treating a failed move as "not installed" would re-download hundreds of MB that are already
 on disk.
 
+It is also all-or-nothing. A move that stops partway puts back whatever it already moved,
+because an install split across both layouts leaves *neither* complete — a model entirely on
+disk would then read as incomplete and be fetched again. `resolveInstalledDir` re-reads both
+directories afterwards rather than trusting the attempt's own verdict, so the one case that
+cannot be repaired reports "nothing installed" instead of handing out a path that has since
+lost files.
+
 ## Installing and removing
 
 `BundleInstaller` owns one bundle's lifecycle — status, download with progress,

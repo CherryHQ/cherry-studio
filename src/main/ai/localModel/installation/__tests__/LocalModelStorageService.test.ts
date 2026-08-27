@@ -126,6 +126,20 @@ describe('resolveInstalledDir', () => {
     expect(existsSync(path.join(installDir, 'model/master/a.onnx'))).toBe(true)
   })
 
+  it('keeps the legacy install complete when a later file cannot be moved', () => {
+    // The dangerous ordering: the first file moves, the second does not. Leaving it that
+    // way would split a complete install across both layouts, so it reads as incomplete
+    // and re-downloads weights that never left the disk.
+    writeBundleFile('model/master/a.onnx', 20)
+    writeBundleFile('model/master/nested/b.onnx', 20)
+    mkdirSync(path.join(installDir, 'model', 'nested', 'b.onnx', 'blocker'), { recursive: true })
+
+    expect(localModelStorageService.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model/master'))
+    expect(existsSync(path.join(installDir, 'model/master/a.onnx'))).toBe(true)
+    expect(existsSync(path.join(installDir, 'model/master/nested/b.onnx'))).toBe(true)
+    expect(localModelStorageService.scanBundleFiles(LEGACY_BUNDLE)).toEqual({ status: 'installed' })
+  })
+
   it('returns null when neither layout holds a complete install', () => {
     writeBundleFile('model/master/a.onnx', 20)
 

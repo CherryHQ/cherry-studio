@@ -92,28 +92,57 @@ export class LocalModelStorageService {
     const legacyDir = path.join(this.bundleRootDir(bundle), bundle.legacyInstallSubdir)
     if (this.missingFilesIn(bundle, legacyDir).length > 0) return null
 
-    return this.liftLegacyInstall(bundle, legacyDir, installDir) ? installDir : legacyDir
+    this.liftLegacyInstall(bundle, legacyDir, installDir)
+    // Re-read both layouts rather than trust the attempt's own verdict, so a directory
+    // that lost files to a lift whose rollback also failed can never be handed out.
+    if (this.missingFilesIn(bundle, installDir).length === 0) return installDir
+    return this.missingFilesIn(bundle, legacyDir).length === 0 ? legacyDir : null
   }
 
-  private liftLegacyInstall(bundle: ModelBundle, legacyDir: string, installDir: string): boolean {
+  /** Move a legacy-layout install into the current one, or leave it exactly as it was.
+   * Best-effort — a live worker can hold the files open — but never half-done: whatever
+   * already moved is put back, because an install split across both layouts leaves
+   * neither complete and re-downloads a model that is entirely on disk. */
+  private liftLegacyInstall(bundle: ModelBundle, legacyDir: string, installDir: string): void {
+    const moved: Array<{ from: string; to: string }> = []
     try {
       for (const file of bundle.files) {
-        const target = this.bundleFilePath(bundle, file, installDir)
-        fs.mkdirSync(path.dirname(target), { recursive: true })
-        fs.renameSync(this.bundleFilePath(bundle, file, legacyDir), target)
+        const from = this.bundleFilePath(bundle, file, legacyDir)
+        const to = this.bundleFilePath(bundle, file, installDir)
+        fs.mkdirSync(path.dirname(to), { recursive: true })
+        fs.renameSync(from, to)
+        moved.push({ from, to })
       }
-      fs.rmSync(legacyDir, { recursive: true, force: true })
-      logger.info('lifted a legacy local model install into the current layout', { bundle: bundle.id })
-      return true
     } catch (error) {
-      // Leave both sides as they are and keep serving from the legacy directory; a later
-      // run retries once whatever held the files open has let go.
       logger.warn('could not lift a legacy local model install; using it in place', {
         bundle: bundle.id,
         error: String(error)
       })
-      return false
+      for (const { from, to } of moved) {
+        try {
+          fs.renameSync(to, from)
+        } catch (rollbackError) {
+          logger.error('could not restore a legacy local model file after a failed lift', {
+            bundle: bundle.id,
+            file: to,
+            error: String(rollbackError)
+          })
+        }
+      }
+      return
     }
+
+    // The emptied directory is cosmetic; failing to remove it must not undo a lift that
+    // otherwise landed.
+    try {
+      fs.rmSync(legacyDir, { recursive: true, force: true })
+    } catch (error) {
+      logger.warn('lifted a legacy local model install but could not remove the old directory', {
+        bundle: bundle.id,
+        error: String(error)
+      })
+    }
+    logger.info('lifted a legacy local model install into the current layout', { bundle: bundle.id })
   }
 
   isArtifactReady(id: SharedArtifactId): boolean {
