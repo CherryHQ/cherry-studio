@@ -73,6 +73,21 @@ export default defineConfig({
           ]
         }
       },
+      // DSH bridge subprocess policy tests
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/agent-permission/node': resolve('packages/agent-permission/src/node.ts'),
+            '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts')
+          }
+        },
+        test: {
+          name: 'dsh-bridge',
+          environment: 'node',
+          include: ['packages/dsh-bridge/__tests__/**/*.{test,spec}.{ts,tsx}']
+        }
+      },
       // 渲染进程单元测试配置
       {
         extends: true,

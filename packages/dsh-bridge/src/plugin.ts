@@ -5,6 +5,7 @@
  * approvals round-trip to the host. Named exports only — a default export
  * would be unwrapped by the loader and drop `inject` (dsh postmortem 0001).
  */
+import { AGENT_PERMISSION_MODES, detectGlobalInstall as detectGlobalInstallGuard } from '@cherrystudio/agent-permission'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
@@ -19,7 +20,7 @@ import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import { type AskUserQuestionRequest, UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 
 import { type BridgeLink, connectBridgeLink } from './link'
-import { decideDelegatedToolCall, decideToolCall, detectGlobalInstall } from './policy'
+import { decideDelegatedToolCall, decideToolCall } from './policy'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
@@ -33,6 +34,8 @@ import {
 
 export const name = 'cherry-bridge'
 export const inject = ['approval', 'agents', 'tools', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
+// Exported for the bundled-artifact smoke check; this is the same tuple used by the shared evaluator.
+export { AGENT_PERMISSION_MODES }
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -386,7 +389,7 @@ export function apply(ctx: Context): void {
     if (exec.name !== 'bash' && exec.name !== 'pwsh') return undefined
     const command = (exec.arguments as { command?: unknown } | null | undefined)?.command
     if (typeof command !== 'string' || !command.trim()) return undefined
-    const reason = detectGlobalInstall(command)
+    const reason = detectGlobalInstallGuard(command)
     if (reason === null) return undefined
     return `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\`); for one-off tools use \`bun x <tool>\` / \`uvx <tool>\`.`
   })

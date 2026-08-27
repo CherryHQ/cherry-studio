@@ -1537,6 +1537,9 @@ importers:
 
   packages/dsh-bridge:
     dependencies:
+      '@cherrystudio/agent-permission':
+        specifier: workspace:*
+        version: link:packages/agent-permission
       '@deepseek-ai/cordis':
         specifier: 4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)

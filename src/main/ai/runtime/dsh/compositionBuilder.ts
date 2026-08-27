@@ -149,7 +149,7 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     entry('llm-retry', '@deepseek-ai/dsh-llm-retry'),
     entry('sandbox', '@deepseek-ai/dsh-sandbox-local'),
     entry('sandbox-policy', '@deepseek-ai/dsh-sandbox-policy', {
-      mode: input.permissionMode === 'bypassPermissions' ? 'danger-full-access' : 'workspace-write',
+      mode: input.permissionMode === 'full' ? 'danger-full-access' : 'workspace-write',
       workspaceRoot: input.workspacePath
     }),
     entry('subprocess', '@deepseek-ai/dsh-subprocess-local'),

@@ -90,9 +90,12 @@ const openParams = {
     allowedRoots: ['/new-workspace'],
     readTools: [],
     editTools: [],
-    autoApprovedTools: [],
-    approvalRequiredTools: [],
-    nonBypassableApprovalTools: []
+    shellTools: [],
+    safeTools: [],
+    sensitiveTools: [],
+    nonBypassableApprovalTools: [],
+    planActive: false,
+    planOverlayTools: []
   },
   tools: []
 }

@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
@@ -20,7 +21,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { toolApprovalRegistry } from '@main/ai/toolApproval'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -31,7 +32,6 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -68,6 +68,7 @@ const logger = loggerService.withContext('DshRuntimeConnection')
 const DSH_TOOL_DESCRIPTORS: readonly DshBuiltinToolDescriptor[] = getDshRuntimeBuiltinTools(process.platform)
 const DSH_READ_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.permissionClass === 'read').map((tool) => tool.name)
 const DSH_EDIT_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
+const DSH_SHELL_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.category === 'shell').map((tool) => tool.name)
 // Class-less `approval: 'auto'` built-ins (todo_write, goal state ops): session-log-only side
 // effects, no path to contain — auto-allow per the descriptor contract instead of fail-closed ask.
 const DSH_AUTO_APPROVED_BUILTIN_TOOLS = DSH_TOOL_DESCRIPTORS.filter(
@@ -123,11 +124,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private agentDataPath = ''
   /** Live tool policy pushed to the bridge plugin at open and on reconcile. */
   private permissionMode: BridgePermissionMode = 'default'
+  private builtinRole?: string
   /**
-   * The runtime's committed `plan/mode` fold. dsh self-exits plan on an approved
-   * review WITHOUT Cherry rewriting the stored mode (claude parity), so the
-   * effective policy derives from stored mode + this overlay, and reconcile
-   * comparisons keep using the stored mode alone.
+   * The runtime's independent `plan/mode` overlay. It is guidance/state for dsh's
+   * plan plugin, not a permission mode and never changes the stored Agent value.
    */
   private runtimePlanActive?: boolean
   private disabledTools = new Set<string>()
@@ -233,7 +233,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
 
     // dsh has no native permission modes; the bridge plugin enforces the pushed policy.
-    this.permissionMode = toBridgePermissionMode(agent.configuration?.permission_mode)
+    this.permissionMode = normalizeLegacyPermissionMode(agent.configuration?.permission_mode)
+    this.builtinRole = agent.configuration?.builtin_role
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
     let injection: DshProviderInjection
     try {
@@ -381,12 +382,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         policy: this.buildPolicy(),
         tools: toolBridge.tools
       })
-      if (this.permissionMode === 'plan') {
-        // Activate dsh's plan surface (prompt section + exit tool); a resumed log
-        // that already folds to plan makes this a no-op.
-        this.runtimePlanActive = true
-        await this.bridge.request('plan/set', { sessionId: this.input.sessionId, active: true })
-      }
       this.maybeEmitResumeToken()
 
       const subscription = client.subscribe()
@@ -467,7 +462,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
     const { agent } = snapshot
 
-    const nextPermissionMode = toBridgePermissionMode(agent.configuration?.permission_mode)
+    const nextPermissionMode = normalizeLegacyPermissionMode(agent.configuration?.permission_mode)
     const sandboxBoundaryChanged = isBypassMode(nextPermissionMode) !== isBypassMode(this.permissionMode)
     // A mode change can alter admission for the live tool loop, so defer it to idle.
     // Disabled tools only tighten policy and still push immediately below.
@@ -476,14 +471,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const applicableDisabledTools = this.turnActive
       ? new Set([...this.disabledTools, ...nextDisabledTools])
       : nextDisabledTools
+    const nextBuiltinRole = agent.configuration?.builtin_role
     const policyChanged =
-      applicablePermissionMode !== this.permissionMode || !setsEqual(applicableDisabledTools, this.disabledTools)
-    const planBoundaryChanged = (applicablePermissionMode === 'plan') !== (this.permissionMode === 'plan')
+      applicablePermissionMode !== this.permissionMode ||
+      !setsEqual(applicableDisabledTools, this.disabledTools) ||
+      nextBuiltinRole !== this.builtinRole
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
-    // Optimistic: the pushed policy must already enforce the new plan stance; the
-    // committed `plan/mode` fold confirms (or corrects) it.
-    if (planBoundaryChanged) this.runtimePlanActive = applicablePermissionMode === 'plan'
+    this.builtinRole = nextBuiltinRole
 
     if (policyChanged) {
       try {
@@ -494,18 +489,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       } catch (error) {
         // Fail closed: the plugin may still be enforcing the OLD policy.
         logger.error('dsh policy update failed', error as Error)
-        return 'failed'
-      }
-    }
-    if (planBoundaryChanged) {
-      try {
-        await this.bridge?.request('plan/set', {
-          sessionId: this.input.sessionId,
-          active: applicablePermissionMode === 'plan'
-        })
-      } catch (error) {
-        // Fail closed: prompt guidance and enforcement would disagree.
-        logger.error('dsh plan mode switch failed', error as Error)
         return 'failed'
       }
     }
@@ -612,13 +595,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /** Stored mode overlaid with the runtime's committed plan fold (see `runtimePlanActive`). */
-  private effectivePermissionMode(): BridgePermissionMode {
-    if (this.runtimePlanActive === true) return 'plan'
-    if (this.runtimePlanActive === false && this.permissionMode === 'plan') return 'default'
-    return this.permissionMode
-  }
-
   /**
    * The runtime committed a `plan/mode` flip this connection did not push — an
    * approved exit_plan_mode review or a `/plan` command line. Mirror it into the
@@ -638,18 +614,21 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   private buildPolicy(): BridgePolicy {
     return {
-      permissionMode: this.effectivePermissionMode(),
+      permissionMode: this.permissionMode,
       disabledTools: [...this.disabledTools],
       // WORKSPACE FIRST: the plugin resolves relative tool paths against allowedRoots[0].
       allowedRoots: [this.workspacePath, this.agentDataPath],
       readTools: DSH_READ_TOOLS,
       editTools: DSH_EDIT_TOOLS,
-      autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
-      approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
+      shellTools: DSH_SHELL_TOOLS,
+      safeTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
+      sensitiveTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
       nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
+      planActive: this.runtimePlanActive === true,
       // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved
       // bridged tools; the subagent tools stay out (delegation bypasses read-only).
-      planSafeTools: [...DSH_PLAN_SAFE_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS]
+      planOverlayTools: [...DSH_PLAN_SAFE_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
+      ...(this.builtinRole ? { builtinRole: this.builtinRole } : {})
     }
   }
 
@@ -804,13 +783,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   }
 }
 
-function toBridgePermissionMode(mode: AgentPermissionMode | undefined): BridgePermissionMode {
-  // `auto` stays unsupported for dsh (no model-side approval classifier); it falls through to gate-all.
-  return mode === 'acceptEdits' || mode === 'bypassPermissions' || mode === 'plan' ? mode : 'default'
-}
-
 function isBypassMode(mode: BridgePermissionMode): boolean {
-  return mode === 'bypassPermissions'
+  return mode === 'full'
 }
 
 /**

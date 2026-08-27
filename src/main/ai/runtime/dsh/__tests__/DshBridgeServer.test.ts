@@ -229,10 +229,12 @@ describe('DshBridgeServer', () => {
         allowedRoots: ['/tmp/ws'],
         readTools: ['read'],
         editTools: ['edit', 'write'],
-        autoApprovedTools: [],
-        approvalRequiredTools: [],
+        shellTools: ['bash'],
+        safeTools: [],
+        sensitiveTools: [],
         nonBypassableApprovalTools: [],
-        planSafeTools: []
+        planActive: false,
+        planOverlayTools: []
       },
       tools: []
     })
