@@ -8,8 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderApiSetupDialog from '../ProviderApiSetupDialog'
 
-const addApiKeyMock = vi.fn()
-const updateApiKeyMock = vi.fn()
+const updateApiKeysMock = vi.fn()
 const updateProviderMock = vi.fn()
 const enableProviderMock = vi.fn()
 const createModelsMock = vi.fn()
@@ -92,8 +91,7 @@ vi.mock('../../ModelList/ProviderModelAdd', () => ({
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({
     provider,
-    addApiKey: addApiKeyMock,
-    updateApiKey: updateApiKeyMock,
+    updateApiKeys: updateApiKeysMock,
     updateProvider: updateProviderMock,
     enableProvider: enableProviderMock
   }),
@@ -189,11 +187,7 @@ describe('ProviderApiSetupDialog', () => {
       isEnabled: false,
       apiKeys: []
     }
-    addApiKeyMock.mockResolvedValue({
-      ...provider,
-      apiKeys: [{ id: 'saved-key', isEnabled: true }]
-    })
-    updateApiKeyMock.mockResolvedValue(undefined)
+    updateApiKeysMock.mockResolvedValue(undefined)
     updateProviderMock.mockResolvedValue(undefined)
     enableProviderMock.mockResolvedValue(undefined)
     createModelsMock.mockImplementation(async (dtos: Array<{ modelId: string; name: string }>) =>
@@ -209,7 +203,7 @@ describe('ProviderApiSetupDialog', () => {
     vi.useFakeTimers()
     const onClose = vi.fn()
 
-    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={onClose} />)
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={onClose} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
 
@@ -243,15 +237,15 @@ describe('ProviderApiSetupDialog', () => {
     const heading = screen.getByRole('heading')
     expect(heading).toHaveTextContent('OpenAI')
     expect(heading).toHaveTextContent('settings.provider.api_setup.add_key')
-    const saveButton = screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' })
-    expect(saveButton).toBeDisabled()
+    const nextButton = screen.getByRole('button', { name: 'settings.provider.api_setup.next' })
+    expect(nextButton).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-valid' } })
-    fireEvent.click(saveButton)
+    fireEvent.click(nextButton)
 
     await screen.findAllByText('alpha')
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
-    expect(addApiKeyMock).toHaveBeenCalledWith('sk-valid')
+    expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: expect.any(String), key: 'sk-valid', isEnabled: true }])
     expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')).toHaveLength(2)
     expect(
@@ -272,6 +266,19 @@ describe('ProviderApiSetupDialog', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
+  it('can save the key and close without loading models', async () => {
+    const onClose = vi.fn()
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={onClose} />)
+
+    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-valid' } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_and_close' }))
+
+    await waitFor(() => expect(updateApiKeysMock).toHaveBeenCalledTimes(1))
+    expect(fetchResolvedProviderModelsMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+
   it('offers the provider API key website from the key step', () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 
@@ -280,13 +287,43 @@ describe('ProviderApiSetupDialog', () => {
     expect(apiKeyLink).toHaveAttribute('target', '_blank')
   })
 
+  it('saves comma-separated keys once, removing blanks and duplicates', async () => {
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
+
+    const apiKeyInput = screen.getByLabelText('settings.provider.api_key.label')
+    fireEvent.change(apiKeyInput, { target: { value: ' sk-one，sk-two,sk-one,  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
+
+    await screen.findAllByText('alpha')
+    expect(updateApiKeysMock).toHaveBeenCalledTimes(1)
+    expect(updateApiKeysMock).toHaveBeenCalledWith([
+      { id: expect.any(String), key: 'sk-one', isEnabled: true },
+      { id: expect.any(String), key: 'sk-two', isEnabled: true }
+    ])
+  })
+
+  it('can reveal and hide the API keys without saving them', async () => {
+    const user = userEvent.setup()
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
+
+    const apiKeyInput = screen.getByLabelText('settings.provider.api_key.label')
+    expect(apiKeyInput).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' }))
+    expect(apiKeyInput).toHaveAttribute('type', 'text')
+    expect(updateApiKeysMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_key.hide_key' }))
+    expect(apiKeyInput).toHaveAttribute('type', 'password')
+  })
+
   it('stays on the key step when the explicit save fails', async () => {
-    addApiKeyMock.mockRejectedValueOnce(new Error('storage unavailable'))
+    updateApiKeysMock.mockRejectedValueOnce(new Error('storage unavailable'))
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-valid' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
 
     await screen.findByText(/storage unavailable/)
     expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('sk-valid')
@@ -294,11 +331,13 @@ describe('ProviderApiSetupDialog', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
-  it('uses the key saved in this flow for the single verification request', async () => {
+  it('uses only the first saved key for the single verification request', async () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 
-    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-fresh' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' }))
+    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), {
+      target: { value: 'sk-fresh, sk-backup' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
 
     await screen.findAllByText('alpha')
     fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
@@ -386,7 +425,7 @@ describe('ProviderApiSetupDialog', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1), { timeout: 2500 })
   })
 
-  it('updates the same saved key after model loading fails instead of creating a duplicate', async () => {
+  it('reuses the same saved key entry after model loading fails', async () => {
     fetchResolvedProviderModelsMock
       .mockRejectedValueOnce(new Error('401 rejected sk-first'))
       .mockResolvedValueOnce([createModel('alpha')])
@@ -394,17 +433,18 @@ describe('ProviderApiSetupDialog', () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-first' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
 
     await screen.findByRole('alert')
     expect(screen.queryByText(/sk-first/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.edit_key' }))
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-second' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
 
     await screen.findAllByText('alpha')
-    expect(addApiKeyMock).toHaveBeenCalledTimes(1)
-    expect(updateApiKeyMock).toHaveBeenCalledWith('saved-key', { key: 'sk-second', isEnabled: true })
+    const firstSavedEntry = updateApiKeysMock.mock.calls[0][0][0]
+    expect(updateApiKeysMock).toHaveBeenCalledTimes(2)
+    expect(updateApiKeysMock.mock.calls[1][0]).toEqual([{ id: firstSavedEntry.id, key: 'sk-second', isEnabled: true }])
   })
 
   it('waits for stored keys before loading models from an existing configuration', async () => {
@@ -439,11 +479,10 @@ describe('ProviderApiSetupDialog', () => {
 
     await user.clear(apiKeyInput)
     await user.type(apiKeyInput, 'sk-replacement')
-    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' }))
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
 
     await screen.findAllByText('alpha')
-    expect(updateApiKeyMock).toHaveBeenCalledWith('saved-key', { key: 'sk-replacement', isEnabled: true })
-    expect(addApiKeyMock).not.toHaveBeenCalled()
+    expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: 'saved-key', key: 'sk-replacement', isEnabled: true }])
   })
 
   it('shows a localized reason for a recognized model-loading error', async () => {

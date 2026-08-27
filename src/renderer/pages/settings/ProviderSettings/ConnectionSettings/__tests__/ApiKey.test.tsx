@@ -109,6 +109,13 @@ describe('ApiKey', () => {
     expect(keyManagementButton).toHaveAttribute('aria-haspopup', 'dialog')
     expect(keyManagementButton).toHaveAttribute('aria-expanded', 'false')
 
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' }))
+    expect(screen.getByText('123456789012345678901234')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'settings.provider.api.key.list.title' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_key.hide_key' }))
+    expect(screen.getByText('12****1234')).toBeInTheDocument()
+
     await user.click(keyManagementButton)
 
     expect(keyManagementButton).toHaveAttribute('aria-expanded', 'true')

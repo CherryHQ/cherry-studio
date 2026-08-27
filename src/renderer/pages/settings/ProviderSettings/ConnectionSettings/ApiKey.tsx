@@ -94,23 +94,40 @@ export default function ApiKey({
               </div>
             ) : primaryApiKey ? (
               <div className={fieldClasses.inputRow}>
-                <button
-                  type="button"
+                <div
                   className={cn(
                     fieldClasses.inputGroup,
-                    'cursor-pointer text-left outline-none transition-colors hover:border-border-strong hover:bg-accent/40 focus-visible:border-ring focus-visible:bg-accent/40'
-                  )}
-                  aria-label={t('settings.provider.api.key.list.title')}
-                  aria-haspopup="dialog"
-                  aria-expanded={keyListOpen}
-                  onClick={() => setKeyListOpen(true)}>
-                  <span className="min-w-0 flex-1 truncate font-mono text-foreground text-sm">
-                    {maskStoredApiKey(primaryApiKey.key)}
-                  </span>
-                  {apiKeys.length > 1 ? (
-                    <span className="shrink-0 text-muted-foreground text-xs">+{apiKeys.length - 1}</span>
-                  ) : null}
-                </button>
+                    'transition-colors focus-within:border-ring focus-within:bg-accent/40 hover:border-border-strong hover:bg-accent/40'
+                  )}>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none"
+                    aria-label={t('settings.provider.api.key.list.title')}
+                    aria-haspopup="dialog"
+                    aria-expanded={keyListOpen}
+                    onClick={() => setKeyListOpen(true)}>
+                    <span className="min-w-0 flex-1 truncate font-mono text-foreground text-sm">
+                      {showApiKey ? primaryApiKey.key : maskStoredApiKey(primaryApiKey.key)}
+                    </span>
+                    {apiKeys.length > 1 ? (
+                      <span className="shrink-0 text-muted-foreground text-xs">+{apiKeys.length - 1}</span>
+                    ) : null}
+                  </button>
+                  <Tooltip
+                    content={
+                      showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
+                    }>
+                    <button
+                      type="button"
+                      className={fieldClasses.apiKeyVisibilityToggle}
+                      aria-label={
+                        showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
+                      }
+                      onClick={() => setShowApiKey((value) => !value)}>
+                      {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                    </button>
+                  </Tooltip>
+                </div>
                 <Tooltip content={t('settings.provider.api.key.list.title')}>
                   <span className="inline-flex shrink-0">
                     <button
@@ -169,6 +186,9 @@ export default function ApiKey({
                     <button
                       type="button"
                       className={fieldClasses.apiKeyVisibilityToggle}
+                      aria-label={
+                        showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
+                      }
                       onClick={() => setShowApiKey((v) => !v)}>
                       {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
                     </button>

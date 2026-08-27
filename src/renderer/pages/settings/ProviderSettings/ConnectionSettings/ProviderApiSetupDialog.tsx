@@ -6,18 +6,32 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  NormalTooltip,
   Tooltip
 } from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { joinApiKeyString } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { AlertCircle, ArrowLeft, CheckCircle2, Circle, CircleAlert, CircleX, LoaderCircle } from 'lucide-react'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+  CircleAlert,
+  CircleX,
+  Eye,
+  EyeOff,
+  LoaderCircle
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ProviderAvatar } from '../components/ProviderAvatar'
+import { mergeProviderApiKeyEntries, parseProviderApiKeys } from '../hooks/providerSetting/useProviderApiKey'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import {
   ModelListSyncContent,
@@ -40,7 +54,14 @@ interface ProviderApiSetupDialogProps {
   onClose: () => void
 }
 
-type SetupBusyState = 'saving-key' | 'loading-models' | 'creating-models' | 'checking' | 'enabling' | null
+type SetupBusyState =
+  | 'saving-key-close'
+  | 'saving-key-next'
+  | 'loading-models'
+  | 'creating-models'
+  | 'checking'
+  | 'enabling'
+  | null
 type SetupErrorKind = 'api-key' | 'models' | 'create' | 'check' | 'enable'
 type VerificationStep = 'models' | 'check' | 'enable'
 type VerificationStepStatus = 'pending' | 'active' | 'complete' | 'error' | 'warning'
@@ -52,7 +73,7 @@ interface SetupError {
 
 export default function ProviderApiSetupDialog({ providerId, initialStep, onClose }: ProviderApiSetupDialogProps) {
   const { t } = useTranslation()
-  const { provider, addApiKey, updateApiKey, updateProvider, enableProvider } = useProvider(providerId)
+  const { provider, updateApiKeys, updateProvider, enableProvider } = useProvider(providerId)
   const providerMeta = useProviderMeta(providerId)
   const { data: apiKeysData, isLoading: isLoadingApiKeys } = useProviderApiKeys(providerId)
   const { createModels, updateModels } = useModelMutations()
@@ -64,7 +85,8 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   } = useProviderModelPullReconcile(providerId)
   const [step, setStep] = useState<ProviderApiSetupStep>(initialStep)
   const [apiKey, setApiKey] = useState('')
-  const [savedKeyId, setSavedKeyId] = useState<string | null>(null)
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [savedApiKeyEntries, setSavedApiKeyEntries] = useState<ApiKeyEntry[] | null>(null)
   const [selectedModelIds, setSelectedModelIds] = useState<Set<UniqueModelId>>(() => new Set())
   const [modelViewResetVersion, setModelViewResetVersion] = useState(0)
   const [busyState, setBusyState] = useState<SetupBusyState>(null)
@@ -82,6 +104,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const probeSucceededModelIdRef = useRef<string | null>(null)
 
   const isBusy = busyState !== null
+  const isModelListLoading = busyState === 'loading-models' || isLoadingModels
   const canDismissDialog = !isBusy || busyState === 'loading-models'
   const providerDisplayName = providerMeta.fancyProviderName || provider?.name || ''
   const setupStepTitle = t(
@@ -107,10 +130,13 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const allFilteredSelected =
     modelListView.filteredModels.length > 0 &&
     modelListView.filteredModels.every((model) => selectedModelIds.has(model.id))
-  const storedApiKey = apiKeysData?.keys.find((entry) => entry.isEnabled) ?? apiKeysData?.keys[0]
-  const runtimeApiKey = provider?.apiKeys.find((entry) => entry.isEnabled) ?? provider?.apiKeys[0]
-  const editableApiKeyId = savedKeyId ?? storedApiKey?.id ?? runtimeApiKey?.id ?? null
-  const verificationApiKey = apiKey.trim() || storedApiKey?.key || ''
+  const storedApiKeyEntries = useMemo(
+    () => savedApiKeyEntries ?? apiKeysData?.keys ?? [],
+    [apiKeysData?.keys, savedApiKeyEntries]
+  )
+  const storedApiKey = storedApiKeyEntries.find((entry) => entry.isEnabled) ?? storedApiKeyEntries[0]
+  const hasStoredApiKey = storedApiKeyEntries.length > 0
+  const verificationApiKey = parseProviderApiKeys(apiKey)[0] || storedApiKey?.key || ''
   const activeVerificationStep: VerificationStep | null =
     busyState === 'checking' ? 'check' : busyState === 'enabling' ? 'enable' : null
   const failedVerificationStep: VerificationStep | null =
@@ -164,11 +190,14 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       const fallback = t(fallbackKey)
       const storedKeys = apiKeysData?.keys
       const canSafelyShowSummary = apiKey.trim().length > 0 || storedKeys !== undefined
-      const details = getProviderSetupErrorDetails(cause, [apiKey, ...(storedKeys?.map((entry) => entry.key) ?? [])])
+      const details = getProviderSetupErrorDetails(cause, [
+        ...parseProviderApiKeys(apiKey),
+        ...storedApiKeyEntries.map((entry) => entry.key)
+      ])
       const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
       return { kind, message: summary ? `${fallback} ${summary}` : fallback }
     },
-    [apiKey, apiKeysData?.keys, t]
+    [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
   )
 
   const keepProviderDisabled = useCallback(async () => {
@@ -233,47 +262,41 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     void loadModels()
   }, [initialStep, isLoadingApiKeys, loadModels])
 
-  const saveApiKey = useCallback(async () => {
-    const normalizedApiKey = apiKey.trim()
-    if (!normalizedApiKey || isBusy) {
-      return
-    }
-
-    setBusyState('saving-key')
-    setError(null)
-    try {
-      await keepProviderDisabled()
-      if (editableApiKeyId) {
-        await updateApiKey(editableApiKeyId, { key: normalizedApiKey, isEnabled: true })
-        setSavedKeyId(editableApiKeyId)
-      } else {
-        const previousIds = new Set(provider?.apiKeys.map((entry) => entry.id) ?? [])
-        const updatedProvider = await addApiKey(normalizedApiKey)
-        const createdKey = updatedProvider.apiKeys.find((entry) => !previousIds.has(entry.id))
-        if (!createdKey) {
-          throw new Error('Saved API key could not be identified')
-        }
-        setSavedKeyId(createdKey.id)
+  const saveApiKey = useCallback(
+    async (action: 'close' | 'next') => {
+      const parsedApiKeys = parseProviderApiKeys(apiKey)
+      if (parsedApiKeys.length === 0 || isBusy) {
+        return
       }
 
-      setStep('models')
-      await loadModels()
-    } catch (cause) {
-      setError(createError('api-key', 'settings.provider.api_key.save_failed', cause))
-    } finally {
-      setBusyState(null)
-    }
-  }, [
-    addApiKey,
-    apiKey,
-    createError,
-    editableApiKeyId,
-    isBusy,
-    keepProviderDisabled,
-    loadModels,
-    provider?.apiKeys,
-    updateApiKey
-  ])
+      setBusyState(action === 'close' ? 'saving-key-close' : 'saving-key-next')
+      setError(null)
+      try {
+        await keepProviderDisabled()
+        if (parsedApiKeys.some((key) => [...key].some((character) => character.charCodeAt(0) > 0xff))) {
+          throw new Error('API key contains characters unsupported by HTTP headers')
+        }
+
+        const nextEntries = mergeProviderApiKeyEntries(apiKey, storedApiKeyEntries)
+        await updateApiKeys(nextEntries)
+        setSavedApiKeyEntries(nextEntries)
+        setApiKey(joinApiKeyString(parsedApiKeys))
+
+        if (action === 'close') {
+          requestClose()
+          return
+        }
+
+        setStep('models')
+        await loadModels()
+      } catch (cause) {
+        setError(createError('api-key', 'settings.provider.api_key.save_failed', cause))
+      } finally {
+        setBusyState(null)
+      }
+    },
+    [apiKey, createError, isBusy, keepProviderDisabled, loadModels, requestClose, storedApiKeyEntries, updateApiKeys]
+  )
 
   const setModelSelection = useCallback((modelIds: UniqueModelId[], selected: boolean) => {
     setSelectedModelIds((current) => {
@@ -427,9 +450,13 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     setCompletedVerificationSteps(new Set())
     modelsPersistedRef.current = false
     probeSucceededModelIdRef.current = null
-    setApiKey((current) => current || storedApiKey?.key || '')
+    setShowApiKey(false)
+    setApiKey(
+      (current) =>
+        current || joinApiKeyString(storedApiKeyEntries.filter((entry) => entry.isEnabled).map((entry) => entry.key))
+    )
     setStep('api-key')
-  }, [storedApiKey?.key])
+  }, [storedApiKeyEntries])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -446,7 +473,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           disabled: isBusy,
           onClick: returnToModels
         }
-      : step === 'models' && editableApiKeyId
+      : step === 'models' && hasStoredApiKey
         ? {
             label: t('common.back'),
             disabled: isBusy,
@@ -464,7 +491,9 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           className={cn(
             'gap-5 [&_[data-slot=dialog-close]]:top-7',
             step === 'models' &&
+              !isModelListLoading &&
               error?.kind !== 'models' &&
+              availableModels.length > 0 &&
               'h-[min(720px,calc(100vh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]'
           )}>
           <DialogHeader className="pr-8">
@@ -506,22 +535,39 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           {step === 'api-key' ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Input
-                  autoFocus
-                  type="password"
-                  value={apiKey}
-                  disabled={isBusy}
-                  spellCheck={false}
-                  placeholder={t('settings.provider.api.key.new_key.placeholder')}
-                  aria-label={t('settings.provider.api_key.label')}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && apiKey.trim()) {
-                      event.preventDefault()
-                      void saveApiKey()
-                    }
-                  }}
-                />
+                <div className="relative">
+                  <Input
+                    autoFocus
+                    type={showApiKey ? 'text' : 'password'}
+                    className="pr-10"
+                    value={apiKey}
+                    disabled={isBusy}
+                    spellCheck={false}
+                    placeholder={t('settings.provider.api_setup.keys_placeholder')}
+                    aria-label={t('settings.provider.api_key.label')}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && parseProviderApiKeys(apiKey).length > 0) {
+                        event.preventDefault()
+                        void saveApiKey('next')
+                      }
+                    }}
+                  />
+                  <NormalTooltip
+                    content={
+                      showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
+                    }>
+                    <button
+                      type="button"
+                      className="-translate-y-1/2 absolute top-1/2 right-2 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+                      aria-label={
+                        showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
+                      }
+                      onClick={() => setShowApiKey((value) => !value)}>
+                      {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </NormalTooltip>
+                </div>
                 {providerMeta.apiKeyWebsite && !providerMeta.isDmxapi ? (
                   <div className="flex">
                     <ProviderHelpLink
@@ -538,7 +584,15 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
             </div>
           ) : step === 'models' ? (
             <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-              {error?.kind === 'models' ? (
+              {isModelListLoading ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="flex min-h-12 items-center justify-center gap-2 text-muted-foreground text-sm">
+                  <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
+                  {t('common.loading')}
+                </div>
+              ) : error?.kind === 'models' ? (
                 <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 px-1">
                   <Button
                     type="button"
@@ -558,7 +612,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                   view={modelListView}
                   localModelIds={localModelIds}
                   selectedModelIds={selectedModelIds}
-                  isLoading={busyState === 'loading-models' || isLoadingModels}
+                  isLoading={isModelListLoading}
                   isApplying={isBusy}
                   hideEmptyFilters
                   flattenSingleGroup
@@ -656,7 +710,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           {step === 'verification' ? (
             !setupSucceeded && !requiresManualConfirmation ? (
               <DialogFooter className="flex-row items-center justify-end sm:justify-end">
-                {error && editableApiKeyId ? (
+                {error && hasStoredApiKey ? (
                   <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
                     {t('settings.provider.api_setup.edit_key')}
                   </Button>
@@ -669,32 +723,49 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           ) : (
             <DialogFooter className="flex-row items-center justify-between sm:justify-between">
               <div>
-                {step === 'models' && editableApiKeyId ? (
+                {step === 'api-key' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    loading={busyState === 'saving-key-close'}
+                    disabled={parseProviderApiKeys(apiKey).length === 0 || isBusy}
+                    onClick={() => void saveApiKey('close')}>
+                    {t('settings.provider.api_setup.save_and_close')}
+                  </Button>
+                ) : step === 'models' && hasStoredApiKey ? (
                   <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
                     {t('settings.provider.api_setup.edit_key')}
                   </Button>
                 ) : null}
               </div>
               <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" disabled={!canDismissDialog} onClick={requestClose}>
-                  {t('common.cancel')}
-                </Button>
                 {step === 'api-key' ? (
-                  <Button type="button" disabled={!apiKey.trim() || isBusy} onClick={() => void saveApiKey()}>
-                    {busyState === 'saving-key' ? t('common.loading') : t('settings.provider.api_setup.save_key')}
-                  </Button>
-                ) : error?.kind === 'models' ? (
-                  <Button type="button" disabled={isBusy} onClick={() => void loadModels()}>
-                    {t('common.retry')}
-                  </Button>
-                ) : (
                   <Button
                     type="button"
-                    loading={busyState === 'creating-models'}
-                    disabled={selectedModels.length === 0 || isBusy}
-                    onClick={() => void addSelectedModels()}>
-                    {t('settings.provider.api_setup.progress.add_models')}
+                    loading={busyState === 'saving-key-next'}
+                    disabled={parseProviderApiKeys(apiKey).length === 0 || isBusy}
+                    onClick={() => void saveApiKey('next')}>
+                    {t('settings.provider.api_setup.next')}
                   </Button>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" disabled={!canDismissDialog} onClick={requestClose}>
+                      {t('common.cancel')}
+                    </Button>
+                    {error?.kind === 'models' ? (
+                      <Button type="button" disabled={isBusy} onClick={() => void loadModels()}>
+                        {t('common.retry')}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        loading={busyState === 'creating-models'}
+                        disabled={selectedModels.length === 0 || isBusy}
+                        onClick={() => void addSelectedModels()}>
+                        {t('settings.provider.api_setup.progress.add_models')}
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             </DialogFooter>
