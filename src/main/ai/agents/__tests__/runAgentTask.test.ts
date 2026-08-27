@@ -594,6 +594,41 @@ describe('runAgentTask', () => {
     expect(captured.listeners).toHaveLength(2)
   })
 
+  // The stream manager snapshots listeners then invokes every onDone. The task sentinel
+  // must not fan the same terminal event out again — that double-delivers one cron result.
+  it('delivers a successful cron result to a subscribed channel exactly once', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([{ id: 'ch1', agentId: 'a1' }] as never)
+
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => false)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    const chunk = { type: 'text-delta', delta: 'daily summary' }
+    for (const listener of captured.listeners) {
+      listener.onChunk?.(chunk)
+    }
+    const doneResult = { status: 'success' }
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.(doneResult as never))))
+
+    await expect(promise).resolves.toEqual({ sessionId: 'sess-new', result: 'daily summary' })
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'daily summary', undefined)
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+  })
+
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
   // once. The channel listener's generic `Error: …` is suppressed for task runs so only
   // the richer `[Task failed]` summary from notifyTaskError is delivered (no double-send).
