@@ -170,6 +170,14 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByText('Legacy Model')).toBeInTheDocument()
   })
 
+  it('hides model controls while loading', () => {
+    renderDrawer({ isLoading: true })
+
+    expect(screen.getByTestId('spinner')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).not.toBeVisible()
+    expect(screen.getByRole('tablist', { hidden: true })).not.toBeVisible()
+  })
+
   // The raw api id moved out of a visible subtitle line into the title's tooltip, so it must stay
   // reachable without a mouse: a focusable title (which opens the tooltip on focus) described by an
   // off-screen copy of the id. Names can collide — the id is what disambiguates them.

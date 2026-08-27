@@ -445,6 +445,18 @@ describe('ProviderApiSetupDialog', () => {
     expect(addApiKeyMock).not.toHaveBeenCalled()
   })
 
+  it('shows a localized reason for a recognized model-loading error', async () => {
+    storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('Invalid API key'))
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('settings.models.manage.sync_pull_failed')
+    expect(alert).toHaveTextContent('error.diagnosis.auth')
+    expect(alert).not.toHaveTextContent('Invalid API key')
+  })
+
   it('omits an unsafe raw error summary when stored keys cannot be loaded', async () => {
     storedApiKeysUnavailable = true
     fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('401 rejected sk-sensitive'))
@@ -488,7 +500,7 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
     fireEvent.click(await screen.findByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
 
-    await screen.findByText(/insufficient balance/)
+    await screen.findByText(/error\.diagnosis\.quota/)
     expect(
       screen.getByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
     ).toBeInTheDocument()
@@ -526,7 +538,7 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
     fireEvent.click(await screen.findByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
 
-    await screen.findByText(/Request timed out/)
+    await screen.findByText(/error\.diagnosis\.network/)
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: false })
     expect(enableProviderMock).not.toHaveBeenCalled()
   })

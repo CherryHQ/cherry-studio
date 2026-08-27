@@ -1,4 +1,5 @@
 import { serializeHealthCheckError } from '@renderer/utils/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
 import type { BulkUpdateModelsDto, CreateModelsDto } from '@shared/data/api/schemas/models'
 import { MODELS_BATCH_MAX_ITEMS, MODELS_BULK_UPDATE_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
@@ -66,11 +67,16 @@ export async function persistProviderModels({
   return uniqueSelectedModels.map((model) => persistedModels.get(model.id) as Model)
 }
 
-export function getProviderSetupErrorSummary(error: unknown, secrets: Iterable<string>): string {
-  let summary = healthCheckErrorToDisplayString(serializeHealthCheckError(error))
+export function getProviderSetupErrorDetails(error: unknown, secrets: Iterable<string>) {
+  const serializedError = serializeHealthCheckError(error)
+  const classification = classifyError(serializedError)
+  let summary = healthCheckErrorToDisplayString(serializedError)
   for (const secret of secrets) {
     const normalizedSecret = secret.trim()
     if (normalizedSecret) summary = summary.replaceAll(normalizedSecret, '••••')
   }
-  return summary
+  return {
+    i18nKey: classification.category === 'unknown' ? null : classification.i18nKey,
+    summary
+  }
 }

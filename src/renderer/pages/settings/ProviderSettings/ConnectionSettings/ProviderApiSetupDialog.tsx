@@ -27,7 +27,7 @@ import {
 } from '../ModelList'
 import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
-import { getProviderSetupErrorSummary, persistProviderModels } from '../utils/providerModelSetup'
+import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
 
 const SUCCESS_FEEDBACK_DURATION_MS = 1200
 
@@ -165,9 +165,8 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       const fallback = t(fallbackKey)
       const storedKeys = apiKeysData?.keys
       const canSafelyShowSummary = apiKey.trim().length > 0 || storedKeys !== undefined
-      const summary = canSafelyShowSummary
-        ? getProviderSetupErrorSummary(cause, [apiKey, ...(storedKeys?.map((entry) => entry.key) ?? [])])
-        : ''
+      const details = getProviderSetupErrorDetails(cause, [apiKey, ...(storedKeys?.map((entry) => entry.key) ?? [])])
+      const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
       return { kind, message: summary ? `${fallback} ${summary}` : fallback }
     },
     [apiKey, apiKeysData?.keys, t]
