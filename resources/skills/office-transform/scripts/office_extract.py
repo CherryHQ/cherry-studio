@@ -58,6 +58,10 @@ def atomic_output(out_path: Path):
     because `fail` raises `SystemExit` and cleaning up from inside it would delete the file whoever
     won the race had just published. Everything after the claim is inside, so a staging file that
     cannot even be created still takes the empty claim back down with it.
+
+    office_patch_copy.py carries this protocol verbatim, deliberately: each script stands alone and
+    neither imports the other. Change one and change both — the no-overwrite guarantee is worth only
+    as much as the weaker copy.
     """
     try:
         os.close(os.open(out_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
