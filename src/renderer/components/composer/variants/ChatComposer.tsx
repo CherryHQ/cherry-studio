@@ -717,10 +717,9 @@ const ChatComposerInner = ({
         value: nextReasoningEffort ?? 'default',
         version
       })
-      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel` with
-      // an ungated providers list. This duplicate read the composer's own list, which is deferred
-      // (`shouldLoadProviders`) and therefore empty in single-model chats — it would have cleared the
-      // setting for every model whose search is provider-native.
+      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel`
+      // with the provider data owned by that operation. Repeating it here would duplicate the
+      // state transition against the composer's presentation-oriented provider list.
       const extraSettings: {
         reasoning_effort?: ReasoningEffortOption
       } = {}
@@ -843,7 +842,12 @@ const ChatComposerInner = ({
       : EMPTY_MODELS
   const shouldLoadProviders =
     !externalContextControls &&
-    (mentionedModels.length > 1 || mentionedModelSelectorValue.length > 1 || lockedMentionedModels.length > 1)
+    Boolean(
+      runtimeModel ||
+        mentionedModels.length > 0 ||
+        mentionedModelSelectorValue.length > 0 ||
+        lockedMentionedModels.length > 0
+    )
   const { providers: loadedProviders } = useProviders(undefined, { enabled: shouldLoadProviders })
   const providers = resolvedProviders ?? loadedProviders
   const effectiveSubmittedModels =

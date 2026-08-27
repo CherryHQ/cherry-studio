@@ -36,7 +36,8 @@ const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
-  recordUsage: vi.fn()
+  recordUsage: vi.fn(),
+  trackTokenUsage: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -285,6 +286,7 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'ClaudeCodeWarmQueryManager')
         return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
+      if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -542,10 +544,11 @@ describe('AgentSessionRuntimeService', () => {
         },
         frozenModels: [
           {
-            modelId: 'claude-sonnet-4-5',
+            modelId: 'configured-sonnet',
+            apiModelId: 'claude-sonnet-4-5',
             modelName: 'Claude Sonnet',
             pricingSnapshot: null,
-            aliases: ['claude-sonnet-4-5']
+            aliases: ['configured-sonnet', 'claude-sonnet-4-5']
           }
         ]
       },
@@ -604,7 +607,7 @@ describe('AgentSessionRuntimeService', () => {
           context: {
             providerId: 'claude-code',
             providerName: 'Claude Code',
-            modelId: 'claude-sonnet-4-5',
+            modelId: 'configured-sonnet',
             modelName: 'Claude Sonnet',
             pricingSnapshot: null,
             credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -630,6 +633,13 @@ describe('AgentSessionRuntimeService', () => {
         })
       )
     )
+    expect(mocks.trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'claude-code',
+      model: 'claude-sonnet-4-5',
+      input_tokens: 10,
+      output_tokens: 5,
+      source: 'agent'
+    })
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
@@ -666,6 +676,13 @@ describe('AgentSessionRuntimeService', () => {
         })
       )
     )
+    expect(mocks.trackTokenUsage).toHaveBeenLastCalledWith({
+      provider: 'claude-code',
+      model: 'claude-sonnet-4-5',
+      input_tokens: 4,
+      output_tokens: 2,
+      source: 'agent'
+    })
     void service.closeSession('session-1')
   })
 
@@ -682,6 +699,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     expect(mocks.recordUsage).not.toHaveBeenCalled()
+    expect(mocks.trackTokenUsage).not.toHaveBeenCalled()
   })
 
   describe('api_retry ephemeral status', () => {
@@ -803,6 +821,40 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.headless).toBe(true)
       expect(entry.pendingTurns).toHaveLength(0)
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
+    })
+
+    it('keeps an omitted recipient set distinct from an explicit empty set', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
+
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      service.beginTurn({ ...baseTurnInput, trustedNotifyChannels: [] })
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([])
+    })
+
+    it('uses queued task recipients only for that task turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      const recipients = [{ id: 'channel-task', type: 'telegram' as const }]
+      service.beginTurn(baseTurnInput)
+      service.enqueueUserMessage('session-1', userMessage('user-task'), {
+        headless: true,
+        trustedNotifyChannels: recipients
+      })
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual(recipients)
+
+      service.enqueueUserMessage('session-1', userMessage('user-ordinary'))
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const entry = getEntry(service)
+      expect(entry.currentTurn.userMessage.id).toBe('user-ordinary')
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
+      expect((service as any).connectionTarget(entry).trustedNotifyChannels).toBeUndefined()
     })
 
     it('stamps a queued follow-up with its enqueue-time snapshot, not the prior turn snapshot', async () => {
@@ -4722,6 +4774,7 @@ describe('AgentSessionRuntimeService', () => {
           frozenModels: [
             {
               modelId: 'claude-sonnet-4-5',
+              apiModelId: 'claude-sonnet-4-5',
               modelName: 'Claude Sonnet',
               pricingSnapshot: null,
               aliases: ['claude-sonnet-4-5']

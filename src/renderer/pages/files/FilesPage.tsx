@@ -167,6 +167,17 @@ function canStartInlineRename(file: FileItem | undefined): file is FileItem {
   return Boolean(file && !file.trashed && !file.isMissing)
 }
 
+function useStableFileEntries(entries: FileEntry[]): FileEntry[] {
+  const stableRef = useRef(entries)
+  if (
+    stableRef.current.length !== entries.length ||
+    stableRef.current.some((entry, index) => entry !== entries[index])
+  ) {
+    stableRef.current = entries
+  }
+  return stableRef.current
+}
+
 function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
@@ -288,6 +299,7 @@ function FilesPage() {
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectionAnchorIdRef = useRef<string | null>(null)
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -326,12 +338,12 @@ function FilesPage() {
 
   const isFilesLoading = isActiveFilesLoading
   const isFilesRefreshing = isActiveFilesRefreshing
-  const entries = useInfiniteFlatItems(activeFilePages)
-  const activeFilesTotal = activeFilePages[0]?.total ?? entries.length
+  const entries = useStableFileEntries(useInfiniteFlatItems(activeFilePages))
+  const activeFilesTotal =
+    activeFilePages[0]?.total ?? activeFilePages.reduce((sum, page) => sum + page.items.length, 0)
   const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
-  const isFileQueryPending = isFilesLoading || isFilesRefreshing
   const displayEntryCandidate =
-    entries.length === 0 && isFileQueryPending && previousNonEmptyEntriesRef.current.length > 0
+    entries.length === 0 && (isFilesLoading || isFilesRefreshing) && previousNonEmptyEntriesRef.current.length > 0
       ? previousNonEmptyEntriesRef.current
       : entries
   const displayEntries = useDeferredValue(displayEntryCandidate)
@@ -581,13 +593,35 @@ function FilesPage() {
     return t('common.archive')
   }, [selectedFiles, t])
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
+  const handleSelect = useCallback(
+    (id: string, isChecked: boolean, shouldSelectRange: boolean) => {
+      const anchorIndex = selectionAnchorIdRef.current
+        ? filteredFiles.findIndex((file) => file.id === selectionAnchorIdRef.current)
+        : -1
+      const targetIndex = filteredFiles.findIndex((file) => file.id === id)
+      const isRangeSelection = shouldSelectRange && anchorIndex >= 0
+      const selectionIds = isRangeSelection
+        ? filteredFiles
+            .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+            .map((file) => file.id)
+        : [id]
+
+      if (!isRangeSelection) selectionAnchorIdRef.current = id
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const selectionId of selectionIds) {
+          if (isChecked) next.add(selectionId)
+          else next.delete(selectionId)
+        }
+        return next
+      })
+    },
+    [filteredFiles]
+  )
+
+  useEffect(() => {
+    if (selectedIds.size === 0) selectionAnchorIdRef.current = null
+  }, [selectedIds])
 
   const handleSelectAllVisible = useCallback(
     (checked: boolean) => {

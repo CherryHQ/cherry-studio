@@ -569,8 +569,8 @@ describe('runAgentTask', () => {
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
-      { id: 'ch-match', agentId: 'a1' },
-      { id: 'ch-foreign', agentId: 'a2' }
+      { id: 'ch-match', type: 'telegram', agentId: 'a1', isActive: true },
+      { id: 'ch-foreign', type: 'telegram', agentId: 'a2', isActive: true }
     ] as never)
 
     const adapter = {
@@ -594,6 +594,36 @@ describe('runAgentTask', () => {
     expect(captured.listeners).toHaveLength(2)
   })
 
+  it.each([
+    [
+      'owned configured recipients, including offline or inactive channels',
+      [
+        { id: 'ch-offline', type: 'feishu', agentId: 'a1', isActive: true },
+        { id: 'ch-inactive', type: 'telegram', agentId: 'a1', isActive: false },
+        { id: 'ch-foreign', type: 'telegram', agentId: 'a2', isActive: true }
+      ],
+      [
+        { id: 'ch-inactive', type: 'telegram' },
+        { id: 'ch-offline', type: 'feishu' }
+      ]
+    ],
+    ['an explicit empty recipient set', [], []]
+  ])('passes %s as notification authority', async (_case, subscribedChannels, trustedNotifyChannels) => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce(subscribedChannels as never)
+    mockGetAdapter.mockReturnValue(undefined)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    captured.listeners[0].onDone({ status: 'completed' })
+    await promise
+
+    expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ trustedNotifyChannels }))
+  })
+
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
   // once. The channel listener's generic `Error: …` is suppressed for task runs so only
   // the richer `[Task failed]` summary from notifyTaskError is delivered (no double-send).
@@ -602,7 +632,9 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([{ id: 'ch1', agentId: 'a1' }] as never)
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
 
     const adapter = {
       channelId: 'ch1',
