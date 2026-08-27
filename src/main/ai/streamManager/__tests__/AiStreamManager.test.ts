@@ -218,8 +218,16 @@ describe('legacy AiStreamManager behavior on Conversation owners', () => {
     await vi.waitFor(() => expect(ports.terminalPersistence.persistTerminal).toHaveBeenCalledOnce())
 
     expect(ports.presentation.publishExecutionTerminal).not.toHaveBeenCalled()
-    await Promise.all(runtime.inFlightPersistenceOperations().map(({ run }) => run))
+    const [operation] = runtime.inFlightPersistenceOperations()
+    let completed = false
+    void operation.run.then(() => {
+      completed = true
+    })
+    await Promise.resolve()
+    expect(completed).toBe(false)
+
     runtime.retryBlockedPersistence()
+    await operation.run
     await vi.waitFor(() => expect(ports.presentation.publishExecutionTerminal).toHaveBeenCalledOnce())
   })
 

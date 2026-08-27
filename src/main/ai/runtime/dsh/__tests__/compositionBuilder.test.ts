@@ -1,17 +1,23 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import type { DshRuntimeEntrySpecifier } from '@cherrystudio/dsh-bridge'
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 vi.mock('@data/services/ProviderService', () => ({ providerService: {} }))
 vi.mock('@data/services/ModelService', () => ({ modelService: {} }))
 
-import { buildDshCompositionYaml, type DshCompositionInput, toDshPluginUrl } from '../compositionBuilder'
+import {
+  buildDshCompositionYaml,
+  type DshCompositionInput,
+  resolveDshPluginPath,
+  toDshPluginUrl
+} from '../compositionBuilder'
 import { buildDshProviderInjection } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
@@ -82,6 +88,10 @@ function makeInput(overrides: Partial<DshCompositionInput> = {}): DshComposition
 }
 
 describe('buildDshCompositionYaml', () => {
+  it('accepts only registered DSH runtime entry specifiers', () => {
+    expectTypeOf(resolveDshPluginPath).parameter(0).toEqualTypeOf<DshRuntimeEntrySpecifier>()
+  })
+
   it('emits parseable YAML whose entries all carry an id and a plugin name', () => {
     const entries = parseEntries(buildDshCompositionYaml(makeInput()))
     expect(entries.length).toBeGreaterThan(10)
@@ -150,12 +160,12 @@ describe('buildDshCompositionYaml', () => {
     const entries = parseEntries(yml)
     const names = entries.map((entry) => entry.name).join('\n')
 
-    expect(names).toContain('dsh-pwsh-sandbox')
-    expect(names).toContain('dsh-tool-pwsh')
-    expect(names).toContain('dsh-shell-env')
-    expect(names).not.toContain('dsh-bash-sandbox')
-    expect(names).toContain('dsh-sandbox-local')
-    expect(names).toContain('dsh-sandbox-policy')
+    expect(names).toContain('pwsh-sandbox.mjs')
+    expect(names).toContain('tool-pwsh.mjs')
+    expect(names).toContain('shell-env.mjs')
+    expect(names).not.toContain('bash-sandbox.mjs')
+    expect(names).toContain('sandbox-local.mjs')
+    expect(names).toContain('sandbox-policy.mjs')
     expect(entryById(yml, 'agent-spine').config?.toolBash).toBe(false)
     expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('C:\\Users\\Cherry\\workspace')
     expect(entryById(yml, 'shell-executor').config?.cwd).toBe('C:\\Users\\Cherry\\workspace')

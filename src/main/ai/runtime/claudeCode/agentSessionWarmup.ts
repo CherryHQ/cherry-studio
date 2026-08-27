@@ -28,7 +28,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -181,6 +181,7 @@ function buildUsageModels(
   const byModelId = new Map<
     string,
     {
+      apiModelId: string
       modelName: string | null
       pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
       aliases: Set<string>
@@ -188,6 +189,7 @@ function buildUsageModels(
   >()
   for (const { sdkModelId, ref } of entries) {
     const current = byModelId.get(ref.modelId) ?? {
+      apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
       pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
       aliases: new Set<string>()
@@ -199,6 +201,7 @@ function buildUsageModels(
   }
   return [...byModelId].map(([modelId, snapshot]) => ({
     modelId,
+    apiModelId: snapshot.apiModelId,
     modelName: snapshot.modelName,
     pricingSnapshot: snapshot.pricingSnapshot,
     aliases: [...snapshot.aliases]
@@ -519,6 +522,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         mcpServerSnapshots,
         linkedChannelSnapshot,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
+        supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code'
       },

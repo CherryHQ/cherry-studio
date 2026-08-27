@@ -413,7 +413,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     mocks.consumeWarmQuery.mockResolvedValue({
@@ -424,7 +432,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
 
@@ -1497,8 +1513,20 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerName: 'Anthropic',
         source: null,
         frozenModels: [
-          { modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] },
-          { modelId: 'haiku', modelName: 'Haiku', pricingSnapshot: null, aliases: ['haiku-sdk'] }
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          },
+          {
+            modelId: 'haiku',
+            apiModelId: 'haiku-sdk',
+            modelName: 'Haiku',
+            pricingSnapshot: null,
+            aliases: ['haiku-sdk']
+          }
         ]
       }
     })
@@ -1660,7 +1688,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await connectRuntime({
@@ -1726,7 +1762,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await connectRuntime({
@@ -1802,7 +1846,13 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerName: 'LongCat',
         source: null,
         frozenModels: [
-          { modelId: 'LongCat-2.0', modelName: 'LongCat 2.0', pricingSnapshot: null, aliases: ['LongCat-2.0'] }
+          {
+            modelId: 'LongCat-2.0',
+            apiModelId: 'LongCat-2.0',
+            modelName: 'LongCat 2.0',
+            pricingSnapshot: null,
+            aliases: ['LongCat-2.0']
+          }
         ]
       }
     })
@@ -1915,7 +1965,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await connectRuntime({
@@ -2019,7 +2077,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: { type: 'agent', id: 'agent-1', name: 'Frozen Agent', icon: null },
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
       }
     })
     const connection = await connectRuntime({
