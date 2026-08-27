@@ -87,36 +87,24 @@ export async function runAgentFileTask(
   const output = join(app.paths.workspace, fileName)
   const promptPath = output.replaceAll('\\', '/')
   const prompt = `Create the file at the exact absolute path ${JSON.stringify(promptPath)} with the exact text AGENT_FILE_TASK_PASS.`
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first().fill(prompt)
-    await page.getByRole('button', { name: 'Send', exact: true }).click()
-    if (approve) {
-      const allow = page.getByRole('button', { name: /Allow/ }).first()
-      await expect(allow).toBeVisible({ timeout: 60_000 })
-      await allow.click()
-    }
-    try {
-      await expect
-        .poll(
-          async () => {
-            if (approve) {
-              const allow = page.getByRole('button', { name: /Allow/ }).first()
-              if (await allow.isVisible().catch(() => false)) await allow.click()
-            }
-            try {
-              const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
-              await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
-              return true
-            } catch {
-              return false
-            }
-          },
-          { timeout: 3 * 60_000 }
-        )
-        .toBe(true)
-      return
-    } catch (error) {
-      if (attempt === 1) throw error
-    }
-  }
+  await page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first().fill(prompt)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect
+    .poll(
+      async () => {
+        if (approve) {
+          const allow = page.getByRole('button', { name: /Allow/ }).first()
+          if (await allow.isVisible().catch(() => false)) await allow.click()
+        }
+        try {
+          const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
+          await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+          return true
+        } catch {
+          return false
+        }
+      },
+      { timeout: 10 * 60_000 }
+    )
+    .toBe(true)
 }

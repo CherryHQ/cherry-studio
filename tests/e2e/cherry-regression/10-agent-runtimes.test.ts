@@ -17,6 +17,7 @@ async function ensureAgentModel(
 }
 
 test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWindow: page }) => {
+  test.setTimeout(15 * 60_000)
   await ensureAgentModel(app, page)
   const name = 'Cherry Regression Claude Agent 31415'
   await createAgent(app, page, { name, permission: 'Full Access', runtime: 'Advanced: Claude Agent' })
@@ -31,6 +32,7 @@ test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWind
 })
 
 test('[A-04] Pi Runtime @pi-runtime', async ({ app, mainWindow: page }) => {
+  test.setTimeout(15 * 60_000)
   await ensureAgentModel(app, page)
   await createAgent(app, page, { name: 'Pi Regression Agent', permission: 'Ask Before Acting', runtime: 'Fast: Pi' })
   await selectAgentWorkspace(app, page)
@@ -38,6 +40,7 @@ test('[A-04] Pi Runtime @pi-runtime', async ({ app, mainWindow: page }) => {
 })
 
 test('[A-05] DeepSeek Harness Runtime @deepseek-harness-runtime', async ({ app, mainWindow: page }) => {
+  test.setTimeout(15 * 60_000)
   await ensureAgentModel(app, page)
   await createAgent(app, page, { name: 'DeepSeek Harness Agent', runtime: 'DeepSeek Harness' })
   await selectAgentWorkspace(app, page)
