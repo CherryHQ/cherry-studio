@@ -64,6 +64,7 @@ test('[C-02] 使用快捷助手完成全局问答 @quick-assistant', async ({ ap
   await invokeQuickAssistant(app, prompt)
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
+  await page.waitForTimeout(2_000)
   await invokeQuickAssistant(app, prompt)
 })
 

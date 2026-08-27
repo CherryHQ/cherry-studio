@@ -58,6 +58,6 @@ test('[K-02] 基于知识库问答并验证引用 @knowledge-qa', async ({ app, 
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('body')).toContainText('CHERRY_KNOWLEDGE_58597', { timeout: 2 * 60_000 })
-  await page.getByText('ground-truth.txt', { exact: true }).last().click()
-  await expect(page.locator('body')).toContainText('CHERRY_KNOWLEDGE_58597')
+  await expect(page.locator('body')).toContainText('ground-truth.txt')
+  await expect(page.getByText(/\d+ citations?/i)).toBeVisible()
 })

@@ -58,11 +58,14 @@ function runWindowsHotkey(keys: string[]): void {
   const script = [
     `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
     ...modifiers.map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 0, [UIntPtr]::Zero)`),
+    'Start-Sleep -Milliseconds 100',
     `[NativeKeyboard]::keybd_event(${keyCode}, 0, 0, [UIntPtr]::Zero)`,
+    'Start-Sleep -Milliseconds 100',
     `[NativeKeyboard]::keybd_event(${keyCode}, 0, 2, [UIntPtr]::Zero)`,
     ...modifiers
       .toReversed()
-      .map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 2, [UIntPtr]::Zero)`)
+      .map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 2, [UIntPtr]::Zero)`),
+    'Start-Sleep -Milliseconds 500'
   ].join('; ')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     stdio: 'ignore',
@@ -102,7 +105,8 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       '$shell = New-Object -ComObject WScript.Shell',
       'if (-not $shell.AppActivate($process.Id)) { throw "Notepad window could not be activated" }',
       'Start-Sleep -Milliseconds 500',
-      '$shell.SendKeys("^a")'
+      '$shell.SendKeys("^a")',
+      'Start-Sleep -Milliseconds 500'
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       stdio: ['ignore', 'ignore', 'pipe'],
@@ -138,8 +142,11 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
   } else {
     const isDirectory = statSync(filePath).isDirectory()
     const script = [
+      'Set-StrictMode -Version Latest',
+      '$ErrorActionPreference = "Stop"',
       'Add-Type -AssemblyName UIAutomationClient',
       'Add-Type -AssemblyName UIAutomationTypes',
+      'Add-Type -AssemblyName System.Windows.Forms',
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
       `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
@@ -155,12 +162,9 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'Start-Sleep -Milliseconds 300',
       ...(isDirectory
         ? [
-            'Add-Type -AssemblyName System.Windows.Forms',
             '[System.Windows.Forms.SendKeys]::SendWait("^l")',
             'Start-Sleep -Milliseconds 200',
-            '$pathInput = [System.Windows.Automation.AutomationElement]::FocusedElement',
-            '$valuePattern = $pathInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
-            `$valuePattern.SetValue('${escapePowerShell(filePath)}')`,
+            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
             '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
             'Start-Sleep -Milliseconds 500',
             '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
@@ -168,20 +172,16 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
             'if (-not $dialog) { throw "Native folder dialog closed before selection" }',
             '$buttonCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
             '$buttons = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
-            '$selectButton = $buttons | Where-Object { $_.Current.Name -in @("Select Folder", "Choose Folder", "Choose this folder", "Select") } | Select-Object -First 1',
+            '$selectButton = $buttons | Where-Object { $_.Current.Name -in @("Select Folder", "Choose Folder", "Choose this folder", "Select a folder", "Select") } | Select-Object -First 1',
             'if (-not $selectButton) { throw "Select Folder button was not found" }',
-            '$selectButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()'
+            '$selectButton.SetFocus()',
+            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")'
           ]
         : [
-            '$fileNameCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1148")',
-            '$fileNameInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileNameCondition)',
-            'if (-not $fileNameInput) { throw "File name input was not found" }',
-            '$valuePattern = $fileNameInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
-            `$valuePattern.SetValue('${escapePowerShell(filePath)}')`,
-            '$openCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Open")',
-            '$openButton = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $openCondition)',
-            'if (-not $openButton) { throw "Open button was not found" }',
-            '$openButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()'
+            '[System.Windows.Forms.SendKeys]::SendWait("%n")',
+            'Start-Sleep -Milliseconds 200',
+            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
+            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")'
           ])
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
