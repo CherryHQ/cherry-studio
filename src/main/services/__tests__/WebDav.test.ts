@@ -126,7 +126,7 @@ describe('WebDav failure contracts', () => {
   it('checkConnection probes the configured path, not the server root', async () => {
     // Bug caught: probing '/' made the button green even when the configured
     // backup path was gone — the "connection OK but backup fails" contradiction.
-    handler = (req, res) => {
+    handler = (_req, res) => {
       res.writeHead(404)
       res.end()
     }
@@ -138,7 +138,7 @@ describe('WebDav failure contracts', () => {
   })
 
   it('checkConnection still probes the root when no path is configured', async () => {
-    handler = (req, res) => {
+    handler = (_req, res) => {
       res.writeHead(404)
       res.end()
     }
