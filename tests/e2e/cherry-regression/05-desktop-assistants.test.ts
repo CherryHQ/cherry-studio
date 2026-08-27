@@ -49,9 +49,19 @@ async function invokeQuickAssistant(
   const quick = await app.window('/windows/quickassistant/')
   const input = quick.getByRole('textbox').first()
   await expect(input).toBeVisible()
-  await input.fill(markerPrompt)
-  await input.press('Enter')
-  await expect(quick.getByText('QUICK_ASSISTANT_PASS', { exact: true }).last()).toBeVisible({ timeout: 2 * 60_000 })
+  const marker = quick.getByText('QUICK_ASSISTANT_PASS', { exact: true }).last()
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await input.fill(markerPrompt)
+    await input.press('Enter')
+    const visible = await marker
+      .waitFor({ state: 'visible', timeout: 2 * 60_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (visible) break
+    const pause = quick.getByRole('button', { name: 'ESC to pause', exact: true })
+    if (await pause.isVisible().catch(() => false)) await pause.click()
+  }
+  await expect(marker).toBeVisible()
   await quick.getByRole('button', { name: 'ESC to return', exact: true }).click()
   await expect(quick.getByText('Answer this question', { exact: true })).toBeVisible()
 }

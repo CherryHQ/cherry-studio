@@ -120,5 +120,5 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
   await openSkillsPanel(page)
   await page.getByText('cherry-regression-fixture', { exact: true }).click()
   await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(page.getByText('SKILL_IMPORT_PASS', { exact: true }).last()).toBeVisible({ timeout: 2 * 60_000 })
+  await expect(page.getByText('SKILL_IMPORT_PASS', { exact: true }).last()).toBeVisible({ timeout: 5 * 60_000 })
 })

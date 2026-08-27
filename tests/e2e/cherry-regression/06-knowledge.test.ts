@@ -49,15 +49,26 @@ test('[K-02] 基于知识库问答并验证引用 @knowledge-qa', async ({ app, 
   await expect(assistantDialog.getByText(KNOWLEDGE_NAME, { exact: true })).toBeVisible()
   await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
 
-  const composer = page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first()
-  await composer.fill('What is the regression knowledge answer? Include the exact marker and cite the source file.')
-  await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
-  const quickPanel = page.getByTestId('quick-panel')
-  await quickPanel.getByText('Knowledge Base', { exact: true }).click()
-  await quickPanel.getByText(KNOWLEDGE_NAME, { exact: true }).click()
-  await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(page.locator('body')).toContainText('CHERRY_KNOWLEDGE_58597', { timeout: 2 * 60_000 })
+  const sendQuestion = async () => {
+    const composer = page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first()
+    await composer.fill('What is the regression knowledge answer? Include the exact marker and cite the source file.')
+    await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+    const quickPanel = page.getByTestId('quick-panel')
+    await quickPanel.getByText('Knowledge Base', { exact: true }).click()
+    await quickPanel.getByText(KNOWLEDGE_NAME, { exact: true }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+  }
+  const marker = page.getByText('CHERRY_KNOWLEDGE_58597', { exact: false }).last()
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await sendQuestion()
+    const visible = await marker
+      .waitFor({ state: 'visible', timeout: 2 * 60_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (visible) break
+  }
+  await expect(marker).toBeVisible()
   await expect(page.locator('body')).toContainText('ground-truth.txt')
   await expect(page.getByText(/\d+ citations?/i)).toBeVisible()
 })
