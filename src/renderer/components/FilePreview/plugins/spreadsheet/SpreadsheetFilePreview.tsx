@@ -9,7 +9,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
-import { createSelectionReference } from '../../selectionReference'
+import { createSelectionReference, normalizeSelectionText } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import type { ChartRenderer } from './charts/ChartRenderer'
 import type { CellRangeRect } from './gridLayout'
@@ -59,9 +59,11 @@ const EXCERPT_MAX_SCAN_CELLS = 50_000
  * Both budgets are checked while scanning — building the full text first and truncating afterwards is what makes a
  * full-column selection hang. createSelectionReference does the exact normalization and truncation.
  *
- * Only text that survives normalization counts against the character budget: separators around blank cells collapse
- * away, so charging for them would let a run of empty cells exhaust the budget and normalize down to an empty
- * excerpt. The scan cap stays separate — it is what bounds the walk over a sparse selection.
+ * Only text that survives normalization counts against the character budget, which is why each cell is charged its
+ * normalized length rather than its raw one. A cell that leaves nothing behind — empty, or holding only whitespace,
+ * the way an export that blanks a cell with a space leaves it — collapses away along with its separators, so
+ * charging for it would let a run of them exhaust the budget and normalize down to an empty excerpt. The scan cap
+ * stays separate — it is what bounds the walk over a sparse selection.
  *
  * ExcelJS reports a merged range's value through every cell it covers, so each range is emitted once, at its master.
  * Merges are swept row by row rather than searched per cell, keeping the walk linear in the scan cap.
@@ -89,7 +91,8 @@ const buildRangeExcerpt = (sheet: SheetRenderModel, rect: CellRangeRect): string
       const isMergeFollower = covering !== undefined && (covering.top !== row || covering.left !== col)
       const text = isMergeFollower ? '' : (sheet.cells[`${row}:${col}`]?.text ?? '')
       values.push(text)
-      if (text.length > 0) length += text.length + 1
+      const charged = normalizeSelectionText(text).length
+      if (charged > 0) length += charged + 1
     }
     lines.push(values.join('\t'))
     if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
