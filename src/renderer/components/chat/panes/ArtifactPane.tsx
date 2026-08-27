@@ -610,7 +610,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               onChange={(content) => fileSession.setDraft(content)}
               height="100%"
               expanded={false}
-              wrapped={false}
+              wrapped
               fontSize={14}
               style={{ minHeight: 0 }}
               options={{ keymap: true, lineNumbers: true }}

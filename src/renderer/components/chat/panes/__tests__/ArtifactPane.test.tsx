@@ -279,6 +279,7 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
         <textarea
           data-testid="code-editor"
           data-font-size={props.fontSize}
+          data-wrapped={String(props.wrapped)}
           readOnly={props.editable === false}
           value={props.value}
           onChange={(event) => props.onChange?.(event.currentTarget.value)}
@@ -1591,6 +1592,23 @@ describe('ArtifactPane', () => {
     await waitFor(() =>
       expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')).toHaveLength(3)
     )
+  })
+
+  it('wraps long lines in the artifact preview editor', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+
+    const editor = await within(overlay).findByTestId('code-editor')
+    // wrapped={false} is the bug: long lines stay on one row and need a bottom-only scrollbar.
+    expect(editor).not.toHaveAttribute('data-wrapped', 'false')
   })
 
   it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
