@@ -1,5 +1,7 @@
 import os from 'node:os'
 
+import { getDeviceType } from '@main/utils/system'
+import { defaultLanguage } from '@shared/utils/languages'
 import { describe, expect, it, vi } from 'vitest'
 
 const preferenceGet = vi.hoisted(() =>
@@ -29,7 +31,7 @@ describe('buildRuntimeContextPrompt', () => {
     const prompt = await buildRuntimeContextPrompt('Test Model')
 
     expect(prompt).toContain('## Runtime Context')
-    expect(prompt).toContain(`- Operating system: ${os.platform()}`)
+    expect(prompt).toContain(`- Operating system: ${getDeviceType()}`)
     expect(prompt).toContain(`- CPU architecture: ${os.arch()}`)
     expect(prompt).toContain('- Language: en-US')
     expect(prompt).toContain('- Model: Test Model')
@@ -57,6 +59,18 @@ describe('buildRuntimeContextPrompt', () => {
     })
 
     await expect(buildRuntimeContextPrompt('Test Model', 'User: {{username}}')).resolves.toBe('User: Unknown Username')
+  })
+
+  it('falls back to defaultLanguage when app.language is unset', async () => {
+    preferenceGet.mockImplementation(() => undefined)
+
+    await expect(buildRuntimeContextPrompt('Test Model', 'Language: {{language}}')).resolves.toBe(
+      `Language: ${defaultLanguage}`
+    )
+  })
+
+  it('resolves {{system}} to the renderer device type', async () => {
+    await expect(buildRuntimeContextPrompt('Test Model', 'OS: {{system}}')).resolves.toBe(`OS: ${getDeviceType()}`)
   })
 })
 

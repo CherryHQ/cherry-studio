@@ -3452,6 +3452,7 @@
   "settings.data.nutstore.checkConnection.success": "Conectado ao Nutstore",
   "settings.data.nutstore.isLogin": "Logado",
   "settings.data.nutstore.login.button": "Entrar",
+  "settings.data.nutstore.login.failed": "O início de sessão no Nutstore não foi concluído. Tente novamente.",
   "settings.data.nutstore.logout.button": "Sair",
   "settings.data.nutstore.logout.content": "Após sair, não será possível fazer backup ou restaurar dados do Nutstore",
   "settings.data.nutstore.logout.title": "Tem a certeza de que pretende sair da conta do Nutstore?",

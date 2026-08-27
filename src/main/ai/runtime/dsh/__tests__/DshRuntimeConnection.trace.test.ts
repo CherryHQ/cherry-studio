@@ -148,7 +148,7 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
 vi.mock('@main/ai/steerReminder', () => ({
   wrapSteerReminder: vi.fn((text: string) => text),
-  prependRuntimeContextReminderText: vi.fn((text: string) => text)
+  appendRuntimeContextReminderText: vi.fn((text: string) => text)
 }))
 
 const { DshBridgeServer } = await import('../DshBridgeServer')

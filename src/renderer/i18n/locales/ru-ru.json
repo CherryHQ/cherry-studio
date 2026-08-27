@@ -3452,6 +3452,7 @@
   "settings.data.nutstore.checkConnection.success": "Подключение к Nutstore установлено",
   "settings.data.nutstore.isLogin": "Выполнен вход",
   "settings.data.nutstore.login.button": "Войти",
+  "settings.data.nutstore.login.failed": "Вход в Nutstore не завершён. Попробуйте ещё раз.",
   "settings.data.nutstore.logout.button": "Выйти",
   "settings.data.nutstore.logout.content": "После выхода вы не сможете создавать резервные копии в Nutstore или восстанавливать данные из Nutstore.",
   "settings.data.nutstore.logout.title": "Вы уверены, что хотите выйти из Nutstore?",

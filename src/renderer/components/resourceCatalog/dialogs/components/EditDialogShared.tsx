@@ -255,6 +255,13 @@ export function FieldLabelWithHelp({
   )
 }
 
+/** Empty persisted prompt means "use the live default"; do not freeze a displayed copy of it. */
+export function persistRuntimeContextPrompt(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === RUNTIME_CONTEXT_PROMPT_PRESET) return ''
+  return value
+}
+
 export function PromptRuntimeContextToggle({
   checked,
   prompt,
@@ -317,7 +324,7 @@ export function PromptRuntimeContextToggle({
                 value={prompt.trim() ? prompt : RUNTIME_CONTEXT_PROMPT_PRESET}
                 rows={9}
                 aria-label={t('library.config.prompt.runtime_context.prompt_label')}
-                onValueChange={onPromptChange}
+                onValueChange={(value) => onPromptChange(persistRuntimeContextPrompt(value))}
                 className="min-h-48 pr-12 font-mono text-xs leading-relaxed"
               />
             </div>

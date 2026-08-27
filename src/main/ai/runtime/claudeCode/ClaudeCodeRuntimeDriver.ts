@@ -21,7 +21,7 @@ import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/a
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { resolveAgentTurnContextPrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
-import { wrapRuntimeContextReminder, wrapSteerReminder } from '@main/ai/steerReminder'
+import { appendRuntimeContextReminderText, wrapRuntimeContextReminder, wrapSteerReminder } from '@main/ai/steerReminder'
 import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -1128,7 +1128,7 @@ async function toSdkUserMessage(
     content = applySteerReminder(content)
   }
   if (runtimeContext) {
-    content = prependRuntimeContextReminder(content, runtimeContext)
+    content = appendRuntimeContextReminder(content, runtimeContext)
   }
 
   return {
@@ -1139,15 +1139,14 @@ async function toSdkUserMessage(
   }
 }
 
-function prependRuntimeContextReminder(
+function appendRuntimeContextReminder(
   content: SDKUserMessage['message']['content'],
   runtimeContext: string
 ): SDKUserMessage['message']['content'] {
-  const reminder = wrapRuntimeContextReminder(runtimeContext)
   if (Array.isArray(content)) {
-    return [{ type: 'text', text: reminder }, ...content]
+    return [...content, { type: 'text', text: wrapRuntimeContextReminder(runtimeContext) }]
   }
-  return content.trim() ? `${reminder}\n\n${content}` : reminder
+  return appendRuntimeContextReminderText(content, runtimeContext)
 }
 
 /**

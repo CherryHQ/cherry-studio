@@ -24,7 +24,7 @@ import {
 } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { prependRuntimeContextReminderText, wrapSteerReminder } from '@main/ai/steerReminder'
+import { appendRuntimeContextReminderText, wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -420,7 +420,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       webSearchEnabled: !this.disabledTools.has(buildDshCherryToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
     })
     const wrapped = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
-    const content = runtimeContext ? prependRuntimeContextReminderText(wrapped, runtimeContext) : wrapped
+    const content = runtimeContext ? appendRuntimeContextReminderText(wrapped, runtimeContext) : wrapped
     this.markTurnActive()
     // Before the request: the turn can start streaming before the socket result returns.
     this.adapter.beginTurn()

@@ -3452,6 +3452,7 @@
   "settings.data.nutstore.checkConnection.success": "Conectat la Nutstore",
   "settings.data.nutstore.isLogin": "Conectat",
   "settings.data.nutstore.login.button": "Conectare",
+  "settings.data.nutstore.login.failed": "Autentificarea Nutstore nu a fost finalizată. Încercați din nou.",
   "settings.data.nutstore.logout.button": "Deconectare",
   "settings.data.nutstore.logout.content": "După deconectare, nu vei mai putea face backup în Nutstore sau restaura din Nutstore.",
   "settings.data.nutstore.logout.title": "Ești sigur că vrei să te deconectezi de la Nutstore?",

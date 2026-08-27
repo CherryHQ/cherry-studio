@@ -6,8 +6,8 @@
  * replaced with Main-process equivalents:
  *
  *   - `{{username}}` / `{{language}}` → `PreferenceService` (`app.user.name`,
- *      `app.language`)
- *   - `{{system}}`   → Node `os.platform()`
+ *      `app.language`, falling back to `defaultLanguage`)
+ *   - `{{system}}`   → `getDeviceType()` (`mac` / `windows` / `linux`)
  *   - `{{arch}}`     → Node `os.arch()`
  *   - `{{model_name}}` → supplied by caller (no Redux default-model fallback)
  */
@@ -16,7 +16,9 @@ import os from 'node:os'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getDeviceType } from '@main/utils/system'
 import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
+import { defaultLanguage } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('utils:prompt')
 
@@ -90,7 +92,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{system}}')) {
     try {
-      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, os.platform())
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, getDeviceType())
     } catch (error) {
       logger.error('Failed to resolve {{system}}', error as Error)
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
@@ -99,7 +101,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{language}}')) {
     try {
-      const language = application.get('PreferenceService').get('app.language') ?? 'Unknown System Language'
+      const language = application.get('PreferenceService').get('app.language') || defaultLanguage
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
     } catch (error) {
       logger.error('Failed to resolve {{language}}', error as Error)

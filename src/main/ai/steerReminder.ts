@@ -30,9 +30,10 @@ export function wrapRuntimeContextReminder(content: string): string {
   return `${SYSTEM_REMINDER_OPEN}\n${safe}\n${SYSTEM_REMINDER_CLOSE}`
 }
 
-export function prependRuntimeContextReminderText(text: string, runtimeContext: string): string {
+/** Attach per-turn context after the user text so slash commands still start with `/`. */
+export function appendRuntimeContextReminderText(text: string, runtimeContext: string): string {
   const reminder = wrapRuntimeContextReminder(runtimeContext)
-  return text.trim() ? `${reminder}\n\n${text}` : reminder
+  return text.trim() ? `${text}\n\n${reminder}` : reminder
 }
 
 /** Extract complete reminder bodies from a trusted SDK synthetic message. */

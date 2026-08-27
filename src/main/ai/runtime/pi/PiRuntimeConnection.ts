@@ -24,11 +24,12 @@ import {
 } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { prependRuntimeContextReminderText, wrapSteerReminder } from '@main/ai/steerReminder'
+import { appendRuntimeContextReminderText, wrapSteerReminder } from '@main/ai/steerReminder'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -425,7 +426,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       snapshot: this.runtimeContext,
       webSearchEnabled: this.isCherryWebSearchEnabled()
     })
-    const payload = runtimeContext ? prependRuntimeContextReminderText(content, runtimeContext) : content
+    const payload = runtimeContext ? appendRuntimeContextReminderText(content, runtimeContext) : content
     await session.prompt(payload, options).then(
       () => this.finishPromptRun(),
       (error) => this.finishPromptRun(error)
@@ -843,11 +844,17 @@ function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
   providerEnvironment: Record<string, string> | undefined
 ): NonNullable<ProviderConfig['streamSimple']> {
-  return (model, context, options) =>
-    streamSimple(model, context, {
+  return (model, context, options) => {
+    const proxyEnvironment = getProxyEnvironment(process.env)
+    const usesAuthenticatedNodeProxy = proxyUrlHasCredentials(proxyEnvironment[CHERRY_NODE_PROXY_RULES_ENV])
+
+    // Electron net.fetch cannot authenticate these proxies; retain NodeProxyBackend's credential-aware dispatcher.
+    return streamSimple(model, context, {
       ...options,
-      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+      env: { ...options?.env, ...proxyEnvironment, ...providerEnvironment },
+      ...(!usesAuthenticatedNodeProxy && { fetch: customFetch })
     })
+  }
 }
 
 function finiteTokenCount(value: number | undefined): number {

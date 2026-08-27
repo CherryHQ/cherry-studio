@@ -1,5 +1,4 @@
-import os from 'node:os'
-
+import { getDeviceType } from '@main/utils/system'
 import { describe, expect, it, vi } from 'vitest'
 
 const preferenceGet = vi.hoisted(() =>
@@ -75,7 +74,7 @@ describe('agent runtime context snapshot', () => {
       modelName: 'Pinned Claude'
     })
 
-    expect(resolved).toBe(`User: Test User; OS: ${os.platform()}; Model: Pinned Claude`)
+    expect(resolved).toBe(`User: Test User; OS: ${getDeviceType()}; Model: Pinned Claude`)
   })
 })
 
@@ -92,7 +91,7 @@ describe('agent per-turn current date', () => {
     expect(grounded).toContain('<current-date>2026-08-20</current-date>')
     expect(grounded).toContain('this month')
     expect(grounded).not.toContain('Test User')
-    expect(grounded).not.toContain(os.platform())
+    expect(grounded).not.toContain(getDeviceType())
     expect(skipped).toBeUndefined()
   })
 

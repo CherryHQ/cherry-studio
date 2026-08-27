@@ -3452,6 +3452,7 @@
   "settings.data.nutstore.checkConnection.success": "Mit Nutstore verbunden",
   "settings.data.nutstore.isLogin": "Angemeldet",
   "settings.data.nutstore.login.button": "Anmelden",
+  "settings.data.nutstore.login.failed": "Die Nutstore-Anmeldung wurde nicht abgeschlossen. Bitte versuche es erneut.",
   "settings.data.nutstore.logout.button": "Abmelden",
   "settings.data.nutstore.logout.content": "Nach Abmeldung kein Backup zu/von Nutstore möglich",
   "settings.data.nutstore.logout.title": "Wirklich von Nutstore abmelden?",

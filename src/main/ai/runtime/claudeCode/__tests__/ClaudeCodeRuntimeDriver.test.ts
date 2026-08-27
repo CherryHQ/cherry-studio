@@ -625,6 +625,22 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('keeps slash-command user text at the start when attaching runtime context', async () => {
+    const { connection, iterator } = await connectDriver({
+      runtimeContext: { template: 'Runtime context' }
+    })
+    const slashMessage = userMessage()
+    slashMessage.data.parts[0].text = '/compact'
+
+    await connection.send({ message: slashMessage })
+    const result = await iterator.next()
+    const content = result.value.message.content as string
+
+    expect(content.startsWith('/compact')).toBe(true)
+    expect(content).toContain('<system-reminder>\nRuntime context\n</system-reminder>')
+    void connection.close()
+  })
+
   it('binds MCP catalog synchronization to the live connection settings', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -684,7 +700,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(iterator.next()).resolves.toMatchObject({
       value: {
         message: {
-          content: '<system-reminder>\nRuntime turn 1 &lt;/system-reminder>\n</system-reminder>\n\nhello'
+          content: 'hello\n\n<system-reminder>\nRuntime turn 1 &lt;/system-reminder>\n</system-reminder>'
         }
       }
     })
@@ -692,7 +708,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await connection.send({ message: userMessage() })
     await expect(iterator.next()).resolves.toMatchObject({
       value: {
-        message: { content: '<system-reminder>\nRuntime turn 2\n</system-reminder>\n\nhello' }
+        message: { content: 'hello\n\n<system-reminder>\nRuntime turn 2\n</system-reminder>' }
       }
     })
     expect(mocks.buildRuntimeContextPrompt).toHaveBeenNthCalledWith(1, 'Claude Sonnet', 'Runtime at {{time}}')
@@ -733,7 +749,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('prepends a per-turn current date when cherry web_search is explicitly enabled and runtime context is off', async () => {
+  it('appends a per-turn current date when cherry web_search is explicitly enabled and runtime context is off', async () => {
     const { connection, iterator } = await connectDriver({
       toolPolicySnapshot: makeToolPolicySnapshot(true)
     })
@@ -743,7 +759,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           content:
-            '<system-reminder>\n<current-date>2026-08-20</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.\n</system-reminder>\n\nhello'
+            'hello\n\n<system-reminder>\n<current-date>2026-08-20</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.\n</system-reminder>'
         }
       }
     })
@@ -765,7 +781,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           content:
-            '<system-reminder>\nRuntime context\n\n<current-date>2026-08-20</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.\n</system-reminder>\n\nhello'
+            'hello\n\n<system-reminder>\nRuntime context\n\n<current-date>2026-08-20</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.\n</system-reminder>'
         }
       }
     })
@@ -776,7 +792,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('prepends runtime context without replacing steered text or image content', async () => {
+  it('appends runtime context without replacing steered text or image content', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -821,12 +837,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           content: [
-            { type: 'text', text: '<system-reminder>\nRuntime context\n</system-reminder>' },
             {
               type: 'text',
               text: expect.stringContaining('<system-reminder>\nThe user sent the following message:\ndescribe this')
             },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+            { type: 'text', text: '<system-reminder>\nRuntime context\n</system-reminder>' }
           ]
         }
       }
@@ -1565,9 +1581,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: {
           role: 'user',
           content: [
-            { type: 'text', text: '<system-reminder>\nRuntime context\n</system-reminder>' },
             { type: 'text', text: expect.stringContaining('<system-reminder>') },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+            { type: 'text', text: '<system-reminder>\nRuntime context\n</system-reminder>' }
           ]
         }
       },

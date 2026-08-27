@@ -3452,6 +3452,7 @@
   "settings.data.nutstore.checkConnection.success": "Đã kết nối với Nutstore",
   "settings.data.nutstore.isLogin": "Đã đăng nhập",
   "settings.data.nutstore.login.button": "Đăng nhập",
+  "settings.data.nutstore.login.failed": "Đăng nhập Nutstore chưa hoàn tất. Vui lòng thử lại.",
   "settings.data.nutstore.logout.button": "Đăng xuất",
   "settings.data.nutstore.logout.content": "Sau khi đăng xuất, bạn sẽ không thể sao lưu lên Nutstore hoặc khôi phục từ Nutstore.",
   "settings.data.nutstore.logout.title": "Bạn có chắc chắn muốn đăng xuất khỏi Nutstore không?",

@@ -1,5 +1,6 @@
 import os from 'node:os'
 
+import { getDeviceType } from '@main/utils/system'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -75,7 +76,7 @@ describe('assembleSystemPrompt runtime context contract', () => {
     expect(disabled).toBe('Stay concise.')
     expect(legacy).toBe('Stay concise.')
     expect(disabled).not.toContain('Test User')
-    expect(disabled).not.toContain(os.platform())
+    expect(disabled).not.toContain(getDeviceType())
     expect(legacy).not.toContain('Test User')
   })
 
@@ -89,7 +90,7 @@ describe('assembleSystemPrompt runtime context contract', () => {
 
     expect(out).toContain('Stay concise.')
     expect(out).toContain('## Runtime Context')
-    expect(out).toContain(`- Operating system: ${os.platform()}`)
+    expect(out).toContain(`- Operating system: ${getDeviceType()}`)
     expect(out).toContain(`- CPU architecture: ${os.arch()}`)
     expect(out).toContain('- Language: en-US')
     expect(out).toContain('- Model: GPT-4')
