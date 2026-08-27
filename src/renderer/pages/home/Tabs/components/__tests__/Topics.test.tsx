@@ -1,3 +1,4 @@
+import type * as DndKitUtilities from '@dnd-kit/utilities'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
@@ -76,6 +77,7 @@ vi.mock('@dnd-kit/sortable', () => {
       return {
         attributes: { 'data-sortable-id': id },
         listeners: {},
+        setActivatorNodeRef: vi.fn(),
         setNodeRef: vi.fn(),
         transform: null,
         transition: undefined,
@@ -86,7 +88,8 @@ vi.mock('@dnd-kit/sortable', () => {
   }
 })
 
-vi.mock('@dnd-kit/utilities', () => ({
+vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
+  ...(await importOriginal<typeof DndKitUtilities>()),
   CSS: {
     Transform: {
       toString: () => undefined
