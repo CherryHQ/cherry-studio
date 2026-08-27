@@ -18,13 +18,6 @@ export enum ConversationInboxMutationKind {
   SetPaused = 'set-paused'
 }
 
-/** Stable terminal outcome selected before persistence. */
-export enum ConversationOutcomeKind {
-  Success = 'success',
-  Error = 'error',
-  Paused = 'paused'
-}
-
 export enum ConversationAdmissionReason {
   SingleModelRequired = 'SINGLE_MODEL_REQUIRED',
   TargetNotInLiveGroup = 'TARGET_NOT_IN_LIVE_GROUP',
@@ -40,12 +33,6 @@ export enum ConversationOpenTrigger {
   RegenerateMessage = 'regenerate-message',
   RetryMessage = 'retry-message',
   AppendModel = 'append-model'
-}
-
-/** Main-only history continuations translated into Conversation commands. */
-export enum ConversationContinuationTrigger {
-  ContinueInteraction = 'continue-conversation',
-  ContinueSteer = 'steer-continuation'
 }
 
 /** How a Chat input targets its durable tree. */

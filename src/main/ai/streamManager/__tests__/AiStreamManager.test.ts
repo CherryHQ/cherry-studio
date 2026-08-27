@@ -1,6 +1,5 @@
 import {
   ConversationKind,
-  ConversationOutcomeKind,
   type ConversationRef,
   toConversationEffectId,
   toConversationExecutionId,
@@ -19,6 +18,7 @@ import {
   ConversationInputProvenance,
   ConversationInteractionKind,
   ConversationInteractionResumeMode,
+  ConversationOutcomeKind,
   ConversationPhase,
   ConversationResponderKind,
   type ConversationRuntimeIdFactory,

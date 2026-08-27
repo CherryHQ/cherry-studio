@@ -1,7 +1,6 @@
 import {
   ConversationAdmissionReason,
   ConversationKind,
-  ConversationOutcomeKind,
   type ConversationRef,
   toConversationEffectId,
   toConversationExecutionId,
@@ -22,6 +21,7 @@ import {
   type ConversationExecutionSink,
   ConversationHistoryCommitKind,
   ConversationInputProvenance,
+  ConversationOutcomeKind,
   ConversationPhase,
   ConversationResponderKind,
   ConversationRunMode,

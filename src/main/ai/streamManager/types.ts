@@ -1,13 +1,10 @@
-import type {
-  ConversationExecutionId,
-  ConversationOutcomeKind,
-  ConversationRef,
-  ConversationTurnId
-} from '@shared/ai/conversation'
+import type { ConversationExecutionId, ConversationRef, ConversationTurnId } from '@shared/ai/conversation'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
+
+import type { ConversationOutcomeKind } from '../conversation'
 
 export type { CherryUIMessage }
 export type {

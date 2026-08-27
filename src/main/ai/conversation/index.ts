@@ -23,6 +23,7 @@ export {
   ConversationStopOperationPhase
 } from './ConversationActor'
 export { ConversationAdmissionError } from './ConversationAdmissionError'
+export { ConversationContinuationTrigger, ConversationOutcomeKind } from './conversationEnums'
 export type { ConversationExecutionDriver } from './ConversationExecutionDriverRegistry'
 export type {
   AbortConversationExecutionEffect,

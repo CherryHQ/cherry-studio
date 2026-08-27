@@ -1,4 +1,4 @@
-import { ConversationOutcomeKind } from '@shared/ai/conversation'
+import { ConversationOutcomeKind } from '@main/ai/conversation'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

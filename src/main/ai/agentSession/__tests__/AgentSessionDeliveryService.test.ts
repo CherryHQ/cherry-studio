@@ -9,19 +9,14 @@ import {
   AgentSessionDeliveryReplyPolicy,
   AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
-import {
-  ConversationKind,
-  ConversationOutcomeKind,
-  type ConversationRef,
-  toConversationTurnId
-} from '@shared/ai/conversation'
+import { ConversationKind, type ConversationRef, toConversationTurnId } from '@shared/ai/conversation'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ConversationTerminalDurability } from '../../conversation'
+import { ConversationOutcomeKind, ConversationTerminalDurability } from '../../conversation'
 
 const mocks = vi.hoisted(() => ({
   dispatchAgentDelivery: vi.fn(),

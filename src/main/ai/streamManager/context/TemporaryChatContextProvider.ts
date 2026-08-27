@@ -14,7 +14,6 @@ import {
   ConversationActiveNodeMove,
   ConversationKind,
   ConversationOpenTrigger,
-  ConversationOutcomeKind,
   type ConversationRef
 } from '@shared/ai/conversation'
 import { toContentRole } from '@shared/data/types/message'
@@ -22,6 +21,7 @@ import { parseUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { v7 as uuidv7 } from 'uuid'
 
+import { ConversationOutcomeKind } from '../../conversation'
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'

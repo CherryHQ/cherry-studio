@@ -14,6 +14,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
+import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import {
   ConversationActiveNodeMove,
@@ -21,7 +22,6 @@ import {
   ConversationAdmissionReason,
   ConversationAttachStatus,
   ConversationBlockReason,
-  ConversationContinuationTrigger,
   type ConversationEffectId,
   ConversationExecutionAttachState,
   type ConversationExecutionId,
@@ -31,7 +31,6 @@ import {
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
-  ConversationOutcomeKind,
   type ConversationRef,
   conversationRefKey,
   conversationRefsEqual,
@@ -98,6 +97,7 @@ import {
 } from './ConversationActor'
 import { ConversationAdmissionError } from './ConversationAdmissionError'
 import { AgentRedirectBindingPhase, ConversationBindingRegistry } from './ConversationBindingRegistry'
+import { ConversationContinuationTrigger, ConversationOutcomeKind } from './conversationEnums'
 import { ConversationExecutionResourcePort } from './ConversationExecutionResourcePort'
 import type {
   ConversationPresentationPort,
@@ -227,6 +227,16 @@ interface CrashRecoveryRun {
   readonly completed: Promise<void>
 }
 
+interface TemporaryChatRetirement {
+  readonly id: string
+  readonly completed: Promise<unknown>
+}
+
+interface TemporaryChatRuntimePort {
+  deleteTopic(topicId: string): void
+  persist(topicId: string): { topicId: string; messageCount: number }
+}
+
 @Injectable('ConversationRuntimeService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['ChannelManager', 'ChannelDeliveryService'])
@@ -250,6 +260,8 @@ export class ConversationRuntimeService extends BaseService {
   private readonly bindings = new ConversationBindingRegistry()
   private readonly presentation = new ConversationPresentationRegistry()
   private readonly pauseHolds = new Set<symbol>()
+  private readonly temporaryChatRetirements = new Map<string, TemporaryChatRetirement>()
+  private readonly temporaryChats: TemporaryChatRuntimePort
   private crashRecoveryRun: CrashRecoveryRun | undefined
   private crashRecoveryComplete = false
 
@@ -259,6 +271,7 @@ export class ConversationRuntimeService extends BaseService {
       providers?: readonly ConversationHistoryPort[]
       quiescenceTasks?: ConversationQuiescenceTaskExecutor
       namingTasks?: ConversationNamingTaskExecutor
+      temporaryChats?: TemporaryChatRuntimePort
     } = {}
   ) {
     super()
@@ -276,6 +289,7 @@ export class ConversationRuntimeService extends BaseService {
     ]
     this.quiescenceTasks = dependencies.quiescenceTasks ?? traceQuiescenceTaskExecutor
     this.namingTasks = dependencies.namingTasks ?? conversationNamingTaskExecutor
+    this.temporaryChats = dependencies.temporaryChats ?? temporaryChatService
     this.ids = {
       turn: () => toConversationTurnId(crypto.randomUUID()),
       execution: () => toConversationExecutionId(crypto.randomUUID()),
@@ -530,6 +544,14 @@ export class ConversationRuntimeService extends BaseService {
     const handle = actor.stop(reason)
     this.deleteCommittedInputsFor(ref)
     return handle
+  }
+
+  deleteTemporaryChat(topicId: string): Promise<void> {
+    return this.retireTemporaryChat(topicId, 'temporary-topic-delete', () => this.temporaryChats.deleteTopic(topicId))
+  }
+
+  persistTemporaryChat(topicId: string): Promise<{ topicId: string; messageCount: number }> {
+    return this.retireTemporaryChat(topicId, 'temporary-topic-persist', () => this.temporaryChats.persist(topicId))
   }
 
   abort(ref: ConversationRef, reason: string): boolean {
@@ -1813,6 +1835,7 @@ export class ConversationRuntimeService extends BaseService {
       isConversationQuiescent(this.inspect(ref)) &&
       !actor?.hasPendingOperations &&
       !actor?.hasCommittedInputs &&
+      !actor?.isAdmissionFenced &&
       !this.bindings.hasConversation(ref) &&
       !this.latestTurn(ref)
     ) {
@@ -2003,11 +2026,50 @@ export class ConversationRuntimeService extends BaseService {
     }
   }
 
+  private retireTemporaryChat<T>(topicId: string, reason: string, retire: () => T): Promise<T> {
+    const ref: ConversationRef = { kind: ConversationKind.Chat, id: topicId }
+    const key = conversationRefKey(ref)
+    if (this.temporaryChatRetirements.has(key)) {
+      return Promise.reject(new Error(`Temporary Chat retirement is already in progress: ${topicId}`))
+    }
+
+    const actor = this.actorFor(ref)
+    const fence = actor.beginAdmissionFence(reason)
+    let resolve!: (value: T) => void
+    let reject!: (error: unknown) => void
+    const completed = new Promise<T>((success, failure) => {
+      resolve = success
+      reject = failure
+    })
+    const operation: TemporaryChatRetirement = {
+      id: `temporary-chat-retirement:${key}`,
+      completed
+    }
+    this.temporaryChatRetirements.set(key, operation)
+
+    void (async () => {
+      try {
+        await this.stop(ref, reason).completed
+        resolve(retire())
+      } catch (error) {
+        reject(error)
+      } finally {
+        fence.dispose()
+        if (this.temporaryChatRetirements.get(key) === operation) this.temporaryChatRetirements.delete(key)
+        this.onActorIdle(ref)
+      }
+    })()
+    return completed
+  }
+
   private inFlightOperations(): Array<{ id: string; run: Promise<unknown> }> {
     const runs: Array<{ id: string; run: Promise<unknown> }> = []
     for (const actor of this.actors.values()) runs.push(...actor.inFlightOperations())
     for (const operation of this.executionManager.inFlightOperations()) {
       runs.push({ id: `execution:${operation.id}`, run: operation.run })
+    }
+    for (const operation of this.temporaryChatRetirements.values()) {
+      runs.push({ id: operation.id, run: operation.completed })
     }
     if (this.crashRecoveryRun) runs.push({ id: 'boot-recovery', run: this.crashRecoveryRun.completed })
     return runs

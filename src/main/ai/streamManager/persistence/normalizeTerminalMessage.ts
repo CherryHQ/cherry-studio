@@ -1,7 +1,7 @@
-import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { SerializedError } from '@shared/types/error'
 
+import { ConversationOutcomeKind } from '../../conversation'
 import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from './PersistenceBackend'
 
 export function normalizeTerminalMessage(

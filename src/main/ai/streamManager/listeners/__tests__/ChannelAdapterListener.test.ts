@@ -1,15 +1,11 @@
 import type { ChannelStreamCompletionResult } from '@main/ai/channels/ChannelAdapter'
 import { type ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import { type ChannelDeliveryOwner, ChannelTerminalAdmissionResult } from '@main/ai/channels/ChannelManager'
-import {
-  ConversationKind,
-  ConversationOutcomeKind,
-  toConversationExecutionId,
-  toConversationTurnId
-} from '@shared/ai/conversation'
+import { ConversationKind, toConversationExecutionId, toConversationTurnId } from '@shared/ai/conversation'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ConversationOutcomeKind } from '../../../conversation'
 import type { ConversationStreamIdentity, StreamDoneResult, StreamPausedResult } from '../../types'
 import { ChannelAdapterListener } from '../ChannelAdapterListener'
 

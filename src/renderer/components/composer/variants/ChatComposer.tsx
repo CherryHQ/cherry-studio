@@ -1892,11 +1892,16 @@ const ChatComposerInner = ({
                     toast.error(t('chat.input.send_failed'))
                   }
                 }}
-                onEdit={(id) => {
+                onEdit={async (id) => {
                   const item = queuedFollowups.find((entry) => entry.id === id)
                   if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
+                  try {
+                    await removeFollowup(id)
+                    restoreFollowupDraft(item)
+                  } catch (error) {
+                    logger.warn('Failed to take queued Chat input for editing', error as Error)
+                    toast.error(t('chat.input.send_failed'))
+                  }
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}

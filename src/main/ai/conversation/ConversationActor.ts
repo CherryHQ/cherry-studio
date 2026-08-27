@@ -158,6 +158,10 @@ export interface ConversationStopHandle {
   readonly completed: Promise<void>
 }
 
+export interface ConversationAdmissionFence {
+  dispose(): void
+}
+
 export interface ConversationAdmissionContext {
   readonly id: ConversationAdmissionOperationId
   readonly sequence: number
@@ -217,6 +221,7 @@ export class ConversationActor {
   private readonly operations = new Map<ConversationAdmissionOperationId, ConversationAdmissionOperation>()
   private readonly effectOperations = new OwnedOperationRegistry<string>()
   private readonly committedInputIds = new Set<ConversationInputId>()
+  private readonly admissionFences = new Set<symbol>()
   private readonly effectExecutor?: ConversationEffectExecutor
   private state: ConversationState
   private deferredQuiescenceTurnId?: ConversationTurnId
@@ -254,6 +259,11 @@ export class ConversationActor {
     kind: ConversationAdmissionOperationKind,
     task: (context: ConversationAdmissionContext) => Promise<T> | T
   ): Promise<T> {
+    if (this.admissionFences.size > 0) {
+      return Promise.reject(
+        new Error(`Conversation admission is fenced: ${this.conversation.kind}:${this.conversation.id}`)
+      )
+    }
     const stopBarrier = this.stopOperation?.completed
     const operation: ConversationAdmissionOperation = {
       id: crypto.randomUUID() as ConversationAdmissionOperationId,
@@ -297,6 +307,22 @@ export class ConversationActor {
   private interrupt(reason: string): void {
     this.epoch += 1
     for (const operation of this.operations.values()) operation.controller?.abort(reason)
+  }
+
+  beginAdmissionFence(reason: string): ConversationAdmissionFence {
+    const token = Symbol(reason)
+    this.admissionFences.add(token)
+    this.interrupt(reason)
+    return {
+      dispose: () => {
+        if (!this.admissionFences.delete(token)) return
+        if (!this.hasPendingOperations) this.onIdle()
+      }
+    }
+  }
+
+  get isAdmissionFenced(): boolean {
+    return this.admissionFences.size > 0
   }
 
   get hasPendingAdmissions(): boolean {

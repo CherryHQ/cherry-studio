@@ -76,6 +76,9 @@ describe('temporaryChatHandlers', () => {
     persistMock.mockReset()
     mockConversationRuntimeService.stop.mockReset()
     mockConversationRuntimeService.stop.mockReturnValue({ accepted: false, completed: Promise.resolve() })
+    mockConversationRuntimeService.deleteTemporaryChat.mockReset()
+    mockConversationRuntimeService.deleteTemporaryChat.mockResolvedValue(undefined)
+    mockConversationRuntimeService.persistTemporaryChat.mockReset()
   })
 
   describe('POST /temporary/topics', () => {
@@ -92,22 +95,16 @@ describe('temporaryChatHandlers', () => {
 
   describe('DELETE /temporary/topics/:id', () => {
     it('forwards id and returns undefined', async () => {
-      deleteTopicMock.mockReturnValue(undefined)
       const result = await temporaryChatHandlers['/temporary/topics/:id'].DELETE(
         reqEnvelope({ params: { id: 'tid-xyz' } })
       )
-      expect(deleteTopicMock).toHaveBeenCalledWith('tid-xyz')
-      expect(mockConversationRuntimeService.stop).toHaveBeenCalledWith(
-        { kind: 'chat', id: 'tid-xyz' },
-        'temporary-topic-delete'
-      )
+      expect(mockConversationRuntimeService.deleteTemporaryChat).toHaveBeenCalledWith('tid-xyz')
+      expect(deleteTopicMock).not.toHaveBeenCalled()
       expect(result).toBeUndefined()
     })
 
     it('propagates errors from the service', async () => {
-      deleteTopicMock.mockImplementation(() => {
-        throw new Error('not found')
-      })
+      mockConversationRuntimeService.deleteTemporaryChat.mockRejectedValue(new Error('not found'))
       await expect(
         temporaryChatHandlers['/temporary/topics/:id'].DELETE(reqEnvelope({ params: { id: 'missing' } }))
       ).rejects.toThrow(/not found/)
@@ -141,25 +138,21 @@ describe('temporaryChatHandlers', () => {
 
   describe('POST /temporary/topics/:id/persist', () => {
     it('forwards id and returns PersistTemporaryChatResponse', async () => {
-      persistMock.mockReturnValue({ topicId: 'tid-123', messageCount: 4 })
+      mockConversationRuntimeService.persistTemporaryChat.mockResolvedValue({ topicId: 'tid-123', messageCount: 4 })
       const result = await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
         reqEnvelope({ params: { id: 'tid-123' } })
       )
-      expect(persistMock).toHaveBeenCalledWith('tid-123')
-      expect(mockConversationRuntimeService.stop).toHaveBeenCalledWith(
-        { kind: 'chat', id: 'tid-123' },
-        'temporary-topic-persist'
-      )
+      expect(mockConversationRuntimeService.persistTemporaryChat).toHaveBeenCalledWith('tid-123')
+      expect(persistMock).not.toHaveBeenCalled()
       expect(result).toEqual({ topicId: 'tid-123', messageCount: 4 })
     })
 
-    it('does not remove the temporary rows until the Conversation Stop operation completes', async () => {
-      let release!: () => void
-      const completed = new Promise<void>((resolve) => {
+    it('waits for the Conversation owner to finish the retirement operation', async () => {
+      let release!: (value: { topicId: string; messageCount: number }) => void
+      const completed = new Promise<{ topicId: string; messageCount: number }>((resolve) => {
         release = resolve
       })
-      mockConversationRuntimeService.stop.mockReturnValue({ accepted: true, completed })
-      persistMock.mockReturnValue({ topicId: 'tid-123', messageCount: 2 })
+      mockConversationRuntimeService.persistTemporaryChat.mockReturnValue(completed)
 
       const pending = temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
         reqEnvelope({ params: { id: 'tid-123' } })
@@ -167,9 +160,9 @@ describe('temporaryChatHandlers', () => {
       await Promise.resolve()
       expect(persistMock).not.toHaveBeenCalled()
 
-      release()
+      release({ topicId: 'tid-123', messageCount: 2 })
       await expect(pending).resolves.toEqual({ topicId: 'tid-123', messageCount: 2 })
-      expect(persistMock).toHaveBeenCalledOnce()
+      expect(persistMock).not.toHaveBeenCalled()
     })
   })
 })

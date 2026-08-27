@@ -7,7 +7,7 @@
  * which backend is wired in.
  */
 
-import { ConversationOutcomeKind } from '@shared/ai/conversation'
+import { ConversationOutcomeKind } from '@main/ai/conversation'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'

@@ -13,7 +13,6 @@ import {
   ConversationActiveNodeMove,
   ConversationKind,
   ConversationOpenTrigger,
-  ConversationOutcomeKind,
   type ConversationRef
 } from '@shared/ai/conversation'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -28,6 +27,7 @@ import {
   AgentConversationRuntimeTurnKind
 } from '../../agentSession/AgentConnectionManager'
 import { AgentSessionMessageBackend } from '../../agentSession/persistence/AgentSessionMessageBackend'
+import { ConversationOutcomeKind } from '../../conversation'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import { AiRuntimeKind } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'

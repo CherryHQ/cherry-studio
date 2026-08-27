@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -30,12 +31,15 @@ interface UseFollowupQueueParams {
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => Promise<boolean>
-  removeId: (id: ConversationInputId) => void
+  removeId: (id: ConversationInputId) => Promise<void>
   retarget: (id: ConversationInputId) => Promise<void>
   reorder: (nextItems: FollowupQueueItem[]) => void
   paused: boolean
   setPaused: (paused: boolean) => void
 }
+
+const logger = loggerService.withContext('useFollowupQueue')
+const REFRESH_RETRY_DELAY_MS = 1_000
 
 const toItems = (snapshot: ConversationInboxSnapshot): FollowupQueueItem[] =>
   snapshot.items.map(({ id, presentation }) => ({
@@ -49,6 +53,7 @@ export function useFollowupQueue({ conversation, onEnqueue }: UseFollowupQueuePa
   const status = useSharedCacheValue(`conversation.statuses.${key}` as const)
   const [items, setItems] = useState<FollowupQueueItem[]>([])
   const [paused, setPausedState] = useState(false)
+  const [refreshRequest, setRefreshRequest] = useState(0)
   const generationRef = useRef(0)
   const conversationRef = useRef(conversation)
   conversationRef.current = conversation
@@ -59,26 +64,41 @@ export function useFollowupQueue({ conversation, onEnqueue }: UseFollowupQueuePa
     setPausedState(snapshot.paused)
   }, [])
 
-  const refresh = useCallback(async () => {
-    const generation = generationRef.current
-    const snapshot = await ipcApi.request('ai.conversation.inbox.get', { conversation: conversationRef.current })
-    install(snapshot, generation)
-  }, [install])
-
   useEffect(() => {
     generationRef.current += 1
+    const generation = generationRef.current
+    const requestedConversation = conversationRef.current
+    let disposed = false
+    let retryTimer: number | undefined
+
     setItems([])
     setPausedState(false)
+
+    const refresh = async () => {
+      try {
+        const snapshot = await ipcApi.request('ai.conversation.inbox.get', { conversation: requestedConversation })
+        if (!disposed) install(snapshot, generation)
+      } catch (error) {
+        if (disposed) return
+        logger.warn('Failed to refresh Conversation inbox projection', error as Error)
+        retryTimer = window.setTimeout(() => void refresh(), REFRESH_RETRY_DELAY_MS)
+      }
+    }
+
     void refresh()
-  }, [key, refresh, status?.inboxRevision])
+    return () => {
+      disposed = true
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
+    }
+  }, [key, install, refreshRequest, status?.inboxRevision])
 
   const enqueue = useCallback(
     async (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
       const accepted = await onEnqueue(draft, payload)
-      if (accepted) await refresh()
+      if (accepted) setRefreshRequest((current) => current + 1)
       return accepted
     },
-    [onEnqueue, refresh]
+    [onEnqueue]
   )
 
   const mutate = useCallback(
@@ -94,9 +114,7 @@ export function useFollowupQueue({ conversation, onEnqueue }: UseFollowupQueuePa
   )
 
   const removeId = useCallback(
-    (inputId: ConversationInputId) => {
-      void mutate({ kind: ConversationInboxMutationKind.Remove, inputId })
-    },
+    (inputId: ConversationInputId) => mutate({ kind: ConversationInboxMutationKind.Remove, inputId }),
     [mutate]
   )
 

@@ -24,10 +24,8 @@ import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink
 import {
   ConversationActiveNodeMove,
   ConversationAdmissionReason,
-  ConversationContinuationTrigger,
   ConversationKind,
   ConversationOpenTrigger,
-  ConversationOutcomeKind,
   type ConversationRef,
   ConversationTargetMode
 } from '@shared/ai/conversation'
@@ -53,6 +51,7 @@ import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
 import { ConversationAdmissionError } from '../../conversation'
+import { ConversationContinuationTrigger, ConversationOutcomeKind } from '../../conversation'
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { wrapSteerReminder } from '../../steerReminder'

@@ -1,6 +1,5 @@
 import {
   ConversationKind,
-  ConversationOutcomeKind,
   toConversationEffectId,
   toConversationExecutionId,
   toConversationTurnId
@@ -10,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { OwnedOperationAttemptDisposition } from '../../../core/concurrency/OwnedOperationRegistry'
 import {
   ConversationEffectType,
+  ConversationOutcomeKind,
   ConversationTerminalPersistenceCoordinator,
   ConversationTerminalPersistenceResultKind,
   type PersistConversationTerminalEffect

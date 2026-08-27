@@ -2,14 +2,12 @@ import { BaseService } from '@main/core/lifecycle'
 import {
   ConversationActiveNodeMove,
   ConversationAttachStatus,
-  ConversationContinuationTrigger,
   ConversationExecutionAttachState,
   ConversationInboxMutationKind,
   ConversationInputTarget,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
-  ConversationOutcomeKind,
   ConversationStatus,
   ConversationStreamTerminalStatus,
   toConversationEffectId,
@@ -49,11 +47,13 @@ import {
   AiExecutionManager as ResourceExecutionManager,
   ConversationActivityKind,
   type ConversationActor,
+  ConversationContinuationTrigger,
   type ConversationExecutionDriver,
   ConversationExecutionDriverKind,
   ConversationExecutionPhase,
   ConversationInputProvenance,
   type ConversationNamingTaskExecutor,
+  ConversationOutcomeKind,
   ConversationPhase,
   type ConversationQuiescenceTaskExecutor,
   ConversationResponderKind,
@@ -371,6 +371,10 @@ type TestRuntimeServiceOptions = Omit<RuntimeServiceOptions, 'executionManager' 
   readonly namingTasks?: ConversationNamingTaskExecutor
   readonly providers: readonly ConversationHistoryPort[]
   readonly quiescenceTasks?: ConversationQuiescenceTaskExecutor
+  readonly temporaryChats?: {
+    deleteTopic(topicId: string): void
+    persist(topicId: string): { topicId: string; messageCount: number }
+  }
 }
 
 class ConversationRuntimeService extends RuntimeConversationRuntimeService {
@@ -1215,6 +1219,36 @@ describe('ConversationRuntimeService', () => {
       status: ConversationStatus.Done,
       lastCompletedAt: expect.any(Number)
     })
+  })
+
+  it('fences Temporary Chat admission until Stop is durable and retirement completes', async () => {
+    const provider: ConversationHistoryPort = {
+      name: 'temporary-chat',
+      isPersistentConversation: false,
+      canHandle: () => true,
+      validateIntent: vi.fn(async (req, ctx) => validation(req, ctx.hasLiveStream)),
+      commitIntent: vi.fn(() => committed(false))
+    }
+    const controlled = controlledStream()
+    const temporaryChats = {
+      deleteTopic: vi.fn(),
+      persist: vi.fn(() => ({ topicId: ref.id, messageCount: 2 }))
+    }
+    const service = new ConversationRuntimeService({
+      executionManager: new AiExecutionManager(async () => controlled.stream),
+      providers: [provider],
+      temporaryChats
+    })
+
+    await service.dispatch(listener(), request())
+    const retirement = service.persistTemporaryChat(ref.id)
+
+    expect(temporaryChats.persist).not.toHaveBeenCalled()
+    await expect(service.dispatch(listener(), request('late input'))).rejects.toThrow('admission is fenced')
+
+    controlled.controller.close()
+    await expect(retirement).resolves.toEqual({ topicId: ref.id, messageCount: 2 })
+    expect(temporaryChats.persist).toHaveBeenCalledOnce()
   })
 
   it('does not publish approval requests for temporary streams', async () => {

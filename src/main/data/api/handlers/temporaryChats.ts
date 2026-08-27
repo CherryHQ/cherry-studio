@@ -13,7 +13,6 @@
 
 import { application } from '@application'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
-import { ConversationKind } from '@shared/ai/conversation'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -27,10 +26,7 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
 
   '/temporary/topics/:id': {
     DELETE: async ({ params }) => {
-      await application
-        .get('ConversationRuntimeService')
-        .stop({ kind: ConversationKind.Chat, id: params.id }, 'temporary-topic-delete').completed
-      temporaryChatService.deleteTopic(params.id)
+      await application.get('ConversationRuntimeService').deleteTemporaryChat(params.id)
       return undefined
     }
   },
@@ -49,10 +45,7 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
 
   '/temporary/topics/:id/persist': {
     POST: async ({ params }) => {
-      await application
-        .get('ConversationRuntimeService')
-        .stop({ kind: ConversationKind.Chat, id: params.id }, 'temporary-topic-persist').completed
-      return temporaryChatService.persist(params.id)
+      return application.get('ConversationRuntimeService').persistTemporaryChat(params.id)
     }
   }
 }

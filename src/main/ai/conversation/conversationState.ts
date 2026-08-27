@@ -5,7 +5,6 @@ import {
   type ConversationInputId,
   type ConversationInteractionId,
   ConversationKind,
-  ConversationOutcomeKind,
   type ConversationRef,
   type ConversationTurnId,
   toConversationTurnId
@@ -14,6 +13,7 @@ import type { SerializedError } from '@shared/types/error'
 
 import type { AgentRuntimeRedirectId, AgentRuntimeSegmentId } from '../runtime/types'
 import { toAgentRuntimeRedirectId } from '../runtime/types'
+import { ConversationOutcomeKind } from './conversationEnums'
 
 /** Business lifecycle owned by the Main-process Conversation aggregate. */
 export enum ConversationPhase {

@@ -7,7 +7,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { ConversationInboxMutationKind, ConversationInputTarget, toConversationInputId } from '@shared/ai/conversation'
-import type { ConversationInboxItem } from '@shared/ai/transport'
+import type { ConversationInboxItem, ConversationInboxSnapshot } from '@shared/ai/transport'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -4840,6 +4840,52 @@ describe('AgentComposer', () => {
     // A failed manual steer must not silently drop the queued item.
     expect(getQueueDock().props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued message'])
+  })
+
+  it('does not restore a queued draft until Main atomically removes its input', async () => {
+    mocks.draftText = 'queued for edit'
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(getQueueDock()).toBeTruthy())
+    const dock = getQueueDock()
+    const itemId = dock.props.items[0].id
+    const replaceCallsBeforeEdit = mocks.replaceDraft.mock.calls.length
+    const defaultRequest = mocks.ipcApiRequest.getMockImplementation()!
+    let finishRemove!: () => void
+    mocks.ipcApiRequest.mockImplementation((route: string, input: any) => {
+      if (route === 'ai.conversation.inbox.mutate' && input.mutation?.kind === ConversationInboxMutationKind.Remove) {
+        return new Promise<ConversationInboxSnapshot>((resolve) => {
+          finishRemove = () => {
+            mocks.inboxItems = mocks.inboxItems.filter(({ id }) => id !== itemId)
+            resolve(inboxSnapshot())
+          }
+        })
+      }
+      return defaultRequest(route, input)
+    })
+
+    let edit!: Promise<void>
+    act(() => {
+      edit = dock.props.onEdit(itemId)
+    })
+    expect(mocks.replaceDraft).toHaveBeenCalledTimes(replaceCallsBeforeEdit)
+    expect(getQueueDock().props.items).toHaveLength(1)
+
+    await act(async () => {
+      finishRemove()
+      await edit
+    })
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith({ text: 'queued for edit', tokens: [] })
+    expect(getQueueDock()).toBeUndefined()
   })
 
   it('keeps the current draft, files, and skill tokens untouched when Main blocks a new agent message', async () => {

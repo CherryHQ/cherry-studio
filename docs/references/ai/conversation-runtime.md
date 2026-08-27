@@ -238,6 +238,9 @@ may retire immediately.
   naming is a post-commit task, summary naming is an after-persist task, and
   trace flushing is registered for quiescence. Agent connection resources never
   create message rows.
+- Temporary Chat deletion and promotion enter through `ConversationRuntimeService`:
+  the owning Actor fences new admission, completes exact Stop and terminal work,
+  and only then lets the in-memory store delete or move its rows.
 - `AiExecutionManager` owns provider-stream resources and a private `ExecutionRunId` stale fence.
 - `AgentConnectionManager` owns connection resources and executes exact Agent-driver effects:
   redirect, reconcile, warm leases, driver event subscription, segment roll, and runtime metadata

@@ -6,11 +6,11 @@
 
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryUIMessage, MessageRuntimeStatsInput, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
+import { ConversationOutcomeKind } from '../../conversation'
 import { normalizeTerminalMessage } from '../persistence/normalizeTerminalMessage'
 import type { PersistenceBackend } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult, StreamPersistencePort } from '../types'

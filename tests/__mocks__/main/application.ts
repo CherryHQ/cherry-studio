@@ -79,7 +79,9 @@ export const mockJobManager = {
 }
 
 export const mockConversationRuntimeService = {
-  stop: vi.fn(() => ({ accepted: false, completed: Promise.resolve() }))
+  stop: vi.fn(() => ({ accepted: false, completed: Promise.resolve() })),
+  deleteTemporaryChat: vi.fn(),
+  persistTemporaryChat: vi.fn()
 }
 
 /** Default service instances from existing mock files */

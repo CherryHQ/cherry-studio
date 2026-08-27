@@ -11,7 +11,6 @@ import {
   type ConversationEffectId,
   type ConversationExecutionId,
   type ConversationInteractionId,
-  ConversationOutcomeKind,
   type ConversationRef,
   conversationRefKey,
   type ConversationTurnId,
@@ -41,6 +40,7 @@ import type {
 } from '../streamManager'
 import type { AiStreamRequest } from '../types'
 import { buildCompactReplay, splitDeltaPayload } from './buildCompactReplay'
+import { ConversationOutcomeKind } from './conversationEnums'
 import {
   type ConversationExecutionDriver,
   type ConversationExecutionDriverControl,

@@ -11,7 +11,7 @@ import type {
   ConversationInboxSnapshot
 } from '@shared/ai/transport'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSerializedDraft } from '../tokens'
 
@@ -47,6 +47,10 @@ describe('useFollowupQueue', () => {
     request.mockResolvedValue(snapshot([]))
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('loads the Actor-owned queue and reloads it when Main publishes a new revision', async () => {
     request.mockResolvedValueOnce(snapshot(['a'])).mockResolvedValueOnce(snapshot(['a', 'b']))
     const { result, rerender } = renderHook(() =>
@@ -59,9 +63,9 @@ describe('useFollowupQueue', () => {
     await waitFor(() => expect(result.current.items.map(({ draft }) => draft.text)).toEqual(['a', 'b']))
   })
 
-  it('submits a canonical input before showing the refreshed Actor snapshot', async () => {
+  it('does not reverse an accepted input when the inbox projection refresh fails', async () => {
     const onEnqueue = vi.fn().mockResolvedValue(true)
-    request.mockResolvedValue(snapshot(['queued']))
+    request.mockRejectedValue(new Error('projection unavailable'))
     const { result } = renderHook(() => useFollowupQueue({ conversation: conversation(), onEnqueue }))
     await waitFor(() => expect(request).toHaveBeenCalled())
 
@@ -70,7 +74,19 @@ describe('useFollowupQueue', () => {
     })
 
     expect(onEnqueue).toHaveBeenCalledWith(draft('queued'), payload('queued'))
-    expect(result.current.items.map(({ draft }) => draft.text)).toEqual(['queued'])
+    expect(result.current.items).toEqual([])
+  })
+
+  it('retries a failed inbox projection until it converges', async () => {
+    vi.useFakeTimers()
+    request.mockRejectedValueOnce(new Error('projection unavailable')).mockResolvedValueOnce(snapshot(['recovered']))
+    const { result } = renderHook(() => useFollowupQueue({ conversation: conversation(), onEnqueue: vi.fn() }))
+
+    await act(async () => Promise.resolve())
+    expect(request).toHaveBeenCalledOnce()
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(result.current.items.map(({ draft }) => draft.text)).toEqual(['recovered'])
   })
 
   it('routes remove, retarget, reorder, and pause mutations to the Conversation owner', async () => {
@@ -94,13 +110,11 @@ describe('useFollowupQueue', () => {
       })
     )
 
-    act(() => result.current.removeId(first.id))
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('ai.conversation.inbox.mutate', {
-        conversation: conversation(),
-        mutation: { kind: ConversationInboxMutationKind.Remove, inputId: first.id }
-      })
-    )
+    await act(async () => result.current.removeId(first.id))
+    expect(request).toHaveBeenCalledWith('ai.conversation.inbox.mutate', {
+      conversation: conversation(),
+      mutation: { kind: ConversationInboxMutationKind.Remove, inputId: first.id }
+    })
 
     await act(async () => result.current.retarget(second.id))
     expect(request).toHaveBeenCalledWith('ai.conversation.inbox.mutate', {

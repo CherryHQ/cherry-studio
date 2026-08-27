@@ -3,7 +3,6 @@ import { BaseService } from '@main/core/lifecycle'
 import {
   ConversationActiveNodeMove,
   ConversationBlockReason,
-  ConversationContinuationTrigger,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
@@ -14,7 +13,12 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AiExecutionManager, ConversationPhase, ConversationRuntimeService } from '../../../conversation'
+import {
+  AiExecutionManager,
+  ConversationContinuationTrigger,
+  ConversationPhase,
+  ConversationRuntimeService
+} from '../../../conversation'
 import type {
   CommittedConversationIntent,
   ConversationHistoryPort,

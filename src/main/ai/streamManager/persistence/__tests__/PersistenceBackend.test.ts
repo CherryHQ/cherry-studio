@@ -7,7 +7,7 @@
  * The function is pure, so it is tested directly with no mocks.
  */
 
-import { ConversationOutcomeKind } from '@shared/ai/conversation'
+import { ConversationOutcomeKind } from '@main/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 

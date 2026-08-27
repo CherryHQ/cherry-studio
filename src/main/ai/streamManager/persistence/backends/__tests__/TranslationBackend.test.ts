@@ -1,4 +1,4 @@
-import { ConversationOutcomeKind } from '@shared/ai/conversation'
+import { ConversationOutcomeKind } from '@main/ai/conversation'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

@@ -5,13 +5,12 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ConversationContinuationTrigger, ConversationOutcomeKind } from '@main/ai/conversation'
 import {
   ConversationActiveNodeMove,
   ConversationAdmissionReason,
-  ConversationContinuationTrigger,
   ConversationKind,
   ConversationOpenTrigger,
-  ConversationOutcomeKind,
   type ConversationRef,
   ConversationTargetMode
 } from '@shared/ai/conversation'

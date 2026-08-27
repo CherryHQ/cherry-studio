@@ -2,7 +2,6 @@ import { APPROVAL_IDLE_TIMEOUT } from '@main/ai/constants'
 import type { CompactionSink } from '@shared/ai/compaction'
 import {
   ConversationKind,
-  ConversationOutcomeKind,
   toConversationEffectId,
   toConversationExecutionId,
   toConversationInteractionId,
@@ -28,7 +27,8 @@ import {
   type ConversationExecutionDescriptor,
   type ConversationExecutionDriver,
   type ConversationExecutionSink,
-  ConversationInteractionResumeMode
+  ConversationInteractionResumeMode,
+  ConversationOutcomeKind
 } from '..'
 
 const ref = { kind: ConversationKind.Chat, id: 'topic-1' } as const

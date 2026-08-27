@@ -1,6 +1,5 @@
 import {
   ConversationKind,
-  ConversationOutcomeKind,
   type ConversationRef,
   toConversationExecutionId,
   toConversationTurnId
@@ -9,6 +8,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ConversationOutcomeKind } from '../../../conversation'
 import type { ConversationStreamIdentity, StreamDoneResult, StreamErrorResult } from '../../types'
 import { WebContentsListener } from '../WebContentsListener'
 

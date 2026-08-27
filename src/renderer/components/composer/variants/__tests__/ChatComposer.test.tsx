@@ -8,7 +8,7 @@ import {
   ConversationTargetMode,
   toConversationInputId
 } from '@shared/ai/conversation'
-import type { ConversationInboxItem, ConversationInboxMutation } from '@shared/ai/transport'
+import type { ConversationInboxItem, ConversationInboxMutation, ConversationInboxSnapshot } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -2262,6 +2262,45 @@ describe('ChatComposer', () => {
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued'])
+  })
+
+  it('does not restore a queued draft until Main atomically removes its input', async () => {
+    mocks.topicPending = true
+    render(<ChatComposer topic={topic} onSend={actorSend()} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued for edit', tokens: [] })
+    })
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    const itemId = queueContent.props.items[0].id
+    const replaceCallsBeforeEdit = mocks.replaceDraft.mock.calls.length
+    const defaultRequest = ipcRequestMock.getMockImplementation()!
+    let finishRemove!: () => void
+    ipcRequestMock.mockImplementation((route: string, input?: { mutation?: ConversationInboxMutation }) => {
+      if (route === 'ai.conversation.inbox.mutate' && input?.mutation?.kind === ConversationInboxMutationKind.Remove) {
+        return new Promise<ConversationInboxSnapshot>((resolve) => {
+          finishRemove = () => {
+            mocks.inboxItems = mocks.inboxItems.filter(({ id }) => id !== itemId)
+            resolve(inboxSnapshot())
+          }
+        })
+      }
+      return defaultRequest(route, input)
+    })
+
+    let edit!: Promise<void>
+    act(() => {
+      edit = queueContent.props.onEdit(itemId)
+    })
+    expect(mocks.replaceDraft).toHaveBeenCalledTimes(replaceCallsBeforeEdit)
+    expect(queueContent.props.items).toHaveLength(1)
+
+    await act(async () => {
+      finishRemove()
+      await edit
+    })
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith({ text: 'queued for edit', tokens: [] })
+    expect(mocks.surfaceProps?.queueContent).toBeUndefined()
   })
 
   it('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {

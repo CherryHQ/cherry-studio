@@ -1,4 +1,4 @@
-import { ConversationOutcomeKind } from '@shared/ai/conversation'
+import { ConversationOutcomeKind } from '@main/ai/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
