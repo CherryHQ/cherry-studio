@@ -34,6 +34,23 @@ async function writeZip(build: (zip: JSZip) => void): Promise<string> {
 
 // The async `entryData` goes through `stream` too, so a stand-in must keep serving real bytes.
 const realStream = StreamZip.async.prototype.stream
+const realEntries = StreamZip.async.prototype.entries
+
+/** JSZip will not write such a name; patch the 16-byte `assets/aa/bb.txt` in LOC and CEN instead. */
+async function writeZipNamed(evil: string): Promise<string> {
+  const zip = new JSZip()
+  zip.file('manifest.json', JSON.stringify(MANIFEST))
+  zip.file('index.html', '<h1>hi</h1>')
+  zip.file('assets/aa/bb.txt', 'EVIL')
+  const bytes = await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX' })
+  const name = Buffer.from('assets/aa/bb.txt')
+  const bad = Buffer.from(evil)
+  expect(bad.length).toBe(name.length)
+  for (let at = bytes.indexOf(name); at !== -1; at = bytes.indexOf(name, at + 1)) bad.copy(bytes, at)
+  const p = path.join(work, `named-${Math.random().toString(36).slice(2)}.miniapp`)
+  fs.writeFileSync(p, bytes)
+  return p
+}
 
 const dest = () => {
   const d = path.join(work, `dest-${Math.random().toString(36).slice(2)}`)
@@ -142,6 +159,42 @@ describe('archive', () => {
 
     await expect(extractMiniAppArchive(zipPath, d)).rejects.toThrow(/unpacks to/i)
     expect(fs.readdirSync(d)).toEqual([])
+  })
+
+  it('refuses entries that would land outside the package root', async () => {
+    for (const evil of ['../../escape.txt', '..\\..\\escape.txt', '/tmp/escape0.txt']) {
+      const d = dest()
+      const outside = path.resolve(d, evil.replace(/\\/g, '/'))
+      // A failing run leaves the escaped file behind, and it must not pass the next run.
+      fs.rmSync(outside, { force: true })
+      await expect(extractMiniAppArchive(await writeZipNamed(evil), d)).rejects.toThrow(/malicious|escapes/i)
+      expect(fs.existsSync(outside)).toBe(false)
+      expect(fs.readdirSync(d)).toEqual([])
+    }
+  })
+
+  it('keeps its own containment check even where the entry table is trusted', async () => {
+    // node-stream-zip refuses traversal names while reading the table (`validateName`, off
+    // by a config flag). The writer resolves every target itself so the invariant is ours.
+    const zipPath = await writeZip((z) => {
+      z.file('manifest.json', JSON.stringify(MANIFEST))
+      z.file('index.html', '<h1>hi</h1>')
+    })
+    const entries = vi.spyOn(StreamZip.async.prototype, 'entries').mockImplementation(async function (this) {
+      const table = await realEntries.call(this)
+      const index = table['index.html']
+      const escape = Object.assign(Object.create(Object.getPrototypeOf(index)), index, { name: '../../escape.txt' })
+      return { ...table, '../../escape.txt': escape }
+    })
+    const d = dest()
+    const outside = path.resolve(d, '../../escape.txt')
+    fs.rmSync(outside, { force: true })
+    try {
+      await expect(extractMiniAppArchive(zipPath, d)).rejects.toThrow(/escapes/i)
+      expect(fs.existsSync(outside)).toBe(false)
+    } finally {
+      entries.mockRestore()
+    }
   })
 
   it('rejects a symlink that materialized despite the entry checks', async () => {

@@ -165,7 +165,16 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
  */
 async function extractEntries(zip: StreamZip.StreamZipAsync, prefix: string, destDir: string): Promise<void> {
   const entries = Object.values(await zip.entries()).filter((e) => e.name.startsWith(prefix) && e.name !== prefix)
-  const target = (name: string) => path.join(destDir, name.slice(prefix.length))
+  const root = path.resolve(destDir)
+  // node-stream-zip refuses `..`, absolute and drive names while reading the table; the
+  // invariant is asserted here too, where the write happens, so it never depends on that.
+  const target = (name: string) => {
+    const out = path.resolve(root, name.slice(prefix.length))
+    if (out !== root && !out.startsWith(root + path.sep)) {
+      throw new Error(`Package entry escapes the package root: ${name}`)
+    }
+    return out
+  }
   const dirs = new Set(entries.map((e) => (e.isDirectory ? e.name : path.posix.dirname(e.name))))
   for (const dir of dirs) await fs.promises.mkdir(target(dir), { recursive: true })
 
