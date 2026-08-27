@@ -7,6 +7,7 @@ import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
 import EditModelDrawer from '../ModelDrawer/EditModelDrawer'
 
 const useProviderMock = vi.fn()
+const useProviderPresetMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
 const updateModelMock = vi.fn()
@@ -74,7 +75,8 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
+  useProvider: (...args: any[]) => useProviderMock(...args),
+  useProviderPreset: (...args: any[]) => useProviderPresetMock(...args)
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -108,6 +110,7 @@ describe('Model drawers', () => {
     )
 
     useModelsMock.mockReturnValue({ models: [] })
+    useProviderPresetMock.mockReturnValue({ data: undefined })
   })
 
   it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', async () => {
@@ -301,6 +304,52 @@ describe('Model drawers', () => {
     expect(createModelMock).toHaveBeenCalledWith(
       expect.not.objectContaining({ preferredEndpointType: expect.anything() })
     )
+  })
+
+  it('drops a provider-wide pin that is unsupported by an entered preset model', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+    useProviderPresetMock.mockReturnValue({
+      data: {
+        models: [
+          {
+            id: 'doubao::chat-only-preset',
+            providerId: 'doubao',
+            apiModelId: 'chat-only-preset',
+            name: 'Chat Only Preset',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true
+          }
+        ]
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-only-preset,custom-model')
+
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(createModelMock).toHaveBeenCalledTimes(2)
+    for (const [payload] of createModelMock.mock.calls) {
+      expect(payload).not.toHaveProperty('preferredEndpointType')
+    }
   })
 
   it('hides the endpoint choice when the provider serves a single chat endpoint', () => {

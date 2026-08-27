@@ -743,6 +743,30 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('azure')
       expect(settings.baseURL).toMatch(/\/openai$/)
     })
+
+    it('uses the configured Azure resource host for an adapter-only Responses route', async () => {
+      const provider = makeProvider({
+        id: 'azure-openai',
+        authType: 'iam-azure',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://myres.openai.azure.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'azure-responses' }
+        }
+      })
+      const model = makeModel({
+        id: 'azure::gpt-5',
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('azure-responses')
+      expect(settings.baseURL).toBe('https://myres.openai.azure.com/openai')
+    })
   })
 
   describe('CherryIn routing (default chat endpoint upgrades to cherryin-chat variant)', () => {
@@ -1548,7 +1572,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://api.newapi.com/anthropic/v1')
     })
 
-    it('falls back to default endpoint baseURL when anthropic endpointConfig has no baseUrl', async () => {
+    it('does not borrow the default host for an unconfigured endpoint', async () => {
       const provider = makeProvider({
         id: 'my-newapi',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
@@ -1564,7 +1588,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       const settings = config.providerSettings as Record<string, unknown>
-      expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+      expect(settings.baseURL).toBe('')
     })
 
     // A `/v1beta` typed for Gemini must not reach the chat route as `/v1beta/chat/completions`.

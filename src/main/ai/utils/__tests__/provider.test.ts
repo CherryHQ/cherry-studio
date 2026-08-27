@@ -48,7 +48,7 @@ describe('getBaseUrl', () => {
     expect(getBaseUrl(relayProvider(), null)).toBe('https://relay.example/openai')
   })
 
-  it('falls back to defaultChatEndpoint when preferredEndpoint key is absent from configs', () => {
+  it('falls back to defaultChatEndpoint when preferredEndpoint key is absent unless the selection is strict', () => {
     const provider = makeProvider({
       id: 'relay',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -57,6 +57,7 @@ describe('getBaseUrl', () => {
       }
     })
     expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('https://relay.example/openai')
+    expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { selectedEndpointOnly: true })).toBe('')
   })
 
   it('walks ENDPOINT_FALLBACK_ORDER when defaultChatEndpoint has no baseUrl, preferring earlier entries', () => {

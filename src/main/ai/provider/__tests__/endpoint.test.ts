@@ -435,6 +435,27 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
+  it('does not let Azure share its host with an unserved declared endpoint', () => {
+    const provider = makeProvider({
+      id: 'azure-openai',
+      authType: 'iam-azure',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/chat' }
+      }
+    })
+    const model = {
+      id: 'azure-openai::gemini-only',
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toEqual({
+      endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      baseUrl: '',
+      providerOptionsKey: undefined
+    })
+  })
+
   it('keeps a valid user preference ahead of a runtime suggestion', () => {
     const provider = makeProvider({
       id: 'relay',
