@@ -4848,6 +4848,7 @@
   "settings.tool.websearch.provider_description.fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
   "settings.tool.websearch.provider_description.firecrawl": "Firecrawl Crawler- und Suchdienst, optimiert zur Umwandlung von Websites in Markdown.",
   "settings.tool.websearch.provider_description.jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
+  "settings.tool.websearch.provider_description.parallel": "Websuch-API für KI-Agenten, die priorisierte Links und informationsdichte Auszüge zurückgibt.",
   "settings.tool.websearch.provider_description.querit": "Suchdienst für KI-Anwendungen mit Web-Abruf-Ergebnissen.",
   "settings.tool.websearch.provider_description.searxng": "Selbst hostbare kostenlose Internet-Metasuchmaschine über viele Quellen.",
   "settings.tool.websearch.provider_description.tavily": "Für LLMs optimierte Suchmaschine.",

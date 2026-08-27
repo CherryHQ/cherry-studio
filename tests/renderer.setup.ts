@@ -969,8 +969,7 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
-    AvatarImage: ({ src, ...props }) =>
-      React.createElement('img', { ...props, src, alt: '', 'data-testid': 'avatar-image' }),
+    AvatarImage: ({ src, ...props }) => React.createElement('img', { ...props, src, 'data-testid': 'avatar-image' }),
     AvatarFallback: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>

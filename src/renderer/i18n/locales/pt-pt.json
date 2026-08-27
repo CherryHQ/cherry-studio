@@ -4848,6 +4848,7 @@
   "settings.tool.websearch.provider_description.fetch": "Fornecedor de busca de URL integrado. Busca conteúdo de páginas web a partir de uma URL para enriquecer os resultados de pesquisa.",
   "settings.tool.websearch.provider_description.firecrawl": "Serviço de crawler e busca Firecrawl, otimizado para transformar websites em Markdown.",
   "settings.tool.websearch.provider_description.jina": "APIs de pesquisa e leitura Jina Reader para recuperar conteúdo web limpo.",
+  "settings.tool.websearch.provider_description.parallel": "API de pesquisa web para agentes de IA, que devolve ligações ordenadas e excertos ricos em informação.",
   "settings.tool.websearch.provider_description.querit": "Serviço de pesquisa para aplicações de IA com resultados de recuperação da web.",
   "settings.tool.websearch.provider_description.searxng": "Motor de metapesquisa de internet gratuito e auto-hospedável em várias fontes.",
   "settings.tool.websearch.provider_description.tavily": "Otimizado para LLMs de mecanismos de busca.",

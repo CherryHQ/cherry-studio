@@ -4848,6 +4848,7 @@
   "settings.tool.websearch.provider_description.fetch": "Встроенный провайдер извлечения URL. Извлекает содержимое веб-страницы по URL для обогащения результатов поиска.",
   "settings.tool.websearch.provider_description.firecrawl": "Сервис краулинга и поиска Firecrawl, оптимизированный для преобразования веб-сайтов в Markdown.",
   "settings.tool.websearch.provider_description.jina": "API Jina Reader для поиска и чтения для получения чистого веб-контента.",
+  "settings.tool.websearch.provider_description.parallel": "API веб-поиска для ИИ-агентов, возвращающий ранжированные ссылки и насыщенные информацией выдержки.",
   "settings.tool.websearch.provider_description.querit": "Поисковый сервис для приложений ИИ с результатами веб-поиска.",
   "settings.tool.websearch.provider_description.searxng": "Самостоятельно размещаемый бесплатный интернет-метапоисковик по множеству источников.",
   "settings.tool.websearch.provider_description.tavily": "Поисковая система, оптимизированная для больших языковых моделей.",

@@ -9,12 +9,14 @@ on:
     branches:
       - main
       - v2
+      - "release/v*"
   pull_request:
     branches:
       - main
       - develop
       - v2
-    types: [ready_for_review, synchronize, opened]
+      - "release/v*"
+    types: [ready_for_review, synchronize, opened, reopened]
 
 jobs:
   changes:
@@ -65,6 +67,11 @@ jobs:
               - 'packages/provider-registry/**'
             scripts:
               - 'scripts/**'
+              - '.github/workflows/backport-release-fixes.yml'
+              - '.github/workflows/post-release.yml'
+              - '.github/workflows/prepare-release.yml'
+              - '.github/workflows/preview-release.yml'
+              - '.github/workflows/release.yml'
             extension-table-plus:
               - 'packages/extension-table-plus/**'
             test-infra:
