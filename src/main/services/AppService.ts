@@ -70,13 +70,7 @@ export class AppService extends BaseService {
       const desktopFile = path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
 
       if (isLaunchOnBoot) {
-        // Ensure autostart directory exists
-        try {
-          await fs.promises.access(autostartDir)
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-          await fs.promises.mkdir(autostartDir, { recursive: true })
-        }
+        await fs.promises.mkdir(autostartDir, { recursive: true })
 
         // Get executable path
         let executablePath = application.getPath('app.exe_file')
@@ -102,14 +96,7 @@ export class AppService extends BaseService {
         await fs.promises.writeFile(desktopFile, desktopContent)
         logger.info('Created autostart desktop file for Linux')
       } else {
-        // Remove desktop file
-        try {
-          await fs.promises.access(desktopFile)
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-          throw error
-        }
-        await fs.promises.unlink(desktopFile)
+        await fs.promises.rm(desktopFile, { force: true })
         logger.info('Removed autostart desktop file for Linux')
       }
     }

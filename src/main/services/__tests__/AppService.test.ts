@@ -2,13 +2,12 @@ import { BaseService } from '@main/core/lifecycle'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { setLoginItemSettingsMock, platform, accessMock, mkdirMock, writeFileMock, unlinkMock } = vi.hoisted(() => ({
+const { setLoginItemSettingsMock, platform, mkdirMock, writeFileMock, rmMock } = vi.hoisted(() => ({
   setLoginItemSettingsMock: vi.fn(),
   platform: { isDev: false, isLinux: false, isMac: false, isPortable: false, isWin: true },
-  accessMock: vi.fn(),
   mkdirMock: vi.fn(),
   writeFileMock: vi.fn(),
-  unlinkMock: vi.fn()
+  rmMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -21,10 +20,9 @@ vi.mock('@main/core/platform', () => platform)
 vi.mock('fs', () => ({
   default: {
     promises: {
-      access: accessMock,
       mkdir: mkdirMock,
       writeFile: writeFileMock,
-      unlink: unlinkMock
+      rm: rmMock
     }
   }
 }))
@@ -40,7 +38,6 @@ const { AppService } = await import('../AppService')
 const autostartDir = '/mock/sys.appdata.autostart'
 const desktopFile = path.join(autostartDir, 'cherry-studio.desktop')
 const linuxFiles = new Set<string>()
-let autostartDirExists = false
 const activeServices: BaseService[] = []
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
@@ -59,24 +56,16 @@ describe('AppService', () => {
     platform.isMac = false
     platform.isPortable = false
     platform.isWin = true
-    autostartDirExists = false
     linuxFiles.clear()
     setLoginItemSettingsMock.mockReset()
-    accessMock.mockReset()
     mkdirMock.mockReset()
     writeFileMock.mockReset()
-    unlinkMock.mockReset()
-    accessMock.mockImplementation(async (target: string) => {
-      if ((target === autostartDir && autostartDirExists) || (target === desktopFile && linuxFiles.has(target))) return
-      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-    })
-    mkdirMock.mockImplementation(async () => {
-      autostartDirExists = true
-    })
+    rmMock.mockReset()
+    mkdirMock.mockResolvedValue(undefined)
     writeFileMock.mockImplementation(async (target: string) => {
       linuxFiles.add(target)
     })
-    unlinkMock.mockImplementation(async (target: string) => {
+    rmMock.mockImplementation(async (target: string) => {
       linuxFiles.delete(target)
     })
     MockMainPreferenceServiceUtils.resetMocks()
@@ -121,6 +110,7 @@ describe('AppService', () => {
     const service = new AppService()
     activeServices.push(service)
     await service._doInit()
+    rmMock.mockClear()
 
     const writeGate = deferred()
     let writeStarted!: () => void
@@ -138,7 +128,7 @@ describe('AppService', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', false)
     writeGate.resolve()
 
-    await vi.waitFor(() => expect(unlinkMock).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
     expect(linuxFiles.has(desktopFile)).toBe(false)
   })
 
@@ -148,6 +138,7 @@ describe('AppService', () => {
     const service = new AppService()
     activeServices.push(service)
     await service._doInit()
+    rmMock.mockClear()
 
     const writeGate = deferred()
     let writeStarted!: () => void
@@ -174,14 +165,47 @@ describe('AppService', () => {
     expect(linuxFiles.has(desktopFile)).toBe(true)
 
     MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', false)
-    expect(unlinkMock).not.toHaveBeenCalled()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(rmMock).not.toHaveBeenCalled()
+    expect(linuxFiles.has(desktopFile)).toBe(true)
 
     await service._doInit()
-    await vi.waitFor(() => expect(unlinkMock).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
     expect(linuxFiles.has(desktopFile)).toBe(false)
   })
 
   describe('setAppLaunchOnBoot', () => {
+    it('propagates Linux autostart directory errors', async () => {
+      platform.isLinux = true
+      platform.isWin = false
+      const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      mkdirMock.mockRejectedValueOnce(error)
+
+      await expect(new AppService().setAppLaunchOnBoot(true)).rejects.toBe(error)
+
+      expect(writeFileMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates Linux desktop file write errors', async () => {
+      platform.isLinux = true
+      platform.isWin = false
+      const error = Object.assign(new Error('read-only file system'), { code: 'EROFS' })
+      writeFileMock.mockRejectedValueOnce(error)
+
+      await expect(new AppService().setAppLaunchOnBoot(true)).rejects.toBe(error)
+    })
+
+    it('uses forceful removal while propagating other Linux removal errors', async () => {
+      platform.isLinux = true
+      platform.isWin = false
+      const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      rmMock.mockRejectedValueOnce(error)
+
+      await expect(new AppService().setAppLaunchOnBoot(false)).rejects.toBe(error)
+
+      expect(rmMock).toHaveBeenCalledWith(desktopFile, { force: true })
+    })
+
     it('registers the stable launcher for Windows portable builds', async () => {
       platform.isPortable = true
       vi.stubEnv('PORTABLE_EXECUTABLE_FILE', 'D:\\Apps\\Cherry Studio Portable.exe')
