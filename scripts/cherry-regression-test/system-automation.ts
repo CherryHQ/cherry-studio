@@ -8,6 +8,7 @@ import { resolveAllowedPath } from './paths'
 import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 'q', 's'])
+let activeWindowsExternalTextPid: number | undefined
 
 function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''")
@@ -57,10 +58,14 @@ function runWindowsHotkey(keys: string[]): void {
   const keyCode = virtualKeys[key] ?? key.toUpperCase().charCodeAt(0)
   const script = [
     `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
-    '$notepad = Get-Process -Name notepad -ErrorAction SilentlyContinue | Sort-Object StartTime -Descending | Select-Object -First 1',
+    activeWindowsExternalTextPid
+      ? `$notepad = Get-Process -Id ${activeWindowsExternalTextPid} -ErrorAction SilentlyContinue`
+      : '$notepad = $null',
     'if ($notepad) {',
     '  $shell = New-Object -ComObject WScript.Shell',
     '  if (-not $shell.AppActivate($notepad.Id)) { throw "Notepad window could not be activated" }',
+    '  Start-Sleep -Milliseconds 200',
+    '  $shell.SendKeys("^a")',
     '  Start-Sleep -Milliseconds 200',
     '}',
     ...modifiers.map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 0, [UIntPtr]::Zero)`),
@@ -117,12 +122,17 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       '$shell.SendKeys($expected)',
       'Start-Sleep -Milliseconds 200',
       '$shell.SendKeys("^a")',
-      'Start-Sleep -Milliseconds 500'
+      'Start-Sleep -Milliseconds 500',
+      '$notepad.Id'
     ].join('\n')
-    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-      stdio: ['ignore', 'ignore', 'pipe'],
+    const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 15_000
     })
+    const processId = Number.parseInt(output.trim(), 10)
+    if (!Number.isInteger(processId) || processId <= 0) throw new Error('Notepad process ID was not returned')
+    activeWindowsExternalTextPid = processId
   }
   return filePath
 }
