@@ -61,7 +61,7 @@ There is no `theme` field: use `matchMedia('(prefers-color-scheme: dark)')`, whi
 |---|---|---|
 | `chat(params, { onChunk, callId? })` | `ai.chat` | `{ ok: true }` when the stream ends. Text arrives through `onChunk(text)` as plain string deltas |
 | `cancel(callId)` | none | `{ ok: true }`. Unknown or finished ids are ignored |
-| `getCapabilities({ model? }?)` | sibling of `ai.*` | `{ reasoning: boolean, contextWindow: number \| null }` for that slot |
+| `getCapabilities({ model? }?)` | sibling of `ai.*` | `{ available: true, reasoning: boolean, contextWindow: number \| null }` for that slot, or `{ available: false }` when it has no usable model |
 
 `params`:
 
@@ -73,7 +73,7 @@ There is no `theme` field: use `matchMedia('(prefers-color-scheme: dark)')`, whi
 }
 ```
 
-Which model answers is the user's choice, never yours: every app has a **default** and a **quick** slot (the same two Cherry keeps globally), each falling back to the global model of that name, and neither is ever revealed. Use `quick` for short, latency-sensitive calls. `getCapabilities({ model })` describes the slot you are about to use — whether it reasons and how large its context is — so you can degrade instead of crash when the user swaps it. There is no image input and no tool calling; `vision` and `tools` are deliberately not reported.
+Which model answers is the user's choice, never yours: every app has a **default** and a **quick** slot (the same two Cherry keeps globally), each falling back to the global model of that name, and neither is ever revealed. Use `quick` for short, latency-sensitive calls. `getCapabilities({ model })` describes the slot you are about to use — whether it reasons and how large its context is — so you can degrade instead of crash when the user swaps it. A slot the user has left empty, or whose model they deleted, comes back as `{ available: false }` instead of rejecting: check it before calling `chat`, which does reject in that state. There is no image input and no tool calling; `vision` and `tools` are deliberately not reported.
 
 `callId` is your own label for the call. It must be unique among your in-flight calls (reusing one rejects with `InvalidArgument`) and is what `cancel` takes. After `cancel`, no further chunks arrive and the `chat` Promise settles — normally resolving `{ ok: true }`, or rejecting with `Cancelled` when the abort surfaces as an error. Handle both; whatever `onChunk` already delivered stays delivered.
 

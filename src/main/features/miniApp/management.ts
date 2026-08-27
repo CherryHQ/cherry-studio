@@ -60,7 +60,9 @@ export async function miniAppDetail(appId: string): Promise<MiniAppDetail> {
     // BOTH halves, because `rollbackUpdate` gates on both. The record and the snapshot are
     // written at different moments — a publish that fails or crashes after dropping the old
     // snapshot but before committing leaves the columns describing a tree that is gone — and
-    // a button offered off the record alone would then throw on every click.
+    // a button offered off the record alone would then throw on every click. Its THIRD gate,
+    // `hashTree(backup)`, is deliberately NOT mirrored: hashing a whole tree on every panel
+    // open buys only a corrupt-snapshot case whose one path-collision cause no longer exists.
     canRollback: row.previousContentHash !== null && fs.existsSync(miniAppBackupPath(appId)),
     source: row.source,
     sourceUrl: row.sourceUrl,

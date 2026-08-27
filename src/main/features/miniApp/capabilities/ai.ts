@@ -11,6 +11,7 @@
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { modelService } from '@data/services/ModelService'
+import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
@@ -39,11 +40,16 @@ export const MINI_APP_MAX_CONCURRENT_CALLS = 2
 const BURST_WINDOW_MS = 60_000
 const BURST_MAX_CALLS = 60
 
+const logger = loggerService.withContext('miniAppAiCapability')
+
 const CancelParams = z.object({ callId: z.string().max(64) })
 
 type ModelSlot = 'default' | 'quick'
 const ModelSlotSchema = z.enum(['default', 'quick'])
 const CapabilitiesParams = z.strictObject({ model: ModelSlotSchema.optional() }).optional()
+
+/** Annotated rather than inferred: without it the union widens to one `available: boolean`. */
+type SlotCapabilities = { available: false } | { available: true; reasoning: boolean; contextWindow: number | null }
 
 const ChatParams = z
   .strictObject({
@@ -272,15 +278,22 @@ export const aiCapability = {
    * invites a branch that never works; add each field back with the feature that
    * makes it usable.
    */
-  async getCapabilities(appId: string, params?: unknown) {
+  async getCapabilities(appId: string, params?: unknown): Promise<SlotCapabilities> {
+    // Argument validation still THROWS: a slot the guest invented is the guest's own bug,
+    // and `available: false` would hide that typo behind a perfectly plausible answer.
     const slot = CapabilitiesParams.parse(params)?.model ?? 'default'
-    // Derived with the repo's own predicates, and deliberately carries no model id or
-    // provider name — the app degrades without learning what the user picked.
-    const { providerId, modelId } = parseUniqueModelId(resolveModelFor(appId, slot))
-    const model = modelService.getByKey(providerId, modelId)
-    return {
-      reasoning: isReasoningModel(model),
-      contextWindow: model.contextWindow ?? null
+    try {
+      // Derived with the repo's own predicates, and deliberately carries no model id or
+      // provider name — the app degrades without learning what the user picked.
+      const { providerId, modelId } = parseUniqueModelId(resolveModelFor(appId, slot))
+      const model = modelService.getByKey(providerId, modelId)
+      return { available: true, reasoning: isReasoningModel(model), contextWindow: model.contextWindow ?? null }
+    } catch (error) {
+      // Reported as a VALUE, and for every failure alike. This method exists so an app can
+      // degrade instead of crash when the user swaps the model underneath it; throwing is
+      // that crash. Catching by error type would let the next new one through as a throw.
+      logger.warn('Mini app asked about a model slot that cannot be described', { appId, slot, error })
+      return { available: false }
     }
   }
 }

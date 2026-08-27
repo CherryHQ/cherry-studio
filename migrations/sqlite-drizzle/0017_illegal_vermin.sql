@@ -221,6 +221,8 @@ CREATE TABLE `__new_mini_app` (
 -- HAND EDIT, REDO IT AFTER EVERY `db:migrations:generate`: the old `mini_app` has no
 -- `kind` column, so drizzle's generated `SELECT "kind"` cannot run. Every pre-existing
 -- row is a website entry, which is what this migration's DEFAULT encodes for new rows.
+-- Losing it fails at PREPARE time, empty table or not, so `applyMigrations.populated.test.ts`
+-- catches it for as long as that file keeps replaying the tip chain over a baseline database.
 INSERT INTO `__new_mini_app`("app_id", "preset_mini_app_id", "kind", "name", "url", "logo_key", "status", "order_key", "bordered", "background", "supported_regions", "configuration", "name_key", "created_at", "updated_at") SELECT "app_id", "preset_mini_app_id", 'site', "name", "url", "logo_key", "status", "order_key", "bordered", "background", "supported_regions", "configuration", "name_key", "created_at", "updated_at" FROM `mini_app`;--> statement-breakpoint
 DROP TABLE `mini_app`;--> statement-breakpoint
 ALTER TABLE `__new_mini_app` RENAME TO `mini_app`;--> statement-breakpoint

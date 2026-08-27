@@ -511,10 +511,11 @@ describe('cherry.ai.chat — model slots', () => {
     )
 
     expect(await aiCapability.getCapabilities(A, { model: 'quick' })).toEqual({
+      available: true,
       reasoning: true,
       contextWindow: 200000
     })
-    expect(await aiCapability.getCapabilities(A)).toEqual({ reasoning: false, contextWindow: 128000 })
+    expect(await aiCapability.getCapabilities(A)).toEqual({ available: true, reasoning: false, contextWindow: 128000 })
   })
 })
 
@@ -532,7 +533,11 @@ describe('cherry.ai.getCapabilities', () => {
       contextWindow: 128000
     } as never)
 
-    expect(await aiCapability.getCapabilities(A)).toEqual({ reasoning: expected, contextWindow: 128000 })
+    expect(await aiCapability.getCapabilities(A)).toEqual({
+      available: true,
+      reasoning: expected,
+      contextWindow: 128000
+    })
   })
 
   it('reports no capability the caller cannot act on', async () => {
@@ -546,5 +551,31 @@ describe('cherry.ai.getCapabilities', () => {
     const caps = await aiCapability.getCapabilities(A)
 
     expect(JSON.stringify(caps)).not.toMatch(/gpt|openai|claude|provider/i)
+  })
+
+  it('reports an unusable slot as a value while `chat` still rejects on it', async () => {
+    // The whole point of the shape: an app hides its AI feature by reading `available`,
+    // rather than learning the same fact from a rejection thrown by the method that exists
+    // to prevent crashes. `chat` must NOT follow — a call that cannot run has no value.
+    dbh.db.update(miniAppInstallationTable).set({ aiModelId: null }).where(eq(miniAppInstallationTable.appId, A)).run()
+
+    await expect(aiCapability.getCapabilities(A)).resolves.toEqual({ available: false })
+    await expect(chat(A, HI)).rejects.toBeInstanceOf(MiniAppUnavailableError)
+  })
+
+  it('reports a deleted model the same way, not only an empty slot', async () => {
+    // Reached through a DIFFERENT throw — `getByKey`, not `resolveModelFor` — so the empty
+    // slot resolving is no evidence that this one does.
+    vi.mocked(modelService.getByKey).mockImplementation(() => {
+      throw new Error('Model openai/gpt-4o-mini not found')
+    })
+
+    await expect(aiCapability.getCapabilities(A)).resolves.toEqual({ available: false })
+  })
+
+  it('still rejects a slot the app invented', async () => {
+    // The one case that must not soften into `available: false`: answering a typo with a
+    // plausible value sends the author auditing the user's settings instead of their code.
+    await expect(aiCapability.getCapabilities(A, { model: 'cheap' })).rejects.toThrow()
   })
 })

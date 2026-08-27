@@ -87,4 +87,4 @@ Revoking or granting an optional permission does **not** quiesce the app: the ne
 2. `const perms = await cherry.app.getPermissions()` — decide which optional features to enable.
 3. Load state from `cherry.storage` and recover as if the last run crashed.
 4. Subscribe to `app.visibilityChange` and `app.localeChange`.
-5. If the app uses AI, `await cherry.ai.getCapabilities({ model })` for the slot you will call and pick prompts that fit its `contextWindow`.
+5. If the app uses AI, `await cherry.ai.getCapabilities({ model })` for the slot you will call; branch on `available` before offering any AI feature, and pick prompts that fit its `contextWindow`.

@@ -70,10 +70,16 @@ declare global {
     chat(params: CherryChatParams, options: { onChunk: (text: string) => void; callId?: string }): Promise<{ ok: true }>
     /** Stops a call started with `callId`. Unknown ids are ignored, not errors. */
     cancel(callId: string): Promise<{ ok: true }>
-    /** Describes the slot you are about to call — never the model behind it. */
+    /**
+     * Describes the slot you are about to call — never the model behind it.
+     *
+     * An unusable slot is a VALUE, not a rejection: `available: false` means the user has
+     * configured no model there (or deleted the one they had), so branch on it rather than
+     * wrapping the call in a `catch`. Only a `model` you made up rejects.
+     */
     getCapabilities(params?: {
       model?: 'default' | 'quick'
-    }): Promise<{ reasoning: boolean; contextWindow: number | null }>
+    }): Promise<{ available: false } | { available: true; reasoning: boolean; contextWindow: number | null }>
   }
 
   interface CherryStorage {
