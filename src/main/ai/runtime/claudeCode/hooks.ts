@@ -13,9 +13,11 @@
 
 import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
+import { normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
+import { evaluatePermission } from '@cherrystudio/agent-permission/node'
 import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
+import { buildClaudePermissionCall } from '@main/ai/toolApproval'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -79,20 +81,33 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
-    const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
-      toolName,
-      input: toolInput,
-      permissionMode: snapshot?.getPermissionMode(),
-      builtinRole: ctx.builtinRole,
-      mountedServers: ctx.mountedServers,
-      pluginDirectories: ctx.pluginDirectories,
-      cwd,
-      agentDataPath,
-      supportsImages: ctx.supportsImages,
-      interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
-      isDisabled: (name) => snapshot?.isDisabled(name) ?? false
-    })
-    if (!decision) return {}
+    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
+    const decision = await evaluatePermission(
+      buildClaudePermissionCall(toolName, toolInput, ctx.mountedServers, ctx.builtinRole),
+      {
+        mode: normalizeLegacyPermissionMode(snapshot?.getPermissionMode()),
+        roots: { workspace: cwd, agentData: agentDataPath },
+        isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
+        responder: interaction.userResponse,
+        turn:
+          interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable'
+            ? 'headless'
+            : 'interactive',
+        delegated: false,
+        builtinRole: ctx.builtinRole,
+        guardRules: CLAUDE_TOOL_GUARD_RULES,
+        guardContext: {
+          input: toolInput,
+          mountedServers: ctx.mountedServers,
+          pluginDirectories: ctx.pluginDirectories,
+          cwd,
+          agentDataPath,
+          supportsImages: ctx.supportsImages
+        },
+        log: (event) => logger.error(event.message, event)
+      }
+    )
+    if (decision.effect === 'allow') return {}
     if (decision.effect === 'deny') {
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }

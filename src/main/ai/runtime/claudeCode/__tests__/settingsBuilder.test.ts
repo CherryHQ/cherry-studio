@@ -3,6 +3,7 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import type * as ToolApprovalModule from '@main/ai/toolApproval'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -241,6 +242,13 @@ vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
     register: mocks.approvalRegister
   }
 }))
+vi.mock('@main/ai/toolApproval', async () => ({
+  ...(await vi.importActual<typeof ToolApprovalModule>('@main/ai/toolApproval')),
+  toolApprovalRegistry: {
+    abort: vi.fn(),
+    register: mocks.approvalRegister
+  }
+}))
 
 vi.mock('../AgentsMdLoader', () => ({
   AgentsMdLoader: {
@@ -271,6 +279,23 @@ function systemPromptText(systemPrompt: unknown): string {
 }
 
 describe('buildClaudeCodeSessionSettings', () => {
+  it.each([
+    ['auto', 'default'],
+    ['full', 'bypassPermissions']
+  ] as const)('maps product %s to SDK permissionMode %s', async (productMode, sdkMode) => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      configuration: { permission_mode: productMode }
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+    expect(settings.permissionMode).toBe(sdkMode)
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
@@ -1139,6 +1164,39 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(denyReasonOf(normalSettings, 'Bash', { command: 'rm -rf ./output' })).resolves.toBeUndefined()
   })
 
+  it('keeps full access hard limits in the PreToolUse hook', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { permission_mode: 'full' }
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const guardHook = settings.hooks?.PreToolUse?.[0]?.hooks[0]
+    const run = (toolName: string, toolInput: Record<string, unknown>) =>
+      guardHook?.(
+        { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+        'tool-use-1',
+        {} as never
+      )
+
+    await expect(run('Bash', { command: 'npm install -g example-package' })).resolves.toMatchObject({
+      hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
+    })
+    await expect(run('mcp__cherry-tools__session_send', { target_session_id: 'session-2' })).resolves.toMatchObject({
+      hookSpecificOutput: expect.objectContaining({ permissionDecision: 'ask' })
+    })
+  })
+
   it('gates Support and Assistant Bash per mode: ask interactively, lifted by bypassPermissions, denied headless', async () => {
     let interactionState = { currentTurn: 'interactive', userResponse: 'stream' }
     // The guard reads the LIVE permission mode from the session snapshot, so a warm connection
@@ -1226,7 +1284,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     for (const command of bashCommands) {
       await expect(permissionDecisions('Bash', { command })).resolves.toContain('deny')
     }
-    await expect(permissionDecisions('Write', { file_path: 'feedback.md', content: 'draft' })).resolves.not.toContain(
+    await expect(permissionDecisions('Write', { file_path: 'feedback.md', content: 'draft' })).resolves.toContain(
       'deny'
     )
     await expect(permissionDecisions('mcp__assistant__product_info', {})).resolves.not.toContain('deny')
@@ -1264,7 +1322,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     // Assistant feedback submission: ask in default mode, lifted by bypass, denied headless.
     await expect(assistantDecisions(directGhCommand)).resolves.toContain('ask')
-    await expect(assistantDecisions('pnpm test')).resolves.not.toContain('ask')
+    await expect(assistantDecisions('pnpm test')).resolves.toContain('ask')
     permissionMode = 'bypassPermissions'
     await expect(assistantDecisions(directGhCommand)).resolves.not.toContain('ask')
     interactionState = { currentTurn: 'headless', userResponse: 'unavailable' }
@@ -1306,16 +1364,16 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(permissionDecisions(toolName, toolInput)).resolves.toContain('ask')
     }
 
-    await expect(permissionDecisions('Read', { file_path: '/workspace/project/src/index.ts' })).resolves.not.toContain(
+    await expect(permissionDecisions('Read', { file_path: '/workspace/project/src/index.ts' })).resolves.toContain(
       'ask'
     )
-    await expect(permissionDecisions('Write', { file_path: 'output.html' })).resolves.not.toContain('ask')
+    await expect(permissionDecisions('Write', { file_path: 'output.html' })).resolves.toContain('ask')
     await expect(
       permissionDecisions('Read', { file_path: '/app/feature.agents.data/agent-1/SOUL.md' })
-    ).resolves.not.toContain('ask')
-    await expect(permissionDecisions('Glob', { path: '/workspace/project' })).resolves.not.toContain('ask')
-    await expect(permissionDecisions('Glob', {})).resolves.not.toContain('ask')
-    await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')
+    ).resolves.toContain('ask')
+    await expect(permissionDecisions('Glob', { path: '/workspace/project' })).resolves.toContain('ask')
+    await expect(permissionDecisions('Glob', {})).resolves.toContain('ask')
+    await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.toContain('ask')
   })
 
   it('lifts the workspace-escape ask under bypassPermissions (net-equivalent: the mode auto-pierced it before)', async () => {
@@ -1448,7 +1506,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(permissionDecisions(toolName)).resolves.toContain('ask')
     }
     permissionMode = undefined
-    for (const toolName of ['Bash', 'mcp__assistant__navigate', 'mcp__assistant__product_info']) {
+    await expect(permissionDecisions('Bash')).resolves.toContain('ask')
+    for (const toolName of ['mcp__assistant__navigate', 'mcp__assistant__product_info']) {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
   })
@@ -1813,6 +1872,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       signal: { aborted: false },
       toolUseID: 'exit-plan-1'
     } as never)
+    await vi.waitFor(() => expect(emit).toHaveBeenCalled())
 
     expect(emitInput).toHaveBeenCalledWith({
       toolCallId: 'exit-plan-1',
@@ -1913,7 +1973,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
-  it.each(['bypassPermissions', 'acceptEdits'] as const)(
+  it.each(['full', 'edit'] as const)(
     'surfaces an interactive ExitPlanMode plan from PreToolUse under %s',
     async (permissionMode) => {
       mocks.getAgent.mockReturnValue({
@@ -1949,10 +2009,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         )
       )
 
-      expect(settings.permissionMode).toBe(permissionMode)
-      expect(results).not.toContainEqual(
+      expect(settings.permissionMode).toBe(permissionMode === 'full' ? 'bypassPermissions' : 'default')
+      expect(results).toContainEqual(
         expect.objectContaining({
-          hookSpecificOutput: expect.objectContaining({ permissionDecision: expect.stringMatching(/ask|deny/) })
+          hookSpecificOutput: expect.objectContaining({ permissionDecision: 'ask' })
         })
       )
       expect(emitInput).toHaveBeenCalledTimes(1)
@@ -2001,7 +2061,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const enterPlanModeResults = await runHooks('EnterPlanMode')
     expect(enterPlanModeResults).not.toContainEqual(
       expect.objectContaining({
-        hookSpecificOutput: expect.objectContaining({ permissionDecision: expect.stringMatching(/ask|deny/) })
+        hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
       })
     )
   })
@@ -2198,6 +2258,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       toolUseID: 'tool-use-1'
     } as never)
     void pending
+    await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalled())
 
     expect(getInteractionState).toHaveBeenCalledWith('session-1')
     expect(settings.permissionMode).toBe('bypassPermissions')
@@ -2237,6 +2298,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       signal: { aborted: false },
       toolUseID: 'settled-tool-use'
     } as never)
+    await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledOnce())
 
     expect(mocks.approvalRegister).toHaveBeenCalledOnce()
     expect(emit).not.toHaveBeenCalled()
@@ -2861,6 +2923,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       // fires synchronously while constructing that promise.
       const pending = prewarm.canUseTool!('SomeTool', {}, { signal: { aborted: false }, toolUseID: 'tu-1' } as never)
       void pending
+      await vi.waitFor(() => expect(boundEmit).toHaveBeenCalledTimes(1))
       expect(boundEmit).toHaveBeenCalledTimes(1)
       expect(boundEmit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2908,7 +2971,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
-    it('auto-approves an ordinary background-agent request after the parent turn ended', async () => {
+    it('denies an ordinary delegated request after the parent turn ended', async () => {
       const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -2926,12 +2989,12 @@ describe('buildClaudeCodeSessionSettings', () => {
           toolUseID: 'tu-bg-auto',
           agentID: 'subagent-1'
         } as never)
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { file_path: '/outside/file' } })
+      ).resolves.toMatchObject({ behavior: 'deny' })
       expect(getInteractionState).toHaveBeenCalledWith('warm-bg-auto')
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
-    it('auto-approves an ordinary background-agent request while the parent turn is still live', async () => {
+    it('denies an ordinary delegated request while the parent turn is still live', async () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
@@ -2950,12 +3013,12 @@ describe('buildClaudeCodeSessionSettings', () => {
           toolUseID: 'tu-bg-live',
           agentID: 'subagent-1'
         } as never)
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'pwd' } })
+      ).resolves.toMatchObject({ behavior: 'deny' })
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
     it.each(['session_create', 'session_send'])(
-      'requires live approval when a background agent calls %s',
+      'denies a delegated %s call because it cannot reach a responder',
       async (toolName) => {
         mocks.applicationGet.mockImplementation((name: string) => {
           if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -2971,28 +3034,22 @@ describe('buildClaudeCodeSessionSettings', () => {
         const emit = vi.fn()
         settings.approvalEmitter!.emit = emit
 
-        void settings.canUseTool!(toCherryBuiltinRuntimeName(toolName), { target_session_id: 'target' }, {
-          signal: { aborted: false },
-          toolUseID: 'tu-bg-delegation',
-          agentID: 'subagent-1'
-        } as never)
-        await Promise.resolve()
-
-        expect(mocks.approvalRegister).toHaveBeenCalledWith(
-          expect.objectContaining({
-            sessionId: 'warm-bg-delegation',
-            toolCallId: 'tu-bg-delegation',
-            presentation: 'message'
-          })
-        )
-        expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolName: toCherryBuiltinRuntimeName(toolName) }))
+        await expect(
+          settings.canUseTool!(toCherryBuiltinRuntimeName(toolName), { target_session_id: 'target' }, {
+            signal: { aborted: false },
+            toolUseID: 'tu-bg-delegation',
+            agentID: 'subagent-1'
+          } as never)
+        ).resolves.toMatchObject({ behavior: 'deny' })
+        expect(mocks.approvalRegister).not.toHaveBeenCalled()
+        expect(emit).not.toHaveBeenCalled()
       }
     )
 
-    // A channel/scheduled turn has no approval UI, so an ordinary tool must not be denied for
-    // lacking a responder — but an interactive turn on the same session must still prompt.
+    // A channel/scheduled turn has no approval UI, so an ordinary ask is denied; an interactive
+    // turn still emits a normal approval request.
     it.each([
-      ['headless', { behavior: 'allow', updatedInput: { command: 'pwd' } }, false],
+      ['headless', { behavior: 'deny' }, false],
       ['interactive', undefined, true]
     ] as const)('resolves an ordinary tool per turn kind: %s', async (currentTurn, expected, registers) => {
       const getInteractionState = vi.fn(() => ({
@@ -3013,11 +3070,12 @@ describe('buildClaudeCodeSessionSettings', () => {
         toolUseID: `tu-${currentTurn}`
       } as never)
 
-      if (expected) await expect(call).resolves.toEqual(expected)
-      expect(mocks.approvalRegister).toHaveBeenCalledTimes(registers ? 1 : 0)
+      if (expected) await expect(call).resolves.toMatchObject(expected)
+      if (registers) await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledTimes(1))
+      else expect(mocks.approvalRegister).toHaveBeenCalledTimes(0)
     })
 
-    it('emits an independent AskUserQuestion interaction for a background agent', () => {
+    it('denies AskUserQuestion from a delegated agent', async () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
@@ -3032,34 +3090,21 @@ describe('buildClaudeCodeSessionSettings', () => {
         questions: [{ question: 'Choose a database', options: [{ label: 'SQLite' }], multiSelect: false }]
       }
 
-      return buildClaudeCodeSessionSettings(sessionWith('warm-bg-question'), {} as never).then((settings) => {
-        const emit = vi.fn()
-        settings.approvalEmitter!.emit = emit
-        void settings.canUseTool!('AskUserQuestion', input, {
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-question'), {} as never)
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      await expect(
+        settings.canUseTool!('AskUserQuestion', input, {
           signal: { aborted: false },
           toolUseID: 'tu-bg-question',
           agentID: 'subagent-1'
         } as never)
-
-        expect(mocks.approvalRegister).toHaveBeenCalledWith(
-          expect.objectContaining({
-            sessionId: 'warm-bg-question',
-            toolCallId: 'tu-bg-question',
-            presentation: 'message'
-          })
-        )
-        expect(emit).toHaveBeenCalledWith(
-          expect.objectContaining({
-            toolCallId: 'tu-bg-question',
-            toolName: 'AskUserQuestion',
-            input,
-            presentation: 'message'
-          })
-        )
-      })
+      ).resolves.toMatchObject({ behavior: 'deny' })
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+      expect(emit).not.toHaveBeenCalled()
     })
 
-    it('emits an independent AskUserQuestion interaction for an interactive background wake', () => {
+    it('emits an independent AskUserQuestion interaction for an interactive background wake', async () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
@@ -3074,33 +3119,33 @@ describe('buildClaudeCodeSessionSettings', () => {
         questions: [{ question: 'Continue with the migration?', options: [{ label: 'Continue' }], multiSelect: false }]
       }
 
-      return buildClaudeCodeSessionSettings(sessionWith('warm-wake-question'), {} as never).then((settings) => {
-        const emit = vi.fn()
-        settings.approvalEmitter!.emit = emit
-        void settings.canUseTool!('AskUserQuestion', input, {
-          signal: { aborted: false },
-          toolUseID: 'tu-wake-question'
-        } as never)
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-wake-question'), {} as never)
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      void settings.canUseTool!('AskUserQuestion', input, {
+        signal: { aborted: false },
+        toolUseID: 'tu-wake-question'
+      } as never)
+      await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalled())
 
-        expect(mocks.approvalRegister).toHaveBeenCalledWith(
-          expect.objectContaining({
-            sessionId: 'warm-wake-question',
-            toolCallId: 'tu-wake-question',
-            presentation: 'message'
-          })
-        )
-        expect(emit).toHaveBeenCalledWith(
-          expect.objectContaining({
-            toolCallId: 'tu-wake-question',
-            toolName: 'AskUserQuestion',
-            input,
-            presentation: 'message'
-          })
-        )
-      })
+      expect(mocks.approvalRegister).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'warm-wake-question',
+          toolCallId: 'tu-wake-question',
+          presentation: 'message'
+        })
+      )
+      expect(emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolCallId: 'tu-wake-question',
+          toolName: 'AskUserQuestion',
+          input,
+          presentation: 'message'
+        })
+      )
     })
 
-    it('keeps a background AskUserQuestion independent from a concurrently live main turn', () => {
+    it('denies a delegated AskUserQuestion while the main turn is live', async () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
@@ -3111,28 +3156,24 @@ describe('buildClaudeCodeSessionSettings', () => {
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
-      return buildClaudeCodeSessionSettings(sessionWith('warm-bg-live-question'), {} as never).then((settings) => {
-        const emit = vi.fn()
-        settings.approvalEmitter!.emit = emit
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-live-question'), {} as never)
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
 
-        void settings.canUseTool!('AskUserQuestion', { questions: [] }, {
+      await expect(
+        settings.canUseTool!('AskUserQuestion', { questions: [] }, {
           signal: { aborted: false },
           toolUseID: 'tu-bg-live-question',
           agentID: 'subagent-1'
         } as never)
-
-        expect(emit).toHaveBeenCalledWith(
-          expect.objectContaining({
-            toolCallId: 'tu-bg-live-question',
-            presentation: 'message'
-          })
-        )
-      })
+      ).resolves.toMatchObject({ behavior: 'deny' })
+      expect(emit).not.toHaveBeenCalled()
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
-    it('still auto-approves a background tool call after the turn ended (out-of-turn allow)', async () => {
-      // The out-of-turn gate sits after the auto-approval branch, so unattended background work that
-      // needs no prompt keeps running.
+    it('denies an ordinary tool call after the turn ended', async () => {
+      // The evaluator asks for an ordinary tool, and the out-of-turn guard keeps the request
+      // fail-closed when there is no live stream.
       mocks.createToolPolicySnapshot.mockResolvedValue({
         resolve: vi.fn(() => ({ approval: 'auto' })),
         isDisabled: vi.fn(() => false),
@@ -3153,7 +3194,10 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       await expect(
         settings.canUseTool!('SomeTool', { a: 1 }, { signal: { aborted: false }, toolUseID: 'tu-bg2' } as never)
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { a: 1 } })
+      ).resolves.toMatchObject({
+        behavior: 'deny',
+        message: expect.stringContaining('after its turn had already ended')
+      })
     })
   })
 

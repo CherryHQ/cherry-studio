@@ -141,6 +141,7 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
             '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
           }

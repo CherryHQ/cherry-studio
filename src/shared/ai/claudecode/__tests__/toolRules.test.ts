@@ -2,39 +2,30 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildClaudeMcpToolName,
+  classifyClaudeTool,
+  claudeToolApproval,
   type ClaudeToolDescriptor,
-  matchesClaudeToolRule,
-  resolveClaudeToolAccess,
-  resolveClaudeToolInvocationAccess
+  matchesClaudeToolRule
 } from '../toolRules'
 
+const descriptor = (id: string, overrides: Partial<ClaudeToolDescriptor> = {}): ClaudeToolDescriptor => ({
+  id,
+  name: id,
+  origin: 'builtin',
+  ...overrides
+})
+
 describe('Claude Code tool rules', () => {
-  const read: ClaudeToolDescriptor = {
-    id: 'Read',
-    name: 'Read',
-    origin: 'builtin'
-  }
-
-  const edit: ClaudeToolDescriptor = {
-    id: 'Edit',
-    name: 'Edit',
-    origin: 'builtin'
-  }
-
-  const webSearch: ClaudeToolDescriptor = {
-    id: 'WebSearch',
-    name: 'WebSearch',
-    origin: 'builtin'
-  }
-
-  const mcpSearch: ClaudeToolDescriptor = {
-    id: buildClaudeMcpToolName('docs', 'search_docs'),
+  const read = descriptor('Read')
+  const edit = descriptor('Edit')
+  const webSearch = descriptor('WebSearch')
+  const mcpSearch = descriptor(buildClaudeMcpToolName('docs', 'search_docs'), {
     name: 'search_docs',
     origin: 'mcp',
     sourceId: 'server-1',
     sourceName: 'docs',
     sourceToolName: 'search_docs'
-  }
+  })
 
   it('matches Claude native builtin rules', () => {
     expect(matchesClaudeToolRule('Read', read)).toBe(true)
@@ -49,45 +40,21 @@ describe('Claude Code tool rules', () => {
     expect(matchesClaudeToolRule('mcp__other__searchDocs', mcpSearch)).toBe(false)
   })
 
-  it('lets source force-prompt override mode defaults', () => {
-    expect(
-      resolveClaudeToolAccess({ ...read, sourceApproval: 'prompt' }, { permissionMode: 'bypassPermissions' }).approval
-    ).toBe('prompt')
+  it('classifies runtime calls for the shared evaluator', () => {
+    expect(classifyClaudeTool(read)).toBe('read')
+    expect(classifyClaudeTool(edit)).toBe('edit')
+    expect(classifyClaudeTool(descriptor('Bash'))).toBe('shell')
+    expect(classifyClaudeTool(descriptor('AskUserQuestion'))).toBe('requires-user')
+    expect(classifyClaudeTool(descriptor('Task'))).toBe('safe-first-party')
+    expect(classifyClaudeTool(webSearch)).toBe('ordinary')
   })
 
-  it('applies mode, safe, and manual defaults in order', () => {
-    expect(resolveClaudeToolAccess(webSearch, { permissionMode: 'bypassPermissions' }).approval).toBe('auto')
-    expect(resolveClaudeToolAccess(edit, { permissionMode: 'acceptEdits' }).approval).toBe('auto')
-    expect(resolveClaudeToolAccess(read, {}).approval).toBe('auto')
-    expect(resolveClaudeToolAccess(webSearch, {}).approval).toBe('prompt')
-  })
-
-  it('treats auto mode as default — the SDK classifier decides, so nothing is pre-approved', () => {
-    expect(resolveClaudeToolAccess(read, { permissionMode: 'auto' }).approval).toBe('auto')
-    expect(resolveClaudeToolAccess(edit, { permissionMode: 'auto' }).approval).toBe('prompt')
-    expect(resolveClaudeToolAccess(webSearch, { permissionMode: 'auto' }).approval).toBe('prompt')
-  })
-
-  it('applies invocation-level acceptEdits Bash defaults', () => {
-    const bash: ClaudeToolDescriptor = {
-      id: 'Bash',
-      name: 'Bash',
-      origin: 'builtin'
-    }
-
-    expect(
-      resolveClaudeToolInvocationAccess(
-        bash,
-        { permissionMode: 'acceptEdits' },
-        { toolName: 'Bash', input: { command: 'mkdir tmp' } }
-      ).approval
-    ).toBe('auto')
-    expect(
-      resolveClaudeToolInvocationAccess(
-        bash,
-        { permissionMode: 'acceptEdits' },
-        { toolName: 'Bash', input: { command: 'curl example.com' } }
-      ).approval
-    ).toBe('prompt')
+  it('derives SDK catalog approvals without Bash prefix exceptions', () => {
+    expect(claudeToolApproval({ ...read, sourceApproval: 'prompt' }, { permissionMode: 'full' }).approval).toBe('auto')
+    expect(claudeToolApproval(webSearch, { permissionMode: 'full' }).approval).toBe('auto')
+    expect(claudeToolApproval(edit, { permissionMode: 'edit' }).approval).toBe('auto')
+    expect(claudeToolApproval(read, { permissionMode: 'default' }).approval).toBe('auto')
+    expect(claudeToolApproval(webSearch, { permissionMode: 'default' }).approval).toBe('prompt')
+    expect(claudeToolApproval(descriptor('Bash'), { permissionMode: 'edit' }).approval).toBe('prompt')
   })
 })

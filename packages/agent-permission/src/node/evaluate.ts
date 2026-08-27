@@ -36,21 +36,38 @@ function hasPermanentDelete(call: PermissionCall): boolean {
 function evaluateProductConduct(call: PermissionCall, context: PermissionContext): PermissionDecision | undefined {
   if (context.builtinRole && hasPermanentDelete(call)) {
     return deny(
-      'This built-in Agent blocked a permanently destructive operation. Use the structured trash flow for confirmed workspace deletions.',
+      'This built-in Agent blocked a permanently destructive operation. It must never permanently delete data. For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.',
       'builtin-destructive'
     )
   }
 
+  const headless = context.turn === 'headless' || context.responder === 'unavailable'
   if (context.builtinRole === 'assistant' && isConductTag(call, 'feedback-submission')) {
-    return ask(
-      context,
-      'Submitting Cherry Studio feedback externally requires live per-call user approval.',
-      'assistant-feedback'
-    )
+    if (headless) {
+      return deny(
+        'Headless channel or scheduled turns cannot submit Cherry Studio feedback. Keep only a sanitized local feedback draft for an interactive user to review and submit.',
+        'assistant-feedback'
+      )
+    }
+    if (context.mode !== 'full') {
+      return ask(
+        context,
+        'Submitting Cherry Studio feedback externally requires live per-call user approval.',
+        'assistant-feedback'
+      )
+    }
   }
 
   if (context.builtinRole === 'support' && call.category === 'shell') {
-    return ask(context, 'Cherry Support shell commands require live per-call user approval.', 'support-bash')
+    if (headless) {
+      return deny(
+        'Headless channel or scheduled turns cannot run shell commands for Cherry Support. Keep only a sanitized local draft using the structured file tools.',
+        'support-bash'
+      )
+    }
+    if (context.mode !== 'full') {
+      return ask(context, 'Cherry Support shell commands require live per-call user approval.', 'support-bash')
+    }
   }
 
   if (context.turn === 'headless' && isConductTag(call, 'agent-config-mutation')) {

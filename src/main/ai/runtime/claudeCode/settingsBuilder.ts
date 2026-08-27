@@ -14,6 +14,8 @@ import path from 'node:path'
 
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
+import { normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
+import { evaluatePermission } from '@cherrystudio/agent-permission/node'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -40,12 +42,12 @@ import {
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { skillService } from '@main/ai/skills/SkillService'
 import {
-  findBuiltinToolPolicy,
+  buildClaudePermissionCall,
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
-  toMcpRuntimeName
-} from '@main/ai/toolApproval/builtinToolPolicy'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+  toMcpRuntimeName,
+  toolApprovalRegistry
+} from '@main/ai/toolApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -55,7 +57,6 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Provider } from '@shared/data/types/provider'
@@ -64,6 +65,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 
 import { AgentsMdLoader } from './AgentsMdLoader'
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
+import { decisionToPermissionResult } from './decisionToPermissionResult'
 import {
   AUTO_COMPACT_TRIGGER_PCT,
   buildEnvironment,
@@ -71,15 +73,11 @@ import {
   resolveClaudeExecutablePath,
   resolveRequestedOutputTokens
 } from './environment'
-import {
-  approvalRequiredRuntimeNames,
-  ASK_USER_QUESTION_TOOL_NAME,
-  HEADLESS_INTERACTIVE_TOOL_DENIAL
-} from './guardRules'
+import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
+import { toSdkPermissionMode } from './permissionMode'
 import { buildPluginDirectoryIndex } from './skillDependencies'
-import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
@@ -325,7 +323,7 @@ export async function buildClaudeCodeSessionSettings(
     includePartialMessages: true,
     agentProgressSummaries: true,
     forwardSubagentText: true,
-    permissionMode: agentConfig?.permission_mode,
+    permissionMode: toSdkPermissionMode(normalizeLegacyPermissionMode(agentConfig?.permission_mode)),
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
@@ -460,74 +458,67 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
 
-    // ExitPlanMode's normalized plan arrives here after the raw streamed `{}` input. Surface it
-    // while the tool row is live, before approval or a headless denial settles the call.
     surfaceExitPlanModeInput(session.id, toolName, input, opts.toolUseID)
 
-    // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
-    // the live session snapshot, not a per-build instance the running subprocess never sees.
     const snapshot = sessionState().getToolPolicySnapshot(session.id)
     if (!snapshot) {
       logger.warn('canUseTool fired with no live tool-policy snapshot — denying', { toolName })
       return { behavior: 'deny', message: 'Tool policy not ready' }
     }
 
-    // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce the per-turn
-    // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
-    // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
-    // `canUseTool` under bypassPermissions.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    const policy = findBuiltinToolPolicy(toolName, mountedServers)
-    const approvalHoldsInThisMode =
-      policy?.approval === 'required' &&
-      !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
-    const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
-    if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
-    }
+    const delegated = typeof opts.agentID === 'string' && opts.agentID.length > 0
+    const permissionCall = buildClaudePermissionCall(toolName, input, mountedServers, builtinRole)
+    const decision = await evaluatePermission(permissionCall, {
+      mode: normalizeLegacyPermissionMode(
+        typeof snapshot.getPermissionMode === 'function' ? snapshot.getPermissionMode() : undefined
+      ),
+      roots: { workspace: session.workspace.path, agentData: agentDataPath },
+      isDisabled: (name) => snapshot.isDisabled(name),
+      responder: delegated ? 'unavailable' : interactionState.userResponse,
+      turn:
+        delegated || interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable'
+          ? 'headless'
+          : 'interactive',
+      delegated,
+      builtinRole,
+      guardRules: CLAUDE_TOOL_GUARD_RULES,
+      guardContext: {
+        input,
+        mountedServers,
+        pluginDirectories,
+        cwd: session.workspace.path,
+        agentDataPath,
+        supportsImages
+      },
+      log: (event) => logger.error(event.message, event)
+    })
 
-    const access = snapshot.resolve(toolName, input)
-    // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
-    // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
-    // bypassPermissions marks every ordinary tool as auto-approved.
-    if (toolName !== ASK_USER_QUESTION_TOOL_NAME && access?.approval === 'auto') {
+    // An SDK ask rule is an explicit user-authored override. Preserve it even when the product
+    // matrix otherwise allows the call, but never let it turn an evaluator deny into an allow.
+    const forcedAsk = decision.effect === 'allow' && opts.matchedAskRule !== undefined
+    if (decision.effect === 'allow' && !forcedAsk) {
       return { behavior: 'allow', updatedInput: input }
     }
-
-    const hasLiveTurnStream = interactionState.userResponse === 'stream'
-    // A headless turn (channel / scheduled) is unattended work with no approval UI, like a sub-agent.
-    // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
-    const isBackgroundAgent =
-      (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
-    const requiresUserResponse = requiresInteractiveResponder || opts.matchedAskRule !== undefined
-
-    // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
-    // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this
-    // callback and remain authoritative. A user-configured ask rule and tools that need actual
-    // user-authored input stay on the interaction path below.
-    if (isBackgroundAgent && !requiresUserResponse) {
-      return { behavior: 'allow', updatedInput: input }
+    if (decision.effect === 'deny') {
+      return { behavior: 'deny', message: decision.reason }
     }
-
-    // Interactive background requests are rendered as independent assistant messages. This is
-    // intentionally separate from "has a live turn": the parent turn may be complete while its
-    // background agent is still waiting for the user. Tools needing a user-authored answer stay
-    // fail-closed on channel/scheduled runs — they have no responder.
     if (
-      (!hasLiveTurnStream && !requiresUserResponse) ||
-      (requiresUserResponse &&
-        (!hasLiveTurnStream || isBackgroundAgent) &&
-        interactionState.userResponse === 'unavailable')
+      decision.effect === 'ask' &&
+      !delegated &&
+      interactionState.userResponse === 'message' &&
+      permissionCall.category !== 'requires-user'
     ) {
-      logger.warn('Approval requested outside a live interactive turn — denying', {
-        toolName,
-        isBackgroundAgent
-      })
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
-    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
     const approvalId = randomUUID()
+    const presentation =
+      decision.effect === 'ask'
+        ? decision.presentation
+        : interactionState.userResponse === 'stream' && !delegated
+          ? 'stream'
+          : 'message'
     const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
       logger.warn('Approval requested but no emitter bound — denying', { approvalId, toolName })
@@ -542,7 +533,7 @@ async function buildToolPermissions(
         originalInput: input,
         presentation,
         signal: opts.signal,
-        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
+        resolve: (registryDecision) => resolve(decisionToPermissionResult(registryDecision, input))
       })
       if (!pending) return
       emit({

@@ -1,20 +1,20 @@
 import { application } from '@application'
+import { type AgentPermissionMode, normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
+  claudeToolApproval,
   type ClaudeToolDecision,
   type ClaudeToolDescriptor,
   type ClaudeToolPolicy,
-  normalizeClaudeBuiltinName,
-  resolveClaudeToolAccess,
-  resolveClaudeToolInvocationAccess
+  normalizeClaudeBuiltinName
 } from '@shared/ai/claudecode/toolRules'
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 function sanitizeDescription(value: string): string {
   let out = ''
@@ -33,7 +33,7 @@ function sanitizeDescription(value: string): string {
 const logger = loggerService.withContext('ClaudeCodeAgentTools')
 
 export function descriptorToTool(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): Tool {
-  const access = resolveClaudeToolAccess(descriptor, policy)
+  const access = claudeToolApproval(descriptor, policy)
   return descriptorToToolWithAccess(descriptor, access)
 }
 
@@ -51,7 +51,7 @@ function descriptorToToolWithAccess(descriptor: ClaudeToolDescriptor, access: Cl
 
 export function buildClaudeToolPolicy(agent: Partial<Pick<AgentEntity, 'configuration'>>): ClaudeToolPolicy {
   return {
-    permissionMode: agent.configuration?.permission_mode
+    permissionMode: normalizeLegacyPermissionMode(agent.configuration?.permission_mode)
   }
 }
 
@@ -204,7 +204,7 @@ export async function createClaudeAgentToolPolicySnapshot(
   await rebuild(agent)
 
   return {
-    resolve(runtimeName, input) {
+    resolve(runtimeName) {
       if (options.autoAllowRuntimeNameExceptions?.includes(runtimeName)) {
         return injectedRuntimeToolRequiringApproval(runtimeName)
       }
@@ -216,7 +216,7 @@ export async function createClaudeAgentToolPolicySnapshot(
       }
       const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
       if (!descriptor) return undefined
-      const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
+      const access = claudeToolApproval(descriptor, policy)
       return descriptorToToolWithAccess(descriptor, access)
     },
 

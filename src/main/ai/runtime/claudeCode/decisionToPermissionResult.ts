@@ -1,5 +1,5 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
-import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import type { DispatchDecision } from '@main/ai/toolApproval'
 
 /**
  * Map a neutral `DispatchDecision` to the Claude Agent SDK `PermissionResult`

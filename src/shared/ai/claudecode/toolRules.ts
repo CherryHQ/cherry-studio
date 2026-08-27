@@ -1,4 +1,6 @@
-import type { AgentPermissionMode } from '../../data/api/schemas/agents'
+import type { AgentPermissionMode, ToolCategory } from '@cherrystudio/agent-permission'
+import { normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
+
 import type { ToolApproval, ToolOrigin } from '../tool'
 import { buildMcpWireToolId, buildMcpWireWildcard } from '../tools/mcpSourcePolicy'
 
@@ -13,23 +15,14 @@ export interface ClaudeToolDescriptor {
   sourceApproval?: ToolApproval
 }
 
-export interface ClaudeToolDecision {
-  id: string
-  approval: ToolApproval
-}
-
-export interface ClaudeToolInvocation {
-  toolName: string
-  input?: unknown
-}
-
 export interface ClaudeToolPolicy {
   permissionMode?: AgentPermissionMode
 }
 
-const DEFAULT_SAFE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead', 'Task', 'TodoWrite'])
-const ACCEPT_EDITS_TOOLS = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])
-const ACCEPT_EDITS_BASH_COMMANDS = new Set(['mkdir', 'touch', 'mv', 'cp'])
+const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead'])
+const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])
+const SAFE_TOOLS = new Set(['Task', 'TodoWrite'])
+const USER_RESPONSE_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
 
 export function normalizeClaudeBuiltinName(name: string): string {
   return name.startsWith('builtin_') ? name.slice('builtin_'.length) : name
@@ -65,62 +58,41 @@ export function matchesClaudeToolRule(rule: string, descriptor: ClaudeToolDescri
   return false
 }
 
-function sourceDecision(descriptor: ClaudeToolDescriptor): ClaudeToolDecision | undefined {
-  if (descriptor.sourceApproval === 'prompt') {
-    return { id: descriptor.id, approval: 'prompt' }
-  }
-  return undefined
+/** Classify a Claude descriptor for the shared evaluator's adapter boundary. */
+export function classifyClaudeTool(descriptor: ClaudeToolDescriptor): ToolCategory {
+  if (USER_RESPONSE_TOOLS.has(normalizeClaudeBuiltinName(descriptor.id))) return 'requires-user'
+  if (descriptor.sourceApproval === 'prompt') return 'sensitive-first-party'
+  const name = normalizeClaudeBuiltinName(descriptor.id)
+  if (READ_TOOLS.has(name)) return 'read'
+  if (EDIT_TOOLS.has(name)) return 'edit'
+  if (name === 'Bash') return 'shell'
+  if (SAFE_TOOLS.has(name) || descriptor.sourceApproval === 'auto') return 'safe-first-party'
+  return 'ordinary'
 }
 
-export function resolveClaudeToolAccess(
-  descriptor: ClaudeToolDescriptor,
-  policy: ClaudeToolPolicy
-): ClaudeToolDecision {
-  const source = sourceDecision(descriptor)
-  if (source) return source
-
-  if (policy.permissionMode === 'bypassPermissions') {
-    return { id: descriptor.id, approval: 'auto' }
+/** Derive only the SDK-facing catalog approval. Runtime calls use evaluatePermission instead. */
+export function claudeToolApproval(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): ClaudeToolApproval {
+  const category = classifyClaudeTool(descriptor)
+  if (descriptor.sourceApproval === 'prompt') {
+    return { id: descriptor.id, approval: policy.permissionMode === 'full' ? 'auto' : 'prompt' }
   }
-
-  if (policy.permissionMode === 'acceptEdits' && ACCEPT_EDITS_TOOLS.has(descriptor.id)) {
+  if (category === 'requires-user' || category === 'non-bypassable') return { id: descriptor.id, approval: 'prompt' }
+  if (policy.permissionMode === 'full' || policy.permissionMode === 'auto')
     return { id: descriptor.id, approval: 'auto' }
-  }
-
-  if (DEFAULT_SAFE_TOOLS.has(descriptor.id)) {
-    return { id: descriptor.id, approval: 'auto' }
-  }
-
+  if (category === 'edit' && policy.permissionMode === 'edit') return { id: descriptor.id, approval: 'auto' }
+  if (category === 'read' || category === 'safe-first-party') return { id: descriptor.id, approval: 'auto' }
   return { id: descriptor.id, approval: 'prompt' }
 }
 
-function commandFromInput(input: unknown): string {
-  const command = (input as { command?: unknown } | null | undefined)?.command
-  return typeof command === 'string' ? command.trim() : ''
+export interface ClaudeToolApproval {
+  id: string
+  approval: ToolApproval
 }
 
-function matchesAcceptEditsBashInvocation(descriptor: ClaudeToolDescriptor, invocation: ClaudeToolInvocation): boolean {
-  if (normalizeClaudeBuiltinName(descriptor.id) !== 'Bash') return false
-  const command = commandFromInput(invocation.input).split(/\s+/, 1)[0]
-  return ACCEPT_EDITS_BASH_COMMANDS.has(command)
-}
+/** Compatibility name for callers that only consume the SDK-facing decision shape. */
+export type ClaudeToolDecision = ClaudeToolApproval
 
-export function resolveClaudeToolInvocationAccess(
-  descriptor: ClaudeToolDescriptor,
-  policy: ClaudeToolPolicy,
-  invocation: ClaudeToolInvocation
-): ClaudeToolDecision {
-  const source = sourceDecision(descriptor)
-  if (source) return source
-
-  if (policy.permissionMode === 'bypassPermissions') {
-    return { id: descriptor.id, approval: 'auto' }
-  }
-
-  const decision = resolveClaudeToolAccess(descriptor, policy)
-  if (decision.approval !== 'prompt') return decision
-  if (policy.permissionMode === 'acceptEdits' && matchesAcceptEditsBashInvocation(descriptor, invocation)) {
-    return { ...decision, approval: 'auto' }
-  }
-  return decision
+/** Normalize an Agent's persisted value before projecting it into the product policy. */
+export function buildClaudeToolPolicy(permissionMode: unknown): ClaudeToolPolicy {
+  return { permissionMode: normalizeLegacyPermissionMode(permissionMode) }
 }

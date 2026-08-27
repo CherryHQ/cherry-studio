@@ -1,5 +1,11 @@
 /** Main-process compatibility barrel for the runtime-neutral permission package. */
-export { listBuiltinToolPolicies } from './builtinToolPolicy'
+export {
+  findBuiltinToolPolicy,
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from './builtinToolPolicy'
+export { buildClaudePermissionCall } from './categories'
 export type { DispatchDecision } from './ToolApprovalRegistry'
 export { toolApprovalRegistry } from './ToolApprovalRegistry'
 export type {
