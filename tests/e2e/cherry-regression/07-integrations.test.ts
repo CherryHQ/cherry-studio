@@ -10,7 +10,20 @@ import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system
 async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Promise<void> {
   const direct = page.locator('[data-ui="chat.composer"]').getByRole('button', { name: 'Skills', exact: true })
   await expect(direct).toBeVisible({ timeout: 30_000 })
-  await direct.click()
+  const manageSkills = page.getByText('Manage skills', { exact: true })
+  await expect
+    .poll(
+      async () => {
+        if (await manageSkills.isVisible().catch(() => false)) return true
+        await direct.click()
+        return manageSkills
+          .waitFor({ state: 'visible', timeout: 2_000 })
+          .then(() => true)
+          .catch(() => false)
+      },
+      { timeout: 10_000 }
+    )
+    .toBe(true)
 }
 
 test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, mainWindow: page }) => {

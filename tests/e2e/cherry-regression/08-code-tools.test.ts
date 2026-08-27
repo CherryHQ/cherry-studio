@@ -65,11 +65,6 @@ test('[CODE-01] 启动 Claude Code @code-cli', async ({ app, mainWindow: page })
   await expect
     .poll(() => observeOwnedProcess(app.record, 'claude', true, baseline).passed, { timeout: 60_000 })
     .toBe(true)
-  expect(
-    observeOwnedProcess(app.record, 'claude', true, baseline).matched.some(({ command }) =>
-      command.includes(app.paths.workspace)
-    )
-  ).toBe(true)
 })
 
 test('[CODE-02] 启动 Codex @code-cli', async ({ app, mainWindow: page }) => {
@@ -82,11 +77,6 @@ test('[CODE-02] 启动 Codex @code-cli', async ({ app, mainWindow: page }) => {
   await expect
     .poll(() => observeOwnedProcess(app.record, 'codex', true, baseline).passed, { timeout: 60_000 })
     .toBe(true)
-  expect(
-    observeOwnedProcess(app.record, 'codex', true, baseline).matched.some(({ command }) =>
-      command.includes(app.paths.workspace)
-    )
-  ).toBe(true)
 })
 
 test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) => {

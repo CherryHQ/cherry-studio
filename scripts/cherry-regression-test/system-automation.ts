@@ -57,6 +57,12 @@ function runWindowsHotkey(keys: string[]): void {
   const keyCode = virtualKeys[key] ?? key.toUpperCase().charCodeAt(0)
   const script = [
     `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
+    '$notepad = Get-Process -Name notepad -ErrorAction SilentlyContinue | Sort-Object StartTime -Descending | Select-Object -First 1',
+    'if ($notepad) {',
+    '  $shell = New-Object -ComObject WScript.Shell',
+    '  if (-not $shell.AppActivate($notepad.Id)) { throw "Notepad window could not be activated" }',
+    '  Start-Sleep -Milliseconds 200',
+    '}',
     ...modifiers.map((modifier) => `[NativeKeyboard]::keybd_event(${virtualKeys[modifier]}, 0, 0, [UIntPtr]::Zero)`),
     'Start-Sleep -Milliseconds 100',
     `[NativeKeyboard]::keybd_event(${keyCode}, 0, 0, [UIntPtr]::Zero)`,
@@ -205,8 +211,13 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
     const script = [
       'on run argv',
       'tell application "System Events"',
-      'set frontmost of first application process whose unix id is (item 3 of argv as integer) to true',
-      'delay 0.5',
+      'set targetProcess to first application process whose unix id is (item 3 of argv as integer)',
+      'set frontmost of targetProcess to true',
+      'repeat 50 times',
+      'if (count of sheets of windows of targetProcess) > 0 then exit repeat',
+      'delay 0.2',
+      'end repeat',
+      'if (count of sheets of windows of targetProcess) is 0 then error "Native save dialog was not found"',
       'keystroke "g" using {command down, shift down}',
       'delay 1',
       'keystroke (item 1 of argv)',
