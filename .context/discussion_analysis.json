@@ -1,95 +1,30 @@
 {
-  "generated_at": "2026-08-26T17:47:24Z",
-  "note": "GitHub Discussions GraphQL not available in this session. Discussion-labeled issues used as proxy.",
-  "discussion_issues_in_sample": [
-    {
-      "number": 19437,
-      "title": "[Discussion]: How to manually install and configure onnxruntime",
-      "labels": ["help wanted", "discussion"],
-      "created_at": "2026-08-26",
-      "comments": 0
-    },
-    {
-      "number": 19422,
-      "title": "[Discussion]: Scheduled task sends channel messages",
-      "labels": ["help wanted", "discussion", "needs-repro"],
-      "created_at": "2026-08-26",
-      "comments": 0
-    },
-    {
-      "number": 19396,
-      "title": "[Discussion]: backups from portable version can't be imported in setup version",
-      "labels": ["help wanted", "discussion", "data"],
-      "created_at": "2026-08-25",
-      "comments": 0
-    },
-    {
-      "number": 19340,
-      "title": "[Discussion]: Claude Sonnet 5 via OpenRouter lacks vision capability",
-      "labels": ["help wanted", "discussion", "models"],
-      "created_at": "2026-08-25",
-      "comments": 0
-    },
-    {
-      "number": 19335,
-      "title": "[Discussion]: Does the new version support conversation import functionality?",
-      "labels": ["help wanted", "discussion", "data"],
-      "created_at": "2026-08-24",
-      "comments": 0
-    },
-    {
-      "number": 18792,
-      "title": "[Discussion]: When conversation auto-renaming is not enabled, title is always New Conversation",
-      "labels": ["help wanted", "discussion"],
-      "created_at": "2026-08-18",
-      "comments": 1
-    },
-    {
-      "number": 18069,
-      "title": "[Discussion]: V2 portable version starts very slowly",
-      "labels": ["help wanted", "discussion", "performance"],
-      "created_at": "2026-08-07",
-      "comments": 2,
-      "sentiment": "negative — startup performance regression in V2 portable; community concern"
-    },
-    {
-      "number": 17191,
-      "title": "[Discussion]: The knowledge base invocation window has disappeared",
-      "labels": ["help wanted", "discussion", "ui-ux", "inactive"],
-      "created_at": "2026-07-20",
-      "comments": 2,
-      "sentiment": "negative — KB UI missing; v2 regression; marked inactive"
-    },
-    {
-      "number": 17271,
-      "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
-      "labels": ["help wanted", "discussion", "rag", "assistant", "inactive"],
-      "created_at": "2026-07-22",
-      "comments": 1,
-      "sentiment": "negative — agent + RAG integration gap; marked inactive"
-    },
-    {
-      "number": 16010,
-      "title": "[Discussion]: Which models are supported by the agent, what is the logic",
-      "labels": ["help wanted", "discussion", "models", "inactive"],
-      "created_at": "2026-06-12",
-      "comments": 3,
-      "sentiment": "confused — model support matrix unclear to users; documentation gap"
-    }
+  "generated_at": "2026-08-27T16:00:00Z",
+  "discussion_fetch_status": "skipped — gh CLI unavailable in remote environment; use GitHub Actions or local Conductor for GraphQL discussion sync",
+  "issue_based_signals": {
+    "help_wanted_open": 2,
+    "discussion_labeled_open": 2,
+    "high_comment_issues": [
+      {"number": 18131, "comments": 10, "title": "MCP server shows connected but no tools mounted — agent sessions"},
+      {"number": 14898, "comments": 7, "title": "Cherry Studio Account System and Cross-Device Sync"},
+      {"number": 18898, "comments": 5, "title": "Unify Agent permission modes across Claude Code, Pi, and DSH"},
+      {"number": 19254, "comments": 7, "title": "Multimodal content block built incorrectly"},
+      {"number": 16172, "comments": 4, "title": "Improve knowledge base retrieval recall"}
+    ]
+  },
+  "top_feature_requests_by_signal": [
+    "Cherry Studio Account System and Cross-Device Sync (#14898)",
+    "Built-In Browser Pane for Agents (#16124)",
+    "Usage Dashboard with token analytics (#16170)",
+    "Recycle Bin for deleted content (#15249, #15240)",
+    "Anthropic Computer Use support (#15663)",
+    "Sub-Agent calling between agents (#15982)",
+    "Unified Agent permission modes across runtimes (#18898)"
   ],
-  "recurring_themes": [
-    "V2 startup/performance regression vs V1",
-    "Knowledge base (RAG) integration gaps in agent mode",
-    "Model support / agent compatibility confusion",
-    "Data migration: portable → setup version (new thread today)",
-    "Scheduled task feature requests and edge cases",
-    "DSH/Pi runtime integration issues",
-    "onnxruntime manual install friction (new thread today)"
-  ],
-  "sentiment_summary": {
-    "positive": 0,
-    "neutral": 3,
-    "negative": 5,
-    "overall": "predominantly negative — community frustrated by V2 regressions; 2 new unanswered questions today"
-  }
+  "community_friction_signals_aug27": [
+    "v2.0.9 regression surge: 8 new P1 bugs in one day — user trust risk if no hotfix",
+    "Cloud backup still broken (10512, 329 days old) — recurring pain point",
+    "ARM/Linux users blocked on uploads and flickering (16863, 19578)",
+    "WeChat integration broken post-upgrade (19584) — affects enterprise users"
+  ]
 }

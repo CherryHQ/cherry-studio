@@ -1,82 +1,65 @@
 {
-  "generated_at": "2026-08-26T17:47:24Z",
-  "total_open_issues": 973,
+  "generated_at": "2026-08-27T16:00:00Z",
+  "total_open_issues": 990,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Aug 19-26)",
-      "count": 100,
-      "pct": "~10%",
-      "note": "Top-100 sample is fully active; true active count in full backlog likely 100-200+"
+      "description": "Updated within last 7 days (Aug 20–27)",
+      "count_estimate": 800,
+      "pct": "~81%",
+      "note": "Top-100 sample is fully active; heavy activity volume continues"
     },
     "aging": {
-      "description": "7-30 days since last update (Jul 27 - Aug 18)",
-      "count": 52,
-      "pct": "~5.3%",
-      "note": "Estimated from prior run; not re-sampled today"
+      "description": "7–30 days since last update (Jul 28 – Aug 19)",
+      "count_estimate": 70,
+      "pct": "~7%"
     },
     "stale": {
-      "description": "30-90 days without update (May 27 - Jul 26), many auto-labeled 'inactive'",
-      "count": 252,
-      "pct": "~25.9%",
-      "inactive_label_count": 65
+      "description": "30–90 days without update (May 29 – Jul 27), many auto-labeled 'inactive'",
+      "count_estimate": 70,
+      "pct": "~7%",
+      "inactive_label_count": 10
     },
     "zombie": {
-      "description": "90+ days open with no resolution (before May 27)",
-      "count": 569,
-      "pct": "~58.5%",
-      "p1_zombies": [15431, 8730]
+      "description": "90+ days open with no resolution (before May 29)",
+      "count_estimate": 50,
+      "pct": "~5%",
+      "notable_zombies": [
+        {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 329, "labels": ["bug","p1","windows","data"]}
+      ]
     }
   },
   "triage_queue": {
-    "needs_triage_count": 38,
-    "needs_repro_count": 9,
-    "top_needs_triage": [
-      {"number": 19116, "title": "v2.0.8 bundle missing fixes — response_format retry and reasoning_content regressions", "priority": "critical"},
-      {"number": 19093, "title": "S3 backup/restore issues reported on v2.0.7 Windows", "priority": "high"},
-      {"number": 19105, "title": "Build an end-to-end diagnostics and error reporting system", "priority": "medium"},
-      {"number": 19325, "title": "Show progress and failure stages for Harness installation and upgrades", "priority": "medium"},
-      {"number": 19320, "title": "Include openpyxl in the managed Agent code runtime", "priority": "low"}
-    ]
+    "needs_triage_count": 8,
+    "needs_repro_count": 2,
+    "needs_more_info_count": 2
   },
-  "hot_areas_aug26": {
-    "new_p1_bugs_today": {
-      "count": 3,
-      "issues": [19455, 19454, 19452],
-      "description": "CRITICAL — 3 new P1 bugs filed today by SiinXu: message copy includes action labels (Windows), streaming layout flicker (chat), OneAPI providers break knowledge-base search (Windows/RAG)"
-    },
-    "agent_runtime_cluster": {
-      "count": 7,
-      "p1_count": 7,
-      "issues": [19313, 19321, 19322, 19326, 19272, 19383, 19452],
-      "description": "CRITICAL CLUSTER — DSH missing npm scope, reasoning_text dropped, Zstandard log contract failure, retry state poisoning, augment agent bug, built-in handler 404. Agent stack has 7+ active P1 bugs."
-    },
-    "pi_runtime_regressions": {
-      "count": 2,
-      "p1_count": 2,
-      "issues": [19379, 19376],
-      "description": "ONGOING from Aug 25 — Pi runtime artifact rendering broken + auto-permission still prompts. Both v2-tagged. No fix confirmed yet."
-    },
-    "performance_sprint": {
+  "hot_areas_aug27": {
+    "v2_0_9_regression_cluster": {
       "count": 8,
-      "issues": [19508, 19509, 19507, 19506, 19410, 19409, 19407, 19406],
-      "description": "DeJeune performance batch day 2: subscription isolation (translation overlays, message activity, editing, composer tools), files view lazy-hydration, pasted-file IPC reduction"
+      "p1_count": 8,
+      "issues": [19583, 19582, 19584, 19579, 19578, 19577, 19597, 19572],
+      "description": "CRITICAL — 8 new P1 regressions filed 2026-08-27 all tied to v2.0.9 release. Patterns: WeChat channel delivery, Assistant Management UI, DB migration startup failure, Linux arm64 flickering, SSL cert handling."
     },
-    "model_compat": {
+    "performance_sprint_day3": {
       "count": 5,
-      "issues": [19452, 19321, 19477, 19233, 19254],
-      "description": "OneAPI stuck KB search (P1), DeepSeek reasoning_text dropped (P1), DeepSeek Harness gateway unavailable, no endpoint-type selector for preset models, multimodal content block broken"
+      "issues": [19609, 19608, 19607, 19606, 19605],
+      "description": "DeJeune performance batch day 3: ResourceSelector focus, file type pre-filter, deferred queries, mini app subscription isolation, FilePreview preload"
     },
-    "mcp_issues": {
-      "count": 2,
-      "issues": [19415, 19397],
-      "description": "systemfile MCP file open failure (ongoing from Aug 25), @cherry/browser local URL reject"
+    "carried_p1_carryovers": {
+      "count": 5,
+      "issues": [19455, 19454, 19452, 19383, 19376],
+      "description": "5 P1 bugs from Aug 25–26 still open with no fix confirmed"
+    },
+    "kimi_model_regression": {
+      "issues": [19601, 19603],
+      "description": "Kimi sampling omit guard removed in v2 — #19601 (bug) filed, #19603 (fix PR) already open"
     }
   },
   "summary_deltas_vs_yesterday": {
-    "open_issues_change": "+24",
-    "new_p1_issues": 3,
-    "new_p1_detail": "OneAPI KB search stuck: #19452 (SiinXu), streaming flicker: #19454 (SiinXu), copy includes action labels: #19455 (SiinXu)",
-    "resolved_p1_issues": 0,
-    "today_theme": "Agent stack remains the critical zone — 3 new P1s today plus 9 carryover P1s unresolved. Performance sprint accelerating (8 new perf issues). 973 total open issues (+24 vs Aug 25's 949)."
+    "open_issues_change": "+17",
+    "new_p1_issues": 8,
+    "new_p1_detail": "Eight 2.0.9 regressions: WeChat delivery (#19584), topic delete redirect (#19583), Assistant Management tags (#19582), DB I/O startup (#19579), Linux arm64 flicker (#19578), SSL cert agent (#19577), model prefs JSON (#19597), crash on continuous convo (#19572)",
+    "resolved_p1_issues_approx": 3,
+    "today_theme": "v2.0.9 post-release regression surge — 8 new P1 bugs all tied to the release. Performance sprint continues (day 3). 990 total open issues (+17 vs Aug 26's 973). Hotfix appears urgently needed."
   }
 }

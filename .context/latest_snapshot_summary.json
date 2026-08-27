@@ -1,228 +1,183 @@
 {
-  "generated_at": "2026-08-26T17:47:24Z",
-  "open_issues_total": 973,
-  "open_issues_delta_24h": 24,
+  "generated_at": "2026-08-27T16:00:00Z",
+  "open_issues_total": 990,
+  "open_issues_delta_24h": 17,
   "open_prs_total": 100,
   "p1_issues": [
     {
+      "number": 19584,
+      "title": "Agent replies generated but not delivered to WeChat after 2.0.9 upgrade",
+      "labels": ["bug","p1","windows","connectivity","agent"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active — 2.0.9 regression"
+    },
+    {
+      "number": 19583,
+      "title": "Deleting a topic fails to refresh and redirects to another assistant",
+      "labels": ["bug","p1","windows","assistant","ui-ux"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active — 2.0.9 regression"
+    },
+    {
+      "number": 19582,
+      "title": "Assistant Management hides tags and assistants after upgrading to 2.0.9",
+      "labels": ["bug","p1","windows","assistant","ui-ux"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active — 2.0.9 regression"
+    },
+    {
+      "number": 19597,
+      "title": "Invalid JSON in model preferences can abort startup after upgrade",
+      "labels": ["bug","p1","linux","data","models"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active — 2.0.9 regression"
+    },
+    {
+      "number": 19579,
+      "title": "Migration database disk I/O failure exits the app on startup",
+      "labels": ["bug","p1","windows","data"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active — 2.0.9 regression"
+    },
+    {
+      "number": 19578,
+      "title": "Linux arm64 main window continuously flickers",
+      "labels": ["bug","p1","linux","ui-ux"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active — 2.0.9 regression"
+    },
+    {
+      "number": 19577,
+      "title": "Agent requests fail without actionable handling for client SSL certificates",
+      "labels": ["bug","p1","windows","connectivity","agent"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active"
+    },
+    {
+      "number": 19572,
+      "title": "Continuous conversation causes crash and exit",
+      "labels": ["bug","p1","windows","needs-repro"],
+      "created_at": "2026-08-27",
+      "age_days": 0,
+      "status": "Active — needs repro"
+    },
+    {
       "number": 19455,
       "title": "Message action labels are included in selected and copied reply text",
-      "labels": ["bug", "p1", "windows", "ui-ux", "chat"],
+      "labels": ["bug","p1","windows","ui-ux","chat"],
       "created_at": "2026-08-26",
-      "age_days": 0,
-      "comments": 1,
-      "status": "Active"
+      "age_days": 1,
+      "comments": 2,
+      "status": "Active — carried from Aug 26"
     },
     {
       "number": 19454,
       "title": "Streaming output flickers and shifts layout during generation",
-      "labels": ["bug", "p1", "ui-ux", "performance", "chat"],
+      "labels": ["bug","p1","ui-ux","performance","chat"],
       "created_at": "2026-08-26",
-      "age_days": 0,
-      "comments": 1,
-      "status": "Active"
+      "age_days": 1,
+      "comments": 2,
+      "status": "Active — carried from Aug 26"
     },
     {
       "number": 19452,
       "title": "OneAPI-compatible providers leave knowledge-base search stuck",
-      "labels": ["bug", "p1", "windows", "rag", "connectivity", "models"],
+      "labels": ["bug","p1","windows","rag","connectivity","models"],
       "created_at": "2026-08-26",
-      "age_days": 0,
+      "age_days": 1,
       "comments": 2,
-      "status": "Active"
+      "status": "Active — carried from Aug 26"
     },
     {
       "number": 19383,
-      "title": "[Bug]: Built-in agent shows delete entry but errors with Handler not found",
-      "labels": ["bug", "p1", "ui-ux", "agent"],
+      "title": "Built-in agent shows delete entry but errors with Handler not found",
+      "labels": ["bug","p1","ui-ux","agent"],
       "created_at": "2026-08-25",
-      "age_days": 1,
-      "comments": 2,
-      "status": "Active"
-    },
-    {
-      "number": 19379,
-      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks inner tool name)",
-      "labels": ["bug", "p1", "ui-ux", "v2", "agent"],
-      "created_at": "2026-08-25",
-      "age_days": 1,
-      "comments": 0,
+      "age_days": 2,
+      "comments": 3,
       "status": "Active"
     },
     {
       "number": 19376,
       "title": "Pi runtime: auto permission mode still prompts for every tool call",
-      "labels": ["bug", "p1", "assistant", "v2", "agent"],
+      "labels": ["bug","p1","assistant","v2","agent"],
       "created_at": "2026-08-25",
-      "age_days": 1,
-      "comments": 0,
-      "status": "Active"
-    },
-    {
-      "number": 19326,
-      "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
-      "labels": ["bug", "p1", "needs-more-info", "chat"],
-      "created_at": "2026-08-24",
-      "age_days": 2,
-      "comments": 0,
-      "status": "Active"
-    },
-    {
-      "number": 19322,
-      "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
-      "labels": ["bug", "p1", "windows", "agent"],
-      "created_at": "2026-08-24",
-      "age_days": 2,
-      "comments": 0,
-      "status": "Active"
-    },
-    {
-      "number": 19321,
-      "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
-      "labels": ["bug", "p1", "models", "agent"],
-      "created_at": "2026-08-24",
       "age_days": 2,
       "comments": 1,
-      "status": "Active"
+      "status": "Active — v2 labeled"
     },
     {
-      "number": 19313,
-      "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
-      "labels": ["bug", "p1", "agent"],
+      "number": 19314,
+      "title": "DeepSeek V4 Pro reasoning can finish without a final answer",
+      "labels": ["bug","p1","models"],
       "created_at": "2026-08-24",
-      "age_days": 2,
-      "comments": 1,
-      "status": "Active"
-    },
-    {
-      "number": 19272,
-      "title": "[Bug]: bug when used with augment claude type agent",
-      "labels": ["bug", "p1", "needs-more-info", "agent"],
-      "created_at": "2026-08-24",
-      "age_days": 2,
-      "comments": 2,
-      "status": "Active"
-    },
-    {
-      "number": 19254,
-      "title": "[Bug]: Multimodal content block built incorrectly — images not passed to vision models",
-      "labels": ["bug", "p1", "models", "chat"],
-      "created_at": "2026-08-23",
       "age_days": 3,
-      "comments": 7,
+      "comments": 1,
       "status": "Active"
     },
     {
-      "number": 15431,
-      "title": "[Bug]: Quick Assist feature not working",
-      "labels": ["bug", "p1", "ui-ux", "inactive"],
-      "created_at": "2026-05-30",
-      "age_days": 88,
-      "comments": 0,
-      "status": "Zombie"
+      "number": 16863,
+      "title": "(ARM version) Cannot upload documents and switch input methods",
+      "labels": ["bug","p1","linux","ui-ux"],
+      "created_at": "2026-07-09",
+      "age_days": 49,
+      "comments": 3,
+      "status": "Aging"
     },
     {
-      "number": 8730,
-      "title": "[讨论]: cherry studio是否无法接入商汤大模型？",
-      "labels": ["bug", "p1", "models", "inactive"],
-      "created_at": "2025-07-31",
-      "age_days": 392,
-      "comments": 0,
-      "status": "Zombie"
+      "number": 10512,
+      "title": "Cloud Backup Complete Failure BUG",
+      "labels": ["bug","p1","windows","data"],
+      "created_at": "2025-10-03",
+      "age_days": 329,
+      "comments": 4,
+      "status": "Zombie — long-standing, 329 days open"
     }
   ],
-  "needs_triage_count": 38,
-  "inactive_stale_count": 65,
-  "bug_labeled_count": 20,
-  "label_distribution_top15": {
-    "models": 23,
-    "bug": 20,
-    "ui-ux": 17,
-    "performance": 14,
-    "agent": 12,
-    "p1": 12,
-    "p2": 11,
-    "feature": 9,
-    "assistant": 7,
-    "windows": 7,
-    "needs-more-info": 6,
-    "inactive": 6,
-    "chat": 5,
-    "p3": 5,
-    "help wanted": 5
+  "needs_triage_count": 8,
+  "inactive_stale_count": 10,
+  "label_distribution_sample_top10": {
+    "bug": 35,
+    "p1": 16,
+    "p2": 12,
+    "ui-ux": 28,
+    "agent": 16,
+    "models": 14,
+    "performance": 8,
+    "assistant": 9,
+    "connectivity": 7,
+    "windows": 22
   },
-  "new_issues_today_aug26": [
-    {
-      "number": 19518,
-      "title": "[Bug]: Channel log and edit dialogs name the close control Close in Chinese UI",
-      "labels": [],
-      "severity": "low"
-    },
-    {
-      "number": 19510,
-      "title": "[Bug]: Lazy-load optional Notes menu workflows",
-      "labels": [],
-      "severity": "medium"
-    },
-    {
-      "number": 19511,
-      "title": "[Bug]: Notes page icon buttons lack accessible names",
-      "labels": [],
-      "severity": "low"
-    },
-    {
-      "number": 19508,
-      "title": "[Bug]: Process pasted files without serial IPC",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19509,
-      "title": "[Bug]: Isolate message activity subscriptions per message",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19507,
-      "title": "[Bug]: Query and hydrate only the visible Files view",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19506,
-      "title": "[Bug]: Isolate translation overlays per message",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19504,
-      "title": "[Bug]: After switching models, clicking Regenerate still uses the previous model",
-      "labels": [],
-      "severity": "medium"
-    },
-    {
-      "number": 19500,
-      "title": "[Bug]: Selection translation result code blocks do not wrap and are clipped",
-      "labels": [],
-      "severity": "low"
-    },
-    {
-      "number": 19455,
-      "title": "Message action labels are included in selected and copied reply text",
-      "labels": ["bug", "p1", "windows", "ui-ux", "chat"],
-      "severity": "critical"
-    },
-    {
-      "number": 19454,
-      "title": "Streaming output flickers and shifts layout during generation",
-      "labels": ["bug", "p1", "ui-ux", "performance", "chat"],
-      "severity": "critical"
-    },
-    {
-      "number": 19452,
-      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
-      "labels": ["bug", "p1", "windows", "rag", "connectivity", "models"],
-      "severity": "critical"
-    }
-  ]
+  "new_issues_today_aug27": [
+    {"number": 19583, "title": "Deleting a topic fails (2.0.9 regression)", "labels": ["bug","p1","windows","assistant","ui-ux"], "severity": "critical"},
+    {"number": 19584, "title": "WeChat agent delivery broken (2.0.9 regression)", "labels": ["bug","p1","windows","connectivity","agent"], "severity": "critical"},
+    {"number": 19582, "title": "Assistant Management hides tags (2.0.9 regression)", "labels": ["bug","p1","windows","assistant","ui-ux"], "severity": "critical"},
+    {"number": 19579, "title": "DB migration disk I/O failure on startup", "labels": ["bug","p1","windows","data"], "severity": "critical"},
+    {"number": 19578, "title": "Linux arm64 main window flickers", "labels": ["bug","p1","linux","ui-ux"], "severity": "critical"},
+    {"number": 19577, "title": "Agent SSL cert handling missing", "labels": ["bug","p1","windows","connectivity","agent"], "severity": "critical"},
+    {"number": 19597, "title": "Invalid JSON model prefs aborts startup", "labels": ["bug","p1","linux","data","models"], "severity": "critical"},
+    {"number": 19572, "title": "Continuous conversation crashes app", "labels": ["bug","p1","windows","needs-repro"], "severity": "critical"},
+    {"number": 19609, "title": "Isolate ResourceSelector focus rendering", "labels": ["performance"], "severity": "medium"},
+    {"number": 19608, "title": "Filter files by type before pagination", "labels": ["performance"], "severity": "medium"},
+    {"number": 19607, "title": "Defer resource selector queries until opened", "labels": ["performance"], "severity": "medium"},
+    {"number": 19606, "title": "Avoid full Mini App subscriptions in every card", "labels": ["performance"], "severity": "medium"},
+    {"number": 19605, "title": "Preload FilePreview plugins alongside metadata", "labels": ["performance"], "severity": "medium"},
+    {"number": 19602, "title": "Launch on boot still broken in v2.0.9 and on main", "labels": [], "severity": "medium"},
+    {"number": 19601, "title": "V2 regression — Kimi sampling omit guard removed, 400 errors", "labels": ["models"], "severity": "high"},
+    {"number": 19598, "title": "Feature: Complete grouped tool access config for Assistants and Agents", "labels": ["assistant"], "severity": "feature"},
+    {"number": 19596, "title": "Long code blocks lose copy action after scrolling", "labels": ["bug","p3","windows","ui-ux"], "severity": "low"}
+  ],
+  "v2_regression_cluster_aug27": {
+    "note": "v2.0.9 released; immediate regression cluster detected",
+    "new_p1_regressions_today": 8,
+    "issues": [19583, 19582, 19584, 19579, 19578, 19577, 19597, 19572],
+    "common_patterns": ["Windows assistant/UI regressions", "Linux arm64 flickering", "DB migration startup failure", "WeChat channel delivery broken"]
+  }
 }

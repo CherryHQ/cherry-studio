@@ -1,155 +1,60 @@
 {
-  "generated_at": "2026-08-26T17:47:24Z",
-  "v2_branch_open_prs": 0,
-  "v2_branch_note": "No open PRs targeting v2 base branch. All active v2 development merges to main. V2-specific issues tracked via the 'v2' label.",
-  "v2_related_open_issues": [
-    {
-      "number": 19379,
-      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks inner tool name)",
-      "labels": ["bug", "p1", "ui-ux", "v2", "agent"],
-      "created_at": "2026-08-25",
-      "age_days": 1,
-      "status": "CRITICAL — carryover from Aug 25, no fix yet"
-    },
-    {
-      "number": 19376,
-      "title": "Pi runtime: auto permission mode still prompts for every tool call",
-      "labels": ["bug", "p1", "assistant", "v2", "agent"],
-      "created_at": "2026-08-25",
-      "age_days": 1,
-      "status": "CRITICAL — carryover from Aug 25, no fix yet"
-    },
-    {
-      "number": 9011,
-      "title": "显示推理 tokens 数量 (Show reasoning token count)",
-      "labels": ["feature", "v2", "blocked-v2"],
-      "created_at": "2025-08-09",
-      "age_days": 381,
-      "status": "Blocked — waiting on v2 APIs"
-    }
+  "generated_at": "2026-08-27T16:00:00Z",
+  "v2_branch_status": {
+    "open_prs_targeting_v2": 0,
+    "note": "No PRs targeting v2 base branch as of 2026-08-27. All active development merges to main."
+  },
+  "main_branch_activity": {
+    "open_prs": 100,
+    "draft_prs": 3,
+    "active_contributors_today": ["userInner", "SiinXu", "kennyzheng-builds", "DeJeune", "ActiveSky", "kovsu", "AtomsH4", "GeorgeDong32", "eeee0717", "Shiina18", "vaayne", "bigben446", "404-Page-Found", "hetaoBackend", "xianhongtao", "ump45nose"]
+  },
+  "v2_labeled_open_issues": [
+    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts for every tool call", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 2}
   ],
-  "recently_shipped_signals": {
-    "version": "v2.0.9",
-    "critical_regression": "#19116 — v2.0.8 bundle missing #18702 (response_format retry) and #18121 (reasoning_content) fixes. Watch for hotfix confirmation in v2.0.9.",
-    "known_user_friction": [
-      "Pi runtime artifact rendering broken in v2 agent mode (#19379, P1, day 2 open)",
-      "Pi runtime auto-permission still prompts on every tool call (#19376, P1, day 2 open)",
-      "OneAPI-compatible providers break knowledge-base search (#19452, P1, new today)",
-      "Streaming output flickers/shifts during generation (#19454, P1, new today)",
-      "Message copy includes action button labels (#19455, P1, new today, Windows)",
-      "DSH integration broken — @deepseek-ai/dsh-scope missing (#19313)",
-      "DSH reasoning_text dropped on tool continuations (#19321)",
-      "Multimodal content block incorrectly built in single-model chat (#19254, P1)",
-      "DeepSeek DSML tool-call leak stalls agent sessions (#19312)"
-    ]
+  "release_context": {
+    "latest_release": "v2.0.9",
+    "release_date_approx": "2026-08-27",
+    "regression_issues_post_209": 8,
+    "regression_summary": "v2.0.9 deployed and immediately triggered 8 new P1 regressions: WeChat channel delivery broken, Assistant Management UI hiding tags/assistants, DB migration disk I/O startup failure, Linux arm64 window flickering, agent SSL cert unhandled, model prefs JSON abort, Kimi sampling guard removed, crash on continuous conversation.",
+    "hotfix_urgency": "HIGH — 8 P1 regressions in one day post-release"
   },
-  "active_sprint_aug26": {
-    "theme": "3 new P1 bugs today + Pi/DSH runtime stability carryover + Performance sprint day 2",
-    "new_issues_filed_today": [
-      {
-        "number": 19452,
-        "title": "OneAPI-compatible providers leave knowledge-base search stuck",
-        "severity": "critical",
-        "labels": ["bug", "p1", "windows", "rag", "connectivity", "models"]
-      },
-      {
-        "number": 19454,
-        "title": "Streaming output flickers and shifts layout during generation",
-        "severity": "critical",
-        "labels": ["bug", "p1", "ui-ux", "performance", "chat"]
-      },
-      {
-        "number": 19455,
-        "title": "Message action labels are included in selected and copied reply text",
-        "severity": "critical",
-        "labels": ["bug", "p1", "windows", "ui-ux", "chat"]
-      },
-      {
-        "number": 19508,
-        "title": "Process pasted files without serial IPC",
-        "severity": "medium",
-        "labels": ["performance"]
-      },
-      {
-        "number": 19509,
-        "title": "Isolate message activity subscriptions per message",
-        "severity": "medium",
-        "labels": ["performance"]
-      },
-      {
-        "number": 19507,
-        "title": "Query and hydrate only the visible Files view",
-        "severity": "medium",
-        "labels": ["performance"]
-      },
-      {
-        "number": 19506,
-        "title": "Isolate translation overlays per message",
-        "severity": "medium",
-        "labels": ["performance"]
-      },
-      {
-        "number": 19518,
-        "title": "Channel log and edit dialogs name the close control Close in Chinese UI",
-        "severity": "low",
-        "labels": []
-      }
-    ],
-    "performance_sprint_ongoing": {
-      "lead": "DeJeune",
-      "open_issues": [19508, 19509, 19507, 19506, 19410, 19409, 19407, 19406, 19330, 19332],
-      "description": "Day 2 of subscription isolation sprint: pasted-file IPC, message activity, translation overlays, Files view lazy-hydration, artifact popup subscriptions, anchor gutter context, composer tool re-registration"
-    },
-    "internal_dev_tasks": {
-      "open_tasks": [19357, 19390, 19105],
-      "description": "dsh tool-rejection propagation (#19357), mise install timeout sizing (#19390), diagnostics system (#19105)"
-    }
-  },
-  "roadmap_planned_items": [
-    {
-      "number": 18984,
-      "title": "Traceable Knowledge Base Citations",
-      "labels": ["planned", "feature", "rag", "internal-team"],
-      "age_days": 5
-    },
-    {
-      "number": 18980,
-      "title": "Conversation and Agent Session Archive",
-      "labels": ["planned", "feature", "internal-team"],
-      "age_days": 5
-    },
-    {
-      "number": 14899,
-      "title": "Unified Notification Center",
-      "labels": ["planned", "p1", "feature", "ui-ux"],
-      "age_days": 110
-    },
-    {
-      "number": 16129,
-      "title": "Agent Usage, Cost & Audit Console",
-      "labels": ["feature", "agent", "prd", "internal-team"],
-      "age_days": 70
-    },
-    {
-      "number": 19453,
-      "title": "Support cron expressions for scheduled tasks",
-      "labels": ["p2", "feature", "needs-triage", "ui-ux", "agent"],
-      "age_days": 0
-    }
+  "planned_features_open": [
+    {"number": 18960, "title": "Agent Stall Detection and User Intervention", "labels": ["planned","feature","assistant","internal-team"]},
+    {"number": 18965, "title": "User-provided Reasons When Rejecting Tool Calls", "labels": ["planned","feature","assistant","internal-team"]},
+    {"number": 18968, "title": "Privacy-safe Structured Model Diagnostics", "labels": ["planned","feature","models","internal-team"]},
+    {"number": 18976, "title": "Unified Context and Token Usage Breakdown", "labels": ["planned","feature","internal-team"]}
+  ],
+  "internal_team_prd_issues": [
+    {"number": 16172, "title": "Improve knowledge base retrieval (hybrid search / reranking)", "labels": ["p3","feature","rag","prd","internal-team"]},
+    {"number": 16170, "title": "Usage dashboard — daily/weekly/total token usage", "labels": ["feature","ui-ux","models","prd","internal-team"]},
+    {"number": 14898, "title": "Cherry Studio Account System and Cross-Device Sync", "labels": ["feature","data","internal-team"]},
+    {"number": 16124, "title": "Built-In Browser Pane (shared with Agent)", "labels": ["feature","ui-ux","agent","prd","internal-team"]},
+    {"number": 15663, "title": "Support Anthropic Computer Use", "labels": ["assistant","internal-team"]}
+  ],
+  "active_pr_themes_aug27": [
+    {"theme": "v2.0.9 regression fixes (active PRs)", "prs": [19567, 19561, 19559, 19603, 19600], "priority": "P1 — urgent"},
+    {"theme": "Agent session reliability", "prs": [19612, 19611, 19610, 19568], "priority": "high"},
+    {"theme": "Performance: subscription isolation / lazy loading (day 3)", "prs": [19527, 19436, 19435, 19414, 19412, 19380, 19362], "priority": "perf"},
+    {"theme": "Diagnostics and observability", "prs": [19530, 19513, 19514, 19371], "priority": "feature"},
+    {"theme": "Settings searchability", "prs": [19318, 19345, 19346], "priority": "feature"},
+    {"theme": "Electron 43 upgrade", "prs": [19350], "priority": "chore"},
+    {"theme": "DuckDuckGo free web search", "prs": [19389], "priority": "feature"},
+    {"theme": "Mini app sandbox real local apps", "prs": [19475], "priority": "feature"}
   ],
   "pr_pipeline_targets_main": {
     "count": 100,
-    "top_authors": {
-      "userInner": 41,
+    "top_authors_approx": {
+      "userInner": 40,
       "SiinXu": 15,
       "DeJeune": 8,
-      "kennyzheng-builds": 5,
+      "kennyzheng-builds": 6,
       "AtomsH4": 3,
       "ActiveSky": 3,
-      "ousugo": 3,
-      "eeee0717": 3
+      "kovsu": 3,
+      "eeee0717": 2
     },
-    "draft_count": 4,
-    "needs_review_count": 7
+    "draft_count": 3,
+    "needs_review_labeled": 3
   }
 }
