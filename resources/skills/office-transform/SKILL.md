@@ -139,6 +139,9 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
 
 - `{"format":"xlsx","sheet":"S","cells":{"B2":42,"C3":"text","D4":true}}` — numbers,
   strings, and booleans; an existing formula in an edited cell is replaced by the value.
+  Patch-copy does not recalculate, so a formula reading an edited cell keeps the value it
+  last cached; every write sets `fullCalcOnLoad` in `xl/workbook.xml` so Excel recomputes
+  those on open.
   Replacing a formula also drops `xl/calcChain.xml` (a recalculation cache Excel rebuilds);
   keeping a chain entry for a cell that no longer has a formula makes Excel report the
   derived file as damaged. Cells in a **shared, array, or data-table formula group are refused** — the
@@ -323,6 +326,10 @@ from openpyxl import load_workbook
 ws = load_workbook('/abs/report-updated.xlsx', data_only=True)['Sheet1']
 print(ws['B2'].value)"
 ```
+
+`data_only` reads cached values and patch-copy does not recalculate, so a formula reading a
+cell you just wrote still reads back its old result. Check the cells you wrote, and tell the
+user the dependent totals are recomputed when Excel opens the file.
 
 If verification fails, say so and show the error — do not present an unverified file.
 
