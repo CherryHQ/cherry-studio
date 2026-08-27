@@ -38,16 +38,19 @@ The `anchor` object is exactly what the scripts take via `--anchor`.
 **Freshness check.** `fileStamp.mtimeMs` is milliseconds since the Unix epoch, floored to
 whole milliseconds. Do not compare it to `stat`'s default output: `stat -f %m` (macOS) and
 `stat -c %Y` (GNU) give whole *seconds*, so multiplying by 1000 loses the sub-second part and
-never matches. Read it the same way the app wrote it, and allow one second of slack so a
-filesystem with coarser timestamps does not report every file as changed:
+never matches. Read whole milliseconds the way the app wrote them:
 
 ```bash
-uv run python -c "import os,sys;st=os.stat(sys.argv[1]);print(st.st_size, int(st.st_mtime*1000))" '/abs/report.xlsx'
+uv run python -c "import os,sys;st=os.stat(sys.argv[1]);print(st.st_size, st.st_mtime_ns//1_000_000)" '/abs/report.xlsx'
 ```
 
-Treat the file as changed when the size differs, or when the mtimes differ by more than
-1000 ms. On a change, tell the user the file changed since they selected and ask them to
-re-select — never silently re-anchor.
+Treat the file as changed when the size differs, or when the mtimes differ by more than 2 ms.
+The tolerance is small on purpose: both sides floor the same nanosecond timestamp to
+milliseconds, so they agree exactly, and the couple of milliseconds only covers the rounding
+of a `double` that can no longer represent current epoch milliseconds exactly. A wider window
+would hide real edits — a same-size change made within it would read as unchanged, which is
+why the anchor check below is not optional. On a change, tell the user the file changed since
+they selected and ask them to re-select — never silently re-anchor.
 
 **Anchor check.** Before a patch-copy edit, also verify the anchor still points where the
 user thinks: extract the anchored region first and compare its text with the reference's
@@ -63,9 +66,10 @@ comparable as-is:
   difference.
 - **docx with `charRange`**: extraction returns only that slice, but patch-copy compares (and
   replaces) the **whole paragraph**. Re-extract the paragraph *without* `charRange` for this
-  check, and see "Edit docx" below before writing. Users may also describe
-the region in words ("sheet 2, columns A through C"); build the anchor JSON yourself,
-confirming the worksheet name or paragraph if ambiguous.
+  check, and read "Edit docx" below before writing.
+
+Users may also describe the region in words ("sheet 2, columns A through C"); build the anchor
+JSON yourself, confirming the worksheet name or paragraph if ambiguous.
 
 Anchor shapes:
 
@@ -134,13 +138,15 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
   **`text` must be the complete new paragraph.** The whole body paragraph is replaced, and
   `charRange` does not narrow that — feeding back a `charRange` slice as `text` silently
   discards the rest of the sentence.
-  Paragraphs carrying content this rewrite cannot preserve are **refused**, not silently
-  stripped: bookmarks, comment anchors and fields pair a start with an end that may sit in
-  another paragraph, so rewriting one half would unbalance the document; images, embedded
-  objects, footnote/endnote references, hyperlinks and tracked changes (`w:ins`/`w:del`)
-  have no place in the rebuilt run and would simply vanish — a dropped `w:del` would even
-  accept a pending deletion on the user's behalf. Edit those with `python-docx`
-  (`uv run --with python-docx python`), which preserves inline structure.
+  The output is exactly `w:p > [w:pPr] + w:r > [w:rPr] + w:t`, so a paragraph holding anything
+  that shape cannot carry is **refused**, not silently stripped. That covers bookmarks, comment
+  anchors and fields (their start/end can pair across paragraphs, and rewriting one half
+  unbalances the document), images, embedded objects, footnote/endnote references, hyperlinks,
+  tracked changes and moves, content controls, equations — and anything else not on the short
+  allow-list, including elements from namespaces that did not exist when this was written.
+  A dropped `w:del` would even accept a pending deletion on the user's behalf.
+  To edit such a paragraph, see **"Edit docx"** below — do not reach for
+  `Paragraph.text`, which destroys exactly the same content, only silently.
 - Any text written into a cell or paragraph must be storable in XML: control characters
   other than tab, newline and carriage return are refused. Text extracted from a deck can
   carry them (python-pptx maps a soft line break to `\x0B`), so strip them before feeding
@@ -155,13 +161,67 @@ short Python program against the matching library (`python-pptx`, `openpyxl`,
 invariants still apply: write to a new file (never a path the user's original
 occupies), and verify the output by reopening it before reporting success.
 
+### Edit docx — edit runs, never `Paragraph.text`
+
+When patch-copy refuses a paragraph, the reason is that the paragraph holds structure a
+single rebuilt run cannot carry. `python-docx` can preserve it, but **only if you edit runs
+in place**. Assigning `paragraph.text = "..."` clears the paragraph and rebuilds one run,
+destroying bookmarks, comment anchors, hyperlinks, images and run formatting — the same loss
+patch-copy refused to inflict, minus the refusal.
+
+Two traps make the naive loop wrong:
+
+- `paragraph.runs` does **not** include runs inside a `w:hyperlink`, while `paragraph.text`
+  does. Offsets computed against `.text` will not line up with `.runs`. Walk
+  `iter_inner_content()` instead.
+- `Run.text`'s setter keeps that run's `rPr`, but collapses `w:br` / `w:tab` inside the run
+  into a single `w:t`.
+
+```python
+def inline_runs(paragraph):
+    """Runs in document order, including those inside hyperlinks, so the concatenation of
+    their text equals paragraph.text and character offsets line up."""
+    runs = []
+    for item in paragraph.iter_inner_content():   # python-docx >= 1.1
+        runs.extend(item.runs) if hasattr(item, "runs") else runs.append(item)
+    return runs
+
+def replace_char_range(paragraph, start, end, new_text):
+    """Replace paragraph.text[start:end] by editing run text only."""
+    position, written = 0, False
+    for run in inline_runs(paragraph):
+        run_start, run_end = position, position + len(run.text)
+        position = run_end
+        if run_end <= start or run_start >= end:
+            continue
+        head = run.text[: max(0, start - run_start)]
+        tail = run.text[max(0, end - run_start) :] if end < run_end else ""
+        run.text = head + ("" if written else new_text) + tail
+        written = True
+    if not written:
+        raise ValueError("charRange did not intersect any run")
+```
+
+Verify by reopening the derived file and checking that the structure you meant to keep is
+still there — not just that the text reads correctly:
+
+```python
+from docx import Document
+check = Document("/abs/report-updated.docx")
+para = check.paragraphs[3]
+assert para.text == expected_text
+assert len(para.runs) == runs_before          # nothing collapsed
+assert "bookmarkStart" in para._p.xml         # anchors intact, if the source had them
+```
+
 ### Edit pptx — use python-pptx, saving to a new path
 
-pptx edits do not go through `office_patch_copy.py`. `python-pptx` mutates the
-original lxml tree in place and preserves XML it does not understand, so it is
-round-trip safe (unlike `openpyxl`, which drops charts and drawings — that is why
-xlsx edits use patch-copy). Open the source, apply the targeted change (locate
-shapes by `shape_id` to match anchor `nodeId`), and `save()` to a NEW path:
+pptx edits do not go through `office_patch_copy.py`. `python-pptx` keeps XML it does not
+understand, so the parts you never touch round-trip intact (unlike `openpyxl`, which drops
+charts and drawings — that is why xlsx edits use patch-copy). That guarantee covers the
+document around your edit; it does **not** make any given API call lossless. Assigning
+`.text` at paragraph or shape level rebuilds that subtree as one unformatted run, discarding
+bold, size, colour and `a:hlinkClick` and orphaning the hyperlink relationship. Edit runs:
 
 ```python
 from pptx import Presentation
@@ -173,26 +233,56 @@ def walk(shapes):  # extraction recurses into groups, so editing must too — a 
         if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
             yield from walk(shape.shapes)
 
+from pptx.oxml.ns import qn
+
+def replace_char_range(paragraph, start, end, new_text):
+    """Replace paragraph.text[start:end] by editing run text only, so each run keeps its rPr
+    (bold, size, colour) and its a:hlinkClick. An a:br occupies one position in paragraph.text
+    but owns no run, so the cursor must step over it or every later offset shifts by one."""
+    position, written = 0, False
+    for child in paragraph._p:
+        if child.tag == qn("a:br"):
+            position += 1
+            continue
+        if child.tag != qn("a:r"):
+            continue                                  # a:pPr / a:endParaRPr / a:fld
+        run = next(r for r in paragraph.runs if r._r is child)
+        run_start, run_end = position, position + len(run.text)
+        position = run_end
+        if run_end <= start or run_start >= end:
+            continue
+        head = run.text[: max(0, start - run_start)]
+        tail = run.text[max(0, end - run_start) :] if end < run_end else ""
+        run.text = head + ("" if written else new_text) + tail
+        written = True
+    if not written:
+        raise ValueError("charRange did not intersect any run")
+
 p = Presentation("/abs/deck.pptx")
 shape = next(s for s in walk(p.slides[1].shapes) if s.shape_id == 4)
+before = shape.text_frame.paragraphs[0]
 
-# Write at the granularity the anchor addresses. `text_frame.text = ...` replaces the WHOLE
-# shape — using it for a paragraph-level anchor deletes every other paragraph in that shape.
-shape.text_frame.paragraphs[0].text = "new text"   # anchor had "paragraph": 0
-# shape.table.cell(1, 0).text = "new text"         # anchor had "tableCell": {"row":1,"col":0}
-# shape.text_frame.text = "new text"               # only when the anchor is the shape itself
+replace_char_range(before, 8, 11, "8%")               # anchor had "paragraph": 0
+# replace_char_range(shape.table.cell(1, 0).text_frame.paragraphs[0], ...)   # "tableCell" anchor
 
 p.save("/abs/deck-updated.pptx")  # never save over the source
+```
 
-# Verify at the same granularity you wrote at.
+Verify that the formatting survived, not just the text — `paragraphs[0].text == "..."` plus a
+paragraph count passes even when every run was collapsed into one unformatted run:
+
+```python
 check = Presentation("/abs/deck-updated.pptx")
 edited = next(s for s in walk(check.slides[1].shapes) if s.shape_id == 4)
-assert edited.text_frame.paragraphs[0].text == "new text"
-assert len(edited.text_frame.paragraphs) == len(shape.text_frame.paragraphs)  # nothing was dropped
+after = edited.text_frame.paragraphs[0]
+assert after.text == expected_text
+assert len(after.runs) == len(before.runs)                                  # nothing collapsed
+assert [r.hyperlink.address for r in after.runs] == [r.hyperlink.address for r in before.runs]
+assert [(r.font.bold, r.font.size) for r in after.runs] == [(r.font.bold, r.font.size) for r in before.runs]
 ```
 
 A table shape has no `text_frame` at all — reaching for one raises `AttributeError`. Route a
-`tableCell` anchor through `shape.table.cell(row, col)`.
+`tableCell` anchor through `shape.table.cell(row, col).text_frame`.
 
 ## Output conventions
 
