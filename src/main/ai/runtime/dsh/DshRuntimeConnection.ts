@@ -247,7 +247,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.input.knowledgeBaseIds
     )
     const discoveryUsesGateway =
-      isManagedCherryCloudModel(discoverySnapshot.model.providerId, discoverySnapshot.model.group) ||
+      isManagedCherryCloudModel(discoverySnapshot.model.providerId) ||
       resolveDshInjectionApi(discoverySnapshot.provider, discoverySnapshot.model) === undefined
     // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
     // connection is built from the exact provider/model facts protected by the final check.

@@ -3,14 +3,11 @@ import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
@@ -412,32 +409,10 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
-  const isAgentModelSelector = modelFilterIncludesAgentOnlyProviders(filter)
-  const cloudModelSyncRequestId = useRef(0)
-  const [quotaExhaustedModelIds, setQuotaExhaustedModelIds] = useState<readonly UniqueModelId[] | null>(null)
-
-  useEffect(() => {
-    const requestId = ++cloudModelSyncRequestId.current
-    setQuotaExhaustedModelIds(null)
-    if (!open || !isAgentModelSelector) return
-
-    void ipcApi
-      .request('cherry_cloud.models.sync')
-      .then((result) => {
-        if (cloudModelSyncRequestId.current === requestId) {
-          setQuotaExhaustedModelIds(result.quotaExhaustedModelIds)
-        }
-      })
-      .catch(() => undefined)
-  }, [isAgentModelSelector, open])
-
   const isSelectionDisabled = useCallback(
     (model: Model, provider?: Provider) =>
-      Boolean(isModelDisabled?.(model, provider)) ||
-      (isAgentModelSelector &&
-        isManagedCherryCloudModel(model.providerId, model.group) &&
-        (quotaExhaustedModelIds === null || quotaExhaustedModelIds.includes(model.id))),
-    [isAgentModelSelector, isModelDisabled, quotaExhaustedModelIds]
+      Boolean(isModelDisabled?.(model, provider)) || Boolean(filter?.isModelDisabled?.(model, provider)),
+    [filter, isModelDisabled]
   )
 
   // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while

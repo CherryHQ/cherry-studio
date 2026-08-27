@@ -1,7 +1,7 @@
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,10 @@ import { useModelSelectorData } from '../useModelSelectorData'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
+
+vi.mock('swr', () => ({
+  default: () => ({ data: { modelCount: 0, quotaExhaustedModelIds: [] } })
+}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -297,11 +301,15 @@ describe('useModelSelectorData', () => {
 
   it('shows Cherry Cloud models only in agent selectors', () => {
     wireDeps({
-      providers: [makeProvider(CHERRYAI_PROVIDER_ID)],
+      providers: [
+        makeProvider(CHERRYAI_PROVIDER_ID, { name: 'CherryAI' }),
+        makeProvider(CHERRY_CLOUD_PROVIDER_ID, { name: 'CherryAI', presetProviderId: CHERRYAI_PROVIDER_ID })
+      ],
       models: [
         makeModel('qwen', CHERRYAI_PROVIDER_ID, { group: 'Qwen' }),
-        makeModel('deepseek-free', CHERRYAI_PROVIDER_ID, {
+        makeModel('deepseek-free', CHERRY_CLOUD_PROVIDER_ID, {
           group: CHERRY_CLOUD_MODEL_GROUP,
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
           contextWindow: 128_000
         })
       ]
@@ -315,7 +323,13 @@ describe('useModelSelectorData', () => {
       const agentFilter = renderHook(() => useAgentModelFilter(agentType))
       const agent = renderHook(() => useModelSelectorData({ searchText: '', filter: agentFilter.result.current }))
 
-      expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual(['cherryai::deepseek-free'])
+      expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
+        'cherry-cloud::deepseek-free'
+      ])
+      expect(agent.result.current.listItems.find((item) => item.key === 'provider-cherry-cloud')).toMatchObject({
+        title: 'CherryAI',
+        canNavigateToSettings: false
+      })
       agent.unmount()
       agentFilter.unmount()
     }

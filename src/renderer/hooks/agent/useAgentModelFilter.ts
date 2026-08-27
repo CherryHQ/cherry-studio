@@ -10,12 +10,15 @@
  * those make sense as chat targets).
  */
 
+import { ipcApi } from '@renderer/ipc'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 import { useMemo } from 'react'
+import useSWR from 'swr'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
@@ -25,8 +28,14 @@ const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
  * filter unmarked, so `useModelSelectorData` hides those providers from them.
  */
 const AGENT_ONLY_FILTER = Symbol('agentModelFilter')
+const CHERRY_CLOUD_AVAILABILITY_KEY = 'agent/cherry-cloud-model-availability'
+const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
 
-type AgentModelFilter = ((model: Model, provider?: Provider) => boolean) & { [AGENT_ONLY_FILTER]?: true }
+type ModelPredicate = (model: Model, provider?: Provider) => boolean
+type AgentModelFilter = ModelPredicate & {
+  [AGENT_ONLY_FILTER]?: true
+  isModelDisabled?: ModelPredicate
+}
 
 /** True when `filter` came from {@link useAgentModelFilter} (may include agent-only providers). */
 export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) => boolean): boolean {
@@ -38,6 +47,17 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) =>
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
 export function useAgentModelFilter(agentType: AgentType | undefined): AgentModelFilter {
+  const { data: cloudAvailability } = useSWR(
+    CHERRY_CLOUD_AVAILABILITY_KEY,
+    () => ipcApi.request('cherry_cloud.models.sync'),
+    {
+      dedupingInterval: 5_000,
+      refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false
+    }
+  )
+
   return useMemo<AgentModelFilter>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
     const predicate: AgentModelFilter = (model, provider) => {
@@ -45,6 +65,11 @@ export function useAgentModelFilter(agentType: AgentType | undefined): AgentMode
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
     predicate[AGENT_ONLY_FILTER] = true
+    predicate.isModelDisabled = (model) =>
+      isManagedCherryCloudModel(model.providerId) &&
+      (!cloudAvailability ||
+        !cloudAvailability.entitledModelIds.includes(model.id) ||
+        cloudAvailability.quotaExhaustedModelIds.includes(model.id))
     return predicate
-  }, [agentType])
+  }, [agentType, cloudAvailability])
 }

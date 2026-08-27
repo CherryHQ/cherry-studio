@@ -1,4 +1,4 @@
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -514,13 +514,13 @@ describe('buildPiProviderInjection', () => {
 
 describe('Cherry Cloud Pi injection', () => {
   const provider = makeProvider({
-    id: CHERRYAI_PROVIDER_ID,
+    id: CHERRY_CLOUD_PROVIDER_ID,
     name: 'CherryAI',
     defaultChatEndpoint: 'openai-chat-completions'
   })
   const model = makeModel({
-    id: `${CHERRYAI_PROVIDER_ID}::deepseek-free`,
-    providerId: CHERRYAI_PROVIDER_ID,
+    id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+    providerId: CHERRY_CLOUD_PROVIDER_ID,
     apiModelId: 'deepseek-free',
     group: CHERRY_CLOUD_MODEL_GROUP,
     contextWindow: 128_000,
@@ -534,7 +534,7 @@ describe('Cherry Cloud Pi injection', () => {
     expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333')
     expect(injection.providerConfig.headers).toEqual(GATEWAY_USAGE_HEADERS)
     expect(injection.providerConfig.models?.[0]).toMatchObject({
-      id: 'cherryai:deepseek-free',
+      id: 'cherry-cloud:deepseek-free',
       contextWindow: 128_000,
       maxTokens: 8_192
     })
@@ -546,7 +546,7 @@ describe('Cherry Cloud Pi injection', () => {
     serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
 
     await expect(resolvePiProviderInjectionForSession('session-1', provider, model)).resolves.toMatchObject({
-      modelId: 'cherryai:deepseek-free',
+      modelId: 'cherry-cloud:deepseek-free',
       apiKey: GATEWAY_KEY
     })
     expect(serviceMocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
@@ -599,10 +599,10 @@ describe('modelInjection service resolution', () => {
   })
 
   it('accepts a Cherry Cloud model without a provider API key when synchronized metadata is complete', async () => {
-    serviceMocks.getByProviderId.mockResolvedValueOnce({ id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' })
+    serviceMocks.getByProviderId.mockResolvedValueOnce({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI' })
     serviceMocks.getByKey.mockResolvedValueOnce({
-      id: `${CHERRYAI_PROVIDER_ID}::deepseek-free`,
-      providerId: CHERRYAI_PROVIDER_ID,
+      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
       apiModelId: 'deepseek-free',
       name: 'DeepSeek Free',
       group: CHERRY_CLOUD_MODEL_GROUP,
@@ -611,7 +611,7 @@ describe('modelInjection service resolution', () => {
       maxOutputTokens: 8_192
     })
 
-    await expect(assertPiProviderUsable('cherryai::deepseek-free')).resolves.toBeUndefined()
+    await expect(assertPiProviderUsable('cherry-cloud::deepseek-free')).resolves.toBeUndefined()
     expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })

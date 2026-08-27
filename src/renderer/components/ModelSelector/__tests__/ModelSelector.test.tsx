@@ -1,4 +1,3 @@
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { toast } from '@renderer/services/toast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -10,19 +9,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
-import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
+import type { FlatListItem, ModelSelectorFilter, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
 const mocks = vi.hoisted(() => ({
   bottomActions: [] as SelectorShellBottomAction[],
   loggerError: vi.fn(),
-  ipcRequest: vi.fn(),
   openSettingsTab: vi.fn(),
   shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
   useModelSelectorData: vi.fn()
 }))
-
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -246,7 +242,6 @@ describe('ModelSelector', () => {
     mocks.bottomActions = []
     mocks.shellEvents = []
     mocks.useModelSelectorData.mockReturnValue(makeData())
-    mocks.ipcRequest.mockResolvedValue({ modelCount: 0, quotaExhaustedModelIds: [] })
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
       return 1
@@ -335,14 +330,16 @@ describe('ModelSelector', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('shows a quota-exhausted model but does not let the user select it', async () => {
+  it('honors the disabled state supplied by a model filter', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
+    const filter: ModelSelectorFilter = () => true
+    filter.isModelDisabled = (model) => model.id === 'openai::gpt-4'
     render(
       <ModelSelector
         open
         multiple={false}
-        isModelDisabled={(model) => model.id === 'openai::gpt-4'}
+        filter={filter}
         trigger={<button type="button">open</button>}
         onSelect={onSelect}
       />
@@ -353,72 +350,6 @@ describe('ModelSelector', () => {
     await user.click(disabledModel)
 
     expect(onSelect).not.toHaveBeenCalled()
-  })
-
-  it('syncs Cloud availability and disables exhausted models for agent selectors', async () => {
-    const exhaustedId = 'cherryai::deepseek-free' as UniqueModelId
-    const availableId = 'cherryai::deepseek-go' as UniqueModelId
-    const cloudProvider = { ...provider, id: 'cherryai', name: 'CherryAI' }
-    const cloudItems = [exhaustedId, availableId].map((modelId) =>
-      makeModelItem(modelId, {
-        model: { ...makeModel(modelId), providerId: cloudProvider.id, group: 'Cherry Cloud' },
-        provider: cloudProvider
-      })
-    )
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        listItems: [
-          {
-            key: 'provider-cherryai',
-            type: 'group',
-            title: 'CherryAI',
-            groupKind: 'provider',
-            provider: cloudProvider
-          },
-          ...cloudItems
-        ],
-        modelItems: cloudItems,
-        selectableModelsById: new Map(cloudItems.map((item) => [item.modelId, item.model]))
-      })
-    )
-    let resolveSync!: (value: { modelCount: number; quotaExhaustedModelIds: UniqueModelId[] }) => void
-    mocks.ipcRequest.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveSync = resolve
-      })
-    )
-
-    function AgentModelSelector() {
-      const filter = useAgentModelFilter('claude-code')
-      return (
-        <ModelSelector
-          open
-          multiple={false}
-          filter={filter}
-          trigger={<button type="button">open</button>}
-          onSelect={vi.fn()}
-        />
-      )
-    }
-
-    render(<AgentModelSelector />)
-
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('cherry_cloud.models.sync'))
-    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-disabled', 'true')
-
-    await act(async () => {
-      resolveSync({ modelCount: 2, quotaExhaustedModelIds: [exhaustedId] })
-    })
-
-    await waitFor(() => expect(screen.getAllByRole('option')[1]).not.toHaveAttribute('aria-disabled'))
-    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-disabled', 'true')
-  })
-
-  it('does not sync Cloud availability for ordinary model selectors', () => {
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
   it('tears down the lazy shell before resetting an active tag filter on close', async () => {

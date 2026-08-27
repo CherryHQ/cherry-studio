@@ -157,7 +157,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
 
-  if (isManagedCherryCloudModel(providerId, model.group)) {
+  if (isManagedCherryCloudModel(providerId)) {
     if (!isInternalAgentRequest) {
       const error = asClientError(new Error('Cherry Cloud models are only available to internal Agent requests'))
       error.status = 403

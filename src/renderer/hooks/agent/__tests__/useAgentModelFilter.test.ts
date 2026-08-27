@@ -1,9 +1,19 @@
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../useAgentModelFilter'
+
+const mocks = vi.hoisted(() => ({
+  cloudAvailability: {
+    modelCount: 0,
+    entitledModelIds: [] as Model['id'][],
+    quotaExhaustedModelIds: [] as Model['id'][]
+  }
+}))
+
+vi.mock('swr', () => ({ default: () => ({ data: mocks.cloudAvailability }) }))
 
 function model(capabilities: Model['capabilities'] = []): Model {
   return {
@@ -31,6 +41,10 @@ const providers = {
 } as const satisfies Record<string, Partial<Provider>>
 
 describe('useAgentModelFilter', () => {
+  beforeEach(() => {
+    mocks.cloudAvailability = { modelCount: 0, entitledModelIds: [], quotaExhaustedModelIds: [] }
+  })
+
   it('allows Gemini provider models for Claude Code agents', () => {
     const { result } = renderHook(() => useAgentModelFilter('claude-code'))
 
@@ -51,6 +65,30 @@ describe('useAgentModelFilter', () => {
 
     expect(result.current(model())).toBe(true)
     expect(result.current(model([MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
+  })
+
+  it('disables only Cloud models whose quota is exhausted', () => {
+    const exhaustedModel = {
+      ...model(),
+      id: 'cherry-cloud::deepseek-free',
+      providerId: 'cherry-cloud'
+    } as Model
+    const availableModel = {
+      ...model(),
+      id: 'cherry-cloud::deepseek-go',
+      providerId: 'cherry-cloud'
+    } as Model
+    mocks.cloudAvailability = {
+      modelCount: 2,
+      entitledModelIds: [exhaustedModel.id, availableModel.id],
+      quotaExhaustedModelIds: [exhaustedModel.id]
+    }
+
+    const { result } = renderHook(() => useAgentModelFilter('pi'))
+
+    expect(result.current.isModelDisabled?.(exhaustedModel)).toBe(true)
+    expect(result.current.isModelDisabled?.(availableModel)).toBe(false)
+    expect(result.current.isModelDisabled?.(model())).toBe(false)
   })
 
   describe('pi agents', () => {

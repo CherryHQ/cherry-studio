@@ -4,11 +4,7 @@ import { cherryCloudSessionService } from '@data/services/CherryCloudSessionServ
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import {
-  CHERRY_CLOUD_MODEL_GROUP,
-  CHERRYAI_DEFAULT_MODEL_ID,
-  CHERRYAI_PROVIDER_ID
-} from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, ENDPOINT_TYPE, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
@@ -61,6 +57,7 @@ type CherryCloudState = {
 }
 type CloudModelSyncResult = {
   modelCount: number
+  entitledModelIds: UniqueModelId[]
   quotaExhaustedModelIds: UniqueModelId[]
 }
 
@@ -527,7 +524,7 @@ export class CherryCloudService extends BaseService {
   private async syncEntitledModelsOnce(sessionGeneration: number, signal: AbortSignal): Promise<CloudModelSyncResult> {
     if (!this.cloudState.session) {
       this.reconcileEntitledModels([])
-      return { modelCount: 0, quotaExhaustedModelIds: [] }
+      return { modelCount: 0, entitledModelIds: [], quotaExhaustedModelIds: [] }
     }
 
     const [account, catalog] = await Promise.all([
@@ -559,40 +556,29 @@ export class CherryCloudService extends BaseService {
       ...new Set(
         models
           .filter((model) => quotaAvailableByModelId.get(model.id) === false)
-          .map((model) => createUniqueModelId(CHERRYAI_PROVIDER_ID, model.id))
+          .map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
       )
     ]
     this.reconcileEntitledModels(models)
-    return { modelCount: models.length, quotaExhaustedModelIds }
+    return {
+      modelCount: models.length,
+      entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
+      quotaExhaustedModelIds
+    }
   }
 
   private reconcileEntitledModels(
     models: Array<{ id: string; display_name: string; context_window: number; max_output_tokens: number }>
   ): void {
-    const current = modelService.list({ providerId: CHERRYAI_PROVIDER_ID })
+    const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
     const remoteByModelId = new Map(models.map((model) => [model.id, model]))
     const missing = models.filter((model) => !currentByModelId.has(model.id))
-    const removed = current.flatMap((model) => {
-      const modelId = parseUniqueModelId(model.id).modelId
-      return modelId !== CHERRYAI_DEFAULT_MODEL_ID &&
-        model.group === CHERRY_CLOUD_MODEL_GROUP &&
-        !remoteByModelId.has(modelId)
-        ? [{ providerId: CHERRYAI_PROVIDER_ID, modelId }]
-        : []
-    })
-    const collisions = models.filter((model) => {
-      const existing = currentByModelId.get(model.id)
-      return existing && existing.group !== CHERRY_CLOUD_MODEL_GROUP
-    })
-    if (collisions.length > 0) {
-      logger.warn('Skipped Cherry Cloud models that collide with existing CherryAI models', {
-        modelIds: collisions.map((model) => model.id)
-      })
-    }
+    const removed = current
+      .map((model) => ({ providerId: CHERRY_CLOUD_PROVIDER_ID, modelId: parseUniqueModelId(model.id).modelId }))
+      .filter(({ modelId }) => !remoteByModelId.has(modelId))
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
-      if (modelId === CHERRYAI_DEFAULT_MODEL_ID || model.group !== CHERRY_CLOUD_MODEL_GROUP) return []
       const remote = remoteByModelId.get(modelId)
       if (!remote) return []
       if (
@@ -609,7 +595,7 @@ export class CherryCloudService extends BaseService {
       }
       return [
         {
-          providerId: CHERRYAI_PROVIDER_ID,
+          providerId: CHERRY_CLOUD_PROVIDER_ID,
           modelId,
           patch: {
             name: remote.display_name,
@@ -628,7 +614,7 @@ export class CherryCloudService extends BaseService {
       modelService.create(
         missing.map((model) => ({
           dto: {
-            providerId: CHERRYAI_PROVIDER_ID,
+            providerId: CHERRY_CLOUD_PROVIDER_ID,
             modelId: model.id,
             name: model.display_name,
             group: CHERRY_CLOUD_MODEL_GROUP,
@@ -790,20 +776,16 @@ export class CherryCloudService extends BaseService {
     const currentSession = this.cloudState.session
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
 
+    cherryCloudSessionService.clear()
     this.invalidateModelSync()
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
     this.clearSessionExpiryTimer()
-    let cleanupError: unknown
-    try {
-      cherryCloudSessionService.clear()
-    } catch (error) {
-      cleanupError = error
-    }
-    this.finishSessionCleanup(cleanupError)
+    this.finishSessionCleanup()
   }
 
-  private finishSessionCleanup(cleanupError: unknown): void {
+  private finishSessionCleanup(): void {
+    let cleanupError: unknown
     try {
       this.reconcileEntitledModels([])
     } catch (error) {

@@ -1,5 +1,5 @@
 import type { StreamListener } from '@main/ai/streamManager/types'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -240,11 +240,11 @@ describe('processMessage model-id parsing', () => {
   })
 
   it('rejects Cherry Cloud messages that did not originate from the internal Agent runtime', async () => {
-    mockAvailableModel(CHERRYAI_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
 
     await expect(
       processMessage({
-        params: { model: `${CHERRYAI_PROVIDER_ID}:deepseek-free`, messages: [] },
+        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
         inputFormat: 'anthropic',
         outputFormat: 'anthropic'
       })
@@ -253,11 +253,11 @@ describe('processMessage model-id parsing', () => {
   })
 
   it('routes internal Cherry Cloud messages through AiStreamManager', async () => {
-    mockAvailableModel(CHERRYAI_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
     mockIsInternalAgentRequest.mockReturnValue(true)
     const responsePromise = processMessage({
       params: {
-        model: `${CHERRYAI_PROVIDER_ID}:deepseek-free`,
+        model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
         max_tokens: 64,
         messages: [{ role: 'user', content: 'hello' }]
       },
@@ -267,19 +267,19 @@ describe('processMessage model-id parsing', () => {
     })
 
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
-    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRYAI_PROVIDER_ID, 'deepseek-free'))
+    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
     void captured.opts!.listener!.onDone({} as any)
 
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
 
   it('keeps Cherry Cloud gateway access on the Anthropic Messages protocol', async () => {
-    mockAvailableModel(CHERRYAI_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
     mockIsInternalAgentRequest.mockReturnValue(true)
 
     await expect(
       processMessage({
-        params: { model: `${CHERRYAI_PROVIDER_ID}:deepseek-free`, messages: [] },
+        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
         inputFormat: 'openai',
         outputFormat: 'openai',
         requestHeaders: new Headers({ 'x-cherry-internal-request-token': 'internal-token' })

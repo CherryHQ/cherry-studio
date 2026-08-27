@@ -210,7 +210,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
-    if (isManagedCherryCloudModel(discoverySnapshot.model.providerId, discoverySnapshot.model.group)) {
+    if (isManagedCherryCloudModel(discoverySnapshot.model.providerId)) {
       await resolveInjection(discoverySnapshot)
     }
     await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
