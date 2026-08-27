@@ -102,12 +102,12 @@ describe('customFetch', () => {
       .mockResolvedValueOnce(
         new Response(null, {
           status: 307,
-          headers: { Location: 'https://api.test/v1/chat' }
+          headers: { Location: 'https://api.test:443/v1/chat' }
         })
       )
       .mockResolvedValueOnce(new Response('ok'))
 
-    const response = await customFetch('http://api.test/v1/chat', {
+    const response = await customFetch('http://api.test:80/v1/chat', {
       method: 'POST',
       headers: {
         Authorization: 'Bearer secret',
