@@ -210,7 +210,7 @@
 | [Lifecycle](./references/mini-app/lifecycle.md) | How a mini app lives and dies — no shutdown notice, write-on-change persistence, visibility and locale events, quiesce during updates |
 | [Manifest](./references/mini-app/manifest.md) | Every manifest.json field, the appId rules, permission declarations and wildcard expansion, and the network host allowlist |
 | [Packaging](./references/mini-app/packaging.md) | Building a .miniapp archive, what the installer rejects, the install consent flow, distribution manifests, updates, rollback and uninstall |
-| [Runtime probes](./references/mini-app/probes.md) | The runtime measurements behind the sandbox — WebRTC escape, Web Storage ceiling, TransformStream terminal callbacks — recorded in enough detail to rebuild each probe when Electron moves |
+| [Runtime probes](./references/mini-app/probes.md) | The runtime measurements behind the sandbox — WebRTC escape, Web Storage ceiling, TransformStream terminal callbacks, host-cache reuse — recorded in enough detail to rebuild each probe when Electron moves |
 | [Sandbox](./references/mini-app/sandbox.md) | What a mini app cannot do — blocked Web Storage, default-deny network, CORS on own files, navigation and popups — and what to use instead |
 | [Theming](./references/mini-app/theming.md) | Matching Cherry's look from a mini app — the served /__cherry/theme.css, the stable CSS variable contract, dark mode, fonts and Tailwind mapping |
 

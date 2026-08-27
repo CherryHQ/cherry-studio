@@ -1,9 +1,10 @@
 ---
-description: The runtime measurements behind the sandbox — WebRTC escape, Web Storage ceiling, TransformStream terminal callbacks — recorded in enough detail to rebuild each probe when Electron moves
+description: The runtime measurements behind the sandbox — WebRTC escape, Web Storage ceiling, TransformStream terminal callbacks, host-cache reuse — recorded in enough detail to rebuild each probe when Electron moves
 sources:
   - src/main/features/miniApp/runtime/network.ts
   - src/main/features/miniApp/runtime/protocol.ts
   - src/main/features/miniApp/runtime/webviewHost.ts
+  - src/main/features/miniApp/capabilities/network.ts
 ---
 
 # Runtime probes
@@ -19,6 +20,7 @@ All figures below: **Electron 41.8.0 / Chrome 146.0.7680.216 / macOS 26.5**. App
 | Electron or Chromium major bump | WebRTC escape (always with `baseline`), Web Storage ceiling |
 | Node major bump inside Electron | TransformStream callbacks |
 | Any change to `MINI_APP_PRIVILEGES`, `buildMiniAppCsp()`, `DENY_ALL_PAC` or `installWebRtcPolicy` | WebRTC escape |
+| Electron bump that touches `net.resolveHost` (`shell/browser/net/resolve_host_function.cc`) | Host-cache reuse |
 
 ## Shared scaffolding
 
@@ -184,6 +186,25 @@ Two unrelated fresh partitions were each promised ~33.9 GiB while the disk held 
 **The half that did not complete.** The fill-then-remeasure experiment (`fill`, `shared-pool`) never ran cleanly: the second window in one process failed with `ERR_FAILED` (the double-`protocol.handle` gotcha above) and a separate two-partition orchestration died with `SIGTRAP`. The shared-pool conclusion is inferred from the two promises, not measured directly. A rebuild that wants it must run the hog and the observer as **separate Electron processes** on the same `userData`, and must include a **positive control** — an implementation that drops every write also leaves the observer's quota unchanged.
 
 **Consequence in code.** `cherry.storage` and `cherry.file` stay as the only persistence, with quotas the host chooses (`quota.ts`); the CSP `sandbox` directive is the one measured mechanism that denies Web Storage, and its flags propagate into nested contexts (`protocol.ts`).
+
+## Probe 4 — Host-cache reuse for `net.resolveHost`
+
+**Question.** Can the private-address check in `cherry.network.fetch` share its DNS answer with the connection Chromium makes, closing the resolve-then-connect window (DNS rebinding)? `dns.promises.lookup` and Chromium resolve independently. `net.resolveHost` goes through Chromium's own host cache, which floors positive TTLs at 60 s (`net/dns/host_resolver_manager_job.cc`, `kMinimumTTLSeconds`), so a shared entry would pin the connection to the checked answer.
+
+**Setup.** A main-process-only Electron program started with `--log-net-log`: `net.fetch` a control host (a miss is expected), then `net.resolveHost(H)` immediately followed by `net.fetch('https://H/')`. Per request source, the net-log's `HOST_RESOLVER_MANAGER_*` events end in `CREATE_JOB` (a fresh resolution) or `CACHE_HIT`.
+
+**Results (2026-08-26).**
+
+| Request | Net-log key | Outcome |
+|---|---|---|
+| control `net.fetch('https://www.cloudflare.com/')` | `https://www.cloudflare.com` | `CREATE_JOB` |
+| `net.resolveHost('example.com')` | `example.com:0` | `CREATE_JOB` |
+| `net.fetch('https://example.com/')` right after | `https://example.com` | **`CREATE_JOB`** — resolved again |
+| `net.resolveHost('example.com:443')`, `net.resolveHost('https://example.com')` | `[example.com:443]:0`, `[https://example.com]:0` | `ERR_NAME_NOT_RESOLVED` — taken as literal names |
+
+**Finding.** Electron issues the request as `HostPortPair(host, 0)` with an empty `NetworkAnonymizationKey` (`shell/browser/net/resolve_host_function.cc`); the host cache is keyed by scheme-host-port, so nothing `resolveHost` produces is ever the entry an `https://` fetch reads. Re-validating after the fact is not available either: of the `webRequest` events only `onBeforeRedirect` carries an `ip`, and `net.fetch` exposes no socket.
+
+**Consequence in code.** `network.ts` keeps `dns.promises.lookup` as a pre-check and the window is documented in `capabilities.md`. Pinning would need a Node-side HTTP stack with its own `lookup`, which forfeits the session's proxy and certificate handling.
 
 ## Findings whose probes were not kept
 

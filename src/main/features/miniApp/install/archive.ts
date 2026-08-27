@@ -9,6 +9,8 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
@@ -156,6 +158,34 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
   return { prefix, manifest }
 }
 
+/**
+ * Streams every entry itself instead of `zip.extract`: node-stream-zip verifies sizes
+ * only for entries WITHOUT a data descriptor, so the entry-table cap in `scanArchive`
+ * is what the package claims. This counts what actually inflates.
+ */
+async function extractEntries(zip: StreamZip.StreamZipAsync, prefix: string, destDir: string): Promise<void> {
+  const entries = Object.values(await zip.entries()).filter((e) => e.name.startsWith(prefix) && e.name !== prefix)
+  const target = (name: string) => path.join(destDir, name.slice(prefix.length))
+  const dirs = new Set(entries.map((e) => (e.isDirectory ? e.name : path.posix.dirname(e.name))))
+  for (const dir of dirs) await fs.promises.mkdir(target(dir), { recursive: true })
+
+  let total = 0
+  for (const entry of entries) {
+    if (!entry.isFile) continue
+    const budget = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        total += chunk.length
+        if (total > MINI_APP_MAX_EXTRACTED_BYTES) {
+          callback(new Error(`Package unpacks to more than ${MINI_APP_MAX_EXTRACTED_BYTES} bytes`))
+          return
+        }
+        callback(null, chunk)
+      }
+    })
+    await pipeline(await zip.stream(entry), budget, fs.createWriteStream(target(entry.name)))
+  }
+}
+
 function assertPackageSize(size: number): void {
   if (size > MINI_APP_MAX_PACKAGE_BYTES) {
     throw new Error(`Package archive is ${size} bytes, over the ${MINI_APP_MAX_PACKAGE_BYTES} limit`)
@@ -210,7 +240,7 @@ export async function extractMiniAppArchive(zipPath: string, destDir: string): P
   try {
     const { prefix, manifest } = await scanArchive(zip)
 
-    await zip.extract(prefix || null, destDir)
+    await extractEntries(zip, prefix, destDir)
     // Second gate, AFTER extraction: the entry-table checks describe what the archive
     // CLAIMS. The protocol handler trusts that this root really contains everything.
     await assertExtractedTree(destDir, manifest)

@@ -32,6 +32,9 @@ async function writeZip(build: (zip: JSZip) => void): Promise<string> {
   return p
 }
 
+// The async `entryData` goes through `stream` too, so a stand-in must keep serving real bytes.
+const realStream = StreamZip.async.prototype.stream
+
 const dest = () => {
   const d = path.join(work, `dest-${Math.random().toString(36).slice(2)}`)
   fs.mkdirSync(d, { recursive: true })
@@ -120,6 +123,27 @@ describe('archive', () => {
     await expect(extractMiniAppArchive(zipPath, dest())).rejects.toThrow(/unpacks to/i)
   })
 
+  it('caps what actually inflates, not what the entry table claims', async () => {
+    // Entries written with a data descriptor (general-purpose bit 3) carry their sizes
+    // AFTER the data, and node-stream-zip skips size verification for them: a central
+    // directory claiming 1 byte over a 100 MB deflate stream passes every table check.
+    const zip = new JSZip()
+    zip.file('manifest.json', JSON.stringify(MANIFEST))
+    zip.file('index.html', '<h1>hi</h1>')
+    zip.file('bomb.bin', 'a'.repeat(MINI_APP_MAX_EXTRACTED_BYTES + 1), { compression: 'DEFLATE' })
+    const bytes = await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX', streamFiles: true })
+    // Central directory header: flags at +8, uncompressed size at +24, name at +46.
+    const header = bytes.lastIndexOf('bomb.bin') - 46
+    expect(bytes.readUInt16LE(header + 8) & 0x8).toBe(0x8)
+    bytes.writeUInt32LE(1, header + 24)
+    const zipPath = path.join(work, 'descriptor-bomb.miniapp')
+    fs.writeFileSync(zipPath, bytes)
+    const d = dest()
+
+    await expect(extractMiniAppArchive(zipPath, d)).rejects.toThrow(/unpacks to/i)
+    expect(fs.readdirSync(d)).toEqual([])
+  })
+
   it('rejects a symlink that materialized despite the entry checks', async () => {
     // The entry table says what the archive CLAIMS; this says what landed. The
     // protocol handler downstream trusts the tree, not the archive.
@@ -128,16 +152,15 @@ describe('archive', () => {
       z.file('index.html', '<h1>hi</h1>')
     })
     const d = dest()
-    const extract = vi.spyOn(StreamZip.async.prototype, 'extract').mockImplementation(async () => {
-      fs.mkdirSync(d, { recursive: true })
-      fs.writeFileSync(path.join(d, 'index.html'), '<h1>hi</h1>')
+    const stream = vi.spyOn(StreamZip.async.prototype, 'stream').mockImplementation(async function (this, entry) {
+      fs.rmSync(path.join(d, 'leak.txt'), { force: true })
       fs.symlinkSync('/etc/hosts', path.join(d, 'leak.txt'))
-      return 1
+      return realStream.call(this, entry)
     })
 
     await expect(extractMiniAppArchive(zipPath, d)).rejects.toThrow(/symbolic link/i)
 
-    extract.mockRestore()
+    stream.mockRestore()
   })
 
   it('leaves nothing behind when the tree is refused AFTER it landed', async () => {
@@ -148,16 +171,16 @@ describe('archive', () => {
       z.file('index.html', '<h1>hi</h1>')
     })
     const d = dest()
-    const extract = vi.spyOn(StreamZip.async.prototype, 'extract').mockImplementation(async () => {
-      fs.writeFileSync(path.join(d, 'index.html'), '<h1>hi</h1>')
-      fs.mkdirSync(path.join(d, 'assets'))
+    const stream = vi.spyOn(StreamZip.async.prototype, 'stream').mockImplementation(async function (this, entry) {
+      fs.mkdirSync(path.join(d, 'assets'), { recursive: true })
+      fs.rmSync(path.join(d, 'assets', 'leak.txt'), { force: true })
       fs.symlinkSync('/etc/hosts', path.join(d, 'assets', 'leak.txt'))
-      return 2
+      return realStream.call(this, entry)
     })
     try {
       await expect(extractMiniAppArchive(zipPath, d)).rejects.toThrow(/symbolic link/i)
     } finally {
-      extract.mockRestore()
+      stream.mockRestore()
     }
 
     expect(fs.readdirSync(d)).toEqual([])
