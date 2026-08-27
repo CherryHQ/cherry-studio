@@ -163,6 +163,12 @@ vi.mock('@renderer/services/ExportService', () => ({
   messagesToMarkdown: vi.fn(async () => 'markdown')
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key
+  })
+}))
+
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
 const {
   clearPendingAgentSessionImageActionsForTest,
@@ -415,8 +421,10 @@ describe('useAgentMessageListProviderValue', () => {
     render(<Probe />)
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      diagnosticReport: { location: string }
       persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
     }
+    expect(options.diagnosticReport).toEqual({ location: 'error.diagnostic_report.locations.agent' })
     await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
 
     expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
@@ -728,6 +736,10 @@ describe('useAgentMessageListProviderValue', () => {
 
     const listenerCountBeforeCaptureBind = eventMocks.on.mock.calls.length
     render(<CaptureProbe />)
+
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
+    )
 
     const captureRuntime: MessageListRuntime = {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
