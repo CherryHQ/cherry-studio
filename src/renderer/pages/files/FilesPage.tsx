@@ -326,6 +326,7 @@ function FilesPage() {
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectionAnchorIdRef = useRef<string | null>(null)
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -669,13 +670,35 @@ function FilesPage() {
     return t('files.delete.label')
   }, [isTrash, selectedFiles, t])
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
+  const handleSelect = useCallback(
+    (id: string, isChecked: boolean, shouldSelectRange: boolean) => {
+      const anchorIndex = selectionAnchorIdRef.current
+        ? filteredFiles.findIndex((file) => file.id === selectionAnchorIdRef.current)
+        : -1
+      const targetIndex = filteredFiles.findIndex((file) => file.id === id)
+      const isRangeSelection = shouldSelectRange && anchorIndex >= 0
+      const selectionIds = isRangeSelection
+        ? filteredFiles
+            .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+            .map((file) => file.id)
+        : [id]
+
+      if (!isRangeSelection) selectionAnchorIdRef.current = id
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const selectionId of selectionIds) {
+          if (isChecked) next.add(selectionId)
+          else next.delete(selectionId)
+        }
+        return next
+      })
+    },
+    [filteredFiles]
+  )
+
+  useEffect(() => {
+    if (selectedIds.size === 0) selectionAnchorIdRef.current = null
+  }, [selectedIds])
 
   const handleSelectAllVisible = useCallback(
     (checked: boolean) => {
