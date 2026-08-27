@@ -221,6 +221,11 @@ export interface ConversationDispatchPolicy {
   readonly expectedAgentId?: string
 }
 
+interface CrashRecoveryRun {
+  readonly controller: AbortController
+  readonly completed: Promise<void>
+}
+
 @Injectable('ConversationRuntimeService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['ChannelManager', 'ChannelDeliveryService'])
@@ -244,8 +249,7 @@ export class ConversationRuntimeService extends BaseService {
   private readonly bindings = new ConversationBindingRegistry()
   private readonly presentation = new ConversationPresentationRegistry()
   private readonly pauseHolds = new Set<symbol>()
-  private readonly bootRecoveryAbort = new AbortController()
-  private bootRecoveryOperation: Promise<void> | undefined
+  private crashRecoveryRun: CrashRecoveryRun | undefined
   private crashRecoveryComplete = false
 
   constructor(
@@ -326,9 +330,10 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   private startCrashRecovery(): void {
-    if (this.bootRecoveryOperation) return
-    this.bootRecoveryOperation = (async () => {
-      while (!this.crashRecoveryComplete && !this.bootRecoveryAbort.signal.aborted) {
+    if (this.crashRecoveryComplete || this.crashRecoveryRun) return
+    const controller = new AbortController()
+    const completed = (async () => {
+      while (!this.crashRecoveryComplete && !controller.signal.aborted) {
         try {
           const repairedOutputs = this.providers.flatMap(
             (provider) => provider.recoverCrashOrphans?.().repairedOutputs ?? []
@@ -337,22 +342,26 @@ export class ConversationRuntimeService extends BaseService {
           logger.info('Conversation crash recovery completed', { repairedOutputCount: repairedOutputs.length })
           this._onCrashRecoveryCompleted.fire()
         } catch (error) {
-          if (this.bootRecoveryAbort.signal.aborted) break
+          if (controller.signal.aborted) break
           logger.error('Conversation crash recovery failed; retrying', { error })
           await new Promise<void>((resolve) => {
             const done = () => {
               clearTimeout(timer)
-              this.bootRecoveryAbort.signal.removeEventListener('abort', done)
+              controller.signal.removeEventListener('abort', done)
               resolve()
             }
             const timer = setTimeout(done, PERSISTENCE_RETRY_INTERVAL_MS)
-            this.bootRecoveryAbort.signal.addEventListener('abort', done, { once: true })
+            controller.signal.addEventListener('abort', done, { once: true })
           })
         }
       }
-    })().finally(() => {
-      this.bootRecoveryOperation = undefined
-    })
+    })()
+    const run: CrashRecoveryRun = { controller, completed }
+    this.crashRecoveryRun = run
+    const clearRun = () => {
+      if (this.crashRecoveryRun === run) this.crashRecoveryRun = undefined
+    }
+    void completed.then(clearRun, clearRun)
   }
 
   get isCrashRecoveryComplete(): boolean {
@@ -360,7 +369,12 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    this.bootRecoveryAbort.abort('conversation-runtime-stop')
+    const recoveryRun = this.crashRecoveryRun
+    if (recoveryRun) {
+      recoveryRun.controller.abort('conversation-runtime-stop')
+      await recoveryRun.completed
+      if (this.crashRecoveryRun === recoveryRun) this.crashRecoveryRun = undefined
+    }
     const hold = this.pause('app-shutdown')
     try {
       for (const ref of this.activeConversationRefs()) this.stop(ref, 'app-shutdown')
@@ -371,7 +385,7 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   protected onDestroy(): void {
-    this.bootRecoveryAbort.abort('conversation-runtime-destroy')
+    this.crashRecoveryRun?.controller.abort('conversation-runtime-destroy')
     this._onApprovalRequested.dispose()
     this._onConversationCompleted.dispose()
     this._onTurnTerminal.dispose()
@@ -1939,7 +1953,7 @@ export class ConversationRuntimeService extends BaseService {
     for (const operation of this.executionManager.inFlightOperations()) {
       runs.push({ id: `execution:${operation.id}`, run: operation.run })
     }
-    if (this.bootRecoveryOperation) runs.push({ id: 'boot-recovery', run: this.bootRecoveryOperation })
+    if (this.crashRecoveryRun) runs.push({ id: 'boot-recovery', run: this.crashRecoveryRun.completed })
     return runs
   }
 

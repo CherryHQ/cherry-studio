@@ -518,6 +518,43 @@ describe('ConversationRuntimeService', () => {
     vi.useRealTimers()
   })
 
+  it('starts a fresh crash recovery run after the service restarts', async () => {
+    vi.useFakeTimers()
+    const recoverCrashOrphans = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('database unavailable')
+      })
+      .mockReturnValueOnce({ repairedOutputs: [{ outputNodeId: 'assistant-1', status: 'error' }] })
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateIntent: vi.fn(),
+      commitIntent: vi.fn(),
+      recoverCrashOrphans
+    }
+    const service = new ConversationRuntimeService({ providers: [provider] })
+    const recovered = vi.fn()
+    service.onCrashRecoveryCompleted(recovered)
+
+    await service._doInit()
+    expect(recoverCrashOrphans).toHaveBeenCalledOnce()
+    expect(service.isCrashRecoveryComplete).toBe(false)
+
+    await service._doStop()
+    expect(service.isCrashRecoveryComplete).toBe(false)
+
+    await service._doInit()
+    expect(recoverCrashOrphans).toHaveBeenCalledTimes(2)
+    expect(service.isCrashRecoveryComplete).toBe(true)
+    expect(recovered).toHaveBeenCalledOnce()
+
+    await service._doStop()
+    await service._doDestroy()
+    vi.useRealTimers()
+  })
+
   it('materializes an execution resource only after the Actor commits Starting', async () => {
     const controlled = controlledStream()
     const manager = new AiExecutionManager(async () => controlled.stream)
