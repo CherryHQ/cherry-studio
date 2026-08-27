@@ -265,7 +265,7 @@ const ChatContentInner: FC<InnerProps> = ({
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
           <TranslationOverlaySetterProvider value={runtime.setTranslationOverlay}>
-            <TranslationOverlayProvider value={runtime.translationOverlay}>
+            <TranslationOverlayProvider value={runtime.translationOverlayStore}>
               <MessageEditingProvider>
                 <ConversationStageCenter placement={placement} main={main} composer={composer} />
               </MessageEditingProvider>

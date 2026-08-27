@@ -8,7 +8,7 @@
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
-import { createContext, use, useMemo } from 'react'
+import { createContext, use, useCallback, useMemo, useSyncExternalStore } from 'react'
 
 // ============================================================================
 // Refresh Context — allows deep components to trigger data refresh
@@ -109,29 +109,152 @@ export interface TranslationOverlayEntry {
   sourceLanguage?: TranslateLangCode
 }
 
-export const TranslationOverlayContext = createContext<Record<string, TranslationOverlayEntry> | null>(null)
+/**
+ * Keyed external store so updating one messageId only notifies subscribers
+ * of that id — unrelated `useTranslationOverlayEntry` consumers keep stable
+ * references and do not re-render (violations: `rerender-derived-state`,
+ * `state-context-interface`, `state-decouple-implementation`).
+ */
+export interface TranslationOverlayStore {
+  getSnapshot(messageId: string): TranslationOverlayEntry | undefined
+  getMapSnapshot(): Record<string, TranslationOverlayEntry>
+  subscribe(messageId: string, listener: () => void): () => void
+  subscribeMap(listener: () => void): () => void
+  set(messageId: string, entry: TranslationOverlayEntry | null): void
+  reset(): void
+}
+
+function translationOverlayEntryEqual(
+  a: TranslationOverlayEntry | undefined,
+  b: TranslationOverlayEntry | undefined
+): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.content === b.content && a.targetLanguage === b.targetLanguage && a.sourceLanguage === b.sourceLanguage
+}
+
+export function createTranslationOverlayStore(): TranslationOverlayStore {
+  const entries = new Map<string, TranslationOverlayEntry>()
+  const perKeyListeners = new Map<string, Set<() => void>>()
+  const mapListeners = new Set<() => void>()
+  let mapVersion = 0
+  let mapSnapshot: Record<string, TranslationOverlayEntry> = {}
+  let mapDirty = false
+
+  function notifyKey(messageId: string): void {
+    const listeners = perKeyListeners.get(messageId)
+    if (!listeners) return
+    for (const listener of Array.from(listeners)) listener()
+  }
+
+  function notifyMap(): void {
+    mapVersion += 1
+    mapDirty = true
+    for (const listener of Array.from(mapListeners)) listener()
+  }
+
+  function rebuildMapSnapshot(): Record<string, TranslationOverlayEntry> {
+    if (!mapDirty) return mapSnapshot
+    const next: Record<string, TranslationOverlayEntry> = {}
+    for (const [key, value] of entries) next[key] = value
+    mapSnapshot = next
+    mapDirty = false
+    return mapSnapshot
+  }
+
+  return {
+    getSnapshot(messageId: string) {
+      return entries.get(messageId)
+    },
+    getMapSnapshot() {
+      // Rebuild lazily so map readers pay only when they subscribe via context.
+      // Per-key readers never touch this path.
+      return rebuildMapSnapshot()
+    },
+    subscribe(messageId: string, listener: () => void) {
+      let listeners = perKeyListeners.get(messageId)
+      if (!listeners) {
+        listeners = new Set()
+        perKeyListeners.set(messageId, listeners)
+      }
+      listeners.add(listener)
+      return () => {
+        const current = perKeyListeners.get(messageId)
+        if (!current) return
+        current.delete(listener)
+        if (current.size === 0) perKeyListeners.delete(messageId)
+      }
+    },
+    subscribeMap(listener: () => void) {
+      mapListeners.add(listener)
+      return () => {
+        mapListeners.delete(listener)
+      }
+    },
+    set(messageId: string, entry: TranslationOverlayEntry | null) {
+      if (entry == null) {
+        if (!entries.has(messageId)) return
+        entries.delete(messageId)
+        notifyKey(messageId)
+        notifyMap()
+        return
+      }
+      const existing = entries.get(messageId)
+      if (translationOverlayEntryEqual(existing, entry)) return
+      entries.set(messageId, entry)
+      notifyKey(messageId)
+      notifyMap()
+    },
+    reset() {
+      if (entries.size === 0) return
+      const ids = Array.from(entries.keys())
+      entries.clear()
+      mapDirty = true
+      mapVersion += 1
+      for (const id of ids) notifyKey(id)
+      for (const listener of Array.from(mapListeners)) listener()
+      void mapVersion
+    }
+  }
+}
+
+export const TranslationOverlayContext = createContext<TranslationOverlayStore | null>(null)
 export const TranslationOverlayProvider = TranslationOverlayContext.Provider
 
-/**
- * Setter is exposed via a separate context so writers (the translation hook)
- * don't re-render when the map mutates — only readers (rendering pipeline) do.
- */
+/* Setter stays as the stable writer identity so translation hooks don't
+ * re-render when the map mutates — only overlay readers do. */
 export type TranslationOverlaySetter = (messageId: string, entry: TranslationOverlayEntry | null) => void
 export const TranslationOverlaySetterContext = createContext<TranslationOverlaySetter | null>(null)
 export const TranslationOverlaySetterProvider = TranslationOverlaySetterContext.Provider
 
-/** Read the full overlay map (null when no provider is mounted, e.g. v1 chat). */
-export function useTranslationOverlay(): Record<string, TranslationOverlayEntry> | null {
-  return use(TranslationOverlayContext)
+/** Read the full overlay map (empty object when no provider is mounted). */
+export function useTranslationOverlay(): Record<string, TranslationOverlayEntry> {
+  const store = use(TranslationOverlayContext)
+  const subscribe = useCallback(
+    (listener: () => void) => store?.subscribeMap(listener) ?? (() => {}),
+    [store]
+  )
+  const getSnapshot = useCallback(() => store?.getMapSnapshot() ?? EMPTY_TRANSLATION_OVERLAY, [store])
+  const getServerSnapshot = useCallback(() => EMPTY_TRANSLATION_OVERLAY, [])
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }
 
+const EMPTY_TRANSLATION_OVERLAY: Record<string, TranslationOverlayEntry> = {}
+
 /**
- * Read a single message's overlay entry. Returns undefined when no overlay is
- * active for the message (the typical case).
+ * Read a single message's overlay entry. Subscribes only to that messageId so
+ * unrelated ids keep stable references and don't re-render when another
+ * message's translation changes.
  */
 export function useTranslationOverlayEntry(messageId: string): TranslationOverlayEntry | undefined {
-  const map = use(TranslationOverlayContext)
-  return map?.[messageId]
+  const store = use(TranslationOverlayContext)
+  const subscribe = useCallback(
+    (listener: () => void) => store?.subscribe(messageId, listener) ?? (() => {}),
+    [store, messageId]
+  )
+  const getSnapshot = useCallback(() => store?.getSnapshot(messageId), [store, messageId])
+  const getServerSnapshot = useCallback(() => undefined as TranslationOverlayEntry | undefined, [])
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }
 
 /**
