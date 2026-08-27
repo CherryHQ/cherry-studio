@@ -640,6 +640,7 @@ export function Topics({
 
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: Topic) => {
+      const wasActive = topic.id === activeTopicIdRef.current
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
       )
@@ -656,7 +657,7 @@ export function Topics({
         return
       }
 
-      if (topic.id !== activeTopicIdRef.current) return
+      if (!wasActive) return
 
       if (replacement) {
         setActiveTopic(replacement)
