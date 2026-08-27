@@ -49,7 +49,8 @@ export function buildAgentMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
   const capabilities = resolveAgentCapabilities(agent)
@@ -66,7 +67,6 @@ export function buildAgentMcpServers(
     }
   }
 
-  const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,

@@ -24,8 +24,10 @@ import {
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import {
+  type AgentNotificationContext,
   type LinkedChannelSnapshot,
   type McpServerSnapshotMap,
+  resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
@@ -120,6 +122,8 @@ export interface ClaudeCodeSessionOptions {
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
+  /** Turn-local notification authority captured by the request builder. */
+  notificationContext?: AgentNotificationContext
   /** Per-turn composer selection captured by the connection builder. */
   knowledgeBaseIds?: readonly string[]
   thinkingOptions?: {
@@ -161,6 +165,8 @@ export async function buildClaudeCodeSessionSettings(
     options?.linkedChannelSnapshot === undefined
       ? resolveLinkedNotifyChannel(session.id, agent.id)
       : options.linkedChannelSnapshot
+  const notificationContext =
+    options?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const capabilities = resolveAgentCapabilities(agent)
   const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })
 
@@ -231,7 +237,8 @@ export async function buildClaudeCodeSessionSettings(
     options?.mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
-    options?.knowledgeBaseIds
+    options?.knowledgeBaseIds,
+    notificationContext
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}

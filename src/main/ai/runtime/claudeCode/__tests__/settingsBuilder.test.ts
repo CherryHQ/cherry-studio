@@ -63,6 +63,7 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
+  getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
   createAgentsMdLoader: vi.fn(),
   loadAgentsMdInitialContext: vi.fn(),
@@ -165,9 +166,9 @@ vi.mock('@application', () => ({
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
       if (name === 'AgentSessionRuntimeService') {
         try {
-          return { getTurnTrustedNotifyChannels: () => undefined, ...mocks.applicationGet(name) }
+          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }
         } catch {
-          return { getTurnTrustedNotifyChannels: () => undefined }
+          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
         }
       }
       return mocks.applicationGet(name)
@@ -290,6 +291,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     mocks.modelGetByKey.mockReturnValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockReturnValue(null)
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn(() => false),
@@ -2447,6 +2449,32 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
+  })
+
+  it('uses one captured notification authority throughout async MCP materialization', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const notificationContext = {
+      sourceChannel: null,
+      channels: [{ id: 'scheduled-channel', type: 'telegram' }],
+      allowAnyOwnedChannel: false
+    } as const
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+      linkedChannelSnapshot: null,
+      notificationContext
+    })
+
+    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
+    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
+      { method: 'tools/list', params: {} },
+      {}
+    )
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).toContain('notify')
+    expect(mocks.getTurnTrustedNotifyChannels).not.toHaveBeenCalled()
   })
 
   it('excludes Assistant MCP capability for channel-linked sessions', async () => {

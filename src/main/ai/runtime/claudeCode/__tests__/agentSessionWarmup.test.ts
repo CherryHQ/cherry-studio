@@ -437,15 +437,22 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('carries the turn notification authority into the prewarm request that keys warm reuse', async () => {
-    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
-
-    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
-
-    expect(warmRequest?.notificationContext).toEqual({
+    const notificationContext = {
       sourceChannel: null,
       channels: [{ id: 'channel-1', type: 'telegram' }],
       allowAnyOwnedChannel: false
-    })
+    } as const
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue(notificationContext.channels)
+
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ notificationContext }),
+      expect.anything()
+    )
+    expect(warmRequest?.notificationContext).toEqual(notificationContext)
   })
 
   it('captures provider and model facts from the route materialized before a connect-time edit', async () => {

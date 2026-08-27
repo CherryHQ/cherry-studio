@@ -319,11 +319,11 @@ describe('AgentChatContextProvider', () => {
     ['an explicit recipient set', [{ id: 'ch1', type: 'telegram' }] as const, [{ id: 'ch1', type: 'telegram' }]],
     ['an omitted recipient set', undefined, undefined]
   ])('forwards %s to the runtime for both a fresh turn and a busy follow-up', async (_label, requested, expected) => {
-    await provider.prepareDispatch(makeSubscriber(), openReq({ trustedNotifyChannels: requested } as any))
+    await provider.prepareAgentSessionDispatch(makeSubscriber(), openReq(), { trustedNotifyChannels: requested })
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ trustedNotifyChannels: expected }))
 
     mocks.runtimeIsSessionBusy.mockReturnValue(true)
-    await provider.prepareDispatch(makeSubscriber(), openReq({ trustedNotifyChannels: requested } as any))
+    await provider.prepareAgentSessionDispatch(makeSubscriber(), openReq(), { trustedNotifyChannels: requested })
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.anything(),

@@ -525,6 +525,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
+        notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,

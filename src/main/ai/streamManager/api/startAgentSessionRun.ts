@@ -69,15 +69,15 @@ export async function startAgentSessionRun(input: {
 
     let prepared
     try {
-      prepared = await agentChatContextProvider.prepareDispatch(
+      prepared = await agentChatContextProvider.prepareAgentSessionDispatch(
         primary,
         {
           trigger: 'submit-message',
           topicId,
           userMessageParts: input.userParts,
-          headless: input.headless === true,
-          trustedNotifyChannels: input.trustedNotifyChannels
+          headless: input.headless === true
         },
+        { trustedNotifyChannels: input.trustedNotifyChannels },
         {
           hasLiveStream: false,
           requireIdle: input.requireIdle !== undefined,

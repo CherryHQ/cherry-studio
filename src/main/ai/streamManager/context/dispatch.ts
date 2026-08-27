@@ -5,7 +5,6 @@
  */
 
 import { loggerService } from '@logger'
-import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -61,8 +60,6 @@ export type MainDispatchRequest = (
    * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
    */
   headless?: boolean
-  /** Main-only recipients authorized for this exact agent-session turn. Undefined resolves its linked source channel. */
-  trustedNotifyChannels?: readonly NotifyChannel[]
   /** Main-only durable user row accepted by the cross-session delivery path. */
   agentDeliveryMessage?: AgentSessionMessageEntity
   /** Main-only queue policy: never redirect this delivery into the currently-running turn. */

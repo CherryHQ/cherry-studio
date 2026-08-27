@@ -72,6 +72,11 @@ export type PersistedAgentDispatch = {
   savedMessages: AgentSessionMessageEntity[]
 }
 
+export interface AgentSessionTurnAuthority {
+  /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
+}
+
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
   readonly isPersistentConversation = true
@@ -80,7 +85,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return isAgentSessionTopic(topicId)
   }
 
-  async validateDispatch(req: MainDispatchRequest): Promise<ValidatedAgentDispatch> {
+  async validateDispatch(
+    req: MainDispatchRequest,
+    authority: AgentSessionTurnAuthority = {}
+  ): Promise<ValidatedAgentDispatch> {
     if (req.trigger !== 'submit-message') {
       throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
     }
@@ -142,7 +150,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: req.headless === true,
-      ...(req.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: req.trustedNotifyChannels } : {}),
+      ...(authority.trustedNotifyChannels !== undefined
+        ? { trustedNotifyChannels: authority.trustedNotifyChannels }
+        : {}),
       messageSnapshot: {
         id: agent.id,
         name: agent.name,
@@ -283,7 +293,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx?: DispatchContext
   ): Promise<PreparedDispatch> {
-    const validated = await this.validateDispatch(req)
+    return this.prepareAgentSessionDispatch(subscriber, req, {}, ctx)
+  }
+
+  async prepareAgentSessionDispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    authority: AgentSessionTurnAuthority,
+    ctx?: DispatchContext
+  ): Promise<PreparedDispatch> {
+    const validated = await this.validateDispatch(req, authority)
 
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.
