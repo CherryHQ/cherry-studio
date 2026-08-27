@@ -121,6 +121,8 @@ function isGeminiArraySchema(schema: JSONSchema7): boolean {
 }
 
 function hasGeminiArrayItems(items: JSONSchema7['items']): boolean {
+  // @ai-sdk/google serializes the `true` schema as a typed boolean schema.
+  if (items === true) return true
   if (typeof items !== 'object' || items === null || Array.isArray(items)) return false
   return typeof items.type === 'string' || (Array.isArray(items.type) && items.type.length > 0)
 }
@@ -162,6 +164,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     }
     if (
       scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT &&
+      scope.sdkConfig.providerId !== 'google-vertex-maas' &&
       hasIncompatibleGeminiArray(tool.inputSchema as JSONSchema7Definition)
     ) {
       changed = true
@@ -179,7 +182,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
   if (droppedTools.length > 0) {
     logger.warn('Dropped tools with Gemini-incompatible array schemas', {
-      providerId: scope.aiSdkProviderId,
+      providerId: scope.sdkConfig.providerId,
       toolNames: droppedTools
     })
   }
