@@ -649,6 +649,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
       {reportDescription !== null ? (
         <Suspense fallback={null}>
           <DiagnosticUploadDialog
+            fixedRange="24h"
             initialDescription={reportDescription}
             open
             onOpenChange={(nextOpen) => {

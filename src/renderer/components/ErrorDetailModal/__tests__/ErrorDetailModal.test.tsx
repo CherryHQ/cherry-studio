@@ -44,16 +44,18 @@ vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => {
   mocks.diagnosticUploadModuleEvaluated()
   return {
     default: ({
+      fixedRange,
       initialDescription,
       onOpenChange,
       open
     }: {
+      fixedRange?: string
       initialDescription?: string
       onOpenChange: (open: boolean) => void
       open: boolean
     }) =>
       open ? (
-        <div role="dialog" aria-label="Diagnostic report review">
+        <div role="dialog" aria-label="Diagnostic report review" data-fixed-range={fixedRange}>
           <pre>{initialDescription}</pre>
           <button type="button" onClick={() => onOpenChange(false)}>
             Cancel report
@@ -102,9 +104,9 @@ describe('ErrorDetailContent diagnostic report', () => {
       'AI diagnosis'
     ])
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
-    expect(await screen.findByRole('dialog', { name: 'Diagnostic report review' })).toHaveTextContent(
-      'Location: Home conversation'
-    )
+    const report = await screen.findByRole('dialog', { name: 'Diagnostic report review' })
+    expect(report).toHaveTextContent('Location: Home conversation')
+    expect(report).toHaveAttribute('data-fixed-range', '24h')
     expect(mocks.diagnosticUploadModuleEvaluated).toHaveBeenCalledOnce()
 
     await user.click(screen.getByRole('button', { name: 'Cancel report' }))
