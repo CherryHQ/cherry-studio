@@ -521,6 +521,29 @@ describe('SpreadsheetFilePreview', () => {
     expect(reference.excerpt).toBe('text after the blanks')
   })
 
+  it('keeps the text of a range whose leading cells hold only whitespace', () => {
+    const model = modelWithoutCharts()
+    const sheet = model.sheets[0]
+    // The same case as above, for cells an export blanked with a space rather than leaving empty. They have
+    // text, so a raw-length budget charges for them, but none of it survives normalization — enough of them
+    // and the scan stops before any real text, leaving an excerpt that normalizes to nothing and is dropped.
+    sheet.rowCount = 5000
+    sheet.colCount = 1
+    sheet.cells = Object.fromEntries(
+      Array.from({ length: 4000 }, (_, index) => [`${index + 1}:1`, { text: ' ', styleId: 0 }])
+    )
+    sheet.cells['4001:1'] = { text: 'text after the blanks', styleId: 0 }
+    mocks.rangeSelection = { range: 'A1:A5000', rect: { top: 1, left: 1, bottom: 5000, right: 1 } }
+    setWorkbookState({ status: 'ready', model })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    const reference = onSelectionReference.mock.lastCall?.[0] as SelectionReference
+    expect(reference.excerpt).toBe('text after the blanks')
+  })
+
   it('emits a merged range once, at its master, instead of repeating it per covered cell', () => {
     const model = modelWithoutCharts()
     const sheet = model.sheets[0]
