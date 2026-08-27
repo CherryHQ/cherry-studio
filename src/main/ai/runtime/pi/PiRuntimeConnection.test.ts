@@ -156,6 +156,7 @@ vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
@@ -346,7 +347,9 @@ beforeEach(() => {
       providerId: 'p',
       providerName: 'P',
       source: null,
-      frozenModels: [{ modelId: 'p::m', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }]
+      frozenModels: [
+        { modelId: 'p::m', apiModelId: 'm', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }
+      ]
     }
   })
   mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
@@ -424,7 +427,7 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('IMPORTANT: You must respond in English.')
   })
 
-  it('forwards the active Cherry proxy environment to Pi provider requests', async () => {
+  it('uses Cherry network transport and preserves provider request environment', async () => {
     const injection = mocks.resolveInjection()
     mocks.resolveInjection.mockReturnValue({
       ...injection,
@@ -438,13 +441,27 @@ describe('PiRuntimeConnection', () => {
     const providerConfig = mocks.registerProvider.mock.calls[0][1]
     providerConfig.streamSimple({}, [], { env: { REQUEST_SCOPED: 'preserved' } })
 
-    expect(mocks.providerStreamSimple.mock.calls[0][2].env).toMatchObject({
-      REQUEST_SCOPED: 'preserved',
-      HTTP_PROXY: 'http://127.0.0.1:7890',
-      HTTPS_PROXY: 'http://127.0.0.1:7890',
-      NO_PROXY: 'localhost,127.0.0.1',
-      AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
+    expect(mocks.providerStreamSimple.mock.calls[0][2]).toMatchObject({
+      fetch: customFetch,
+      env: {
+        REQUEST_SCOPED: 'preserved',
+        HTTP_PROXY: 'http://127.0.0.1:7890',
+        HTTPS_PROXY: 'http://127.0.0.1:7890',
+        NO_PROXY: 'localhost,127.0.0.1',
+        AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
+      }
     })
+  })
+
+  it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {
+    await new PiRuntimeConnection(input).start()
+    vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', 'socks5://user:password@127.0.0.1:1080')
+    vi.stubEnv('SOCKS_PROXY', 'socks5://user:password@127.0.0.1:1080')
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+
+    providerConfig.streamSimple({}, [], {})
+
+    expect(mocks.providerStreamSimple.mock.calls[0][2]).not.toHaveProperty('fetch')
   })
 
   it('uses a generation-scoped api namespace so same-session replacements cannot overwrite each other', async () => {
@@ -1501,7 +1518,7 @@ describe('PiRuntimeConnection', () => {
       ])
     })
 
-    it('wraps agent instructions with the shared authority contract after the persona', async () => {
+    it('wraps agent instructions with the shared authority contract before the persona', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be terse.', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
@@ -1510,7 +1527,7 @@ describe('PiRuntimeConnection', () => {
       const prompt = appendedSystemPrompt()
       expect(prompt).toContain('## Instruction Precedence')
       expect(prompt).toContain('<agent_instructions>\nBe terse.\n</agent_instructions>')
-      expect(prompt.indexOf('AGENT PROMPT')).toBeLessThan(prompt.indexOf('<agent_instructions>'))
+      expect(prompt.indexOf('<agent_instructions>')).toBeLessThan(prompt.indexOf('AGENT PROMPT'))
     })
 
     it('resolves Agent System Prompt variables before injecting them', async () => {

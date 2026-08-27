@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { Topic } from '@renderer/types/topic'
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
@@ -22,19 +22,7 @@ const dataApiMocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => dataApiMocks)
 
-vi.mock('@cherrystudio/ui', () => ({
-  HoverCard: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => (
-    <div data-testid="message-token-hover-root" onMouseEnter={() => onOpenChange?.(true)}>
-      {children}
-    </div>
-  ),
-  HoverCardContent: ({ children, className, id }: { children: ReactNode; className?: string; id?: string }) => (
-    <div id={id} className={className} data-testid="message-token-hover-card">
-      {children}
-    </div>
-  ),
-  HoverCardTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: ({ model }: { model: { id: string } }) => <span data-model-id={model.id} data-testid="model-avatar" />
@@ -145,7 +133,25 @@ function renderWithProvider(
   }
 }
 
+function openDetails() {
+  const trigger = document.querySelector<HTMLButtonElement>('button.message-tokens')
+  if (!trigger) throw new Error('Message token trigger was not rendered')
+
+  fireEvent.pointerEnter(trigger)
+  void act(() => vi.advanceTimersByTime(200))
+  return trigger
+}
+
+function getDetailsCard() {
+  const card = document.querySelector<HTMLElement>('[data-slot="hover-card-content"]')
+  if (!card) throw new Error('Message token details card was not rendered')
+  return card
+}
+
 describe('MessageTokens', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
   it('does not query invocation details until a new-format details card opens', () => {
     renderWithProvider(
       createMessage('assistant', {
@@ -159,7 +165,7 @@ describe('MessageTokens', () => {
       expect.objectContaining({ enabled: false })
     )
 
-    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+    openDetails()
 
     expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
       '/ai-usage-records',
@@ -182,7 +188,7 @@ describe('MessageTokens', () => {
       'agent-session'
     )
 
-    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+    openDetails()
 
     expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
       '/ai-usage-records',
@@ -214,7 +220,7 @@ describe('MessageTokens', () => {
     )
 
     expect(loadNext).not.toHaveBeenCalled()
-    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+    openDetails()
     expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
@@ -224,7 +230,7 @@ describe('MessageTokens', () => {
 
     expect(tokenStats).toHaveTextContent('42 Tokens')
     expect(tokenStats).toHaveClass('text-xs', 'leading-5', 'text-muted-foreground', 'tabular-nums')
-    expect(screen.queryByTestId('message-token-hover-card')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-slot="hover-card-content"]')).not.toBeInTheDocument()
   })
 
   it('shows the compact total when throughput is unavailable', () => {
@@ -249,6 +255,7 @@ describe('MessageTokens', () => {
       }
     )
     renderWithProvider(message)
+    openDetails()
 
     const expectedLocalTime = new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
@@ -274,6 +281,7 @@ describe('MessageTokens', () => {
         totalTokens: 200
       })
     )
+    openDetails()
 
     const detail = screen.getByTestId('metric-detail-token-usage')
     const usageBar = screen.getByTestId('metric-bar-token-usage')
@@ -296,6 +304,7 @@ describe('MessageTokens', () => {
         inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 }
       })
     )
+    openDetails()
 
     fireEvent.pointerEnter(screen.getByTestId('metric-segment-input-breakdown-cache-read'))
 
@@ -314,6 +323,7 @@ describe('MessageTokens', () => {
         timeCompletionMs: 14000
       })
     )
+    openDetails()
 
     const trigger = screen.getByRole('button', { name: '200 Tokens · 10 Tokens/s' })
     expect(trigger).toHaveClass('message-tokens')
@@ -348,6 +358,7 @@ describe('MessageTokens', () => {
         }
       })
     )
+    openDetails()
 
     const timeline = screen.getByTestId('message-performance-timeline')
     expect(within(timeline).getByText('Model')).toBeInTheDocument()
@@ -359,11 +370,12 @@ describe('MessageTokens', () => {
 
   it('omits unavailable performance measurements instead of rendering zero values', () => {
     renderWithProvider(createMessage('assistant', { inputTokens: 10, outputTokens: 2, totalTokens: 12 }))
+    openDetails()
 
     const trigger = screen.getByRole('button', { name: '12 Tokens' })
     expect(trigger).toHaveClass('message-tokens')
 
-    const card = screen.getByTestId('message-token-hover-card')
+    const card = getDetailsCard()
     expect(within(card).queryByTestId('metric-bar-request-duration')).not.toBeInTheDocument()
     expect(within(card).queryByText(/Tokens\/s/)).not.toBeInTheDocument()
   })
@@ -380,19 +392,85 @@ describe('MessageTokens', () => {
 
     const trigger = screen.getByRole('button', { name: '200 Tokens' })
     fireEvent.focus(trigger)
+    void act(() => vi.advanceTimersByTime(200))
 
-    const card = screen.getByTestId('message-token-hover-card')
+    const card = getDetailsCard()
     expect(trigger).toHaveAttribute('aria-describedby', card.id)
     expect(within(screen.getByTestId('metric-bar-token-usage')).getByText('25 Tokens · 12.5%')).toBeInTheDocument()
     expect(within(card).queryAllByRole('button')).toHaveLength(0)
   })
 
-  it('keeps the existing click-to-locate behavior on the compact trigger', () => {
+  it('dismisses pointer-opened details until the pointer deliberately re-enters while keeping locate clicks stable', () => {
     const message = createMessage('assistant', { totalTokens: 42 })
     const { locateMessage } = renderWithProvider(message)
+    const trigger = openDetails()
 
-    fireEvent.click(screen.getByRole('button', { name: '42 Tokens' }))
+    expect(trigger).toHaveAttribute('data-state', 'open')
+    act(() => trigger.focus())
 
+    fireEvent.mouseDown(trigger, { clientX: 100, clientY: 100 })
+    expect(trigger).toHaveAttribute('data-state', 'closed')
+
+    fireEvent.click(trigger, { detail: 1 })
+    void act(() => vi.advanceTimersByTime(200))
+
+    expect(trigger).toHaveAttribute('data-state', 'closed')
+    expect(trigger).toHaveFocus()
+    expect(trigger).not.toHaveAttribute('aria-describedby')
     expect(locateMessage).toHaveBeenCalledWith(message.id, false)
+
+    fireEvent.pointerEnter(trigger)
+    void act(() => vi.advanceTimersByTime(200))
+    expect(trigger).toHaveAttribute('data-state', 'closed')
+
+    fireEvent.mouseEnter(trigger, { clientX: 100, clientY: 100 })
+    fireEvent.pointerEnter(trigger)
+    void act(() => vi.advanceTimersByTime(200))
+    expect(trigger).toHaveAttribute('data-state', 'closed')
+
+    fireEvent.mouseEnter(trigger, { clientX: 120, clientY: 100 })
+    fireEvent.pointerEnter(trigger)
+    void act(() => vi.advanceTimersByTime(200))
+    expect(trigger).toHaveAttribute('data-state', 'open')
+
+    fireEvent.mouseDown(trigger, { clientX: 120, clientY: 100 })
+    fireEvent.click(trigger, { detail: 1 })
+    expect(locateMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps details open for non-primary pointer presses', () => {
+    const message = createMessage('assistant', { totalTokens: 42 })
+    const { locateMessage } = renderWithProvider(message)
+    const trigger = openDetails()
+
+    fireEvent.mouseDown(trigger, { button: 1, clientX: 100, clientY: 100 })
+    expect(trigger).toHaveAttribute('data-state', 'open')
+
+    fireEvent.mouseDown(trigger, { button: 2, clientX: 100, clientY: 100 })
+    expect(trigger).toHaveAttribute('data-state', 'open')
+    expect(locateMessage).not.toHaveBeenCalled()
+  })
+
+  it('closes details for keyboard activation and reopens after deliberate pointer re-entry without discarding focus', () => {
+    const message = createMessage('assistant', { totalTokens: 42 })
+    const { locateMessage } = renderWithProvider(message)
+    const trigger = openDetails()
+
+    act(() => trigger.focus())
+    fireEvent.click(trigger, { detail: 0 })
+    void act(() => vi.advanceTimersByTime(200))
+
+    expect(trigger).toHaveAttribute('data-state', 'closed')
+    expect(trigger).toHaveFocus()
+    expect(trigger).not.toHaveAttribute('aria-describedby')
+    expect(locateMessage).toHaveBeenCalledWith(message.id, false)
+
+    fireEvent.pointerLeave(trigger)
+    fireEvent.mouseLeave(trigger)
+    expect(trigger).toHaveFocus()
+
+    fireEvent.pointerEnter(trigger)
+    void act(() => vi.advanceTimersByTime(200))
+    expect(trigger).toHaveAttribute('data-state', 'open')
   })
 })

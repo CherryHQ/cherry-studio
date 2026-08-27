@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { SerializedError } from '@renderer/types/error'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { isMcpErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
+import { isMcpErrorMessage, isProxyErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
@@ -120,7 +120,7 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     msg.includes('econnrefused') ||
     msg.includes('timeout') ||
     msg.includes('fetch failed') ||
-    msg.includes('proxy') ||
+    isProxyErrorMessage(msg) ||
     msg.includes('certificate')
   ) {
     return `## Context\nNetwork or proxy error. Cherry Studio supports HTTP/SOCKS proxy configuration in system settings. The user may be behind a firewall or using a custom API endpoint.\n`
