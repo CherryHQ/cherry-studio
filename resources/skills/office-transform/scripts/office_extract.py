@@ -54,22 +54,25 @@ def atomic_output(out_path: Path):
 
     `Path.replace` overwrites unconditionally, so the caller's earlier `out_path.exists()` check only
     narrows the window between deciding the path is free and taking it — it does not close it.
-    Claiming the path with `O_CREAT | O_EXCL` up front does. The claim sits outside the `try` on
-    purpose: `fail` raises `SystemExit`, and cleaning up from inside it would delete the file that
-    whoever won the race had just published.
+    Claiming the path with `O_CREAT | O_EXCL` up front does. Only that claim sits outside the `try`,
+    because `fail` raises `SystemExit` and cleaning up from inside it would delete the file whoever
+    won the race had just published. Everything after the claim is inside, so a staging file that
+    cannot even be created still takes the empty claim back down with it.
     """
     try:
         os.close(os.open(out_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
     except FileExistsError:
         fail(f"output path already exists: {out_path} — pick a fresh name instead of overwriting")
-    handle, staging_name = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".part")
-    os.close(handle)
-    staging = Path(staging_name)
+    staging = None
     try:
+        handle, staging_name = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".part")
+        os.close(handle)
+        staging = Path(staging_name)
         yield staging
         staging.replace(out_path)
     except BaseException:
-        staging.unlink(missing_ok=True)
+        if staging is not None:
+            staging.unlink(missing_ok=True)
         out_path.unlink(missing_ok=True)
         raise
 
@@ -171,7 +174,12 @@ def write_markdown_table(rows: list[list[str]], out_path: Path) -> None:
         fail("selection produced no rows")
     width = max(len(row) for row in rows)
     normalized = [row + [""] * (width - len(row)) for row in rows]
-    escaped = [[cell.replace("|", "\\|").replace("\n", " ") for cell in row] for row in normalized]
+    # Backslashes go first. Escaping only the pipe turns a cell's own `\` into the escape for the
+    # pipe that follows it, so `a\|b` reaches the reader as an escaped backslash and a live
+    # separator — one cell silently becomes two.
+    escaped = [
+        [cell.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ") for cell in row] for row in normalized
+    ]
     lines = ["| " + " | ".join(escaped[0]) + " |", "| " + " | ".join(["---"] * width) + " |"]
     lines.extend("| " + " | ".join(row) + " |" for row in escaped[1:])
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
