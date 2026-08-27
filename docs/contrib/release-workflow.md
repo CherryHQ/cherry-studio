@@ -203,7 +203,7 @@ Publish only after the latest release branch commit has passed CI and an `all`-p
 3. Select the matching `release/v<version>` branch and the `publish` operation.
 4. Run the workflow.
 
-The workflow shares the same release-state lock as preparation, builds, backport creation, and Post Release. Immediately before publishing, it requires the draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; requires a successful exact-head `all` build; and confirms that artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. Publication then makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
+The workflow shares the same release-state lock as preparation, builds, backport creation, and Post Release. Immediately before publishing, it requires the draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; requires a successful exact-head `all` build; and confirms that artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. The final fetched `main` SHA is the hotfix cutoff for the release; a hotfix merged after that snapshot belongs to the next release. Publication then makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
 Publishing triggers **Post Release** automatically.
 

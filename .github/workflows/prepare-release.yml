@@ -159,7 +159,7 @@ jobs:
 
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
-            The workflow already completed the branch, tag, and published-release checks from Step 1. Do not repeat those checks or run any Git mutation.
+            The workflow froze the selected dispatch SHA and owns Step 1 item 1. Do not fetch or compare origin/main. It also completed the tag and published-release checks. Do not repeat those checks or run any Git mutation.
 
             Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
         env:
@@ -407,9 +407,8 @@ jobs:
           SIGNOFF_NAME: ${{ steps.publisher.outputs.name }}
         run: |
           TARGET_TAG="${RELEASE_BRANCH#release/}"
-          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
-          RELEASE_PAGES_JSON="$RELEASE_PAGES" TAG="$TARGET_TAG" \
-            node scripts/release/validate-release-state.js prepare
+          gh api --paginate --slurp "repos/$REPO/releases?per_page=100" | \
+            TAG="$TARGET_TAG" node scripts/release/validate-release-state.js prepare
 
           if gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
             echo "Release branch $RELEASE_BRANCH already exists" >&2

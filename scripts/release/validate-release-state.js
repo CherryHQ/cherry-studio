@@ -1,3 +1,5 @@
+const fs = require('node:fs')
+
 function validateReleaseBranchHead({ branchSha, workflowSha }) {
   if (branchSha !== workflowSha) {
     throw new Error(`Release branch moved away from selected workflow commit ${workflowSha}`)
@@ -93,7 +95,7 @@ function main() {
 
   if (phase === 'prepare') {
     validatePreparationState({
-      releasePages: parseOptionalJson(requiredEnvironment('RELEASE_PAGES_JSON'), 'RELEASE_PAGES_JSON'),
+      releasePages: parseOptionalJson(fs.readFileSync(0, 'utf8'), 'release list'),
       tag
     })
     return

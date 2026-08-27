@@ -231,8 +231,8 @@ jobs:
           git fetch origin "refs/heads/main:refs/remotes/origin/main"
 
           collect_pending_hotfixes() {
-            local fork_point hotfix_prs pending merge_sha pr_json
-            fork_point="$(git merge-base "$GITHUB_SHA" origin/main)"
+            local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
+            fork_point="$(git merge-base "$GITHUB_SHA" "$main_sha")"
             hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
             pending=""
 
@@ -248,7 +248,7 @@ jobs:
                 continue
               fi
               if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
-                 ! git merge-base --is-ancestor "$merge_sha" origin/main; then
+                ! git merge-base --is-ancestor "$merge_sha" "$main_sha"; then
                 continue
               fi
               if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
@@ -295,7 +295,7 @@ jobs:
             echo "Draft release $TAG has no artifacts" >&2
             exit 1
           fi
-          PENDING_HOTFIXES="$(collect_pending_hotfixes)"
+          PENDING_HOTFIXES="$(collect_pending_hotfixes "$(git rev-parse origin/main)")"
           if [ -n "$PENDING_HOTFIXES" ]; then
             echo "Merged hotfix pull requests are still waiting for this release: $PENDING_HOTFIXES" >&2
             exit 1
@@ -315,8 +315,8 @@ jobs:
           git fetch origin "refs/heads/main:refs/remotes/origin/main"
 
           collect_pending_hotfixes() {
-            local fork_point hotfix_prs pending merge_sha pr_json
-            fork_point="$(git merge-base "$GITHUB_SHA" origin/main)"
+            local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
+            fork_point="$(git merge-base "$GITHUB_SHA" "$main_sha")"
             hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
             pending=""
 
@@ -332,7 +332,7 @@ jobs:
                 continue
               fi
               if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
-                 ! git merge-base --is-ancestor "$merge_sha" origin/main; then
+                 ! git merge-base --is-ancestor "$merge_sha" "$main_sha"; then
                 continue
               fi
               if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
@@ -347,7 +347,7 @@ jobs:
           TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
           OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-          PENDING_HOTFIXES="$(collect_pending_hotfixes)"
+          PENDING_HOTFIXES="$(collect_pending_hotfixes "$(git rev-parse origin/main)")"
           EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
           RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
           BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
@@ -371,12 +371,14 @@ jobs:
             node scripts/release/validate-release-state.js publish
 
           git fetch origin "refs/heads/main:refs/remotes/origin/main"
-          PENDING_HOTFIXES="$(collect_pending_hotfixes)"
+          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
+          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
           if [ -n "$PENDING_HOTFIXES" ]; then
             echo "A hotfix merged during final release validation and is still waiting for this release: $PENDING_HOTFIXES" >&2
             exit 1
           fi
 
+          echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"
           gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
           if [ "$(gh api "repos/$REPO/releases/$RELEASE_ID" --jq '.draft')" != "false" ]; then
             echo "Release $TAG was not published" >&2

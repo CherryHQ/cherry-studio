@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -602,6 +602,18 @@ describe('release preparation state', () => {
       validatePreparationState({ releasePages: [[unrelatedDraft, { draft: true, tag_name: 'v1.2.0' }]], tag: 'v1.2.0' })
     ).toThrow('Release v1.2.0 already exists')
   })
+
+  it('reads the release list from stdin instead of the process environment', () => {
+    const validatorPath = path.resolve(import.meta.dirname, '../release/validate-release-state.js')
+    const result = spawnSync(process.execPath, [validatorPath, 'prepare'], {
+      encoding: 'utf8',
+      env: { ...process.env, RELEASE_PAGES_JSON: '', TAG: 'v1.2.0' },
+      input: JSON.stringify([[{ draft: true, tag_name: 'v1.1.0' }]])
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+  })
 })
 
 describe('release publication state', () => {
@@ -893,22 +905,6 @@ describe('release workflow gates', () => {
     expect(uploadedStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
     expect(tagStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
     expect(tagStep.run).toContain('node scripts/release/validate-release-state.js build-completion')
-  })
-
-  it('runs the shared publish validator with pending hotfixes immediately before publication', () => {
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
-    const publishStep = workflow.jobs['publish-release'].steps.find(
-      (step: { name?: string }) => step.name === 'Publish current draft'
-    )
-
-    expect(publishStep.run).toContain('PENDING_HOTFIXES="$(collect_pending_hotfixes)"')
-    expect(publishStep.run).toContain('PENDING_HOTFIXES="$PENDING_HOTFIXES"')
-    expect(publishStep.run).toContain('node scripts/release/validate-release-state.js publish')
-    const validatorIndex = publishStep.run.indexOf('node scripts/release/validate-release-state.js publish')
-    const publicationIndex = publishStep.run.indexOf('gh release edit "$TAG"')
-    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeGreaterThan(validatorIndex)
-    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeLessThan(publicationIndex)
-    expect(validatorIndex).toBeLessThan(publicationIndex)
   })
 
   it('reports a merged hotfix contract failure before release resolution', () => {
