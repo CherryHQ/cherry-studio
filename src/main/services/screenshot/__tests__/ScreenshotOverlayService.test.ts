@@ -36,7 +36,7 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
 
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
+vi.mock('@main/ai/localModel/registry/ocrModelPaths', () => ({
   ocrModelPaths: () => ({ detection: 'det', recognition: 'rec', charactersDictionary: 'dict' })
 }))
 

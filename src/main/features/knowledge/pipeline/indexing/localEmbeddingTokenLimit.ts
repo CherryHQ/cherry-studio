@@ -1,8 +1,5 @@
 import { application } from '@application'
-import {
-  LOCAL_EMBEDDING_MAX_INPUT_TOKENS,
-  LOCAL_EMBEDDING_MAX_OVERLAP_TOKENS
-} from '@main/ai/inference/localEmbeddingLimits'
+import { LOCAL_EMBEDDING_MAX_INPUT_TOKENS, LOCAL_EMBEDDING_MAX_OVERLAP_TOKENS } from '@main/ai/localModel'
 import { bundleDtype, bundleForCapability } from '@main/ai/localModel'
 import { currentModelDir } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'

@@ -1,4 +1,5 @@
 import type * as InstallersModule from '@main/ai/localModel/registry/installers'
+import type * as AccelerationModule from '@main/ai/localModel/runtime/inferenceAcceleration'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const EMBEDDING = 'qwen3-embedding-0.6b'
@@ -11,7 +12,8 @@ const { isLocalInferenceHardwareAccelerationSupported, gcSharedArtifacts, embedd
   ocr: { getStatusInfo: vi.fn(), download: vi.fn(), cancel: vi.fn(), remove: vi.fn() }
 }))
 
-vi.mock('@main/ai/inference/inferenceAcceleration', () => ({
+vi.mock('@main/ai/localModel/runtime/inferenceAcceleration', async (importOriginal) => ({
+  ...(await importOriginal<typeof AccelerationModule>()),
   isLocalInferenceHardwareAccelerationSupported
 }))
 

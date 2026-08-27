@@ -1,7 +1,8 @@
 import path from 'node:path'
 
-import type { OcrModelPaths } from '@main/ai/inference/inferenceProtocol'
-import { bundleFile, bundleForCapability, localModelRegistry } from '@main/ai/localModel'
+import type { OcrModelPaths } from '../runtime/inferenceProtocol'
+import { bundleFile, bundleForCapability } from './catalog'
+import { localModelRegistry } from './LocalModelRegistry'
 
 /**
  * On-disk path helpers for the local PaddleOCR model (PP-OCRv6 medium via

@@ -69,8 +69,8 @@ vi.mock('../inferenceAcceleration', () => ({
 }))
 
 // Import the SUT after the worker mock is declared (it constructs a Worker lazily on first send).
-const { EmbeddingInferenceService } = await import('../EmbeddingInferenceService')
-const { OcrInferenceService } = await import('../OcrInferenceService')
+const { EmbeddingInferenceService } = await import('../../EmbeddingInferenceService')
+const { OcrInferenceService } = await import('../../OcrInferenceService')
 const embeddingInferenceService = new EmbeddingInferenceService()
 const ocrInferenceService = new OcrInferenceService()
 

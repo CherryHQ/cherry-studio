@@ -1,7 +1,7 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import type { EmbeddingModelDir } from './inferenceProtocol'
-import { InferenceServiceBase } from './InferenceServiceBase'
+import type { EmbeddingModelDir } from './runtime/inferenceProtocol'
+import { InferenceServiceBase } from './runtime/InferenceServiceBase'
 
 /** Local text-embedding inference (transformers.js / Qwen3-Embedding) in its own
  * worker; see {@link InferenceServiceBase} for the shared worker lifecycle. */

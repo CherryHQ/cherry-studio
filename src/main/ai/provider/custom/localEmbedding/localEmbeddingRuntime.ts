@@ -1,5 +1,5 @@
 import { application } from '@application'
-import type { EmbeddingModelDir } from '@main/ai/inference/inferenceProtocol'
+import type { EmbeddingModelDir } from '@main/ai/localModel'
 import { bundleDtype, bundleForCapability, localModelRegistry } from '@main/ai/localModel'
 
 /**

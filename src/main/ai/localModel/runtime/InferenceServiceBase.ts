@@ -2,12 +2,12 @@ import { Worker } from 'node:worker_threads'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { localModelRegistry } from '@main/ai/localModel'
 import { BaseService } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
 import type { LocalModelCapability } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
+import { localModelRegistry } from '../registry/LocalModelRegistry'
 import { resolveLocalInferenceProfile } from './inferenceAcceleration'
 import type {
   InferenceInitMessage,

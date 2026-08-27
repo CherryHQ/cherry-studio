@@ -1,7 +1,7 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import type { OcrLine, OcrModelPaths, OcrRecognizeSource } from './inferenceProtocol'
-import { InferenceServiceBase } from './InferenceServiceBase'
+import type { OcrLine, OcrModelPaths, OcrRecognizeSource } from './runtime/inferenceProtocol'
+import { InferenceServiceBase } from './runtime/InferenceServiceBase'
 
 /** Local OCR inference (PaddleOCR via ppu-paddle-ocr) in its own worker; see
  * {@link InferenceServiceBase} for the shared worker lifecycle. */

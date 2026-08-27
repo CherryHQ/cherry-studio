@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
 import { application } from '@application'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
+import { ocrModelPaths } from '@main/ai/localModel'
 import { ensureDir, remove, removeDir, write } from '@main/utils/file'
 import { createPdfParser } from '@main/utils/pdf'
 import { AbsoluteFilePathSchema } from '@shared/types/file'

@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
+import { ocrModelPaths } from '@main/ai/localModel'
 import { isLocalModelReady } from '@main/ai/localModel'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'

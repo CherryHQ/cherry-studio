@@ -1,4 +1,4 @@
-import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/inference/inferenceAcceleration'
+import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/localModel'
 import { ALL_MODEL_BUNDLE_IDS, gcSharedArtifacts, getModelBundle, installerFor } from '@main/ai/localModel'
 import type { localModelRequestSchemas } from '@shared/ipc/schemas/localModel'
 import type { IpcHandlersFor } from '@shared/ipc/types'

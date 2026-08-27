@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
+import { ocrModelPaths } from '@main/ai/localModel'
 import { isLocalModelReady } from '@main/ai/localModel'
 import { FILE_TYPE } from '@shared/types/file'
 

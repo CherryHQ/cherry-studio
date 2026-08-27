@@ -19,7 +19,7 @@ vi.mock('@application', async () => {
   return result
 })
 
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
+vi.mock('@main/ai/localModel/registry/ocrModelPaths', () => ({
   ocrModelPaths: ocrModelPathsMock
 }))
 

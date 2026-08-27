@@ -18,8 +18,8 @@ vi.mock('node:worker_threads', () => ({
 // spawn point must refuse before it ever constructs a Worker.
 vi.mock('@main/core/platform', () => ({ isDarwinX64: true }))
 
-const { EmbeddingInferenceService } = await import('../EmbeddingInferenceService')
-const { OcrInferenceService } = await import('../OcrInferenceService')
+const { EmbeddingInferenceService } = await import('../../EmbeddingInferenceService')
+const { OcrInferenceService } = await import('../../OcrInferenceService')
 const embeddingInferenceService = new EmbeddingInferenceService()
 const ocrInferenceService = new OcrInferenceService()
 
