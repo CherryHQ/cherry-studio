@@ -511,7 +511,7 @@ describe('FilesPage keyboard rename', () => {
   it('handles file shortcuts from a focused selection checkbox', async () => {
     renderFilesPage()
 
-    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    const checkbox = screen.getByRole('checkbox')
     fireEvent.click(checkbox)
     checkbox.focus()
     fireEvent.keyDown(checkbox, { key: 'Delete' })
@@ -903,7 +903,7 @@ describe('FilesPage file operations', () => {
     const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
     renderFilesPage([entry, secondEntry])
 
-    const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
+    const checkboxes = screen.getAllByRole('checkbox')
     fireEvent.click(checkboxes[0])
     fireEvent.contextMenu(screen.getByText('notes.md'))
 
