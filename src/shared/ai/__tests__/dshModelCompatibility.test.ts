@@ -72,8 +72,8 @@ describe('isDshCompatibleModel', () => {
     ).toBe(false)
   })
 
-  it('still requires a known context window and text input on the gateway route', () => {
-    expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(false)
+  it('still requires text input on the gateway route, but not a declared context window', () => {
+    expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(true)
     expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(false)
   })
 })
