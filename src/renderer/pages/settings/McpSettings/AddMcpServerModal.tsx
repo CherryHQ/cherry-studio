@@ -1,6 +1,5 @@
 import {
   Button,
-  CodeEditor,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -15,6 +14,7 @@ import {
   FormMessage,
   Label
 } from '@cherrystudio/ui'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -385,7 +385,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                   <FormItem>
                     <FormLabel>{t('settings.mcp.addServer.importFrom.tooltip')}</FormLabel>
                     <FormControl>
-                      <CodeEditor
+                      <LazyCodeEditor
                         theme={activeCmTheme}
                         fontSize={fontSize - 1}
                         value={field.value}

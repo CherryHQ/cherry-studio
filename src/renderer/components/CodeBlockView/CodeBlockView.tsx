@@ -1,4 +1,4 @@
-import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import type { CodeEditorHandles } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
@@ -15,6 +15,7 @@ import {
   useWrapTool
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
@@ -307,7 +308,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const sourceView = useMemo(
     () =>
       isEditing ? (
-        <CodeEditor
+        <LazyCodeEditor
           className="source-view"
           ref={sourceViewRef}
           theme={activeCmTheme}

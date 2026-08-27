@@ -82,7 +82,12 @@ export type { CompoundIcon, IconAvatarProps, IconComponent, IconMeta, IconProps 
 /* Additional Composite Components */
 // CodeEditor
 export {
-  default as CodeEditor,
+  // The CodeEditor component itself is deliberately NOT re-exported from this
+  // barrel: it statically pulls the whole CodeMirror stack, which every barrel
+  // importer would then load. Import it from the deep path
+  // '@cherrystudio/ui/components/composites/code-editor' (lazily on the chat
+  // path) — types and the theme getters stay here because they are light
+  // (the themes bundle is dynamically imported inside utils).
   type CodeEditorHandles,
   type CodeEditorProps,
   type CodeMirrorTheme,

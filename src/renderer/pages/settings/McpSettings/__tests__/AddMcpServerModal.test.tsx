@@ -16,12 +16,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
 
   return {
-    ...actual,
-    CodeEditor: ({ value, onChange }: ComponentProps<'textarea'> & { onChange: (value: string) => void }) => (
-      <textarea aria-label="server config" value={value} onChange={(event) => onChange(event.target.value)} />
-    )
+    ...actual
   }
 })
+
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor:     ({ value, onChange }: ComponentProps<'textarea'> & { onChange: (value: string) => void }) => (
+      <textarea aria-label="server config" value={value} onChange={(event) => onChange(event.target.value)} />
+    )
+}))
+
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {

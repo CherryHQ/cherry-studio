@@ -1,7 +1,7 @@
 import {
   Button,
-  CodeEditor,
   type CodeEditorHandles,
+  type CodeEditorProps,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -16,6 +16,7 @@ import {
   SegmentedControl,
   Tooltip
 } from '@cherrystudio/ui'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -39,7 +40,7 @@ const logger = loggerService.withContext('HtmlArtifactsPopup')
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
   html: string
-  theme: React.ComponentProps<typeof CodeEditor>['theme']
+  theme: CodeEditorProps['theme']
   fontSize: number
   onSave?: (html: string) => void
   editable: boolean
@@ -60,7 +61,7 @@ const CodePanel = memo<CodePanelProps>(
 
     return (
       <div className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
-        <CodeEditor
+        <LazyCodeEditor
           ref={codeEditorRef}
           value={html}
           language="html"

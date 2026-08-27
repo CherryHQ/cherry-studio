@@ -60,7 +60,11 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </div>
     ),
-    CodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme }: MockCodeEditorProps) => {
+  }
+})
+
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme }: MockCodeEditorProps) => {
       const textareaRef = useRef<HTMLTextAreaElement>(null)
       mocks.codeEditorProps = { options, theme }
       useImperativeHandle(ref, () => ({
@@ -84,8 +88,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         </div>
       )
     }
-  }
-})
+}))
 
 describe('PromptEditorField', () => {
   beforeEach(() => {

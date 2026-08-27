@@ -1,4 +1,5 @@
-import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
@@ -602,7 +603,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             editor runs full height under the elevated composer with trailing scroll room. */}
         <div className="min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
-            <CodeEditor
+            <LazyCodeEditor
               key={previewKey}
               value={fileSession.draft}
               language={getFileExtension(overlaySelection.filePath)}

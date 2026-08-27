@@ -249,9 +249,33 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCmTheme: 'light' })
 }))
 
+vi.mock('@renderer/components/LazyCodeEditor', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/components/LazyCodeEditor')>()
+
+  return {
+    LazyCodeEditor: (props: React.ComponentProps<typeof actual.LazyCodeEditor>) => {
+      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
+      useEffect(() => {
+        mocks.codeEditorRef = ref.current
+      })
+
+      if (mocks.useRealCodeEditor) return <actual.LazyCodeEditor {...props} ref={ref} />
+
+      return (
+        <textarea
+          data-testid="code-editor"
+          data-font-size={props.fontSize}
+          readOnly={props.editable === false}
+          value={props.value}
+          onChange={(event) => props.onChange?.(event.currentTarget.value)}
+        />
+      )
+    }
+  }
+})
+
 vi.mock('@cherrystudio/ui', async (importActual) => {
-  const actual = await importActual<typeof CherryStudioUi>()
-  const RealCodeEditor = actual.CodeEditor
+  await importActual<typeof CherryStudioUi>()
 
   return {
     Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
@@ -266,24 +290,6 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
       const domProps = { ...props }
       delete domProps.attached
       return <div {...domProps}>{children}</div>
-    },
-    CodeEditor: (props: React.ComponentProps<typeof RealCodeEditor>) => {
-      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
-      useEffect(() => {
-        mocks.codeEditorRef = ref.current
-      })
-
-      if (mocks.useRealCodeEditor) return <RealCodeEditor {...props} ref={ref} />
-
-      return (
-        <textarea
-          data-testid="code-editor"
-          data-font-size={props.fontSize}
-          readOnly={props.editable === false}
-          value={props.value}
-          onChange={(event) => props.onChange?.(event.currentTarget.value)}
-        />
-      )
     },
     ConfirmDialog: ({
       cancelText,
