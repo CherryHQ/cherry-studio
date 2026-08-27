@@ -172,7 +172,6 @@ const AgentPage = () => {
     }
   }, [routeActiveSessionId])
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
-  const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
@@ -232,10 +231,10 @@ const AgentPage = () => {
     // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
     // `resolveAgentEntrySessionId`, 404s, and the NOT_FOUND recovery fires again — a navigate
     // loop React aborts as a maximum-update-depth render error that tears down the window.
-    setLastUsedSessionId(null)
+    cacheService.setPersist('ui.agent.last_used_session_id', null)
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
-  }, [clearActiveSession, navigate, setLastUsedSessionId])
+  }, [clearActiveSession, navigate])
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -959,7 +958,7 @@ const AgentPage = () => {
         title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
         emoji={visibleAgent?.configuration?.avatar}
         preserveVisuals={preserveTabVisuals}
-        activeSession={activeSession ?? null}
+        activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}
         onToggleSidebar={toggleShellPane}
       />

@@ -660,7 +660,7 @@ const HomePage: FC = () => {
           title={tabTitle}
           emoji={visibleAssistant?.emoji}
           preserveVisuals={preserveTabVisuals}
-          activeTopic={activeTopic}
+          activeTopicId={activeTopic?.id}
           activeTopicSource={activeTopicSource}
         />
         <Container id="home-page">
@@ -775,7 +775,7 @@ const HomePage: FC = () => {
         title={tabTitle}
         emoji={visibleAssistant?.emoji}
         preserveVisuals={preserveTabVisuals}
-        activeTopic={activeTopic}
+        activeTopicId={activeTopic?.id}
         activeTopicSource={activeTopicSource}
       />
       <Container id="home-page">

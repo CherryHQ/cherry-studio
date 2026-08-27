@@ -1,19 +1,18 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { cacheService } from '@data/CacheService'
 import { useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
-import type { Topic } from '@renderer/types/topic'
+import type { ActiveTopicSource } from '@renderer/hooks/useTopic'
 import { useEffect } from 'react'
 
 type Props = {
   title: string
   emoji?: string | null
   preserveVisuals: boolean
-  activeTopic?: Topic | null
-  activeTopicSource: string
+  activeTopicId?: string | null
+  activeTopicSource: ActiveTopicSource
 }
 
-export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopic, activeTopicSource }: Props) {
+export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopicId, activeTopicSource }: Props) {
   const isActiveTab = useIsActiveTab()
-  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
 
   useTabSelfVisuals({
     title,
@@ -24,10 +23,10 @@ export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopic, act
 
   useEffect(() => {
     if (!isActiveTab) return
-    if (activeTopic?.id && activeTopicSource === 'query') {
-      setLastUsedTopicId(activeTopic.id)
+    if (activeTopicId && activeTopicSource === 'query') {
+      cacheService.setPersist('ui.chat.last_used_topic_id', activeTopicId)
     }
-  }, [isActiveTab, activeTopic, activeTopicSource, setLastUsedTopicId])
+  }, [isActiveTab, activeTopicId, activeTopicSource])
 
   return null
 }
