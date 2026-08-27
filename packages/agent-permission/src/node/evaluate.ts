@@ -144,11 +144,11 @@ export async function evaluatePermission(
 
   // 8-9. Structured file paths are checked only after the adapter has classified the call.
   const pathsInsideRoots = async (allowMissingTarget: boolean): Promise<boolean> =>
-    call.paths === undefined ||
-    (call.paths.length > 0 &&
-      (await Promise.all(call.paths.map((path) => isPathWithinRoots(context.roots, path, allowMissingTarget)))).every(
-        Boolean
-      ))
+    call.paths !== undefined &&
+    call.paths.length > 0 &&
+    (await Promise.all(call.paths.map((path) => isPathWithinRoots(context.roots, path, allowMissingTarget)))).every(
+      Boolean
+    )
   if (call.category === 'read') {
     if (await pathsInsideRoots(false)) return { effect: 'allow' }
     return finalize(
