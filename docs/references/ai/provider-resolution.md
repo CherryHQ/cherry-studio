@@ -45,15 +45,18 @@ resolveProviderOptionsKey(aiSdkProviderId, context): string
 1. A caller's hard requirement for a runtime that speaks exactly one protocol.
 2. The model's persisted `preferredEndpointType`.
 3. A caller suggestion, such as Pi preferring Anthropic Messages for a dual-protocol model.
-4. The first entry in `model.endpointTypes` (the legacy routing contract).
+4. The first model-declared endpoint with a configured provider route.
 5. A registered per-model gateway route.
 6. `provider.defaultChatEndpoint`.
 
-Ordinary providers require a live endpoint configuration; a hand-added model with no
-`endpointTypes` can use any configured provider route. New API, CherryIN, and AIOnly models
-instead treat their upstream-reported endpoint set as authoritative because it can include
-protocols not represented by separate local config keys. Invalid stored preferences are skipped;
-runtime requirements and suggestions also require a model declaration or registered gateway route.
+Every chat protocol requires a live endpoint configuration; a hand-added model with no
+`endpointTypes` can use any configured provider route. New API, CherryIN, and AIOnly use
+`sharedEndpointHost` only to inherit one user-configured URL across those configured adapters;
+their upstream-reported endpoint set still narrows which routes each model accepts. Invalid stored
+preferences are skipped, as are runtime requirements and suggestions without a model declaration
+or registered gateway route. If a model declares protocols but none has a configured route, the
+resolver retains its first declaration so URL resolution fails closed instead of borrowing the
+provider default.
 
 `resolveAiSdkProviderId` is the runtime hot-path entry. It reads
 `provider.endpointConfigs[endpointType].adapterFamily`, applies the

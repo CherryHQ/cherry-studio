@@ -237,12 +237,9 @@ export const ProviderConfigSchema = z
     authOptional: z.boolean().default(false),
     /**
      * The provider multiplexes every protocol through one user-configured host
-     * (CherryIN / New API / AiOnly). Two consequences for endpoint routing:
-     * its `/models` listing is authoritative for which endpoints a given model
-     * accepts, so availability is checked against the model's declared set rather
-     * than `endpointConfigs`; and secondary endpoint configs carry only an adapter
-     * family, inheriting the default endpoint's base URL instead of resolving to
-     * no host. Defaults false.
+     * (CherryIN / New API / AiOnly). Secondary endpoint configs may therefore
+     * carry only an adapter family and inherit the default endpoint's base URL.
+     * Every supported protocol must still have an endpoint config. Defaults false.
      */
     sharedEndpointHost: z.boolean().default(false),
     /** Provider-native (server-executed) built-in tools served by this host. */

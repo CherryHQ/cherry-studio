@@ -99,9 +99,7 @@ describe('getModelPreferredEndpoint', () => {
 })
 
 describe('isModelEndpointTypeAvailable', () => {
-  it('reads a shared-host provider capability instead of the provider identity', () => {
-    // CherryIN-shaped: one host multiplexes protocols, and its `/models` listing is the contract.
-    // The endpoint is deliberately absent from `endpointConfigs`.
+  it('does not infer an adapter from a shared host and a model declaration', () => {
     const provider = {
       id: 'some-aggregator',
       presetProviderId: 'some-aggregator',
@@ -109,6 +107,19 @@ describe('isModelEndpointTypeAvailable', () => {
       sharedEndpointHost: true,
       endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.example.net' } }
     } as RoutingProvider
+    const model = makeModel([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+
+    expect(isModelEndpointTypeAvailable(model, provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(false)
+  })
+
+  it('accepts a declared shared-host route when its adapter is configured', () => {
+    const provider = makeProvider({
+      sharedEndpointHost: true,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.example.net' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
     const model = makeModel([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
 
     expect(isModelEndpointTypeAvailable(model, provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)

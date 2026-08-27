@@ -513,6 +513,52 @@ describe('ProviderRegistryService', () => {
       expect(chat.serviceTierControl).toBeUndefined()
     })
 
+    it('uses the same available fallback route as requests for a stale shared-host preference', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'relay-model', name: 'Relay Model', capabilities: ['reasoning'] }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'relay',
+            modelId: 'relay-model',
+            endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages']
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'relay',
+            name: 'Relay',
+            sharedEndpointHost: true,
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-responses': {
+                adapterFamily: 'openai',
+                reasoningFormat: { type: 'openai-responses' }
+              },
+              'openai-chat-completions': {
+                adapterFamily: 'openai-compatible',
+                reasoningFormat: { type: 'openai-chat' }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const result = providerRegistryService.lookupModel('relay', 'relay-model', undefined, {
+        endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+        preferredEndpointType: 'anthropic-messages'
+      })
+
+      expect(result.reasoningProfile.format).toBe('openai-responses')
+    })
+
     it('should rethrow provider lookup errors instead of silently using registry defaults', async () => {
       setupRegistryData()
       const error = new Error('database offline')

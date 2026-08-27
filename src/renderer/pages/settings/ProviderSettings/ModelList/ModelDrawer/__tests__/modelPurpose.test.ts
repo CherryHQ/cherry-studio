@@ -15,7 +15,8 @@ import {
   getPreferredEndpointCandidates,
   getProviderChatEndpointTypes,
   inferModelPurpose,
-  type ModelPurposeFields
+  type ModelPurposeFields,
+  resolvePreferredEndpointOptions
 } from '../modelPurpose'
 
 describe('getModelDrawerMode', () => {
@@ -60,13 +61,13 @@ describe('getPreferredEndpointCandidates', () => {
     expect(getPreferredEndpointCandidates(doubao, [ENDPOINT_TYPE.OPENAI_EMBEDDINGS])).toEqual([])
   })
 
-  it('trusts an aggregator model that declares endpoints the provider config never lists', () => {
+  it('does not invent aggregator adapters from a shared host', () => {
     expect(
       getPreferredEndpointCandidates(
         { id: 'new-api', sharedEndpointHost: true, defaultChatEndpoint: undefined, endpointConfigs: undefined },
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
       )
-    ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+    ).toEqual([])
   })
 
   it('does not offer an unconfigured endpoint for an ordinary provider', () => {
@@ -84,6 +85,25 @@ describe('getPreferredEndpointCandidates', () => {
         endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
       })
     ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+})
+
+describe('resolvePreferredEndpointOptions', () => {
+  it('filters unconfigured chat adapters without removing non-chat endpoint declarations', () => {
+    expect(
+      resolvePreferredEndpointOptions(
+        {
+          id: 'relay',
+          sharedEndpointHost: true,
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' }
+          }
+        },
+        'endpoint-types',
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      )
+    ).toEqual([ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
   })
 })
 

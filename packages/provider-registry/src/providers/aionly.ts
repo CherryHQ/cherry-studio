@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'aionly',
   name: 'AIOnly',
   baseUrl: 'https://api.aiionly.com',
+  anthropic: 'https://api.aiionly.com',
   sharedEndpointHost: true,
   website: {
     apiKey: 'https://maas.aiionly.com/keyApi',
