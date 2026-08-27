@@ -417,7 +417,10 @@ describe('WebviewContainer update check on open', () => {
     })
 
     await webviewIn(container)
-    expect(ipcApi.request).toHaveBeenCalledWith('mini_app.update.check_on_open', { appId: 'com.example.mygame' })
+    // The check is fired from a passive effect, which can land after the element does.
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('mini_app.update.check_on_open', { appId: 'com.example.mygame' })
+    )
   })
 
   it('keeps the webview up when the update check rejects', async () => {
