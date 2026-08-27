@@ -245,6 +245,18 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
+  it('denies ordinary Agent configuration mutation while unattended under full', async () => {
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'full',
+      getInteractionState: () => ({ userResponse: 'unavailable' })
+    })
+    await expect(handler(toolEvent('mcp__cherry-tools__config', { action: 'rename' }), extCtx)).resolves.toMatchObject({
+      block: true,
+      reason: expect.stringContaining('configuration')
+    })
+    expect(emitted).toHaveLength(0)
+  })
+
   it('runs an always-prompt tool with no approval under full', async () => {
     const toolName = 'mcp__cherry-tools__kb_manage'
     const { handler, emitted } = buildGate({

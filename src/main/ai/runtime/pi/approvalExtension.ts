@@ -234,10 +234,12 @@ function extractConductTags(
   input: Record<string, unknown>,
   builtinRole: string | undefined
 ): PermissionCall['conductTags'] {
-  if (!builtinRole) return undefined
   const tags: Array<NonNullable<PermissionCall['conductTags']>[number]> = []
   const command = typeof input.command === 'string' ? input.command : ''
-  if ((toolName === 'bash' && detectDestructiveAssistantCommand(command)) || isPermanentDeletionToolName(toolName)) {
+  if (
+    builtinRole &&
+    ((toolName === 'bash' && detectDestructiveAssistantCommand(command)) || isPermanentDeletionToolName(toolName))
+  ) {
     tags.push('permanent-delete')
   }
   if (
