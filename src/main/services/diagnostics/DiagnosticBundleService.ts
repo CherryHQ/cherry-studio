@@ -60,12 +60,14 @@ type ExportResult = OutputFor<'diagnostics.bundle.export'>
 type SavedBundle = Extract<ExportResult, { status: 'saved' }>
 type UploadInput = InputFor<'diagnostics.bundle.upload'>
 type UploadResult = OutputFor<'diagnostics.bundle.upload'>
+type UploadFallback = Omit<Extract<UploadResult, { status: 'submission_unknown' }>, 'status'>
 type RetryUploadInput = InputFor<'diagnostics.bundle.retry_upload'>
 type RetryUploadResult = OutputFor<'diagnostics.bundle.retry_upload'>
 
 interface RetryableUpload {
-  readonly bundle: Omit<SavedBundle, 'status'>
+  readonly bundle: UploadFallback
   readonly description: string
+  readonly fileSha256: string
 }
 
 type DestinationIdentity = { readonly status: 'missing' } | ({ readonly status: 'present' } & SourceIdentity)
@@ -394,18 +396,10 @@ export class DiagnosticBundleService {
         filePath: bundle.filePath
       })
       if (uploadResult.status === 'uploaded') {
-        return {
-          archiveBytes: bundle.archiveBytes,
-          bundleId: bundle.bundleId,
-          hasWarnings: bundle.hasWarnings,
-          includedFileCount: bundle.includedFileCount,
-          omittedFileCount: bundle.omittedFileCount,
-          reportId: uploadResult.reportId,
-          status: 'uploaded'
-        }
+        return { reportId: uploadResult.reportId, status: 'uploaded' }
       }
 
-      let savedBundle: Omit<SavedBundle, 'status'>
+      let savedBundle: UploadFallback
       try {
         savedBundle = await this.saveUploadFallback(bundle)
       } catch (error) {
@@ -417,13 +411,30 @@ export class DiagnosticBundleService {
         }
         throw error
       }
-      this.retryableUploads.set(savedBundle.bundleId, { bundle: savedBundle, description })
+      if (uploadResult.fileSha256) {
+        this.retryableUploads.set(savedBundle.bundleId, {
+          bundle: savedBundle,
+          description,
+          fileSha256: uploadResult.fileSha256
+        })
+      }
       if (uploadResult.status === 'submission_unknown') {
         logger.warn('Diagnostic bundle submission result is unknown')
-        return { ...savedBundle, status: 'submission_unknown' }
+        return {
+          bundleId: savedBundle.bundleId,
+          fileName: savedBundle.fileName,
+          filePath: savedBundle.filePath,
+          status: 'submission_unknown'
+        }
       }
       logger.warn('Diagnostic bundle submission failed', { reason: uploadResult.reason })
-      return { ...savedBundle, reason: uploadResult.reason, status: 'submission_failed' }
+      return {
+        bundleId: savedBundle.bundleId,
+        fileName: savedBundle.fileName,
+        filePath: savedBundle.filePath,
+        reason: uploadResult.reason,
+        status: 'submission_failed'
+      }
     } finally {
       await removeDir(tempRoot).catch((error) => {
         logger.warn('Failed to clean diagnostic upload temporary files', {
@@ -444,30 +455,34 @@ export class DiagnosticBundleService {
 
     const uploadResult = await cherryDiagnosticUploadClient.upload({
       description: retryable.description,
+      expectedFileSha256: retryable.fileSha256,
       fileName: retryable.bundle.fileName,
       filePath: retryable.bundle.filePath
     })
     if (uploadResult.status === 'uploaded') {
       this.retryableUploads.delete(input.bundleId)
-      return {
-        archiveBytes: retryable.bundle.archiveBytes,
-        bundleId: retryable.bundle.bundleId,
-        hasWarnings: retryable.bundle.hasWarnings,
-        includedFileCount: retryable.bundle.includedFileCount,
-        omittedFileCount: retryable.bundle.omittedFileCount,
-        reportId: uploadResult.reportId,
-        status: 'uploaded'
-      }
+      return { reportId: uploadResult.reportId, status: 'uploaded' }
     }
     if (uploadResult.status === 'submission_unknown') {
       logger.warn('Diagnostic bundle retry result is unknown')
-      return { ...retryable.bundle, status: 'submission_unknown' }
+      return {
+        bundleId: retryable.bundle.bundleId,
+        fileName: retryable.bundle.fileName,
+        filePath: retryable.bundle.filePath,
+        status: 'submission_unknown'
+      }
     }
     logger.warn('Diagnostic bundle retry failed', { reason: uploadResult.reason })
-    return { ...retryable.bundle, reason: uploadResult.reason, status: 'submission_failed' }
+    return {
+      bundleId: retryable.bundle.bundleId,
+      fileName: retryable.bundle.fileName,
+      filePath: retryable.bundle.filePath,
+      reason: uploadResult.reason,
+      status: 'submission_failed'
+    }
   }
 
-  private async saveUploadFallback(bundle: SavedBundle): Promise<Omit<SavedBundle, 'status'>> {
+  private async saveUploadFallback(bundle: SavedBundle): Promise<UploadFallback> {
     const destination = AbsoluteFilePathSchema.parse(application.getPath('sys.downloads', bundle.fileName))
     try {
       if ((await probeDestination(destination)).status !== 'missing') {
@@ -475,13 +490,9 @@ export class DiagnosticBundleService {
       }
       await move(bundle.filePath, destination)
       return {
-        archiveBytes: bundle.archiveBytes,
         bundleId: bundle.bundleId,
         fileName: bundle.fileName,
-        filePath: destination,
-        hasWarnings: bundle.hasWarnings,
-        includedFileCount: bundle.includedFileCount,
-        omittedFileCount: bundle.omittedFileCount
+        filePath: destination
       }
     } catch {
       throw new IpcError(

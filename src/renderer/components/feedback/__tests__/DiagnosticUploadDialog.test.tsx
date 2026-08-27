@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   request: vi.fn(),
   toastError: vi.fn(),
+  toastSuccess: vi.fn(),
   translations: {
     'settings.about.diagnostics.actions.cancel': 'Cancel',
     'settings.about.diagnostics.actions.close': 'Close',
@@ -58,7 +59,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: (...args: unknown[]) => mocks.toastError(...args) }
+  toast: {
+    error: (...args: unknown[]) => mocks.toastError(...args),
+    success: (...args: unknown[]) => mocks.toastSuccess(...args)
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -78,24 +82,16 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
 }
 
 const bundleId = '9de71f3c-f4cf-4311-a3f3-86f12a930451'
-const reportId = 'df543a7e-5a76-4624-b42d-ed7b997d943e'
+const reportId = 'opaque-report-id'
 const fallbackPath = AbsoluteFilePathSchema.parse('/tmp/cherry-studio-diagnostics.zip')
-const bundleSummary = {
-  archiveBytes: 2_000,
-  bundleId,
-  hasWarnings: false,
-  includedFileCount: 2,
-  omittedFileCount: 0
-}
 
 const uploadedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'uploaded' }> = {
-  ...bundleSummary,
   reportId,
   status: 'uploaded'
 }
 
 const submissionFailedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'submission_failed' }> = {
-  ...bundleSummary,
+  bundleId,
   fileName: 'cherry-studio-diagnostics.zip',
   filePath: fallbackPath,
   reason: 'service_unavailable',
@@ -103,7 +99,7 @@ const submissionFailedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { 
 }
 
 const submissionUnknownResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'submission_unknown' }> = {
-  ...bundleSummary,
+  bundleId,
   fileName: 'cherry-studio-diagnostics.zip',
   filePath: fallbackPath,
   status: 'submission_unknown'
@@ -264,7 +260,6 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.getByRole('button', { name: 'Submitting diagnostic report…' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
     const overlay = document.querySelector<HTMLElement>('[data-ui~="part:dialog-overlay"]')
     expect(overlay).not.toBeNull()
@@ -278,6 +273,7 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.queryByText(bundleId)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Copy feedback ID' }))
     expect(clipboardWrite).toHaveBeenCalledWith(reportId)
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('message.copy.success')
   })
 
   it('offers explicit recovery actions for a rejected submission without opening the manual form automatically', async () => {

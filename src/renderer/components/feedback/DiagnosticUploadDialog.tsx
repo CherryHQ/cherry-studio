@@ -424,11 +424,7 @@ function UploadResultContent({
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">{t('settings.about.diagnostics.report.feedback_id')}</span>
             <code className="break-all">{result.reportId}</code>
-            <CopyButton
-              textToCopy={result.reportId}
-              aria-label={t('settings.about.diagnostics.report.copy_id')}
-              successFeedback="icon"
-            />
+            <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
           </div>
         </div>
       </Alert>

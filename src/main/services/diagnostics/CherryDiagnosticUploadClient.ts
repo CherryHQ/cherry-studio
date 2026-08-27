@@ -18,17 +18,18 @@ export type CherryDiagnosticUploadFailureReason = DiagnosticUploadFailureReason
 
 export type CherryDiagnosticUploadResult =
   | { status: 'uploaded'; reportId: string }
-  | { status: 'rejected'; reason: CherryDiagnosticUploadFailureReason }
-  | { status: 'submission_unknown' }
+  | { status: 'rejected'; reason: CherryDiagnosticUploadFailureReason; fileSha256?: string }
+  | { status: 'submission_unknown'; fileSha256: string }
 
 export interface CherryDiagnosticUploadInput {
   description: string
+  expectedFileSha256?: string
   fileName: string
   filePath: AbsoluteFilePath
 }
 
-function rejected(reason: CherryDiagnosticUploadFailureReason): CherryDiagnosticUploadResult {
-  return { reason, status: 'rejected' }
+function rejected(reason: CherryDiagnosticUploadFailureReason, fileSha256?: string): CherryDiagnosticUploadResult {
+  return fileSha256 ? { fileSha256, reason, status: 'rejected' } : { reason, status: 'rejected' }
 }
 
 function isZipPath(value: string): boolean {
@@ -113,32 +114,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function uploadedResult(body: Buffer): CherryDiagnosticUploadResult {
+function uploadedResult(body: Buffer, fileSha256: string): CherryDiagnosticUploadResult {
   try {
     const value = parseResponseJson(body)
     if (!isRecord(value) || typeof value.id !== 'string' || value.id.trim().length === 0) {
-      return { status: 'submission_unknown' }
+      return { fileSha256, status: 'submission_unknown' }
     }
     return { reportId: value.id, status: 'uploaded' }
   } catch {
-    return { status: 'submission_unknown' }
+    return { fileSha256, status: 'submission_unknown' }
   }
 }
 
-function rejectedResult(response: Response, body: Buffer): CherryDiagnosticUploadResult {
-  if (response.status === 400) {
+function rejectedResult(response: Response, fileSha256: string, body?: Buffer): CherryDiagnosticUploadResult {
+  if (response.status === 400 && body) {
     try {
       const value = parseResponseJson(body)
-      if (isRecord(value) && value.code === 'invalid_diagnostic_archive') return rejected('invalid_archive')
+      if (isRecord(value) && value.code === 'invalid_diagnostic_archive') {
+        return rejected('invalid_archive', fileSha256)
+      }
     } catch {
-      return rejected('submission_rejected')
+      return rejected('submission_rejected', fileSha256)
     }
   }
-  if (response.status === 401 || response.status === 409) return rejected('authentication_failed')
-  if (response.status === 413) return rejected('archive_too_large')
-  if (response.status === 429) return rejected('rate_limited')
-  if (response.status === 502) return rejected('service_unavailable')
-  return rejected('submission_rejected')
+  if (response.status === 401 || response.status === 409) return rejected('authentication_failed', fileSha256)
+  if (response.status === 413) return rejected('archive_too_large', fileSha256)
+  if (response.status === 429) return rejected('rate_limited', fileSha256)
+  if (response.status === 502) return rejected('service_unavailable', fileSha256)
+  return rejected('submission_rejected', fileSha256)
 }
 
 export class CherryDiagnosticUploadClient {
@@ -161,13 +164,16 @@ export class CherryDiagnosticUploadClient {
       } catch {
         return rejected('invalid_archive')
       }
+      if (input.expectedFileSha256 !== undefined && fileSha256 !== input.expectedFileSha256) {
+        return rejected('invalid_archive')
+      }
 
       const description = normalizeDiagnosticDescription(input.description)
       let signatureHeaders
       try {
         signatureHeaders = generateDiagnosticUploadHeaders({ description, fileSha256, fileSize: snapshot.size })
       } catch {
-        return { status: 'submission_unknown' }
+        return rejected('authentication_failed', fileSha256)
       }
 
       let file: Blob
@@ -185,17 +191,32 @@ export class CherryDiagnosticUploadClient {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
       try {
-        const response = await net.fetch(DIAGNOSTIC_UPLOAD_URL, {
-          body: form,
-          headers: { ...signatureHeaders },
-          method: 'POST',
-          redirect: 'manual',
-          signal: controller.signal
-        })
-        const body = await readResponseBody(response)
-        return response.ok ? uploadedResult(body) : rejectedResult(response, body)
-      } catch {
-        return { status: 'submission_unknown' }
+        let response: Response
+        try {
+          response = await net.fetch(DIAGNOSTIC_UPLOAD_URL, {
+            body: form,
+            headers: { ...signatureHeaders },
+            method: 'POST',
+            redirect: 'manual',
+            signal: controller.signal
+          })
+        } catch {
+          return { fileSha256, status: 'submission_unknown' }
+        }
+
+        if (!response.ok && response.status !== 400) {
+          await cancelBody(response)
+          return rejectedResult(response, fileSha256)
+        }
+
+        try {
+          const body = await readResponseBody(response)
+          return response.ok ? uploadedResult(body, fileSha256) : rejectedResult(response, fileSha256, body)
+        } catch {
+          return response.ok
+            ? { fileSha256, status: 'submission_unknown' }
+            : rejected('submission_rejected', fileSha256)
+        }
       } finally {
         clearTimeout(timeout)
       }

@@ -23,14 +23,6 @@ const diagnosticSourceSummarySchema = z.object({
   fileCount: z.number().int().nonnegative()
 })
 
-const diagnosticBundleSummarySchema = z.object({
-  archiveBytes: z.number().int().nonnegative(),
-  bundleId: z.string(),
-  hasWarnings: z.boolean(),
-  includedFileCount: z.number().int().nonnegative(),
-  omittedFileCount: z.number().int().nonnegative()
-})
-
 const diagnosticBundleInputSchema = z
   .object({
     includeLogs: z.boolean(),
@@ -47,19 +39,22 @@ const diagnosticDescriptionSchema = z
 
 const diagnosticUploadInputSchema = diagnosticBundleInputSchema.extend({ description: diagnosticDescriptionSchema })
 
-const diagnosticSavedBundleSummarySchema = diagnosticBundleSummarySchema.extend({
+const nonblankStringSchema = z.string().refine((value) => value.trim().length > 0)
+
+const diagnosticUploadFallbackSchema = z.object({
+  bundleId: z.string(),
   fileName: z.string(),
   filePath: AbsoluteFilePathSchema
 })
 
 const diagnosticUploadResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('busy') }),
-  diagnosticBundleSummarySchema.extend({ reportId: z.string().uuid(), status: z.literal('uploaded') }),
-  diagnosticSavedBundleSummarySchema.extend({
+  z.object({ reportId: nonblankStringSchema, status: z.literal('uploaded') }),
+  diagnosticUploadFallbackSchema.extend({
     reason: diagnosticUploadFailureReasonSchema,
     status: z.literal('submission_failed')
   }),
-  diagnosticSavedBundleSummarySchema.extend({ status: z.literal('submission_unknown') })
+  diagnosticUploadFallbackSchema.extend({ status: z.literal('submission_unknown') })
 ])
 
 export const diagnosticsRequestSchemas = {

@@ -91,7 +91,11 @@ function reportResponse(
 }
 
 function rejectedResult(reason: CherryDiagnosticUploadFailureReason): CherryDiagnosticUploadResult {
-  return { reason, status: 'rejected' }
+  return { fileSha256: SIGNATURE_HEADERS['X-File-SHA256'], reason, status: 'rejected' }
+}
+
+function submissionUnknownResult(): CherryDiagnosticUploadResult {
+  return { fileSha256: SIGNATURE_HEADERS['X-File-SHA256'], status: 'submission_unknown' }
 }
 
 describe('CherryDiagnosticUploadClient', () => {
@@ -158,6 +162,21 @@ describe('CherryDiagnosticUploadClient', () => {
     )
   })
 
+  it('returns authentication_failed when signing fails before the request starts', async () => {
+    signerMocks.generateDiagnosticUploadHeaders.mockImplementationOnce(() => {
+      throw new Error('signing unavailable')
+    })
+
+    await expect(
+      client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
+    ).resolves.toEqual({
+      fileSha256: SIGNATURE_HEADERS['X-File-SHA256'],
+      reason: 'authentication_failed',
+      status: 'rejected'
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['file name', 'diagnostics.txt', undefined],
     ['file path', 'diagnostics.zip', 'diagnostics.txt']
@@ -207,6 +226,19 @@ describe('CherryDiagnosticUploadClient', () => {
       expect.objectContaining({ fileSize: MAX_ARCHIVE_BYTES })
     )
     expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a ZIP whose digest differs from the approved digest before signing or fetching', async () => {
+    await expect(
+      client.upload({
+        description: '',
+        expectedFileSha256: '0'.repeat(64),
+        fileName: 'diagnostics.zip',
+        filePath: AbsoluteFilePathSchema.parse(filePath)
+      })
+    ).resolves.toEqual({ reason: 'invalid_archive', status: 'rejected' })
+    expect(signerMocks.generateDiagnosticUploadHeaders).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -277,7 +309,7 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ status: 'submission_unknown' })
+    ).resolves.toEqual(submissionUnknownResult())
   })
 
   it.each([
@@ -320,7 +352,7 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ status: 'submission_unknown' })
+    ).resolves.toEqual(submissionUnknownResult())
   })
 
   it.each([
@@ -340,6 +372,56 @@ describe('CherryDiagnosticUploadClient', () => {
     ).resolves.toEqual(rejectedResult(reason as CherryDiagnosticUploadFailureReason))
   })
 
+  it('maps a non-400 rejection without reading its body and releases the response', async () => {
+    let canceled = false
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        new ReadableStream({
+          cancel() {
+            canceled = true
+          },
+          start(controller) {
+            controller.enqueue(new Uint8Array([0]))
+          },
+          pull() {
+            throw new Error('body must not be read')
+          }
+        }),
+        { status: 429 }
+      )
+    )
+
+    await expect(
+      client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
+    ).resolves.toEqual({
+      fileSha256: SIGNATURE_HEADERS['X-File-SHA256'],
+      reason: 'rate_limited',
+      status: 'rejected'
+    })
+    expect(canceled).toBe(true)
+  })
+
+  it('returns submission_rejected when a 400 response body cannot be read', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        new ReadableStream({
+          pull() {
+            throw new Error('response stream failed')
+          }
+        }),
+        { status: 400 }
+      )
+    )
+
+    await expect(
+      client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
+    ).resolves.toEqual({
+      fileSha256: SIGNATURE_HEADERS['X-File-SHA256'],
+      reason: 'submission_rejected',
+      status: 'rejected'
+    })
+  })
+
   it.each([307, 308])('does not follow HTTP %s redirects or resend credentials', async (status) => {
     fetchMock.mockResolvedValueOnce(
       new Response('{}', { status, headers: { Location: 'https://attacker.example/diagnostics' } })
@@ -347,7 +429,7 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ reason: 'submission_rejected', status: 'rejected' })
+    ).resolves.toEqual(rejectedResult('submission_rejected'))
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(fetchMock.mock.calls[0][0]).toBe(ENDPOINT)
     expect(fetchMock.mock.calls[0][1]?.redirect).toBe('manual')
@@ -358,7 +440,7 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ status: 'submission_unknown' })
+    ).resolves.toEqual(submissionUnknownResult())
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
@@ -387,7 +469,7 @@ describe('CherryDiagnosticUploadClient', () => {
     await vi.advanceTimersByTimeAsync(15 * 60 * 1000 - 1)
     expect(requestSignal?.aborted).toBe(false)
     await vi.advanceTimersByTimeAsync(1)
-    await expect(upload).resolves.toEqual({ status: 'submission_unknown' })
+    await expect(upload).resolves.toEqual(submissionUnknownResult())
     expect(requestSignal?.aborted).toBe(true)
     expect(vi.getTimerCount()).toBe(0)
   })
