@@ -27,13 +27,55 @@ import { formatFileSize } from '@renderer/utils/file'
 import { permissionLabel } from '@renderer/utils/miniAppPermission'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
+import type { MiniAppActivityEntry, MiniAppActivityGrant, MiniAppActivityListing } from '@shared/types/miniAppActivity'
 import type { QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
 import { isNonChatModel } from '@shared/utils/model'
+import type { TFunction } from 'i18next'
+import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type DestructiveAction = 'clear_data' | 'uninstall'
+
+/** Literal keys, so the catalog check sees them; the grant names are a closed set. */
+const GRANT_ACTIVITY_KEYS: Record<MiniAppActivityGrant['name'], string> = {
+  install: 'miniApp.activity.grant.install',
+  reinstall: 'miniApp.activity.grant.reinstall',
+  update: 'miniApp.activity.grant.update',
+  rollback: 'miniApp.activity.grant.rollback',
+  grant: 'miniApp.activity.grant.grant',
+  revoke: 'miniApp.activity.grant.revoke',
+  grant_pending: 'miniApp.activity.grant.grant_pending',
+  snooze_pending: 'miniApp.activity.grant.snooze_pending',
+  clear_data: 'miniApp.activity.grant.clear_data'
+}
+
+/** One line per entry. Calls show their metadata facet as-is: it never holds a payload. */
+function describeActivity(t: TFunction, entry: MiniAppActivityEntry): string {
+  switch (entry.kind) {
+    case 'call': {
+      const facet = Object.entries(entry.facet ?? {})
+        .map(([key, value]) => `${key}=${value}`)
+        .join(' ')
+      return `${entry.name} → ${entry.outcome}${facet ? ` · ${facet}` : ''}`
+    }
+    case 'grant':
+      return t(GRANT_ACTIVITY_KEYS[entry.name], {
+        version: entry.version ?? '',
+        permissions: (entry.permissions ?? []).join(', ')
+      })
+    case 'count':
+      return t('miniApp.activity.count', {
+        name: entry.name,
+        calls: entry.calls,
+        failures: entry.failures,
+        bytes: formatFileSize(entry.bytes)
+      })
+    case 'truncated':
+      return t('miniApp.activity.truncated')
+  }
+}
 
 interface Props {
   appId: string
@@ -86,7 +128,7 @@ const Usage: FC<{ label: string; usage: QuotaUsageWithLimits; testId: string }> 
  * that token IS the consent record, and applying re-sends it and nothing else.
  */
 const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [detail, setDetail] = useState<MiniAppDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -99,6 +141,29 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   const { trigger: patchMiniApp } = useMutation('PATCH', '/mini-apps/:appId')
   const patchModels = (body: { aiModelId?: UniqueModelId | null; aiQuickModelId?: UniqueModelId | null }) =>
     patchMiniApp({ params: { appId }, body })
+
+  const [activity, setActivity] = useState<MiniAppActivityListing>({ entries: [], bytes: 0, days: 0 })
+  const [deniedOnly, setDeniedOnly] = useState(false)
+  const loadActivity = useCallback(async () => {
+    try {
+      setActivity(await ipcApi.request('mini_app.activity.list', { appId, limit: 100, deniedOnly }))
+    } catch (e) {
+      logger.error('Failed to load mini app activity', e as Error)
+    }
+  }, [appId, deniedOnly])
+  // Pulled on open, on the filter, and on the user's refresh — never pushed: a log that
+  // grows all day would broadcast to every window for a panel that is rarely open.
+  useEffect(() => {
+    void loadActivity()
+  }, [loadActivity])
+  const timeOf = (ts: number) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).format(ts)
 
   const reload = useCallback(async () => {
     try {
@@ -372,6 +437,76 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                     {t('miniApp.detail.clear_data')}
                   </Button>
                 </div>
+              </section>
+
+              <section className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-medium">{t('miniApp.activity.title')}</h3>
+                    <Tooltip content={t('miniApp.activity.hint')}>
+                      <Info size={14} className="text-muted-foreground" aria-label={t('miniApp.activity.hint')} />
+                    </Tooltip>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => void loadActivity()}>
+                      {t('miniApp.activity.refresh')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={deniedOnly ? 'default' : 'outline'}
+                      aria-pressed={deniedOnly}
+                      onClick={() => setDeniedOnly((value) => !value)}>
+                      {t('miniApp.activity.denied_only')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        run(() => ipcApi.request('mini_app.activity.open_folder', { appId }), { reloadAfter: false })
+                      }>
+                      {t('miniApp.activity.open_folder')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy || activity.entries.length === 0}
+                      onClick={() =>
+                        run(
+                          async () => {
+                            await ipcApi.request('mini_app.activity.clear', { appId })
+                            await loadActivity()
+                          },
+                          { reloadAfter: false }
+                        )
+                      }>
+                      {t('miniApp.activity.clear')}
+                    </Button>
+                  </div>
+                </div>
+                {activity.days > 0 && (
+                  <p className="text-muted-foreground text-xs" data-testid="activity-size">
+                    {t('miniApp.activity.size', { bytes: formatFileSize(activity.bytes), days: activity.days })}
+                  </p>
+                )}
+                {activity.entries.length === 0 ? (
+                  <p className="text-muted-foreground text-xs">{t('miniApp.activity.empty')}</p>
+                ) : (
+                  <ul
+                    className="flex max-h-56 flex-col gap-1 overflow-y-auto font-mono text-xs"
+                    data-testid="activity-list">
+                    {activity.entries.map((entry, index) => (
+                      <li
+                        key={`${entry.ts}-${index}`}
+                        className={
+                          entry.kind === 'call' && entry.outcome !== 'ok' ? 'flex gap-2 text-destructive' : 'flex gap-2'
+                        }>
+                        <span className="shrink-0 text-muted-foreground">{timeOf(entry.ts)}</span>
+                        <span className="truncate">{describeActivity(t, entry)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </section>
             </div>
           )}

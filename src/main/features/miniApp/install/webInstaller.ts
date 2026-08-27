@@ -31,6 +31,7 @@ import {
 import { eq } from 'drizzle-orm'
 import { gt as semverGt } from 'semver'
 
+import { miniAppActivityLog } from '../activityLog'
 import {
   diffDeclaredHosts,
   diffDeclaredSets,
@@ -572,6 +573,7 @@ async function publishUpdate(
   const previousConsented = row.consentedDeclaredJson ?? []
   // Until this flips, `.backup` is the RETAINED previous version, not this update's.
   let movedToBackup = false
+  let granted: string[] = []
 
   try {
     const manifest = await fill(staging)
@@ -638,7 +640,8 @@ async function publishUpdate(
       const chosenOptional = grantedOptional
         ? addedOptional.filter((key) => grantedOptional.includes(key))
         : addedOptional
-      grantMiniAppPermissionsTx(tx, appId, [...added, ...chosenOptional], manifest.version)
+      granted = [...added, ...chosenOptional]
+      grantMiniAppPermissionsTx(tx, appId, granted, manifest.version)
       for (const key of removed) revokeGrantTx(tx, appId, key)
     })
   } catch (error) {
@@ -662,6 +665,12 @@ async function publishUpdate(
   // is worse than no badge — it trains the user to ignore it.
   application.get('MiniAppRuntimeService').noteUpdateAvailable(appId, null)
   logger.info('Updated mini app', { appId, version: remote.version })
+  miniAppActivityLog.recordGrant(appId, {
+    name: 'update',
+    version: remote.version,
+    permissions: granted,
+    removed: [...removed]
+  })
   // Name, version and entry url may all have changed; the row set did not.
   notifyDataApiDataChange([{ endpoint: '/mini-apps', kind: 'projection' }])
 }
@@ -822,6 +831,7 @@ export async function rollbackUpdate(appId: string): Promise<void> {
       // next check is what decides whether a newer one exists.
       application.get('MiniAppRuntimeService').noteUpdateAvailable(appId, null)
       logger.warn('Rolled mini app back to its previous version', { appId, version: previous.version })
+      miniAppActivityLog.recordGrant(appId, { name: 'rollback', version: previous.version })
       notifyDataApiDataChange([{ endpoint: '/mini-apps', kind: 'projection' }])
     })
   )

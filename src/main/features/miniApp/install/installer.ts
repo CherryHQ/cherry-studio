@@ -30,6 +30,7 @@ import {
 } from '@shared/types/miniAppManifest'
 import { eq } from 'drizzle-orm'
 
+import { miniAppActivityLog } from '../activityLog'
 import { ownedFileEntryIds, reclaimEntries } from '../capabilities/file'
 import { grantMiniAppPermissionsTx, replaceGrantsTx } from '../grants'
 import { miniAppBackupPath, miniAppDataPath, miniAppInstallPath, miniAppRollingPath } from '../paths'
@@ -360,6 +361,7 @@ async function publishReinstall(
   await fs.promises.rm(backup, { recursive: true, force: true })
   writePublishJournal({ kind: 'update', appId: manifest.id, contentHash })
   let movedToBackup = false
+  let granted: string[] = []
   try {
     if (fs.existsSync(installPath)) {
       await fs.promises.rename(installPath, backup)
@@ -393,7 +395,8 @@ async function publishReinstall(
       const chosen = options.grantedOptional
         ? optional.filter((key) => options.grantedOptional!.includes(key))
         : optional
-      replaceGrantsTx(tx, manifest.id, [...required, ...chosen], manifest.version)
+      granted = [...required, ...chosen]
+      replaceGrantsTx(tx, manifest.id, granted, manifest.version)
     })
   } catch (error) {
     await fs.promises.rm(installPath, { recursive: true, force: true })
@@ -411,6 +414,7 @@ async function publishReinstall(
   // Whatever dot an earlier check lit was about the version that is now gone.
   application.get('MiniAppRuntimeService').noteUpdateAvailable(manifest.id, null)
   logger.info('Reinstalled mini app', { id: manifest.id, version: manifest.version, clearData: reinstall.clearData })
+  miniAppActivityLog.recordGrant(manifest.id, { name: 'reinstall', version: manifest.version, permissions: granted })
 
   return {
     appId: manifest.id,
@@ -455,6 +459,7 @@ async function publishInstall(
   writePublishJournal({ kind: 'install', appId: manifest.id, contentHash })
 
   await fs.promises.rename(staging, installPath)
+  let granted: string[] = []
   try {
     application.get('DbService').withWriteTx((tx) => {
       tx.insert(miniAppTable)
@@ -493,7 +498,8 @@ async function publishInstall(
       const chosen = options.grantedOptional
         ? optional.filter((key) => options.grantedOptional!.includes(key))
         : optional
-      grantMiniAppPermissionsTx(tx, manifest.id, [...required, ...chosen], manifest.version)
+      granted = [...required, ...chosen]
+      grantMiniAppPermissionsTx(tx, manifest.id, granted, manifest.version)
     })
   } catch (error) {
     // Nothing committed: the files are the only thing published, so undo them.
@@ -509,6 +515,7 @@ async function publishInstall(
   )
   clearPublishJournal(manifest.id)
   logger.info('Installed mini app', { id: manifest.id, version: manifest.version })
+  miniAppActivityLog.recordGrant(manifest.id, { name: 'install', version: manifest.version, permissions: granted })
 
   return {
     appId: manifest.id,

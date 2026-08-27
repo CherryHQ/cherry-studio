@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { miniAppActivityLog } from '@main/features/miniApp/activityLog'
 import { uninstallMiniApp } from '@main/features/miniApp/install/installer'
 import {
   cancelPending,
@@ -62,6 +63,9 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
   // Detail-panel routes: every rule lives in `management.ts` / `webInstaller.ts`.
   'mini_app.detail': async ({ appId }) => miniAppDetail(appId),
   'mini_app.runtime.attention_state': async () => application.get('MiniAppRuntimeService').attentionState(),
+  'mini_app.activity.list': ({ appId, limit, deniedOnly }) => miniAppActivityLog.list(appId, { limit, deniedOnly }),
+  'mini_app.activity.clear': ({ appId }) => miniAppActivityLog.clear(appId),
+  'mini_app.activity.open_folder': ({ appId }) => miniAppActivityLog.openFolder(appId),
   'mini_app.runtime.set_visible': async ({ appId, visible }, ctx) => {
     // Keyed by the host webContents the guest hangs off — an unmanaged sender has no pool.
     const host = senderWebContents(ctx.senderId)

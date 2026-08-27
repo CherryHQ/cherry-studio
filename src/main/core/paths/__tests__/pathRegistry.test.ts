@@ -163,6 +163,7 @@ describe('buildPathRegistry', () => {
 
   it('ships builtin packages inside the bundle and never auto-creates them', () => {
     expect(buildPathRegistry()['feature.mini_app.builtin']).toBe('/mock/app/resources/builtin-mini-apps')
+    expect(buildPathRegistry()['feature.mini_app.logs']).toBe(path.join('/mock/logs', 'mini-apps'))
     // Same reason `feature.agents.builtin` is in NO_ENSURE: a signed, read-only tree.
     expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
   })

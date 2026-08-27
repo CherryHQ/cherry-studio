@@ -44,6 +44,15 @@ const realInstaller = await vi.importActual<typeof InstallerModule>('../installe
 // service the WHOLE suite throws. `vi.hoisted` avoids the TDZ on first import.
 const spy = vi.hoisted(() => ({ order: [] as string[] }))
 // Loaded INSIDE the factory: a static import is not initialised when the hoisted mock runs.
+vi.mock('../../activityLog', () => ({
+  ACTIVITY_COUNT_FLUSH_MS: 60_000,
+  miniAppActivityLog: {
+    recordCall: vi.fn(),
+    recordGrant: vi.fn(),
+    flush: vi.fn(async () => {}),
+    forget: vi.fn(async () => {})
+  }
+}))
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({

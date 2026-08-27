@@ -11,6 +11,7 @@ import {
 } from '@shared/types/miniAppManifest'
 import { eq } from 'drizzle-orm'
 
+import { miniAppActivityLog } from './activityLog'
 import { fileCapability } from './capabilities/file'
 import { storageCapability } from './capabilities/storage'
 import { grantMiniAppPermissionsTx, listGrants, pendingDeclaredAdditions, revokeGrant } from './grants'
@@ -63,6 +64,7 @@ export async function miniAppDetail(appId: string): Promise<MiniAppDetail> {
 /** `packages/<appId>/` is deliberately untouched: "clear data" keeps the app installed and runnable (design §11). */
 export async function clearMiniAppData(appId: string): Promise<void> {
   await application.get('MiniAppRuntimeService').withAppQuiesced(appId, () => wipeMiniAppData(appId))
+  miniAppActivityLog.recordGrant(appId, { name: 'clear_data' })
 }
 
 /**
@@ -85,6 +87,7 @@ export async function grantMiniAppPermission(appId: string, permission: string):
   // No event: the app reads its own state with `app.getPermissions()`, and it re-reads
   // on `app.visibilityChange` — which fired when the user opened this panel.
   application.get('DbService').withWriteTx((tx) => grantMiniAppPermissionsTx(tx, appId, [permission], row.version))
+  miniAppActivityLog.recordGrant(appId, { name: 'grant', permissions: [permission] })
 }
 
 export async function grantPendingAdditions(appId: string): Promise<void> {
@@ -105,12 +108,14 @@ export async function grantPendingAdditions(appId: string): Promise<void> {
   const runtime = application.get('MiniAppRuntimeService')
   runtime.clearPendingSnooze(appId)
   runtime.broadcastAttentionState()
+  miniAppActivityLog.recordGrant(appId, { name: 'grant_pending', permissions: pending })
 }
 
 /** "Not now": the dot goes out for this launch; the leaves stay listed in the panel with their grant button. */
 export async function snoozePendingAdditions(appId: string): Promise<void> {
   installationOf(appId)
   application.get('MiniAppRuntimeService').snoozePending(appId)
+  miniAppActivityLog.recordGrant(appId, { name: 'snooze_pending' })
 }
 
 export async function revokeMiniAppGrant(appId: string, permission: string): Promise<void> {
@@ -123,6 +128,7 @@ export async function revokeMiniAppGrant(appId: string, permission: string): Pro
   // No quiesce, no connection reset: the bridge re-checks every call, so the next one already
   // fails, and an in-flight `net.fetch` runs on the default session where a reset cannot reach it.
   revokeGrant(appId, permission)
+  miniAppActivityLog.recordGrant(appId, { name: 'revoke', permissions: [permission] })
 }
 
 export async function checkUpdateOnOpen(appId: string): Promise<UpdateStatus> {

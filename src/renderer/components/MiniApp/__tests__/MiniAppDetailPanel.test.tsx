@@ -2,13 +2,16 @@ import { useMutation } from '@data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `vi.hoisted`: `vi.mock` is hoisted above every `const`, so a factory closing over a
 // plain `const request` hits the TDZ on first import of the mocked module.
-const { request } = vi.hoisted(() => ({ request: vi.fn() }))
+const { request, activity } = vi.hoisted(() => ({
+  request: vi.fn(),
+  activity: { entries: [] as unknown[], bytes: 0, days: 0 }
+}))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
 // An independently tested child: the real selector needs the portal container the
 // global `@cherrystudio/ui` stand-in does not provide (same boundary ContextManagementSettings draws).
@@ -72,11 +75,128 @@ const detail: MiniAppDetail = {
   file: { bytes: 10485760, count: 4, bytesLimit: 20971520, countLimit: 200 }
 }
 
+/** Every other route resolves the detail, as before; the activity list has its own shape. */
+const answerWith = (value: MiniAppDetail) =>
+  request.mockImplementation((route: string) =>
+    Promise.resolve(route === 'mini_app.activity.list' ? { ...activity } : value)
+  )
+
 const open = () => {
-  request.mockResolvedValue(detail)
+  answerWith(detail)
   render(<MiniAppDetailPanel appId={detail.appId} />)
   return waitFor(() => screen.getByRole('heading', { name: 'My Game' }))
 }
+
+describe('activity log', () => {
+  const entries = [
+    { v: 1, ts: 1_700_000_000_000, kind: 'call', name: 'network.fetch', outcome: 'PermissionDenied', durationMs: 1 },
+    {
+      v: 1,
+      ts: 1_700_000_001_000,
+      kind: 'call',
+      name: 'clipboard.write',
+      outcome: 'ok',
+      durationMs: 2,
+      facet: { chars: 12 }
+    },
+    { v: 1, ts: 1_700_000_002_000, kind: 'grant', name: 'revoke', permissions: ['clipboard.read'] }
+  ]
+
+  beforeEach(() => {
+    activity.entries = entries
+    activity.bytes = 2048
+    activity.days = 3
+  })
+  afterEach(() => {
+    activity.entries = []
+    activity.bytes = 0
+    activity.days = 0
+  })
+
+  it('shows what the whole log weighs and how many activity days it spans', async () => {
+    await open()
+
+    const size = await screen.findByTestId('activity-size')
+    expect(size.textContent).toMatch(/2(\.0)? ?KB/i)
+    expect(size.textContent).toContain('3')
+  })
+
+  it('shows what the app did, with refusals marked and no payload column to show', async () => {
+    await open()
+
+    const list = await screen.findByTestId('activity-list')
+    expect(list.textContent).toContain('network.fetch → PermissionDenied')
+    expect(list.textContent).toContain('clipboard.write → ok · chars=12')
+    expect(list.textContent).toContain('clipboard.read')
+    expect(
+      within(list)
+        .getByText(/network\.fetch/)
+        .closest('li')?.className
+    ).toContain('text-destructive')
+    expect(
+      within(list)
+        .getByText(/clipboard\.write/)
+        .closest('li')?.className
+    ).not.toContain('text-destructive')
+  })
+
+  it('clears the log through the host and shows it empty', async () => {
+    await open()
+    await screen.findByTestId('activity-list')
+    activity.entries = []
+    activity.bytes = 0
+    activity.days = 0
+
+    fireEvent.click(screen.getByRole('button', { name: /clear log|清除日志/i }))
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith('mini_app.activity.clear', { appId: detail.appId }))
+    await waitFor(() => expect(screen.queryByTestId('activity-list')).toBeNull())
+  })
+
+  it('explains what the log is, whether or not it has lines', async () => {
+    activity.entries = []
+    activity.days = 0
+    await open()
+
+    expect(screen.getByLabelText(/refus|拒绝/i)).toBeInTheDocument()
+  })
+
+  it('re-reads the log when the user asks, not on its own', async () => {
+    await open()
+    await screen.findByTestId('activity-list')
+    request.mockClear()
+    activity.entries = []
+    activity.days = 0
+
+    fireEvent.click(screen.getByRole('button', { name: /^refresh$|^刷新$/i }))
+
+    await waitFor(() => expect(screen.queryByTestId('activity-list')).toBeNull())
+    expect(request.mock.calls.filter((c) => c[0] === 'mini_app.activity.list')).toHaveLength(1)
+  })
+
+  it('opens the log folder through the host', async () => {
+    await open()
+
+    fireEvent.click(screen.getByRole('button', { name: /open log folder|打开日志目录/i }))
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith('mini_app.activity.open_folder', { appId: detail.appId }))
+  })
+
+  it('asks the host for refusals only when the filter is on', async () => {
+    await open()
+    await screen.findByTestId('activity-list')
+
+    fireEvent.click(screen.getByRole('button', { name: /refusals only|只看拒绝/i }))
+
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('mini_app.activity.list', {
+        appId: detail.appId,
+        limit: 100,
+        deniedOnly: true
+      })
+    )
+  })
+})
 
 describe('MiniAppDetailPanel', () => {
   it('offers a web app both an update check and a package replacement', async () => {
@@ -135,7 +255,7 @@ describe('MiniAppDetailPanel', () => {
   it('offers replacing the package on a local app and never an update check', async () => {
     // §10.1: a local package has no origin to pin, so it moves only by being handed a
     // new file. Without this entry its version is frozen and the way out loses every save.
-    request.mockResolvedValue({ ...detail, source: 'file', sourceUrl: null })
+    answerWith({ ...detail, source: 'file', sourceUrl: null })
     render(<MiniAppDetailPanel appId={detail.appId} />)
     await waitFor(() => screen.getByRole('heading', { name: 'My Game' }))
 
@@ -152,7 +272,7 @@ describe('MiniAppDetailPanel', () => {
   it('fills the usage bar by whichever quota axis is fuller', async () => {
     // 1000 one-byte keys exhaust the count with the byte budget barely touched; a bar
     // that tracked bytes alone would show an exhausted quota as nearly empty.
-    request.mockResolvedValue({
+    answerWith({
       ...detail,
       storage: { bytes: 20 * 1024, count: 1000, bytesLimit: 1048576, countLimit: 1000 }
     })
@@ -254,7 +374,7 @@ describe('MiniAppDetailPanel', () => {
   it('offers the leaves a Cherry update added under a declared wildcard', async () => {
     // Decision A. The app declared `storage.*` before this method existed, so the
     // host — not the app, and not a runtime failure — is what asks.
-    request.mockResolvedValue({ ...detail, pendingAdditions: ['storage.clear'] })
+    answerWith({ ...detail, pendingAdditions: ['storage.clear'] })
     render(<MiniAppDetailPanel appId={detail.appId} />)
     await screen.findByRole('heading', { name: 'My Game' })
 
@@ -275,7 +395,7 @@ describe('MiniAppDetailPanel', () => {
       }
     ])
     try {
-      request.mockResolvedValue({ ...detail, updateVersion: '1.1.0', canRollback: true })
+      answerWith({ ...detail, updateVersion: '1.1.0', canRollback: true })
       render(<MiniAppDetailPanel appId={detail.appId} />)
       await screen.findByRole('heading', { name: 'My Game' })
 
@@ -292,7 +412,7 @@ describe('MiniAppDetailPanel', () => {
   })
 
   it('lets the user put the host-added leaves off until next launch without granting them', async () => {
-    request.mockResolvedValue({ ...detail, pendingAdditions: ['storage.clear'] })
+    answerWith({ ...detail, pendingAdditions: ['storage.clear'] })
     render(<MiniAppDetailPanel appId={detail.appId} />)
     await screen.findByRole('heading', { name: 'My Game' })
 
@@ -305,7 +425,7 @@ describe('MiniAppDetailPanel', () => {
   it('clears the per-app model through DataApi, not a command', async () => {
     // A plain column write belongs to `PATCH /mini-apps/:appId`; an IpcApi command here
     // would be a second write path for the same row.
-    request.mockResolvedValue({ ...detail, aiModelId: 'openai::gpt-4o-mini' })
+    answerWith({ ...detail, aiModelId: 'openai::gpt-4o-mini' })
     render(<MiniAppDetailPanel appId={detail.appId} />)
     await waitFor(() => screen.getByRole('heading', { name: 'My Game' }))
     // The trigger handed to the most recent render is the one the click reaches.
@@ -318,7 +438,7 @@ describe('MiniAppDetailPanel', () => {
   })
 
   it('clears the quick slot from its own row and only that slot', async () => {
-    request.mockResolvedValue({ ...detail, aiQuickModelId: 'openai::gpt-4.1-nano' })
+    answerWith({ ...detail, aiQuickModelId: 'openai::gpt-4.1-nano' })
     render(<MiniAppDetailPanel appId={detail.appId} />)
     await waitFor(() => screen.getByRole('heading', { name: 'My Game' }))
     const { trigger } = vi.mocked(useMutation).mock.results.at(-1)!.value
@@ -333,7 +453,7 @@ describe('MiniAppDetailPanel', () => {
   it('renders the badge from the detail payload on first paint', async () => {
     // The bug this guards: relying on the broadcast alone. A window opened after it
     // never received one, so its first render must come from the pull path.
-    vi.mocked(request).mockResolvedValue({ ...detail, updateVersion: '1.1.0' })
+    answerWith({ ...detail, updateVersion: '1.1.0' })
     render(<MiniAppDetailPanel appId={detail.appId} />)
 
     expect(await screen.findByRole('button', { name: /new version 1\.1\.0/i })).toBeInTheDocument()

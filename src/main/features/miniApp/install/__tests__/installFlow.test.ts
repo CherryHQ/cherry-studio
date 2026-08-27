@@ -17,6 +17,15 @@ vi.mock('@main/data/dataApiDataChange', () => ({ notifyDataApiDataChange: vi.fn(
 // container does not know; the quiesce has its own suite, so here it just runs.
 // `vi.hoisted`: the factory below runs above every `const` in this file.
 const { noteUpdateAvailable } = vi.hoisted(() => ({ noteUpdateAvailable: vi.fn() }))
+vi.mock('../../activityLog', () => ({
+  ACTIVITY_COUNT_FLUSH_MS: 60_000,
+  miniAppActivityLog: {
+    recordCall: vi.fn(),
+    recordGrant: vi.fn(),
+    flush: vi.fn(async () => {}),
+    forget: vi.fn(async () => {})
+  }
+}))
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({

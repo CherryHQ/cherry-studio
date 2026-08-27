@@ -22,6 +22,7 @@ This is the author-facing contract. It describes what you can call, what is enfo
 | [Lifecycle](./lifecycle.md) | Saving state: the app can be killed at any moment; visibility and locale events; quiesce |
 | [Theming](./theming.md) | Looking like Cherry: `/__cherry/theme.css`, the CSS variable contract, dark mode, Tailwind |
 | [Packaging](./packaging.md) | Shipping: building the archive, install consent, updates, rollback, uninstall |
+| [Activity log](./activity-log.md) | Knowing what the user sees: which of your calls are recorded, with what metadata, and for how long |
 | [`cherry.d.ts`](./cherry.d.ts) | TypeScript declarations for `window.cherry` — copy into your project |
 | [Runtime probes](./probes.md) | Maintaining the host: the measurements behind the sandbox layers and how to rebuild each probe when Electron moves |
 | [`examples/capability-tests/`](./examples/capability-tests/manifest.json) | A runnable app that checks every `cherry.*` method against this reference, permission by permission — zip the directory to install it |

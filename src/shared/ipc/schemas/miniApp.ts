@@ -1,5 +1,6 @@
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { LocalMiniAppSchema } from '@shared/data/types/miniApp'
+import { MiniAppActivityListingSchema } from '@shared/types/miniAppActivity'
 import { LocalizedNameSchema, MiniAppIdSchema, MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 import type { QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
 import * as z from 'zod'
@@ -218,7 +219,20 @@ export const miniAppRequestSchemas = {
   'mini_app.runtime.set_visible': defineRoute({
     input: z.object({ appId: MiniAppIdSchema, visible: z.boolean() }),
     output: z.void()
-  })
+  }),
+
+  // Activity log: the detail panel's "what did this app do" — newest first, no payloads.
+  'mini_app.activity.list': defineRoute({
+    input: z.object({
+      appId: MiniAppIdSchema,
+      limit: z.number().int().min(1).max(500).default(100),
+      deniedOnly: z.boolean().default(false)
+    }),
+    output: MiniAppActivityListingSchema
+  }),
+  'mini_app.activity.clear': defineRoute({ input: AppIdInputSchema, output: z.void() }),
+  /** Opens the app's log folder in the system file manager. */
+  'mini_app.activity.open_folder': defineRoute({ input: AppIdInputSchema, output: z.void() })
 }
 
 export type MiniAppEventSchemas = {

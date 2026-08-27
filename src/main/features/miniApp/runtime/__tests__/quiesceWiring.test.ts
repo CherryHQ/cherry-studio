@@ -17,6 +17,15 @@ const spy = vi.hoisted(() => ({ onEntry: undefined as { row: boolean; tree: bool
 
 // The static `@application` import above runs this factory before any other import of
 // this file is initialised, so the helper has to be loaded from inside it.
+vi.mock('../../activityLog', () => ({
+  ACTIVITY_COUNT_FLUSH_MS: 60_000,
+  miniAppActivityLog: {
+    recordCall: vi.fn(),
+    recordGrant: vi.fn(),
+    flush: vi.fn(async () => {}),
+    forget: vi.fn(async () => {})
+  }
+}))
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({

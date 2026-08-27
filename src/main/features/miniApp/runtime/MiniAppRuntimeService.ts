@@ -11,7 +11,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { MINI_APP_BRIDGE_CHANNEL, MINI_APP_STREAM_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
@@ -19,6 +19,7 @@ import { MINI_APP_SCHEME, MiniAppManifestSchema, resolveLocalizedText } from '@s
 import { eq } from 'drizzle-orm'
 import { session, webContents } from 'electron'
 
+import { ACTIVITY_COUNT_FLUSH_MS, miniAppActivityLog } from '../activityLog'
 import { aiCapability } from '../capabilities/ai'
 import { pendingDeclaredAdditions } from '../grants'
 import { sweepAbandonedStaging } from '../install/installer'
@@ -96,6 +97,8 @@ export class MiniAppRuntimeService extends BaseService {
   private readonly paneVisibility = new Map<string, boolean>()
   /** Per guest, the last state it was told, so a repeated report emits nothing. */
   private readonly guestVisible = new Map<number, boolean>()
+  /** The activity log's clock, running only while some app runs — see `registerGuest`. */
+  private flushTimer: Disposable | undefined
   private readonly quiescingAppIds = new Set<string>()
   /** Bumped every time the app is taken offline — see `CallLease`. */
   private readonly appGeneration = new Map<string, number>()
@@ -218,7 +221,16 @@ export class MiniAppRuntimeService extends BaseService {
     return this.readyPartitions.has(miniAppPartition(appId))
   }
 
+  protected async onStop(): Promise<void> {
+    await miniAppActivityLog.flush()
+  }
+
   registerGuest(appId: string, webContentsId: number): void {
+    // The activity log has no clock of its own, and an idle host should not tick for it:
+    // the first guest starts the minute flush, the last one leaving stops it.
+    if (this.guestAppIds.size === 0) {
+      this.flushTimer = this.registerInterval(() => miniAppActivityLog.flush(), ACTIVITY_COUNT_FLUSH_MS)
+    }
     this.guestAppIds.set(webContentsId, appId)
     this.guestStreams.set(webContentsId, new Set())
     // Shown unless the pool said otherwise: a guest attaches because a pane rendered it.
@@ -261,6 +273,7 @@ export class MiniAppRuntimeService extends BaseService {
    * this has to be explicit.
    */
   unregisterGuest(webContentsId: number): void {
+    const appId = this.guestAppIds.get(webContentsId)
     for (const streamId of this.guestStreams.get(webContentsId) ?? []) {
       application.get('AiStreamManager').abort(streamId, 'miniapp-guest-destroyed')
     }
@@ -269,6 +282,12 @@ export class MiniAppRuntimeService extends BaseService {
     this.guestVisible.delete(webContentsId)
     // The abort above never reaches a dead listener, so the calls settle here or never.
     aiCapability.forgetGuest(webContentsId)
+    // The app's last instance is gone: its counts land now, not at the next minute.
+    if (appId !== undefined && this.guestsOf(appId).length === 0) void miniAppActivityLog.flush(appId)
+    if (this.guestAppIds.size === 0) {
+      this.flushTimer?.dispose()
+      this.flushTimer = undefined
+    }
   }
 
   isGuestAlive(webContentsId: number): boolean {
@@ -384,6 +403,9 @@ export class MiniAppRuntimeService extends BaseService {
 
     // Deliberately does NOT wait for in-flight calls — that is the execution model.
     // They are refused at their write instead.
+    // Offline now: the log is complete up to this moment, and the counts land BEFORE
+    // whatever grant line the mutation writes.
+    await miniAppActivityLog.flush(appId)
     return mutate()
   }
 
@@ -559,6 +581,9 @@ export class MiniAppRuntimeService extends BaseService {
    * to a lease taken after one earlier quiesce, which would then pass its check.
    */
   forgetApp(appId: string): void {
+    void miniAppActivityLog
+      .forget(appId)
+      .catch((error) => logger.warn('Could not remove a mini app activity log', { appId, error }))
     this.updateAvailable.delete(appId)
     this.snoozedPending.delete(appId)
     this.updating.delete(appId)

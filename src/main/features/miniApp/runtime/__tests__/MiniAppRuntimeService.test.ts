@@ -53,7 +53,20 @@ vi.mock('../network', () => ({
 const abort = vi.hoisted(() => vi.fn())
 import { mockMiniAppApplication } from '../../__tests__/applicationMock'
 
-vi.mock('@application', () => mockMiniAppApplication({ AiStreamManager: { abort } }))
+vi.mock('../../activityLog', () => ({
+  ACTIVITY_COUNT_FLUSH_MS: 60_000,
+  miniAppActivityLog: {
+    recordCall: vi.fn(),
+    recordGrant: vi.fn(),
+    flush: vi.fn(async () => {}),
+    forget: vi.fn(async () => {})
+  }
+}))
+vi.mock('@application', () =>
+  mockMiniAppApplication({
+    AiStreamManager: { abort }
+  })
+)
 
 const { MiniAppRuntimeService, miniAppPartition } = await import('../MiniAppRuntimeService')
 // After the mock: a static import would evaluate the hoisted factory before `mockMiniAppApplication` exists.

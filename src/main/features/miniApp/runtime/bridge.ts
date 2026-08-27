@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm'
 import { app } from 'electron'
 import * as z from 'zod'
 
+import { miniAppActivityLog } from '../activityLog'
 import { aiCapability } from '../capabilities/ai'
 import { clipboardCapability } from '../capabilities/clipboard'
 import { fileCapability } from '../capabilities/file'
@@ -137,7 +138,6 @@ export function publicErrorOf(error: unknown): CherryPublicError {
   else if (error instanceof z.ZodError) [out.name, out.message] = ['InvalidArgument', 'Invalid arguments']
   else if (error instanceof Error && error.name === 'AbortError') [out.name, out.message] = ['Cancelled', 'Cancelled']
   else if (error instanceof InvalidArgumentError) [out.name, out.message] = ['InvalidArgument', error.message]
-  else logger.warn('Mini app bridge call failed', { error })
   return out
 }
 
@@ -151,7 +151,9 @@ export async function handleBridgeRequest(senderId: number, payload: unknown, em
   try {
     return { ok: true, value: await route(senderId, payload, emit) }
   } catch (error) {
-    return { ok: false, error: publicErrorOf(error) }
+    const publicError = publicErrorOf(error)
+    if (publicError.name === 'Internal') logger.warn('Mini app bridge call failed', { error })
+    return { ok: false, error: publicError }
   }
 }
 
@@ -168,13 +170,30 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<un
   if (!Object.hasOwn(ROUTES, method)) throw new InvalidArgumentError(`Unknown method: ${method}`)
   const handler = ROUTES[method as MiniAppMethod]
 
-  assertMethodAllowed(appId, method as MiniAppMethod)
+  // From here on the call is attributable, so from here on it is logged — the gate's
+  // refusal included, which is the line the activity log exists to show.
+  const started = Date.now()
+  try {
+    assertMethodAllowed(appId, method as MiniAppMethod)
 
-  // Synchronous refusal while the app is being taken offline. Returns void: the host
-  // never waits for in-flight calls, so there is nothing to release.
-  runtime.beginCapabilityCall(appId)
+    // Synchronous refusal while the app is being taken offline. Returns void: the host
+    // never waits for in-flight calls, so there is nothing to release.
+    runtime.beginCapabilityCall(appId)
 
-  // Identity comes from `senderId` (Electron), never the payload. `requestId` does come
-  // from the payload but names only this guest's own call — lookups scope by senderId.
-  return handler(appId, params, emit, senderId, requestId, callId)
+    // Identity comes from `senderId` (Electron), never the payload. `requestId` does come
+    // from the payload but names only this guest's own call — lookups scope by senderId.
+    const value = await handler(appId, params, emit, senderId, requestId, callId)
+    miniAppActivityLog.recordCall(appId, method as MiniAppMethod, 'ok', Date.now() - started, params, value)
+    return value
+  } catch (error) {
+    miniAppActivityLog.recordCall(
+      appId,
+      method as MiniAppMethod,
+      publicErrorOf(error).name,
+      Date.now() - started,
+      params,
+      undefined
+    )
+    throw error
+  }
 }

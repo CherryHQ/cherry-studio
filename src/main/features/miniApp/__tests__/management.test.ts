@@ -37,6 +37,15 @@ vi.mock('electron', () => ({
 }))
 
 // Loaded INSIDE the factory: a static import is not initialised when the hoisted mock runs.
+vi.mock('../activityLog', () => ({
+  ACTIVITY_COUNT_FLUSH_MS: 60_000,
+  miniAppActivityLog: {
+    recordCall: vi.fn(),
+    recordGrant: vi.fn(),
+    flush: vi.fn(async () => {}),
+    forget: vi.fn(async () => {})
+  }
+}))
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('./applicationMock')
   return mockMiniAppApplication({

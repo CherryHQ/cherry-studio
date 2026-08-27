@@ -16,6 +16,15 @@ vi.mock('@main/data/dataApiDataChange', () => ({ notifyDataApiDataChange: vi.fn(
 
 // `checkForUpdate` records its answer on the runtime service, which the unified
 // container does not know; the badge itself has its own suite.
+vi.mock('../../activityLog', () => ({
+  ACTIVITY_COUNT_FLUSH_MS: 60_000,
+  miniAppActivityLog: {
+    recordCall: vi.fn(),
+    recordGrant: vi.fn(),
+    flush: vi.fn(async () => {}),
+    forget: vi.fn(async () => {})
+  }
+}))
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({ MiniAppRuntimeService: { noteUpdateAvailable: vi.fn() } })

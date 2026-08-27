@@ -28,6 +28,11 @@ export function miniAppStorageFile(appId: string): string {
   return path.join(miniAppDataPath(appId), 'storage.json')
 }
 
+/** The app's activity log days. Under logs, not data: "clear data" leaves it, uninstall removes it. */
+export function miniAppLogsPath(appId: string): string {
+  return path.join(application.getPath('feature.mini_app.logs'), appId)
+}
+
 /**
  * Where a Cherry release ships a builtin app's unpacked tree. Under `resources/`, not
  * userData: it is part of the installed application, replaced by upgrading Cherry.

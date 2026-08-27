@@ -197,6 +197,9 @@ export function buildPathRegistry() {
     'feature.mini_app.publish_journal': path.join(appUserDataData, 'MiniApps', '.publish-journal'),
     // Builtin packages ship INSIDE the app bundle, so this one is not under userData
     'feature.mini_app.builtin': path.join(appRootResources, 'builtin-mini-apps'),
+    // Per-app activity logs, one `<appId>/activity.<day>.log` tree each — under the logs
+    // directory, NOT the app's data: "clear data" must not erase what the app did
+    'feature.mini_app.logs': path.join(LOGS_DIR, 'mini-apps'),
 
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),

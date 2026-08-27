@@ -6,11 +6,13 @@ import { mockMiniAppApplication } from '../../__tests__/applicationMock'
 const resolveAppIdBySender = vi.fn()
 const beginCapabilityCall = vi.fn()
 const assertMethodAllowed = vi.fn()
+const recordCall = vi.fn()
 
 // Hoisted out of the factory so a test can THROW it: `publicErrorOf` maps by
 // `instanceof`, and a class trapped inside the factory is unreachable from a test.
 class PermissionDeniedError extends Error {}
 vi.mock('../../grants', () => ({ assertMethodAllowed, PermissionDeniedError }))
+vi.mock('../../activityLog', () => ({ miniAppActivityLog: { recordCall } }))
 vi.mock('@application', () =>
   mockMiniAppApplication({
     MiniAppRuntimeService: { resolveAppIdBySender, beginCapabilityCall },
@@ -51,6 +53,29 @@ function expectOk(result: BridgeResult): unknown {
 }
 
 describe('handleBridgeRequest', () => {
+  it('records every attributable call with its public outcome, the refused ones included', async () => {
+    // The bug this guards: logging only after the gate. An app probing what it was not
+    // granted is exactly the line the activity log exists to show.
+    recordCall.mockClear()
+    resolveAppIdBySender.mockReturnValue('com.example.a')
+    assertMethodAllowed.mockImplementationOnce(() => {
+      throw new PermissionDeniedError('nope')
+    })
+
+    await handleBridgeRequest(1, { method: 'storage.set', params: { key: 'k', value: 'v' } }, noopEmit)
+    await handleBridgeRequest(1, { method: 'storage.set', params: { key: 'k', value: 'v' } }, noopEmit)
+
+    expect(recordCall.mock.calls.map((c) => [c[0], c[1], c[2]])).toEqual([
+      ['com.example.a', 'storage.set', 'PermissionDenied'],
+      ['com.example.a', 'storage.set', 'ok']
+    ])
+    // A sender that is not a guest is not attributable and is not logged.
+    recordCall.mockClear()
+    resolveAppIdBySender.mockReturnValue(undefined)
+    await handleBridgeRequest(99, { method: 'storage.set' }, noopEmit)
+    expect(recordCall).not.toHaveBeenCalled()
+  })
+
   it('rejects a sender that is not a registered guest', async () => {
     resolveAppIdBySender.mockReturnValue(undefined)
 
