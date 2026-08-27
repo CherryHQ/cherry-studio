@@ -394,7 +394,7 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
     providerSettings: {
       ...ctx.baseConfig,
       apiKey: token,
-      headers: { ...headers, ...getExtraHeaders(ctx.actualProvider) },
+      headers: mergeHeaders(headers, getExtraHeaders(ctx.actualProvider)),
       name: ctx.actualProvider.id
     }
   }
