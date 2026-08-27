@@ -545,17 +545,26 @@ export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string):
 export async function stopOwnedApp(paths: RunPaths): Promise<void> {
   if (!existsSync(paths.appRecord)) return
   const record = readAppRecord(paths)
-  const ownedPids = [...new Set([record.electronPid, record.runnerPid])]
-  for (const pid of ownedPids) {
-    if (isAlive(pid)) assertOwnedProcess(record, pid, pid === record.electronPid ? 'electron' : 'runner')
-  }
+  const currentCdpPid = findCdpPid(record.platform)
   if (
-    record.electronPid !== record.runnerPid &&
-    isAlive(record.electronPid) &&
-    isAlive(record.runnerPid) &&
-    !isDescendant(record.electronPid, record.runnerPid, record.platform)
+    currentCdpPid &&
+    currentCdpPid !== record.electronPid &&
+    (!isAlive(record.runnerPid) || !isDescendant(currentCdpPid, record.runnerPid, record.platform))
   ) {
-    throw new Error('Refusing cleanup because the recorded Electron process is no longer owned by its runner')
+    throw new Error('Refusing cleanup because the current CDP process is not owned by the recorded runner')
+  }
+  const ownedPids = [
+    ...new Set([record.electronPid, currentCdpPid, record.runnerPid].filter((pid) => pid !== undefined))
+  ]
+  for (const pid of ownedPids) {
+    if (!isAlive(pid)) continue
+    if (pid === currentCdpPid) {
+      assertOwnedProcess(record, pid, 'electron')
+    } else if (pid === record.runnerPid) {
+      assertOwnedProcess(record, pid, 'runner')
+    } else if (!isAlive(record.runnerPid) || !isDescendant(pid, record.runnerPid, record.platform)) {
+      throw new Error('Refusing cleanup because the recorded Electron process is no longer owned by its runner')
+    }
   }
   for (const pid of ownedPids) {
     if (!isAlive(pid)) continue
