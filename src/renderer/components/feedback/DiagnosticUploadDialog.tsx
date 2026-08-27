@@ -5,7 +5,6 @@ import {
   ConfirmDialog,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -214,7 +213,6 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
           }}>
           <DialogHeader className="px-6 pt-6 pr-12 pb-4">
             <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
-            <DialogDescription>{t('settings.about.diagnostics.upload.dialog.description')}</DialogDescription>
           </DialogHeader>
 
           <Scrollbar className="min-h-0 px-6 py-2">
@@ -308,14 +306,6 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                 {inspectResult?.hasWarnings ? (
                   <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
                 ) : null}
-                <Alert
-                  type="info"
-                  showIcon
-                  message={t('settings.about.diagnostics.upload.privacy.title')}
-                  description={t('settings.about.diagnostics.upload.privacy.description', {
-                    size: formatBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
-                  })}
-                />
                 <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
                   <Checkbox
                     id="diagnostic-acknowledgement"

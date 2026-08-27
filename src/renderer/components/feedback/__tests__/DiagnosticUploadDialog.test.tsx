@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.actions.reveal': 'Show in folder',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
-      'I understand that the description and selected diagnostic data will be sent privately to Cherry.',
+      'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
     'settings.about.diagnostics.report.description_label': 'Problem description',
     'settings.about.diagnostics.report.description_required': 'A problem description is required',
@@ -109,7 +109,7 @@ async function completeReview(user: ReturnType<typeof userEvent.setup>, descript
   await user.type(screen.getByRole('textbox', { name: 'Problem description' }), description)
   await user.click(
     screen.getByRole('checkbox', {
-      name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
+      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
     })
   )
   await waitFor(() => expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeEnabled())
@@ -142,7 +142,7 @@ describe('DiagnosticUploadDialog', () => {
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
+      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
     })
 
     await user.click(acknowledgement)
@@ -182,7 +182,7 @@ describe('DiagnosticUploadDialog', () => {
     await user.paste('x'.repeat(4097))
     await user.click(
       screen.getByRole('checkbox', {
-        name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
+        name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
       })
     )
 
@@ -201,7 +201,7 @@ describe('DiagnosticUploadDialog', () => {
     await completeReview(user)
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
+      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
     })
 
     await user.type(description, ' Please investigate. ')
@@ -224,7 +224,7 @@ describe('DiagnosticUploadDialog', () => {
     await completeReview(user)
 
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that the description and selected diagnostic data will be sent privately to Cherry.'
+      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
     })
     await user.click(screen.getByRole('radio', { name: 'Last 3 days' }))
     expect(acknowledgement).not.toBeChecked()
