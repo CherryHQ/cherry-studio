@@ -14,6 +14,10 @@ import {
 } from '@shared/ai/claudecode/toolRules'
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
+
+function sanitizeDescription(value: string): string {
+  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+}
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('ClaudeCodeAgentTools')
@@ -65,7 +69,7 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
         descriptors.push({
           id: buildClaudeMcpToolName(server.name, tool.name),
           name: tool.name,
-          description: tool.description || '',
+          description: sanitizeDescription(tool.description || ''),
           origin: 'mcp',
           sourceId: server.id,
           sourceName: server.name,
