@@ -2,7 +2,8 @@ import '@testing-library/jest-dom/vitest'
 
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,14 +39,22 @@ const state = vi.hoisted(() => ({
   setMessages: vi.fn(),
   resetExecutionMessages: vi.fn(),
   clearExecutionMessages: vi.fn(),
-  resetTemporaryTopic: vi.fn()
+  resetTemporaryTopic: vi.fn(),
+  ipcRequest: vi.fn(),
+  loggerError: vi.fn()
 }))
 
 import HomeWindow, { finalizeLiveMessages } from '../HomeWindow'
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
+  ipcApi: { request: state.ipcRequest, on: vi.fn(() => () => {}) },
   useIpcOn: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ error: state.loggerError })
+  }
 }))
 
 vi.mock('@ai-sdk/react', () => ({
@@ -123,20 +132,29 @@ vi.mock('../components/InputBar', () => ({
     text,
     placeholder,
     handleChange,
-    handleKeyDown
+    handleKeyDown,
+    onRestoreMain
   }: {
     text: string
     placeholder: string
     handleChange: (event: React.ChangeEvent<HTMLInputElement>) => void
     handleKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+    onRestoreMain?: () => void
   }) => (
-    <input
-      data-testid="quick-input"
-      value={text}
-      placeholder={placeholder}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-    />
+    <div>
+      <input
+        data-testid="quick-input"
+        value={text}
+        placeholder={placeholder}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+      />
+      {onRestoreMain && (
+        <button type="button" onClick={onRestoreMain}>
+          Restore Main
+        </button>
+      )}
+    </div>
   )
 }))
 
@@ -228,6 +246,8 @@ describe('HomeWindow', () => {
     state.resetExecutionMessages.mockClear()
     state.clearExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
+    state.ipcRequest.mockReset()
+    state.ipcRequest.mockResolvedValue(undefined)
   })
 
   it('uses the configured quick model in model-only mode', () => {
@@ -259,5 +279,31 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  it('restores Main from the Quick Assistant input action', async () => {
+    const user = userEvent.setup()
+    render(<HomeWindow draggable={false} showRestoreMain />)
+
+    await user.click(screen.getByRole('button', { name: 'Restore Main' }))
+
+    expect(state.ipcRequest).toHaveBeenCalledWith('quick_assistant.restore_main')
+  })
+
+  it('logs failures to restore Main from the Quick Assistant input action', async () => {
+    const user = userEvent.setup()
+    const error = new Error('restore failed')
+    state.ipcRequest.mockRejectedValueOnce(error)
+    render(<HomeWindow draggable={false} showRestoreMain />)
+
+    await user.click(screen.getByRole('button', { name: 'Restore Main' }))
+
+    await waitFor(() => expect(state.loggerError).toHaveBeenCalledWith('Failed to restore Main window', error))
+  })
+
+  it('keeps the restore action out of the embedded settings preview', () => {
+    render(<HomeWindow draggable={false} />)
+
+    expect(screen.queryByRole('button', { name: 'Restore Main' })).not.toBeInTheDocument()
   })
 })

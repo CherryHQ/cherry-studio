@@ -18,10 +18,8 @@
  *   - `mainWindowRef` caches the BrowserWindow directly because MainWindowService is
  *     not yet under WindowManager. Once it is, replace the cache with
  *     `wm.getWindowsByType(WindowType.Main)[0]`.
- *   - `wasMainWindowFocused` is captured exactly once per show, inside
- *     `showQuickAssistant`. The original service captured it both there and in
- *     `ready-to-show`, but with `show: false` in the registry every user-visible
- *     show now flows through `showQuickAssistant`, so a single capture point suffices.
+ *   - `wasMainWindowFocused` is refreshed before each Quick Assistant show and set
+ *     while restoring Main so legacy macOS focus recovery cannot hide Cherry Studio.
  */
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -215,8 +213,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       this.mainWindowRef = mainWindow
 
       const onMainVisible = () => {
-        const window = this.getQuickAssistant()
-        if (window) window.hide()
+        this.dismissQuickAssistantForMainWindow()
       }
       const onMainClosed = () => {
         if (this.mainWindowRef === mainWindow) {
@@ -363,6 +360,28 @@ export class QuickAssistantService extends BaseService implements Activatable {
     if (!window) return
 
     this.proceedShow()
+  }
+
+  /** Bring Main to the foreground and always dismiss Quick Assistant, even when pinned. */
+  public restoreMainWindow() {
+    // Main is now the intentional focus target, so a synchronous Quick Assistant
+    // blur must not send the whole application behind the previous external app.
+    this.wasMainWindowFocused = true
+    application.get('MainWindowService').showMainWindow()
+    this.dismissQuickAssistantForMainWindow()
+  }
+
+  /** Dismiss Quick Assistant without hiding the application that Main belongs to. */
+  private dismissQuickAssistantForMainWindow() {
+    const window = this.getQuickAssistant()
+    if (!window) return
+    if (isWin) {
+      window.setOpacity(0)
+      window.minimize()
+      return
+    }
+
+    window.hide()
   }
 
   /** Inner show pipeline. Assumes the quick window exists and its content is ready. */

@@ -98,8 +98,17 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         )
       ),
-    Switch: ({ checked }: { checked: boolean }) =>
-      React.createElement('input', { checked, readOnly: true, type: 'checkbox' })
+    Switch: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: React.InputHTMLAttributes<HTMLInputElement> & { onCheckedChange?: (checked: boolean) => void }) =>
+      React.createElement('input', {
+        ...props,
+        checked,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.currentTarget.checked),
+        type: 'checkbox'
+      })
   }
 })
 
@@ -182,6 +191,27 @@ describe('QuickAssistantSettings', () => {
     await user.click(within(modelRow).getByRole('button', { name: 'navigate.model_settings' }))
 
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/model', search: { focus: 'default' } })
+  })
+
+  it('persists the tab bar entry setting', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.show_in_tab_bar', false)
+
+    render(<QuickAssistantSettings />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'settings.quickAssistant.show_in_tab_bar' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.show_in_tab_bar')).toBe(true)
+    })
+  })
+
+  it('hides the tab bar entry setting when Quick Assistant is disabled', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', false)
+
+    render(<QuickAssistantSettings />)
+
+    expect(screen.queryByRole('checkbox', { name: 'settings.quickAssistant.show_in_tab_bar' })).not.toBeInTheDocument()
   })
 
   it('separates assistant mode from the mode selector without global model navigation', () => {
