@@ -3104,7 +3104,9 @@ describe('AgentComposer', () => {
     const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
     expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
     expect(skillsLauncher?.order).toBe(40)
-    expect(skillsLauncher?.rootSearchItems).toEqual([expect.objectContaining({ id: 'skill:pdf' })])
+    expect(skillsLauncher?.rootSearchItems).toEqual([
+      expect.objectContaining({ id: 'skill:pdf', suffix: 'plugins.skills' })
+    ])
     expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
 
     const items = getAgentSkillsPanelItems()
@@ -3115,10 +3117,10 @@ describe('AgentComposer', () => {
         id: 'skill:pdf',
         label: 'pdf',
         description: 'Read and analyze PDFs',
-        suffix: 'plugins.skills',
         filterText: 'pdf'
       })
     )
+    expect(skillItem?.suffix).toBeUndefined()
 
     // The pinned footer opens the agent's skills config.
     const manageItem = items.at(-1)
