@@ -427,6 +427,19 @@ describe('app Sidebar', () => {
     expect(mocks.setExpandedWidth).not.toHaveBeenCalled()
   })
 
+  // Pinning the overlay from the toggle sets the sidebar to the overlay's readability
+  // fallback; remembering that width would turn an icon-rail user into a full-width
+  // user on every later restore.
+  it('never remembers the overlay fallback width', () => {
+    mocks.sidebarWidth = SIDEBAR_PEEK_WIDTH
+    mocks.expandedWidth = SIDEBAR_ICON_WIDTH
+
+    render(<Sidebar />)
+
+    expect(mocks.setExpandedWidth).not.toHaveBeenCalled()
+    expect(mocks.expandedWidth).toBe(SIDEBAR_ICON_WIDTH)
+  })
+
   it('opens the hover overlay at the remembered width', async () => {
     const user = userEvent.setup()
     mocks.sidebarWidth = 0

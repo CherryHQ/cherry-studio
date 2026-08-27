@@ -31,6 +31,7 @@ import {
   getSidebarPeekWidth,
   normalizeSidebarWidth,
   Sidebar as UISidebar,
+  SIDEBAR_PEEK_WIDTH,
   type SidebarUser,
   type SidebarVisibleLayout,
   UserAvatar
@@ -120,6 +121,9 @@ export default function Sidebar({
   // through the toggle, so the last visible width is tracked from the width itself.
   useEffect(() => {
     if (getSidebarLayout(sidebarWidth) === 'hidden' || sidebarWidth === expandedWidth) return
+    // The overlay's readability fallback is not a band the user chose: recording it
+    // when the toggle pins the overlay would overwrite an icon-rail memory for good.
+    if (sidebarWidth === SIDEBAR_PEEK_WIDTH) return
 
     setExpandedWidth(sidebarWidth)
   }, [expandedWidth, setExpandedWidth, sidebarWidth])
