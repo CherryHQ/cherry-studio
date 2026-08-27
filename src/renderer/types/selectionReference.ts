@@ -105,7 +105,9 @@ export type DocumentAnchor = z.infer<typeof DocumentAnchorSchema>
 /** Snapshot of the source file's identity at capture time, checked before use. */
 const SelectionFileStampSchema = z.object({
   size: z.number().int().nonnegative(),
-  mtimeMs: z.number().nonnegative()
+  /** Whole milliseconds. The skill's 2 ms staleness window holds only if both sides floored the same
+   * nanosecond timestamp, and Node's raw `stats.mtimeMs` is fractional. */
+  mtimeMs: z.number().int().nonnegative()
 })
 
 export const SELECTION_EXCERPT_MAX_LENGTH = 2000

@@ -131,5 +131,10 @@ describe('fileStamp', () => {
     expect(parseSelectionReference({ ...validReference, fileStamp: undefined })).toBeNull()
     expect(parseSelectionReference({ ...validReference, fileStamp: { size: 1024 } })).toBeNull()
     expect(parseSelectionReference({ ...validReference, fileStamp: { size: -1, mtimeMs: 1 } })).toBeNull()
+    // Node's raw stats.mtimeMs is fractional. A producer has to floor it, because the skill compares
+    // against a whole-millisecond timestamp read on the Python side within a 2 ms window.
+    expect(
+      parseSelectionReference({ ...validReference, fileStamp: { size: 1024, mtimeMs: 1_700_000_000_000.5 } })
+    ).toBeNull()
   })
 })
