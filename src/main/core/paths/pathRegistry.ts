@@ -234,6 +234,9 @@ export function buildPathRegistry() {
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.hermes.default_home': isWin
+      ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
+      : path.join(sysHome, '.hermes'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')

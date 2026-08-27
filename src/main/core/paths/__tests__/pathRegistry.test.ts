@@ -133,6 +133,16 @@ describe('buildPathRegistry', () => {
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
   })
 
+  it('registers the platform-native default Hermes home as external data', () => {
+    const registry = buildPathRegistry()
+    const windowsBase = process.env.LOCALAPPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Local')
+    const expected =
+      process.platform === 'win32' ? path.join(windowsBase, 'hermes') : path.join(os.homedir(), '.hermes')
+
+    expect(registry['external.hermes.default_home']).toBe(expected)
+    expect(shouldAutoEnsure('external.hermes.default_home')).toBe(false)
+  })
+
   it('isolates the managed DeepSeek Harness workspace from the user home', () => {
     const registry = buildPathRegistry()
     expect(registry['feature.deepseek_harness.workspace']).toBe(
