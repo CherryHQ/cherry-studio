@@ -53,20 +53,26 @@ why the anchor check below is not optional. On a change, tell the user the file 
 they selected and ask them to re-select — never silently re-anchor.
 
 **Anchor check.** Before a patch-copy edit, also verify the anchor still points where the
-user thinks: extract the anchored region first and compare its text with the reference's
-`excerpt`; on a mismatch, stop and tell the user the anchor no longer matches their
-selection — never edit at a mismatched anchor and never go searching for a "close enough"
-location. Compare after normalizing both sides the same way (NFC, collapse each whitespace
-run to one space, trim). Two cases need care because the two sides are not directly
-comparable as-is:
+user thinks: extract the anchored region and compare its text with the reference's `excerpt`,
+normalizing both sides the same way (NFC, collapse each whitespace run to one space, trim).
+The two are not equal and are not meant to be — the `excerpt` is what the user selected, while
+the extract is the whole region an edit would replace. A selection sitting inside one region
+makes the `excerpt` the shorter side; a selection running past that region anchors to where it
+*starts*, which makes it the longer one. So the test is containment, whichever way round fits:
+the `excerpt` appears inside the extract, or the extract's tail is where the `excerpt` begins.
+Only when neither holds has the anchor stopped pointing at the selection — then stop and tell
+the user, never edit at a mismatched anchor and never go searching for a "close enough"
+location. Two cases need care because the two sides are not directly comparable as-is:
 
 - **xlsx**: the `excerpt` is tab-separated cells and newline-separated rows, while extraction
   writes csv or md. Compare cell values, not the raw file — read the csv with a csv reader and
   join the fields with single spaces before normalizing, so `,` and `|` never count as a
-  difference.
-- **docx with `charRange`**: extraction returns only that slice, but patch-copy compares (and
-  replaces) the **whole paragraph**. Re-extract the paragraph *without* `charRange` for this
-  check, and read "Edit docx" below before writing.
+  difference. That join drops the cell boundaries on both sides, so a match proves the text is
+  unchanged, not the grid — the same words re-split across cells still reads as a match. The
+  freshness check above is what catches that; never skip it on a passing anchor check.
+- **docx with `charRange`**: the slice is only part of what patch-copy compares and replaces —
+  it rewrites the **whole paragraph**. Extract the paragraph *without* `charRange` as well, and
+  read "Edit docx" below before writing.
 
 Users may also describe the region in words ("sheet 2, columns A through C"); build the anchor
 JSON yourself, confirming the worksheet name or paragraph if ambiguous.
