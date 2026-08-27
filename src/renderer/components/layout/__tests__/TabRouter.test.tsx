@@ -8,7 +8,7 @@ import { Combobox } from '@cherrystudio/ui/components/primitives/combobox'
 import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +18,11 @@ const knobs = vi.hoisted(() => ({
 
 const routerMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  subscribe: vi.fn(() => vi.fn())
+  onResolved: undefined as undefined | ((event: { toLocation: { href: string } }) => void),
+  subscribe: vi.fn((event: string, listener: (event: { toLocation: { href: string } }) => void) => {
+    if (event === 'onResolved') routerMocks.onResolved = listener
+    return vi.fn()
+  })
 }))
 
 // PageSidePanel scopes to its owning tab by reading the SAME PortalContainerContext that
@@ -41,12 +45,16 @@ vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))
 // resolved portal container for the scoping assertions.
 vi.mock('@tanstack/react-router', async () => {
   const { usePortalContainer } = await import('@cherrystudio/ui')
+  const DestinationPending = () => <div aria-busy="true">Loading destination</div>
 
   return {
     createMemoryHistory: vi.fn((options: { initialEntries: string[] }) => options),
     createRouter: vi.fn(({ history }: { history: { initialEntries: string[] } }) => ({
       navigate: routerMocks.navigate,
       subscribe: routerMocks.subscribe,
+      routesByPath: {
+        '/app/agents': { options: { pendingComponent: DestinationPending } }
+      },
       state: {
         location: {
           href: history.initialEntries[0]
@@ -92,6 +100,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   knobs.renderPage = () => null
+  routerMocks.onResolved = undefined
   vi.clearAllMocks()
 })
 
@@ -285,5 +294,20 @@ describe('TabRouter', () => {
 
     expect(createMemoryHistory).toHaveBeenCalledTimes(1)
     expect(routerMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat?topicId=current-topic' })
+  })
+
+  it('quietly covers the outgoing page while an external retarget is unresolved', () => {
+    const { rerender } = render(
+      <TabRouter tab={tab('route-tab', '/app/mini-app/claude')} isActive onUrlChange={() => {}} />
+    )
+
+    rerender(<TabRouter tab={tab('route-tab', '/app/agents')} isActive onUrlChange={() => {}} />)
+
+    expect(screen.getByTestId('tab-route-transition-cover')).toHaveClass('bg-card')
+    expect(screen.queryByText('Loading destination')).not.toBeInTheDocument()
+
+    act(() => routerMocks.onResolved?.({ toLocation: { href: '/app/agents' } }))
+
+    expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument()
   })
 })

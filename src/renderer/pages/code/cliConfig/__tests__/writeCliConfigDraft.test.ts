@@ -4,6 +4,7 @@ import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 
@@ -128,6 +129,110 @@ describe('writeCliConfigDraft', () => {
     mockGet({ '/providers/ghost': () => undefined })
     await expect(writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
       /Provider not found/
+    )
+  })
+
+  it('writes Hermes custom-runtime metadata separately from the API key', async () => {
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.HERMES,
+      files: [
+        { target: 'hermes-config', content: expect.any(String) },
+        { target: 'hermes-env', content: expect.any(String) }
+      ]
+    })
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    const env = files.find((file) => file.target === 'hermes-env')
+    if (!config || typeof config.content !== 'string' || !env || typeof env.content !== 'string') {
+      throw new Error('Expected Hermes config and environment files')
+    }
+
+    expect(parseYaml(config.content)).toEqual({
+      model: {
+        provider: 'custom',
+        default: 'hermes-3',
+        base_url: 'https://api.deepseek.com/v1',
+        api_key: '${CHERRY_HERMES_API_KEY}',
+        api_mode: 'chat_completions'
+      }
+    })
+    expect(config.content).not.toContain('sk-secret')
+    expect(env.content).toContain('CHERRY_HERMES_API_KEY=sk-secret')
+  })
+
+  it('preserves user-owned YAML presentation while updating the Hermes model', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = [
+      '# user-owned comment',
+      'model:',
+      '  context_length: 200000 # keep inline comment',
+      '  label: "keep quoted"',
+      '  tags: [one, two]',
+      'shared: &shared { enabled: true }',
+      'reuse: *shared',
+      ''
+    ].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(config.content).toContain('# user-owned comment')
+    expect(config.content).toContain('context_length: 200000 # keep inline comment')
+    expect(config.content).toContain('label: "keep quoted"')
+    expect(config.content).toContain('tags: [ one, two ]')
+    expect(config.content).toContain('shared: &shared { enabled: true }')
+    expect(config.content).toContain('reuse: *shared')
+    expect(parseYaml(config.content).model).toMatchObject({
+      provider: 'custom',
+      default: 'hermes-3',
+      api_key: '${CHERRY_HERMES_API_KEY}'
+    })
+  })
+
+  it('fills in an empty Hermes model section instead of rejecting it', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = ['# user-owned comment', 'model:', 'telemetry: false', ''].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(parseYaml(config.content)).toMatchObject({
+      telemetry: false,
+      model: { provider: 'custom', default: 'hermes-3', api_key: '${CHERRY_HERMES_API_KEY}' }
+    })
+    expect(config.content).toContain('# user-owned comment')
+  })
+
+  it('names the Hermes config file and path when it cannot be parsed', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = 'model: [unclosed\n'
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await expect(writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })).rejects.toThrow(
+      /Failed to parse .+ at \/resolved~\/\.hermes\/config\.yaml:/
     )
   })
 
