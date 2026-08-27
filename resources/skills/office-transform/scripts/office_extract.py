@@ -410,6 +410,10 @@ def main() -> None:
         anchor = json.loads(args.anchor)
     except json.JSONDecodeError as error:
         fail(f"anchor is not valid JSON: {error}")
+    # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
+    # as a broken script rather than a bad argument.
+    if not isinstance(anchor, dict):
+        fail(f"anchor must be a JSON object, not {type(anchor).__name__}: {anchor!r}")
     anchor_format = anchor.get("format")
     extractor = EXTRACTORS.get(anchor_format)
     if extractor is None:

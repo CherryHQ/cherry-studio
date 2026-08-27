@@ -795,6 +795,10 @@ def main() -> None:
         edits = json.loads(args.edits)
     except json.JSONDecodeError as error:
         fail(f"edits is not valid JSON: {error}")
+    # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
+    # as a broken script rather than a bad argument.
+    if not isinstance(edits, dict):
+        fail(f"edits must be a JSON object, not {type(edits).__name__}: {edits!r}")
     patcher = PATCHERS.get(edits.get("format"))
     if patcher is None:
         fail(f"unsupported edits format: {edits.get('format')!r} (use xlsx or docx)")
