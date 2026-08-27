@@ -4,6 +4,13 @@ function validateReleaseBranchHead({ branchSha, workflowSha }) {
   }
 }
 
+function validatePreparationState({ releasePages, tag }) {
+  const matchingReleases = releasePages.flat().filter((release) => release.tag_name === tag)
+  if (matchingReleases.length > 0) {
+    throw new Error(`Release ${tag} already exists; delete or rename it before preparing this version`)
+  }
+}
+
 function validateBuildStart({ branchSha, platform, release, remoteTagSha, tag, workflowSha }) {
   validateReleaseBranchHead({ branchSha, workflowSha })
   if (release && release.draft !== true) {
@@ -84,6 +91,13 @@ function main() {
   const release = parseOptionalJson(process.env.RELEASE_JSON, 'RELEASE_JSON')
   const tag = requiredEnvironment('TAG')
 
+  if (phase === 'prepare') {
+    validatePreparationState({
+      releasePages: parseOptionalJson(requiredEnvironment('RELEASE_PAGES_JSON'), 'RELEASE_PAGES_JSON'),
+      tag
+    })
+    return
+  }
   if (phase === 'build-start') {
     validateBuildStart({
       branchSha: requiredEnvironment('BRANCH_SHA'),
@@ -131,4 +145,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { validateBuildCompletion, validateBuildStart, validatePublishState }
+module.exports = { validateBuildCompletion, validateBuildStart, validatePreparationState, validatePublishState }

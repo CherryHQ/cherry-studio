@@ -406,6 +406,11 @@ jobs:
           SIGNOFF_EMAIL: ${{ steps.publisher.outputs.email }}
           SIGNOFF_NAME: ${{ steps.publisher.outputs.name }}
         run: |
+          TARGET_TAG="${RELEASE_BRANCH#release/}"
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE_PAGES_JSON="$RELEASE_PAGES" TAG="$TARGET_TAG" \
+            node scripts/release/validate-release-state.js prepare
+
           if gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
             echo "Release branch $RELEASE_BRANCH already exists" >&2
             exit 1

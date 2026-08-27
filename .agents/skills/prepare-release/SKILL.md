@@ -175,6 +175,9 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
    git rev-parse --verify "refs/tags/$BASELINE_TAG"
    LATEST_PUBLISHED="$(gh release list --limit 1000 --json isDraft,publishedAt,tagName --jq '[.[] | select(.isDraft == false and (.tagName | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")))] | sort_by(.publishedAt) | last | .tagName // empty')"
    test "$LATEST_PUBLISHED" = "$BASELINE_TAG"
+   REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+   RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+   RELEASE_PAGES_JSON="$RELEASE_PAGES" TAG="v{version}" node scripts/release/validate-release-state.js prepare
    test -z "$(git ls-remote --heads origin refs/heads/release/v{version})"
    git status --short
    UNEXPECTED_RELEASE_PATHS="$(git status --porcelain | cut -c4- | grep -Ev '^(package\.json|electron-builder\.yml|resources/cherry-studio/release-history\.json|resources/builtin-agents/cherry-assistant/product-manifest\.json)$' || true)"
