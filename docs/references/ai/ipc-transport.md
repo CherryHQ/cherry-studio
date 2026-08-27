@@ -93,6 +93,12 @@ gap; it waits for replay to restore the missing prefix.
 - NotFound triggers a durable refresh followed by exact-turn retirement. It is
   neither EOF nor Success.
 - IPC failure stays retryable and releases the failed attachment lease.
+- Durable attach exhaustion requests presentation refresh and returns
+  `RestartAfterRefresh` only after that refresh finishes. Accepting that result
+  starts one new attachment generation and resets its retry budget.
+- Ephemeral attach exhaustion retires the exact execution. It does not reset
+  the budget or enter an automatic reattach loop when no durable refresh can
+  restore the projection.
 - The resource ring retains at most 10,000 raw sequenced provider events. Main
   filters by the renderer's per-execution cursor before semantic compaction;
   text/reasoning/tool deltas are split at 16 KiB without crossing a sequence

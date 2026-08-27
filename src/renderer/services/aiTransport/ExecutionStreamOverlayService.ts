@@ -595,7 +595,9 @@ export class ExecutionStreamOverlayService {
   #beginRecoveryHandoff(
     entry: Entry,
     request: ConversationStreamRecoveryRequest,
-    disposition: ConversationStreamRecoveryDisposition.Retired | ConversationStreamRecoveryDisposition.RetryAttach
+    disposition:
+      | ConversationStreamRecoveryDisposition.Retired
+      | ConversationStreamRecoveryDisposition.RestartAfterRefresh
   ): void {
     const handoff =
       entry.handoff ??
@@ -653,7 +655,7 @@ export class ExecutionStreamOverlayService {
           attachmentGeneration: request.attachmentGeneration,
           turnId: request.turnId,
           executionId: request.executionId,
-          disposition: ConversationStreamRecoveryDisposition.RetryAttach
+          disposition: ConversationStreamRecoveryDisposition.RestartAfterRefresh
         })
       }
       this.#retireTurns(entry, turnIds)
@@ -826,15 +828,9 @@ export class ExecutionStreamOverlayService {
               this.#retireExecution(entry, request)
             }
           } else if (entry.durability === ConversationOverlayDurability.Durable) {
-            this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.RetryAttach)
+            this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.RestartAfterRefresh)
           } else {
-            entry.sub.completeRecovery({
-              recoveryId: request.recoveryId,
-              attachmentGeneration: request.attachmentGeneration,
-              turnId: request.turnId,
-              executionId: request.executionId,
-              disposition: ConversationStreamRecoveryDisposition.RetryAttach
-            })
+            this.#retireExecution(entry, request)
           }
           return
         default:

@@ -42,6 +42,9 @@ The unified runtime moves the boundary up to Conversation and Turn. Provider str
 - Existing `message` and `agent_session_message` rows remain the durable truth. There is no conversation event log and no dual write.
 - Each `ConversationActor` is the process-local business owner for one `ConversationRef`. It owns the aggregate, admission FIFO and epoch, committed input identities, effect-operation registry, Stop interrupt, and final quiescence gate.
 - `ConversationRuntimeService` is the lifecycle and IPC facade. It resolves History/resource ports, routes exact commands to actors, and performs global pause/drain without storing another aggregate.
+- `OwnedOperationRegistry` records process-local obligations separately from
+  their execution attempts. A failed attempt may retain an obligation for a
+  later retry; only `Complete` or `Abandon` removes it from owner accounting.
 - Stream chunks are data-plane traffic. The execution resource owns their ring and sequence; only first-chunk, interaction, and terminal control facts re-enter the Conversation owner.
 - Normal terminal notifications follow durable persistence. An explicit Stop may settle through deferred recovery after the existing exact retry policy; deferred results never produce external Channel delivery.
 
@@ -251,14 +254,86 @@ operation registries to be empty.
 Subscriber presence, SharedCache values, active overlay state, connection
 liveness, and scheduler single-flight are not quiescence facts.
 
+## Closure audit protocol
+
+A path is closed only when every accepted fact reaches one stable owner outcome
+through success, rejection, failure, cancellation, and stale-result races. The
+number of phases and passing happy-path tests do not prove closure.
+
+For every trigger in the traceability table, the design and tests must identify:
+
+```text
+exact request identity
+→ owner admission decision
+→ synchronous durable boundary, when applicable
+→ committed aggregate transition
+→ typed effects
+→ exact success / failure / abort / stale results
+→ monotonic owner commit
+→ resource, operation, and presentation cleanup
+→ successor admission or a stable retained state
+```
+
+The audit uses three independent ledgers:
+
+- **Control ledger.** `ConversationActor` accounts for every committed input,
+  Turn, execution, interaction, activity, Stop, terminal outcome, and successor
+  decision. A resource or projection cannot supply a missing control fact.
+- **Operation ledger.** Every operation crossing an `await` is registered before
+  its first attempt. Each attempt ends in `finally`, including failure, abort,
+  and stale completion. The obligation remains visible while retained for
+  retry, and is removed only by the owning policy's `Complete` or `Abandon`
+  decision. A failed attempt may reject its caller, but may not leave a
+  permanently pending attempt or failure fence in a drain registry.
+- **Resource ledger.** Every stream, connection, reader, adapter attempt, timer,
+  and controller has one exact identity and one cleanup owner. An obsolete
+  callback may be a control no-op, but it must still release the resource it
+  owns; it cannot resolve a target from the current session, latest ref, cache,
+  or overlay.
+
+Conservation checks expose ownerless state without adding phases:
+
+```text
+committed inputs = consumed + retained + terminal error + explicit drop
+executions       = live registered resources + settled executions
+approvals        = live resolvers + durably terminalized cards
+Agent redirects  = delivered + transition-retained + NextTurn fallback
+Stop operations  = draining + completed + failed-and-cleared
+```
+
+An item outside the right-hand side is a closure defect. For example, a failed
+batch that disappears violates input conservation; a rejected redirect without
+fallback violates redirect conservation; a failed teardown retained forever in
+the registry violates Stop-operation conservation.
+
+Every asynchronous boundary is reviewed at the same deterministic cut points:
+
+| Cut point | Required proof |
+|---|---|
+| before the effect starts | rejection leaves no unowned row, resource, or aggregate mutation |
+| while the effect is pending | Stop/pause aborts or retains it according to the owning policy |
+| after the external side effect, before its result | retry policy accounts for whether the outcome is known or unknown |
+| after the result, when the Turn/epoch changed | the result is stale for control but still completes exact cleanup |
+| after terminal selection, before persistence | the immutable outcome survives retry and Stop |
+| after persistence, before presentation cleanup | durable refresh and exact retirement converge without changing control state |
+
+The final fixed-point assertion is stronger than `ConversationPhase.Idle`: no
+committed input, operation, resource, interaction, or presentation record may
+remain unless it is explicitly retained by a documented owner and has a future
+trigger that can advance it. Permanent `pending`, `streaming`, `stopping`, or
+`recovering` projections with no such trigger are closure failures.
+
 ## Pause and fixed-point drain
 
-Every owner keeps a private registry of short-lived promises, registered before
-the operation's first `await` and removed in `finally`. Conversation admission,
-successor dispatch, execution runs, terminal persistence, presentation cleanup,
-boot recovery, and topic naming writes are included; Agent connection startup,
-close, runtime binding, background work, and compaction keep their equivalent
-resource registry.
+Every owner keeps a private operation registry. An operation is opened before
+its executor's first call; each attempt is registered before its first `await`
+and ends in `finally`. Conversation admission, successor dispatch, execution
+runs, terminal persistence, presentation cleanup, boot recovery, and topic
+naming writes are included; Agent connection startup, close, runtime binding,
+background work, and compaction keep their equivalent resource registry.
+Retained terminal persistence remains visible during its retry delay, so both
+quiescence and backup drain observe the durable obligation rather than only the
+current write Promise.
 
 A pause closes external admission before taking a registry snapshot. Work
 already inside the barrier may register terminal or recovery descendants, so

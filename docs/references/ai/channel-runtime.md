@@ -17,7 +17,7 @@ while outbound listeners consume committed execution output.
 |---|---|
 | `ChannelIngressService` | lifecycle ordering for adapter startup, intake pause, and inbound drain |
 | `ChannelManager` | adapter pool, successful connection identity, and monotonically increasing connection epoch |
-| `ChannelDeliveryService` | generated-result live ownership, blocked-channel policy, terminal FIFO/dedupe, bounded send, and shutdown drain |
+| `ChannelDeliveryService` | generated-result live ownership, blocked-channel policy, terminal FIFO/dedupe, terminal operation/attempt lifecycle, bounded send, and shutdown drain |
 | `ChannelAdapterListener` | per-execution accumulated text and one terminal-delivery submission |
 | `ChannelAdapter` | platform card/message implementation and platform-specific throttling |
 
@@ -58,18 +58,24 @@ Live updates are best effort and never retried. Disconnect, replacement, block,
 or delivery shutdown aborts the old epoch's live `AbortController`.
 
 Terminal requests are deduplicated and serialized independently per channel
-chat. Each send has a 15-second ownership timeout. A timeout may already have
-reached the platform, so delivery does not retry; it blocks that channel, drops
-its queued work, and suppresses later live updates. Only a newer successful
-`ChannelManager` connection epoch reopens it.
+chat. Admission returns `Accepted`, `AlreadyOwned`, or `DroppedByPolicy` before
+the listener records ownership. Each request is one retained operation; each
+external send is one exact attempt. A 15-second timeout may already have reached
+the platform, so delivery abandons the operation instead of retrying, blocks
+that channel, drops its queued work, and suppresses later live updates. Only a
+newer successful `ChannelManager` connection epoch reopens it.
 
-Planned replacement freezes new admission and drains attempts already owned by
-the old epoch before disconnecting it. Unexpected connection loss aborts old
-live and terminal ownership immediately. Before every platform call, Delivery
-revalidates the exact adapter/epoch. `onStreamComplete` reports `Delivered` or
-`NotHandled`: only an explicit `NotHandled` with no later external call may be
-continued on a newer epoch. A throw, abort, or timeout after an external call
-has an unknown result and is never retried, preserving at-most-once delivery.
+Planned replacement freezes live delivery and stops the old runner from
+claiming new terminal requests. Already-owned attempts drain before disconnect;
+terminal operations accepted during the freeze remain in FIFO for the new
+epoch. Unexpected connection loss retains an attempt only when no external call
+began, and otherwise treats the outcome as unknown. Before every platform call,
+Delivery revalidates the exact adapter/epoch. `onStreamComplete` reports
+`Delivered` or `NotHandled`: only an explicit `NotHandled` with no later
+external call may be continued on a newer epoch. A throw, abort, or timeout
+after an external call is abandoned and never retried, preserving at-most-once
+delivery. Permanent block or service stop explicitly abandons every retained
+queue operation.
 
 ## Conversation boundary
 
@@ -91,6 +97,8 @@ has an unknown result and is never retried, preserving at-most-once delivery.
 - Live delivery has no retry; terminal delivery has no retry after timeout.
 - Cross-epoch terminal continuation is allowed only after an explicit
   `NotHandled` result; unknown external outcomes are never retried.
+- Planned drain waits for active attempts, not operations intentionally retained
+  for the replacement connection.
 - Platform adapters do not decide block policy, epoch, admission, or listener
   liveness.
 

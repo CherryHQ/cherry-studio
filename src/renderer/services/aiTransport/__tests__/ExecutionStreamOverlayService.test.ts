@@ -221,7 +221,7 @@ vi.mock('../ConversationStreamSubscription', () => ({
   ConversationStreamRecoveryDisposition: {
     Rebased: 'rebased',
     Retired: 'retired',
-    RetryAttach: 'retry-attach'
+    RestartAfterRefresh: 'restart-after-refresh'
   },
   ConversationStreamRecoveryReason: {
     Rebase: 'rebase',
@@ -563,6 +563,32 @@ describe('ExecutionStreamOverlayService', () => {
     service.syncExecutions(conversation, consumer, [], () => [])
     service.syncExecutions(conversation, consumer, [activeExecution], () => [assistant('assistant-1')])
     expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(true)
+  })
+
+  it('retires an ephemeral execution after attach recovery is exhausted', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('ephemeral-attach-unavailable')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+
+    service.acquire(conversation)
+    service.seedReservations(
+      conversation,
+      [assistant('assistant-1')],
+      [activeExecution],
+      { move: ConversationActiveNodeMove.Advance },
+      null,
+      () => [assistant('assistant-1')]
+    )
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'partial')
+    await nextCommit()
+
+    subscription.requestRecovery(activeExecution, 'attach-unavailable')
+
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
+    expect(service.getView(conversation).overlay).toEqual({})
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+    expect(subscription.recoveries.size).toBe(0)
   })
 
   it('starts an in-place retry from empty parts even when cached history still has the old failure', async () => {

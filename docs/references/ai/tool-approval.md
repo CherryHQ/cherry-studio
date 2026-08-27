@@ -76,14 +76,18 @@ Agent requests declare their lifecycle explicitly. `ExecutionBound` approvals
 belong to the current Conversation execution and resume through its exact
 interaction identity. `SessionMessage` approvals outlive a parent turn and are
 owned by `AgentMessageInteractionCoordinator`, which binds the runtime resolver
-to one durable Agent message.
+to one durable Agent message and one Main-generated
+`AgentRuntimeConnectionId`.
 
 A SessionMessage response commits the card decision before resolving the
-runtime promise. Session teardown performs the inverse terminal path in the
-same order: it denies every bound card in one synchronous transaction, removes
-the exact registry entries, then resolves the runtime promises. Boot crash
-recovery terminalizes persisted approval cards whose process-local resolver was
-lost; a stale registry claim is never persisted as an answerable card.
+runtime promise. Connection teardown performs the inverse terminal path in the
+same order: it snapshots only that connection's claims, denies every bound card
+in one synchronous transaction, then dispatches the exact resolvers. A failed
+transaction leaves both cards and resolvers unchanged and prevents connection
+invalidation, so a later teardown can retry. Old-connection cleanup cannot
+settle approvals registered by its successor. Boot crash recovery terminalizes
+persisted approval cards whose process-local resolver was lost; a stale registry
+claim is never persisted as an answerable card.
 
 ## Persistent MCP decisions
 

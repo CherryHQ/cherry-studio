@@ -57,7 +57,7 @@ export enum ConversationStreamRecoveryReason {
 export enum ConversationStreamRecoveryDisposition {
   Rebased = 'rebased',
   Retired = 'retired',
-  RetryAttach = 'retry-attach'
+  RestartAfterRefresh = 'restart-after-refresh'
 }
 
 export interface ConversationStreamRecoveryRequest {
@@ -299,7 +299,7 @@ export class ConversationStreamSubscription {
         this.retireExecution(result.executionId)
         this.#finishRecoverySession()
         return { status: ConversationStreamRecoveryCompletion.Applied, branch: null }
-      case ConversationStreamRecoveryDisposition.RetryAttach:
+      case ConversationStreamRecoveryDisposition.RestartAfterRefresh:
         branch.recovery = null
         this.#session = {
           phase: ConversationAttachmentPhase.Detached,
@@ -695,9 +695,11 @@ export class ConversationStreamSubscription {
       this.#session = {
         phase: this.#releaseAttachment ? ConversationAttachmentPhase.Attached : ConversationAttachmentPhase.Detached,
         generation: this.#session.generation,
-        attempts: 0
+        attempts: this.#session.attempts
       }
-      if (!this.#releaseAttachment && this.hasAnyOpenBranch()) queueMicrotask(() => void this.#ensureAttached())
+      if (!this.#releaseAttachment && this.hasAnyOpenBranch() && this.#session.attempts < MAX_ATTACH_ATTEMPTS) {
+        queueMicrotask(() => void this.#ensureAttached())
+      }
     }
   }
 

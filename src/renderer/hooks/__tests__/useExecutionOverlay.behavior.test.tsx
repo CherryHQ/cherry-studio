@@ -164,7 +164,7 @@ vi.mock('@renderer/services/aiTransport/ConversationStreamSubscription', () => (
   ConversationStreamRecoveryDisposition: {
     Rebased: 'rebased',
     Retired: 'retired',
-    RetryAttach: 'retry-attach'
+    RestartAfterRefresh: 'restart-after-refresh'
   },
   ConversationStreamRecoveryReason: {
     Rebase: 'rebase',
