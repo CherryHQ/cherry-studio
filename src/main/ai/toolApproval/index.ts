@@ -1,4 +1,7 @@
 /** Main-process compatibility barrel for the runtime-neutral permission package. */
+export { listBuiltinToolPolicies } from './builtinToolPolicy'
+export type { DispatchDecision } from './ToolApprovalRegistry'
+export { toolApprovalRegistry } from './ToolApprovalRegistry'
 export type {
   AgentPermissionMode,
   GuardCondition,
