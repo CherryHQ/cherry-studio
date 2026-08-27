@@ -36,6 +36,7 @@ export enum ConversationInputTarget {
 /** Renderer mutations against the process-local Conversation inbox. */
 export enum ConversationInboxMutationKind {
   Remove = 'remove',
+  Retarget = 'retarget',
   Reorder = 'reorder',
   SetPaused = 'set-paused'
 }

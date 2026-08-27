@@ -78,6 +78,10 @@ export const mockJobManager = {
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
+export const mockConversationRuntimeService = {
+  stop: vi.fn(() => ({ accepted: false, completed: Promise.resolve() }))
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -88,7 +92,8 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  JobManager: mockJobManager,
+  ConversationRuntimeService: mockConversationRuntimeService
 } as const
 
 /** Type for per-service overrides */

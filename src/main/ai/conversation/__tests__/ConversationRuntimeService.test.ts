@@ -1936,6 +1936,38 @@ describe('ConversationRuntimeService', () => {
     active.controller.close()
   })
 
+  it('retargets a queued Chat input with the original identity instead of dispatching a duplicate', async () => {
+    const active = controlledStream()
+    const subscriber = listener()
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateIntent: vi.fn(async (currentRequest, context) => validation(currentRequest, context.hasLiveStream)),
+      commitIntent: vi.fn((currentValidation) => committed(currentValidation.context.hasLiveStream))
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(vi.fn().mockResolvedValueOnce(active.stream))
+    })
+    await service.dispatch(subscriber, request('active'))
+    await service.dispatch(subscriber, queuedRequest('B'))
+    await service.dispatch(subscriber, queuedRequest('C'))
+    const [first, selected] = service.inboxSnapshot(ref).items
+    if (!first || !selected) throw new Error('Expected two queued inputs')
+
+    await service.mutateInbox(ref, {
+      kind: ConversationInboxMutationKind.Retarget,
+      inputId: selected.id,
+      target: ConversationInputTarget.NextStep
+    })
+
+    expect(service.inspect(ref).inbox.nextTurn.map(({ id }) => id)).toEqual([selected.id, first.id])
+    expect(new Set(service.inspect(ref).inbox.nextTurn.map(({ id }) => id)).size).toBe(2)
+    expect(provider.commitIntent).toHaveBeenCalledTimes(1)
+    active.controller.close()
+  })
+
   it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
     const first = controlledStream()
     const second = controlledStream()

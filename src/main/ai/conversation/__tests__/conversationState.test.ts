@@ -781,6 +781,65 @@ describe('Conversation state', () => {
     ])
   })
 
+  it('retargets one queued Chat input without creating a second input', () => {
+    const first = input('user-2')
+    const selected = input('user-3')
+    let state = open().state
+    for (const queued of [first, selected]) {
+      state = transitionConversation(state, {
+        type: ConversationCommandType.InputCommitted,
+        input: queued,
+        yieldEffectId: effect(`yield-${queued.id}`)
+      }).state
+    }
+
+    const retargeted = transitionConversation(state, {
+      type: ConversationCommandType.InputRetargeted,
+      inputId: selected.id,
+      yieldEffectId: effect('manual-yield'),
+      redirectEffectId: effect('unused-redirect'),
+      runtimeCanRedirect: false
+    })
+
+    expect(retargeted.rejection).toBeUndefined()
+    expect(retargeted.state.inbox.nextTurn.map(({ id }) => id)).toEqual([selected.id, first.id])
+    expect(retargeted.state.inbox.nextStep).toEqual([])
+    expect(retargeted.effects).toEqual([
+      expect.objectContaining({ type: ConversationEffectType.RequestYield, effectId: effect('manual-yield') })
+    ])
+  })
+
+  it('retargets one queued Agent input to an exact redirect with the same input id', () => {
+    const queued = input('user-2')
+    const state = transitionConversation(open(agent).state, {
+      type: ConversationCommandType.InputCommitted,
+      input: queued,
+      runtimeCanRedirect: false
+    }).state
+
+    const retargeted = transitionConversation(state, {
+      type: ConversationCommandType.InputRetargeted,
+      inputId: queued.id,
+      historyNodeId: 'durable-user-2',
+      yieldEffectId: effect('unused-yield'),
+      redirectEffectId: effect('manual-redirect'),
+      runtimeCanRedirect: true
+    })
+
+    expect(retargeted.rejection).toBeUndefined()
+    expect(retargeted.state.inbox.nextTurn).toEqual([])
+    expect(retargeted.state.inbox.nextStep).toEqual([
+      expect.objectContaining({ id: queued.id, historyNodeId: 'durable-user-2' })
+    ])
+    expect(retargeted.effects).toEqual([
+      expect.objectContaining({
+        type: ConversationEffectType.RedirectInput,
+        effectId: effect('manual-redirect'),
+        input: expect.objectContaining({ id: queued.id })
+      })
+    ])
+  })
+
   it('retains the next-turn input until its exact successor commit consumes it', () => {
     const queued = transitionConversation(open().state, {
       type: ConversationCommandType.InputCommitted,

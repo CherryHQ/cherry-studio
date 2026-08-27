@@ -28,6 +28,7 @@ import {
   type ConversationExecutionId,
   ConversationExecutionPhase,
   ConversationInboxMutationKind,
+  type ConversationInputId,
   ConversationInputTarget,
   ConversationInteractionResumeMode,
   ConversationKind,
@@ -915,6 +916,7 @@ export class ConversationRuntimeService extends BaseService {
     if (!actor) return { revision: 0, paused: false, items: [] }
     const items = actor.inspect().inbox.nextTurn.flatMap((input) => {
       const request = this.bindings.input(input.id)?.request
+      if (this.presentation.inputBinding(input.id)?.inboxVisible === false) return []
       const presentation =
         request?.trigger === ConversationOpenTrigger.SubmitMessage ? request.inboxPresentation : undefined
       return presentation ? [{ id: input.id, presentation }] : []
@@ -929,6 +931,10 @@ export class ConversationRuntimeService extends BaseService {
         case ConversationInboxMutationKind.Remove: {
           const transition = actor.removeInput(mutation.inputId)
           if (transition.rejection) throw new Error(`Conversation inbox remove rejected: ${transition.rejection}`)
+          break
+        }
+        case ConversationInboxMutationKind.Retarget: {
+          this.retargetInboxInput(ref, actor, mutation.inputId)
           break
         }
         case ConversationInboxMutationKind.Reorder: {
@@ -960,6 +966,40 @@ export class ConversationRuntimeService extends BaseService {
       if (turn) this.publishConversationStatus(ref, turn.id)
       return this.inboxSnapshot(ref)
     })
+  }
+
+  private retargetInboxInput(ref: ConversationRef, actor: ConversationActor, inputId: ConversationInputId): void {
+    const binding = this.bindings.input(inputId)
+    if (!binding?.validation) throw new Error('Conversation inbox input is no longer available')
+    const historyNodeId =
+      binding.validation.kind === ConversationHistoryAdapterKind.Agent
+        ? binding.validation.agent.userMessageId
+        : undefined
+    const reservation = actor.reserveInputRetarget(inputId, {
+      ...(historyNodeId ? { historyNodeId } : {}),
+      runtimeCanRedirect: ref.kind === ConversationKind.Agent
+    })
+
+    if (ref.kind === ConversationKind.Agent) {
+      const provider = this.providerFor(ref)
+      const committed = provider.commitIntent(binding.validation, { hasLiveStream: true })
+      const userMessageId = this.committedInputNodeId(ref, committed)
+      this.bindings.setInput(inputId, {
+        request: {
+          ...binding.request,
+          agentDeliveryMessage: agentSessionMessageService.getSessionMessage(ref.id, userMessageId)
+        },
+        validation: binding.validation,
+        historyRowId: userMessageId
+      })
+    }
+
+    const transition = actor.commitInputRetarget(reservation)
+    if (transition.rejection) {
+      throw new Error(`Conversation inbox retarget rejected: ${transition.rejection}`)
+    }
+    const presentation = this.presentation.inputBinding(inputId)
+    if (presentation) this.presentation.bindInput(inputId, { ...presentation, inboxVisible: false })
   }
 
   private commitFreshDispatch(

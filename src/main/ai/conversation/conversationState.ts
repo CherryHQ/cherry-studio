@@ -73,6 +73,7 @@ export enum ConversationCommandType {
   InputCommitted = 'input-committed',
   InputDropped = 'input-dropped',
   InputRemoved = 'input-removed',
+  InputRetargeted = 'input-retargeted',
   InboxReordered = 'inbox-reordered',
   StepCommitted = 'step-committed',
   StepFailed = 'step-failed',
@@ -464,6 +465,14 @@ export type ConversationCommand =
       readonly dropEffectId: ConversationEffectId
       readonly scheduleEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.InputRetargeted
+      readonly inputId: ConversationInputId
+      readonly historyNodeId?: string
+      readonly yieldEffectId: ConversationEffectId
+      readonly redirectEffectId: ConversationEffectId
+      readonly runtimeCanRedirect: boolean
     }
   | {
       readonly type: ConversationCommandType.InboxReordered
@@ -1316,6 +1325,65 @@ export function transitionConversation(state: ConversationState, command: Conver
                   }
                 ]
               : [])
+        ]
+      }
+    }
+
+    case ConversationCommandType.InputRetargeted: {
+      if (state.phase !== ConversationPhase.Running || state.runMode !== ConversationRunMode.Foreground) {
+        return unchanged(
+          state,
+          state.phase === ConversationPhase.Stopping
+            ? ConversationCommandRejection.Busy
+            : ConversationCommandRejection.Stale
+        )
+      }
+      const index = state.inbox.nextTurn.findIndex((input) => input.id === command.inputId)
+      const queued = state.inbox.nextTurn[index]
+      const running = firstRunningExecution(state.turn)
+      if (!queued || !running) return unchanged(state, ConversationCommandRejection.Stale)
+      const input = command.historyNodeId ? { ...queued, historyNodeId: command.historyNodeId } : queued
+      const remaining = state.inbox.nextTurn.filter((candidate) => candidate.id !== command.inputId)
+      if (state.profile.kind === ConversationKind.Chat) {
+        return {
+          state: { ...state, inbox: { ...state.inbox, nextTurn: [input, ...remaining] } },
+          events: [],
+          effects: [
+            {
+              type: ConversationEffectType.RequestYield,
+              conversation: state.ref,
+              turnId: state.turn.id,
+              effectId: command.yieldEffectId
+            }
+          ]
+        }
+      }
+      if (
+        command.runtimeCanRedirect !== true ||
+        input.responder !== ConversationResponderKind.Interactive ||
+        state.turn.responder !== ConversationResponderKind.Interactive
+      ) {
+        return unchanged(state, ConversationCommandRejection.Invalid)
+      }
+      const redirectInput: ConversationRedirectInput = {
+        ...input,
+        redirect: { id: toAgentRuntimeRedirectId(input.id), phase: ConversationRedirectPhase.Queued }
+      }
+      return {
+        state: {
+          ...state,
+          inbox: { nextTurn: remaining, nextStep: [...state.inbox.nextStep, redirectInput] }
+        },
+        events: [],
+        effects: [
+          {
+            type: ConversationEffectType.RedirectInput,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            executionId: running.id,
+            effectId: command.redirectEffectId,
+            input: redirectInput
+          }
         ]
       }
     }

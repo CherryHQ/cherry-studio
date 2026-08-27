@@ -135,6 +135,11 @@ export interface ConversationInboxSnapshot {
 
 export type ConversationInboxMutation =
   | { kind: ConversationInboxMutationKind.Remove; inputId: ConversationInputId }
+  | {
+      kind: ConversationInboxMutationKind.Retarget
+      inputId: ConversationInputId
+      target: ConversationInputTarget.NextStep
+    }
   | { kind: ConversationInboxMutationKind.Reorder; inputIds: ConversationInputId[] }
   | { kind: ConversationInboxMutationKind.SetPaused; paused: boolean }
 

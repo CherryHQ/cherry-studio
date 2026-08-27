@@ -1,5 +1,6 @@
 import {
   ConversationInboxMutationKind,
+  ConversationInputTarget,
   ConversationKind,
   type ConversationRef,
   toConversationInputId
@@ -72,7 +73,7 @@ describe('useFollowupQueue', () => {
     expect(result.current.items.map(({ draft }) => draft.text)).toEqual(['queued'])
   })
 
-  it('routes remove, reorder, and pause mutations to the Conversation owner', async () => {
+  it('routes remove, retarget, reorder, and pause mutations to the Conversation owner', async () => {
     request.mockImplementation(async (route: string, input?: { mutation: ConversationInboxMutation }) => {
       if (route === 'ai.conversation.inbox.get') return snapshot(['a', 'b'])
       if (input?.mutation.kind === ConversationInboxMutationKind.SetPaused) return snapshot(['b', 'a'], true)
@@ -100,6 +101,16 @@ describe('useFollowupQueue', () => {
         mutation: { kind: ConversationInboxMutationKind.Remove, inputId: first.id }
       })
     )
+
+    await act(async () => result.current.retarget(second.id))
+    expect(request).toHaveBeenCalledWith('ai.conversation.inbox.mutate', {
+      conversation: conversation(),
+      mutation: {
+        kind: ConversationInboxMutationKind.Retarget,
+        inputId: second.id,
+        target: ConversationInputTarget.NextStep
+      }
+    })
 
     act(() => result.current.setPaused(true))
     await waitFor(() => expect(result.current.paused).toBe(true))

@@ -396,6 +396,11 @@ export const aiRequestSchemas = {
           inputId: z.string().min(1).transform(toConversationInputId)
         }),
         z.strictObject({
+          kind: z.literal(ConversationInboxMutationKind.Retarget),
+          inputId: z.string().min(1).transform(toConversationInputId),
+          target: z.literal(ConversationInputTarget.NextStep)
+        }),
+        z.strictObject({
           kind: z.literal(ConversationInboxMutationKind.Reorder),
           inputIds: z.array(z.string().min(1).transform(toConversationInputId))
         }),

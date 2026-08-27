@@ -2,7 +2,13 @@ import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
-import { ConversationTargetMode } from '@shared/ai/conversation'
+import {
+  ConversationInboxMutationKind,
+  ConversationInputTarget,
+  ConversationTargetMode,
+  toConversationInputId
+} from '@shared/ai/conversation'
+import type { ConversationInboxItem, ConversationInboxMutation } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -72,6 +78,8 @@ const mocks = vi.hoisted(() => ({
   knowledgeBaseHookArgs: [] as unknown[][],
   modelHookArgs: [] as unknown[][],
   providerHookArgs: [] as unknown[][],
+  inboxItems: [] as ConversationInboxItem[],
+  inboxRevision: 0,
   speedControlProps: undefined as
     | {
         model: Model
@@ -143,6 +151,20 @@ const modelBWithFunctionCall = {
 } satisfies Model
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+const inboxSnapshot = () => ({ revision: mocks.inboxRevision, paused: false, items: [...mocks.inboxItems] })
+
+function actorSend() {
+  return vi.fn(async (_text: string, options?: { inboxPresentation?: ConversationInboxItem['presentation'] }) => {
+    if (options?.inboxPresentation) {
+      mocks.inboxRevision += 1
+      mocks.inboxItems.push({
+        id: toConversationInputId(`queued-${mocks.inboxRevision}`),
+        presentation: options.inboxPresentation
+      })
+    }
+  })
+}
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
@@ -780,6 +802,8 @@ describe('ChatComposer', () => {
     mocks.knowledgeBaseHookArgs = []
     mocks.modelHookArgs = []
     mocks.providerHookArgs = []
+    mocks.inboxItems = []
+    mocks.inboxRevision = 0
     mocks.speedControlProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
@@ -795,9 +819,21 @@ describe('ChatComposer', () => {
       }
     })
     ipcRequestMock.mockReset()
-    ipcRequestMock.mockImplementation(async (route: string) =>
-      route === 'file.get_metadata' ? { kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 } : {}
-    )
+    ipcRequestMock.mockImplementation(async (route: string, input?: { mutation?: ConversationInboxMutation }) => {
+      if (route === 'ai.conversation.inbox.get') return inboxSnapshot()
+      if (route === 'ai.conversation.inbox.mutate') {
+        const mutation = input?.mutation
+        if (
+          mutation?.kind === ConversationInboxMutationKind.Remove ||
+          mutation?.kind === ConversationInboxMutationKind.Retarget
+        ) {
+          mocks.inboxItems = mocks.inboxItems.filter(({ id }) => id !== mutation.inputId)
+        }
+        mocks.inboxRevision += 1
+        return inboxSnapshot()
+      }
+      return route === 'file.get_metadata' ? { kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 } : {}
+    })
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -1972,9 +2008,9 @@ describe('ChatComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
-  it('queues a follow-up while the topic is streaming (does not send directly)', async () => {
+  it('submits a streaming follow-up to the Actor-owned NextTurn inbox', async () => {
     mocks.topicPending = true
-    const onSend = vi.fn().mockResolvedValue(undefined)
+    const onSend = actorSend()
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
@@ -1982,8 +2018,10 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
 
-    // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
-    expect(onSend).not.toHaveBeenCalled()
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({ inputTarget: ConversationInputTarget.NextTurn })
+    )
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
@@ -1996,10 +2034,11 @@ describe('ChatComposer', () => {
     mocks.topicPending = true
     mocks.knowledgeBases = [knowledgeBase]
 
-    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    const onSend = actorSend()
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
 
     mocks.selectedKnowledgeBases = [knowledgeBase]
-    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
     const [knowledgeToken] = mocks.surfaceProps?.tokens ?? []
     expect(knowledgeToken).toMatchObject({ id: 'knowledge:kb-1', kind: 'knowledge' })
@@ -2034,7 +2073,7 @@ describe('ChatComposer', () => {
     }
     mocks.mentionedModels = [mocks.model]
     mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
-    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+    render(<ChatHomeComposer topic={topic} onSend={actorSend()} />)
 
     act(() => {
       mocks.speedControlProps?.onReasoningEffortChange('high')
@@ -2081,7 +2120,7 @@ describe('ChatComposer', () => {
       tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
     }))
 
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    render(<ChatComposer topic={topic} onSend={actorSend()} />)
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({
@@ -2203,7 +2242,7 @@ describe('ChatComposer', () => {
 
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
     mocks.topicPending = true
-    const onSend = vi.fn().mockResolvedValue(undefined)
+    const onSend = actorSend()
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
@@ -2214,7 +2253,7 @@ describe('ChatComposer', () => {
     expect(queueContent).toBeTruthy()
     const itemId = queueContent.props.items[0].id
 
-    onSend.mockRejectedValueOnce(new Error('send failed'))
+    ipcRequestMock.mockRejectedValueOnce(new Error('retarget failed'))
     await act(async () => {
       await queueContent.props.onSteer(itemId)
     })
@@ -2222,12 +2261,12 @@ describe('ChatComposer', () => {
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued'])
   })
 
   it('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {
     mocks.topicPending = true
-    const onSend = vi.fn().mockResolvedValue(undefined)
+    const onSend = actorSend()
     const reservedTarget = { parentAnchorId: 'reserved-user', mode: ConversationTargetMode.ReservedBranch } as const
     const view = render(<ChatComposer topic={topic} chatTarget={reservedTarget} onSend={onSend} />)
 
@@ -2239,7 +2278,7 @@ describe('ChatComposer', () => {
     const queuedItem = queueContent.props.items[0]
     expect(queuedItem.payload.chatTarget).toEqual(reservedTarget)
     expect(queueContent.props.isSteerDisabled(queuedItem)).toBe(true)
-    expect(onSend).not.toHaveBeenCalled()
+    expect(onSend).toHaveBeenCalledTimes(1)
 
     mocks.topicPending = false
     view.rerender(
@@ -2256,7 +2295,15 @@ describe('ChatComposer', () => {
       await queueContent.props.onSteer(queuedItem.id)
     })
 
-    expect(onSend).toHaveBeenCalledWith('reserved follow-up', expect.objectContaining({ chatTarget: reservedTarget }))
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.conversation.inbox.mutate', {
+      conversation: { kind: 'chat', id: topic.id },
+      mutation: {
+        kind: ConversationInboxMutationKind.Retarget,
+        inputId: queuedItem.id,
+        target: ConversationInputTarget.NextStep
+      }
+    })
   })
 
   describe('input history', () => {
@@ -2321,9 +2368,9 @@ describe('ChatComposer', () => {
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     })
 
-    it('does NOT save input history for queued steer follow-ups during streaming', async () => {
+    it('saves an accepted queued follow-up once and does not duplicate history when retargeted', async () => {
       mocks.topicPending = true
-      const onSend = vi.fn().mockResolvedValue(undefined)
+      const onSend = actorSend()
 
       render(<ChatComposer topic={topic} onSend={onSend} />)
 
@@ -2331,13 +2378,9 @@ describe('ChatComposer', () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'queued steer', tokens: [] })
       })
 
-      // The follow-up is queued (not actually sent), so history must stay clean.
-      // onSend should also NOT have been called directly — it goes through the dock.
-      expect(onSend).not.toHaveBeenCalled()
-      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+      expect(onSend).toHaveBeenCalledTimes(1)
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued steer'])
 
-      // Manually draining the dock via the queue's onSteer should send through onSend
-      // AND save history. This proves the history write happens only at the real-send moment.
       const queueContent = mocks.surfaceProps?.queueContent as any
       const itemId = queueContent.props.items[0].id
       await act(async () => {
@@ -2345,7 +2388,7 @@ describe('ChatComposer', () => {
       })
 
       await waitFor(() => {
-        expect(onSend).toHaveBeenCalled()
+        expect(onSend).toHaveBeenCalledTimes(1)
         expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued steer'])
       })
     })
@@ -3574,7 +3617,15 @@ describe('ChatComposer', () => {
       status: 'success'
     }
 
-    render(
+    const view = render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={[{ type: 'text', text: 'edited message' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.conversation.inbox.get', expect.anything()))
+    mocks.selectedKnowledgeBases = [liveKnowledgeBase]
+    view.rerender(
       <MessageEditingProvider>
         <StartEditingButton message={message} parts={[{ type: 'text', text: 'edited message' }]} />
         <ChatComposer topic={topic} onSend={vi.fn()} />

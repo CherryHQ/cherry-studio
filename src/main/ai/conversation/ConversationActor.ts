@@ -166,6 +166,14 @@ export interface ConversationAdmissionContext {
   commit<T>(task: () => T): T
 }
 
+export interface ConversationInputRetargetReservation {
+  readonly inputId: ConversationInputId
+  readonly historyNodeId?: string
+  readonly yieldEffectId: ConversationEffectId
+  readonly redirectEffectId: ConversationEffectId
+  readonly runtimeCanRedirect: boolean
+}
+
 export class StaleConversationAdmissionError extends Error {
   constructor(readonly conversation: ConversationRef) {
     super(`Conversation admission was superseded: ${conversation.kind}:${conversation.id}`)
@@ -596,6 +604,25 @@ export class ConversationActor {
       scheduleEffectId: ids.effect(),
       quiescenceEffectId: ids.effect()
     })
+  }
+
+  reserveInputRetarget(
+    inputId: ConversationInputId,
+    options: { readonly historyNodeId?: string; readonly runtimeCanRedirect: boolean }
+  ): ConversationInputRetargetReservation {
+    const reservation: ConversationInputRetargetReservation = {
+      inputId,
+      ...(options.historyNodeId ? { historyNodeId: options.historyNodeId } : {}),
+      yieldEffectId: this.ids().effect(),
+      redirectEffectId: this.ids().effect(),
+      runtimeCanRedirect: options.runtimeCanRedirect
+    }
+    this.assertPreview({ type: ConversationCommandType.InputRetargeted, ...reservation })
+    return reservation
+  }
+
+  commitInputRetarget(reservation: ConversationInputRetargetReservation): ConversationTransition {
+    return this.commit({ type: ConversationCommandType.InputRetargeted, ...reservation })
   }
 
   reorderInputs(inputIds: readonly ConversationInputId[]): ConversationTransition {

@@ -1502,6 +1502,7 @@ const AgentComposerInner = ({
     items: queuedFollowups,
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
+    retarget: retargetFollowup,
     reorder: reorderFollowups,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1765,14 +1766,11 @@ const AgentComposerInner = ({
                   paused={followupPaused}
                   onTogglePause={() => setFollowupPaused(!followupPaused)}
                   onSteer={async (id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    // Only drop the item once the send actually succeeds; a failed manual
-                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                    const sent = await sendQueuedPayload(item.payload, {
-                      inputTarget: ConversationInputTarget.NextStep
-                    })
-                    if (sent) removeFollowup(id)
+                    try {
+                      await retargetFollowup(id)
+                    } catch (error) {
+                      logger.warn('Failed to retarget queued Agent input', error as Error)
+                    }
                   }}
                   onEdit={(id) => {
                     const item = queuedFollowups.find((entry) => entry.id === id)

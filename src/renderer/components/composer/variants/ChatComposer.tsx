@@ -1472,6 +1472,7 @@ const ChatComposerInner = ({
     items: queuedFollowups,
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
+    retarget: retargetFollowup,
     reorder: reorderFollowups,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1884,12 +1885,12 @@ const ChatComposerInner = ({
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
                 onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload, { inputTarget: ConversationInputTarget.NextStep })
-                  if (sent) removeFollowup(id)
+                  try {
+                    await retargetFollowup(id)
+                  } catch (error) {
+                    logger.warn('Failed to retarget queued Chat input', error as Error)
+                    toast.error(t('chat.input.send_failed'))
+                  }
                 }}
                 onEdit={(id) => {
                   const item = queuedFollowups.find((entry) => entry.id === id)

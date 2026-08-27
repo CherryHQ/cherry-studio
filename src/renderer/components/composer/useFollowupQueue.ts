@@ -3,6 +3,7 @@ import { ipcApi } from '@renderer/ipc'
 import {
   ConversationInboxMutationKind,
   type ConversationInputId,
+  ConversationInputTarget,
   type ConversationRef,
   conversationRefKey
 } from '@shared/ai/conversation'
@@ -30,6 +31,7 @@ export interface FollowupQueueController {
   items: FollowupQueueItem[]
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => Promise<boolean>
   removeId: (id: ConversationInputId) => void
+  retarget: (id: ConversationInputId) => Promise<void>
   reorder: (nextItems: FollowupQueueItem[]) => void
   paused: boolean
   setPaused: (paused: boolean) => void
@@ -98,6 +100,16 @@ export function useFollowupQueue({ conversation, onEnqueue }: UseFollowupQueuePa
     [mutate]
   )
 
+  const retarget = useCallback(
+    (inputId: ConversationInputId) =>
+      mutate({
+        kind: ConversationInboxMutationKind.Retarget,
+        inputId,
+        target: ConversationInputTarget.NextStep
+      }),
+    [mutate]
+  )
+
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
       setItems(nextItems)
@@ -114,5 +126,5 @@ export function useFollowupQueue({ conversation, onEnqueue }: UseFollowupQueuePa
     [mutate]
   )
 
-  return { items, enqueue, removeId, reorder, paused, setPaused }
+  return { items, enqueue, removeId, retarget, reorder, paused, setPaused }
 }

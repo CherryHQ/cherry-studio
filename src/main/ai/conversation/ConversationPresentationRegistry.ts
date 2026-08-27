@@ -13,6 +13,7 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 export interface ConversationPresentationBinding {
   readonly subscriber: StreamListener
   readonly extraListeners?: readonly StreamListener[]
+  readonly inboxVisible?: boolean
 }
 
 export interface ConversationExecutionProjection {

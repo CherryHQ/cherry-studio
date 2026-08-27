@@ -847,6 +847,9 @@ describe('AgentComposer', () => {
             case ConversationInboxMutationKind.Remove:
               mocks.inboxItems = mocks.inboxItems.filter(({ id }) => id !== input.mutation?.inputId)
               break
+            case ConversationInboxMutationKind.Retarget:
+              mocks.inboxItems = mocks.inboxItems.filter(({ id }) => id !== input.mutation?.inputId)
+              break
             case ConversationInboxMutationKind.Reorder: {
               const byId = new Map(mocks.inboxItems.map((item) => [item.id, item]))
               mocks.inboxItems = (input.mutation.inputIds ?? []).flatMap((id) => {
@@ -2130,7 +2133,7 @@ describe('AgentComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued agent follow-up'])
     expect(getQueueDock()).toBeTruthy()
 
-    // Manual steer reuses the accepted payload and removes the retained inbox item only after success.
+    // Manual steer retargets the accepted input in Main; it does not submit a duplicate payload.
     const dock = getQueueDock()
     const itemId = dock.props.items[0].id
     await act(async () => {
@@ -2138,7 +2141,7 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.sendMessage).toHaveBeenCalledTimes(2)
+      expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued agent follow-up'])
     })
   })
@@ -4829,7 +4832,7 @@ describe('AgentComposer', () => {
     const dock = getQueueDock()
     const itemId = dock.props.items[0].id
 
-    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('retarget failed'))
     await act(async () => {
       await dock.props.onSteer(itemId)
     })

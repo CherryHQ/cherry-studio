@@ -1,5 +1,6 @@
 import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
+import { mockConversationRuntimeService } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { createTopicMock, deleteTopicMock, appendMessageMock, listMessagesMock, persistMock } = vi.hoisted(() => ({
@@ -73,6 +74,8 @@ describe('temporaryChatHandlers', () => {
     appendMessageMock.mockReset()
     listMessagesMock.mockReset()
     persistMock.mockReset()
+    mockConversationRuntimeService.stop.mockReset()
+    mockConversationRuntimeService.stop.mockReturnValue({ accepted: false, completed: Promise.resolve() })
   })
 
   describe('POST /temporary/topics', () => {
@@ -94,6 +97,10 @@ describe('temporaryChatHandlers', () => {
         reqEnvelope({ params: { id: 'tid-xyz' } })
       )
       expect(deleteTopicMock).toHaveBeenCalledWith('tid-xyz')
+      expect(mockConversationRuntimeService.stop).toHaveBeenCalledWith(
+        { kind: 'chat', id: 'tid-xyz' },
+        'temporary-topic-delete'
+      )
       expect(result).toBeUndefined()
     })
 
@@ -139,7 +146,30 @@ describe('temporaryChatHandlers', () => {
         reqEnvelope({ params: { id: 'tid-123' } })
       )
       expect(persistMock).toHaveBeenCalledWith('tid-123')
+      expect(mockConversationRuntimeService.stop).toHaveBeenCalledWith(
+        { kind: 'chat', id: 'tid-123' },
+        'temporary-topic-persist'
+      )
       expect(result).toEqual({ topicId: 'tid-123', messageCount: 4 })
+    })
+
+    it('does not remove the temporary rows until the Conversation Stop operation completes', async () => {
+      let release!: () => void
+      const completed = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      mockConversationRuntimeService.stop.mockReturnValue({ accepted: true, completed })
+      persistMock.mockReturnValue({ topicId: 'tid-123', messageCount: 2 })
+
+      const pending = temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
+        reqEnvelope({ params: { id: 'tid-123' } })
+      )
+      await Promise.resolve()
+      expect(persistMock).not.toHaveBeenCalled()
+
+      release()
+      await expect(pending).resolves.toEqual({ topicId: 'tid-123', messageCount: 2 })
+      expect(persistMock).toHaveBeenCalledOnce()
     })
   })
 })
