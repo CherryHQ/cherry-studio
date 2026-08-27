@@ -301,24 +301,18 @@ jobs:
             exit 1
           fi
 
-          echo "main-sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
           echo "release-id=$(jq -r '.id' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
 
       - name: Publish current draft
         shell: bash
         env:
           BRANCH: ${{ github.ref_name }}
-          EXPECTED_MAIN_SHA: ${{ steps.publish-state.outputs.main-sha }}
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           RELEASE_ID: ${{ steps.publish-state.outputs.release-id }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           git fetch origin "refs/heads/main:refs/remotes/origin/main"
-          if [ "$(git rev-parse origin/main)" != "$EXPECTED_MAIN_SHA" ]; then
-            echo "main moved after final hotfix validation; rerun the publish operation" >&2
-            exit 1
-          fi
 
           collect_pending_hotfixes() {
             local fork_point hotfix_prs pending merge_sha pr_json
@@ -377,8 +371,9 @@ jobs:
             node scripts/release/validate-release-state.js publish
 
           git fetch origin "refs/heads/main:refs/remotes/origin/main"
-          if [ "$(git rev-parse origin/main)" != "$EXPECTED_MAIN_SHA" ]; then
-            echo "main moved during final release validation; rerun the publish operation" >&2
+          PENDING_HOTFIXES="$(collect_pending_hotfixes)"
+          if [ -n "$PENDING_HOTFIXES" ]; then
+            echo "A hotfix merged during final release validation and is still waiting for this release: $PENDING_HOTFIXES" >&2
             exit 1
           fi
 

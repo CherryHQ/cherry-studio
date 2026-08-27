@@ -53,11 +53,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          git fetch origin "refs/heads/main:refs/remotes/origin/main" --tags
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
-            echo "Pre Release must run from the current origin/main head" >&2
-            exit 1
-          fi
+          git fetch origin --tags
 
           CURRENT_VERSION="$(node -p "require('./package.json').version")"
           if ! node -e "const semver = require('semver'); process.exit(semver.valid(process.argv[1]) ? 0 : 1)" "$CURRENT_VERSION"; then
@@ -150,46 +146,12 @@ jobs:
           echo "version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved ${{ github.event.inputs.version }} to $TARGET_VERSION"
 
-      - name: Verify release slot is available
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
-          RELEASE_REF_PAGES="$(gh api --paginate --slurp "repos/$REPO/git/matching-refs/heads/release/v?per_page=100")"
-          UNFINISHED_RELEASES=()
-
-          while IFS= read -r REF; do
-            TAG="${REF#refs/heads/release/}"
-            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-              continue
-            fi
-            MATCHING_RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$RELEASE_PAGES")"
-            if [ -z "$MATCHING_RELEASE" ] || [ "$(jq -r '.draft' <<< "$MATCHING_RELEASE")" = "true" ]; then
-              UNFINISHED_RELEASES+=("$TAG")
-            fi
-          done < <(jq -r '.[][] | .ref' <<< "$RELEASE_REF_PAGES")
-
-          while IFS= read -r TAG; do
-            if [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] && \
-               ! jq -e --arg ref "refs/heads/release/$TAG" 'any(.[][]; .ref == $ref)' <<< "$RELEASE_REF_PAGES" >/dev/null; then
-              UNFINISHED_RELEASES+=("$TAG (draft without branch)")
-            fi
-          done < <(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")
-
-          if [ "${#UNFINISHED_RELEASES[@]}" -ne 0 ]; then
-            RELEASES="$(IFS=', '; echo "${UNFINISHED_RELEASES[*]}")"
-            echo "Finish or explicitly abandon every unpublished release before preparing another one: $RELEASES" >&2
-            exit 1
-          fi
-
       - name: Prepare Release via Claude
         uses: anthropics/claude-code-action@v1.0.66
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
-          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git rev-parse:*),Bash(git show:*),Bash(git status:*),Bash(gh release list:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
+          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git rev-parse:*),Bash(git show:*),Bash(git status:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
           prompt: |
             Run the prepare-release skill with exact version argument: ${{ steps.release-version.outputs.version }}
 
@@ -197,7 +159,7 @@ jobs:
 
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
-            The workflow already completed the branch, remote-head, tag, published-release, and active-release checks from Step 1. Do not repeat those checks or run any Git mutation.
+            The workflow already completed the branch, tag, and published-release checks from Step 1. Do not repeat those checks or run any Git mutation.
 
             Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
         env:
@@ -289,42 +251,8 @@ jobs:
         id: release-files
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RELEASE_HEAD: ${{ github.sha }}
           REQUESTED_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          CURRENT_MAIN="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
-          if [ "$CURRENT_MAIN" != "$RELEASE_HEAD" ]; then
-            echo "main moved from $RELEASE_HEAD to $CURRENT_MAIN while the release was being prepared; rerun Pre Release" >&2
-            exit 1
-          fi
-
-          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
-          RELEASE_REF_PAGES="$(gh api --paginate --slurp "repos/$REPO/git/matching-refs/heads/release/v?per_page=100")"
-          UNFINISHED_RELEASES=()
-          while IFS= read -r REF; do
-            TAG="${REF#refs/heads/release/}"
-            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-              continue
-            fi
-            MATCHING_RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$RELEASE_PAGES")"
-            if [ -z "$MATCHING_RELEASE" ] || [ "$(jq -r '.draft' <<< "$MATCHING_RELEASE")" = "true" ]; then
-              UNFINISHED_RELEASES+=("$TAG")
-            fi
-          done < <(jq -r '.[][] | .ref' <<< "$RELEASE_REF_PAGES")
-          while IFS= read -r TAG; do
-            if [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] && \
-               ! jq -e --arg ref "refs/heads/release/$TAG" 'any(.[][]; .ref == $ref)' <<< "$RELEASE_REF_PAGES" >/dev/null; then
-              UNFINISHED_RELEASES+=("$TAG (draft without branch)")
-            fi
-          done < <(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")
-          if [ "${#UNFINISHED_RELEASES[@]}" -ne 0 ]; then
-            RELEASES="$(IFS=', '; echo "${UNFINISHED_RELEASES[*]}")"
-            echo "Release state changed while preparing; finish or abandon: $RELEASES" >&2
-            exit 1
-          fi
-
           node <<'NODE'
           const { execFileSync } = require('node:child_process')
           const fs = require('node:fs')
@@ -478,11 +406,6 @@ jobs:
           SIGNOFF_EMAIL: ${{ steps.publisher.outputs.email }}
           SIGNOFF_NAME: ${{ steps.publisher.outputs.name }}
         run: |
-          CURRENT_MAIN="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
-          if [ "$CURRENT_MAIN" != "$RELEASE_HEAD" ]; then
-            echo "main moved from $RELEASE_HEAD to $CURRENT_MAIN before release branch creation; rerun Pre Release" >&2
-            exit 1
-          fi
           if gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
             echo "Release branch $RELEASE_BRANCH already exists" >&2
             exit 1

@@ -890,9 +890,53 @@ describe('release workflow gates', () => {
     expect(publishStep.run).toContain('node scripts/release/validate-release-state.js publish')
     const validatorIndex = publishStep.run.indexOf('node scripts/release/validate-release-state.js publish')
     const publicationIndex = publishStep.run.indexOf('gh release edit "$TAG"')
-    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeGreaterThan(validatorIndex)
-    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeLessThan(publicationIndex)
+    const finalHotfixScanIndex = publishStep.run.lastIndexOf('PENDING_HOTFIXES="$(collect_pending_hotfixes)"')
+    expect(finalHotfixScanIndex).toBeGreaterThan(validatorIndex)
+    expect(finalHotfixScanIndex).toBeLessThan(publicationIndex)
+    expect(publishStep.run).not.toContain('EXPECTED_MAIN_SHA')
     expect(validatorIndex).toBeLessThan(publicationIndex)
+  })
+
+  it('keeps the selected pre-release SHA after dispatch instead of following later main changes', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'prepare-release.yml'), 'utf8'))
+    const baselineStep = workflow.jobs.prepare.steps.find(
+      (step: { name?: string }) => step.name === 'Verify published release baseline'
+    )
+    const artifactStep = workflow.jobs.publish.steps.find(
+      (step: { name?: string }) => step.name === 'Validate prepared release artifact'
+    )
+    const commitStep = workflow.jobs.publish.steps.find(
+      (step: { name?: string }) => step.name === 'Create signed release commit'
+    )
+
+    expect(baselineStep.run).not.toContain('git rev-parse origin/main')
+    expect(artifactStep.run).not.toContain('CURRENT_MAIN')
+    expect(commitStep.run).not.toContain('CURRENT_MAIN')
+    expect(commitStep.env.RELEASE_HEAD).toBe('${{ github.sha }}')
+    expect(commitStep.run).toContain('Release branch $RELEASE_BRANCH already exists')
+  })
+
+  it('does not inspect unrelated release branches or drafts during preparation', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'prepare-release.yml'), 'utf8'))
+    const artifactStep = workflow.jobs.publish.steps.find(
+      (step: { name?: string }) => step.name === 'Validate prepared release artifact'
+    )
+
+    expect(
+      workflow.jobs.prepare.steps.some((step: { name?: string }) => step.name === 'Verify release slot is available')
+    ).toBe(false)
+    expect(artifactStep.run).not.toContain('UNFINISHED_RELEASES')
+    expect(artifactStep.run).not.toContain('release list')
+  })
+
+  it('allows post-release metadata synchronization to finish after unrelated main changes', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'post-release.yml'), 'utf8'))
+    const resetStep = workflow.jobs['sync-release-metadata'].steps.find(
+      (step: { name?: string }) => step.name === 'Reset metadata sync branch to prepared main'
+    )
+
+    expect(resetStep.run).not.toContain('CURRENT_MAIN')
+    expect(resetStep.run).toContain('-f sha="$MAIN_SHA"')
   })
 
   it('reports a merged hotfix contract failure before release resolution', () => {
