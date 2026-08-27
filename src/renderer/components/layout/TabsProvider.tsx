@@ -291,6 +291,27 @@ export function TabsProvider({
     lruManagerRef.current = new TabLruManager()
   }
 
+  // Per-provider registry of explicit-close listeners (see TabsContextValue.subscribeTabsClosed).
+  // A ref-held Set (not a module-level emitter) keeps concurrently mounted providers isolated.
+  const tabsClosedListenersRef = useRef<Set<(closedTabs: readonly Tab[]) => void>>(new Set())
+
+  const subscribeTabsClosed = useCallback((listener: (closedTabs: readonly Tab[]) => void) => {
+    tabsClosedListenersRef.current.add(listener)
+    return () => {
+      tabsClosedListenersRef.current.delete(listener)
+    }
+  }, [])
+
+  const notifyTabsClosed = useCallback((closedTabs: readonly Tab[]) => {
+    for (const listener of tabsClosedListenersRef.current) {
+      try {
+        listener(closedTabs)
+      } catch (error) {
+        logger.error('tabs-closed listener failed', error as Error)
+      }
+    }
+  }, [])
+
   // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
     const currentPinnedTabs = includePinnedTabs ? pinnedTabsForRender : []
@@ -476,8 +497,10 @@ export function TabsProvider({
       }
 
       setActiveTabIdState(newActiveId)
+
+      notifyTabsClosed(closingTabs)
     },
-    [tabs, activeTabId, setPinnedTabs, storesPinned]
+    [tabs, activeTabId, setPinnedTabs, storesPinned, notifyTabsClosed]
   )
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
@@ -659,7 +682,10 @@ export function TabsProvider({
     attachTab,
 
     // Drag and drop
-    reorderTabs
+    reorderTabs,
+
+    // Explicit-close notifications
+    subscribeTabsClosed
   }
 
   return <TabsContext value={value}>{children}</TabsContext>

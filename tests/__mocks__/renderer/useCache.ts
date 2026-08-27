@@ -9,6 +9,7 @@ import type {
   UseCacheSchema
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultUseCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
+import { useCallback, useSyncExternalStore } from 'react'
 import { vi } from 'vitest'
 
 /**
@@ -142,34 +143,55 @@ const getDefaultValue = <K extends UseCacheKey>(key: K): InferUseCacheValue<K> |
 
 /**
  * Mock useCache hook (memory cache)
+ *
+ * Reactive: mirrors production's useSyncExternalStore so components re-render
+ * when the cache value changes (functional-update setters, external mutations
+ * via MockUseCacheUtils.setCacheValue, etc.). Previously returned a snapshot
+ * captured at hook-call time, which forced tests that needed re-render on write
+ * to build ad-hoc useState replacements — violating the unified-mock rule.
  */
 export const mockUseCache = vi.fn(
   <K extends UseCacheKey>(
     key: K,
     initValue?: InferUseCacheValue<K>
   ): [InferUseCacheValue<K>, (value: SetAction<InferUseCacheValue<K>>) => void] => {
-    // Get current value
-    let currentValue = mockMemoryCache.get(key)
-    if (currentValue === undefined) {
-      currentValue = initValue ?? getDefaultValue(key)
-      if (currentValue !== undefined) {
-        mockMemoryCache.set(key, currentValue)
-      }
+    // Seed the default so the first getSnapshot is stable (matches production's
+    // cacheService.has + cacheService.set init path, just done eagerly here).
+    if (mockMemoryCache.get(key) === undefined) {
+      const seed = initValue ?? getDefaultValue(key)
+      if (seed !== undefined) mockMemoryCache.set(key, seed)
     }
 
-    // Mock setValue function (mirrors production: resolves functional updaters
-    // against the latest stored value with the same default fallback)
-    const setValue = vi.fn((value: SetAction<InferUseCacheValue<K>>) => {
-      if (typeof value === 'function') {
-        const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
-        mockMemoryCache.set(key, value(prev))
-      } else {
-        mockMemoryCache.set(key, value)
-      }
-      notifyMemorySubscribers(key)
-    })
+    const subscribe = useCallback(
+      (callback: () => void) => {
+        if (!mockMemorySubscribers.has(key)) mockMemorySubscribers.set(key, new Set())
+        mockMemorySubscribers.get(key)!.add(callback)
+        return () => {
+          mockMemorySubscribers.get(key)?.delete(callback)
+        }
+      },
+      [key]
+    )
+    const getSnapshot = useCallback(() => mockMemoryCache.get(key) as InferUseCacheValue<K>, [key])
 
-    return [currentValue, setValue]
+    const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+
+    // Stable setter (useCallback over [key]) so effects keyed on it don't re-fire
+    // on every render — mirrors production's useCallback-stable setter.
+    const setValue = useCallback(
+      (next: SetAction<InferUseCacheValue<K>>) => {
+        if (typeof next === 'function') {
+          const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
+          mockMemoryCache.set(key, next(prev))
+        } else {
+          mockMemoryCache.set(key, next)
+        }
+        notifyMemorySubscribers(key)
+      },
+      [key]
+    )
+
+    return [value, setValue]
   }
 )
 
@@ -242,33 +264,52 @@ export const mockUseSharedCacheSelector = vi.fn(
 
 /**
  * Mock usePersistCache hook (persistent cache)
+ *
+ * Reactive: mirrors production's useSyncExternalStore so components re-render
+ * when the persist cache value changes (functional-update setters, external
+ * mutations via MockUseCacheUtils.setPersistCacheValue, etc.). See mockUseCache
+ * for why this matters.
  */
 export const mockUsePersistCache = vi.fn(
   <K extends RendererPersistCacheKey>(
     key: K,
     initValue?: RendererPersistCacheSchema[K]
   ): [RendererPersistCacheSchema[K], (value: SetAction<RendererPersistCacheSchema[K]>) => void] => {
-    // Get current value
-    let currentValue = mockPersistCache.get(key)
-    if (currentValue === undefined) {
-      currentValue = initValue ?? DefaultRendererPersistCache[key]
-      if (currentValue !== undefined) {
-        mockPersistCache.set(key, currentValue)
-      }
+    // Seed the default so the first getSnapshot is stable.
+    if (mockPersistCache.get(key) === undefined) {
+      const seed = initValue ?? DefaultRendererPersistCache[key]
+      if (seed !== undefined) mockPersistCache.set(key, seed)
     }
 
-    // Mock setValue function (mirrors production functional-updater handling)
-    const setValue = vi.fn((value: SetAction<RendererPersistCacheSchema[K]>) => {
-      if (typeof value === 'function') {
-        const prev = (mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]) as RendererPersistCacheSchema[K]
-        mockPersistCache.set(key, value(prev))
-      } else {
-        mockPersistCache.set(key, value)
-      }
-      notifyPersistSubscribers(key)
-    })
+    const subscribe = useCallback(
+      (callback: () => void) => {
+        if (!mockPersistSubscribers.has(key)) mockPersistSubscribers.set(key, new Set())
+        mockPersistSubscribers.get(key)!.add(callback)
+        return () => {
+          mockPersistSubscribers.get(key)?.delete(callback)
+        }
+      },
+      [key]
+    )
+    const getSnapshot = useCallback(() => mockPersistCache.get(key) as RendererPersistCacheSchema[K], [key])
 
-    return [currentValue, setValue]
+    const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+
+    // Stable setter (useCallback over [key]) — see mockUseCache for rationale.
+    const setValue = useCallback(
+      (next: SetAction<RendererPersistCacheSchema[K]>) => {
+        if (typeof next === 'function') {
+          const prev = (mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]) as RendererPersistCacheSchema[K]
+          mockPersistCache.set(key, next(prev))
+        } else {
+          mockPersistCache.set(key, next)
+        }
+        notifyPersistSubscribers(key)
+      },
+      [key]
+    )
+
+    return [value, setValue]
   }
 )
 
