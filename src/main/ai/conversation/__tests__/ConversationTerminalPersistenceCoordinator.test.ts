@@ -7,6 +7,7 @@ import {
 } from '@shared/ai/conversation'
 import { describe, expect, it, vi } from 'vitest'
 
+import { OwnedOperationAttemptDisposition } from '../../../core/concurrency/OwnedOperationRegistry'
 import {
   ConversationEffectType,
   ConversationTerminalPersistenceCoordinator,
@@ -52,14 +53,24 @@ describe('ConversationTerminalPersistenceCoordinator', () => {
     const coordinator = new ConversationTerminalPersistenceCoordinator()
 
     coordinator.submit(effect, persist, publish)
-    expect(coordinator.inFlightOperations().map(({ id }) => id)).toEqual([effect.effectId])
+    const [operation] = coordinator.inFlightOperations()
+    expect(operation?.id).toBe(effect.effectId)
+    let operationSettled = false
+    void operation?.run.then(() => {
+      operationSettled = true
+    })
     await vi.waitFor(() => expect(publish).toHaveBeenCalledWith(failure))
+    await Promise.resolve()
+    expect(operationSettled).toBe(false)
+    expect(coordinator.inFlightOperations().map(({ id }) => id)).toEqual([effect.effectId])
     coordinator.retryBlocked()
     await vi.waitFor(() =>
       expect(publish).toHaveBeenLastCalledWith({ kind: ConversationTerminalPersistenceResultKind.Durable })
     )
 
     expect(persist).toHaveBeenCalledTimes(2)
+    await expect(operation?.run).resolves.toBe(OwnedOperationAttemptDisposition.Complete)
+    expect(coordinator.inFlightOperations()).toEqual([])
   })
 
   it('turns an exact failed Stop retry into deferred recovery', async () => {

@@ -1,4 +1,5 @@
 import type { serializeError } from '@main/ai/utils/serializeError'
+import { OwnedOperationAttemptDisposition, OwnedOperationRegistry } from '@main/core/concurrency/OwnedOperationRegistry'
 import {
   type ConversationActivityId,
   ConversationAdmissionReason,
@@ -205,7 +206,7 @@ export interface ConversationActorControl {
 export class ConversationActor {
   private tail: Promise<void> = Promise.resolve()
   private readonly operations = new Map<ConversationAdmissionOperationId, ConversationAdmissionOperation>()
-  private readonly effectOperations = new Map<string, Promise<void>>()
+  private readonly effectOperations = new OwnedOperationRegistry<string>()
   private readonly committedInputIds = new Set<ConversationInputId>()
   private readonly effectExecutor?: ConversationEffectExecutor
   private state: ConversationState
@@ -233,7 +234,8 @@ export class ConversationActor {
         {
           shouldDeferResume: () => control.isEffectSchedulingPaused?.() === true,
           isResumeApplicable: (effect) => this.isDeferredResumeApplicable(effect),
-          trackOperation: (id, task) => this.trackEffectOperation(id, task)
+          trackOperation: (id, task) => this.trackEffectOperation(id, task),
+          onPersistenceOperationSettled: () => this.onPersistenceOperationSettled()
         }
       )
     }
@@ -295,7 +297,7 @@ export class ConversationActor {
   get hasPendingOperations(): boolean {
     return (
       this.hasPendingAdmissions ||
-      this.effectOperations.size > 0 ||
+      this.effectOperations.openOperations().length > 0 ||
       this.inFlightPersistenceOperations().length > 0 ||
       this.stopOperation !== undefined
     )
@@ -458,11 +460,11 @@ export class ConversationActor {
   }
 
   trackEffectOperation(id: string, task: () => Promise<void>): Promise<void> {
+    const handle = this.effectOperations.open(id)
+    const attempt = this.effectOperations.beginAttempt(handle)
     const operation = Promise.resolve().then(task)
-    this.effectOperations.set(id, operation)
     const release = (error?: unknown) => {
-      if (this.effectOperations.get(id) !== operation) return
-      this.effectOperations.delete(id)
+      if (!this.effectOperations.settleAttempt(attempt, OwnedOperationAttemptDisposition.Complete)) return
       if (error !== undefined) this.failStopOperation(id, error)
       else this.completeStopOperationIfReady()
       if (!this.hasPendingOperations) this.onIdle()
@@ -479,7 +481,7 @@ export class ConversationActor {
     if (this.hasPendingAdmissions) {
       runs.push({ id: `admission:${this.conversation.kind}:${this.conversation.id}`, run: this.inFlightAdmission })
     }
-    for (const [id, run] of this.effectOperations) runs.push({ id, run })
+    for (const { id, completed } of this.effectOperations.openOperations()) runs.push({ id, run: completed })
     for (const operation of this.inFlightPersistenceOperations()) {
       runs.push({ id: `persistence:${operation.id}`, run: operation.run })
     }
@@ -845,7 +847,8 @@ export class ConversationActor {
     if (this.state.phase !== ConversationPhase.Idle) return
     if (operation.turnId && this.state.lastTurnId !== operation.turnId) return
     if ([...this.operations.values()].some(({ epoch }) => epoch < operation.epoch)) return
-    if (this.effectOperations.size > 0) return
+    if (this.effectOperations.openOperations().length > 0) return
+    if (this.inFlightPersistenceOperations().length > 0) return
     operation.phase = ConversationStopOperationPhase.Completed
     operation.resolve()
     this.stopOperation = undefined
@@ -859,6 +862,11 @@ export class ConversationActor {
     operation.phase = ConversationStopOperationPhase.Failed
     operation.reject(error)
     if (this.stopOperation === operation) this.stopOperation = undefined
+  }
+
+  private onPersistenceOperationSettled(): void {
+    this.completeStopOperationIfReady()
+    if (!this.hasPendingOperations) this.onIdle()
   }
 
   private isDeferredResumeApplicable(

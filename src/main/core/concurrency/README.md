@@ -3,6 +3,13 @@
 General concurrency primitives for the main process. **Event-source-agnostic** — nothing here knows
 about Preference, lifecycle, IPC, or any specific trigger.
 
+## `OwnedOperationRegistry`
+
+Tracks an asynchronous business obligation separately from the Promise for its current execution
+attempt. A failed attempt can retain the operation for retry, while complete and abandon are terminal.
+The registry supplies exact handles so callbacks from an old attempt or a reused ID cannot close newer
+work. It owns no retry, persistence, admission, or timeout policy.
+
 ## `KeyedMutex`
 
 Per-key serialisation of independent items: one lazily-created mutex per key, dropped when idle.

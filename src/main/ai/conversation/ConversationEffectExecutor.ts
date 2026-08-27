@@ -32,11 +32,12 @@ export interface ConversationEffectSchedulePolicy {
   readonly shouldDeferResume: () => boolean
   readonly isResumeApplicable: (effect: DeferredResumeEffect) => boolean
   readonly trackOperation: (id: string, task: () => Promise<void>) => Promise<void>
+  readonly onPersistenceOperationSettled: () => void
 }
 
 /** Executes committed effects and reports exact result commands to one Conversation actor. */
 export class ConversationEffectExecutor {
-  private readonly persistence = new ConversationTerminalPersistenceCoordinator()
+  private readonly persistence: ConversationTerminalPersistenceCoordinator
   private readonly deferredResumes = new Map<ConversationEffectId, DeferredResumeEffect>()
 
   constructor(
@@ -45,7 +46,9 @@ export class ConversationEffectExecutor {
     private readonly ids: ConversationRuntimeIdFactory,
     private readonly dispatch: (command: ConversationCommand) => void,
     private readonly schedulePolicy?: ConversationEffectSchedulePolicy
-  ) {}
+  ) {
+    this.persistence = new ConversationTerminalPersistenceCoordinator(schedulePolicy?.onPersistenceOperationSettled)
+  }
 
   execute(effect: ConversationEffect): void {
     const ports = this.ports.resolve(this.conversation)

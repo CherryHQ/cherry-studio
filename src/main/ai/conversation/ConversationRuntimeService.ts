@@ -861,6 +861,7 @@ export class ConversationRuntimeService extends BaseService {
     if (!this.isWriteQuiesced) logger.warn('drainInFlight called without an active pause hold')
     const deadline = Date.now() + options.timeoutMs
     while (true) {
+      for (const actor of this.actors.values()) actor.retryBlockedPersistence()
       const runs = this.inFlightOperations()
       if (runs.length === 0) return { stragglerIds: [] }
       const remaining = deadline - Date.now()
