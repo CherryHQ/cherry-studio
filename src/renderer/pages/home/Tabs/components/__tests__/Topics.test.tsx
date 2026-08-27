@@ -2075,7 +2075,7 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('returns to the same-assistant neighbour when closing the deleted tab changes the active topic', async () => {
+  it('switches to the same-assistant neighbour before deleting the active topic', async () => {
     const topics = [
       createApiTopic({
         id: 'topic-a1-first',
@@ -2096,9 +2096,7 @@ describe('Topics', () => {
         orderKey: 'c'
       })
     ]
-    const pendingDelete = createDeferred<void>()
-    topicDataMocks.deleteTopic.mockReturnValueOnce(pendingDelete.promise)
-    const { rerenderTopicList, setActiveTopic } = renderTopicList({
+    const { setActiveTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' }),
       assistantTopicsSource: createAssistantTopicsSource(topics)
     })
@@ -2110,18 +2108,65 @@ describe('Topics', () => {
     await user.click(deleteButton)
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
 
-    rerenderTopicList(
-      undefined,
-      createRendererTopic({ id: 'topic-a2-first', assistantId: 'assistant-2', name: 'A2 First' })
-    )
-    await act(async () => {
-      pendingDelete.resolve(undefined)
-    })
-
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
+    expect(setActiveTopic.mock.invocationCallOrder.at(-1)!).toBeLessThan(
+      topicDataMocks.deleteTopic.mock.invocationCallOrder.at(-1)!
+    )
   })
 
-  it('switches to the latest topic from another assistant after deleting an assistant last topic', async () => {
+  it('restores the active topic when its deletion fails', async () => {
+    const topics = [
+      createApiTopic({ id: 'topic-a1-first', name: 'A1 First', assistantId: 'assistant-1', orderKey: 'a' }),
+      createApiTopic({ id: 'topic-a1-second', name: 'A1 Second', assistantId: 'assistant-1', orderKey: 'b' })
+    ]
+    topicDataMocks.deleteTopic.mockRejectedValueOnce(new Error('Delete failed to commit'))
+    const { setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' }),
+      assistantTopicsSource: createAssistantTopicsSource(topics)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    await user.click(deleteButton)
+    await user.click(deleteButton)
+
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'topic-a1-second' }))
+    )
+    expect(toast.error).toHaveBeenCalledWith('Delete failed to commit')
+  })
+
+  it('does not restore the deleted topic over a newer selection when deletion fails', async () => {
+    const topics = [
+      createApiTopic({ id: 'topic-a1-first', name: 'A1 First', assistantId: 'assistant-1', orderKey: 'a' }),
+      createApiTopic({ id: 'topic-a1-second', name: 'A1 Second', assistantId: 'assistant-1', orderKey: 'b' }),
+      createApiTopic({ id: 'topic-a2-first', name: 'A2 First', assistantId: 'assistant-2', orderKey: 'c' })
+    ]
+    const pendingDelete = createDeferred<void>()
+    topicDataMocks.deleteTopic.mockReturnValueOnce(pendingDelete.promise)
+    const { setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' }),
+      assistantTopicsSource: createAssistantTopicsSource(topics)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    await user.click(deleteButton)
+    await user.click(deleteButton)
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
+
+    await user.click(screen.getByText('A2 First'))
+    await act(async () => {
+      pendingDelete.reject(new Error('Delete failed to commit'))
+    })
+
+    expect(setActiveTopic).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
+    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-second' }))
+  })
+
+  it('enters the same-assistant empty state before deleting its last topic', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -2163,7 +2208,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic, setActiveTopic } = renderTopicList({
+    const { clearActiveTopic, onNewTopic, setActiveTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a1', assistantId: 'assistant-1', name: 'A1 Only' })
     })
 
@@ -2177,13 +2222,15 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
-    await vi.waitFor(() =>
-      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-latest' }))
+    expect(clearActiveTopic).toHaveBeenCalledOnce()
+    expect(clearActiveTopic.mock.invocationCallOrder[0]).toBeLessThan(
+      topicDataMocks.deleteTopic.mock.invocationCallOrder[0]
     )
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('switches to another assistant latest topic after deleting the active assistant last topic in the right panel', async () => {
+  it('enters the same-assistant empty state in the right panel after deleting its last topic', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -2217,7 +2264,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic, setActiveTopic } = renderTopicList({
+    const { clearActiveTopic, onNewTopic, setActiveTopic } = renderTopicList({
       assistantIdFilter: 'assistant-1',
       presentation: 'right-panel',
       activeTopic: createRendererTopic({ id: 'topic-a1-only', assistantId: 'assistant-1', name: 'A1 Only' })
@@ -2233,9 +2280,8 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
-    await vi.waitFor(() =>
-      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
-    )
+    expect(clearActiveTopic).toHaveBeenCalledOnce()
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 

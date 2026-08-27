@@ -451,6 +451,19 @@ export function Topics({
   const topicsRef = useRef(topics)
   const activeTopicRef = useRef(activeTopic)
   const activeTopicIdRef = useRef(activeTopic?.id ?? '')
+  const setTrackedActiveTopic = useCallback(
+    (topic: Topic) => {
+      activeTopicRef.current = topic
+      activeTopicIdRef.current = topic.id
+      setActiveTopic(topic)
+    },
+    [setActiveTopic]
+  )
+  const clearTrackedActiveTopic = useCallback(() => {
+    activeTopicRef.current = undefined
+    activeTopicIdRef.current = ''
+    clearActiveTopic()
+  }, [clearActiveTopic])
 
   useEffect(() => {
     topicsRef.current = topics
@@ -646,27 +659,28 @@ export function Topics({
       )
       const replacement =
         pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id) ??
-        findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
+        (topic.assistantId
+          ? undefined
+          : findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id)))
+
+      if (wasActive) {
+        if (replacement) setTrackedActiveTopic(replacement)
+        else clearTrackedActiveTopic()
+      }
 
       try {
         await removeTopic(topic)
       } catch (err) {
+        if (wasActive && activeTopicIdRef.current === (replacement?.id ?? '')) {
+          setTrackedActiveTopic(topic)
+        }
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
         toast.error(message)
         return
       }
-
-      if (!wasActive) return
-
-      if (replacement) {
-        setActiveTopic(replacement)
-        return
-      }
-
-      clearActiveTopic()
     },
-    [clearActiveTopic, removeTopic, setActiveTopic, t]
+    [clearTrackedActiveTopic, removeTopic, setTrackedActiveTopic, t]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -859,10 +873,10 @@ export function Topics({
     (topicId: string) => {
       const topic = filteredTopics.find((candidate) => candidate.id === topicId)
       if (topic && (historyRecordsActive || topic.id !== activeTopicIdRef.current)) {
-        setActiveTopic(topic)
+        setTrackedActiveTopic(topic)
       }
     },
-    [filteredTopics, historyRecordsActive, setActiveTopic]
+    [filteredTopics, historyRecordsActive, setTrackedActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) => {
@@ -1556,7 +1570,7 @@ export function Topics({
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
-          onSwitchTopic={setActiveTopic}
+          onSwitchTopic={setTrackedActiveTopic}
           panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
           topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
