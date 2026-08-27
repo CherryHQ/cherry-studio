@@ -41,9 +41,16 @@ export function createSelectionReference(input: {
   excerpt: string
   metadata: FilePreviewFileMetadata
 }): SelectionReference | null {
-  // Truncate by code point: `.slice()` counts UTF-16 units and would cut a surrogate pair in half,
-  // leaving a lone surrogate that survives zod and JSON but reaches the Python consumer as U+FFFD.
-  const normalized = [...normalizeSelectionText(input.excerpt)].slice(0, SELECTION_EXCERPT_MAX_LENGTH).join('')
+  // The limit counts UTF-16 units — the unit the schema's `.max()` and the spreadsheet scan budget
+  // also count, and the one that tracks how much room the excerpt takes in the message. Cutting on
+  // that boundary can still halve a surrogate pair, and the lone surrogate survives zod and JSON
+  // only to reach the Python consumer as U+FFFD, so give back the unit that opens one.
+  const collapsed = normalizeSelectionText(input.excerpt)
+  const end =
+    (collapsed.codePointAt(SELECTION_EXCERPT_MAX_LENGTH - 1) ?? 0) > 0xffff
+      ? SELECTION_EXCERPT_MAX_LENGTH - 1
+      : SELECTION_EXCERPT_MAX_LENGTH
+  const normalized = collapsed.slice(0, end)
   // A selection of nothing but whitespace normalizes away entirely. Reporting it would put a quote
   // chip on screen that quotes no text; every producer routes through here, so one check covers all.
   if (normalized.length === 0) return null
