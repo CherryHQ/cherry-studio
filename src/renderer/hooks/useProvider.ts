@@ -79,6 +79,7 @@ export function useProviders(
 
   return {
     providers,
+    hasLoaded: data !== undefined,
     isLoading,
     error,
     createProvider,

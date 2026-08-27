@@ -110,9 +110,9 @@ function ProviderSettingsContent({ isOnboarding = false, rawProviders }: Provide
 
 export default function ProviderSettingsPage({ isOnboarding = false }: ProviderSettingsPageProps) {
   const { t } = useTranslation()
-  const { providers, isLoading, error, refetch } = useProviders()
+  const { providers, hasLoaded, isLoading, error, refetch } = useProviders()
 
-  if (error) {
+  if (error && !hasLoaded) {
     return (
       <div className="flex h-full w-full items-center justify-center p-6">
         <Alert

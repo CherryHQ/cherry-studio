@@ -54,6 +54,7 @@ describe('ProviderSettingsPage', () => {
     searchMock = {}
     useProvidersMock.mockReturnValue({
       providers,
+      hasLoaded: true,
       isLoading: false,
       error: undefined,
       refetch: vi.fn().mockResolvedValue(undefined)
@@ -63,6 +64,7 @@ describe('ProviderSettingsPage', () => {
   it('shows loading state without mounting the provider list', () => {
     useProvidersMock.mockReturnValue({
       providers: [],
+      hasLoaded: false,
       isLoading: true,
       error: undefined,
       refetch: vi.fn().mockResolvedValue(undefined)
@@ -79,6 +81,7 @@ describe('ProviderSettingsPage', () => {
     const refetch = vi.fn().mockResolvedValue(undefined)
     useProvidersMock.mockReturnValue({
       providers: [],
+      hasLoaded: false,
       isLoading: false,
       error: new Error('Provider registry unavailable'),
       refetch
@@ -94,10 +97,26 @@ describe('ProviderSettingsPage', () => {
     expect(refetch).toHaveBeenCalledOnce()
   })
 
+  it('keeps stale provider data visible when background revalidation fails', async () => {
+    useProvidersMock.mockReturnValue({
+      providers,
+      hasLoaded: true,
+      isLoading: false,
+      error: new Error('Provider registry unavailable'),
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(<ProviderSettingsPage />)
+
+    expect(await screen.findByText('provider-setting-openai')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('preserves the remembered provider while an initial read fails', async () => {
     MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'anthropic')
     useProvidersMock.mockReturnValue({
       providers: [],
+      hasLoaded: false,
       isLoading: false,
       error: new Error('Provider registry unavailable'),
       refetch: vi.fn().mockResolvedValue(undefined)
@@ -107,6 +126,7 @@ describe('ProviderSettingsPage', () => {
 
     useProvidersMock.mockReturnValue({
       providers,
+      hasLoaded: true,
       isLoading: false,
       error: undefined,
       refetch: vi.fn().mockResolvedValue(undefined)

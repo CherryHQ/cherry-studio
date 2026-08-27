@@ -108,6 +108,25 @@ describe('useProviders', () => {
     const { result } = renderHook(() => useProviders())
 
     expect(result.current.providers).toEqual([])
+    expect(result.current.hasLoaded).toBe(false)
+    expect(result.current.error).toBe(error)
+  })
+
+  it('marks stale provider data as loaded when background revalidation fails', () => {
+    const error = new Error('Provider registry unavailable')
+    mockUseQuery.mockReturnValue({
+      data: mockProviderList,
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useProviders())
+
+    expect(result.current.providers).toBe(mockProviderList)
+    expect(result.current.hasLoaded).toBe(true)
     expect(result.current.error).toBe(error)
   })
 
