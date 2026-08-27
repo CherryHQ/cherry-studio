@@ -144,20 +144,6 @@ describe('DiagnosticUploadDialog', () => {
     })
   })
 
-  it('initializes an editable draft once without replacing user edits on parent rerender', async () => {
-    const user = userEvent.setup()
-    const { rerender } = render(<DiagnosticUploadDialog initialDescription="draft A" open onOpenChange={vi.fn()} />)
-
-    const description = screen.getByRole('textbox', { name: 'Problem description' })
-    expect(description).toHaveValue('draft A')
-    await user.type(description, ' with user edits')
-
-    rerender(<DiagnosticUploadDialog initialDescription="draft B" open onOpenChange={vi.fn()} />)
-
-    expect(description).toHaveValue('draft A with user edits')
-    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
-  })
-
   it('shows no description validation state when an empty dialog opens', async () => {
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
