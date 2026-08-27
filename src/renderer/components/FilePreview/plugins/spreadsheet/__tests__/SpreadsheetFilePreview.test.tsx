@@ -170,7 +170,7 @@ const renderPanel = (size = 1024) =>
     <SpreadsheetFilePreview
       filePath={'/tmp/workspace/book.xlsx' as AbsoluteFilePath}
       fileName="book.xlsx"
-      metadata={{ size }}
+      metadata={{ size, modifiedAt: 1 }}
       refreshKey={0}
     />
   )

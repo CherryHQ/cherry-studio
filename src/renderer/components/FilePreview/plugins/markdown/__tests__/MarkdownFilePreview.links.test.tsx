@@ -44,7 +44,7 @@ function renderArtifactPreview(openFile: (path: AbsoluteFilePath) => void) {
       <MarkdownFilePreview
         filePath={filePath}
         fileName="DESIGN.md"
-        metadata={{ size: 128 }}
+        metadata={{ size: 128, modifiedAt: 1 }}
         refreshKey={0}
         type="artifact"
       />
