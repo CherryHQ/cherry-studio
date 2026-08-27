@@ -600,10 +600,14 @@ PARAGRAPH_ALLOWED = {
 }
 
 # Inside the run: the text and its typographic separators. These ARE the old text, so losing them is
-# the edit's intent rather than collateral damage. lastRenderedPageBreak is a layout cache Word redoes.
-# w:sym is deliberately not here. That reasoning needs the caller to have seen what it is dropping,
-# and a symbol's glyph lives in w:font/w:char rather than in text — extracting the paragraph reads
-# exactly as if it were absent, so the caller cannot intend its loss the way it intends a tab's.
+# the edit's intent rather than collateral damage — and reject_break_characters is what makes that
+# true rather than merely hoped for. An extract shows a tab as \t and a break as \n, so the caller
+# sees them; trying to write one back is refused outright. Either it looked and left them out, or it
+# was told it cannot keep them. lastRenderedPageBreak is a layout cache Word redoes.
+#
+# w:sym is deliberately not here, and the contrast is the whole reason: that argument needs the
+# caller to have seen what it is dropping, and a symbol's glyph lives in w:font/w:char rather than in
+# text — an extract reads exactly as if it were absent, so no choice about it was ever offered.
 RUN_ALLOWED = {
     (WORDPROCESSING_NS, name)
     for name in ("rPr", "t", "tab", "br", "cr", "ptab", "softHyphen", "noBreakHyphen", "lastRenderedPageBreak")
