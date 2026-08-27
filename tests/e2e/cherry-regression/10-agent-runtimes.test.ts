@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import { expect, test } from './fixture'
-import { createAgent, runAgentFileTask, selectAgent, selectAgentWorkspace } from './agents'
+import { createAgent, runAgentFileTask, selectAgentWorkspace, startNewAgentTask } from './agents'
 import { addCherryInModel, ensureCherryInSignedIn } from './cherry-in'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { closeSettings, selectVisibleModel } from './models'
@@ -46,9 +46,7 @@ test('[A-05] DeepSeek Harness Runtime @deepseek-harness-runtime', async ({ app, 
 
 test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindow: page }) => {
   await ensureAgentModel(app, page)
-  await selectAgent(page, 'Cherry Assistant')
-  const newTask = page.getByRole('button', { name: 'New task', exact: true }).last()
-  if (await newTask.isVisible().catch(() => false)) await newTask.click()
+  await startNewAgentTask(page, 'Cherry Assistant')
 
   const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
   if (await model.isVisible().catch(() => false)) {

@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import { expect, test } from './fixture'
-import { selectAgent } from './agents'
+import { startNewAgentTask } from './agents'
 import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection, selectVisibleModel } from './models'
@@ -101,14 +101,12 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await selectAgent(page, 'Cherry Assistant')
+  await startNewAgentTask(page, 'Cherry Assistant')
   const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
   if (await model.isVisible().catch(() => false)) {
     await model.click()
     await selectVisibleModel(page, app.config.customProvider.chatModel)
   }
-  const newTask = page.locator('[data-ui="chat.composer"] button').filter({ hasText: 'New task' })
-  if (await newTask.isVisible().catch(() => false)) await newTask.click()
   await openSkillsPanel(page)
   await page.getByText('Manage skills', { exact: true }).click()
   const skillSwitch = page.getByRole('switch', { name: 'cherry-regression-fixture', exact: true })
