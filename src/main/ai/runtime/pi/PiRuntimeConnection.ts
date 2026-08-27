@@ -609,8 +609,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.session?.clearQueue()
       this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
     }
-    if (error || this.lastStopReason === 'error') {
-      const failure = error instanceof Error ? error : new Error(this.lastAgentError ?? 'pi agent turn failed')
+    if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
+      let failure: Error
+      if (error instanceof Error) {
+        failure = error
+      } else if (this.lastStopReason === 'length') {
+        failure = new Error(
+          this.lastAgentError ??
+            'Response truncated at the model output limit (stopReason: length). The reply may be incomplete or empty — try continuing the turn or retrying with a higher maximum output.'
+        )
+      } else {
+        failure = new Error(this.lastAgentError ?? 'pi agent turn failed')
+      }
       logger.error('pi prompt failed', failure)
       this.eventQueue.push({ type: 'error', error: failure })
     } else {
