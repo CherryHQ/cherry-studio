@@ -10,10 +10,10 @@ import { useOptionalRightPanelState, useRightPanelComposerElevated } from '../pa
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
-  ARTIFACT_RIGHT_PANE_WIDTH_PROFILE,
   CHAT_SHELL_TRANSITION,
   type ChatPanePosition,
-  type RightPaneWidthProfile
+  getRightPaneWidthPolicy,
+  type RightPaneWidthPolicy
 } from './paneLayout'
 import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
 import { RightPaneHost } from './RightPaneHost'
@@ -57,7 +57,7 @@ export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterConten
 
 const MANUAL_EXPAND_RELEASE_NARROWING = 8
 
-function clampPaneStoredWidth(width: number, { minWidth, maxWidth }: RightPaneWidthProfile): number {
+function clampPaneStoredWidth(width: number, { minWidth, maxWidth }: RightPaneWidthPolicy): number {
   return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
 }
 
@@ -93,7 +93,7 @@ function useResourceListAutoCollapse({
   const [storedListWidth] = usePersistCache('ui.chat.sidebar.width')
   // The prediction must size the pane that is actually presented; a list and an artifact
   // have different widths, and reading the wrong one strands the list collapsed.
-  const paneProfile = rightPanelState?.activePaneWidth ?? ARTIFACT_RIGHT_PANE_WIDTH_PROFILE
+  const paneProfile = rightPanelState?.activePaneWidth ?? getRightPaneWidthPolicy()
   const [storedPaneWidth] = usePersistCache(paneProfile.cacheKey)
 
   const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
@@ -213,10 +213,11 @@ function useResourceListAutoCollapse({
   }, [evaluate, userOpenSeq])
 
   // Persisted widths are live inputs (either side can be dragged); drag exemption
-  // rides on `frozen`, so mid-drag updates defer to the release evaluation.
+  // rides on `frozen`, so mid-drag updates defer to the release evaluation. The pane's floor
+  // is an input too: presets can hold equal widths, and then only the floor moves the verdict.
   useLayoutEffect(() => {
     evaluate()
-  }, [evaluate, storedListWidth, storedPaneWidth])
+  }, [evaluate, storedListWidth, storedPaneWidth, paneProfile.minWidth])
 
   // Unfreeze → evaluate once (hard-blocked by suppression like every deferred pass).
   useLayoutEffect(() => {

@@ -8,9 +8,8 @@ import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  ARTIFACT_RIGHT_PANE_WIDTH_PROFILE,
   CHAT_CENTER_MIN_USABLE_WIDTH,
-  RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE
+  getRightPaneWidthPolicy
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
@@ -85,6 +84,9 @@ vi.mock('motion/react', () => ({
   useAnimationControls: () => motionTestState.controls,
   useReducedMotion: () => motionTestState.reducedMotion
 }))
+
+const LIST_POLICY = getRightPaneWidthPolicy('navigation-list')
+const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 
 function mockMainRegionWidth(width: number) {
   vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
@@ -338,16 +340,16 @@ describe('RightPaneHost', () => {
 
   it('persists a list pane under its own key and lets it reach the list floor', () => {
     mockMainRegionWidth(900)
-    persistCacheMock.state.byKey[RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey] = 275
-    persistCacheMock.state.byKey[ARTIFACT_RIGHT_PANE_WIDTH_PROFILE.cacheKey] = 460
+    persistCacheMock.state.byKey[LIST_POLICY.cacheKey] = 275
+    persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey] = 460
     const { container } = render(
       <div data-main-region>
         <PersistentRightPaneHost
           open
           resizable
-          minWidth={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.minWidth}
-          maxWidth={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.maxWidth}
-          cacheKey={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey}>
+          minWidth={LIST_POLICY.minWidth}
+          maxWidth={LIST_POLICY.maxWidth}
+          cacheKey={LIST_POLICY.cacheKey}>
           <div>list pane</div>
         </PersistentRightPaneHost>
       </div>
@@ -357,16 +359,13 @@ describe('RightPaneHost', () => {
     if (!handle) throw new Error('Expected resize handle')
 
     // The artifact pane's 255 floor must not leak in: the list reports (and reaches) its own 200.
-    expect(handle).toHaveAttribute('aria-valuemin', String(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.minWidth))
-    expect(handle).toHaveAttribute('aria-valuemax', String(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.maxWidth))
+    expect(handle).toHaveAttribute('aria-valuemin', String(LIST_POLICY.minWidth))
+    expect(handle).toHaveAttribute('aria-valuemax', String(LIST_POLICY.maxWidth))
 
     fireEvent.keyDown(handle, { key: 'Home' })
 
-    expect(persistCacheMock.setByKey).toHaveBeenCalledWith(
-      RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey,
-      RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.minWidth
-    )
-    expect(persistCacheMock.state.byKey[ARTIFACT_RIGHT_PANE_WIDTH_PROFILE.cacheKey]).toBe(460)
+    expect(persistCacheMock.setByKey).toHaveBeenCalledWith(LIST_POLICY.cacheKey, LIST_POLICY.minWidth)
+    expect(persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey]).toBe(460)
   })
 
   it('builds the list pane spacer expression from the list floor', () => {
@@ -375,9 +374,9 @@ describe('RightPaneHost', () => {
         open
         resizable
         width={275}
-        minWidth={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.minWidth}
-        maxWidth={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.maxWidth}
-        cacheKey={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey}>
+        minWidth={LIST_POLICY.minWidth}
+        maxWidth={LIST_POLICY.maxWidth}
+        cacheKey={LIST_POLICY.cacheKey}>
         <div>list pane</div>
       </PersistentRightPaneHost>
     )
@@ -391,15 +390,15 @@ describe('RightPaneHost', () => {
 
   it('pins a list pane at its own floor in a narrow main region', () => {
     mockMainRegionWidth(500)
-    persistCacheMock.state.byKey[RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey] = 275
+    persistCacheMock.state.byKey[LIST_POLICY.cacheKey] = 275
     const { container } = render(
       <div data-main-region>
         <PersistentRightPaneHost
           open
           resizable
-          minWidth={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.minWidth}
-          maxWidth={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.maxWidth}
-          cacheKey={RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey}>
+          minWidth={LIST_POLICY.minWidth}
+          maxWidth={LIST_POLICY.maxWidth}
+          cacheKey={LIST_POLICY.cacheKey}>
           <div>list pane</div>
         </PersistentRightPaneHost>
       </div>

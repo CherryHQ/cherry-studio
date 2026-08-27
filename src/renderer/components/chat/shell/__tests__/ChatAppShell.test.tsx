@@ -8,12 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatAppShell } from '../ChatAppShell'
 import {
+  getRightPaneWidthPolicy,
   RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD,
   RESOURCE_LIST_PANE_DEFAULT_WIDTH,
   RESOURCE_LIST_PANE_MAX_WIDTH,
   RESOURCE_LIST_PANE_MIN_WIDTH,
-  RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE,
-  type RightPaneWidthProfile
+  type RightPaneWidthPolicy
 } from '../paneLayout'
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -50,7 +50,7 @@ interface RightPanelStateMockValue {
   fullWidthActive?: boolean
   paneResizing?: boolean
   userOpenSeq?: number
-  activePaneWidth?: RightPaneWidthProfile
+  activePaneWidth?: RightPaneWidthPolicy
 }
 
 const composerElevatedMock = vi.hoisted(() => ({ current: false }))
@@ -550,7 +550,7 @@ describe('ChatAppShell', () => {
       layoutAnimationPending: false,
       presentationMaximized: false,
       presentationOpen: true,
-      activePaneWidth: RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE
+      activePaneWidth: getRightPaneWidthPolicy('navigation-list')
     }
 
     render(
@@ -571,6 +571,42 @@ describe('ChatAppShell', () => {
     notifyObservedShellWidth(940)
 
     expect(onPaneAutoCollapseChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('re-evaluates when the preset changes even though the stored width did not', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    // Both presets happen to hold 275, so only the floor (200 vs 255) separates the verdicts.
+    persistCacheMock.state.paneWidth = 275
+    persistCacheMock.state.listPaneWidth = 275
+    const baseState = { layoutAnimationPending: false, presentationMaximized: false, presentationOpen: true }
+    rightPanelStateMock.current = { ...baseState, activePaneWidth: getRightPaneWidthPolicy('navigation-list') }
+
+    const { rerender } = render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    // available = 840 - 240 = 600. The list floor of 200 leaves a 360 center: expanded.
+    notifyObservedShellWidth(840)
+    expect(onPaneAutoCollapseChange).not.toHaveBeenLastCalledWith(true)
+
+    // Switching to the inspector preset raises the floor to 255, squeezing the center to 345.
+    // Keying the evaluation off the stored width alone would miss this: the number is unchanged.
+    rightPanelStateMock.current = { ...baseState, activePaneWidth: getRightPaneWidthPolicy('inspector') }
+    rerender(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    expect(onPaneAutoCollapseChange).toHaveBeenLastCalledWith(true)
   })
 
   it('ignores zero-width shell measurements', () => {

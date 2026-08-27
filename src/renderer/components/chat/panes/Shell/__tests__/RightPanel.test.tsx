@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } fr
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ARTIFACT_RIGHT_PANE_WIDTH_PROFILE, RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE } from '../../../shell/paneLayout'
+import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
 import { createResourcePaneCapability, type ResourcePaneConfig } from '../resourcePane'
 import {
   RightPanel,
@@ -19,6 +19,9 @@ import {
   useRightPanelPresentationMaximized,
   useRightPanelState
 } from '../RightPanel'
+
+const LIST_POLICY = getRightPaneWidthPolicy('navigation-list')
+const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
@@ -162,12 +165,12 @@ const capabilities = [
   },
   {
     component: StatefulPanel,
+    widthPreset: 'navigation-list',
     resolve: (scope) => ({
       id: 'second',
       instanceKey: 'second',
       title: 'Second',
-      readiness: scope.secondReadiness,
-      paneWidth: RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE
+      readiness: scope.secondReadiness
     })
   }
 ] satisfies readonly RightPanelCapability<TestScope>[]
@@ -460,14 +463,14 @@ describe('RightPanel', () => {
     )
 
     const host = screen.getByTestId('right-pane-host')
-    expect(host).toHaveAttribute('data-cache-key', ARTIFACT_RIGHT_PANE_WIDTH_PROFILE.cacheKey)
-    expect(host).toHaveAttribute('data-max-width', String(ARTIFACT_RIGHT_PANE_WIDTH_PROFILE.maxWidth))
+    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
+    expect(host).toHaveAttribute('data-max-width', String(INSPECTOR_POLICY.maxWidth))
 
     fireEvent.click(screen.getByRole('button', { name: 'open second' }))
 
-    expect(host).toHaveAttribute('data-cache-key', RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey)
-    expect(host).toHaveAttribute('data-max-width', String(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.maxWidth))
-    expect(host).toHaveAttribute('data-min-width', String(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.minWidth))
+    expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
+    expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
+    expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
   })
 
   it('rejects duplicate panel ids', () => {
@@ -485,11 +488,9 @@ describe('RightPanel', () => {
 })
 
 describe('createResourcePaneCapability', () => {
-  it("claims the list width envelope, so the list never inherits the artifact pane's", () => {
+  it('sizes by the navigation-list preset, so the list never inherits the inspector envelope', () => {
     const capability = createResourcePaneCapability<{ resourcePane: ResourcePaneConfig | null }>()
 
-    const entry = capability.resolve({ resourcePane: { node: null, label: 'Topics' } })
-
-    expect(entry?.paneWidth).toEqual(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE)
+    expect(capability.widthPreset).toBe('navigation-list')
   })
 })

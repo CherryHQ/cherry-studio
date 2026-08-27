@@ -1,7 +1,6 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { type ReactNode, useEffect, useRef } from 'react'
 
-import { RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE } from '../../shell/paneLayout'
 import { type RightPanelCapability, type RightPanelComponentProps, useRightPanelActions } from './RightPanel'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
@@ -36,12 +35,12 @@ export function createResourcePaneCapability<TScope extends ResourcePaneCapabili
 } = {}): RightPanelCapability<TScope> {
   return {
     component: ResourcePaneRightPanel,
+    widthPreset: 'navigation-list',
     resolve: (scope) => ({
       id: RESOURCE_PANE_TAB,
       instanceKey,
       title: scope.resourcePane?.label ?? '',
-      readiness: scope.resourcePane ? 'ready' : 'unavailable',
-      paneWidth: RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE
+      readiness: scope.resourcePane ? 'ready' : 'unavailable'
     })
   }
 }
