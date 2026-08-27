@@ -157,6 +157,24 @@ describe('the guest bridge', () => {
     expect(invoke).not.toHaveBeenCalled()
   })
 
+  it('forwards only the fields it validated, never the raw object', async () => {
+    // The gates bound the fields they know about; an unknown one is structured-cloned into
+    // main in full before Zod drops it, which is exactly what the gates exist to prevent.
+    const junk = 'x'.repeat(1024)
+    await cherry.network.fetch({ url: 'https://a.example/', headers: { 'x-a': '1' }, junk })
+    await cherry.ai.chat({ messages: [{ role: 'user', content: 'hi', junk }], junk })
+    await cherry.clipboard.write({ text: 't', junk })
+    await cherry.ai.getCapabilities({ model: 'quick', junk })
+
+    const sent = invoke.mock.calls.map(([, payload]) => (payload as { params: unknown }).params)
+    for (const params of sent) expect(params).not.toHaveProperty('junk')
+    expect(sent[0]).toEqual({ url: 'https://a.example/', headers: { 'x-a': '1' } })
+    expect(sent[1]).toMatchObject({ messages: [{ role: 'user', content: 'hi' }] })
+    expect((sent[1] as { messages: object[] }).messages[0]).not.toHaveProperty('junk')
+    expect(sent[2]).toEqual({ text: 't' })
+    expect(sent[3]).toEqual({ model: 'quick' })
+  })
+
   it('truncates a notification instead of refusing it', async () => {
     // The one exception (§6.5): a long title is clipped, never a rejected call.
     await cherry.notification.show({

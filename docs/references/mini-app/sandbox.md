@@ -65,7 +65,7 @@ Because the document's origin is opaque, even a request to your own package is c
 - `fetch('./data.json')` resolves;
 - a missing file resolves to a `Response` with `status === 404` rather than throwing `TypeError: Failed to fetch`. Check `response.ok`.
 
-Files are served with a content type derived from the extension (`.html`, `.js`, `.css`, `.json`, `.svg`, `.png`, `.jpg`/`.jpeg`, `.gif`, `.webp`, `.woff2`, `.wasm`); anything else is `application/octet-stream`. Paths are resolved inside the package after following symlinks; anything that escapes is a 403. The host bounds concurrent package reads (8 active, 64 queued), so do not issue hundreds of parallel `fetch` calls for large assets.
+Files are served with a content type derived from the extension (`.html`, `.js`, `.css`, `.json`, `.svg`, `.png`, `.jpg`/`.jpeg`, `.gif`, `.webp`, `.woff2`, `.wasm`); anything else is `application/octet-stream`. Paths are resolved inside the package after following symlinks; anything that escapes is a 403. The host bounds concurrent package reads per app (8 active, 64 queued; the 73rd concurrent request fails), so do not issue hundreds of parallel `fetch` calls for large assets.
 
 `/__cherry/*` is reserved for host assets — today only `/__cherry/theme.css` ([Theming](./theming.md)). A package containing a top-level `__cherry` directory is refused at install.
 

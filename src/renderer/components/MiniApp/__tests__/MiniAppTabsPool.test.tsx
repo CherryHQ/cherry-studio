@@ -1,5 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,7 +24,10 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
     // visibility through `ref.style.display`.
     <div
       ref={(el) => {
-        onSetRefCallback(appid, el)
+        // A local app's <webview> mounts only after `runtime.prepare`; `deferAttach`
+        // replays that late attach when the test says so.
+        if (el && mocks.deferAttach.has(appid)) mocks.pendingAttach.set(appid, () => onSetRefCallback(appid, el))
+        else onSetRefCallback(appid, el)
         if (onLoadedCallback) mocks.loadHandlers.set(appid, onLoadedCallback)
         if (onFocusChange) mocks.focusHandlers.set(appid, onFocusChange)
       }}
@@ -63,7 +66,9 @@ const mocks = vi.hoisted(() => ({
   clearWebviewState: vi.fn(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
   loadHandlers: new Map<string, (appid: string) => void>(),
-  contextKeys: [] as Array<{ key: string; value: unknown }>
+  contextKeys: [] as Array<{ key: string; value: unknown }>,
+  deferAttach: new Set<string>(),
+  pendingAttach: new Map<string, () => void>()
 }))
 
 // `vi.hoisted` is required, not stylistic: `vi.mock` is hoisted above every `const`,
@@ -630,6 +635,36 @@ describe('MiniAppTabsPool', () => {
       ipc.request.mockClear()
       rerender(<MiniAppTabsPool />)
       expect(reports()).toEqual([])
+    })
+
+    it('hides and reports a pane whose webview attaches after the user moved on', () => {
+      // The bug this guards: the visibility effect runs on dependency changes only. A
+      // local app's <webview> mounts once `runtime.prepare` resolves; if the user switched
+      // away meanwhile, nothing changes again and the new pane stays shown — and main,
+      // never told otherwise, treats the guest as visible for `clipboard.read` and friends.
+      mocks.openedKeepAliveMiniApps = [localApp('alpha'), localApp('bravo')]
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.activeTabId = 'alpha-tab'
+      mocks.deferAttach.add('alpha')
+      try {
+        const { rerender } = render(<MiniAppTabsPool />)
+        mocks.currentMiniAppId = 'bravo'
+        mocks.activeTabId = 'bravo-tab'
+        rerender(<MiniAppTabsPool />)
+        ipc.request.mockClear()
+
+        act(() => mocks.pendingAttach.get('alpha')!())
+
+        expect(screen.getByTestId('webview-alpha').style.display).toBe('none')
+        expect(reports()).toEqual([{ appId: 'alpha', visible: false }])
+      } finally {
+        mocks.deferAttach.clear()
+        mocks.pendingAttach.clear()
+      }
     })
 
     it('reports nothing for site webviews, which have no guest bridge to tell', () => {

@@ -269,6 +269,22 @@ describe('web install and update', () => {
     expect(await checkForUpdate(APP_ID)).toMatchObject({ status: 'current' })
   })
 
+  it('shares one in-flight check between concurrent callers', async () => {
+    // Every open fires a check; while a server hangs, reopening must not stack requests.
+    seedInstalled()
+    let answer: (value: unknown) => void = () => undefined
+    fetchManifest.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+    const first = checkForUpdate(APP_ID)
+    const second = checkForUpdate(APP_ID)
+    answer(remote({ version: '1.0.0' }))
+    expect(await Promise.all([first, second])).toEqual([{ status: 'current' }, { status: 'current' }])
+    expect(fetchManifest).toHaveBeenCalledTimes(1)
+
+    fetchManifest.mockResolvedValue(remote({ version: '1.0.0' }))
+    await checkForUpdate(APP_ID)
+    expect(fetchManifest).toHaveBeenCalledTimes(2)
+  })
+
   it('reports ready when the declared set is unchanged', async () => {
     seedInstalled()
     fetchManifest.mockResolvedValue(remote())

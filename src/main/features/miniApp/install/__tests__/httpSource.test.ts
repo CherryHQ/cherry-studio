@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { MINI_APP_MAX_PACKAGE_BYTES } from '@shared/types/miniAppManifest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const isInChina = vi.fn(async () => false)
@@ -13,7 +14,8 @@ vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } })
 const fetch = vi.fn()
 vi.mock('electron', () => ({ net: { fetch } }))
 
-const { fetchIcon, fetchManifest, fetchPackage, mirrorOrder } = await import('../httpSource')
+const { fetchIcon, fetchManifest, fetchPackage, mirrorOrder, MINI_APP_DOWNLOAD_IDLE_MS, MINI_APP_SOURCE_TIMEOUT_MS } =
+  await import('../httpSource')
 
 const GLOBAL = 'https://example.com/manifest.json'
 const CN = 'https://cdn.example.cn/manifest.json'
@@ -36,6 +38,14 @@ const MANIFEST = {
     size: 1024
   }
 }
+
+/** Like the real `net.fetch`: settles only when the signal aborts. */
+const hanging = (init: RequestInit) =>
+  new Promise<never>((_resolve, reject) => {
+    const refuse = () => reject(new DOMException('aborted', 'AbortError'))
+    if (init.signal?.aborted) refuse()
+    else init.signal?.addEventListener('abort', refuse)
+  })
 
 /** A streaming response, because `fetchManifest` counts bytes as they arrive. */
 const bodyOf = (value: unknown) => ({
@@ -80,6 +90,36 @@ describe('mirror fallback', () => {
 
     await expect(fetchManifest([GLOBAL, CN])).resolves.toMatchObject({ id: MANIFEST.id })
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives up on a mirror that never answers and moves to the next', async () => {
+    // Without a deadline a server that accepts the connection and says nothing holds the
+    // check forever, and the fallback mirror is never tried.
+    vi.useFakeTimers()
+    try {
+      fetch
+        .mockImplementationOnce((_url: string, init: RequestInit) => hanging(init))
+        .mockResolvedValueOnce(bodyOf(MANIFEST))
+      const manifest = fetchManifest([GLOBAL, CN])
+      await vi.advanceTimersByTimeAsync(MINI_APP_SOURCE_TIMEOUT_MS)
+
+      await expect(manifest).resolves.toMatchObject({ id: MANIFEST.id })
+      expect(fetch).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('logs a failed mirror without its query, userinfo or fragment', async () => {
+    // Presigned download urls carry their credential in the query, and warn logs persist.
+    vi.mocked(mockMainLoggerService.warn).mockClear()
+    fetch.mockRejectedValue(new Error('down'))
+
+    await expect(fetchManifest(['https://user:pw@example.com/m.json?token=SECRET#frag'])).rejects.toThrow()
+
+    const logged = JSON.stringify(vi.mocked(mockMainLoggerService.warn).mock.calls)
+    expect(logged).toContain('https://example.com/m.json')
+    expect(logged).not.toMatch(/SECRET|user:pw|frag/)
   })
 
   it('surfaces the LAST error when every mirror fails', async () => {
@@ -153,6 +193,65 @@ describe('fetchPackage', () => {
     expect(fs.readdirSync(temp)).toEqual([])
   })
 
+  it('aborts a download that stalls, but not one that is merely slow', async () => {
+    // A whole-exchange deadline would cut a slow link mid-package; only silence is fatal.
+    // Chunks are handed over by the test and acknowledged through `onProgress`, so the
+    // fake clock only ever moves while the download is provably waiting on the server.
+    vi.useFakeTimers()
+    const deferred = <T>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((r) => (resolve = r))
+      return { promise, resolve }
+    }
+    const acks: Array<() => void> = []
+    const onProgress = () => acks.shift()?.()
+    const acked = () => new Promise<void>((resolve) => acks.push(resolve))
+    try {
+      const first = deferred<Buffer>()
+      fetch.mockImplementationOnce((_url: string, init: RequestInit) =>
+        Promise.resolve({
+          ok: true,
+          headers: new Headers(),
+          body: (async function* () {
+            yield await first.promise
+            await hanging(init)
+          })()
+        })
+      )
+      const stalled = expect(fetchPackage([PKG], expectedFor(), onProgress)).rejects.toThrow(/abort/i)
+      let seen = acked()
+      first.resolve(BYTES.subarray(0, 100))
+      await seen
+      await vi.advanceTimersByTimeAsync(MINI_APP_DOWNLOAD_IDLE_MS)
+      await stalled
+
+      const chunks = [BYTES.subarray(0, 300), BYTES.subarray(300, 600), BYTES.subarray(600)]
+      const deliveries = chunks.map(() => deferred<Buffer>())
+      fetch.mockImplementationOnce(() =>
+        Promise.resolve({
+          ok: true,
+          headers: new Headers(),
+          body: (async function* () {
+            for (const delivery of deliveries) yield await delivery.promise
+          })()
+        })
+      )
+      const slow = fetchPackage([PKG], expectedFor(), onProgress)
+      for (const [i, chunk] of chunks.entries()) {
+        await vi.advanceTimersByTimeAsync(MINI_APP_DOWNLOAD_IDLE_MS - 1000)
+        seen = acked()
+        deliveries[i].resolve(chunk)
+        await seen
+      }
+
+      const pkg = await slow
+      expect(fs.readFileSync(pkg.path).equals(BYTES)).toBe(true)
+      await pkg.cleanup()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('never sends the session credentials and never follows a redirect', async () => {
     // `redirect: 'error'` IS the origin pin at the transport: a 302 from the pinned host
     // to an attacker's would otherwise be followed with the pin already satisfied.
@@ -160,7 +259,7 @@ describe('fetchPackage', () => {
 
     await fetchPackage([PKG], expectedFor())
 
-    expect(fetch).toHaveBeenCalledWith(PKG, { credentials: 'omit', redirect: 'error' })
+    expect(fetch).toHaveBeenCalledWith(PKG, expect.objectContaining({ credentials: 'omit', redirect: 'error' }))
   })
 
   it('reports progress as the bytes land, against the declared size', async () => {
@@ -238,7 +337,7 @@ describe('fetchIcon', () => {
     fetch.mockResolvedValueOnce(iconBody([bytes]))
 
     await expect(fetchIcon(ICON_URL, { sha256: digest, origins: ['https://example.com'] })).resolves.toEqual(bytes)
-    expect(fetch).toHaveBeenCalledWith(ICON_URL, { credentials: 'omit', redirect: 'error' })
+    expect(fetch).toHaveBeenCalledWith(ICON_URL, expect.objectContaining({ credentials: 'omit', redirect: 'error' }))
   })
 
   it('refuses bytes whose hash is not the one the manifest carries', async () => {

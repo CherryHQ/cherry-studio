@@ -72,6 +72,7 @@ const { MiniAppRuntimeService, miniAppPartition } = await import('../MiniAppRunt
 // After the mock: a static import would evaluate the hoisted factory before `mockMiniAppApplication` exists.
 const { application } = await import('@application')
 const { aiCapability } = await import('../../capabilities/ai')
+const { networkCapability } = await import('../../capabilities/network')
 
 // `BaseService` throws on the second `new` of the same class, so without this reset the
 // file dies at case two — naming the singleton guard, not anything under test.
@@ -166,6 +167,18 @@ describe('MiniAppRuntimeService', () => {
     // The abort above never reaches a dead listener (the manager drops it first), so
     // the slots those calls hold come back only through this hook — see `ai.test.ts`.
     const forgetGuest = vi.spyOn(aiCapability, 'forgetGuest')
+    const svc = new MiniAppRuntimeService()
+    svc.registerGuest('com.example.a', 42)
+
+    svc.unregisterGuest(42)
+
+    expect(forgetGuest).toHaveBeenCalledWith(42)
+    forgetGuest.mockRestore()
+  })
+
+  it("aborts the guest's in-flight network requests when it is unregistered", () => {
+    // lifecycle.md: a `cherry.network.fetch` waiting on a server dies with the guest, not 30 s later.
+    const forgetGuest = vi.spyOn(networkCapability, 'forgetGuest')
     const svc = new MiniAppRuntimeService()
     svc.registerGuest('com.example.a', 42)
 

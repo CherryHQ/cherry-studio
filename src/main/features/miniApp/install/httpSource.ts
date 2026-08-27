@@ -24,9 +24,38 @@ import { bestEffortCleanup } from './cleanup'
 
 const logger = loggerService.withContext('miniApp:httpSource')
 
+/** Whole exchange for the small, bounded fetches (manifest, icon). */
+export const MINI_APP_SOURCE_TIMEOUT_MS = 30_000
+/** Silence, not duration, ends a package download: a slow link stays alive by sending. */
+export const MINI_APP_DOWNLOAD_IDLE_MS = 60_000
+
+/** An abort that fires `ms` after the last `bump()` — a whole-exchange deadline when never bumped. */
+function deadline(ms: number) {
+  const abort = new AbortController()
+  let timer = setTimeout(() => abort.abort(), ms)
+  return {
+    signal: abort.signal,
+    bump: () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => abort.abort(), ms)
+    },
+    clear: () => clearTimeout(timer)
+  }
+}
+
+/** Origin and path only: presigned urls carry their credential in the query, and warn logs persist. */
+function loggable(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return 'invalid url'
+  }
+}
+
 export function assertHttps(url: string): URL {
   const parsed = new URL(url)
-  if (parsed.protocol !== 'https:') throw new Error(`Mini app source must be https: ${url}`)
+  if (parsed.protocol !== 'https:') throw new Error(`Mini app source must be https: ${loggable(url)}`)
   return parsed
 }
 
@@ -61,7 +90,7 @@ async function tryMirrors<T>(urls: readonly string[], attempt: (url: string) => 
       return await attempt(url)
     } catch (error) {
       lastError = error
-      logger.warn('Mini app download mirror failed', { url, error })
+      logger.warn('Mini app download mirror failed', { url: loggable(url), error })
     }
   }
   throw lastError
@@ -88,19 +117,24 @@ async function fetchManifestFrom(url: string): Promise<MiniAppDistributionManife
   assertHttps(url)
   // `credentials: 'omit'` is as mandatory here as in `cherry.network.fetch` (design §8) —
   // a third-party URL, and Electron sends session auth when unset (`electron.d.ts:20240`).
-  const res = await net.fetch(url, { credentials: 'omit', redirect: 'error' })
-  if (!res.ok) throw new Error(`Failed to fetch mini app manifest: ${res.status}`)
+  const { signal, clear } = deadline(MINI_APP_SOURCE_TIMEOUT_MS)
+  try {
+    const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
+    if (!res.ok) throw new Error(`Failed to fetch mini app manifest: ${res.status}`)
 
-  const chunks: Uint8Array[] = []
-  let received = 0
-  for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
-    received += chunk.byteLength
-    if (received > MINI_APP_MAX_MANIFEST_BYTES) {
-      throw new Error(`Manifest exceeds the ${MINI_APP_MAX_MANIFEST_BYTES} byte limit`)
+    const chunks: Uint8Array[] = []
+    let received = 0
+    for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+      received += chunk.byteLength
+      if (received > MINI_APP_MAX_MANIFEST_BYTES) {
+        throw new Error(`Manifest exceeds the ${MINI_APP_MAX_MANIFEST_BYTES} byte limit`)
+      }
+      chunks.push(chunk)
     }
-    chunks.push(chunk)
+    return MiniAppDistributionManifestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+  } finally {
+    clear()
   }
-  return MiniAppDistributionManifestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
 }
 
 /**
@@ -149,7 +183,21 @@ async function fetchPackageFrom(
     throw new Error(`Package declares ${expected.size} bytes, over the ${MINI_APP_MAX_PACKAGE_BYTES} limit`)
   }
 
-  const res = await net.fetch(url, { credentials: 'omit', redirect: 'error' })
+  const idle = deadline(MINI_APP_DOWNLOAD_IDLE_MS)
+  try {
+    return await downloadPackage(url, expected, idle, onProgress)
+  } finally {
+    idle.clear()
+  }
+}
+
+async function downloadPackage(
+  url: string,
+  expected: { sha256: string; size: number; origins: readonly string[] },
+  idle: ReturnType<typeof deadline>,
+  onProgress?: (received: number, total: number) => void
+): Promise<DownloadedPackage> {
+  const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal: idle.signal })
   if (!res.ok) throw new Error(`Failed to download mini app package: ${res.status}`)
   const advertised = Number(res.headers.get('content-length') ?? NaN)
   if (Number.isFinite(advertised) && advertised > expected.size) {
@@ -166,6 +214,7 @@ async function fetchPackageFrom(
     let received = 0
     try {
       for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+        idle.bump()
         received += chunk.byteLength
         if (received > expected.size) {
           throw new Error(`Package exceeds the declared ${expected.size} bytes`)
@@ -207,15 +256,20 @@ export async function fetchIcon(
   if (!expected.origins.includes(parsed.origin)) {
     throw new Error(`Icon origin ${parsed.origin} is not one of the pinned ${expected.origins.join(', ')}`)
   }
-  const res = await net.fetch(url, { credentials: 'omit', redirect: 'error' })
-  if (!res.ok) throw new Error(`Failed to fetch mini app icon: ${res.status}`)
-
+  const { signal, clear } = deadline(MINI_APP_SOURCE_TIMEOUT_MS)
   const chunks: Uint8Array[] = []
-  let received = 0
-  for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
-    received += chunk.byteLength
-    if (received > MINI_APP_MAX_ICON_BYTES) throw new Error(`Icon exceeds the ${MINI_APP_MAX_ICON_BYTES} byte limit`)
-    chunks.push(chunk)
+  try {
+    const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
+    if (!res.ok) throw new Error(`Failed to fetch mini app icon: ${res.status}`)
+
+    let received = 0
+    for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+      received += chunk.byteLength
+      if (received > MINI_APP_MAX_ICON_BYTES) throw new Error(`Icon exceeds the ${MINI_APP_MAX_ICON_BYTES} byte limit`)
+      chunks.push(chunk)
+    }
+  } finally {
+    clear()
   }
   const bytes = Buffer.concat(chunks)
   const actual = createHash('sha256').update(bytes).digest('hex')

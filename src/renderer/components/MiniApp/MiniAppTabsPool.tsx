@@ -197,14 +197,35 @@ const MiniAppTabsPool: React.FC = () => {
     setMiniAppShow
   ])
 
-  /** 设置 ref 回调 */
-  const handleSetRef = useCallback((appid: string, el: WebviewTag | null) => {
-    if (el) {
-      webviewRefs.current.set(appid, el)
-    } else {
-      webviewRefs.current.delete(appid)
-    }
+  // What each local app's guest was last told. `display: none` is invisible from inside a
+  // guest (Page Visibility never fires), so main relays it as `app.visibilityChange`.
+  const reportedVisibility = useRef(new Map<string, boolean>())
+  // Read by `handleSetRef`, whose identity must stay stable: a local app's <webview> attaches
+  // only after `runtime.prepare`, and it must be synced to the state of THAT moment.
+  const latest = useRef({ currentMiniAppId, paneSplitId, shouldShow, apps })
+  latest.current = { currentMiniAppId, paneSplitId, shouldShow, apps }
+  const syncVisibility = useCallback((id: string, ref: WebviewTag) => {
+    const { currentMiniAppId, paneSplitId, shouldShow, apps } = latest.current
+    const active = (id === currentMiniAppId || id === paneSplitId) && shouldShow
+    ref.style.display = active ? 'inline-flex' : 'none'
+    if (apps.find((app) => app.appId === id)?.kind !== 'app') return
+    if (reportedVisibility.current.get(id) === active) return
+    reportedVisibility.current.set(id, active)
+    void ipcApi.request('mini_app.runtime.set_visible', { appId: id, visible: active }).catch(() => {})
   }, [])
+
+  /** 设置 ref 回调 */
+  const handleSetRef = useCallback(
+    (appid: string, el: WebviewTag | null) => {
+      if (el) {
+        webviewRefs.current.set(appid, el)
+        syncVisibility(appid, el)
+      } else {
+        webviewRefs.current.delete(appid)
+      }
+    },
+    [syncVisibility]
+  )
 
   /** WebView 加载完成回调 */
   const handleLoaded = useCallback((appid: string) => {
@@ -231,22 +252,12 @@ const MiniAppTabsPool: React.FC = () => {
   // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
   useCommandContextKey('webview.focused', focusedAppId !== null)
 
-  // What each local app's guest was last told. `display: none` is invisible from inside a
-  // guest (Page Visibility never fires), so main relays it as `app.visibilityChange`.
-  const reportedVisibility = useRef(new Map<string, boolean>())
-
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {
     webviewRefs.current.forEach((ref, id) => {
-      if (!ref) return
-      const active = (id === currentMiniAppId || id === paneSplitId) && shouldShow
-      ref.style.display = active ? 'inline-flex' : 'none'
-      if (apps.find((app) => app.appId === id)?.kind !== 'app') return
-      if (reportedVisibility.current.get(id) === active) return
-      reportedVisibility.current.set(id, active)
-      void ipcApi.request('mini_app.runtime.set_visible', { appId: id, visible: active }).catch(() => {})
+      if (ref) syncVisibility(id, ref)
     })
-  }, [currentMiniAppId, paneSplitId, shouldShow, apps])
+  }, [currentMiniAppId, paneSplitId, shouldShow, apps, syncVisibility])
 
   /** When an entry is in the Map but no longer in openedKeepAlive, remove the ref (React unmounts the element itself) */
   useEffect(() => {

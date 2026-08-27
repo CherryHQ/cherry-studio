@@ -140,6 +140,27 @@ describe('activity log', () => {
     ).not.toContain('text-destructive')
   })
 
+  it('says what an update dropped and never dangles an empty "granted"', async () => {
+    activity.entries = [
+      {
+        v: 1,
+        ts: 1_700_000_003_000,
+        kind: 'grant',
+        name: 'update',
+        version: '1.2.0',
+        permissions: [],
+        removed: ['ai.chat']
+      },
+      { v: 1, ts: 1_700_000_004_000, kind: 'grant', name: 'install', version: '1.0.0', permissions: [] }
+    ]
+    await open()
+
+    const list = await screen.findByTestId('activity-list')
+    expect(list.textContent).toMatch(/1\.2\.0.*(revoked|撤销).*ai\.chat/)
+    expect(list.textContent).toMatch(/1\.0\.0/)
+    expect(list.textContent).not.toMatch(/granted\s*(?=[^a-z]|$)|with\s*(?=[^a-z]|$)/i)
+  })
+
   it('clears the log through the host and shows it empty', async () => {
     await open()
     await screen.findByTestId('activity-list')
@@ -345,6 +366,7 @@ describe('MiniAppDetailPanel', () => {
       version: '1.1.0',
       added: ['notification.show'],
       addedOptional: [],
+      removed: [],
       addedHosts: [],
       identityChange: { name: { from: 'My Game', to: 'Cherry Studio' } },
       updateToken: 'tok-3'
@@ -363,6 +385,7 @@ describe('MiniAppDetailPanel', () => {
       status: 'ready',
       version: '1.1.0',
       addedOptional: [],
+      removed: [],
       identityChange: { icon: { from: 'icon.png', to: 'new.png' } },
       updateToken: 'tok-4'
     })
@@ -466,6 +489,7 @@ describe('MiniAppDetailPanel', () => {
       status: 'ready',
       version: '1.2.0',
       addedOptional: [],
+      removed: [],
       updateToken: 'tok-9'
     })
     vi.mocked(request).mockResolvedValueOnce({ ...detail, updateVersion: '1.2.0' })
@@ -498,6 +522,7 @@ describe('MiniAppDetailPanel', () => {
       status: 'ready',
       version: '1.1.0',
       addedOptional: [],
+      removed: [],
       updateToken: 'tok-1'
     })
     await userEvent.click(screen.getByRole('button', { name: /check for update/i }))
@@ -515,6 +540,7 @@ describe('MiniAppDetailPanel', () => {
       version: '1.1.0',
       added: ['ai.chat'],
       addedOptional: [],
+      removed: [],
       addedHosts: ['evil.com'],
       updateToken: 'tok-2'
     })
@@ -542,6 +568,7 @@ describe('MiniAppDetailPanel', () => {
       status: 'ready',
       version: '1.1.0',
       addedOptional: ['notification.show'],
+      removed: [],
       updateToken: 'tok-3'
     })
     await userEvent.click(screen.getByRole('button', { name: /check for update/i }))

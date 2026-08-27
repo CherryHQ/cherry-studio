@@ -205,7 +205,7 @@ The request is made by the host, not by the page, so it is not subject to CORS. 
 | Rule | Value |
 |---|---|
 | URL | `https://` only, default port only, no IP literals, hostname must be in the manifest's `network` list; ≤ 2048 characters |
-| Private addresses | A declared host that resolves to a loopback, link-local, RFC 1918 or ULA address is refused (`PermissionDenied`). The check resolves the name once before the connection and Chromium resolves it again for the connection, so an answer that flips in between (DNS rebinding) is not caught — the residual risk of granting `network.fetch`; every call is in the app's activity log either way |
+| Private addresses | A declared host that resolves to any non-global address — loopback, link-local, RFC 1918, shared address space (`100.64.0.0/10`), multicast, reserved, ULA, or a NAT64 / 6to4 / Teredo prefix, in plain or IPv4-mapped form — is refused (`PermissionDenied`). The check resolves the name once before the connection and Chromium resolves it again for the connection, so an answer that flips in between (DNS rebinding) is not caught — the residual risk of granting `network.fetch`; every call is in the app's activity log either way |
 | `method` | `GET` (default), `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD` |
 | `headers` | ≤ 32; name ≤ 128, value ≤ 4096 characters. `host`, `connection`, `content-length`, `transfer-encoding`, `upgrade`, `origin`, `referer`, `cookie` are **rejected** (`InvalidArgument`), not stripped. `authorization` is allowed |
 | Request body | base64, ≤ 1 MB decoded |

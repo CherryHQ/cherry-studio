@@ -88,6 +88,8 @@ export type UpdateStatus =
       version: string
       /** Newly OFFERED optional leaves. Shown, never blocking — declining just means not granted. */
       addedOptional: string[]
+      /** Leaves the next manifest no longer declares; revoked on apply. */
+      removed: string[]
       updateToken: string
       identityChange?: MiniAppIdentityChange
       /** Already resolved for the UI language — the panel never sees the raw locale table. */
@@ -98,6 +100,8 @@ export type UpdateStatus =
       version: string
       added: string[]
       addedOptional: string[]
+      /** Leaves the next manifest no longer declares; revoked on apply. */
+      removed: string[]
       addedHosts: string[]
       updateToken: string
       identityChange?: MiniAppIdentityChange
@@ -383,13 +387,14 @@ function reviewUpdate(
       version: next.version,
       added,
       addedOptional,
+      removed,
       addedHosts,
       updateToken,
       identityChange,
       releaseNotes
     }
   }
-  return { status: 'ready', version: next.version, addedOptional, updateToken, identityChange, releaseNotes }
+  return { status: 'ready', version: next.version, addedOptional, removed, updateToken, identityChange, releaseNotes }
 }
 
 /**
@@ -435,7 +440,18 @@ async function checkBuiltinUpdate(appId: string, row: MiniAppInstallationRow, ro
  * Deliberately ignores the `check_updates_on_open` preference, which gates only the on-open check: a user
  * who turned that off must still be able to check manually.
  */
-export async function checkForUpdate(appId: string, builtinRoot?: string): Promise<UpdateStatus> {
+/** One check per app at a time: every open fires one, and a hanging server must not stack them. */
+const inFlightChecks = new Map<string, Promise<UpdateStatus>>()
+
+export function checkForUpdate(appId: string, builtinRoot?: string): Promise<UpdateStatus> {
+  const pending = inFlightChecks.get(appId)
+  if (pending) return pending
+  const check = runUpdateCheck(appId, builtinRoot).finally(() => inFlightChecks.delete(appId))
+  inFlightChecks.set(appId, check)
+  return check
+}
+
+async function runUpdateCheck(appId: string, builtinRoot?: string): Promise<UpdateStatus> {
   const row = installationOf(appId)
   // `builtinRoot` is injectable for tests only; production always reads `resources/`.
   if (row.source === 'builtin') return checkBuiltinUpdate(appId, row, builtinRoot ?? miniAppBuiltinPath(appId))

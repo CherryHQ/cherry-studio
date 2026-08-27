@@ -21,6 +21,7 @@ import { session, webContents } from 'electron'
 
 import { ACTIVITY_COUNT_FLUSH_MS, miniAppActivityLog } from '../activityLog'
 import { aiCapability } from '../capabilities/ai'
+import { networkCapability } from '../capabilities/network'
 import { pendingDeclaredAdditions } from '../grants'
 import { sweepAbandonedStaging } from '../install/installer'
 import { recoverInterruptedPublishes } from '../install/publishJournal'
@@ -282,6 +283,7 @@ export class MiniAppRuntimeService extends BaseService {
     this.guestVisible.delete(webContentsId)
     // The abort above never reaches a dead listener, so the calls settle here or never.
     aiCapability.forgetGuest(webContentsId)
+    networkCapability.forgetGuest(webContentsId)
     // The app's last instance is gone: its counts land now, not at the next minute.
     if (appId !== undefined && this.guestsOf(appId).length === 0) void miniAppActivityLog.flush(appId)
     if (this.guestAppIds.size === 0) {

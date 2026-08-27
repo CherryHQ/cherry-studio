@@ -92,10 +92,13 @@ const CONTENT_TYPES: Record<string, string> = {
 const MAX_CONCURRENT_READS = 8
 /** An unbounded wait queue is the same denial of service one indirection later. */
 const MAX_QUEUED_READS = 64
-let activeReads = 0
-const readQueue: Array<() => void> = []
+// Per app: shared across apps, a guest that spent the budget kept every other guest
+// from loading so much as its index.html.
+const readers = new Map<string, { active: number; queue: Array<() => void> }>()
 
-function acquireReadSlot(): Promise<() => void> {
+function acquireReadSlot(appId: string): Promise<() => void> {
+  const state = readers.get(appId) ?? { active: 0, queue: [] }
+  readers.set(appId, state)
   // Idempotent: `finalize` may be reached from more than one path, and a release
   // that ran twice would hand out a slot that was never taken.
   const makeRelease = () => {
@@ -103,20 +106,22 @@ function acquireReadSlot(): Promise<() => void> {
     return () => {
       if (released) return
       released = true
-      activeReads -= 1
-      readQueue.shift()?.()
+      state.active -= 1
+      const next = state.queue.shift()
+      if (next) next()
+      else if (state.active === 0) readers.delete(appId)
     }
   }
-  if (activeReads < MAX_CONCURRENT_READS) {
-    activeReads += 1
+  if (state.active < MAX_CONCURRENT_READS) {
+    state.active += 1
     return Promise.resolve(makeRelease())
   }
-  if (readQueue.length >= MAX_QUEUED_READS) {
+  if (state.queue.length >= MAX_QUEUED_READS) {
     return Promise.reject(new Error('Too many concurrent mini app reads'))
   }
   return new Promise((resolve) =>
-    readQueue.push(() => {
-      activeReads += 1
+    state.queue.push(() => {
+      state.active += 1
       resolve(makeRelease())
     })
   )
@@ -192,7 +197,7 @@ export function createMiniAppProtocolHandler(
 
     // Streamed, never `readFile`: the guest controls fetch frequency and concurrency,
     // so buffering lets it hold N copies of a 100 MB file in MAIN process memory.
-    const release = await acquireReadSlot()
+    const release = await acquireReadSlot(host)
     let handle: fs.promises.FileHandle
     try {
       handle = await fs.promises.open(real, 'r')

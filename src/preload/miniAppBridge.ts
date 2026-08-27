@@ -57,18 +57,27 @@ const gateCallId = (id?: string) => {
   if (id !== undefined) assertPayloadSize(id, MINI_APP_GUEST_LIMITS.callIdChars, 'callId')
   return id
 }
+/*
+ * Every gate RETURNS the object that crosses the bridge, rebuilt from the fields it
+ * measured. Forwarding the guest's own object would structured-clone whatever else it
+ * carries into the main process in full before Zod drops it — the exact allocation
+ * these gates exist to prevent. Main still validates; this only bounds.
+ */
+const str = (value: unknown) => (value === undefined ? undefined : String(value))
 const gateChat = (params: unknown) => {
-  const messages = (params as { messages?: unknown })?.messages
-  if (!Array.isArray(messages)) return
-  if (messages.length > MINI_APP_GUEST_LIMITS.chatMessages) {
+  const raw = (params ?? {}) as { messages?: unknown; reasoning?: unknown; model?: unknown }
+  const messages = Array.isArray(raw.messages) ? raw.messages : undefined
+  if (messages && messages.length > MINI_APP_GUEST_LIMITS.chatMessages) {
     throw guestRefusal(`Mini app chat exceeds the ${MINI_APP_GUEST_LIMITS.chatMessages} message limit`)
   }
-  for (const m of messages) {
-    assertPayloadSize(
-      String((m as { content?: unknown })?.content ?? ''),
-      MINI_APP_GUEST_LIMITS.chatContentChars,
-      'chat content'
-    )
+  return {
+    messages: messages?.map((m) => {
+      const { role, content } = (m ?? {}) as { role?: unknown; content?: unknown }
+      assertPayloadSize(String(content ?? ''), MINI_APP_GUEST_LIMITS.chatContentChars, 'chat content')
+      return { role: str(role)?.slice(0, 16), content: str(content) }
+    }),
+    reasoning: str(raw.reasoning)?.slice(0, 16),
+    model: str(raw.model)?.slice(0, 16)
   }
 }
 
@@ -79,19 +88,22 @@ const gateChat = (params: unknown) => {
  * into the main process in full before Zod ever sees it — which is the one thing these
  * guest-side gates exist to prevent (design §9).
  */
-const gateFetch = (params: { url?: unknown; headers?: unknown; body?: unknown }) => {
+const gateFetch = (params: { url?: unknown; method?: unknown; headers?: unknown; body?: unknown }) => {
   assertPayloadSize(String(params.url ?? ''), MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
   const headers = (params.headers ?? {}) as Record<string, unknown>
   if (Object.keys(headers).length > MINI_APP_GUEST_LIMITS.fetchHeaderCount) {
     throw guestRefusal(`Mini app request exceeds the ${MINI_APP_GUEST_LIMITS.fetchHeaderCount} header limit`)
   }
+  const bounded: Record<string, string> = {}
   for (const [name, value] of Object.entries(headers)) {
     assertPayloadSize(name, MINI_APP_GUEST_LIMITS.fetchHeaderNameChars, 'header name')
-    assertPayloadSize(String(value ?? ''), MINI_APP_GUEST_LIMITS.fetchHeaderValueChars, 'header value')
+    const text = String(value ?? '')
+    assertPayloadSize(text, MINI_APP_GUEST_LIMITS.fetchHeaderValueChars, 'header value')
+    bounded[name] = text
   }
-  if (typeof params.body === 'string') {
-    assertPayloadSize(params.body, MINI_APP_GUEST_LIMITS.fetchBodyChars, 'request body')
-  }
+  const body = str(params.body)
+  if (body !== undefined) assertPayloadSize(body, MINI_APP_GUEST_LIMITS.fetchBodyChars, 'request body')
+  return { url: str(params.url), method: str(params.method)?.slice(0, 16), headers: bounded, body }
 }
 
 /** Notifications truncate instead of throwing — the one exception, decided in §6.5. */
@@ -151,12 +163,11 @@ contextBridge.exposeInMainWorld('cherry', {
   ai: {
     // The APP's own label. Attaching an id to the returned promise would depend on
     // contextBridge preserving custom properties across worlds — unverified.
-    chat: async (params: unknown, opts: { onChunk?: (c: string) => void; callId?: string } = {}) => {
-      gateChat(params)
-      return callStreaming('ai.chat', params, opts.onChunk ?? (() => {}), gateCallId(opts.callId))
-    },
+    chat: async (params: unknown, opts: { onChunk?: (c: string) => void; callId?: string } = {}) =>
+      callStreaming('ai.chat', gateChat(params), opts.onChunk ?? (() => {}), gateCallId(opts.callId)),
     cancel: async (callId: string) => call('ai.cancel', { callId: gateCallId(callId) }),
-    getCapabilities: async (params?: unknown) => call('ai.getCapabilities', params)
+    getCapabilities: async (params?: { model?: unknown }) =>
+      call('ai.getCapabilities', params === undefined ? undefined : { model: str(params.model)?.slice(0, 16) })
   },
   storage: {
     get: async (key: string) => call('storage.get', { key: gateKey(key) }),
@@ -189,16 +200,14 @@ contextBridge.exposeInMainWorld('cherry', {
   },
   network: {
     /** One object parameter, matching `cherry.d.ts` — NOT `fetch(url, init)`. */
-    fetch: async (params: { url?: unknown; headers?: unknown; body?: unknown } = {}) => {
-      gateFetch(params)
-      return call('network.fetch', params)
-    }
+    fetch: async (params: { url?: unknown; method?: unknown; headers?: unknown; body?: unknown } = {}) =>
+      call('network.fetch', gateFetch(params))
   },
   clipboard: {
     read: async () => call('clipboard.read'),
     write: async (params: { text?: unknown } = {}) => {
       assertPayloadSize(String(params.text ?? ''), MINI_APP_GUEST_LIMITS.clipboardTextChars, 'clipboard text')
-      return call('clipboard.write', params)
+      return call('clipboard.write', { text: str(params.text) })
     }
   },
   notification: {

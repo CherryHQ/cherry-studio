@@ -1,12 +1,29 @@
 import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
 import type { OutputFor } from '@shared/ipc/types'
-import { resolveLocalizedText } from '@shared/types/miniAppManifest'
+import { type LocalizedText, resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { CheckCircle2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /** An update that carries a token — the two shapes the card can render. */
 export type UpdateOffer = Exclude<OutputFor<'mini_app.update.check'>, { status: 'current' }>
+
+/**
+ * Main flags a rename when ANY locale differs; read in a locale that did not change, the
+ * old and new names are the same string and the change would vanish. Fall back to the
+ * locale that actually moved, and say which.
+ */
+function describeRename(name: { from: LocalizedText; to: LocalizedText }, language: string) {
+  const from = resolveLocalizedText(name.from, language)
+  const to = resolveLocalizedText(name.to, language)
+  if (from !== to) return { from, to }
+  const tableOf = (text: LocalizedText): Record<string, string | undefined> =>
+    typeof text === 'string' ? { en: text } : text
+  const before = tableOf(name.from)
+  const after = tableOf(name.to)
+  const locale = [...new Set([...Object.keys(before), ...Object.keys(after)])].find((l) => before[l] !== after[l])
+  return locale ? { from: before[locale] ?? '', to: after[locale] ?? '', locale } : { from, to }
+}
 
 /**
  * What an update changes, for the user to read before applying: identity, the required
@@ -24,7 +41,9 @@ export const UpdateReviewCard: FC<{
   const language = i18n.resolvedLanguage ?? i18n.language
   const added = update.status === 'needs-consent' ? update.added : []
   const addedHosts = update.status === 'needs-consent' ? update.addedHosts : []
-  const unchanged = added.length === 0 && addedHosts.length === 0 && update.addedOptional.length === 0
+  const unchanged =
+    added.length === 0 && addedHosts.length === 0 && update.addedOptional.length === 0 && update.removed.length === 0
+  const rename = update.identityChange?.name && describeRename(update.identityChange.name, language)
   return (
     <div className="flex flex-col gap-2">
       {/* Said out loud: an empty diff must read as "nothing changed", never as "nothing loaded". */}
@@ -34,12 +53,9 @@ export const UpdateReviewCard: FC<{
           {t('miniApp.detail.update_unchanged')}
         </p>
       )}
-      {update.identityChange?.name && (
+      {rename && (
         <p className="text-sm text-warning-subtle-foreground">
-          {t('miniApp.detail.update_rename', {
-            from: resolveLocalizedText(update.identityChange.name.from, language),
-            to: resolveLocalizedText(update.identityChange.name.to, language)
-          })}
+          {t(rename.locale ? 'miniApp.detail.update_rename_locale' : 'miniApp.detail.update_rename', rename)}
         </p>
       )}
       {update.identityChange?.icon && (
@@ -62,6 +78,15 @@ export const UpdateReviewCard: FC<{
               <li key={host}>{host}</li>
             ))}
           </ul>
+        </div>
+      )}
+      {update.removed.length > 0 && (
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium text-sm">{t('miniApp.detail.update_removed')}</span>
+          <PermissionChecklist
+            items={update.removed.map((key) => ({ key, checked: false, fixed: true }))}
+            onToggle={() => undefined}
+          />
         </div>
       )}
       {update.addedOptional.length > 0 && (

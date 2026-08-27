@@ -16,6 +16,8 @@ import { QuotaExceededError } from '../quota'
 
 const APP = 'com.example.mygame'
 const HOSTS = ['api.mygame.com']
+const SENDER = 7
+const fetchAs = (params: unknown) => networkCapability.fetch(APP, params, SENDER)
 
 vi.mock('node:dns', () => ({ default: { promises: { lookup: vi.fn() } } }))
 const lookup = vi.mocked(dns.promises.lookup)
@@ -102,9 +104,36 @@ describe('isPrivateAddress', () => {
       '::ffff:127.0.0.1',
       '::ffff:10.0.0.1',
       '::ffff:7f00:1',
-      '::ffff:a9fe:a9fe'
+      '::ffff:a9fe:a9fe',
+      '100.64.0.1',
+      '100.127.255.255',
+      '::ffff:100.64.1.1',
+      '::ffff:6440:101',
+      '192.0.0.1',
+      '224.0.0.1',
+      '239.255.255.255',
+      '240.0.0.1',
+      '255.255.255.255',
+      '64:ff9b::808:808',
+      '2002:c0a8:101::',
+      '2001::1',
+      'fec0::1',
+      'ff02::1',
+      '100::1'
     ]) {
       expect(isPrivateAddress(a), a).toBe(true)
+    }
+  })
+
+  it('refuses what it cannot parse rather than letting it through', () => {
+    expect(isPrivateAddress('not-an-ip')).toBe(true)
+  })
+
+  it('leaves the benchmarking range alone: fake-IP proxies answer every lookup from it', () => {
+    // Clash and Surge hand out 198.18.0.0/15 for every name they intercept; refusing it
+    // would refuse every `network.fetch` on those machines.
+    for (const a of ['198.18.0.1', '198.18.1.85', '198.19.255.255', '::ffff:198.18.1.85']) {
+      expect(isPrivateAddress(a), a).toBe(false)
     }
   })
 
@@ -115,7 +144,12 @@ describe('isPrivateAddress', () => {
       '172.15.0.1',
       '172.32.0.1',
       '2606:4700::1111',
-      '::ffff:93.184.216.34'
+      '::ffff:93.184.216.34',
+      '100.63.255.255',
+      '100.128.0.0',
+      '192.0.1.1',
+      '223.255.255.255',
+      '2001:db8::1'
     ]) {
       expect(isPrivateAddress(a), a).toBe(false)
     }
@@ -126,7 +160,7 @@ describe('networkCapability.fetch', () => {
   it('refuses a host the app never declared, and says so', async () => {
     // The name is PermissionDenied, but the grant IS held: a message blaming the grant
     // sends the author to the permissions page instead of to their URL.
-    const refusal = networkCapability.fetch(APP, { url: 'https://evil.example/x' })
+    const refusal = fetchAs({ url: 'https://evil.example/x' })
     await expect(refusal).rejects.toThrow(PermissionDeniedError)
     await expect(refusal).rejects.toThrow(/https:\/\/evil\.example\/x/)
     await expect(refusal).rejects.not.toThrow(/not granted/)
@@ -139,7 +173,7 @@ describe('networkCapability.fetch', () => {
       .spyOn(net, 'fetch')
       .mockResolvedValue(new Response('', { status: 200 }))
       .mockClear()
-    await networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })
+    await fetchAs({ url: 'https://api.mygame.com/v1' })
     expect(spy.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
   })
 
@@ -150,7 +184,7 @@ describe('networkCapability.fetch', () => {
       pull: (controller) => controller.enqueue(new Uint8Array(1024 * 1024))
     })
     vi.spyOn(net, 'fetch').mockResolvedValue(new Response(endless, { status: 200 }))
-    await expect(networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })).rejects.toThrow(QuotaExceededError)
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toThrow(QuotaExceededError)
   })
 
   it('never sends the session credentials', async () => {
@@ -160,30 +194,28 @@ describe('networkCapability.fetch', () => {
       .spyOn(net, 'fetch')
       .mockResolvedValue(new Response('', { status: 200 }))
       .mockClear()
-    await networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })
+    await fetchAs({ url: 'https://api.mygame.com/v1' })
     expect(spy.mock.calls[0][1]).toMatchObject({ credentials: 'omit' })
   })
 
   it('refuses a Host header rather than sending it', async () => {
     // The allowlist names a machine; `Host` names a backend behind it. Letting the app
     // set it turns "may reach api.mygame.com" into "may reach anything it fronts".
-    await expect(
-      networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1', headers: { Host: 'internal-admin' } })
-    ).rejects.toThrow()
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1', headers: { Host: 'internal-admin' } })).rejects.toThrow()
   })
 
   it('refuses a forbidden header regardless of case', async () => {
     // The control for the case above: a Set lookup on the raw key passes `Host` and
     // lets `host` straight through.
     await expect(
-      networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1', headers: { 'transfer-encoding': 'chunked' } })
+      fetchAs({ url: 'https://api.mygame.com/v1', headers: { 'transfer-encoding': 'chunked' } })
     ).rejects.toThrow()
   })
 
   it("still allows Authorization — the app's own credential", async () => {
     vi.spyOn(net, 'fetch').mockResolvedValue(new Response('', { status: 200 }))
     await expect(
-      networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1', headers: { Authorization: 'Bearer x' } })
+      fetchAs({ url: 'https://api.mygame.com/v1', headers: { Authorization: 'Bearer x' } })
     ).resolves.toMatchObject({ status: 200 })
   })
 
@@ -191,7 +223,7 @@ describe('networkCapability.fetch', () => {
     // A 404 is an ANSWER, not a failure of the capability. Throwing here would make
     // every REST client written against this API wrong.
     vi.spyOn(net, 'fetch').mockResolvedValue(new Response('nope', { status: 404 }))
-    const r = await networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })
+    const r = await fetchAs({ url: 'https://api.mygame.com/v1' })
     expect(r.status).toBe(404)
   })
 
@@ -200,7 +232,7 @@ describe('networkCapability.fetch', () => {
     // makes the main process fetch cloud metadata on the app's behalf.
     lookup.mockResolvedValue(PRIVATE as never)
     const spy = vi.spyOn(net, 'fetch').mockClear()
-    const refusal = networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })
+    const refusal = fetchAs({ url: 'https://api.mygame.com/v1' })
     await expect(refusal).rejects.toThrow(PermissionDeniedError)
     await expect(refusal).rejects.toThrow(/private address/)
     expect(spy).not.toHaveBeenCalled()
@@ -209,16 +241,12 @@ describe('networkCapability.fetch', () => {
   it('refuses when only one of several answers is private', async () => {
     // Chromium picks which answer to connect to; any private one is one too many.
     lookup.mockResolvedValue([...PUBLIC, { address: '::ffff:10.0.0.1', family: 6 }] as never)
-    await expect(networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })).rejects.toThrow(
-      PermissionDeniedError
-    )
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toThrow(PermissionDeniedError)
   })
 
   it('reports a failed lookup as the remote failing, not as a denial', async () => {
     lookup.mockRejectedValue(new Error('ENOTFOUND'))
-    await expect(networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })).rejects.toThrow(
-      /failed: ENOTFOUND/
-    )
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toThrow(/failed: ENOTFOUND/)
   })
 
   it("reports a remote failure as Unavailable, not as the author's bug", async () => {
@@ -226,9 +254,7 @@ describe('networkCapability.fetch', () => {
     // declared host would then read as a defect in the app's own code.
     vi.spyOn(net, 'fetch').mockRejectedValue(new TypeError('net::ERR_CONNECTION_REFUSED'))
 
-    await expect(networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })).rejects.toThrow(
-      MiniAppUnavailableError
-    )
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toThrow(MiniAppUnavailableError)
   })
 
   it('aborts an exchange that outlives the timeout and frees the slot', async () => {
@@ -245,15 +271,31 @@ describe('networkCapability.fetch', () => {
           )
       )
       // Expectation attached BEFORE the clock moves, or the rejection lands unhandled.
-      const refused = expect(networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })).rejects.toThrow(
-        /timed out/
-      )
+      const refused = expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toThrow(/timed out/)
       await vi.advanceTimersByTimeAsync(MINI_APP_FETCH_TIMEOUT_MS)
 
       await refused
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('aborts what a departed guest still had in flight and frees its slot', async () => {
+    // lifecycle.md promises a fetch dies with its guest; the timer alone let it run on for 30 s.
+    // Like the real `net.fetch`, a signal that is ALREADY aborted rejects at once.
+    vi.spyOn(net, 'fetch').mockImplementation((_url, init) => {
+      const signal = (init as RequestInit).signal!
+      const refuse = () => new DOMException('aborted', 'AbortError')
+      return new Promise((_resolve, reject) =>
+        signal.aborted ? reject(refuse()) : signal.addEventListener('abort', () => reject(refuse()))
+      )
+    })
+    const refused = expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toThrow(/guest/)
+    networkCapability.forgetGuest(SENDER)
+    await refused
+
+    vi.spyOn(net, 'fetch').mockResolvedValue(new Response('ok'))
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1' })).resolves.toMatchObject({ status: 200 })
   })
 
   it('refuses a request body over the byte cap even when its base64 fits the char cap', async () => {
@@ -265,9 +307,9 @@ describe('networkCapability.fetch', () => {
       .mockClear()
     const body = Buffer.alloc(MINI_APP_FETCH_MAX_REQUEST_BYTES + 1).toString('base64')
 
-    await expect(
-      networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1', method: 'POST', body })
-    ).rejects.toThrow(QuotaExceededError)
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1', method: 'POST', body })).rejects.toThrow(
+      QuotaExceededError
+    )
     expect(spy).not.toHaveBeenCalled()
   })
 
@@ -278,11 +320,11 @@ describe('networkCapability.fetch', () => {
       .mockResolvedValue(new Response('', { status: 200 }))
       .mockClear()
     for (const method of ['TRACE', 'CONNECT']) {
-      await expect(networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1', method })).rejects.toThrow()
+      await expect(fetchAs({ url: 'https://api.mygame.com/v1', method })).rejects.toThrow()
     }
     expect(spy).not.toHaveBeenCalled()
 
-    await networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1', method: 'HEAD' })
+    await fetchAs({ url: 'https://api.mygame.com/v1', method: 'HEAD' })
     expect(spy.mock.calls[0][1]).toMatchObject({ method: 'HEAD' })
   })
 
@@ -298,7 +340,7 @@ describe('networkCapability.fetch', () => {
         }
       })
     )
-    const r = await networkCapability.fetch(APP, { url: 'https://api.mygame.com/v1' })
+    const r = await fetchAs({ url: 'https://api.mygame.com/v1' })
     expect(r.headers).toEqual({ 'content-type': 'text/plain' })
   })
 })

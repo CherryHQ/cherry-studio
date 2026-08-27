@@ -20,7 +20,7 @@ sources:
 | `icon` | no | `{ path, sha256 }` | Both or neither. `sha256` is the lowercase hex digest of the icon bytes; verified at install and update. Icon entry ≤ 5 MB |
 | `releaseNotes` | no | localized text | ≤ 500 characters per value. What changed in **this** version; plain text, rendered below the permission diff on update |
 | `permissions` | no (default `[]`) | string[] | Required grants, ≤ 32 entries. Install is refused unless the user accepts all of them |
-| `optionalPermissions` | no (default `[]`) | string[] | Offered on the same card, **not granted by default**, revocable later. Must not overlap `permissions` after wildcard expansion |
+| `optionalPermissions` | no (default `[]`) | string[] | Offered on the same card **ticked by default** — the user unticks what they do not want — and revocable later. Must not overlap `permissions` after wildcard expansion |
 | `network` | no (default `[]`) | string[] | Hosts `cherry.network.fetch` may reach. ≤ 20, unique, bare hostnames |
 | `update` | no | `{ url, urlCn? }` | Where the host checks for updates. `urlCn` is an optional China accelerator serving the same bytes; ignored for packages installed from a local file |
 

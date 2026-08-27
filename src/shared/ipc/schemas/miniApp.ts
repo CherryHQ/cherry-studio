@@ -20,6 +20,7 @@ const UpdateOfferSchema = z.discriminatedUnion('status', [
     status: z.literal('ready'),
     version: z.string(),
     addedOptional: z.array(z.string()),
+    removed: z.array(z.string()),
     updateToken: z.string(),
     identityChange: IdentityChangeSchema.optional(),
     releaseNotes: z.string().optional()
@@ -29,6 +30,7 @@ const UpdateOfferSchema = z.discriminatedUnion('status', [
     version: z.string(),
     added: z.array(z.string()),
     addedOptional: z.array(z.string()),
+    removed: z.array(z.string()),
     addedHosts: z.array(z.string()),
     updateToken: z.string(),
     identityChange: IdentityChangeSchema.optional(),

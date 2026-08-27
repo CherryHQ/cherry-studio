@@ -44,6 +44,24 @@ describe('mini app protocol handler', () => {
     await expect(get(`cherry-miniapp://${APP_ID}/index.html`)).resolves.toMatchObject({ status: 200 })
   })
 
+  it("lets an app saturate only its own read slots, never a neighbour's", async () => {
+    // The slots bound main-process memory per guest; shared across guests they were also
+    // a way for one app to keep every other app from loading its own index.html.
+    const HOG = 'com.example.hog'
+    const hogRoot = path.join(work, 'hog-pkg')
+    fs.mkdirSync(hogRoot, { recursive: true })
+    fs.writeFileSync(path.join(hogRoot, 'big.bin'), Buffer.alloc(4 * 1024 * 1024))
+    const hog = createMiniAppProtocolHandler(HOG, (id) => (id === HOG ? hogRoot : undefined), path.join(work, 'assets'))
+
+    // Every active slot held and none consumed: the hog's own next read would queue.
+    const held: Response[] = []
+    for (let i = 0; i < 8; i++) held.push(await hog(new Request(`cherry-miniapp://${HOG}/big.bin`)))
+
+    await expect(get(`cherry-miniapp://${APP_ID}/index.html`)).resolves.toMatchObject({ status: 200 })
+
+    for (const res of held) await res.body!.cancel()
+  })
+
   it('releases the read slot when the file cannot be opened', async () => {
     const open = vi.spyOn(fs.promises, 'open').mockRejectedValueOnce(new Error('EMFILE'))
 

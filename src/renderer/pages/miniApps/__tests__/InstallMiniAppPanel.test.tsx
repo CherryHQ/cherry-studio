@@ -322,6 +322,7 @@ describe('InstallMiniAppPanel', () => {
         version: '2.0.0',
         added: ['ai.chat'],
         addedOptional: [],
+        removed: [],
         addedHosts: [],
         updateToken: 'tok-up'
       }

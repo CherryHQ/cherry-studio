@@ -51,6 +51,8 @@ const GRANT_ACTIVITY_KEYS: Record<MiniAppActivityGrant['name'], string> = {
   clear_data: 'miniApp.activity.grant.clear_data'
 }
 
+const VERSIONED_GRANTS = new Set<MiniAppActivityGrant['name']>(['install', 'reinstall', 'update'])
+
 /** One line per entry. Calls show their metadata facet as-is: it never holds a payload. */
 function describeActivity(t: TFunction, entry: MiniAppActivityEntry): string {
   switch (entry.kind) {
@@ -60,11 +62,22 @@ function describeActivity(t: TFunction, entry: MiniAppActivityEntry): string {
         .join(' ')
       return `${entry.name} → ${entry.outcome}${facet ? ` · ${facet}` : ''}`
     }
-    case 'grant':
-      return t(GRANT_ACTIVITY_KEYS[entry.name], {
-        version: entry.version ?? '',
-        permissions: (entry.permissions ?? []).join(', ')
-      })
+    case 'grant': {
+      const parts = [
+        t(GRANT_ACTIVITY_KEYS[entry.name], {
+          version: entry.version ?? '',
+          permissions: (entry.permissions ?? []).join(', ')
+        })
+      ]
+      // Versioned entries name what changed only when something did: no dangling "granted ".
+      if (VERSIONED_GRANTS.has(entry.name)) {
+        if (entry.permissions?.length)
+          parts.push(t('miniApp.activity.grant.granted', { permissions: entry.permissions.join(', ') }))
+        if (entry.removed?.length)
+          parts.push(t('miniApp.activity.grant.revoked', { permissions: entry.removed.join(', ') }))
+      }
+      return parts.join(', ')
+    }
     case 'count':
       return t('miniApp.activity.count', {
         name: entry.name,

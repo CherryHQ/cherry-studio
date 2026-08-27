@@ -112,7 +112,7 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
   'clipboard.read': (appId, _params, _emit, senderId) => clipboardCapability.read(appId, senderId),
   'clipboard.write': (appId, params, _emit, senderId) => clipboardCapability.write(appId, params, senderId),
 
-  'network.fetch': (appId, params) => networkCapability.fetch(appId, params)
+  'network.fetch': (appId, params, _emit, senderId) => networkCapability.fetch(appId, params, senderId)
 }
 
 /**

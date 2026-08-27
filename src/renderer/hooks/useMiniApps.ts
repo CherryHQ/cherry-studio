@@ -13,7 +13,9 @@ import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStat
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
+import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Data Flow Design:
@@ -151,7 +153,17 @@ async function settleAndInvalidate(
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const queryEnabled = options.enabled ?? true
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
-  const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
+  const { i18n: i18nInstance } = useTranslation()
+  const language = i18nInstance.language
+  // Main resolved `name` for the language at query time and the query is cached; a
+  // language switch would otherwise leave every installed app under its old name.
+  const rawApps: MiniApp[] = useMemo(
+    () =>
+      (data ?? []).map((app) =>
+        app.kind === 'app' ? { ...app, name: resolveLocalizedText(app.nameI18n, language) } : app
+      ),
+    [data, language]
+  )
 
   // Partition by status in single pass (js-combine-iterations)
   const { allApps, enabled, disabled, pinned } = useMemo(() => {

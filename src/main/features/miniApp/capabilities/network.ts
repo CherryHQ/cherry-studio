@@ -1,4 +1,5 @@
 import dns from 'node:dns'
+import { BlockList, isIP } from 'node:net'
 
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 import { net } from 'electron'
@@ -88,38 +89,55 @@ export function isAllowedUrl(url: string, hosts: readonly string[]): boolean {
 /**
  * The same targets `isAllowedUrl` refuses as literals, reached by NAME instead: the author
  * controls the DNS of the host they declared, so an A record pointing at `127.0.0.1`,
- * `10.x` or `169.254.169.254` would turn the main process into an SSRF proxy. Covers
- * loopback, unspecified, RFC 1918, link-local, ULA and the `::ffff:` mapped forms.
+ * `10.x`, `100.64.x` or `169.254.169.254` would turn the main process into an SSRF proxy.
+ * IPv4-mapped IPv6 is checked against the IPv4 rules by `BlockList`; the translation
+ * prefixes that embed an IPv4 address (NAT64, 6to4, Teredo) are refused whole.
+ *
+ * NOT listed on purpose: 198.18.0.0/15 (benchmarking). Fake-IP proxies such as Clash and
+ * Surge answer every intercepted lookup from it, so refusing it refuses every fetch there.
  */
-export function isPrivateAddress(address: string): boolean {
-  const lower = address.toLowerCase()
-  const v4 = ipv4Octets(lower)
-  if (v4) {
-    const [a, b] = v4
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168)
-    )
-  }
-  if (lower === '::' || lower === '::1') return true
-  const head = Number.parseInt(lower.split(':')[0] || '0', 16)
-  return (head & 0xfe00) === 0xfc00 || (head & 0xffc0) === 0xfe80
+const NON_GLOBAL = new BlockList()
+for (const [address, prefix] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.168.0.0', 16],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4]
+] as const) {
+  NON_GLOBAL.addSubnet(address, prefix, 'ipv4')
+}
+for (const [address, prefix] of [
+  ['::', 128],
+  ['::1', 128],
+  ['64:ff9b::', 96],
+  ['100::', 64],
+  ['2001::', 32],
+  ['2002::', 16],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['fec0::', 10],
+  ['ff00::', 8]
+] as const) {
+  NON_GLOBAL.addSubnet(address, prefix, 'ipv6')
 }
 
-/** Dotted IPv4, `::ffff:a.b.c.d`, or its hex spelling `::ffff:hhhh:hhhh`; undefined for real IPv6. */
-function ipv4Octets(lower: string): number[] | undefined {
-  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(lower)
-  if (hex) return [hex[1], hex[2]].flatMap((g) => [Number.parseInt(g, 16) >> 8, Number.parseInt(g, 16) & 0xff])
-  const dotted = lower.startsWith('::ffff:') ? lower.slice(7) : lower
-  return dotted.includes('.') ? dotted.split('.').map(Number) : undefined
+export function isPrivateAddress(address: string): boolean {
+  const family = isIP(address)
+  // Unparsable is refused, not passed: the lookup answer is the only thing this trusts.
+  if (family === 0) return true
+  return NON_GLOBAL.check(address, family === 6 ? 'ipv6' : 'ipv4')
 }
+
+/** In-flight exchanges per guest, so `forgetGuest` can end what a departed guest started. */
+const inflight = new Map<number, Set<AbortController>>()
 
 export const networkCapability = {
-  async fetch(appId: string, params: unknown) {
+  async fetch(appId: string, params: unknown, senderId: number) {
     const { url, method, headers, body } = FetchParams.parse(params)
     // The MANIFEST, not the grant table: hosts are the scope of `network.fetch`, not
     // grants of their own. The revocable half is the capability, checked at the bridge.
@@ -144,7 +162,10 @@ export const networkCapability = {
     const abort = new AbortController()
     // Covers the WHOLE exchange, not just the headers: a server that answers and then
     // dangles its body would otherwise hold a concurrency slot for ever.
-    const timer = setTimeout(() => abort.abort(), MINI_APP_FETCH_TIMEOUT_MS)
+    const timer = setTimeout(() => abort.abort('timeout'), MINI_APP_FETCH_TIMEOUT_MS)
+    const owned = inflight.get(senderId) ?? new Set<AbortController>()
+    owned.add(abort)
+    inflight.set(senderId, owned)
     try {
       // Resolved here and connected by Chromium: the answer can change in between (TOCTOU,
       // accepted by the plan). Inside the try so a lookup failure reports like any DNS error.
@@ -188,13 +209,23 @@ export const networkCapability = {
       }
     } catch (error) {
       if (error instanceof QuotaExceededError || error instanceof PermissionDeniedError) throw error
+      if (abort.signal.reason === 'guest')
+        throw new MiniAppUnavailableError(`Request to ${url} abandoned: the guest went away`)
       if (abort.signal.aborted) throw new MiniAppUnavailableError(`Request to ${url} timed out`)
       // Everything else is the REMOTE end failing — DNS, refused connection, TLS, a stream
       // that dies mid-body. Raw, the bridge answers `Internal` and blames the author's code.
       throw new MiniAppUnavailableError(`Request to ${url} failed: ${(error as Error).message}`)
     } finally {
       clearTimeout(timer)
+      owned.delete(abort)
+      if (owned.size === 0) inflight.delete(senderId)
       release()
     }
+  },
+
+  /** The guest is gone and will never read the answer: stop paying the remote for it. */
+  forgetGuest(senderId: number): void {
+    for (const abort of inflight.get(senderId) ?? []) abort.abort('guest')
+    inflight.delete(senderId)
   }
 }
