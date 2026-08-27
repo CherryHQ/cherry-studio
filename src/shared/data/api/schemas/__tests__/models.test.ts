@@ -40,4 +40,8 @@ describe('model endpoint preference validation', () => {
       preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     })
   })
+
+  it('preserves null over the wire so an update can clear the preference', () => {
+    expect(UpdateModelSchema.parse({ preferredEndpointType: null })).toEqual({ preferredEndpointType: null })
+  })
 })

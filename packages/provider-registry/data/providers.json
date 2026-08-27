@@ -375,6 +375,10 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AIOnly - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.aiionly.com"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.aiionly.com"
@@ -2414,5 +2418,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "9bdc7d161d142d8f"
+  "version": "6e0c4a87f360b539"
 }

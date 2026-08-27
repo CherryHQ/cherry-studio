@@ -87,6 +87,44 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
   })
 })
 
+describe('CherryIN endpoint web-search mapping', () => {
+  const provider = {
+    id: 'cherryin',
+    presetProviderId: 'cherryin',
+    sharedEndpointHost: true,
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
+      'openai-responses': { adapterFamily: 'cherryin' },
+      'anthropic-messages': { adapterFamily: 'cherryin' }
+    }
+  } as Provider
+
+  const endpointModel = (endpointType: Model['preferredEndpointType']) =>
+    model({
+      id: 'cherryin::model',
+      providerId: 'cherryin',
+      endpointTypes: endpointType ? [endpointType] : undefined,
+      preferredEndpointType: endpointType
+    })
+
+  it.each(['cherryin', 'cherryin-chat'] as const)('maps each proxied endpoint for %s', (providerId) => {
+    expect(
+      buildProviderBuiltinWebSearchConfig(providerId, webSearchConfig, endpointModel('openai-responses'), provider)
+    ).toEqual({ openai: { searchContextSize: 'medium' } })
+    expect(
+      buildProviderBuiltinWebSearchConfig(
+        providerId,
+        webSearchConfig,
+        endpointModel('openai-chat-completions'),
+        provider
+      )
+    ).toEqual({ 'openai-chat': { searchContextSize: 'medium' } })
+    expect(
+      buildProviderBuiltinWebSearchConfig(providerId, webSearchConfig, endpointModel('anthropic-messages'), provider)
+    ).toEqual({ anthropic: { maxUses: 50, blockedDomains: undefined } })
+  })
+})
+
 /**
  * Bailian serves built-in search through two different mechanisms, split by endpoint: the Responses
  * `web_search` tool (Qwen3.x line only) and Chat Completions' `enable_search` params. This matrix pins

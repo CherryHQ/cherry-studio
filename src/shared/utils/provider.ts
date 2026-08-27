@@ -212,10 +212,7 @@ export function resolveEndpointDialect(
  * preference existed (and for registry presets whose array order encodes the same intent).
  */
 type EndpointRoutingModel = Pick<Model, 'id' | 'apiModelId' | 'endpointTypes' | 'preferredEndpointType'>
-type EndpointRoutingProvider = Pick<
-  Provider,
-  'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'sharedEndpointHost'
->
+type EndpointRoutingProvider = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs'>
 
 function hasEndpointConfig(provider: EndpointRoutingProvider, endpointType: EndpointType): boolean {
   return provider.endpointConfigs != null && Object.hasOwn(provider.endpointConfigs, endpointType)
@@ -227,11 +224,6 @@ export function isModelEndpointTypeAvailable(
   provider: EndpointRoutingProvider,
   endpointType: EndpointType
 ): boolean {
-  // A shared-host provider multiplexes every protocol through one URL, so its upstream `/models`
-  // listing — not `endpointConfigs` — states which endpoints a model accepts.
-  if (model.endpointTypes?.length && provider.sharedEndpointHost) {
-    return model.endpointTypes.includes(endpointType)
-  }
   if (!hasEndpointConfig(provider, endpointType)) return false
   if (!model.endpointTypes?.length || model.endpointTypes.includes(endpointType)) return true
   return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType === endpointType

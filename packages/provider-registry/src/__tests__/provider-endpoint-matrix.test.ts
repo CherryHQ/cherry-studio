@@ -120,6 +120,21 @@ describe('MiniMax endpoint matrix', () => {
   )
 })
 
+describe('AIOnly endpoint matrix', () => {
+  it('declares adapters for both documented chat protocols on its shared host', () => {
+    const aionly = provider('aionly')
+
+    expect(aionly.endpointConfigs?.['openai-chat-completions']).toMatchObject({
+      adapterFamily: 'openai-compatible',
+      baseUrl: 'https://api.aiionly.com'
+    })
+    expect(aionly.endpointConfigs?.['anthropic-messages']).toMatchObject({
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://api.aiionly.com'
+    })
+  })
+})
+
 /**
  * OpenCode Go multiplexes three wire protocols over one base URL, and the protocol per model is
  * published as models.dev's per-model `provider.npm` (`@ai-sdk/openai` → Responses, `@ai-sdk/anthropic`

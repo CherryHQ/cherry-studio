@@ -81,19 +81,19 @@ export function resolveEffectiveEndpoint(
   const endpointRequiresOwnHost =
     endpointType !== undefined &&
     (selectedEndpoint !== undefined || !isModelEndpointTypeAvailable(model, provider, endpointType))
+  const hasEndpointConfig =
+    endpointType !== undefined &&
+    provider.endpointConfigs != null &&
+    Object.hasOwn(provider.endpointConfigs, endpointType)
   const endpointCanShareDefaultHost =
-    provider.sharedEndpointHost ||
-    (isAzureOpenAIProvider(provider) &&
-      endpointType !== undefined &&
-      provider.endpointConfigs != null &&
-      Object.hasOwn(provider.endpointConfigs, endpointType))
+    hasEndpointConfig && (provider.sharedEndpointHost || isAzureOpenAIProvider(provider))
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return {
     endpointType,
     baseUrl: getBaseUrl(provider, endpointType, {
-      // Shared-host gateways and Azure intentionally reuse one user-configured host; every other
-      // route must resolve its own URL so an unserved protocol fails closed.
+      // Shared-host gateways and Azure reuse one user-configured host only for declared adapters;
+      // every unserved protocol still fails closed.
       selectedEndpointOnly: endpointRequiresOwnHost && !endpointCanShareDefaultHost
     }),
     providerOptionsKey

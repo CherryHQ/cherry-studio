@@ -63,7 +63,7 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
-import { getModelPreferredEndpoint, isModelEndpointTypeAvailable } from '@shared/utils/provider'
+import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -934,9 +934,11 @@ class ProviderRegistryService {
   ): EndpointType | undefined {
     const endpointTypes = modelEndpointSelection?.endpointTypes ?? registryOverride?.endpointTypes
     const preferredEndpointType = modelEndpointSelection?.preferredEndpointType
-    if (
-      preferredEndpointType &&
-      isModelEndpointTypeAvailable(
+    const defaultChatEndpoint =
+      context.defaultChatEndpoint ?? this.findProfileProvider(context)?.defaultChatEndpoint ?? undefined
+
+    if (context.endpointConfigs && fallbackModelId) {
+      return getModelPreferredEndpoint(
         {
           id: createUniqueModelId(context.id, fallbackModelId),
           apiModelId: registryOverride?.apiModelId ?? fallbackModelId,
@@ -946,19 +948,13 @@ class ProviderRegistryService {
         {
           id: context.id,
           presetProviderId: context.presetProviderId ?? undefined,
-          defaultChatEndpoint: context.defaultChatEndpoint,
+          defaultChatEndpoint,
           endpointConfigs: context.endpointConfigs
-        },
-        preferredEndpointType
+        }
       )
-    ) {
-      return preferredEndpointType
     }
 
-    return resolveChatEndpointType(
-      endpointTypes,
-      context.defaultChatEndpoint ?? this.findProfileProvider(context)?.defaultChatEndpoint ?? undefined
-    )
+    return resolveChatEndpointType(endpointTypes, defaultChatEndpoint)
   }
 
   private resolveProfileForModelData(

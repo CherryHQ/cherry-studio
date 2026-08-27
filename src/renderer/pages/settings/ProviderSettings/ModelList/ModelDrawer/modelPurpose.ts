@@ -93,8 +93,8 @@ export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): M
  * The chat endpoints a model could be routed to. Two or more means the user has a real choice and the
  * preferred-endpoint picker is worth showing; one or none means there is nothing to pick.
  *
- * A model that declares its own endpoints narrows an ordinary provider's configured routes. Aggregator
- * declarations come from the upstream model listing and can exceed the locally persisted route keys.
+ * A model declaration narrows the provider's configured chat routes. `sharedEndpointHost` permits a
+ * configured adapter to inherit one URL; it does not create adapters for undeclared protocols.
  */
 export function getPreferredEndpointCandidates(
   provider: ProviderChatEndpoints,
@@ -146,7 +146,11 @@ export function resolvePreferredEndpointOptions(
 ): readonly EndpointType[] {
   if (!provider || mode === 'purpose') return []
   if (mode === 'endpoint-types') {
-    return modelEndpointTypes?.length ? modelEndpointTypes : getPreferredEndpointCandidates(provider)
+    if (!modelEndpointTypes?.length) return getPreferredEndpointCandidates(provider)
+    const chatCandidates = new Set(getPreferredEndpointCandidates(provider, modelEndpointTypes))
+    return modelEndpointTypes.filter(
+      (endpointType) => !isModelChatEndpointType(endpointType) || chatCandidates.has(endpointType)
+    )
   }
   const candidates = getPreferredEndpointCandidates(provider, modelEndpointTypes)
   return candidates.length > 1 ? candidates : []

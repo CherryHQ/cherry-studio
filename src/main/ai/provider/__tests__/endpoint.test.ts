@@ -394,6 +394,27 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
+  it('does not let a shared host stand in for a missing adapter', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      sharedEndpointHost: true,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' }
+      }
+    })
+    const model = {
+      id: 'relay::claude',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toEqual({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: '',
+      providerOptionsKey: undefined
+    })
+  })
+
   it('ignores a persisted preference removed from the model capability set', () => {
     const provider = makeProvider({
       id: 'relay',
