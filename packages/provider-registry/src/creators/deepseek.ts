@@ -8,6 +8,7 @@ export default defineCreator({
   modelsDevProviders: ['deepseek'],
   idPrefixes: ['deepseek'],
   models: [
+    // DeepSeek publishes one V4 effort table; keep it authoritative over stale upstream vocabularies.
     {
       id: 'deepseek-v4-flash',
       name: 'DeepSeek V4 Flash',
@@ -17,7 +18,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text'],
       outputModalities: ['text'],
-      openWeights: true
+      openWeights: true,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] }
     },
     {
       id: 'deepseek-v4-flash-vision-exp',
@@ -28,7 +30,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
-      openWeights: true
+      openWeights: true,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] }
     },
     {
       id: 'deepseek-v4-pro',
@@ -39,7 +42,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text'],
       outputModalities: ['text'],
-      openWeights: true
+      openWeights: true,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] }
     }
   ],
   reasoningFamilies: [

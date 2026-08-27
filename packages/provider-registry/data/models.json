@@ -7697,13 +7697,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "low", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "low", "xhigh"]
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -7765,13 +7762,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "high", "max", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["low", "high", "max", "xhigh", "none"]
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -7804,13 +7798,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -21699,5 +21690,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "0a900dcf6dab1f85"
+  "version": "3127e7a1154dc896"
 }

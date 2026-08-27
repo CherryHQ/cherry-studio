@@ -35,6 +35,10 @@ const models = modelsRaw.models as Array<{
   inputModalities?: string[]
   outputModalities?: string[]
   ownedBy?: string
+  reasoning?: {
+    controls?: Array<{ kind: string; values?: string[] }>
+    supportedEfforts?: string[]
+  }
   imageGeneration?: {
     modes?: {
       generate?: {
@@ -316,6 +320,18 @@ describe('catalog invariants (data/*.json)', () => {
       maxOutputTokens: 393216
     })
   })
+
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+    'keeps the official DeepSeek V4 effort vocabulary for %s',
+    (id) => {
+      expect(models.find((model) => model.id === id)).toMatchObject({
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }],
+          supportedEfforts: ['none', 'low', 'high', 'max']
+        }
+      })
+    }
+  )
 
   it('models.json conforms to ModelListSchema', () => {
     const r = ModelListSchema.safeParse(modelsRaw)
