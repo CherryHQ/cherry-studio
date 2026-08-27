@@ -473,11 +473,6 @@ export const ModelConfigSchema = z.object({
   // Model family (e.g., "GPT-4", "Claude 3")
   family: z.string().optional(),
 
-  // Model-list grouping label. Set it only when the id-derived grouping splits
-  // SKUs that belong together (`hy3` / `hy3-preview` / `hy4-preview` → `hy`);
-  // absent means the renderer keeps deriving the group from the model id.
-  group: z.string().optional(),
-
   // Original creator of the model (e.g., "anthropic", "google", "openai")
   // This is the original publisher/creator, not the aggregator that hosts the model
   ownedBy: z.string().optional(),

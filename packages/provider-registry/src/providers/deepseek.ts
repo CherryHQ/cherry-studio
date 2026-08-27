@@ -92,8 +92,6 @@ export default defineProvider({
   // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
   overrides: [
     { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
-    // Upstream dropped deepseek-reasoner when it reorganized around the V4 naming, leaving no base
-    // row; DeepSeek still serves it, so carry it as a named standalone rather than a dangling row.
     { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', endpointTypes: ['openai-chat-completions'] },
     {
       modelId: 'deepseek-v4-flash',

@@ -497,7 +497,6 @@ export function mergePresetModel(
     name,
     description,
     family: presetModel.family,
-    group: presetModel.group,
     ownedBy: catalogOverride?.ownedBy ?? presetModel.ownedBy,
     capabilities: resolvedCapabilities,
     inputModalities,

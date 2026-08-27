@@ -309,6 +309,72 @@ describe('classifyError', () => {
     expect(result.category).not.toBe('mcp')
   })
 
+  // Proxy — live Chromium net.fetch / undici / https-proxy-agent strings, not guessed English.
+  it('classifies Chromium ERR_PROXY_CONNECTION_FAILED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies Chromium ERR_PROXY_AUTH_REQUESTED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_PROXY_AUTH_REQUESTED' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  // Electron net.fetch surfaces mandatory PAC failure as this Chromium code, not ERR_PROXY_*.
+  it('classifies Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies a Chromium socket-to-proxies failure as proxy', () => {
+    const result = classifyError(
+      makeError({ message: 'Failed to establish a socket connection to proxies: PROXY 127.0.0.1:7890' })
+    )
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies an undici ProxyAgent CONNECT failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'Proxy response (407) !== 200 when HTTP Tunneling' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies an https-proxy-agent CONNECT close as proxy', () => {
+    const result = classifyError(makeError({ message: 'Proxy connection ended before receiving CONNECT response' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('still classifies a SOCKS failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'Socks5 proxy rejected connection' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('still classifies a certificate failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'unable to verify the first certificate' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('does not match plain "proxy" without qualifier', () => {
+    const result = classifyError(makeError({ message: 'something proxy related' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not classify reverse-proxy configuration as a proxy transport failure', () => {
+    const result = classifyError(makeError({ message: 'reverse proxies are configured' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not classify proxying prose as a proxy transport failure', () => {
+    const result = classifyError(makeError({ message: 'proxying requests through a local gateway' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not treat an unrelated ERR_ token near proxy configuration prose as a proxy failure', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_INVALID_ARGUMENT in proxy configuration' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
   // Status as string
   it('handles status as string', () => {
     const result = classifyError(makeError({ status: '401' }))

@@ -210,9 +210,7 @@ describe('ModelListSyncDrawer', () => {
   it('shows search matches inside collapsed groups and restores the collapsed state after search', () => {
     renderDrawer()
 
-    // The row carries an explicit `group`, which the drawer honours like the main
-    // list does — so its section header is that group, not the id-derived one.
-    fireEvent.click(screen.getByText('OpenAI').closest('button')!)
+    fireEvent.click(screen.getByText('legacy').closest('button')!)
     expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {

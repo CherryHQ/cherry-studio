@@ -2362,6 +2362,60 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1000000,
+      "family": "qwen",
+      "id": "qwen3-8-flash",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Qwen 3.8 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.016
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.16
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.47
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
+      }
+    },
+    {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -7616,7 +7670,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.09999999999999999
         }
       },
       "reasoning": {
@@ -8881,6 +8935,36 @@
           "perMillionTokens": 21
         }
       }
+    },
+    {
+      "capabilities": ["audio-recognition"],
+      "family": "gemini",
+      "id": "gemini-3-5-transcribe",
+      "inputModalities": ["audio"],
+      "metadata": {},
+      "name": "Gemini 3.5 Transcribe",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      }
+    },
+    {
+      "capabilities": ["audio-recognition"],
+      "family": "gemini",
+      "id": "gemini-3-5-transcribe-live",
+      "inputModalities": ["audio"],
+      "metadata": {},
+      "name": "Gemini 3.5 Transcribe Live",
+      "outputModalities": ["text"],
+      "ownedBy": "google"
     },
     {
       "capabilities": [
@@ -16443,19 +16527,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.4
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 6.875
+          "perMillionTokens": 5
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 5.5
+          "perMillionTokens": 4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 33
+          "perMillionTokens": 20
         }
       },
       "reasoning": {
@@ -17284,6 +17368,7 @@
       "maxOutputTokens": 16384,
       "metadata": {},
       "name": "GPT OSS Safeguard 20B",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -18685,13 +18770,12 @@
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
       "family": "Hy",
-      "group": "hy",
       "id": "hy3",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "Hy3",
+      "name": "Hunyuan 3",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
@@ -18713,23 +18797,21 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high"]
+            "values": ["none", "low", "high"]
           }
         ],
-        "supportedEfforts": ["none", "high"]
+        "supportedEfforts": ["none", "low", "high"]
       }
     },
     {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
-      "family": "Hy",
-      "group": "hy",
       "id": "hy3-preview",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "Hy3 preview",
+      "name": "Hunyuan 3 Preview",
       "outputModalities": ["text"],
       "ownedBy": "tencent",
       "pricing": {
@@ -18741,50 +18823,6 @@
           "currency": "USD",
           "perMillionTokens": 0.6
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "high"]
-          }
-        ],
-        "supportedEfforts": ["none", "high"]
-      }
-    },
-    {
-      "capabilities": ["reasoning", "function-call"],
-      "contextWindow": 1048576,
-      "family": "Hy",
-      "group": "hy",
-      "id": "hy4-preview",
-      "maxInputTokens": 983040,
-      "maxOutputTokens": 65536,
-      "metadata": {},
-      "name": "Hy4 preview",
-      "ownedBy": "tencent",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.042
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.834
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.501
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "high"]
-          }
-        ],
-        "supportedEfforts": ["none", "high"]
       }
     },
     {
@@ -19101,6 +19139,16 @@
           "perMillionTokens": 1.9
         }
       }
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
+      "family": "muse",
+      "id": "muse-image-1-0",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Muse Image 1.0",
+      "outputModalities": ["image"],
+      "ownedBy": "vercel"
     },
     {
       "capabilities": [
@@ -21424,6 +21472,53 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1000000,
+      "family": "glm",
+      "id": "glm-5-3-flash",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "GLM-5.3-Flash",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.015
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning"],
       "contextWindow": 202752,
       "family": "glm",
@@ -21620,5 +21715,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "54e786cb34cef5aa"
+  "version": "9735d06648aee6dd"
 }

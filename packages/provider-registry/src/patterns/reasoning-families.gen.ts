@@ -216,10 +216,9 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // tencent
   { pattern: '^hunyuan-a13b', toggle: true },
   { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
-  { pattern: '^hy3', effort: ['none', 'high'] },
-  { pattern: '^hy4', effort: ['none', 'high'] },
   { pattern: 'hunyuan-t1' },
   { pattern: 'hunyuan-a13b' },
+  { pattern: '^hy3' },
   // upstage
   { pattern: '^solar-pro-?[2-9]' },
   // vercel
@@ -235,6 +234,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
+  { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },
   { pattern: 'glm-?5|glm-4[.-][567]', toggle: true },
   { pattern: 'glm-zero-preview' },
   { pattern: 'glm-z1' }

@@ -54,7 +54,6 @@ import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
 import p_together from './together'
 import p_tokenhub from './tokenhub'
-import p_token_plan from './token-plan'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
@@ -113,7 +112,6 @@ export const PROVIDERS: Provider[] = [
   p_modelscope,
   p_xirang,
   p_tokenhub,
-  p_token_plan,
   p_baidu_cloud,
   p_gpustack,
   p_voyageai,
