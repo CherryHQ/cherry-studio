@@ -1,5 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useApiGatewayProvider } from '../useApiGatewayProvider'
@@ -12,7 +12,9 @@ const mocks = vi.hoisted(() => ({
     enabled: boolean
   },
   apiGatewayRunning: false,
-  startApiGateway: vi.fn<() => Promise<boolean>>()
+  startApiGateway: vi.fn<() => Promise<boolean>>(),
+  cachedApiKey: null as string | null,
+  preferenceChanged: undefined as (() => void) | undefined
 }))
 
 vi.mock('@renderer/hooks/useApiGateway', () => ({
@@ -24,7 +26,16 @@ vi.mock('@renderer/hooks/useApiGateway', () => ({
 }))
 
 vi.mock('@data/PreferenceService', () => ({
-  preferenceService: { get: vi.fn() }
+  preferenceService: {
+    get: vi.fn(),
+    getCachedValue: vi.fn(() => mocks.cachedApiKey),
+    subscribeChange: vi.fn(() => (callback: () => void) => {
+      mocks.preferenceChanged = callback
+      return () => {
+        if (mocks.preferenceChanged === callback) mocks.preferenceChanged = undefined
+      }
+    })
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -35,8 +46,12 @@ describe('useApiGatewayProvider.ensureReady', () => {
   beforeEach(() => {
     mocks.apiGatewayConfig = { host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-old', enabled: false }
     mocks.apiGatewayRunning = false
+    mocks.cachedApiKey = null
+    mocks.preferenceChanged = undefined
     mocks.startApiGateway.mockReset()
     vi.mocked(preferenceService.get).mockReset()
+    vi.mocked(preferenceService.getCachedValue).mockClear()
+    vi.mocked(preferenceService.subscribeChange).mockClear()
   })
 
   it('rejects (never returns a stale key) when a non-running gateway fails to start', async () => {
@@ -59,6 +74,23 @@ describe('useApiGatewayProvider.ensureReady', () => {
     const { result } = renderHook(() => useApiGatewayProvider())
 
     await expect(result.current!.ensureReady()).resolves.toBe('cs-sk-fresh')
+  })
+
+  it('waits for the generated key when the renderer cache has not received the start update yet', async () => {
+    mocks.apiGatewayRunning = false
+    mocks.startApiGateway.mockResolvedValue(true)
+    vi.mocked(preferenceService.get).mockResolvedValue(null)
+
+    const { result } = renderHook(() => useApiGatewayProvider())
+    const keyPromise = result.current!.ensureReady()
+    await vi.waitFor(() => expect(preferenceService.subscribeChange).toHaveBeenCalled())
+
+    act(() => {
+      mocks.cachedApiKey = 'cs-sk-generated'
+      mocks.preferenceChanged?.()
+    })
+
+    await expect(keyPromise).resolves.toBe('cs-sk-generated')
   })
 
   it('returns the key without starting when the gateway is already running', async () => {

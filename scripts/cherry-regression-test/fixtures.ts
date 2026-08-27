@@ -62,7 +62,7 @@ export async function createFixtures(paths: RunPaths): Promise<FixtureManifest> 
 
   const selectionFile = join(paths.fixtures, 'selection.txt')
   const translationFile = join(paths.fixtures, 'translation.txt')
-  writeFileSync(selectionFile, `${FIXTURE_MARKERS.selection}\n`)
+  writeFileSync(selectionFile, `The validation label printed on this document is ${FIXTURE_MARKERS.selection}.\n`)
   writeFileSync(translationFile, `${FIXTURE_MARKERS.translation}\n`)
 
   writeFileSync(

@@ -160,15 +160,25 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'if (-not $dialog) { throw "Native file dialog was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
       `if (-not $shell.AppActivate(${electronPid})) { throw "Native file dialog could not be activated" }`,
+      '$dialog.SetFocus()',
       'Start-Sleep -Milliseconds 300',
       ...(isDirectory
         ? [
             '[System.Windows.Forms.SendKeys]::SendWait("^l")',
             'Start-Sleep -Milliseconds 200',
-            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
+            '$pathInput = [System.Windows.Automation.AutomationElement]::FocusedElement',
+            '$valuePattern = $pathInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
+            `$valuePattern.SetValue('${escapePowerShell(filePath)}')`,
             '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
             'Start-Sleep -Milliseconds 750',
-            '[System.Windows.Forms.SendKeys]::SendWait("%s")'
+            '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+            '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
+            'if (-not $dialog) { throw "Native folder dialog closed before selection" }',
+            '$acceptCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1")',
+            '$acceptButton = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $acceptCondition)',
+            'if (-not $acceptButton) { throw "Native folder accept button was not found" }',
+            '$acceptButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()',
+            'Start-Sleep -Milliseconds 500'
           ]
         : [
             '[System.Windows.Forms.SendKeys]::SendWait("%n")',

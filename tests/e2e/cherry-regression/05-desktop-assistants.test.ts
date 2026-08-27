@@ -78,6 +78,15 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
     async ({ model, providerId }) => {
       await window.api.preference.setMultiple({
         'chat.default_model_id': `${providerId}::${model}`,
+        'feature.selection.action_items': [
+          {
+            enabled: true,
+            id: 'regression-label',
+            isBuiltIn: false,
+            name: 'Read validation label',
+            prompt: 'What validation label is printed in the selected sentence? Include the label in your answer.'
+          }
+        ],
         'feature.selection.enabled': true,
         'feature.selection.trigger_mode': 'shortcut',
         'shortcut.selection.capture_text': {
@@ -92,11 +101,11 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await closeSettings(page)
 
   const selection = await app.window('/windows/selection/toolbar/')
-  await expect(selection.getByText('Explain', { exact: true })).toBeVisible()
-  await expect(selection.getByText('Translate', { exact: true })).toBeVisible()
+  const readLabel = selection.getByRole('button', { name: 'Read validation label', exact: true })
+  await expect(readLabel).toBeVisible()
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
   sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 'k'])
-  await selection.getByRole('button', { name: 'Explain', exact: true }).click({ force: true })
+  await readLabel.click({ force: true })
   const action = await app.window('/windows/selection/action/')
   await expect(action.locator('body')).toContainText('SELECTION_ASSISTANT_PASS', { timeout: 2 * 60_000 })
   await expect(action.locator('body')).not.toContainText('Invalid signature')

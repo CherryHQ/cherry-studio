@@ -28,22 +28,23 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     const page = await app.useProfile(profile)
     await use(page)
 
+    const currentPage = await app.mainWindow().catch(() => page)
     if (testInfo.status !== testInfo.expectedStatus) {
-      await page
+      await currentPage
         .locator('input[type="password"]')
         .evaluateAll((inputs) => {
           for (const input of inputs) (input as HTMLInputElement).value = ''
         })
         .catch(() => undefined)
       const screenshotPath = testInfo.outputPath('failure.png')
-      const captured = await page.screenshot({ path: screenshotPath, fullPage: true }).then(
+      const captured = await currentPage.screenshot({ path: screenshotPath, fullPage: true }).then(
         () => true,
         () => false
       )
       if (captured) await testInfo.attach('失败截图', { path: screenshotPath, contentType: 'image/png' })
     }
 
-    await app.cleanupTransientUi(page)
+    await app.cleanupTransientUi(currentPage)
   }
 })
 

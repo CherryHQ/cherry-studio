@@ -101,9 +101,11 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
 
-  const stop = codeView.getByRole('button', { name: 'Stop', exact: true })
+  await page.getByRole('banner').getByRole('button', { name: 'Code Mate', exact: true }).last().click()
+  const activeCodeView = page.locator('[data-ui="code.view"]:visible').first()
+  const stop = activeCodeView.getByRole('button', { name: 'Stop', exact: true })
   await expect(stop).toBeVisible()
   await stop.click()
-  await expect(codeView.getByRole('button', { name: 'Launch', exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(activeCodeView.getByRole('button', { name: 'Launch', exact: true })).toBeVisible({ timeout: 60_000 })
   await expect.poll(() => observeOwnedProcess(app.record, 'openclaw', false).passed, { timeout: 60_000 }).toBe(true)
 })

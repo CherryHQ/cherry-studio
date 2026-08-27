@@ -9,8 +9,9 @@ import { saveNativeFile } from '../../../scripts/cherry-regression-test/system-a
 
 const IMAGE_PROMPT = 'A red cherry robot holding a blue umbrella in a bright workshop, detailed illustration.'
 
-test('[M-01] 登录 CherryIN 并完成聊天 @cherryin-chat', async ({ app, mainWindow }) => {
-  let page = mainWindow
+test('[M-01] 登录 CherryIN 并完成聊天 @cherryin-chat', async ({ app, mainWindow: _mainWindow }) => {
+  let page = await app.restart('authenticated')
+  await dismissOnboarding(page)
   await ensureCherryInSignedIn(app, page)
   await addCherryInModel(page, app.config.cherryIn.chatModel)
   await closeSettings(page)
