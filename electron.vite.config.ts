@@ -76,6 +76,8 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/agent-permission/node': resolve('packages/agent-permission/src/node.ts'),
+        '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts'),
         '@test-mocks': resolve('tests/__mocks__'),
         '@test-helpers': resolve('tests/helpers')
       }
@@ -169,6 +171,7 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts'),
         '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),

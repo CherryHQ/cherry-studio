@@ -7,6 +7,14 @@
     "moduleResolution": "bundler",
     "paths": {
       "@application": ["./src/main/core/application/Application"],
+      "@cherrystudio/agent-permission": ["./packages/agent-permission/src/index.ts"],
+      "@cherrystudio/agent-permission/node": ["./packages/agent-permission/src/node.ts"],
+      "@cherrystudio/ai-core": ["./packages/aiCore/src"],
+      "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
+      "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in"],
+      "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers"],
+      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src"],
+      "@cherrystudio/ai-sdk-provider/*": ["./packages/ai-sdk-provider/src/*"],
       "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
       "@cherrystudio/provider-registry/node": ["./packages/provider-registry/src/registry-loader.ts"],
       "@data/*": ["./src/main/data/*"],
@@ -14,12 +22,6 @@
       "@main/*": ["./src/main/*"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
       "@shared/*": ["./src/shared/*"],
-      "@cherrystudio/ai-core": ["./packages/aiCore/src"],
-      "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
-      "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers"],
-      "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in"],
-      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src"],
-      "@cherrystudio/ai-sdk-provider/*": ["./packages/ai-sdk-provider/src/*"],
       "@test-helpers/*": ["./tests/helpers/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"]
     },
@@ -27,6 +29,7 @@
     "types": ["electron-vite/node", "vitest/globals"],
     "useDefineForClassFields": true
   },
+  "exclude": ["packages/aiCore/src/**/__tests__", "packages/aiCore/test_utils"],
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
@@ -35,11 +38,11 @@
     "src/main/env.d.ts",
     "src/preload/**/*",
     "packages/provider-registry/**/*",
+    "packages/agent-permission/src/**/*",
     "packages/aiCore/src/**/*",
     "packages/ai-sdk-provider/src/**/*",
     "src/shared/**/*",
     "tests/__mocks__/**/*",
     "tests/helpers/**/*"
-  ],
-  "exclude": ["packages/aiCore/src/**/__tests__", "packages/aiCore/test_utils"]
+  ]
 }

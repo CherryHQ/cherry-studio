@@ -55,6 +55,24 @@ export default defineConfig({
           }
         }
       },
+      // Runtime-neutral permission package tests
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/agent-permission/node': resolve('packages/agent-permission/src/node.ts'),
+            '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts')
+          }
+        },
+        test: {
+          name: 'agent-permission',
+          environment: 'node',
+          include: [
+            'packages/agent-permission/src/**/*.{test,spec}.{ts,tsx}',
+            'packages/agent-permission/src/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
+      },
       // 渲染进程单元测试配置
       {
         extends: true,
