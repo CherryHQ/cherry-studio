@@ -168,25 +168,6 @@ export const useKnowledge = (baseId: string) => {
       })
       checkAllBases()
     }
-
-    const removalParams = {
-      uniqueId: item.uniqueId,
-      uniqueIds: item.uniqueIds,
-      base: getKnowledgeBaseParams(base)
-    }
-
-    await window.api.knowledgeBase.remove(removalParams)
-
-    updateItem({
-      ...item,
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      uniqueId: undefined,
-      retryCount: 0,
-      updated_at: Date.now()
-    })
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
   // 更新处理状态
