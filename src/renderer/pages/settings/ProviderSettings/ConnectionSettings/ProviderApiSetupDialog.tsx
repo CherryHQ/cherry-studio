@@ -43,7 +43,6 @@ import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSet
 import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
 import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
 
-const SUCCESS_FEEDBACK_DURATION_MS = 1200
 const VERIFICATION_STEP_FEEDBACK_DURATION_MS = 400
 
 export type ProviderApiSetupInitialStep = 'api-key' | 'models'
@@ -171,15 +170,6 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       onClose()
     }, DIALOG_UNMOUNT_DELAY_MS)
   }, [clearCloseTimer, onClose])
-
-  useEffect(() => {
-    if (!setupSucceeded) {
-      return
-    }
-
-    const timer = setTimeout(requestClose, SUCCESS_FEEDBACK_DURATION_MS)
-    return () => clearTimeout(timer)
-  }, [requestClose, setupSucceeded])
 
   const createError = useCallback(
     (kind: SetupErrorKind, fallbackKey: string, cause: unknown): SetupError => {
@@ -633,7 +623,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
               {error?.kind !== 'models' && error ? <SetupErrorMessage message={error.message} /> : null}
             </div>
           ) : (
-            <ol className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle">
+            <ol className="space-y-1 px-1">
               {verificationSteps.map(({ id, label }) => {
                 let status: VerificationStepStatus = 'pending'
                 if (completedVerificationSteps.has(id)) {
@@ -678,16 +668,28 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           )}
 
           {step === 'verification' ? (
-            !setupSucceeded && !requiresManualConfirmation ? (
+            !requiresManualConfirmation ? (
               <DialogFooter className="flex-row items-center justify-end sm:justify-end">
-                {error && hasStoredApiKey ? (
-                  <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
-                    {t('settings.provider.api_setup.edit_key')}
+                {setupSucceeded ? (
+                  <Button type="button" onClick={requestClose}>
+                    {t('common.close')}
                   </Button>
-                ) : null}
-                <Button type="button" loading={isBusy} disabled={!probeModel} onClick={() => void verifyAndEnable()}>
-                  {t('settings.provider.api_setup.verify_and_enable')}
-                </Button>
+                ) : (
+                  <>
+                    {error && hasStoredApiKey ? (
+                      <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
+                        {t('settings.provider.api_setup.edit_key')}
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      loading={isBusy}
+                      disabled={!probeModel}
+                      onClick={() => void verifyAndEnable()}>
+                      {t('settings.provider.api_setup.verify_and_enable')}
+                    </Button>
+                  </>
+                )}
               </DialogFooter>
             ) : null
           ) : (
@@ -781,12 +783,12 @@ function VerificationProgressRow({
     <li
       aria-current={status === 'active' ? 'step' : undefined}
       aria-label={statusText ? `${label} ${statusText}` : label}
-      className="flex min-h-12 items-start gap-3 px-3 py-3">
+      className="flex min-h-11 items-start gap-3 px-1.5 py-2.5">
       <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-3">
           <span className={cn('min-w-0 flex-1 text-sm', status === 'pending' && 'text-muted-foreground')}>{label}</span>
-          {statusText ? (
+          {statusText && status !== 'complete' ? (
             <span
               role={status === 'active' || status === 'warning' ? 'status' : undefined}
               className={cn(

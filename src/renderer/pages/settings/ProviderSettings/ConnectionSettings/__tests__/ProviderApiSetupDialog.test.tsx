@@ -403,6 +403,7 @@ describe('ProviderApiSetupDialog', () => {
     expect(within(activeCheckStep).getByRole('status')).toHaveTextContent('common.loading')
     expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { timeout: 15000 })
     expect(enableProviderMock).not.toHaveBeenCalled()
+    const verificationFooter = screen.getByTestId('dialog-footer')
 
     resolveCheck?.({ latency: 12 })
     expect(
@@ -421,6 +422,13 @@ describe('ProviderApiSetupDialog', () => {
     ]) {
       expect(screen.getByRole('listitem', { name: `${stepName} common.success` })).toBeInTheDocument()
     }
+    expect(screen.getByTestId('dialog-footer')).toBe(verificationFooter)
+    const closeButton = screen.getByRole('button', { name: 'common.close' })
+    vi.useFakeTimers()
+    await act(async () => vi.advanceTimersByTime(2000))
+    expect(onClose).not.toHaveBeenCalled()
+    vi.useRealTimers()
+    await user.click(closeButton)
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1), { timeout: 2500 })
   })
 
