@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.description_too_long': 'The problem description is too long',
     'settings.about.diagnostics.report.failure_reasons.service_unavailable': 'The report service is unavailable.',
     'settings.about.diagnostics.report.feedback_id': 'Feedback ID',
+    'settings.about.diagnostics.report.open_location': 'Open location',
     'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
     'settings.about.diagnostics.report.retry': 'Retry',
     'settings.about.diagnostics.report.retry_unknown_description':
@@ -34,6 +35,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.retry_unknown_title': 'Retry diagnostic report?',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
+    'settings.about.diagnostics.report.saved_to_downloads': 'Saved to your Downloads folder',
     'settings.about.diagnostics.ranges.3d': 'Last 3 days',
     'settings.about.diagnostics.sources.logs.title': 'App logs',
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
@@ -293,7 +295,10 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.getByText('The report service is unavailable.')).toBeInTheDocument()
     expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
 
-    await user.click(screen.getByRole('button', { name: 'Show in folder' }))
+    const savedBundle = screen.getByRole('region', { name: 'Saved to your Downloads folder' })
+    expect(within(savedBundle).getByText('cherry-studio-diagnostics.zip')).toBeInTheDocument()
+    expect(within(savedBundle).getByText('Saved to your Downloads folder')).toBeInTheDocument()
+    await user.click(within(savedBundle).getByRole('button', { name: 'Open location' }))
     expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path: fallbackPath })
     const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
     const retry = screen.getByRole('button', { name: 'Retry' })
@@ -326,7 +331,11 @@ describe('DiagnosticUploadDialog', () => {
 
     expect(await screen.findByText('Submission result is unknown')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manual feedback' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show in folder' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Saved to your Downloads folder' })).toHaveTextContent(
+      'cherry-studio-diagnostics.zip'
+    )
+    expect(screen.getByRole('button', { name: 'Open location' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show in folder' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     let confirmation = screen.getByRole('dialog', { name: 'Retry diagnostic report?' })

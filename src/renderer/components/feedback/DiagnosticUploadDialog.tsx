@@ -219,7 +219,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
 
           <Scrollbar className="min-h-0 px-6 py-2">
             {result ? (
-              <UploadResultContent result={result} />
+              <UploadResultContent result={result} onReveal={revealBundle} />
             ) : submissionStatus === 'submission_unknown_fallback_save_failed' ? (
               <SubmissionUnknownFallbackSaveFailedContent />
             ) : (
@@ -346,11 +346,6 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                   onClick={() => handleOpenChange(false)}>
                   {t('settings.about.diagnostics.actions.close')}
                 </Button>
-                {result.status !== 'uploaded' ? (
-                  <Button variant="outline" onClick={() => void revealBundle()}>
-                    {t('settings.about.diagnostics.actions.reveal')}
-                  </Button>
-                ) : null}
                 {result.status === 'submission_failed' ? (
                   <Button variant="outline" onClick={() => void openManualForm()}>
                     {t('settings.about.diagnostics.report.open_manual_form')}
@@ -413,7 +408,13 @@ function SubmissionUnknownFallbackSaveFailedContent() {
   )
 }
 
-function UploadResultContent({ result }: { readonly result: UploadResult }) {
+function UploadResultContent({
+  result,
+  onReveal
+}: {
+  readonly result: UploadResult
+  readonly onReveal: () => Promise<void>
+}) {
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
     return (
@@ -449,7 +450,17 @@ function UploadResultContent({ result }: { readonly result: UploadResult }) {
           isUnknown ? t('settings.about.diagnostics.upload.unknown.description') : failureReasonText(t, result.reason)
         }
       />
-      <p className="break-all text-xs">{result.fileName}</p>
+      <section
+        aria-label={t('settings.about.diagnostics.report.saved_to_downloads')}
+        className="flex items-center justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <p className="break-all text-sm">{result.fileName}</p>
+          <p className="text-muted-foreground text-xs">{t('settings.about.diagnostics.report.saved_to_downloads')}</p>
+        </div>
+        <Button variant="link" className="h-auto shrink-0 px-0 py-0" onClick={() => void onReveal()}>
+          {t('settings.about.diagnostics.report.open_location')}
+        </Button>
+      </section>
     </div>
   )
 }
