@@ -2,7 +2,8 @@ import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import type { ComponentType } from 'react'
 
-export type FilePreviewFileMetadata = Pick<Extract<PhysicalFileMetadata, { kind: 'file' }>, 'size'>
+/** Both fields are what a `SelectionReference.fileStamp` is made of, so a plugin can build one. */
+export type FilePreviewFileMetadata = Pick<Extract<PhysicalFileMetadata, { kind: 'file' }>, 'size' | 'modifiedAt'>
 export type FilePreviewType = 'artifact' | 'file'
 
 export interface FilePreviewPluginProps {
