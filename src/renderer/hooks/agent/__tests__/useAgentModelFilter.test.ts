@@ -3,7 +3,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../useAgentModelFilter'
+import { modelFilterIncludesAgentOnlyProviders, useAgentModelDisabled, useAgentModelFilter } from '../useAgentModelFilter'
 
 const mocks = vi.hoisted(() => ({
   cloudAvailability: {
@@ -82,11 +82,11 @@ describe('useAgentModelFilter', () => {
       quotaExhaustedModelIds: [exhaustedModel.id]
     }
 
-    const { result } = renderHook(() => useAgentModelFilter('pi'))
+    const { result } = renderHook(() => useAgentModelDisabled())
 
-    expect(result.current.isModelDisabled?.(exhaustedModel)).toBe(true)
-    expect(result.current.isModelDisabled?.(availableModel)).toBe(false)
-    expect(result.current.isModelDisabled?.(model())).toBe(false)
+    expect(result.current(exhaustedModel)).toBe(true)
+    expect(result.current(availableModel)).toBe(false)
+    expect(result.current(model())).toBe(false)
   })
 
   describe('pi agents', () => {

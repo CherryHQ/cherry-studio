@@ -410,9 +410,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   const open = openProp ?? internalOpen
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
   const isSelectionDisabled = useCallback(
-    (model: Model, provider?: Provider) =>
-      Boolean(isModelDisabled?.(model, provider)) || Boolean(filter?.isModelDisabled?.(model, provider)),
-    [filter, isModelDisabled]
+    (model: Model, provider?: Provider) => Boolean(isModelDisabled?.(model, provider)),
+    [isModelDisabled]
   )
 
   // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while

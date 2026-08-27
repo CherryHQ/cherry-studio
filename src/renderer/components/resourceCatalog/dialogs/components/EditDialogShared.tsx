@@ -25,7 +25,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
@@ -67,7 +67,7 @@ export type ModelLabels = Record<ModelLabelKey, string | null>
 export type EditDialogBaseProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
   /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
   initialTab?: string
 }
@@ -686,6 +686,7 @@ export function CompactModelField({
   allowClear = false,
   emptyLabel,
   filter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -702,7 +703,8 @@ export function CompactModelField({
   allowClear?: boolean
   /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
   emptyLabel?: string
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -745,6 +747,7 @@ export function CompactModelField({
                 selectionType="id"
                 value={selectorValue}
                 filter={filter}
+                isModelDisabled={isModelDisabled}
                 portalContainer={portalContainer}
                 onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {

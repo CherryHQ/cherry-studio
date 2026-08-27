@@ -32,10 +32,7 @@ const CHERRY_CLOUD_AVAILABILITY_KEY = 'agent/cherry-cloud-model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
-type AgentModelFilter = ModelPredicate & {
-  [AGENT_ONLY_FILTER]?: true
-  isModelDisabled?: ModelPredicate
-}
+type AgentModelFilter = ModelPredicate & { [AGENT_ONLY_FILTER]?: true }
 
 /** True when `filter` came from {@link useAgentModelFilter} (may include agent-only providers). */
 export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) => boolean): boolean {
@@ -47,6 +44,19 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) =>
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
 export function useAgentModelFilter(agentType: AgentType | undefined): AgentModelFilter {
+  return useMemo<AgentModelFilter>(() => {
+    const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
+    const predicate: AgentModelFilter = (model, provider) => {
+      if (!baseAgentFilter(model)) return false
+      return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
+    }
+    predicate[AGENT_ONLY_FILTER] = true
+    return predicate
+  }, [agentType])
+}
+
+/** Returns the Agent selector rule for models that stay visible but cannot be selected. */
+export function useAgentModelDisabled(): ModelPredicate {
   const { data: cloudAvailability } = useSWR(
     CHERRY_CLOUD_AVAILABILITY_KEY,
     () => ipcApi.request('cherry_cloud.models.sync'),
@@ -58,18 +68,12 @@ export function useAgentModelFilter(agentType: AgentType | undefined): AgentMode
     }
   )
 
-  return useMemo<AgentModelFilter>(() => {
-    const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    const predicate: AgentModelFilter = (model, provider) => {
-      if (!baseAgentFilter(model)) return false
-      return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
-    }
-    predicate[AGENT_ONLY_FILTER] = true
-    predicate.isModelDisabled = (model) =>
+  return useMemo(
+    () => (model: Model) =>
       isManagedCherryCloudModel(model.providerId) &&
       (!cloudAvailability ||
         !cloudAvailability.entitledModelIds.includes(model.id) ||
-        cloudAvailability.quotaExhaustedModelIds.includes(model.id))
-    return predicate
-  }, [agentType, cloudAvailability])
+        cloudAvailability.quotaExhaustedModelIds.includes(model.id)),
+    [cloudAvailability]
+  )
 }

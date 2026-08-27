@@ -15,6 +15,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
@@ -75,6 +76,7 @@ import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
+  isModelDisabled?: ModelSelectorFilter
 }
 
 type AgentEditFormValues = {
@@ -229,7 +231,14 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
 }
 
-export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, initialTab }: AgentEditDialogProps) {
+export function AgentEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  modelFilter,
+  isModelDisabled,
+  initialTab
+}: AgentEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -238,6 +247,7 @@ export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, ini
       open={open}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
+      isModelDisabled={isModelDisabled}
       initialTab={initialTab}
     />
   )
@@ -248,8 +258,9 @@ function AgentEditDialogContent({
   open,
   onOpenChange,
   modelFilter,
+  isModelDisabled,
   initialTab
-}: EditDialogBaseProps & { resource: AgentDetail }) {
+}: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
@@ -507,6 +518,7 @@ function AgentEditDialogContent({
           <AgentBasicFields
             form={form}
             modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -557,6 +569,7 @@ function AgentEditDialogContent({
 function AgentBasicFields({
   form,
   modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -568,7 +581,8 @@ function AgentBasicFields({
   agentType
 }: {
   form: UseFormReturn<AgentEditFormValues>
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -603,6 +617,7 @@ function AgentBasicFields({
         name="modelId"
         label={t('library.config.agent.field.model.label')}
         filter={modelFilter}
+        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
@@ -619,6 +634,7 @@ function AgentBasicFields({
             label={t('library.config.agent.field.plan_model.label')}
             allowClear
             filter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -633,6 +649,7 @@ function AgentBasicFields({
             label={t('library.config.agent.field.small_model.label')}
             allowClear
             filter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}

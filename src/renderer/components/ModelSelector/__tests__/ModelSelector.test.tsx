@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
-import type { FlatListItem, ModelSelectorFilter, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
+import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
 const mocks = vi.hoisted(() => ({
   bottomActions: [] as SelectorShellBottomAction[],
@@ -330,16 +330,14 @@ describe('ModelSelector', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('honors the disabled state supplied by a model filter', async () => {
+  it('honors the explicitly supplied disabled state', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
-    const filter: ModelSelectorFilter = () => true
-    filter.isModelDisabled = (model) => model.id === 'openai::gpt-4'
     render(
       <ModelSelector
         open
         multiple={false}
-        filter={filter}
+        isModelDisabled={(model) => model.id === 'openai::gpt-4'}
         trigger={<button type="button">open</button>}
         onSelect={onSelect}
       />

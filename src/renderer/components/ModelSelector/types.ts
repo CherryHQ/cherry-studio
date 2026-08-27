@@ -9,10 +9,7 @@ export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
 export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
-export interface ModelSelectorFilter {
-  (model: Model, provider?: Provider): boolean
-  isModelDisabled?: (model: Model, provider?: Provider) => boolean
-}
+export type ModelSelectorFilter = (model: Model, provider?: Provider) => boolean
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
