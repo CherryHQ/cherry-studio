@@ -25,7 +25,8 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.description_label': 'Problem description',
     'settings.about.diagnostics.report.description_required': 'A problem description is required',
     'settings.about.diagnostics.report.description_too_long': 'The problem description is too long',
-    'settings.about.diagnostics.report.failure_reasons.service_unavailable': 'The report service is unavailable.',
+    'settings.about.diagnostics.report.failure_reasons.service_unavailable':
+      'The diagnostic report service is temporarily unavailable. Try again later or use manual feedback.',
     'settings.about.diagnostics.report.feedback_id': 'Feedback ID',
     'settings.about.diagnostics.report.open_location': 'Open location',
     'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
@@ -35,7 +36,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.retry_unknown_title': 'Retry diagnostic report?',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
-    'settings.about.diagnostics.report.saved_to_downloads': 'Saved to your Downloads folder',
+    'settings.about.diagnostics.report.saved_locally': 'Saved locally',
     'settings.about.diagnostics.ranges.3d': 'Last 3 days',
     'settings.about.diagnostics.sources.logs.title': 'App logs',
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
@@ -292,12 +293,16 @@ describe('DiagnosticUploadDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
     expect(await screen.findByText('Diagnostic report was not submitted')).toBeInTheDocument()
-    expect(screen.getByText('The report service is unavailable.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'The diagnostic report service is temporarily unavailable. Try again later or use manual feedback.'
+      )
+    ).toBeInTheDocument()
     expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
 
-    const savedBundle = screen.getByRole('region', { name: 'Saved to your Downloads folder' })
+    const savedBundle = screen.getByRole('region', { name: 'Saved locally' })
     expect(within(savedBundle).getByText('cherry-studio-diagnostics.zip')).toBeInTheDocument()
-    expect(within(savedBundle).getByText('Saved to your Downloads folder')).toBeInTheDocument()
+    expect(within(savedBundle).getByText('Saved locally')).toBeInTheDocument()
     await user.click(within(savedBundle).getByRole('button', { name: 'Open location' }))
     expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path: fallbackPath })
     const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
@@ -331,9 +336,7 @@ describe('DiagnosticUploadDialog', () => {
 
     expect(await screen.findByText('Submission result is unknown')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manual feedback' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Saved to your Downloads folder' })).toHaveTextContent(
-      'cherry-studio-diagnostics.zip'
-    )
+    expect(screen.getByRole('region', { name: 'Saved locally' })).toHaveTextContent('cherry-studio-diagnostics.zip')
     expect(screen.getByRole('button', { name: 'Open location' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show in folder' })).not.toBeInTheDocument()
 

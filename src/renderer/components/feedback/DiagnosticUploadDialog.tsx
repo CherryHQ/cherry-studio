@@ -451,11 +451,11 @@ function UploadResultContent({
         }
       />
       <section
-        aria-label={t('settings.about.diagnostics.report.saved_to_downloads')}
+        aria-label={t('settings.about.diagnostics.report.saved_locally')}
         className="flex items-center justify-between gap-4">
         <div className="min-w-0 space-y-1">
           <p className="break-all text-sm">{result.fileName}</p>
-          <p className="text-muted-foreground text-xs">{t('settings.about.diagnostics.report.saved_to_downloads')}</p>
+          <p className="text-muted-foreground text-xs">{t('settings.about.diagnostics.report.saved_locally')}</p>
         </div>
         <Button variant="link" className="h-auto shrink-0 px-0 py-0" onClick={() => void onReveal()}>
           {t('settings.about.diagnostics.report.open_location')}
