@@ -67,13 +67,62 @@ describe('useMiniAppVisibility', () => {
     })
   })
 
-  it('show flips a single row to enabled via updateAppStatus', () => {
+  it('show flips a single row to enabled via updateAppStatus', async () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.show(mocks.disabled[0]))
 
     expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
     expect(result.current.hidden).toEqual([])
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled')
+    await waitFor(() => {
+      expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
+    })
+  })
+
+  it('hides then shows a visible app back at its original index, not the tail', async () => {
+    const { result } = renderHook(() => useMiniAppVisibility())
+    const first = mocks.miniApps[0]
+
+    act(() => result.current.hide(first))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['b'])
+    expect(result.current.hidden.map((a) => a.appId)).toEqual(['c', 'a'])
+
+    act(() => result.current.show(first))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b'])
+    expect(result.current.hidden.map((a) => a.appId)).toEqual(['c'])
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('a', 'enabled')
+    await waitFor(() => {
+      expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
+    })
+  })
+
+  it('restores two hidden apps to original order even when shown in reverse', () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    act(() => result.current.hide(result.current.visible[0]))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c'])
+
+    act(() => result.current.show(stubApp('a')))
+    act(() => result.current.show(stubApp('b')))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('reset restores hidden apps to their original visible rank instead of appending', async () => {
+    const { result } = renderHook(() => useMiniAppVisibility())
+    const first = mocks.miniApps[0]
+
+    act(() => result.current.hide(first))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['b'])
+
+    act(() => result.current.reset())
+    expect(result.current.hidden).toEqual([])
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
+    await waitFor(() => {
+      expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
+    })
   })
 
   it('swap explicitly names every row in the move and keeps pinned rows visible', () => {

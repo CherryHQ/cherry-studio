@@ -3,7 +3,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { toast } from '@renderer/services/toast'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useMiniAppVisibility')
@@ -29,6 +29,44 @@ function reportFailure(t: (key: string) => string, fallbackKey: string) {
   }
 }
 
+function withEnabledStatus(app: MiniApp): MiniApp {
+  return app.status === 'enabled' ? app : { ...app, status: 'enabled' }
+}
+
+/** Insert `app` before the first visible row that originally followed it. Unknown rows append. */
+function insertMiniAppInOriginalOrder(
+  visible: MiniApp[],
+  app: MiniApp,
+  originalVisibleIds: readonly string[]
+): MiniApp[] {
+  const origIndex = originalVisibleIds.indexOf(app.appId)
+  if (origIndex < 0) return [...visible, app]
+  const insertAt = visible.findIndex((item) => originalVisibleIds.indexOf(item.appId) > origIndex)
+  if (insertAt < 0) return [...visible, app]
+  const next = visible.slice()
+  next.splice(insertAt, 0, app)
+  return next
+}
+
+function restoreHiddenMiniApps(
+  visible: MiniApp[],
+  hidden: MiniApp[],
+  originalVisibleIds: readonly string[]
+): MiniApp[] {
+  const known: MiniApp[] = []
+  const unknown: MiniApp[] = []
+  for (const app of hidden) {
+    if (originalVisibleIds.includes(app.appId)) known.push(withEnabledStatus(app))
+    else unknown.push(withEnabledStatus(app))
+  }
+  known.sort((a, b) => originalVisibleIds.indexOf(a.appId) - originalVisibleIds.indexOf(b.appId))
+  let next = visible
+  for (const app of known) {
+    next = insertMiniAppInOriginalOrder(next, app, originalVisibleIds)
+  }
+  return unknown.length === 0 ? next : [...next, ...unknown]
+}
+
 /**
  * Owns the visible / hidden list state for the mini-app display settings panel.
  *
@@ -46,6 +84,14 @@ export function useMiniAppVisibility() {
 
   const [visible, setVisible] = useState<MiniApp[]>(miniApps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
+  // Snapshot the first visible ranking so hide/show is not a reorder.
+  const originalVisibleIdsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    if (originalVisibleIdsRef.current.length === 0 && miniApps.length > 0) {
+      originalVisibleIdsRef.current = miniApps.map((app) => app.appId)
+    }
+  }, [miniApps])
 
   // Resync local optimistic state with the upstream cache, but skip the resync
   // when the membership / order / status of every row is unchanged. Reordering
@@ -85,15 +131,14 @@ export function useMiniAppVisibility() {
   }, [hidden, visible, setAppStatusBulk, t])
 
   const reset = useCallback(() => {
-    const newVisible = [...visible, ...hidden]
+    const newVisible = restoreHiddenMiniApps(visible, hidden, originalVisibleIdsRef.current)
     setVisible(newVisible)
     setHidden([])
-    // Promote everything currently hidden back to enabled — visible rows are
-    // already enabled / pinned and are not touched.
-    setAppStatusBulk(hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))).catch(
-      reportFailure(t, 'miniApps.update_partial_failure_generic')
-    )
-  }, [visible, hidden, setAppStatusBulk, t])
+    // Status flips tail-assign order keys; persist the restored ranking after enable.
+    setAppStatusBulk(hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const })))
+      .then(() => reorderMiniAppsByStatus('visible', newVisible))
+      .catch(reportFailure(t, 'miniApps.update_partial_failure_generic'))
+  }, [visible, hidden, setAppStatusBulk, reorderMiniAppsByStatus, t])
 
   const hide = useCallback(
     (app: MiniApp) => {
@@ -106,11 +151,14 @@ export function useMiniAppVisibility() {
 
   const show = useCallback(
     (app: MiniApp) => {
+      const nextVisible = insertMiniAppInOriginalOrder(visible, withEnabledStatus(app), originalVisibleIdsRef.current)
       setHidden((h) => h.filter((a) => a.appId !== app.appId))
-      setVisible((v) => [...v, app])
-      updateAppStatus(app.appId, 'enabled').catch(reportFailure(t, 'miniApp.show_failed'))
+      setVisible(nextVisible)
+      updateAppStatus(app.appId, 'enabled')
+        .then(() => reorderMiniAppsByStatus('visible', nextVisible))
+        .catch(reportFailure(t, 'miniApp.show_failed'))
     },
-    [updateAppStatus, t]
+    [visible, updateAppStatus, reorderMiniAppsByStatus, t]
   )
 
   const reorderVisible = useCallback(
