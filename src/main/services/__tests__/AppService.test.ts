@@ -2,12 +2,19 @@ import { BaseService } from '@main/core/lifecycle'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { setLoginItemSettingsMock, platform, mkdirMock, writeFileMock, rmMock } = vi.hoisted(() => ({
+const { setLoginItemSettingsMock, platform, mkdirMock, writeFileMock, rmMock, loggerErrorMock } = vi.hoisted(() => ({
   setLoginItemSettingsMock: vi.fn(),
   platform: { isDev: false, isLinux: false, isMac: false, isPortable: false, isWin: true },
   mkdirMock: vi.fn(),
   writeFileMock: vi.fn(),
-  rmMock: vi.fn()
+  rmMock: vi.fn(),
+  loggerErrorMock: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ debug: vi.fn(), error: loggerErrorMock, info: vi.fn(), warn: vi.fn() })
+  }
 }))
 
 vi.mock('@application', async () => {
@@ -61,6 +68,7 @@ describe('AppService', () => {
     mkdirMock.mockReset()
     writeFileMock.mockReset()
     rmMock.mockReset()
+    loggerErrorMock.mockReset()
     mkdirMock.mockResolvedValue(undefined)
     writeFileMock.mockImplementation(async (target: string) => {
       linuxFiles.add(target)
@@ -85,7 +93,7 @@ describe('AppService', () => {
 
     await service._doInit()
 
-    expect(setLoginItemSettingsMock).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(setLoginItemSettingsMock).toHaveBeenCalledOnce())
     expect(setLoginItemSettingsMock).toHaveBeenCalledWith({ openAtLogin: true })
   })
 
@@ -93,6 +101,7 @@ describe('AppService', () => {
     const service = new AppService()
     activeServices.push(service)
     await service._doInit()
+    await vi.waitFor(() => expect(setLoginItemSettingsMock).toHaveBeenCalledOnce())
     setLoginItemSettingsMock.mockClear()
 
     MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
@@ -110,6 +119,7 @@ describe('AppService', () => {
     const service = new AppService()
     activeServices.push(service)
     await service._doInit()
+    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
     rmMock.mockClear()
 
     const writeGate = deferred()
@@ -138,6 +148,7 @@ describe('AppService', () => {
     const service = new AppService()
     activeServices.push(service)
     await service._doInit()
+    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
     rmMock.mockClear()
 
     const writeGate = deferred()
@@ -172,6 +183,46 @@ describe('AppService', () => {
     await service._doInit()
     await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
     expect(linuxFiles.has(desktopFile)).toBe(false)
+  })
+
+  it('does not block startup on in-flight Linux reconciliation', async () => {
+    platform.isLinux = true
+    platform.isWin = false
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
+    const writeGate = deferred()
+    let writeStarted!: () => void
+    const writeStartedPromise = new Promise<void>((resolve) => {
+      writeStarted = resolve
+    })
+    writeFileMock.mockImplementation(async (target: string) => {
+      writeStarted()
+      await writeGate.promise
+      linuxFiles.add(target)
+    })
+    const service = new AppService()
+    activeServices.push(service)
+
+    await expect(service._doInit()).resolves.toBeUndefined()
+    await writeStartedPromise
+    expect(linuxFiles.has(desktopFile)).toBe(false)
+
+    writeGate.resolve()
+    await vi.waitFor(() => expect(linuxFiles.has(desktopFile)).toBe(true))
+  })
+
+  it('logs reconciler-driven Linux startup failures without blocking initialization', async () => {
+    platform.isLinux = true
+    platform.isWin = false
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
+    const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+    mkdirMock.mockRejectedValueOnce(error)
+    const service = new AppService()
+    activeServices.push(service)
+
+    await expect(service._doInit()).resolves.toBeUndefined()
+    await vi.waitFor(() => expect(loggerErrorMock).toHaveBeenCalledWith('Failed to reconcile launch on boot:', error))
+
+    expect(writeFileMock).not.toHaveBeenCalled()
   })
 
   describe('setAppLaunchOnBoot', () => {

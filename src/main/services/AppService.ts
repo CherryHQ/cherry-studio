@@ -29,7 +29,7 @@ export class AppService extends BaseService {
     onError: (error) => logger.error('Failed to reconcile launch on boot:', error as Error)
   })
 
-  protected async onInit(): Promise<void> {
+  protected onInit(): void {
     // Force a fresh OS sync after a stop→restart in case the setting changed while stopped.
     this.acceptingPreferenceChanges = true
     this.appliedLaunchOnBoot = undefined
@@ -43,7 +43,6 @@ export class AppService extends BaseService {
     )
     this.desiredLaunchOnBoot = preferenceService.get('app.launch_on_boot')
     this.launchOnBootReconciler.request()
-    await this.launchOnBootReconciler.flush()
   }
 
   protected async onStop(): Promise<void> {
