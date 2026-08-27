@@ -25,9 +25,10 @@ parts besides the edited worksheet this script ever rewrites.
 docx: 'paragraph' is the zero-based ordinal among BODY-LEVEL paragraphs
 (direct w:body children; tables excluded); the paragraph keeps its paragraph
 style and the first run's character style, and extra run-level styling is
-flattened into the new text. Paragraphs holding bookmarks, comment anchors,
-fields or hyperlinks are refused (see reject_semantic_inline_content) because
-their markers can pair across paragraphs.
+flattened into the new text. A paragraph holding anything the output shape
+cannot carry is refused rather than silently stripped — see
+reject_unrepresentable_content, which allow-lists what survives instead of
+enumerating what is dangerous.
 
 The output is written to a staging file and renamed on success, so a failure
 never leaves a partial package behind (see atomic_output).
@@ -37,6 +38,7 @@ import argparse
 import codecs
 import contextlib
 import json
+import math
 import os
 import re
 import sys
@@ -208,7 +210,20 @@ def make_tag(sample_tag: str, local_name: str) -> str:
 
 
 def serialize_part(doc: minidom.Document) -> bytes:
-    return b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + doc.documentElement.toxml().encode("utf-8")
+    """Serialize a part, refusing to emit anything that cannot be parsed back.
+
+    The reparse is a structural backstop, not a formality. Character-level gates catch the cases we
+    thought of one at a time — a C0 control character slipped through exactly that way. Handing the
+    output back to the same parser catches the whole class mechanically: if expat cannot read it,
+    neither can Excel or Word, and a derived file that opens in repair mode is the failure this
+    script exists to prevent.
+    """
+    part = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + doc.documentElement.toxml().encode("utf-8")
+    try:
+        minidom.parseString(part)
+    except Exception as error:  # noqa: BLE001 - any parse failure means the part is unusable
+        fail(f"refusing to write a part that cannot be parsed back ({error}); this is a bug in the edit path")
+    return part
 
 
 # ── xlsx ─────────────────────────────────────────────────────────────────────
@@ -280,6 +295,29 @@ def reject_shared_formula(formula, ref: str) -> None:
     )
 
 
+def merged_ranges(worksheet) -> list[tuple[str, tuple[int, int, int, int]]]:
+    """Every <mergeCell> range, as (ref, (min_col, min_row, max_col, max_row)).
+
+    Only the top-left cell of a merge is displayed; writing any other cell in the range puts a value
+    into the file that Excel will never show. Worse, `office_extract.py` reads with `read_only=True`,
+    which does not mask merge followers — so the skill's own "edit, then extract to verify" loop would
+    read the value back and confirm a write the user cannot see.
+    """
+    ranges = []
+    container = first_child(worksheet, "mergeCells")
+    if container is None:
+        return ranges
+    for merge in element_children(container, "mergeCell"):
+        ref = merge.getAttribute("ref")
+        if not ref:
+            continue
+        corners = [parse_a1_cell(part) for part in ref.split(":")]
+        cols = [column for column, _ in corners]
+        rows = [row_number for _, row_number in corners]
+        ranges.append((ref, (min(cols), min(rows), max(cols), max(rows))))
+    return ranges
+
+
 def array_formula_ranges(sheet_data) -> list[tuple[str, tuple[int, int, int, int]]]:
     """Every range owned by an array formula, as (ref, (min_col, min_row, max_col, max_row)).
 
@@ -314,6 +352,14 @@ def set_cell_value(doc: minidom.Document, cell, value) -> None:
         v.appendChild(doc.createTextNode("1" if value else "0"))
         cell.appendChild(v)
     elif isinstance(value, (int, float)):
+        # json.loads accepts NaN/Infinity/-Infinity literals, and 1e999 overflows to inf on its own.
+        # repr() spells those "nan"/"inf", which are well-formed XML but not valid xsd:double, so the
+        # reparse backstop cannot catch them — the workbook simply stops opening.
+        if not math.isfinite(value):
+            fail(
+                f"cell {cell.getAttribute('r') or '?'} was given {value!r}, which a spreadsheet cannot "
+                f"store; use a finite number, or a string if the cell should show text"
+            )
         v = doc.createElement(make_tag(cell.tagName, "v"))
         v.appendChild(doc.createTextNode(repr(value)))
         cell.appendChild(v)
@@ -383,11 +429,19 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         fail(f"{part_name} has no sheetData element")
 
     array_ranges = array_formula_ranges(sheet_data)
+    merges = merged_ranges(worksheet)
 
     edited: list[tuple[int, int]] = []
     replaced_formula = False
     for ref, value in sorted(cells.items(), key=lambda item: (parse_a1_cell(item[0])[1], parse_a1_cell(item[0])[0])):
         column, row_number = parse_a1_cell(ref)
+        for merge_ref, (min_col, min_row, max_col, max_row) in merges:
+            if min_col <= column <= max_col and min_row <= row_number <= max_row and (column, row_number) != (min_col, min_row):
+                fail(
+                    f"cell {ref} is covered by the merge {merge_ref}; only its top-left cell is ever "
+                    f"displayed, so this write would be invisible in Excel. Target "
+                    f"{index_to_column(min_col)}{min_row} instead."
+                )
         for array_ref, (min_col, min_row, max_col, max_row) in array_ranges:
             if min_col <= column <= max_col and min_row <= row_number <= max_row:
                 fail(
@@ -419,50 +473,116 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
 # Inline markers whose meaning lives outside the paragraph: bookmarks, comment anchors and fields all
 # pair a start with an end that may sit in a different paragraph. Flattening the paragraph deletes one
 # half and leaves the document with an unmatched marker, so these are refused rather than dropped.
-SEMANTIC_INLINE_TAGS = {
-    "bookmarkStart": "a bookmark",
-    "bookmarkEnd": "a bookmark",
-    "commentRangeStart": "a comment anchor",
-    "commentRangeEnd": "a comment anchor",
-    "fldSimple": "a field",
-    "fldChar": "a field",
-    "instrText": "a field",
-    "hyperlink": "a hyperlink",
-    # Content the rewrite would drop outright rather than flatten: the loop below keeps only pPr, so
-    # anything the new run cannot carry disappears with no trace in the text-only verification the
-    # skill performs afterwards. A dropped w:del is the worst of these — it silently accepts a
-    # pending tracked deletion.
-    "drawing": "an image",
-    "pict": "an image",
-    "object": "an embedded object",
-    "footnoteReference": "a footnote reference",
-    "endnoteReference": "an endnote reference",
-    "ins": "a tracked insertion",
-    "del": "a tracked deletion",
+WORDPROCESSING_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+# What the rewrite emits, in full:  w:p > [w:pPr] + w:r > [w:rPr] + w:t
+#
+# So the only children that survive it are the ones that shape can carry. This is an ALLOW-list, not
+# a list of dangerous elements, because the dangerous set cannot be enumerated: ECMA-376 Part 3
+# (Markup Compatibility) exists precisely so consumers meet elements they do not know, w:extLst is an
+# open extension channel by design, and Microsoft keeps adding namespaces (w14, w15, w16*, ink, 3D,
+# SVG). Three review rounds of "enumerate what is dangerous" each missed a new batch. Inverting the
+# default means an element nobody has heard of yet lands on the refusing side, and the only thing we
+# must get right is whether these thirteen are truly lossless — a closed, checkable question.
+PARAGRAPH_ALLOWED = {
+    (WORDPROCESSING_NS, "pPr"),  # kept verbatim, never descended into
+    (WORDPROCESSING_NS, "r"),  # the run being replaced
+    (WORDPROCESSING_NS, "proofErr"),  # spell/grammar marker, no semantics, Word regenerates it
+}
+
+# Inside the run: the text and its typographic separators. These ARE the old text, so losing them is
+# the edit's intent rather than collateral damage. lastRenderedPageBreak is a layout cache Word redoes.
+RUN_ALLOWED = {
+    (WORDPROCESSING_NS, name)
+    for name in ("rPr", "t", "tab", "br", "cr", "ptab", "sym", "softHyphen", "noBreakHyphen", "lastRenderedPageBreak")
+}
+
+# Friendlier names for what we expect to meet; anything absent is reported by its qualified name.
+CONTENT_DESCRIPTIONS = {
+    (WORDPROCESSING_NS, "bookmarkStart"): "a bookmark",
+    (WORDPROCESSING_NS, "bookmarkEnd"): "a bookmark",
+    (WORDPROCESSING_NS, "commentRangeStart"): "a comment anchor",
+    (WORDPROCESSING_NS, "commentRangeEnd"): "a comment anchor",
+    (WORDPROCESSING_NS, "commentReference"): "a comment",
+    (WORDPROCESSING_NS, "permStart"): "an editing-permission range",
+    (WORDPROCESSING_NS, "permEnd"): "an editing-permission range",
+    (WORDPROCESSING_NS, "fldSimple"): "a field",
+    (WORDPROCESSING_NS, "fldChar"): "a field",
+    (WORDPROCESSING_NS, "instrText"): "a field",
+    (WORDPROCESSING_NS, "hyperlink"): "a hyperlink",
+    (WORDPROCESSING_NS, "drawing"): "an image",
+    (WORDPROCESSING_NS, "pict"): "an image",
+    (WORDPROCESSING_NS, "object"): "an embedded object",
+    (WORDPROCESSING_NS, "footnoteReference"): "a footnote reference",
+    (WORDPROCESSING_NS, "endnoteReference"): "an endnote reference",
+    (WORDPROCESSING_NS, "ins"): "a tracked insertion",
+    (WORDPROCESSING_NS, "del"): "a tracked deletion",
+    (WORDPROCESSING_NS, "moveFrom"): "a tracked move",
+    (WORDPROCESSING_NS, "moveTo"): "a tracked move",
+    (WORDPROCESSING_NS, "sdt"): "a content control",
+    (WORDPROCESSING_NS, "smartTag"): "a smart tag",
+    (WORDPROCESSING_NS, "subDoc"): "a subdocument reference",
+    ("http://schemas.openxmlformats.org/officeDocument/2006/math", "oMath"): "an equation",
+    ("http://schemas.openxmlformats.org/officeDocument/2006/math", "oMathPara"): "an equation",
 }
 
 
-def reject_semantic_inline_content(paragraph, index: int) -> None:
-    """Refuse to flatten a paragraph that carries inline content this rewrite cannot preserve."""
-    found = {}
+def local_name(element) -> str:
+    return element.tagName.rsplit(":", 1)[-1]
 
-    def walk(node) -> None:
-        for child in element_children(node):
-            local_name = child.tagName.rsplit(":", 1)[-1]
-            if local_name in SEMANTIC_INLINE_TAGS:
-                found.setdefault(SEMANTIC_INLINE_TAGS[local_name], local_name)
-            walk(child)
 
-    walk(paragraph)
-    if not found:
-        return
-    described = ", ".join(sorted(found))
-    fail(
-        f"paragraph {index} contains {described}, which this rewrite would delete rather than keep "
-        f"(and a start marker whose matching end lives in another paragraph would leave the document "
-        f"unbalanced). Edit it with python-docx (`uv run --with python-docx python`), which preserves "
-        f"inline structure, or target a paragraph without these markers."
-    )
+def resolve_namespace(element) -> str:
+    """Namespace URI for an element, resolved through the xmlns declarations in scope.
+
+    `minidom.parseString` is not namespace-aware, so `element.namespaceURI` is always None and only
+    the literal prefix survives. Matching on the prefix would be wrong in both directions: a document
+    may bind `w:` to something else, and it may bind WordprocessingML to a different prefix. It also
+    conflates namespaces that share a local name — `m:t` (equation text) would pass a bare "t" check.
+    """
+    prefix = element.tagName.rsplit(":", 1)[0] if ":" in element.tagName else ""
+    declaration = f"xmlns:{prefix}" if prefix else "xmlns"
+    node = element
+    while node is not None and node.nodeType == minidom.Node.ELEMENT_NODE:
+        if node.hasAttribute(declaration):
+            return node.getAttribute(declaration)
+        node = node.parentNode
+    return ""
+
+
+def describe_element(key: tuple[str, str], element) -> str:
+    if key in CONTENT_DESCRIPTIONS:
+        return CONTENT_DESCRIPTIONS[key]
+    return f"<{element.tagName}>"
+
+
+def reject_unrepresentable_content(paragraph, index: int) -> None:
+    """Refuse a paragraph holding anything the rewrite's output shape cannot carry.
+
+    `pPr` is deliberately not descended into: it survives the rewrite untouched, so its contents are
+    never at risk — descending was what made revision marks on the paragraph mark itself (pPr/rPr/w:ins)
+    a false refusal.
+    """
+    for child in element_children(paragraph):
+        key = (resolve_namespace(child), local_name(child))
+        if key not in PARAGRAPH_ALLOWED:
+            fail(
+                f"paragraph {index} contains {describe_element(key, child)}, which this rewrite cannot "
+                f"keep: it emits one plain run, so everything else in the paragraph would be deleted — "
+                f"and a start marker whose matching end lives in another paragraph would leave the "
+                f"document unbalanced. See \"Edit docx\" in SKILL.md for a run-level edit that "
+                f"preserves inline structure, or target a paragraph without it."
+            )
+        if key != (WORDPROCESSING_NS, "r"):
+            continue
+        for grandchild in element_children(child):
+            grandkey = (resolve_namespace(grandchild), local_name(grandchild))
+            if grandkey not in RUN_ALLOWED:
+                fail(
+                    f"paragraph {index} has a run containing {describe_element(grandkey, grandchild)}, "
+                    f"which this rewrite cannot keep: the replacement run carries text and character "
+                    f"formatting only. See \"Edit docx\" in SKILL.md for a run-level edit that "
+                    f"preserves inline structure."
+                )
 
 
 def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes], set[str]]:
@@ -491,7 +611,7 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         paragraph = paragraphs[index]
 
         reject_invalid_xml_text(text, f"replacement text for paragraph {index}")
-        reject_semantic_inline_content(paragraph, index)
+        reject_unrepresentable_content(paragraph, index)
 
         properties = first_child(paragraph, "pPr")
         first_run = first_child(paragraph, "r")
