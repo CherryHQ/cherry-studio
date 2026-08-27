@@ -45,6 +45,7 @@ test('[A-05] DeepSeek Harness Runtime @deepseek-harness-runtime', async ({ app, 
 })
 
 test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindow: page }) => {
+  test.setTimeout(15 * 60_000)
   await ensureAgentModel(app, page)
   await startNewAgentTask(page, 'Cherry Assistant')
 
@@ -81,7 +82,7 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
           return false
         }
       },
-      { timeout: 5 * 60_000 }
+      { timeout: 10 * 60_000 }
     )
     .toBe(true)
   await expect

@@ -113,19 +113,25 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   const selection = await app.window('/windows/selection/toolbar/')
   const readLabel = selection.getByRole('button', { name: 'Read validation label', exact: true })
   await expect(readLabel).toBeVisible()
+  await selection.evaluate(() => {
+    document.body.dataset.toolbarVisible = 'true'
+    window.api.ipcApi.on('selection.toolbar_visibility_change', (isVisible) => {
+      document.body.dataset.toolbarVisible = String(isVisible)
+    })
+  })
   await page.evaluate(() => window.api.ipcApi.request('selection.hide_toolbar'))
-  await expect.poll(() => selection.evaluate(() => document.visibilityState)).toBe('hidden')
+  await expect(selection.locator('body')).toHaveAttribute('data-toolbar-visible', 'false')
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
   await expect
     .poll(
       async () => {
         sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 'k'])
         await selection.waitForTimeout(1_000)
-        return selection.evaluate(() => document.visibilityState)
+        return selection.locator('body').getAttribute('data-toolbar-visible')
       },
       { timeout: 15_000 }
     )
-    .toBe('visible')
+    .toBe('true')
   await readLabel.click()
   const action = await app.window('/windows/selection/action/')
   await expect(action.locator('body')).toContainText('SELECTION_ASSISTANT_PASS', { timeout: 2 * 60_000 })

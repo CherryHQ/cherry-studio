@@ -16,12 +16,14 @@ async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[
   const sourceLanguage = page.getByRole('button', { name: 'Source Language' })
   if (!(await sourceLanguage.textContent())?.includes('English')) {
     await sourceLanguage.click()
-    await page.getByRole('option').filter({ hasText: 'English' }).first().click()
+    await page.getByRole('option').filter({ hasText: 'English' }).first().click({ force: true })
+    await expect(sourceLanguage).toContainText('English')
   }
   const targetLanguage = page.getByRole('button', { name: /^Target Language\b/ })
   if (!(await targetLanguage.textContent())?.includes('Chinese')) {
     await targetLanguage.click()
-    await page.getByRole('option').filter({ hasText: 'Chinese' }).first().click()
+    await page.getByRole('option').filter({ hasText: 'Chinese' }).first().click({ force: true })
+    await expect(targetLanguage).toContainText('Chinese')
   }
 }
 

@@ -88,12 +88,14 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
   const codeView = page.locator('[data-ui="code.view"]:visible').first()
   const codeMateTab = page.locator('[data-ui="app.tab-bar"] button[data-tab-id][aria-label="Code Mate"]').last()
   await expect(codeMateTab).toBeVisible()
+  const codeMateTabId = await codeMateTab.getAttribute('data-tab-id')
+  if (!codeMateTabId) throw new Error('Code Mate tab is missing its tab id')
   await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
   await expect
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
 
-  await codeMateTab.click()
+  await page.locator(`[data-ui="app.tab-bar"] button[data-tab-id="${codeMateTabId}"][aria-label="Code Mate"]`).click()
   const activeCodeView = page.locator('[data-ui="code.view"]:visible').first()
   const stop = activeCodeView.getByRole('button', { name: 'Stop', exact: true })
   await expect(stop).toBeVisible()
