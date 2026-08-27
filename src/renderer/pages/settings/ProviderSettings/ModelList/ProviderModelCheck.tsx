@@ -1,5 +1,4 @@
 import { Button } from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,7 +27,6 @@ export default function ProviderModelCheck({ onAddModels }: ProviderModelCheckPr
         disabled={(!hasModels && !onAddModels) || health.isModelChecking}
         onClick={() => {
           if (isAddModelsAction) {
-            toast.info(t('settings.models.check.add_model_first'))
             onAddModels?.()
             return
           }

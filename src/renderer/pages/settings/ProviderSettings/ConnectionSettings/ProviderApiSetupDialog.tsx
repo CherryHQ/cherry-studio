@@ -44,6 +44,7 @@ import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
 import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
 
 const SUCCESS_FEEDBACK_DURATION_MS = 1200
+const VERIFICATION_STEP_FEEDBACK_DURATION_MS = 400
 
 export type ProviderApiSetupInitialStep = 'api-key' | 'models'
 type ProviderApiSetupStep = ProviderApiSetupInitialStep | 'verification'
@@ -151,11 +152,6 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     },
     { id: 'enable', label: t('settings.provider.api_setup.progress.enable_provider') }
   ] as const
-  const verificationStatusMessage =
-    busyState === 'checking' && probeModel
-      ? t('settings.provider.api_setup.status.checking_model', { model: probeModel.name })
-      : t('settings.provider.api_setup.status.enabling_provider')
-
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) {
       return
@@ -391,7 +387,8 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     setRequiresManualConfirmation(false)
     setSetupSucceeded(false)
 
-    if (probeSucceededModelIdRef.current !== probeModel.id) {
+    const shouldCheckModel = probeSucceededModelIdRef.current !== probeModel.id
+    if (shouldCheckModel) {
       setBusyState('checking')
       try {
         await checkApi(probeModel.id, {
@@ -407,6 +404,9 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     }
 
     setCompletedVerificationSteps((current) => new Set(current).add('check'))
+    if (shouldCheckModel) {
+      await new Promise((resolve) => setTimeout(resolve, VERIFICATION_STEP_FEEDBACK_DURATION_MS))
+    }
 
     setBusyState('enabling')
     try {
@@ -489,7 +489,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           showCloseButton={step !== 'verification' || !isBusy}
           size="lg"
           className={cn(
-            'gap-5 [&_[data-slot=dialog-close]]:top-7',
+            'gap-5 transition-[height] duration-150 ease-out [interpolate-size:allow-keywords] motion-reduce:transition-none [&_[data-slot=dialog-close]]:top-7',
             step === 'models' &&
               !isModelListLoading &&
               error?.kind !== 'models' &&
@@ -633,78 +633,48 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
               {error?.kind !== 'models' && error ? <SetupErrorMessage message={error.message} /> : null}
             </div>
           ) : (
-            <div className="space-y-5">
-              {isBusy || error || requiresManualConfirmation || setupSucceeded ? (
-                <div
-                  role={error ? 'alert' : 'status'}
-                  aria-live="polite"
-                  className="flex flex-col items-center gap-2 pt-1 text-center">
-                  <div
-                    className={cn(
-                      'flex size-10 items-center justify-center rounded-full',
-                      setupSucceeded
-                        ? 'bg-success-subtle text-success'
-                        : error
-                          ? 'bg-error-subtle text-error'
-                          : requiresManualConfirmation
-                            ? 'bg-warning-subtle text-warning'
-                            : 'bg-primary/10 text-primary'
-                    )}>
-                    {setupSucceeded ? (
-                      <CheckCircle2 className="size-5" aria-hidden />
-                    ) : error ? (
-                      <CircleX className="size-5" aria-hidden />
-                    ) : requiresManualConfirmation ? (
-                      <CircleAlert className="size-5" aria-hidden />
-                    ) : (
-                      <LoaderCircle className="size-5 motion-safe:animate-spin" aria-hidden />
-                    )}
-                  </div>
-                  <div className="max-w-md text-sm leading-6">
-                    {setupSucceeded
-                      ? t('settings.provider.api_setup.success')
-                      : error
-                        ? error.message
-                        : requiresManualConfirmation
-                          ? t('settings.provider.api_setup.manual_title')
-                          : verificationStatusMessage}
-                  </div>
-                  {requiresManualConfirmation ? (
-                    <div className="max-w-md text-muted-foreground text-xs leading-5">
-                      {t('settings.provider.api_setup.manual_description')}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+            <ol className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle">
+              {verificationSteps.map(({ id, label }) => {
+                let status: VerificationStepStatus = 'pending'
+                if (completedVerificationSteps.has(id)) {
+                  status = 'complete'
+                } else if (failedVerificationStep === id) {
+                  status = 'error'
+                } else if (requiresManualConfirmation && id === 'check') {
+                  status = 'warning'
+                } else if (activeVerificationStep === id) {
+                  status = 'active'
+                }
 
-              <ol className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle">
-                {verificationSteps.map(({ id, label }) => {
-                  let status: VerificationStepStatus = 'pending'
-                  if (completedVerificationSteps.has(id)) {
-                    status = 'complete'
-                  } else if (failedVerificationStep === id) {
-                    status = 'error'
-                  } else if (requiresManualConfirmation && id === 'check') {
-                    status = 'warning'
-                  } else if (activeVerificationStep === id) {
-                    status = 'active'
-                  }
+                const statusText =
+                  status === 'complete'
+                    ? t('common.success')
+                    : status === 'active'
+                      ? t('common.loading')
+                      : status === 'error'
+                        ? t('settings.models.check.failed')
+                        : status === 'warning'
+                          ? t('settings.models.check.status_skipped')
+                          : undefined
 
-                  const statusText =
-                    status === 'complete'
-                      ? t('common.success')
-                      : status === 'active'
-                        ? t('common.loading')
-                        : status === 'error'
-                          ? t('settings.models.check.failed')
-                          : status === 'warning'
-                            ? t('settings.models.check.status_skipped')
-                            : undefined
+                const description =
+                  status === 'error'
+                    ? error?.message
+                    : status === 'warning'
+                      ? t('settings.provider.api_setup.manual_description')
+                      : undefined
 
-                  return <VerificationProgressRow key={id} label={label} status={status} statusText={statusText} />
-                })}
-              </ol>
-            </div>
+                return (
+                  <VerificationProgressRow
+                    key={id}
+                    label={label}
+                    status={status}
+                    statusText={statusText}
+                    description={description}
+                  />
+                )
+              })}
+            </ol>
           )}
 
           {step === 'verification' ? (
@@ -786,11 +756,13 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 function VerificationProgressRow({
   label,
   status,
-  statusText
+  statusText,
+  description
 }: {
   label: string
   status: VerificationStepStatus
   statusText?: string
+  description?: string
 }) {
   const icon =
     status === 'complete' ? (
@@ -809,9 +781,36 @@ function VerificationProgressRow({
     <li
       aria-current={status === 'active' ? 'step' : undefined}
       aria-label={statusText ? `${label} ${statusText}` : label}
-      className="flex min-h-12 items-center gap-3 px-3">
+      className="flex min-h-12 items-start gap-3 px-3 py-3">
       <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
-      <span className={cn('text-sm', status === 'pending' && 'text-muted-foreground')}>{label}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-3">
+          <span className={cn('min-w-0 flex-1 text-sm', status === 'pending' && 'text-muted-foreground')}>{label}</span>
+          {statusText ? (
+            <span
+              role={status === 'active' || status === 'warning' ? 'status' : undefined}
+              className={cn(
+                'shrink-0 text-xs',
+                status === 'complete' && 'text-success',
+                status === 'active' && 'text-primary',
+                status === 'error' && 'text-error',
+                status === 'warning' && 'text-warning'
+              )}>
+              {statusText}
+            </span>
+          ) : null}
+        </div>
+        {description ? (
+          <div
+            role={status === 'error' ? 'alert' : undefined}
+            className={cn(
+              'mt-1 break-words text-xs leading-5',
+              status === 'error' ? 'text-error' : 'text-muted-foreground'
+            )}>
+            {description}
+          </div>
+        ) : null}
+      </div>
     </li>
   )
 }

@@ -1,4 +1,3 @@
-import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +47,6 @@ describe('ProviderModelCheck', () => {
     expect(checkButton).toBeEnabled()
 
     fireEvent.click(checkButton)
-    expect(toast.info).toHaveBeenCalledWith('settings.models.check.add_model_first')
     expect(onAddModels).toHaveBeenCalledOnce()
     expect(openModelCheck).not.toHaveBeenCalled()
   })

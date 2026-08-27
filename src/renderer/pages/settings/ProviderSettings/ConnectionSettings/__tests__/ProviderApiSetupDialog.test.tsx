@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { Model } from '@shared/data/types/model'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -138,13 +138,7 @@ vi.mock('react-i18next', () => ({
       if (options?.count !== undefined) {
         return `${key}:${options.count}`
       }
-      if (
-        options?.model !== undefined &&
-        [
-          'settings.provider.api_setup.progress.check_model_named',
-          'settings.provider.api_setup.status.checking_model'
-        ].includes(key)
-      ) {
+      if (options?.model !== undefined && key === 'settings.provider.api_setup.progress.check_model_named') {
         return `${key}:${options.model}`
       }
       return key
@@ -348,6 +342,7 @@ describe('ProviderApiSetupDialog', () => {
       expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { apiKey: 'sk-fresh', timeout: 15000 })
     )
     expect(checkApiMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
   })
 
   it('restores selected local models, creates missing models, and enables only after the check succeeds', async () => {
@@ -401,18 +396,22 @@ describe('ProviderApiSetupDialog', () => {
     ])
     await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
 
-    expect(screen.getByRole('status')).toHaveTextContent('settings.provider.api_setup.status.checking_model:alpha')
-    expect(
-      screen.getByRole('listitem', {
-        name: 'settings.provider.api_setup.progress.check_model_named:alpha common.loading'
-      })
-    ).toHaveAttribute('aria-current', 'step')
+    const activeCheckStep = screen.getByRole('listitem', {
+      name: 'settings.provider.api_setup.progress.check_model_named:alpha common.loading'
+    })
+    expect(activeCheckStep).toHaveAttribute('aria-current', 'step')
+    expect(within(activeCheckStep).getByRole('status')).toHaveTextContent('common.loading')
     expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { timeout: 15000 })
     expect(enableProviderMock).not.toHaveBeenCalled()
 
     resolveCheck?.({ latency: 12 })
+    expect(
+      await screen.findByRole('listitem', {
+        name: 'settings.provider.api_setup.progress.check_model_named:alpha common.success'
+      })
+    ).toBeInTheDocument()
+    expect(enableProviderMock).not.toHaveBeenCalled()
     await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText('settings.provider.api_setup.success')).toBeInTheDocument()
     expect(toastSuccessMock).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     for (const stepName of [
@@ -541,7 +540,7 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findByText(/error\.diagnosis\.quota/)
     expect(
-      screen.getByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
+      await screen.findByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
@@ -563,7 +562,11 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
     await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText('settings.provider.api_setup.success')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('listitem', {
+        name: 'settings.provider.api_setup.progress.enable_provider common.success'
+      })
+    ).toBeInTheDocument()
   })
 
   it('treats a verification timeout as a failed real request and leaves the provider off', async () => {
@@ -618,9 +621,8 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
-    await screen.findByText('settings.provider.api_setup.manual_title')
     expect(
-      screen.getByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
+      await screen.findByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
@@ -630,11 +632,10 @@ describe('ProviderApiSetupDialog', () => {
     expect(
       screen.queryByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' })
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('listitem', {
-        name: 'settings.provider.api_setup.progress.check_model settings.models.check.status_skipped'
-      })
-    ).toBeInTheDocument()
+    const skippedCheckStep = screen.getByRole('listitem', {
+      name: 'settings.provider.api_setup.progress.check_model settings.models.check.status_skipped'
+    })
+    expect(within(skippedCheckStep).getByText('settings.provider.api_setup.manual_description')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.back_to_models' }))
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0]).toBeChecked()
