@@ -56,15 +56,13 @@ function resolveSelection(
   if (selection === 'none') {
     return selectable.includes(selection) ? selection : undefined
   }
+  if (selection === 'auto') {
+    return selectable.includes(selection) ? selection : 'default'
+  }
 
   const declared = selectable.filter(
     (effort): effort is Exclude<ReasoningEffort, 'none' | 'auto'> => effort !== 'none' && effort !== 'auto'
   )
-  // `selectableEfforts` is the model's UI vocabulary. A cross-dialect request can still carry
-  // canonical `auto`; let the wire profile map it when the target has adjustable effort tiers.
-  if (selection === 'auto') {
-    return selectable.includes(selection) || declared.length > 0 ? selection : undefined
-  }
   if (declared.length === 0) return undefined
 
   return nearestThinkingOption(selection, declared)
