@@ -663,16 +663,21 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       // Dragging back over the sticky headers puts the pointer at a negative content offset, which
       // resolves to the first track. Clamp to at least 1 so the drag stops at the edge instead of
       // pulling the selection onto a hidden leading row or column.
-      const active: CellRef = {
+      const clamped: CellRef = {
         row: Math.min(Math.max(target.row, 1), sheet.rowCount),
         col: Math.min(Math.max(target.col, 1), sheet.colCount)
       }
+      // Address the merge by its master here too, for the reason pointerdown gives. A drag ending on
+      // a follower is the common way to land on one: pointerdown normalizes, then the first pointermove
+      // — a millimetre of hand tremor is enough — writes the raw coordinate straight back.
+      const merge = findMerge(clamped.row, clamped.col)
+      const active: CellRef = { row: merge?.top ?? clamped.row, col: merge?.left ?? clamped.col }
       if (active.row === drag.selection.active.row && active.col === drag.selection.active.col) return
       const next: GridSelection = { anchor: drag.selection.anchor, active }
       dragRef.current = { pointerId: drag.pointerId, selection: next }
       applySelection(next)
     },
-    [applySelection, cellAtPointer, sheet.colCount, sheet.rowCount]
+    [applySelection, cellAtPointer, findMerge, sheet.colCount, sheet.rowCount]
   )
 
   // Every pointer termination commits what the grid is already showing. pointerdown moves the visual selection

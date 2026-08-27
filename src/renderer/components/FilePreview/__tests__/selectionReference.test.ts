@@ -1,4 +1,4 @@
-import { SELECTION_EXCERPT_MAX_LENGTH } from '@renderer/types/selectionReference'
+import { SELECTION_EXCERPT_MAX_LENGTH, SelectionReferenceSchema } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
@@ -50,15 +50,31 @@ describe('createSelectionReference', () => {
     })
   })
 
-  it('truncates by code point, never splitting a surrogate pair', () => {
-    // The boundary lands mid-emoji: a UTF-16 `.slice()` keeps half of it, and the lone surrogate
+  it('truncates to the limit in UTF-16 units, never splitting a surrogate pair', () => {
+    // The boundary lands mid-emoji: a bare `.slice()` keeps half of it, and the lone surrogate
     // survives zod and JSON only to reach the Python consumer as U+FFFD.
     const reference = build('a'.repeat(SELECTION_EXCERPT_MAX_LENGTH - 1) + '\u{1F600}tail')
 
-    expect(reference).not.toBeNull()
-    expect([...(reference?.excerpt ?? '')]).toHaveLength(SELECTION_EXCERPT_MAX_LENGTH)
+    expect(reference?.excerpt).toBe('a'.repeat(SELECTION_EXCERPT_MAX_LENGTH - 1))
     expect(reference?.excerpt.isWellFormed()).toBe(true)
+  })
+
+  it('keeps a surrogate pair that ends exactly on the limit', () => {
+    // Giving back a unit is only correct when the boundary splits a pair — a pair that fits must
+    // survive whole, or every astral excerpt loses its last character for nothing.
+    const reference = build('a'.repeat(SELECTION_EXCERPT_MAX_LENGTH - 2) + '\u{1F600}tail')
+
+    expect(reference?.excerpt).toHaveLength(SELECTION_EXCERPT_MAX_LENGTH)
     expect(reference?.excerpt.endsWith('\u{1F600}')).toBe(true)
+  })
+
+  it('produces an excerpt the schema accepts even when every character is astral', () => {
+    // Counting this limit in code points emits 2000 of them, which is 4000 UTF-16 units, and the
+    // schema's `.max()` counts UTF-16 units like every other budget here. This is what ties the
+    // producer's idea of the limit to the schema's, so the two cannot drift apart again.
+    const reference = build('\u{1F600}'.repeat(SELECTION_EXCERPT_MAX_LENGTH))
+
+    expect(SelectionReferenceSchema.safeParse(reference).success).toBe(true)
   })
 
   it('keeps an excerpt that ends exactly on the limit', () => {
