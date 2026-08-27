@@ -223,7 +223,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
             ) : (
               <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
                 <section className="space-y-2">
-                  <label htmlFor="diagnostic-description" className="font-medium text-sm">
+                  <label htmlFor="diagnostic-description" className="block font-medium text-sm">
                     {t('settings.about.diagnostics.report.description_label')}
                   </label>
                   <Textarea.Input
