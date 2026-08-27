@@ -623,6 +623,30 @@ describe('XlsxGrid — range selection', () => {
     )
   })
 
+  it('keeps the master when a press inside a merge drifts before release', () => {
+    // pointerdown normalizes to the master, and then the very first pointermove writes the raw
+    // coordinate straight back over it. A press on a follower plus a pixel of hand tremor is the
+    // whole recipe. The committed range is identical either way, so nothing looks wrong until the
+    // next arrow key steps off a corner the user cannot see.
+    showHeaderRange()
+    const mergeSheet: SheetRenderModel = { ...salesSheet, merges: [{ top: 1, left: 1, bottom: 2, right: 2 }] }
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={mergeSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x + 1, IN_A2.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_A2.x + 1, IN_A2.y))
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyUp(scroll, { key: 'ArrowDown', shiftKey: true })
+
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A1', rect: { top: 1, left: 1, bottom: 2, right: 2 } })
+    )
+  })
+
   it('commits a Shift+Arrow extension when focus leaves before the key is released', () => {
     showHeaderRange()
     const onSelectCell = vi.fn()
