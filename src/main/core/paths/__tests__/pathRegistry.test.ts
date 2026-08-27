@@ -46,6 +46,15 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps conditional Code Mate skill templates in read-only app resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.code_cli.skills.builtin']).toBe(
+      path.join(registry['app.root.resources'], 'code-cli-skills')
+    )
+    expect(shouldAutoEnsure('feature.code_cli.skills.builtin')).toBe(false)
+  })
+
   it('keeps pi runtime state under the Agents data directory', () => {
     const registry = buildPathRegistry()
     const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')

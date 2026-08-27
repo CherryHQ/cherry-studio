@@ -122,13 +122,15 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
         if (
           p.modelsDevProvider &&
           !ov.apiModelId &&
-          (ov.reasoningContracts || ov.requestControls || ov.parameterSupport)
+          (ov.endpointTypes || ov.reasoningContracts || ov.requestControls || ov.parameterSupport)
         ) {
           const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
           if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/model-template`)
           else if (
             rows.some(
               (row) =>
+                stable(row.endpointTypes) !== stable(ov.endpointTypes) ||
+                (ov.pricing !== undefined && stable(row.pricing) !== stable(ov.pricing)) ||
                 stable(row.reasoningContracts) !== stable(ov.reasoningContracts) ||
                 stable(row.requestControls) !== stable(ov.requestControls) ||
                 stable(row.parameterSupport) !== stable(ov.parameterSupport)
