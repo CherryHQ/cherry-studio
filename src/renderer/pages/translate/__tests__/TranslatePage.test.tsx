@@ -1741,7 +1741,17 @@ describe('TranslatePage', () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
       mockShikiMarkdownIt.mockClear()
 
+      // a stream in flight, held open so isTranslating stays true
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', 'zh-cn')
+      translateCoreMock.translateText.mockImplementationOnce(() => new Promise<string>(() => {}))
       const { rerender } = render(<TranslatePage />)
+      fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
+        target: { value: 'hello' }
+      })
+      rerender(<TranslatePage />)
+      fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+      await act(async () => {})
 
       setOutput('a')
       rerender(<TranslatePage />)
@@ -1758,15 +1768,55 @@ describe('TranslatePage', () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
       mockShikiMarkdownIt.mockClear()
 
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', 'zh-cn')
+      let finish: ((text: string) => void) | undefined
+      translateCoreMock.translateText.mockImplementationOnce(
+        (_text: string, _lang: string, onResponse?: (text: string, isComplete: boolean) => void) =>
+          new Promise<string>((resolve) => {
+            finish = (text: string) => {
+              // production: the final chunk goes through onResponse before resolve
+              onResponse?.(text, true)
+              resolve(text)
+            }
+          })
+      )
       const { rerender } = render(<TranslatePage />)
+      fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
+        target: { value: 'hello' }
+      })
+      rerender(<TranslatePage />)
+      fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+      await act(async () => {})
 
+      // partial playout while the stream is open: still no parse
       setOutput('ab')
       rerender(<TranslatePage />)
+      expect(mockShikiMarkdownIt).not.toHaveBeenCalled()
+
+      finish?.('abc')
+      await act(async () => {})
       settle('abc')
 
       await act(async () => {})
       expect(mockShikiMarkdownIt).toHaveBeenCalledTimes(1)
       expect(mockShikiMarkdownIt).toHaveBeenLastCalledWith('abc')
+    })
+
+    it('parses restored output that never went through a stream', async () => {
+      // History restores and input/output swaps change translate.output without
+      // any stream, so no onSettled ever fires. The page must treat that output
+      // as already settled and parse it once.
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
+      mockShikiMarkdownIt.mockClear()
+
+      const { rerender } = render(<TranslatePage />)
+      setOutput('restored history item')
+      rerender(<TranslatePage />)
+
+      await act(async () => {})
+      expect(mockShikiMarkdownIt).toHaveBeenCalledTimes(1)
+      expect(mockShikiMarkdownIt).toHaveBeenLastCalledWith('restored history item')
     })
 
     it('drops a stale in-flight render when a new translation starts', async () => {
@@ -1809,7 +1859,18 @@ describe('TranslatePage', () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', false)
       mockShikiMarkdownIt.mockClear()
 
+      // a stream in flight, held open so isTranslating stays true
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', 'zh-cn')
+      translateCoreMock.translateText.mockImplementationOnce(() => new Promise<string>(() => {}))
       const { rerender } = render(<TranslatePage />)
+      fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
+        target: { value: 'hello' }
+      })
+      rerender(<TranslatePage />)
+      fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+      await act(async () => {})
+
       setOutput('partial output')
       rerender(<TranslatePage />)
 
