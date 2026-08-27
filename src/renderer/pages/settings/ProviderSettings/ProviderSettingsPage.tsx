@@ -1,8 +1,11 @@
+import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
+import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
@@ -21,10 +24,13 @@ interface PendingApiSetup {
   initialStep: ProviderApiSetupInitialStep
 }
 
-export default function ProviderSettingsPage() {
+interface ProviderSettingsContentProps {
+  rawProviders: Provider[]
+}
+
+function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
   const search = useSearch({ strict: false }) as ProviderSettingsSearch
   const navigate = useNavigate()
-  const { providers: rawProviders } = useProviders()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
     'settings.provider.last_selected_provider_id'
   )
@@ -120,4 +126,38 @@ export default function ProviderSettingsPage() {
       )}
     </div>
   )
+}
+
+export default function ProviderSettingsPage() {
+  const { t } = useTranslation()
+  const { providers, hasLoaded, isLoading, error, refetch } = useProviders()
+
+  if (error && !hasLoaded) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-6">
+        <Alert
+          type="error"
+          showIcon
+          message={t('common.error')}
+          description={error.message}
+          action={
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+          className="max-w-lg rounded-md px-4 py-3 shadow-none"
+        />
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-6">
+        <Spinner text={t('common.loading')} />
+      </div>
+    )
+  }
+
+  return <ProviderSettingsContent rawProviders={providers} />
 }

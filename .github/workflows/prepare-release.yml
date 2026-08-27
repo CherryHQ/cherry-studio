@@ -1,4 +1,4 @@
-name: Prepare Release
+name: Pre Release
 
 on:
   workflow_dispatch:
@@ -14,19 +14,26 @@ on:
   # but we guard the job to main to prevent accidental runs from feature branches)
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
   id-token: write
+
+concurrency:
+  group: release-state
+  cancel-in-progress: false
 
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.release-version.outputs.version }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -39,21 +46,481 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Verify published release baseline
+        id: release-baseline
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          git fetch origin "refs/heads/main:refs/remotes/origin/main" --tags
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "Pre Release must run from the current origin/main head" >&2
+            exit 1
+          fi
+
+          CURRENT_VERSION="$(node -p "require('./package.json').version")"
+          if ! node -e "const semver = require('semver'); process.exit(semver.valid(process.argv[1]) ? 0 : 1)" "$CURRENT_VERSION"; then
+            echo "package.json contains an invalid semantic version: $CURRENT_VERSION" >&2
+            exit 1
+          fi
+
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          LATEST_PUBLISHED="$(jq -c '
+            [.[][] | select(
+              .draft == false and
+              .published_at != null and
+              (.tag_name | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"))
+            )] |
+            sort_by(.published_at) | last // empty
+          ' <<< "$RELEASE_PAGES")"
+          if [ -z "$LATEST_PUBLISHED" ]; then
+            echo "No published release exists to use as the preparation baseline" >&2
+            exit 1
+          fi
+
+          BASELINE_TAG="v$CURRENT_VERSION"
+          if [ "$(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" != "$BASELINE_TAG" ]; then
+            echo "main records $BASELINE_TAG, but the latest published release is $(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" >&2
+            echo "Merge the latest Post Release metadata pull request before preparing another release" >&2
+            exit 1
+          fi
+          if ! git rev-parse --verify "refs/tags/$BASELINE_TAG" >/dev/null; then
+            echo "Published baseline tag $BASELINE_TAG is missing from git" >&2
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$BASELINE_TAG" HEAD; then
+            MARKER="release-metadata-boundary: $BASELINE_TAG"
+            LEGACY_SUBJECT="chore(release): sync $BASELINE_TAG metadata"
+            BOUNDARY_SHA=""
+            while IFS= read -r COMMIT_SHA; do
+              if git show -s --format=%B "$COMMIT_SHA" | grep -Fqx "$MARKER"; then
+                BOUNDARY_SHA="$COMMIT_SHA"
+                break
+              fi
+              SUBJECT="$(git show -s --format=%s "$COMMIT_SHA")"
+              LEGACY_PREFIX="$LEGACY_SUBJECT (#"
+              LEGACY_PR_NUMBER="${SUBJECT#"$LEGACY_PREFIX"}"
+              LEGACY_PR_NUMBER="${LEGACY_PR_NUMBER%)}"
+              if [ "$SUBJECT" = "$LEGACY_SUBJECT" ] || \
+                 { [[ "$SUBJECT" == "$LEGACY_PREFIX"*")" ]] && [[ "$LEGACY_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; }; then
+                BOUNDARY_SHA="$COMMIT_SHA"
+                break
+              fi
+            done < <(git log --format=%H HEAD)
+            if [ -z "$BOUNDARY_SHA" ]; then
+              echo "$BASELINE_TAG is not an ancestor of main and its metadata boundary is missing" >&2
+              exit 1
+            fi
+          fi
+
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve requested version
+        id: release-version
+        shell: bash
+        env:
+          CURRENT_VERSION: ${{ steps.release-baseline.outputs.version }}
+          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          TARGET_VERSION="$(node <<'NODE'
+          const semver = require('semver')
+          const currentVersion = process.env.CURRENT_VERSION
+          const requestedVersion = process.env.REQUESTED_VERSION.trim()
+          const exactVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+
+          let targetVersion
+          if (['patch', 'minor', 'major'].includes(requestedVersion)) {
+            targetVersion = semver.inc(currentVersion, requestedVersion)
+          } else if (exactVersionPattern.test(requestedVersion) && semver.valid(requestedVersion)) {
+            targetVersion = requestedVersion
+          }
+
+          if (!targetVersion) {
+            throw new Error(`Invalid release version intent: ${requestedVersion}`)
+          }
+          if (!semver.gt(targetVersion, currentVersion)) {
+            throw new Error(`Release version ${targetVersion} must be greater than ${currentVersion}`)
+          }
+          process.stdout.write(targetVersion)
+          NODE
+          )"
+
+          echo "version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${{ github.event.inputs.version }} to $TARGET_VERSION"
+
+      - name: Verify release slot is available
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE_REF_PAGES="$(gh api --paginate --slurp "repos/$REPO/git/matching-refs/heads/release/v?per_page=100")"
+          UNFINISHED_RELEASES=()
+
+          while IFS= read -r REF; do
+            TAG="${REF#refs/heads/release/}"
+            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+              continue
+            fi
+            MATCHING_RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$RELEASE_PAGES")"
+            if [ -z "$MATCHING_RELEASE" ] || [ "$(jq -r '.draft' <<< "$MATCHING_RELEASE")" = "true" ]; then
+              UNFINISHED_RELEASES+=("$TAG")
+            fi
+          done < <(jq -r '.[][] | .ref' <<< "$RELEASE_REF_PAGES")
+
+          while IFS= read -r TAG; do
+            if [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] && \
+               ! jq -e --arg ref "refs/heads/release/$TAG" 'any(.[][]; .ref == $ref)' <<< "$RELEASE_REF_PAGES" >/dev/null; then
+              UNFINISHED_RELEASES+=("$TAG (draft without branch)")
+            fi
+          done < <(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")
+
+          if [ "${#UNFINISHED_RELEASES[@]}" -ne 0 ]; then
+            RELEASES="$(IFS=', '; echo "${UNFINISHED_RELEASES[*]}")"
+            echo "Finish or explicitly abandon every unpublished release before preparing another one: $RELEASES" >&2
+            exit 1
+          fi
+
       - name: Prepare Release via Claude
         uses: anthropics/claude-code-action@v1.0.66
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Bash(pnpm build:builtin-knowledge),Edit,Read,Write,Glob,Grep"'
+          github_token: ${{ github.token }}
+          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git rev-parse:*),Bash(git show:*),Bash(git status:*),Bash(gh release list:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
           prompt: |
-            Run the prepare-release skill with version argument: ${{ github.event.inputs.version }}
+            Run the prepare-release skill with exact version argument: ${{ steps.release-version.outputs.version }}
 
             Read the skill instructions from .agents/skills/prepare-release/SKILL.md and follow them exactly.
 
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
-            Configure git before making commits:
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
+            The workflow already completed the branch, remote-head, tag, published-release, and active-release checks from Step 1. Do not repeat those checks or run any Git mutation.
+
+            Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+
+      - name: Validate prepared release metadata
+        shell: bash
+        env:
+          RELEASE_HEAD: ${{ github.sha }}
+          REQUESTED_VERSION: ${{ steps.release-version.outputs.version }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$RELEASE_HEAD" ]; then
+            echo "Claude must not create a local release commit" >&2
+            exit 1
+          fi
+
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+
+          const allowedFiles = new Set([
+            'package.json',
+            'electron-builder.yml',
+            'resources/cherry-studio/release-history.json'
+          ])
+          const changedFiles = [
+            ...execFileSync('git', ['diff', 'HEAD', '--name-only', '--no-renames', '-z'], { encoding: 'utf8' }).split('\0'),
+            ...execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0')
+          ].filter(Boolean)
+
+          for (const filePath of new Set(changedFiles)) {
+            if (!allowedFiles.has(filePath)) throw new Error(`Unexpected release preparation change: ${filePath}`)
+            if (!fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
+              throw new Error(`Release preparation change is not a regular file: ${filePath}`)
+            }
+          }
+          NODE
+
+          node scripts/release/validate-prepared-release.js --target-version "$REQUESTED_VERSION"
+
+      - name: Generate product manifest
+        run: pnpm build:builtin-knowledge
+
+      - name: Stage prepared release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: prepared-release-${{ github.sha }}
+          path: |
+            package.json
+            electron-builder.yml
+            resources/cherry-studio/release-history.json
+            resources/builtin-agents/cherry-assistant/product-manifest.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Create release branch
+    needs: prepare
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact main commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Install validation dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download prepared release files
+        uses: actions/download-artifact@v8
+        with:
+          name: prepared-release-${{ github.sha }}
+          path: ${{ runner.temp }}/prepared-release
+
+      - name: Validate prepared release artifact
+        id: release-files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RELEASE_HEAD: ${{ github.sha }}
+          REQUESTED_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          CURRENT_MAIN="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$CURRENT_MAIN" != "$RELEASE_HEAD" ]; then
+            echo "main moved from $RELEASE_HEAD to $CURRENT_MAIN while the release was being prepared; rerun Pre Release" >&2
+            exit 1
+          fi
+
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE_REF_PAGES="$(gh api --paginate --slurp "repos/$REPO/git/matching-refs/heads/release/v?per_page=100")"
+          UNFINISHED_RELEASES=()
+          while IFS= read -r REF; do
+            TAG="${REF#refs/heads/release/}"
+            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+              continue
+            fi
+            MATCHING_RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$RELEASE_PAGES")"
+            if [ -z "$MATCHING_RELEASE" ] || [ "$(jq -r '.draft' <<< "$MATCHING_RELEASE")" = "true" ]; then
+              UNFINISHED_RELEASES+=("$TAG")
+            fi
+          done < <(jq -r '.[][] | .ref' <<< "$RELEASE_REF_PAGES")
+          while IFS= read -r TAG; do
+            if [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] && \
+               ! jq -e --arg ref "refs/heads/release/$TAG" 'any(.[][]; .ref == $ref)' <<< "$RELEASE_REF_PAGES" >/dev/null; then
+              UNFINISHED_RELEASES+=("$TAG (draft without branch)")
+            fi
+          done < <(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")
+          if [ "${#UNFINISHED_RELEASES[@]}" -ne 0 ]; then
+            RELEASES="$(IFS=', '; echo "${UNFINISHED_RELEASES[*]}")"
+            echo "Release state changed while preparing; finish or abandon: $RELEASES" >&2
+            exit 1
+          fi
+
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+          const path = require('node:path')
+
+          const artifactRoot = path.resolve(process.env.RUNNER_TEMP, 'prepared-release')
+          const allowedFiles = [
+            'electron-builder.yml',
+            'package.json',
+            'resources/builtin-agents/cherry-assistant/product-manifest.json',
+            'resources/cherry-studio/release-history.json'
+          ]
+          const discoveredFiles = []
+
+          function walk(directory) {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const entryPath = path.join(directory, entry.name)
+              if (entry.isSymbolicLink()) throw new Error(`Prepared release artifact contains a symbolic link: ${entryPath}`)
+              if (entry.isDirectory()) {
+                walk(entryPath)
+              } else if (entry.isFile()) {
+                discoveredFiles.push(path.relative(artifactRoot, entryPath))
+              } else {
+                throw new Error(`Prepared release artifact contains a non-regular file: ${entryPath}`)
+              }
+            }
+          }
+
+          walk(artifactRoot)
+          discoveredFiles.sort()
+          if (JSON.stringify(discoveredFiles) !== JSON.stringify(allowedFiles)) {
+            throw new Error(`Prepared release artifact has an unexpected file set: ${discoveredFiles.join(', ')}`)
+          }
+          for (const filePath of allowedFiles) {
+            fs.copyFileSync(path.join(artifactRoot, filePath), filePath)
+          }
+
+          const statusEntries = execFileSync(
+            'git',
+            ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
+            { encoding: 'utf8' }
+          ).split('\0').filter(Boolean)
+          const changedFiles = []
+
+          for (const entry of statusEntries) {
+            const status = entry.slice(0, 2)
+            const filePath = entry.slice(3)
+            if (status.includes('R') || status.includes('C')) {
+              throw new Error(`Release preparation must not rename or copy files: ${filePath}`)
+            }
+            if (status.includes('D')) {
+              throw new Error(`Release preparation must not delete files: ${filePath}`)
+            }
+            if (!allowedFiles.includes(filePath)) {
+              throw new Error(`Unexpected release preparation change: ${filePath}`)
+            }
+            if (!fs.lstatSync(filePath).isFile()) {
+              throw new Error(`Release preparation change is not a regular file: ${filePath}`)
+            }
+            changedFiles.push(filePath)
+          }
+
+          if (changedFiles.length === 0) {
+            throw new Error('Release preparation produced no changes')
+          }
+
+          changedFiles.sort()
+          const additions = changedFiles.map((filePath) => ({
+            path: filePath,
+            contents: fs.readFileSync(filePath).toString('base64')
+          }))
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'prepare-release-files.json'), JSON.stringify(additions))
+          NODE
+
+          RELEASE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$RELEASE_VERSION" != "$REQUESTED_VERSION" ]; then
+            echo "Prepared version $RELEASE_VERSION does not match requested version $REQUESTED_VERSION" >&2
+            exit 1
+          fi
+
+          if [[ ! "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Prepared version is not a supported semantic version: $RELEASE_VERSION" >&2
+            exit 1
+          fi
+
+          node scripts/release/validate-prepared-release.js --target-version "$REQUESTED_VERSION" --include-generated-manifest
+
+          RELEASE_BRANCH="release/v$RELEASE_VERSION"
+          echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release publisher identity
+        id: publisher
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+        run: |
+          AUTHOR_JSON="$(gh api user)"
+          echo "name=$(jq -r '.name // .login' <<< "$AUTHOR_JSON")" >> "$GITHUB_OUTPUT"
+          echo "email=$(jq -r '"\(.id)+\(.login)@users.noreply.github.com"' <<< "$AUTHOR_JSON")" >> "$GITHUB_OUTPUT"
+
+      - name: Create release commit payload
+        id: release-commit
+        shell: bash
+        env:
+          RELEASE_BRANCH: ${{ steps.release-files.outputs.branch }}
+          RELEASE_HEAD: ${{ github.sha }}
+          RELEASE_VERSION: ${{ steps.release-files.outputs.version }}
+          REPO: ${{ github.repository }}
+          SIGNOFF_EMAIL: ${{ steps.publisher.outputs.email }}
+          SIGNOFF_NAME: ${{ steps.publisher.outputs.name }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const additions = JSON.parse(fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'prepare-release-files.json')))
+          const payload = {
+            query: `mutation($input: CreateCommitOnBranchInput!) {
+              createCommitOnBranch(input: $input) {
+                commit { oid url }
+              }
+            }`,
+            variables: {
+              input: {
+                branch: {
+                  repositoryNameWithOwner: process.env.REPO,
+                  branchName: process.env.RELEASE_BRANCH
+                },
+                expectedHeadOid: process.env.RELEASE_HEAD,
+                message: {
+                  headline: `chore(release): prepare v${process.env.RELEASE_VERSION}`,
+                  body: `Signed-off-by: ${process.env.SIGNOFF_NAME} <${process.env.SIGNOFF_EMAIL}>`
+                },
+                fileChanges: { additions }
+              }
+            }
+          }
+
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'prepare-release-commit.json'), JSON.stringify(payload))
+          NODE
+
+          echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Create signed release commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ steps.release-commit.outputs.branch }}
+          RELEASE_HEAD: ${{ github.sha }}
+          SIGNOFF_EMAIL: ${{ steps.publisher.outputs.email }}
+          SIGNOFF_NAME: ${{ steps.publisher.outputs.name }}
+        run: |
+          CURRENT_MAIN="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$CURRENT_MAIN" != "$RELEASE_HEAD" ]; then
+            echo "main moved from $RELEASE_HEAD to $CURRENT_MAIN before release branch creation; rerun Pre Release" >&2
+            exit 1
+          fi
+          if gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
+            echo "Release branch $RELEASE_BRANCH already exists" >&2
+            exit 1
+          fi
+
+          gh api --method POST "repos/$REPO/git/refs" \
+            -f ref="refs/heads/$RELEASE_BRANCH" \
+            -f sha="$RELEASE_HEAD" >/dev/null
+
+          COMMIT_SHA=""
+          cleanup_release_branch() {
+            STATUS=$?
+            trap - EXIT
+            CURRENT_SHA="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha' 2>/dev/null || true)"
+            if [ "$CURRENT_SHA" = "$RELEASE_HEAD" ] || { [ -n "$COMMIT_SHA" ] && [ "$CURRENT_SHA" = "$COMMIT_SHA" ]; }; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$RELEASE_BRANCH" >/dev/null || true
+            else
+              echo "Refusing to clean up $RELEASE_BRANCH because it moved unexpectedly" >&2
+            fi
+            exit "$STATUS"
+          }
+          trap cleanup_release_branch EXIT
+
+          RESPONSE="$(gh api graphql --input "$RUNNER_TEMP/prepare-release-commit.json")"
+          COMMIT_SHA="$(jq -r '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"
+          COMMIT_URL="$(jq -r '.data.createCommitOnBranch.commit.url' <<< "$RESPONSE")"
+          COMMIT_JSON="$(gh api "repos/$REPO/commits/$COMMIT_SHA")"
+          VERIFIED="$(jq -r '.commit.verification.verified' <<< "$COMMIT_JSON")"
+
+          if [ "$VERIFIED" != "true" ]; then
+            echo "Release commit $COMMIT_SHA was not verified" >&2
+            exit 1
+          fi
+
+          if ! jq -r '.commit.message' <<< "$COMMIT_JSON" | grep -Fqx "Signed-off-by: $SIGNOFF_NAME <$SIGNOFF_EMAIL>"; then
+            echo "Release commit $COMMIT_SHA is missing the expected DCO sign-off" >&2
+            exit 1
+          fi
+
+          trap - EXIT
+          echo "Created $RELEASE_BRANCH at $COMMIT_URL"

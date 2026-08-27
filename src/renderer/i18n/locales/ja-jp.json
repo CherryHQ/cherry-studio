@@ -4727,6 +4727,7 @@
   "settings.tool.websearch.provider_description.fetch": "組み込みURLフェッチプロバイダー。URLからウェブページのコンテンツを取得し、検索結果を充実させます。",
   "settings.tool.websearch.provider_description.firecrawl": "Firecrawl クローラーおよび検索サービスは、WebサイトをMarkdownに変換することに最適化されています。",
   "settings.tool.websearch.provider_description.jina": "Jina Reader の検索および読み取り API は、クリーンな Web コンテンツを取得するためのものです。",
+  "settings.tool.websearch.provider_description.parallel": "AI エージェント向けのウェブ検索 API。関連度順のリンクと情報密度の高い抜粋を返します。",
   "settings.tool.websearch.provider_description.querit": "AIアプリ向けのWeb検索結果を含む検索サービス",
   "settings.tool.websearch.provider_description.searxng": "多くのソースにまたがる、セルフホスティング可能な無料インターネットメタ検索エンジン。",
   "settings.tool.websearch.provider_description.tavily": "LLM向けに最適化された検索エンジン。",

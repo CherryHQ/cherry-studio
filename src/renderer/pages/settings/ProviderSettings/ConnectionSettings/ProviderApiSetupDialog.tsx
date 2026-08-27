@@ -793,7 +793,6 @@ function VerificationProgressRow({
               role={status === 'active' || status === 'warning' ? 'status' : undefined}
               className={cn(
                 'shrink-0 text-xs',
-                status === 'complete' && 'text-success',
                 status === 'active' && 'text-primary',
                 status === 'error' && 'text-error',
                 status === 'warning' && 'text-warning'

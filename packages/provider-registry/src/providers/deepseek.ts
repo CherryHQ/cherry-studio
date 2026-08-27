@@ -92,7 +92,7 @@ export default defineProvider({
   // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
   overrides: [
     { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
-    { modelId: 'deepseek-reasoner', endpointTypes: ['openai-chat-completions'] },
+    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', endpointTypes: ['openai-chat-completions'] },
     {
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],

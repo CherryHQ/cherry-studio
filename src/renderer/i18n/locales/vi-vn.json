@@ -4727,6 +4727,7 @@
   "settings.tool.websearch.provider_description.fetch": "Nhà cung cấp tìm nạp URL tích hợp. Tìm nạp nội dung trang web từ một URL để làm phong phú kết quả tìm kiếm.",
   "settings.tool.websearch.provider_description.firecrawl": "Dịch vụ crawler và tìm kiếm Firecrawl, được tối ưu hóa để chuyển đổi các trang web thành Markdown.",
   "settings.tool.websearch.provider_description.jina": "API tìm kiếm và đọc Jina Reader để truy xuất nội dung web sạch.",
+  "settings.tool.websearch.provider_description.parallel": "API tìm kiếm web dành cho tác nhân AI, trả về liên kết được xếp hạng và các đoạn trích giàu thông tin.",
   "settings.tool.websearch.provider_description.querit": "Dịch vụ tìm kiếm cho ứng dụng AI với kết quả truy xuất web.",
   "settings.tool.websearch.provider_description.searxng": "Công cụ tìm kiếm meta internet miễn phí có thể tự lưu trữ trên nhiều nguồn khác nhau.",
   "settings.tool.websearch.provider_description.tavily": "Công cụ tìm kiếm được tối ưu hóa cho các mô hình ngôn ngữ lớn.",

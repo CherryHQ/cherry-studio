@@ -4727,6 +4727,7 @@
   "settings.tool.websearch.provider_description.fetch": "Furnizor încorporat de preluare URL. Preia conținutul paginilor web de la o adresă URL pentru a îmbogăți rezultatele căutării.",
   "settings.tool.websearch.provider_description.firecrawl": "Serviciu de căutare și crawler Firecrawl, optimizat pentru a transforma site-urile web în Markdown.",
   "settings.tool.websearch.provider_description.jina": "API-urile de căutare și citire Jina Reader pentru recuperarea conținutului web curat.",
+  "settings.tool.websearch.provider_description.parallel": "API de căutare web pentru agenți AI, care returnează linkuri clasificate și extrase dense în informații.",
   "settings.tool.websearch.provider_description.querit": "Serviciu de căutare pentru aplicații AI cu rezultate de recuperare web.",
   "settings.tool.websearch.provider_description.searxng": "Motor de metacăutare gratuit pe internet, auto-găzduibil, care caută în multe surse.",
   "settings.tool.websearch.provider_description.tavily": "Motor de căutare optimizat pentru LLM-uri.",
