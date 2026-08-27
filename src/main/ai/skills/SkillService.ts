@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -35,7 +35,32 @@ const logger = loggerService.withContext('SkillService')
 
 const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
+const WORKSPACE_SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-workspace-skills' }, null, 2)}\n`
+
+/** Windows junctions cannot target UNC shares; those skills are copied into the plugin instead. */
+const isUncPath = (p: string): boolean => /^[\\/]{2}[^\\/]/.test(p)
+
+const WORKSPACE_SKILL_PUBLISH_RETRY_MS = 5 * 60_000
+const WORKSPACE_SKILL_FINGERPRINT_MAX_ENTRIES = 2048
+const WORKSPACE_SKILL_FINGERPRINT_MAX_BYTES = 16 * 1024 * 1024
+
+class WorkspaceSkillLinkFallback extends Error {}
+class WorkspaceSkillSourceDrift extends Error {
+  constructor() {
+    super('Workspace skill source changed while it was being copied')
+  }
+}
+class WorkspaceSkillFingerprintOverflow extends Error {}
 const BUILTIN_VERSION_FILE = '.version'
+
+type WorkspaceSkillRoot = 'claude' | 'agents'
+
+interface WorkspaceSkillLink {
+  name: string
+  target: string
+  copy: boolean
+  fingerprint: string
+}
 
 /**
  * Skill management service.
@@ -54,8 +79,16 @@ export class SkillService {
   // Serializes every library mutation — install / uninstall / builtin sync / reconcile — so a
   // reconcile can't read a mid-mutation snapshot (and, e.g., prune a row an install just wrote).
   private readonly mutationLock = new Mutex()
+  private readonly workspaceSkillPluginPublishLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
+  private workspaceSkillPluginsPruned?: Promise<void>
+  // Publish outcomes for this process: a failed key reads as "no bridge" until its retry time, so
+  // the rebuild signature settles on a deterministic failure yet re-triggers a publish later.
+  private readonly failedWorkspaceSkillPluginKeys = new Map<string, number>()
+  // Targets junctions cannot reach (e.g. mapped network drives); bridged as fingerprint-keyed copies.
+  private readonly junctionUnsupportedTargets = new Set<string>()
+  private readonly workspaceSkillFingerprints = new Map<string, string>()
 
   constructor() {
     this.installer = new SkillInstaller()
@@ -259,14 +292,19 @@ export class SkillService {
   }
 
   /**
-   * List only the directory names needed by the Claude SDK skills whitelist.
-   * The SDK owns SKILL.md parsing; this path only verifies that a skill file
-   * exists after applying the same local/symlink ownership filter as listLocal.
+   * List the directory names for the Claude SDK skills whitelist. `.claude/skills` entries are
+   * discovered by the SDK itself, so a lenient SKILL.md probe suffices. `.agents/skills` entries
+   * reach the SDK only through the bridge plugin, so only names the bridge actually publishes are
+   * listed — whitelisting a skipped name could un-hide a same-named disabled managed skill.
    */
-  async listLocalFolderNames(workdir: string): Promise<string[]> {
+  async listLocalFolderNames(workdir: string, workspaceSkillPlugin: string | null): Promise<string[]> {
     const names: string[] = []
     for (const skill of await this.listLocalSkillDirectories(workdir)) {
-      if (await findSkillMdPath(skill.path)) names.push(skill.name)
+      if (skill.root === 'claude' && (await findSkillMdPath(skill.path))) names.push(skill.name)
+    }
+    const { pluginDir, links } = await this.resolveWorkspaceSkillPlugin(workdir)
+    if (pluginDir === workspaceSkillPlugin && !this.isWorkspaceSkillPluginBackedOff(pluginDir)) {
+      names.push(...links.map((link) => link.name))
     }
     return names
   }
@@ -280,18 +318,259 @@ export class SkillService {
     return paths
   }
 
-  private async listLocalSkillDirectories(workdir: string): Promise<Array<{ name: string; path: string }>> {
-    const results: Array<{ name: string; path: string }> = []
+  /**
+   * The plugin directory {@link ensureWorkspaceSkillPlugin} would publish for this workspace,
+   * without publishing it. Reads only the workspace plus this process's publish outcomes — a key
+   * that failed to publish reads as absent until its retry backoff expires, so staleness checks
+   * settle on a deterministic failure yet still re-trigger a publish attempt later.
+   */
+  async resolveWorkspaceSkillPluginPath(workdir: string): Promise<string | undefined> {
+    const { pluginDir, links } = await this.resolveWorkspaceSkillPlugin(workdir)
+    if (!pluginDir || this.isWorkspaceSkillPluginBackedOff(pluginDir)) return undefined
+    // A missing or incomplete directory reads as a distinct fact, so the rebuild signature
+    // mismatches and the next build (re)publishes it.
+    return (await this.isWorkspaceSkillPluginComplete(pluginDir, links)) ? pluginDir : `${pluginDir}#unpublished`
+  }
+
+  private isWorkspaceSkillPluginBackedOff(pluginDir: string): boolean {
+    const retryAfter = this.failedWorkspaceSkillPluginKeys.get(pluginDir)
+    return retryAfter !== undefined && Date.now() < retryAfter
+  }
+
+  /**
+   * Bridge a workspace's `.agents/skills` into a Claude Code local plugin. The SDK only discovers
+   * workspace skills under `cwd/.claude/skills` and rejects manifest skill paths outside the plugin
+   * root, so each `.agents`-only skill is linked under `<plugin>/skills/<name>`. Plugin directories
+   * are content-addressed and never mutated after publish, so concurrent session builds share them.
+   *
+   * @returns The plugin directory, or `undefined` when the workspace has nothing to bridge.
+   */
+  async ensureWorkspaceSkillPlugin(workdir: string): Promise<string | undefined> {
+    // Plugins left by a previous process are dead; wipe them once, before this process publishes any.
+    await (this.workspaceSkillPluginsPruned ??= this.pruneStaleWorkspaceSkillPlugins())
+    return await this.workspaceSkillPluginPublishLock.runExclusive(() => this.publishWorkspaceSkillPlugin(workdir))
+  }
+
+  private async publishWorkspaceSkillPlugin(workdir: string, attempt = 0): Promise<string | undefined> {
+    const { pluginDir, links, skipped, oversized } = await this.resolveWorkspaceSkillPlugin(workdir)
+    if (attempt === 0) {
+      if (skipped.length > 0) {
+        logger.warn('Workspace skills without a regular exact SKILL.md are not bridged', {
+          skipped
+        })
+      }
+      if (oversized.length > 0) {
+        logger.warn('Workspace skills too large to fingerprint were skipped', {
+          oversized,
+          maxEntries: WORKSPACE_SKILL_FINGERPRINT_MAX_ENTRIES
+        })
+      }
+    }
+    if (!pluginDir) return undefined
+    if (await directoryExists(pluginDir)) {
+      if (await this.isWorkspaceSkillPluginComplete(pluginDir, links)) {
+        this.failedWorkspaceSkillPluginKeys.delete(pluginDir)
+        return pluginDir
+      }
+      // A prune interrupted mid-delete can leave a gutted directory under a still-current key.
+      await fs.promises.rm(pluginDir, { recursive: true, force: true }).catch(() => undefined)
+    }
+
+    const stagingDir = path.join(path.dirname(pluginDir), `staging-${randomUUID()}`)
+    try {
+      await fs.promises.mkdir(path.join(stagingDir, '.claude-plugin'), { recursive: true })
+      await fs.promises.mkdir(path.join(stagingDir, 'skills'))
+      await fs.promises.writeFile(
+        path.join(stagingDir, '.claude-plugin', 'plugin.json'),
+        WORKSPACE_SKILLS_PLUGIN_MANIFEST,
+        'utf-8'
+      )
+      const linkFailures: string[] = []
+      for (const link of links) {
+        const linkPath = path.join(stagingDir, 'skills', link.name)
+        if (link.copy) {
+          await fs.promises.cp(link.target, linkPath, { recursive: true })
+        } else {
+          try {
+            await fs.promises.symlink(link.target, linkPath, isWin ? 'junction' : 'dir')
+          } catch (error) {
+            // Junctions cannot reach some targets (e.g. mapped network drives). Collect every failure
+            // so a single retry republishes them all as fingerprint-keyed copies.
+            logger.warn('Linking workspace skill failed; bridging it as a copy instead', {
+              target: link.target,
+              error
+            })
+            linkFailures.push(link.target)
+          }
+        }
+      }
+      if (linkFailures.length > 0) {
+        for (const target of linkFailures) this.junctionUnsupportedTargets.add(target)
+        throw new WorkspaceSkillLinkFallback()
+      }
+      // The source can change while the plugin is being materialized; fingerprint through each
+      // staged copy/link so a snapshot that does not match its key is never published.
+      for (const link of links) {
+        const staged = await this.fingerprintDirectory(path.join(stagingDir, 'skills', link.name), false)
+        if (staged !== link.fingerprint) throw new WorkspaceSkillSourceDrift()
+      }
+      await fs.promises.rename(stagingDir, pluginDir)
+      this.failedWorkspaceSkillPluginKeys.delete(pluginDir)
+      return pluginDir
+    } catch (error) {
+      await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => undefined)
+      // Terminates: every fallback retry moves at least one new target into junctionUnsupportedTargets.
+      if (error instanceof WorkspaceSkillLinkFallback) return this.publishWorkspaceSkillPlugin(workdir, attempt + 1)
+      if (error instanceof WorkspaceSkillSourceDrift && attempt < 2) {
+        return this.publishWorkspaceSkillPlugin(workdir, attempt + 1)
+      }
+      // A concurrent build publishing the same key wins the rename; its directory is identical.
+      if ((await directoryExists(pluginDir)) && (await this.isWorkspaceSkillPluginComplete(pluginDir, links))) {
+        this.failedWorkspaceSkillPluginKeys.delete(pluginDir)
+        return pluginDir
+      }
+      this.failedWorkspaceSkillPluginKeys.set(pluginDir, Date.now() + WORKSPACE_SKILL_PUBLISH_RETRY_MS)
+      logger.warn('Failed to materialize workspace skill plugin', { workdir, pluginDir, error })
+      return undefined
+    }
+  }
+
+  private async resolveWorkspaceSkillPlugin(workdir: string): Promise<{
+    pluginDir?: string
+    links: WorkspaceSkillLink[]
+    skipped: string[]
+    oversized: string[]
+  }> {
+    const links: WorkspaceSkillLink[] = []
+    const skipped: string[] = []
+    const oversized: string[] = []
+    for (const skill of await this.listLocalSkillDirectories(workdir)) {
+      if (skill.root !== 'agents') continue
+      // Mirror the SDK's own lookup: `SKILL.md` exactly, which a lowercase `skill.md` satisfies only on
+      // case-insensitive filesystems. The parser's lenient lookup would bridge a skill the SDK never loads.
+      try {
+        const descriptor = await fs.promises.stat(path.join(skill.path, 'SKILL.md'))
+        if (!descriptor.isFile()) {
+          skipped.push(skill.path)
+          continue
+        }
+      } catch {
+        if (await findSkillMdPath(skill.path)) skipped.push(skill.path)
+        continue
+      }
+      const copy = this.shouldCopyWorkspaceSkill(skill.path) || this.junctionUnsupportedTargets.has(skill.path)
+      const fingerprint = await this.fingerprintDirectory(skill.path)
+      if (fingerprint === null) {
+        oversized.push(skill.path)
+        continue
+      }
+      links.push({ name: skill.name, target: skill.path, copy, fingerprint })
+    }
+    if (links.length === 0) return { links, skipped, oversized }
+
+    const key = createHash('sha256')
+      .update(
+        links
+          .map((link) => `${link.name}\0${link.target}\0${link.fingerprint}`)
+          .sort()
+          .join('\n')
+      )
+      .digest('hex')
+    return {
+      pluginDir: path.join(application.getPath('feature.agents.claude.workspace_skills.temp'), key),
+      links,
+      skipped,
+      oversized
+    }
+  }
+
+  private shouldCopyWorkspaceSkill(target: string): boolean {
+    return isWin && isUncPath(target)
+  }
+
+  private async isWorkspaceSkillPluginComplete(pluginDir: string, links: WorkspaceSkillLink[]): Promise<boolean> {
+    try {
+      await fs.promises.access(path.join(pluginDir, '.claude-plugin', 'plugin.json'))
+      for (const link of links) {
+        await fs.promises.lstat(path.join(pluginDir, 'skills', link.name))
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Deterministic content digest (relative paths + file bytes) for workspace plugin keys. `null`
+   * marks a tree over the entry or byte cap: an incomplete digest could not tell edits apart, so
+   * such a skill is refused rather than served stale.
+   */
+  private async fingerprintDirectory(dir: string, cacheResult = true): Promise<string | null> {
+    const hash = createHash('sha256')
+    const remaining = { entries: WORKSPACE_SKILL_FINGERPRINT_MAX_ENTRIES, bytes: WORKSPACE_SKILL_FINGERPRINT_MAX_BYTES }
+    const walk = async (current: string, prefix: string): Promise<void> => {
+      const entries = await fs.promises.readdir(current, { withFileTypes: true })
+      entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+      for (const entry of entries) {
+        if (remaining.entries-- <= 0) throw new WorkspaceSkillFingerprintOverflow()
+        const entryPath = path.join(current, entry.name)
+        const relative = `${prefix}/${entry.name}`
+        if (entry.isDirectory()) {
+          hash.update(`d\0${relative}\n`)
+          await walk(entryPath, relative)
+        } else {
+          // Check the declared size before reading so one huge file cannot balloon memory first.
+          const stat = await fs.promises.stat(entryPath)
+          if (stat.size > remaining.bytes) throw new WorkspaceSkillFingerprintOverflow()
+          const content = await fs.promises.readFile(entryPath)
+          remaining.bytes -= content.byteLength
+          if (remaining.bytes < 0) throw new WorkspaceSkillFingerprintOverflow()
+          hash.update(`f\0${relative}\0`)
+          hash.update(content)
+          hash.update('\n')
+        }
+      }
+    }
+    try {
+      await walk(dir, '')
+    } catch (error) {
+      if (error instanceof WorkspaceSkillFingerprintOverflow) return null
+      const lastKnown = this.workspaceSkillFingerprints.get(dir)
+      logger.warn('Failed to fingerprint workspace skill; treating it as unchanged', { dir, error })
+      return lastKnown ?? 'unreadable'
+    }
+    const digest = hash.digest('hex')
+    if (cacheResult) this.workspaceSkillFingerprints.set(dir, digest)
+    return digest
+  }
+
+  private async pruneStaleWorkspaceSkillPlugins(): Promise<void> {
+    const root = application.getPath('feature.agents.claude.workspace_skills.temp')
+    try {
+      await fs.promises.rm(root, { recursive: true, force: true })
+    } catch (error) {
+      logger.warn('Failed to prune stale workspace skill plugins', { root, error })
+    }
+  }
+
+  private async listLocalSkillDirectories(
+    workdir: string
+  ): Promise<Array<{ name: string; path: string; root: WorkspaceSkillRoot }>> {
+    const results: Array<{ name: string; path: string; root: WorkspaceSkillRoot }> = []
     const seenNames = new Set<string>()
 
     // Keep the existing Claude-specific root first when duplicate folder names exist.
-    for (const skillsDir of [path.join(workdir, '.claude', 'skills'), path.join(workdir, '.agents', 'skills')]) {
+    const roots: ReadonlyArray<{ root: WorkspaceSkillRoot; skillsDir: string }> = [
+      { root: 'claude', skillsDir: path.join(workdir, '.claude', 'skills') },
+      { root: 'agents', skillsDir: path.join(workdir, '.agents', 'skills') }
+    ]
+    for (const { root, skillsDir } of roots) {
       try {
         const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
         for (const entry of entries) {
           if (seenNames.has(entry.name) || !(await this.isLocalSkillDirectoryEntry(skillsDir, entry))) continue
           seenNames.add(entry.name)
-          results.push({ name: entry.name, path: path.join(skillsDir, entry.name) })
+          results.push({ name: entry.name, path: path.join(skillsDir, entry.name), root })
         }
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue

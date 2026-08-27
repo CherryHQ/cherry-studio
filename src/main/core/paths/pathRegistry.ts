@@ -9,6 +9,7 @@
  * Helper constants must be primitives; put helper objects in a separate file.
  */
 
+import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -53,6 +54,8 @@ export function buildPathRegistry() {
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
+  // Instances with different userData (dev suffixes) share appTemp; keys that wipe their root need their own.
+  const appTempInstanceId = createHash('sha256').update(appUserData).digest('hex').slice(0, 16)
   // electron-builder `extraResources` output — distinct from appRootResources
   const appExtraResources = process.resourcesPath
   // `resources/` inside asar (bundled assets) — distinct from appExtraResources
@@ -162,6 +165,7 @@ export function buildPathRegistry() {
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
+    'feature.agents.claude.workspace_skills.temp': path.join(appTemp, 'claude-workspace-skills', appTempInstanceId), // .agents/skills plugin bridges; wiped on first publish, symlinks must stay out of Data backups
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
@@ -287,7 +291,9 @@ const NO_ENSURE = [
   'feature.agents.skills.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
-  'feature.agents.system_workspaces'
+  'feature.agents.system_workspaces',
+  // SkillService materializes this itself; its pure resolve path must not create it.
+  'feature.agents.claude.workspace_skills.temp'
 ] as const satisfies readonly NoEnsureEntry[]
 
 /** Whether Application.getPath() should auto-create the directory for this key. */

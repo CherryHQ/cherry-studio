@@ -35,9 +35,13 @@ describe('checkSkillRuntimeDependencies', () => {
   }
 
   /** Write a real SKILL.md so the frontmatter parser, not a stub, decides what was declared. */
-  async function writeWorkspaceSkill(name: string, frontmatter: string) {
-    const workdir = await createTempDir('skill-deps-workspace-')
-    const directory = path.join(workdir, '.claude', 'skills', name)
+  async function writeWorkspaceSkill(
+    name: string,
+    frontmatter: string,
+    { root = '.claude', workdir }: { root?: '.claude' | '.agents'; workdir?: string } = {}
+  ) {
+    workdir ??= await createTempDir('skill-deps-workspace-')
+    const directory = path.join(workdir, root, 'skills', name)
     await fs.promises.mkdir(directory, { recursive: true })
     await fs.promises.writeFile(
       path.join(directory, 'SKILL.md'),
@@ -136,6 +140,25 @@ describe('checkSkillRuntimeDependencies', () => {
 
     expect(result.deny).toBeUndefined()
     expect(result.warning).toContain('"my-custom-reviewer"')
+  })
+
+  it('checks a bare-name skill that lives under .agents/skills', async () => {
+    const workdir = await writeWorkspaceSkill('agent-only', 'allowed-tools: Bash(parallel-cli:*)\n', {
+      root: '.agents'
+    })
+    mocks.findExecutableInEnv.mockResolvedValue(null)
+
+    const result = await checkSkillRuntimeDependencies('agent-only', workdir, new Map())
+
+    expect(result.warning).toContain('the executable "parallel-cli"')
+  })
+
+  it('lets a .claude/skills entry shadow the .agents/skills entry of the same name', async () => {
+    const workdir = await writeWorkspaceSkill('shared', 'allowed-tools: Bash(jq:*)\n')
+    await writeWorkspaceSkill('shared', 'allowed-tools: Bash(parallel-cli:*)\n', { root: '.agents', workdir })
+    mocks.findExecutableInEnv.mockImplementation(async (name) => (name === 'jq' ? '/usr/bin/jq' : null))
+
+    expect(await checkSkillRuntimeDependencies('shared', workdir, new Map())).toEqual({})
   })
 
   it('treats SDK builtin subagents as available', async () => {
