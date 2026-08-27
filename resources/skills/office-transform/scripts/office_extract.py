@@ -139,6 +139,13 @@ def slice_char_range(text: str, char_range) -> str:
     start, end = char_range
     if start > end or start < 0:
         fail(f"invalid charRange: {char_range!r}")
+    # Python slicing clamps silently; every other ordinal in this file fails loudly when out of range,
+    # and a charRange past the end of the text means the anchor no longer describes this paragraph.
+    if start > len(text) or end > len(text):
+        fail(
+            f"charRange {char_range!r} runs past the end of the anchored text ({len(text)} characters); "
+            f"the document changed since the anchor was captured — re-select instead of truncating"
+        )
     return text[start:end]
 
 
@@ -184,6 +191,15 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
         [cell.value for cell in row]
         for row in worksheet.iter_rows(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
     ]
+    # read_only mode does not mask merge followers: it hands back the master's value for every cell in
+    # the range, so a range covering a merge reads as if the text were repeated. Excel shows it once,
+    # at the top-left. Mask the followers so what we extract matches what the user sees — the skill's
+    # verify-after-edit step compares against this, and it has to be telling the truth.
+    for merge in getattr(worksheet, "merged_cells", None) or []:
+        for row_number in range(max(merge.min_row, min_row), min(merge.max_row, max_row) + 1):
+            for column in range(max(merge.min_col, min_col), min(merge.max_col, max_col) + 1):
+                if (column, row_number) != (merge.min_col, merge.min_row):
+                    values[row_number - min_row][column - min_col] = None
     workbook.close()
 
     if out_format == "xlsx":
