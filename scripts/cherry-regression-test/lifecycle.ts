@@ -487,12 +487,8 @@ export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string):
       debuggerUrl,
       `(() => {
         const electron = process.mainModule?.require?.('electron')
-        if (!electron?.app) throw new Error('Electron app is unavailable')
-        const callbackUrl = ${JSON.stringify(url)}
-        if (${JSON.stringify(record.platform)} === 'macos') {
-          return electron.app.emit('open-url', { preventDefault() {} }, callbackUrl)
-        }
-        return electron.app.emit('second-instance', {}, [process.execPath, process.argv[1] ?? '', callbackUrl], process.cwd())
+        if (!electron?.app) throw new Error('Electron app is unavailable in the main-process inspector')
+        return electron.app.emit('open-url', { preventDefault() {} }, ${JSON.stringify(url)})
       })()`
     )
     if (!delivered) throw new Error('Owned Cherry Studio instance has no protocol URL listener')

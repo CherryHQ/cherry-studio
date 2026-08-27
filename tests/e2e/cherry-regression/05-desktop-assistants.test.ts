@@ -10,6 +10,7 @@ async function configureQuickAssistant(
   providerId: string,
   model: string
 ): Promise<void> {
+  await page.evaluate(() => window.api.preference.set('feature.quick_assistant.enabled', false))
   await page.evaluate(
     ({ providerId, model }) =>
       window.api.preference.setMultiple({
@@ -64,7 +65,8 @@ test('[C-02] 使用快捷助手完成全局问答 @quick-assistant', async ({ ap
   await invokeQuickAssistant(app, prompt)
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await page.waitForTimeout(2_000)
+  await configureQuickAssistant(page, providerId, app.config.customProvider.chatModel)
+  await closeSettings(page)
   await invokeQuickAssistant(app, prompt)
 })
 

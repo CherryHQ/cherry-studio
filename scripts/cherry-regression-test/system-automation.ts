@@ -102,6 +102,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
     const script = [
       `$process = Start-Process notepad.exe -ArgumentList '${escapePowerShell(filePath)}' -PassThru`,
       '$null = $process.WaitForInputIdle(5000)',
+      'Start-Sleep -Seconds 2',
       '$shell = New-Object -ComObject WScript.Shell',
       'if (-not $shell.AppActivate($process.Id)) { throw "Notepad window could not be activated" }',
       'Start-Sleep -Milliseconds 500',
@@ -166,16 +167,8 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
             'Start-Sleep -Milliseconds 200',
             `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
             '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
-            'Start-Sleep -Milliseconds 500',
-            '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-            '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
-            'if (-not $dialog) { throw "Native folder dialog closed before selection" }',
-            '$buttonCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
-            '$buttons = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
-            '$selectButton = $buttons | Where-Object { $_.Current.Name -in @("Select Folder", "Choose Folder", "Choose this folder", "Select a folder", "Select") } | Select-Object -First 1',
-            'if (-not $selectButton) { throw "Select Folder button was not found" }',
-            '$selectButton.SetFocus()',
-            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")'
+            'Start-Sleep -Milliseconds 750',
+            '[System.Windows.Forms.SendKeys]::SendWait("%s")'
           ]
         : [
             '[System.Windows.Forms.SendKeys]::SendWait("%n")',

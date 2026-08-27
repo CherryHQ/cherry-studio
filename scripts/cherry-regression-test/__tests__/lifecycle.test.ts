@@ -181,7 +181,7 @@ describe('owned application lifecycle', () => {
 
     expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
       'ws://127.0.0.1:9229/main-process',
-      expect.stringContaining("electron.app.emit('second-instance'")
+      expect.stringContaining("electron.app.emit('open-url'")
     )
     expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain(callback)
   })
