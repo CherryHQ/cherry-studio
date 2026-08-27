@@ -498,6 +498,11 @@ def find_or_create_ordered(doc: minidom.Document, parent, local_name: str, sort_
         if sort_key(child.getAttribute("r")) > key:
             before = child
             break
+    # Past the last sibling is not the same as last in the parent: CT_Row puts `extLst` after every
+    # `c`, so appending a cell whose column is the highest yet would land behind it and Excel opens
+    # the file in repair mode. Only `extLst` follows in either sequence this creates into.
+    if before is None:
+        before = first_child(parent, "extLst")
     parent.insertBefore(created, before)
     return created
 
