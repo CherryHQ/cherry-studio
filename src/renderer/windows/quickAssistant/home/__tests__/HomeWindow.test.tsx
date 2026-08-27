@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom/vitest'
 
+import { ExecutionOverlayPhase } from '@renderer/services/aiTransport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,7 +34,10 @@ const state = vi.hoisted(() => ({
   } as TestModel | undefined,
   messages: [] as never[],
   activeExecutions: [] as never[],
-  liveAssistants: [] as never[],
+  records: [] as Array<{
+    phase: ExecutionOverlayPhase
+    message: { id: string; role: 'assistant'; parts: Array<{ type: 'text'; text: string }> }
+  }>,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   setMessages: vi.fn(),
@@ -89,13 +94,17 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: state.activeExecutions, isPending: false })
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({
+    activeExecutions: state.activeExecutions,
+    isPending: state.activeExecutions.length > 0,
+    conversationBusy: state.activeExecutions.length > 0
+  })
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({
-    liveAssistants: state.liveAssistants,
+    records: state.records,
     reset: state.resetExecutionMessages,
     clear: state.clearExecutionMessages
   })
@@ -144,15 +153,21 @@ vi.mock('../components/FeatureMenus', () => ({
   default: vi.fn(
     ({
       ref,
+      setRoute,
       onSendMessage
     }: {
       ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null>
+      setRoute: (route: 'chat') => void
       onSendMessage: () => void
     }) => {
-      if (ref) {
-        ref.current = { useFeature: onSendMessage, resetSelectedIndex: vi.fn() }
+      const useFeature = () => {
+        setRoute('chat')
+        onSendMessage()
       }
-      return <div data-testid="feature-menus" />
+      if (ref) {
+        ref.current = { useFeature, resetSelectedIndex: vi.fn() }
+      }
+      return <button type="button" data-testid="feature-menus" onClick={useFeature} />
     }
   )
 }))
@@ -167,7 +182,9 @@ vi.mock('../components/ClipboardPreview', () => ({
 }))
 
 vi.mock('../../chat/ChatWindow', () => ({
-  default: () => <div data-testid="chat-window" />
+  default: ({ messages }: { messages: Array<{ id: string }> }) => (
+    <div data-testid="chat-window">{messages.map((message) => message.id).join(',')}</div>
+  )
 }))
 
 vi.mock('../../translate/TranslateWindow', () => ({
@@ -215,6 +232,9 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.messages = []
+    state.activeExecutions = []
+    state.records = []
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
       modelId: 'claude-sonnet',
@@ -259,5 +279,42 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  it('keeps one assistant record across active → settled and consecutive turns', async () => {
+    state.messages = [{ id: 'user-1', role: 'user', parts: [] }] as never[]
+    state.activeExecutions = [
+      { turnId: 'turn-1', executionId: 'execution-1', modelId: 'cherryai::qwen', outputNodeId: 'assistant-1' }
+    ] as never[]
+    state.records = [
+      {
+        phase: ExecutionOverlayPhase.Active,
+        message: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'one' }] }
+      }
+    ]
+    const view = render(<HomeWindow draggable={false} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId('feature-menus'))
+    expect(await screen.findByTestId('chat-window')).toHaveTextContent('user-1,assistant-1')
+
+    state.activeExecutions = []
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.getByTestId('chat-window')).toHaveTextContent('user-1,assistant-1')
+
+    state.records = [{ ...state.records[0], phase: ExecutionOverlayPhase.Settled }]
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.getByTestId('chat-window').textContent?.match(/assistant-1/g)).toHaveLength(1)
+
+    state.messages = [...state.messages, { id: 'user-2', role: 'user', parts: [] }] as never[]
+    state.records = [
+      ...state.records,
+      {
+        phase: ExecutionOverlayPhase.Active,
+        message: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'two' }] }
+      }
+    ]
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.getByTestId('chat-window')).toHaveTextContent('user-1,assistant-1,user-2,assistant-2')
+    expect(screen.getByTestId('chat-window').textContent?.match(/assistant-1/g)).toHaveLength(1)
   })
 })

@@ -1,7 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AiUsageRecordRow, aiUsageRecordTable, type InsertAiUsageRecordRow } from '@data/db/schemas/aiUsageRecord'
 import { messageTable } from '@data/db/schemas/message'
@@ -1413,8 +1412,6 @@ function insertRowsTx(
 }
 
 function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataApiDataChangeEffect[] {
-  const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
-  const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
   const chatIdsByTopic = new Map<string, string[]>()
   const agentIdsBySession = new Map<string, string[]>()
   for (const ref of refs) {
@@ -1433,7 +1430,9 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
           entityIds
         }) as const
     ),
-    ...(chatIds.length > 0 ? [{ endpoint: '/messages/:id', entityIds: chatIds } as const] : []),
+    ...refs
+      .filter((ref) => ref.kind === 'chat')
+      .map((ref) => ({ endpoint: '/messages/:id', routeParams: { id: ref.id }, entityIds: [ref.id] }) as const),
     ...[...agentIdsBySession].map(
       ([sessionId, entityIds]) =>
         ({
@@ -1443,9 +1442,16 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
           entityIds
         }) as const
     ),
-    ...(agentIds.length > 0
-      ? [{ endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const]
-      : [])
+    ...refs
+      .filter((ref) => ref.kind === 'agent-session')
+      .map(
+        (ref) =>
+          ({
+            endpoint: '/agent-sessions/:sessionId/messages/:messageId',
+            routeParams: { sessionId: ref.containerId, messageId: ref.id },
+            entityIds: [ref.id]
+          }) as const
+      )
   ]
 }
 
@@ -1457,14 +1463,16 @@ export class AiUsageRecordService {
   recordInvocations(inputs: readonly RecordAiInvocationInput[]): void {
     if (inputs.length === 0) return
     try {
-      const result = application
-        .get('DbService')
-        .withWriteTx((tx) => insertRowsTx(tx, inputs.map(invocationToRow), true))
-      if (result.inserted === 0) return
-      notifyDataApiDataChange([
-        ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
-        ...messageReadModelEffects(result.affectedMessages)
-      ])
+      application.get('DbService').withWriteTx((tx) => {
+        const result = insertRowsTx(tx, inputs.map(invocationToRow), true)
+        if (result.inserted === 0) return
+        for (const effect of [
+          ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
+          ...messageReadModelEffects(result.affectedMessages)
+        ]) {
+          tx.effects.add(effect)
+        }
+      })
     } catch (err) {
       logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
     }
@@ -1476,8 +1484,12 @@ export class AiUsageRecordService {
 
   refreshMessageProjection(ref: MessageRef): void {
     try {
-      const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
+      application.get('DbService').withWriteTx((tx) => {
+        const rebuilt = rebuildMessageUsageProjectionTx(tx, ref)
+        if (rebuilt?.changed) {
+          for (const effect of messageReadModelEffects([rebuilt.target])) tx.effects.add(effect)
+        }
+      })
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }

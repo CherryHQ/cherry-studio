@@ -2,7 +2,7 @@ import MessageContent from '@renderer/components/chat/messages/frame/MessageCont
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { MessageContentContextKind, type MessageListItem } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 
@@ -25,6 +25,7 @@ const ActionResultContent: FC<Props> = ({ message, partsByMessageId }) => {
     <MessageContentProvider
       messages={[message]}
       partsByMessageId={partsByMessageId}
+      contentContext={{ kind: MessageContentContextKind.Ephemeral }}
       renderConfig={renderConfig}
       actions={platformActions}>
       <MessageContent key={message.id} message={message} />

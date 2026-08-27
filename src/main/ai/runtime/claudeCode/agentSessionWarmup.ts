@@ -39,7 +39,7 @@ import {
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
 import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
-import type { AgentSessionUsageCapture } from '../types'
+import { type AgentSessionUsageCapture, AgentSessionUsageCaptureOwner } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -95,7 +95,7 @@ interface ClaudeCodeRouteFacts {
    */
   toolSearchCompatible: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
-  usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
+  usageModels: Extract<AgentSessionUsageCapture, { owner: AgentSessionUsageCaptureOwner.AgentSdk }>['frozenModels']
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -177,7 +177,7 @@ function mergeAnthropicCustomHeaders(...sources: CustomHeaderSource[]): string |
 
 function buildUsageModels(
   entries: Array<{ sdkModelId: string; ref: RuntimeModelRef }>
-): Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels'] {
+): Extract<AgentSessionUsageCapture, { owner: AgentSessionUsageCaptureOwner.AgentSdk }>['frozenModels'] {
   const byModelId = new Map<
     string,
     {
@@ -768,7 +768,7 @@ async function resolveClaudeCodeRuntimeRoute(
       return {
         ...facts,
         usageCapture: {
-          owner: 'agent-sdk',
+          owner: AgentSessionUsageCaptureOwner.AgentSdk,
           credentialReceipt: { attribution: 'auth', method: 'external-cli' },
           providerId: primaryProvider.id,
           providerName: primaryProvider.name ?? null,
@@ -783,7 +783,7 @@ async function resolveClaudeCodeRuntimeRoute(
         baseUrl: gateway.baseUrl,
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
-        usageCapture: { owner: 'provider-calls' },
+        usageCapture: { owner: AgentSessionUsageCaptureOwner.ProviderCalls },
         internalRequestToken: gateway.internalRequestToken,
         credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
       }
@@ -797,7 +797,7 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: runtimeApiKey,
         customHeaders: mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider)),
         usageCapture: {
-          owner: 'agent-sdk',
+          owner: AgentSessionUsageCaptureOwner.AgentSdk,
           credentialReceipt: resolvedApiKey.apiKeySelection,
           providerId: primaryProvider.id,
           providerName: primaryProvider.name ?? null,

@@ -4,7 +4,7 @@ import { exportMarkdownContentAsFile, messagesToMarkdown } from '@renderer/servi
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import { messagesToPlainText } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import {
@@ -60,7 +60,7 @@ function agentSessionMessageToExportView(
     id: row.id,
     role: row.role,
     assistantId: agentId ?? undefined,
-    topicId: buildAgentSessionTopicId(row.sessionId),
+    topicId: buildAgentSessionScopeKey(row.sessionId),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     status: row.status,

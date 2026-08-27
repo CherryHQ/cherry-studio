@@ -1,9 +1,11 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ConversationKind } from '@shared/ai/conversation'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ListModelsModule from '../provider/listModels'
+import { AiRuntimeKind } from '../types'
 import { makeProvider } from './fixtures/provider'
 
 const mockGenerateImage = vi.fn()
@@ -14,9 +16,6 @@ const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
 const mockAssistantGetById = vi.fn()
-const mockMessageGetById = vi.fn()
-const mockMessageUpdate = vi.fn()
-const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockProviderResolveApiKey = vi.fn()
@@ -114,14 +113,6 @@ vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
 
-vi.mock('@main/data/services/MessageService', () => ({
-  messageService: {
-    getById: mockMessageGetById,
-    update: mockMessageUpdate,
-    applyToolApprovalDecisions: mockMessageApplyApproval
-  }
-}))
-
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args),
   definePlugin: (plugin: unknown) => plugin,
@@ -193,7 +184,6 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
-const { messageService } = await import('@main/data/services/MessageService')
 
 /**
  * Instantiate `AiService` directly (without going through the lifecycle
@@ -253,29 +243,31 @@ describe('AiService', () => {
   it('routes agent-session runtime requests directly to the runtime service', async () => {
     const service = createService()
     const stream = new ReadableStream()
-    const openTurnStream = vi.fn(() => stream)
-    mockApplicationGet.mockReturnValue({ openTurnStream })
+    const openExecutionStream = vi.fn(() => stream)
+    mockApplicationGet.mockReturnValue({ openExecutionStream })
 
     await expect(
       service.streamText({
         chatId: 'agent-session:session-1',
         trigger: 'submit-message',
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
+        runtime: { kind: AiRuntimeKind.AgentSession, sessionId: 'session-1', turnId: 'turn-1' },
         requestOptions: { signal: new AbortController().signal }
       } as any)
     ).resolves.toBe(stream)
 
-    expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
-    expect(openTurnStream).toHaveBeenCalledWith({
-      sessionId: 'session-1',
+    expect(mockApplicationGet).toHaveBeenCalledWith('AgentConnectionManager')
+    expect(openExecutionStream).toHaveBeenCalledWith({
+      conversation: { kind: ConversationKind.Agent, id: 'session-1' },
       turnId: 'turn-1',
       signal: expect.any(AbortSignal)
     })
   })
 
-  it('rejects agent-session streams that do not carry a runtime request', async () => {
+  it('does not infer Agent runtime identity from a synthetic chatId prefix', async () => {
     const service = createService()
-    const buildAgentParamsFor = vi.spyOn(service as any, 'buildAgentParamsFor')
+    const buildAgentParamsFor = vi
+      .spyOn(service as any, 'buildAgentParamsFor')
+      .mockRejectedValue(new Error('stateless-chat-path'))
 
     await expect(
       service.streamText({
@@ -283,9 +275,9 @@ describe('AiService', () => {
         trigger: 'submit-message',
         requestOptions: { signal: new AbortController().signal }
       } as any)
-    ).rejects.toThrow('requires an agent-session runtime request')
+    ).rejects.toThrow('stateless-chat-path')
 
-    expect(buildAgentParamsFor).not.toHaveBeenCalled()
+    expect(buildAgentParamsFor).toHaveBeenCalledOnce()
     expect(mockApplicationGet).not.toHaveBeenCalled()
   })
 
@@ -791,25 +783,6 @@ describe('AiService tool approval', () => {
     } as never
   }
 
-  /** A minimal `approval-requested` tool UI part (passes `isToolUIPart`). */
-  function pendingToolPart(approvalId: string, toolName = 'mcp_write') {
-    return {
-      type: `tool-${toolName}`,
-      toolCallId: `tc-${approvalId}`,
-      state: 'approval-requested',
-      input: {},
-      approval: { id: approvalId }
-    }
-  }
-
-  function approvalMutationResult(
-    parts: unknown[],
-    appliedApprovalIds: string[] = [],
-    alreadySettledApprovalIds: string[] = []
-  ) {
-    return { parts, appliedApprovalIds, alreadySettledApprovalIds }
-  }
-
   /**
    * The `ai.tool.respond_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
    * (the IpcApi handler in `handlers/ai.ts` resolves the WebContents from `ctx.senderId` and calls
@@ -824,7 +797,7 @@ describe('AiService tool approval', () => {
         approved: boolean
         reason?: string
         updatedInput?: Record<string, unknown>
-        topicId?: string
+        conversation?: { kind: ConversationKind.Chat; id: string }
         anchorId?: string
       }
     ) => service.respondToolApproval(payload, event.sender)
@@ -836,13 +809,12 @@ describe('AiService tool approval', () => {
 
   it('takes the Claude-Agent fast-path when the live registry dispatches the decision', async () => {
     const respondToolApproval = vi.fn(() => true)
-    const dispatch = vi.fn()
+    const respondChatToolApproval = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AgentConnectionManager') return { respondToolApproval }
+      if (name === 'ConversationRuntimeService') return { respondChatToolApproval }
       return undefined
     })
-    const getById = vi.spyOn(messageService, 'getById')
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -860,17 +832,14 @@ describe('AiService tool approval', () => {
       },
       undefined
     )
-    // Fast-path short-circuits before any DB read or continue dispatch.
-    expect(getById).not.toHaveBeenCalled()
-    expect(dispatch).not.toHaveBeenCalled()
+    expect(respondChatToolApproval).not.toHaveBeenCalled()
   })
 
   it('returns { ok: false } when there is no live entry and no anchor context', async () => {
     const respondToolApproval = vi.fn(() => false)
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
+      name === 'AgentConnectionManager' ? { respondToolApproval } : undefined
     )
-    const getById = vi.spyOn(messageService, 'getById')
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -880,237 +849,60 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: false })
-    expect(getById).not.toHaveBeenCalled()
   })
 
-  it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
+  it('delegates the MCP decision and continuation to one Conversation actor command', async () => {
     const respondToolApproval = vi.fn(() => false)
-    const dispatch = vi.fn().mockResolvedValue(undefined)
+    const respondChatToolApproval = vi.fn().mockResolvedValue(true)
     mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AgentConnectionManager') return { respondToolApproval }
+      if (name === 'ConversationRuntimeService') return { respondChatToolApproval }
       return undefined
     })
-
-    // The serialized atomic mutation returns the committed parts with the decision applied; the
-    // handler computes "still pending" from THESE committed parts, not a local stale copy.
-    const committed = [
-      { type: 'text', text: 'hello' },
-      { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded', input: { command: 'pwd' } }
-    ]
-    const apply = vi
-      .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockReturnValue(approvalMutationResult(committed, ['mcp-approval-1']) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
       approvalId: 'mcp-approval-1',
       approved: true,
       updatedInput: { command: 'pwd' },
-      topicId: 'topic-1',
+      conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
       anchorId: 'anchor-1'
     })
 
     expect(result).toEqual({ ok: true })
-    // The decision goes through the serialized read-modify-write, not an ad-hoc getById+update.
-    expect(apply).toHaveBeenCalledWith('anchor-1', [
-      { approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }
-    ])
-    // Nothing left pending → resume via continue-conversation.
-    expect(dispatch).toHaveBeenCalledTimes(1)
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        trigger: 'continue-conversation',
-        topicId: 'topic-1',
-        parentAnchorId: 'anchor-1',
-        approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }]
-      })
+    expect(respondChatToolApproval).toHaveBeenCalledWith(
+      { kind: ConversationKind.Chat, id: 'topic-1' },
+      'anchor-1',
+      { approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } },
+      expect.anything()
     )
   })
 
-  it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
+  it('passes no subscriber when the caller window is unavailable', async () => {
     const respondToolApproval = vi.fn(() => false)
-    const dispatch = vi.fn().mockResolvedValue(undefined)
+    const respondChatToolApproval = vi.fn().mockResolvedValue(false)
     mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AgentConnectionManager') return { respondToolApproval }
+      if (name === 'ConversationRuntimeService') return { respondChatToolApproval }
       return undefined
     })
-    const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
-    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(
-      approvalMutationResult(committed, ['mcp-approval-1']) as never
-    )
 
-    // No managed window → senderWc undefined: the continuation has nothing to surface on.
     const handler = getApprovalHandler()
     const result = await handler({ sender: undefined } as never, {
       approvalId: 'mcp-approval-1',
       approved: true,
-      topicId: 'topic-1',
+      conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
       anchorId: 'anchor-1'
     })
 
     expect(result).toEqual({ ok: false })
-    expect(dispatch).not.toHaveBeenCalled()
-  })
-
-  it('refuses (ok:false) without mutating the row when a stream is still live on the topic', async () => {
-    // The approval card is clickable the moment the chunk arrives (live overlay), so a response can
-    // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
-    // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
-    // before touching the row, so the card stays actionable and the renderer can retry post-settle.
-    const respondToolApproval = vi.fn(() => false)
-    const dispatch = vi.fn().mockResolvedValue(undefined)
-    const hasLiveStream = vi.fn(() => true)
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
-      return undefined
-    })
-    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
-
-    const handler = getApprovalHandler()
-    const result = await handler(fakeEvent(), {
-      approvalId: 'mcp-approval-1',
-      approved: true,
-      topicId: 'topic-1',
-      anchorId: 'anchor-1'
-    })
-
-    expect(result).toEqual({ ok: false })
-    expect(hasLiveStream).toHaveBeenCalledWith('topic-1')
-    // Row is NOT mutated and no continuation is dispatched.
-    expect(apply).not.toHaveBeenCalled()
-    expect(dispatch).not.toHaveBeenCalled()
-  })
-
-  it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
-    const respondToolApproval = vi.fn(() => false)
-    const dispatch = vi.fn().mockResolvedValue(undefined)
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
-      return undefined
-    })
-
-    // Overlay-only: the target part isn't on the row, so the committed parts carry no pending approval.
-    const apply = vi
-      .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockReturnValue(approvalMutationResult([{ type: 'text', text: 'hello' }]) as never)
-
-    const handler = getApprovalHandler()
-    const result = await handler(fakeEvent(), {
-      approvalId: 'mcp-approval-missing',
-      approved: false,
-      topicId: 'topic-1',
-      anchorId: 'anchor-1'
-    })
-
-    expect(result).toEqual({ ok: true })
-    expect(apply).toHaveBeenCalledWith('anchor-1', [{ approvalId: 'mcp-approval-missing', approved: false }])
-    // The decision still rides the continue dispatch idempotently.
-    expect(dispatch).toHaveBeenCalledTimes(1)
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        trigger: 'continue-conversation',
-        approvalDecisions: [{ approvalId: 'mcp-approval-missing', approved: false }]
-      })
+    expect(respondChatToolApproval).toHaveBeenCalledWith(
+      { kind: ConversationKind.Chat, id: 'topic-1' },
+      'anchor-1',
+      { approvalId: 'mcp-approval-1', approved: true },
+      undefined
     )
   })
-
-  it('does not finalize while another approval on the turn is still pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
-    const dispatch = vi.fn().mockResolvedValue(undefined)
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
-      return undefined
-    })
-
-    // Committed parts: this approval decided, but a sibling is still approval-requested.
-    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(
-      approvalMutationResult(
-        [
-          { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' },
-          pendingToolPart('mcp-approval-2', 'mcp_read')
-        ],
-        ['mcp-approval-1']
-      ) as never
-    )
-
-    const handler = getApprovalHandler()
-    const result = await handler(fakeEvent(), {
-      approvalId: 'mcp-approval-1',
-      approved: true,
-      topicId: 'topic-1',
-      anchorId: 'anchor-1'
-    })
-
-    expect(result).toEqual({ ok: true })
-    // The still-pending sibling gates the resume.
-    expect(dispatch).not.toHaveBeenCalled()
-  })
-
-  it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
-    const respondToolApproval = vi.fn(() => false)
-    const dispatch = vi.fn().mockResolvedValue(undefined)
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
-      return undefined
-    })
-
-    const apply = vi
-      .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockReturnValue(
-        approvalMutationResult(
-          [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }],
-          [],
-          ['mcp-approval-1']
-        ) as never
-      )
-
-    const handler = getApprovalHandler()
-    const result = await handler(fakeEvent(), {
-      approvalId: 'mcp-approval-1',
-      approved: true,
-      topicId: 'topic-1',
-      anchorId: 'anchor-1'
-    })
-
-    expect(result).toEqual({ ok: true })
-    expect(apply).toHaveBeenCalledWith('anchor-1', [{ approvalId: 'mcp-approval-1', approved: true }])
-    expect(dispatch).not.toHaveBeenCalled()
-  })
-
-  it('returns { ok: false } when the anchor message is missing or deleted', async () => {
-    const respondToolApproval = vi.fn(() => false)
-    const dispatch = vi.fn().mockResolvedValue(undefined)
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
-      return undefined
-    })
-
-    // A stale click on a deleted message: the atomic mutation reports the anchor is gone (null).
-    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(null)
-
-    const handler = getApprovalHandler()
-    const result = await handler(fakeEvent(), {
-      approvalId: 'mcp-approval-1',
-      approved: true,
-      topicId: 'topic-1',
-      anchorId: 'deleted-anchor'
-    })
-
-    // Resolves gracefully through the documented result shape instead of throwing.
-    expect(result).toEqual({ ok: false })
-    expect(apply).toHaveBeenCalledWith('deleted-anchor', [{ approvalId: 'mcp-approval-1', approved: true }])
-    expect(dispatch).not.toHaveBeenCalled()
-  })
-
   // Payload validation (empty `approvalId`, missing `approved`) now lives in the IpcApi router's
   // zod parse of `ai.tool.respond_approval`, not in `respondToolApproval` — so the invalid-payload
   // case is no longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing").

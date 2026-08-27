@@ -22,6 +22,7 @@ import {
   type ListAssistantsQuery,
   ListAssistantsQuerySchema
 } from '@shared/data/api/schemas/assistants'
+import { DataApiDataChangeScope } from '@shared/data/api/types'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -29,9 +30,6 @@ import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 /**
  * Build a `ListAssistantsQuery` through the real zod schema so `page` / `limit`
@@ -41,6 +39,8 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataA
 const listQuery = (overrides: Partial<ListAssistantsQuery> = {}): ListAssistantsQuery =>
   ListAssistantsQuerySchema.parse(overrides)
 
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
+
 describe('AssistantDataService', () => {
   const dbh = setupTestDatabase()
 
@@ -48,7 +48,6 @@ describe('AssistantDataService', () => {
     // Reset preference state between tests so one test's
     // `chat.default_model_id` override does not leak into the next.
     MockMainPreferenceServiceUtils.resetMocks()
-    MockMainDbServiceExport.dbService.withWriteTx.mockImplementation((fn) => dbh.db.transaction(fn as never))
     await seedModelRefs()
   })
 
@@ -1351,13 +1350,27 @@ describe('AssistantDataService', () => {
         createdAt: 1_000,
         updatedAt: 1_000
       })
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       assistantDataService.delete('ast-1')
 
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows).toHaveLength(0)
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        {
+          endpoint: '/prompts/:id/bindings',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        }
+      ])
     })
 
     it('should remove prompt bindings for the deleted assistant', async () => {

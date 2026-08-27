@@ -1,121 +1,124 @@
 ---
-description: IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort
+description: IpcChatTransport and Conversation stream protocol, including dispatch acknowledgements, exact identities, detach, and Stop
 sources:
   - src/renderer/services/aiTransport/IpcChatTransport.ts
   - src/renderer/services/aiTransport/StreamDispatchService.ts
-  - src/renderer/services/aiTransport/TopicStreamSubscription.ts
+  - src/renderer/services/aiTransport/ConversationStreamSubscription.ts
+  - src/renderer/services/aiTransport/StreamAttachmentService.ts
 ---
 
 # IPC Transport
 
-## What it is
+`IpcChatTransport` implements AI SDK `ChatTransport<CherryUIMessage>` over the
+`ai.stream.*` IpcApi routes. The protocol addresses a Chat or Agent through an
+exact `ConversationRef`; it never synthesizes an Agent Topic ID.
 
-`IpcChatTransport`
-(`src/renderer/services/aiTransport/IpcChatTransport.ts`) implements AI SDK's
-`ChatTransport<CherryUIMessage>` over Electron IPC. The renderer feeds
-it into `useChat({ id: topicId, transport: ... })`. The `ChatTransport`
-interface has only two methods — `sendMessages` / `reconnectToStream`;
-the transport relays each through `ipcApi.request('ai.stream.*', ...)` to
-Main's IpcApi handler and `AiStreamManager`. `cancel` is **not** a transport method: it is the
-`cancel` callback of the `ReadableStream` that `sendMessages` returns
-(AI SDK invokes it on unmount/disposal), and abort is driven by the
-request's `abortSignal`.
-
-```
-useChat({ id: topicId, transport: new IpcChatTransport(defaultBody) })
-   │  transport methods
-   ├─ sendMessages         → ai.stream.open
-   ├─ reconnectToStream    → ai.stream.attach
-   │  returned-stream / signal callbacks
-   ├─ stream cancel()      → ai.stream.detach
-   └─ request abort signal → ai.stream.abort
+```text
+sendMessages      → ai.stream.open  → Conversation actor FIFO
+reconnectToStream → ai.stream.attach ─┐
+chunk/done/error  ← exact execution events
+stream cancel     → release observer ─┴→ last local owner: ai.stream.detach
+abort signal      → ai.stream.abort → Conversation Stop
 ```
 
-**Detach ≠ abort.** `cancel()` (e.g. unmount/disposal) requests
-`ai.stream.detach`: it drops *this* subscriber while Main keeps generating and
-persists the result. Stopping generation is a separate path — the request's
-`abortSignal` requests `ai.stream.abort`. Conflating the two would resurrect the v1
-"unmount → cancel → upstream abort → lost reply" bug class.
+Detach and Stop are intentionally different. Detach removes only this window's
+observer; Main continues the execution and terminal persistence. Stop asks the
+Conversation owner to select a terminal outcome and abort exact live resources.
+The abort RPC resolves only after Main reaches a durable or deferred terminal
+and the exact resource teardown completes. Renderer starts its local reader
+stop at the same time, waits for both, and propagates either failure; a retry
+therefore cannot overtake an unfinished Main Stop.
 
-## User Stop
+## Open commands
 
-`useChatWithHistory.stop()` starts `ai.stream.abort` before calling AI SDK's
-`stop()`, then awaits both. This establishes Main's topic admission barrier
-before local stream consumption ends and the UI can retry. The transport's
-request `abortSignal` covers a stream opened
-by `sendMessages`, but its abort callback sends IPC without exposing Main's
-completion to the hook; a stream returned by `reconnectToStream()` has no
-original request signal at all. The explicit idempotent IPC therefore covers
-both paths and makes the hook's Stop promise resolve only after Main has crossed
-the topic teardown barrier: terminal persistence is settled and, for an Agent
-session, its runtime generation — including a pending connection attempt — is
-closed before a retry is admitted.
+`sendMessages` maps AI SDK triggers at the boundary:
 
-Per-topic chunks arrive through `ipcApi.on('ai.stream.chunk', ...)`, filtered
-by `topicId`.
-
-## Triggers
-
-`sendMessages` distinguishes two triggers:
-
-| Trigger | What it does |
+| `ConversationOpenTrigger` | Payload |
 |---|---|
-| `submit-message` | Includes `userMessageParts` (the latest message) so Main persists it |
-| `regenerate-message` | Sends `parentAnchorId` only; Main re-runs from the existing parent |
+| `SubmitMessage` | exact Conversation, user parts, optional tree anchor, models and reasoning |
+| `RegenerateMessage` | exact Conversation and replacement tree anchor |
+| `RetryMessage` | exact failed or paused assistant row and its single model |
+| `AppendModel` | exact reply-group anchor and one new model |
 
-Cherry's transport never derives `continue-conversation` from
-message-state introspection. Approval-driven resumption goes through the
-explicit `ai.tool.respond_approval` IpcApi route handled by
-[`useToolApprovalBridge`](./tool-approval.md).
+Retry and append are distinct commands rather than optional regenerate fields.
+An append joins the exact live reply group when it is still running. If that
+group settles before commit, the same explicit action opens a new Regenerate
+turn under its anchor instead of turning a completed reply into an error.
 
-## Dispatch coordinator
+The resulting `AiStreamOpenResponse` includes its mode, reserved durable rows,
+active execution projections, and active-node decision. `StreamDispatchService`
+publishes that acknowledgement to optimistic UI consumers; it does not own
+serialization or admission.
 
-`streamDispatchService` (`src/renderer/services/aiTransport/StreamDispatchService.ts`)
-sits between the transport and the IPC call so the `ai.stream.open` ack
-(`reservedMessages`, `activeExecutions`, and `preserveActiveNode`) is
-observable to callers that need to seed optimistic UI bubbles, rather than
-being thrown away by AI SDK's transport interface.
+Active Chat input is committed to `Inbox.NextTurn` and requests a clean yield.
+Active Agent input is committed to `Inbox.NextStep` only when the Agent profile
+and driver accept redirect; otherwise it remains `Inbox.NextTurn`. These are
+Conversation decisions, not transport inference.
 
-It does **not** serialize sends — there is no single-in-flight guard in the
-coordinator. Concurrency for a topic is arbitrated on the Main side: a chat
-resubmit to a live topic is persisted and queued as a steer
-(`AiStreamManager.enqueuePendingSteer`) — the running turn yields and a
-continuation answers it — while an agent-session follow-up attaches to the
-running stream.
+While an execution is WaitingInteraction, ordinary Chat and Agent input always
+targets `Inbox.NextTurn`; the transport does not yield or redirect the waiting
+execution.
 
-## Per-execution demux
+## Stream events
 
-The chunk stream from Main is keyed by `(topicId, executionId)`.
-`TopicStreamSubscription`
-(`src/renderer/services/aiTransport/TopicStreamSubscription.ts`) owns the
-topic-level `ai.stream.attach` / `ai.stream.detach` requests with ref-counted lifecycle
-and demuxes chunks into per-execution branch `ReadableStream`s, so
-multi-model parallel responses render as separate AI SDK messages on
-the same topic. `useExecutionOverlay` consumes each branch through
-`readUIMessageStream` — the same accumulator Main runs in
-`pipeStreamLoop`, so the renderer overlay and the persisted message
-are structurally identical.
+Every chunk carries:
 
-See [Execution Overlay](./execution-overlay.md) for the merge-function
-symmetry, seed rule, cancellation layering, and lifecycle.
+```text
+ConversationRef + TurnId + ExecutionId + modelId + outputNodeId + chunkSeq
+```
 
-## Topic-level subscription
+Done and error events carry the same identity plus `turnTerminal`. A terminal
+for one execution closes only that branch; a turn terminal closes the aggregate
+transport stream. The renderer does not compare cycles, attempts, watermarks,
+or control revisions.
 
-`useTopicStreamStatus(topicId)` reads
-`topic.stream.statuses.<topicId>` from the shared cache. The cache is
-the cross-window source of truth for:
+`ConversationStreamSubscription` exclusively owns per-execution chunks, replay,
+and branch settlement for overlays. `IpcChatTransport` owns only AI SDK's
+aggregate open/turn-terminal/abort stream; it does not maintain a second chunk
+pipeline. Both acquire their observer lease through `StreamAttachmentService`,
+which sends `detach` only after the last window-local owner releases it.
 
-- `pending` / `streaming` / `awaiting-approval` / `done` / `error` / `aborted`
-- broadcast-completion anchor ids
+## Attach snapshots
 
-`classifyTurn(status)` decodes the status into the `TurnStateFlags`
-predicates the UI consumes (`isStreamLive`, `isTurnActive`,
-`isAwaitingApproval`, `isTerminal`).
+`ai.stream.attach` returns a discriminated `Live`, `Settled`, or `NotFound`
+snapshot. Main registers the observer before capturing each execution's replay
+high-water. Renderer temporarily buffers live events, applies snapshot and
+replay, and then accepts only chunks above that execution's continuously
+applied `throughChunkSeq`. A later chunk cannot advance the cursor across a
+gap; it waits for replay to restore the missing prefix.
 
-## Where to read more
+- Live may include settled siblings beside live executions.
+- Settled includes every execution terminal plus the turn terminal; it never
+  invents empty final messages.
+- NotFound triggers a durable refresh followed by exact-turn retirement. It is
+  neither EOF nor Success.
+- IPC failure stays retryable and releases the failed attachment lease.
+- Durable attach exhaustion requests presentation refresh and returns
+  `RestartAfterRefresh` only after that refresh finishes. Accepting that result
+  starts one new attachment generation and resets its retry budget.
+- Ephemeral attach exhaustion retires the exact execution. It does not reset
+  the budget or enter an automatic reattach loop when no durable refresh can
+  restore the projection.
+- The resource ring retains at most 10,000 raw sequenced provider events. Main
+  filters by the renderer's per-execution cursor before semantic compaction;
+  text/reasoning/tool deltas are split at 16 KiB without crossing a sequence
+  boundary. A nonzero cursor continues already-open semantic parts without
+  synthesizing another start; truncation is explicit.
 
-- Code: `src/renderer/services/aiTransport/`
-- Hook glue: `src/renderer/hooks/useChatWithHistory.ts`
-- Per-execution overlay (renderer assembler): [Execution Overlay](./execution-overlay.md)
-- Approval bridge: [Tool Approval](./tool-approval.md)
-- Main side: [Stream Manager](./stream-manager.md)
+## Shared status projection
+
+`useConversationStreamStatus(ConversationRef)` reads
+`conversation.statuses.<kind:id>` from shared cache. The entry contains a named
+`ConversationStatus`, exact active executions, exact waiting-interaction
+executions, and completion timestamp. `classifyTurn` is the exhaustive status
+classifier used by Renderer. Shared cache is a projection only; Main control
+decisions read the Conversation aggregate.
+
+## Invariants
+
+- Transport cleanup never aborts generation.
+- The abort route submits Stop; it does not mutate a resource registry.
+- Dispatch acknowledgement is a projection of a committed command.
+- All result and stream identities are exact; no lookup of "current topic" is
+  allowed.
+- Agent and Chat share the protocol without sharing a synthetic identifier.

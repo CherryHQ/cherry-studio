@@ -1,165 +1,142 @@
-import { BaseService } from '@main/core/lifecycle/BaseService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BaseService } from '@main/core/lifecycle'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AiStreamManagerConfig, StreamListener } from '../types'
+import { ConversationActor, ConversationAdmissionOperationKind } from '../../conversation/ConversationActor'
+import { ConversationRuntimeService } from '../../conversation/ConversationRuntimeService'
+import { PersistentChatContextProvider } from '../context/PersistentChatContextProvider'
 
-// ── Mocks ───────────────────────────────────────────────────────────
-
-// `dispatchStreamRequest` is the work `dispatch()` wraps in the per-topic lock.
-// Replace it with a deferred so the test controls when each dispatch "completes"
-// and can observe whether a second dispatch on the same topic waits its turn.
-const dispatchEvents: string[] = []
-const dispatchResolvers: Array<() => void> = []
-const mockDispatchStreamRequest = vi.fn(
-  (_manager: unknown, _subscriber: unknown, req: { topicId: string }): Promise<unknown> => {
-    const seq = dispatchResolvers.length
-    dispatchEvents.push(`start:${req.topicId}:${seq}`)
-    return new Promise((resolve) => {
-      dispatchResolvers.push(() => {
-        dispatchEvents.push(`end:${req.topicId}:${seq}`)
-        resolve({ mode: 'started' })
-      })
-    })
-  }
-)
-
-vi.mock('../context/dispatch', () => ({
-  dispatchStreamRequest: mockDispatchStreamRequest
+const mocks = vi.hoisted(() => ({
+  findCrashOrphanedAssistantMessages: vi.fn<() => Array<{ id: string; topicId: string; data: { parts: unknown[] } }>>(
+    () => []
+  ),
+  resolveCrashOrphanedMessages: vi.fn(),
+  cache: { getShared: vi.fn(), setShared: vi.fn() },
+  namingWrites: new Map<string, Promise<void>>()
 }))
 
-// Boot-sweep reconcile reads/writes through MessageService.
-const findPendingAssistantMessageIds = vi.fn<() => string[]>(() => [])
-const markMessagesError = vi.fn<(ids: string[]) => void>(() => undefined)
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
-    findPendingAssistantMessageIds: () => findPendingAssistantMessageIds(),
-    markMessagesError: (ids: string[]) => markMessagesError(ids)
+    findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
+    resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
 }))
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
+vi.mock('@application', () => ({
+  application: { get: vi.fn(() => mocks.cache) }
+}))
 
-const { AiStreamManager } = await import('../AiStreamManager')
+vi.mock('@main/services/TopicNamingService', () => ({
+  topicNamingService: { inFlightWrites: () => mocks.namingWrites }
+}))
 
-// ── Helpers ─────────────────────────────────────────────────────────
-
-type ManagerInstance = InstanceType<typeof AiStreamManager>
-
-function createManager(): ManagerInstance {
-  BaseService.resetInstances()
-  const Ctor = AiStreamManager as unknown as new (config?: Partial<AiStreamManagerConfig>) => ManagerInstance
-  return new Ctor()
-}
-
-const fakeSubscriber = {} as StreamListener
-const openReq = (topicId: string) => ({ trigger: 'submit-message', topicId, messages: [] }) as never
-
-/** Drain pending microtasks + the async-mutex acquire (which resolves on a macrotask). */
+const ref = (id: string): ConversationRef => ({ kind: ConversationKind.Chat, id })
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-/** Resolve one outstanding dispatch and let the next queued waiter acquire the lock. */
-async function settleDispatch(index: number): Promise<void> {
-  dispatchResolvers[index]()
-  await flush()
+function actor(id: string) {
+  return new ConversationActor(ref(id), () => {})
 }
 
-// ── Tests ───────────────────────────────────────────────────────────
-
-const runOnInit = (mgr: ManagerInstance) => (mgr as unknown as { onInit(): Promise<void> }).onInit()
-
-describe('AiStreamManager.dispatch — per-topic serialization', () => {
-  let mgr: ManagerInstance
-
-  beforeEach(async () => {
-    vi.clearAllMocks()
-    dispatchEvents.length = 0
-    dispatchResolvers.length = 0
-    findPendingAssistantMessageIds.mockReturnValue([])
-    mgr = createManager()
-    // onInit resolves the reconcile gate `dispatch` awaits, so these lock tests run normally.
-    await runOnInit(mgr)
-  })
-
-  afterEach(() => {
+describe('ConversationActor admission FIFO — per-Conversation serialization', () => {
+  beforeEach(() => {
     BaseService.resetInstances()
+    vi.clearAllMocks()
+    mocks.namingWrites.clear()
   })
 
-  it('serializes two concurrent dispatches on the same topic — the second waits for the first', async () => {
-    const p1 = mgr.dispatch(fakeSubscriber, openReq('t'))
-    const p2 = mgr.dispatch(fakeSubscriber, openReq('t'))
+  it('serializes two concurrent admissions on the same Conversation — the second waits for the first', async () => {
+    const lane = actor('topic-1')
+    const events: string[] = []
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    const first = lane.enqueue(ConversationAdmissionOperationKind.Dispatch, async () => {
+      events.push('start:first')
+      await firstGate
+      events.push('end:first')
+    })
+    const second = lane.enqueue(ConversationAdmissionOperationKind.Dispatch, async () => {
+      events.push('start:second')
+      events.push('end:second')
+    })
     await flush()
 
-    // Only the first has entered dispatchStreamRequest; the second is parked on the lock.
-    expect(dispatchEvents).toEqual(['start:t:0'])
+    expect(events).toEqual(['start:first'])
+    releaseFirst()
+    await Promise.all([first, second])
 
-    await settleDispatch(0)
-    await p1
-
-    // First finished → second now runs.
-    expect(dispatchEvents).toEqual(['start:t:0', 'end:t:0', 'start:t:1'])
-
-    await settleDispatch(1)
-    await p2
-    expect(dispatchEvents).toEqual(['start:t:0', 'end:t:0', 'start:t:1', 'end:t:1'])
+    expect(events).toEqual(['start:first', 'end:first', 'start:second', 'end:second'])
   })
 
-  it('does not serialize dispatches on different topics — the lock is per-topic', async () => {
-    const pa = mgr.dispatch(fakeSubscriber, openReq('a'))
-    const pb = mgr.dispatch(fakeSubscriber, openReq('b'))
+  it('does not serialize admissions on different Conversations', async () => {
+    const firstLane = actor('topic-a')
+    const secondLane = actor('topic-b')
+    const events: string[] = []
+    let releaseA!: () => void
+    let releaseB!: () => void
+    const gateA = new Promise<void>((resolve) => {
+      releaseA = resolve
+    })
+    const gateB = new Promise<void>((resolve) => {
+      releaseB = resolve
+    })
+
+    const first = firstLane.enqueue(ConversationAdmissionOperationKind.Dispatch, async () => {
+      events.push('start:a')
+      await gateA
+      events.push('end:a')
+    })
+    const second = secondLane.enqueue(ConversationAdmissionOperationKind.Dispatch, async () => {
+      events.push('start:b')
+      await gateB
+      events.push('end:b')
+    })
     await flush()
 
-    // Both started concurrently — neither blocks the other.
-    expect(dispatchEvents).toEqual(['start:a:0', 'start:b:1'])
-
-    await settleDispatch(0)
-    await settleDispatch(1)
-    await Promise.all([pa, pb])
+    expect(events).toEqual(['start:a', 'start:b'])
+    releaseA()
+    releaseB()
+    await Promise.all([first, second])
   })
 })
 
-// Request-shape validation (non-string topicId, missing trigger / userMessageParts /
-// parentAnchorId) now lives in the IpcApi router's zod parse of `aiRequestSchemas`
-// ('ai.stream_*'), not in AiStreamManager — so it is no longer unit-tested here (a thin
-// schema contract; see ipc-usage.md "Testing"). The handler→service delegation is covered
-// in `src/main/ipc/handlers/__tests__/ai.test.ts`.
-
-describe('AiStreamManager.dispatch — boot reconcile gate', () => {
-  let mgr: ManagerInstance
-
+describe('ConversationRuntimeService — boot reconcile boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    dispatchEvents.length = 0
-    dispatchResolvers.length = 0
-    mgr = createManager()
-  })
-
-  afterEach(() => {
     BaseService.resetInstances()
+    vi.clearAllMocks()
+    mocks.namingWrites.clear()
+    mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
   })
 
-  it('does not write a placeholder until the boot reconcile finishes, so a mid-boot open cannot race it', async () => {
-    // A stream opens before onInit runs the crash-orphan reconcile — dispatch must stay parked on
-    // the gate (the synchronous sweep runs entirely inside onInit before markReconciled fires).
-    const dispatchPromise = mgr.dispatch(fakeSubscriber, openReq('t'))
-    await flush()
-    expect(dispatchEvents).toEqual([])
-    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+  it('finishes the synchronous crash reconcile before lifecycle initialization admits callers', async () => {
+    const order: string[] = []
+    mocks.findCrashOrphanedAssistantMessages.mockImplementation(() => {
+      order.push('reconcile')
+      return []
+    })
+    const service = new ConversationRuntimeService({ providers: [new PersistentChatContextProvider()] })
 
-    // onInit runs the reconcile → the gate opens and dispatch proceeds.
-    await runOnInit(mgr)
-    await flush()
-    expect(dispatchEvents).toEqual(['start:t:0'])
+    await service._doInit()
+    order.push('initialized')
 
-    await settleDispatch(0)
-    await dispatchPromise
+    expect(order).toEqual(['reconcile', 'initialized'])
   })
 
-  it('flips orphaned pending rows to error during the reconcile sweep', async () => {
-    findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
-    await runOnInit(mgr)
-    expect(markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
+  it('resolves orphaned pending rows with interrupted terminal parts during the reconcile sweep', async () => {
+    mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
+      { id: 'stale-1', topicId: 'topic-1', data: { parts: [] } },
+      { id: 'stale-2', topicId: 'topic-2', data: { parts: [] } }
+    ])
+    const service = new ConversationRuntimeService({ providers: [new PersistentChatContextProvider()] })
+
+    await service._doInit()
+
+    expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledOnce()
+    expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'stale-1', data: { parts: expect.any(Array) } }),
+      expect.objectContaining({ id: 'stale-2', data: { parts: expect.any(Array) } })
+    ])
   })
 })

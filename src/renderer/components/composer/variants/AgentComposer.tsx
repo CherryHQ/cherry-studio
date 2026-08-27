@@ -46,13 +46,12 @@ import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import {
   getComposerShortcutLabel,
@@ -62,7 +61,8 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { ConversationInputTarget, ConversationKind, conversationRefKey } from '@shared/ai/conversation'
+import type { ComposerQueuedMessagePayload, ConversationActorInputRequest } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -286,14 +286,14 @@ type AgentComposerSessionSnapshot = {
   workspaceId?: string | null
 }
 
-export interface AgentComposerSendBody {
+export type AgentComposerSendBody = {
   agentId: string
   sessionId: string
   userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
   reasoningEffort?: ThinkingOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
-}
+} & ConversationActorInputRequest
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
 
@@ -845,7 +845,8 @@ const AgentComposerInner = ({
   const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
     initialDraft.knowledgeBaseIds.length === 0
   )
-  const sessionTopicId = buildAgentSessionTopicId(sessionId)
+  const conversation = useMemo(() => ({ kind: ConversationKind.Agent, id: sessionId }) as const, [sessionId])
+  const sessionScopeKey = conversationRefKey(conversation)
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
@@ -916,6 +917,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    actionsRef,
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
@@ -977,7 +979,7 @@ const AgentComposerInner = ({
     draftTokensRef.current = draftTokens
   }, [draftTokens])
 
-  const selectedKnowledgeBasesScopeKey = `${sessionTopicId}:${agentId}`
+  const selectedKnowledgeBasesScopeKey = `${sessionScopeKey}:${agentId}`
   const {
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
@@ -1097,10 +1099,10 @@ const AgentComposerInner = ({
   useEffect(() => {
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
-      if (topicId !== sessionTopicId) return
+      if (topicId !== sessionScopeKey) return
       actionsRef.current.focus('end')
     })
-  }, [actionsRef, sessionTopicId])
+  }, [actionsRef, sessionScopeKey])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return
@@ -1202,13 +1204,13 @@ const AgentComposerInner = ({
   useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
-    logger.info('Aborting agent session', { sessionTopicId })
+    logger.info('Aborting agent session', { conversation })
     try {
       await chatStop()
     } catch (error) {
-      logger.error('Failed to abort agent session', { sessionTopicId, error })
+      logger.error('Failed to stop agent Conversation', { conversation, error })
     }
-  }, [chatStop, sessionTopicId])
+  }, [chatStop, conversation])
 
   const handleAgentChange = useCallback(
     async (nextAgentId: string | null) => {
@@ -1428,9 +1430,9 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, actorInput?: ConversationActorInputRequest) => {
       try {
-        const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        const attachments = payload.attachments ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         const sent = await chatSendMessage(
           { text: payload.text },
@@ -1441,12 +1443,13 @@ const AgentComposerInner = ({
               userMessageParts: [...payload.userMessageParts, ...fileParts],
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
-              ...(payload.fastMode ? { fastMode: true } : {})
+              ...(payload.fastMode ? { fastMode: true } : {}),
+              ...actorInput
             }
           }
         )
         if (sent === false) return false
-        void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+        void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionScopeKey })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         launchOptions?.onSent?.()
         return true
@@ -1456,7 +1459,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId, t]
+    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionScopeKey, t]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1495,7 +1498,6 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1504,10 +1506,12 @@ const AgentComposerInner = ({
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
-    scopeKey: sessionTopicId,
-    isFulfilled: sessionFulfilled,
-    markSeen: markSessionSeen,
-    onDrain: sendQueuedPayload
+    conversation,
+    onEnqueue: (draft, payload) =>
+      sendQueuedPayload(payload, {
+        inputTarget: ConversationInputTarget.NextTurn,
+        inboxPresentation: { draft, payload }
+      })
   })
 
   // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
@@ -1521,7 +1525,7 @@ const AgentComposerInner = ({
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       setText(item.draft.text)
-      setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
+      setFiles(item.payload.attachments ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
       handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
@@ -1558,15 +1562,17 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
-        enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        if (await enqueueFollowup(draft, payload)) clearCurrentDraft()
         return
       }
 
       directSendInFlightRef.current = true
       setIsDirectSending(true)
       try {
-        const sent = await sendQueuedPayload(payload)
+        const sent = await sendQueuedPayload(
+          payload,
+          options?.steer ? { inputTarget: ConversationInputTarget.NextStep } : undefined
+        )
         if (sent) clearCurrentDraft()
       } finally {
         directSendInFlightRef.current = false
@@ -1763,7 +1769,9 @@ const AgentComposerInner = ({
                     if (!item) return
                     // Only drop the item once the send actually succeeds; a failed manual
                     // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                    const sent = await sendQueuedPayload(item.payload)
+                    const sent = await sendQueuedPayload(item.payload, {
+                      inputTarget: ConversationInputTarget.NextStep
+                    })
                     if (sent) removeFollowup(id)
                   }}
                   onEdit={(id) => {

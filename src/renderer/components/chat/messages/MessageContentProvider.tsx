@@ -4,14 +4,22 @@ import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 
 import { MessageListProvider } from './MessageListProvider'
-import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'
+import type {
+  MessageContentContext,
+  MessageListActions,
+  MessageListItem,
+  MessageListProviderValue,
+  MessageRenderConfig
+} from './types'
 import { defaultMessageRenderConfig } from './types'
+import { MessageContentContextKind } from './types'
 
 const EMPTY_MESSAGE_ACTIONS: MessageListActions = {}
 
 interface MessageContentProviderProps {
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  contentContext: MessageContentContext
   children: ReactNode
   topic?: Topic
   renderConfig?: Partial<MessageRenderConfig>
@@ -36,6 +44,7 @@ function createFallbackTopic(messages: MessageListItem[]): Topic {
 export function MessageContentProvider({
   messages,
   partsByMessageId,
+  contentContext,
   children,
   topic,
   renderConfig,
@@ -75,10 +84,12 @@ export function MessageContentProvider({
       },
       actions: resolvedActions,
       meta: {
+        conversation:
+          contentContext.kind === MessageContentContextKind.Durable ? contentContext.conversation : undefined,
         selectionLayer: false
       }
     }),
-    [mergedRenderConfig, messages, partsByMessageId, resolvedActions, topic]
+    [contentContext, mergedRenderConfig, messages, partsByMessageId, resolvedActions, topic]
   )
 
   return <MessageListProvider value={value}>{children}</MessageListProvider>

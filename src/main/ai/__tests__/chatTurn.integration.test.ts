@@ -1,13 +1,37 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import {
+  ConversationActiveNodeMove,
+  ConversationKind,
+  ConversationOpenMode,
+  ConversationOpenTrigger,
+  ConversationPhase,
+  type ConversationRef
+} from '@shared/ai/conversation'
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AiService } from '../AiService'
+import { AiExecutionManager, ConversationRuntimeService } from '../conversation'
 import { markTrustedLocalToolTerminalFailure } from '../runtime/aiSdk/loop/localToolTerminalOutcome'
+import {
+  type ConversationExecutionPreparationDescriptor,
+  type ConversationHistoryPort,
+  type MainDispatchRequest,
+  type StreamListener
+} from '../streamManager'
+import {
+  ConversationExecutionDriverBindingKind,
+  ConversationExecutionPreparationKind,
+  ConversationHistoryAdapterKind,
+  ConversationTerminalPersistenceKind
+} from '../streamManager/context/ConversationHistoryPort'
 import { makeModel, makeProvider } from './fixtures'
 
 const mockCreateAgent = vi.fn()
 const sharedCache = new Map<string, unknown>()
 const cacheWrites: Array<{ key: string; value: unknown }> = []
+const namingWrites = new Map<string, Promise<void>>()
 
 const fakeCacheService = {
   getShared: vi.fn((key: string) => sharedCache.get(key)),
@@ -25,6 +49,7 @@ const fakeModel = makeModel({
   apiModelId: 'test-model',
   name: 'Test model'
 })
+const modelId = createUniqueModelId('test-provider', 'test-model')
 
 vi.mock('@application', () => ({
   application: { get: (name: string) => fakeApplicationGet(name) }
@@ -58,7 +83,11 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   projectRuntimeReasoning: vi.fn()
 }))
 
-class FakeListener {
+vi.mock('@main/services/TopicNamingService', () => ({
+  topicNamingService: { inFlightWrites: () => namingWrites }
+}))
+
+class FakeListener implements StreamListener {
   readonly id = 'integration-listener'
   readonly chunks: UIMessageChunk[] = []
   readonly sources: Array<string | undefined> = []
@@ -66,9 +95,9 @@ class FakeListener {
   readonly errorResults: any[] = []
   onDoneImpl?: () => void
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
+  onChunk(chunk: UIMessageChunk, source?: { modelId?: string }): void {
     this.chunks.push(chunk)
-    this.sources.push(sourceModelId)
+    this.sources.push(source?.modelId)
   }
 
   onDone(result: any): void {
@@ -101,35 +130,109 @@ function sdkStream(chunks: UIMessageChunk[], steps: unknown[] = []) {
   }
 }
 
-function createManager() {
-  BaseService.resetInstances()
-  const Ctor = AiStreamManager as unknown as new (config: {
-    gracePeriodMs: number
-  }) => InstanceType<typeof AiStreamManager>
-  return new Ctor({ gracePeriodMs: 0 })
+function request(ref: ConversationRef): MainDispatchRequest {
+  return {
+    trigger: ConversationOpenTrigger.SubmitMessage,
+    conversation: ref,
+    userMessageParts: [{ type: 'text', text: 'Say hello' }],
+    headless: false,
+    parentAnchorId: undefined,
+    mentionedModelIds: [modelId]
+  }
 }
 
-const { AiService } = await import('../AiService')
-const { AiStreamManager } = await import('../streamManager/AiStreamManager')
+function historyPort(ref: ConversationRef, assistantMessageId: string): ConversationHistoryPort {
+  const preparation: ConversationExecutionPreparationDescriptor = {
+    kind: ConversationExecutionPreparationKind.TemporaryChat,
+    conversation: ref,
+    modelId,
+    outputNodeId: assistantMessageId,
+    messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Say hello' }] }],
+    fastMode: false
+  }
+  return {
+    name: 'integration-history',
+    isPersistentConversation: true,
+    canHandle: (candidate) => candidate.kind === ref.kind && candidate.id === ref.id,
+    validateIntent: async (req, context) => ({
+      kind: ConversationHistoryAdapterKind.PersistentChat,
+      request: req,
+      context,
+      executionModelIds: [modelId],
+      resolvedModels: [fakeModel],
+      inputModelId: modelId
+    }),
+    commitIntent: () => ({
+      conversation: ref,
+      input: { historyNodeId: 'user-1' },
+      executions: [
+        {
+          modelId,
+          outputNodeId: assistantMessageId,
+          preparation,
+          preparationIndex: 0,
+          persistence: {
+            kind: ConversationTerminalPersistenceKind.TemporaryChat,
+            topicId: ref.id,
+            modelId,
+            messageId: assistantMessageId
+          },
+          driver: { kind: ConversationExecutionDriverBindingKind.Chat }
+        }
+      ],
+      reservedMessages: [
+        { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Say hello' }] },
+        { id: assistantMessageId, role: 'assistant', parts: [] }
+      ],
+      activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+      postCommitTasks: []
+    }),
+    prepareExecutionContext: async () => ({
+      conversation: ref,
+      models: [
+        {
+          modelId,
+          request: {
+            chatId: ref.id,
+            trigger: 'submit-message',
+            messageId: assistantMessageId,
+            uniqueModelId: modelId,
+            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Say hello' }] }]
+          }
+        }
+      ]
+    }),
+    persistTerminal: async () => {}
+  }
+}
+
+function createRuntime(ref: ConversationRef, assistantMessageId: string) {
+  const executionManager = new AiExecutionManager()
+  return new ConversationRuntimeService({
+    executionManager,
+    providers: [historyPort(ref, assistantMessageId)]
+  })
+}
 
 describe('chat turn integration trajectory', () => {
   beforeEach(() => {
+    BaseService.resetInstances()
     vi.clearAllMocks()
     sharedCache.clear()
     cacheWrites.length = 0
+    namingWrites.clear()
     const aiService = new (AiService as any)()
     fakeApplicationGet.mockImplementation((name: string) => {
       if (name === 'AiService') return aiService
       if (name === 'CacheService') return fakeCacheService
       if (name === 'PreferenceService') return { get: () => false }
-      if (name === 'AgentSessionRuntimeService') return { willContinueTopic: () => false }
       if (name === 'TraceStorageService') return { saveSpans: async () => undefined }
       if (name === 'AnalyticsService') return { trackTokenUsage: vi.fn() }
       throw new Error(`Unexpected application service: ${name}`)
     })
   })
 
-  it('runs a complete SDK chat trajectory through AiService and the stream manager', async () => {
+  it('runs a complete SDK chat trajectory through AiService and the Conversation runtime', async () => {
     const chunks = [
       { type: 'start', messageId: 'assistant-1' },
       { type: 'start-step' },
@@ -142,47 +245,25 @@ describe('chat turn integration trajectory', () => {
     ] as UIMessageChunk[]
     mockCreateAgent.mockResolvedValue({ stream: vi.fn().mockResolvedValue(sdkStream(chunks)) })
 
-    const manager = createManager()
-    const topicId = 'chat-integration-1'
+    const ref = { kind: ConversationKind.Chat, id: 'chat-integration-1' } as const
+    const runtime = createRuntime(ref, 'assistant-1')
     const listener = new FakeListener()
-    const modelId = 'test-provider::test-model' as const
-    let terminalSnapshot: ReturnType<typeof manager.inspect> | undefined
+    let terminalPhase: ConversationPhase | undefined
     listener.onDoneImpl = () => {
-      terminalSnapshot = manager.inspect(topicId)
+      terminalPhase = runtime.inspect(ref).phase
     }
 
-    manager.send({
-      topicId,
-      models: [
-        {
-          modelId,
-          request: {
-            chatId: topicId,
-            trigger: 'submit-message',
-            messageId: 'assistant-1',
-            uniqueModelId: modelId,
-            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Say hello' }] }]
-          }
-        }
-      ],
-      listeners: [listener]
+    await expect(runtime.dispatch(listener, request(ref))).resolves.toMatchObject({
+      mode: ConversationOpenMode.Started
     })
-
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
 
     expect(mockCreateAgent).toHaveBeenCalledOnce()
     expect(listener.chunks.map((chunk) => chunk.type)).toEqual(chunks.map((chunk) => chunk.type))
     expect(listener.sources).toEqual(chunks.map(() => modelId))
     expect(listener.errorResults).toEqual([])
-
-    if (!terminalSnapshot) {
-      throw new Error('Expected the terminal snapshot to be available during onDone')
-    }
-    const snapshot = terminalSnapshot
-    expect(snapshot.status).toBe('done')
-    expect(listener.doneResults[0].finalMessage).toEqual(snapshot.executions[0].finalMessage)
-    expect(snapshot.executions[0].finalMessage).toMatchObject({ id: 'assistant-1', role: 'assistant' })
-
+    expect(listener.doneResults[0].finalMessage).toMatchObject({ id: 'assistant-1', role: 'assistant' })
+    expect(terminalPhase).toBe(ConversationPhase.Idle)
     expect(cacheWrites.map(({ value }) => (value as { status: string }).status)).toEqual([
       'pending',
       'streaming',
@@ -207,28 +288,11 @@ describe('chat turn integration trajectory', () => {
     ] as UIMessageChunk[]
     mockCreateAgent.mockResolvedValue({ stream: vi.fn().mockResolvedValue(sdkStream(chunks)) })
 
-    const manager = createManager()
-    const topicId = 'chat-integration-tool-1'
+    const ref = { kind: ConversationKind.Chat, id: 'chat-integration-tool-1' } as const
+    const runtime = createRuntime(ref, 'assistant-tool-1')
     const listener = new FakeListener()
-    const modelId = 'test-provider::test-model' as const
 
-    manager.send({
-      topicId,
-      models: [
-        {
-          modelId,
-          request: {
-            chatId: topicId,
-            trigger: 'submit-message',
-            messageId: 'assistant-tool-1',
-            uniqueModelId: modelId,
-            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Search the project' }] }]
-          }
-        }
-      ],
-      listeners: [listener]
-    })
-
+    await runtime.dispatch(listener, request(ref))
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
 
     expect(listener.chunks.map((chunk) => chunk.type)).toEqual(chunks.map((chunk) => chunk.type))
@@ -272,28 +336,11 @@ describe('chat turn integration trajectory', () => {
         )
     })
 
-    const manager = createManager()
-    const topicId = 'chat-integration-error-1'
+    const ref = { kind: ConversationKind.Chat, id: 'chat-integration-error-1' } as const
+    const runtime = createRuntime(ref, 'assistant-error-1')
     const listener = new FakeListener()
-    const modelId = 'test-provider::test-model' as const
 
-    manager.send({
-      topicId,
-      models: [
-        {
-          modelId,
-          request: {
-            chatId: topicId,
-            trigger: 'submit-message',
-            messageId: 'assistant-error-1',
-            uniqueModelId: modelId,
-            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Search the project' }] }]
-          }
-        }
-      ],
-      listeners: [listener]
-    })
-
+    await runtime.dispatch(listener, request(ref))
     await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
     expect(listener.doneResults).toEqual([])

@@ -325,15 +325,15 @@ renderer normalize its scalar message timings into the same performance view
 model. Scalar timing is never copied into a new runtime timeline because it
 lacks absolute timestamps and tool/approval intervals.
 
-`AiStreamManager` owns one runtime timing collector per message execution. AI
+`AiExecutionManager` owns one runtime timing collector per exact message execution. AI
 SDK tools report their exact execute interval through the existing loop hooks.
 Direct/external Claude Agent tools use the SDK's
 `PostToolUse`/`PostToolUseFailure.duration_ms`, which excludes approval and hook
 time. Approval spans begin when the approval request is emitted and end on
 approve, deny, abort, or error.
 
-A continuation's context provider includes the persisted timing snapshot in
-`PreparedDispatch`; `AiStreamManager` only consumes that seed. The collector
+A continuation's committed execution descriptor includes the persisted timing
+snapshot; `AiExecutionManager` only consumes that seed. The collector
 keeps the earliest root start and prior spans and writes the latest completion.
 An approval decision and its span completion are committed in the same SQLite
 transaction, so a restart between the decision and continuation cannot leave

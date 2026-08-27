@@ -2,15 +2,16 @@ import { Button } from '@cherrystudio/ui'
 import { useInfiniteFlatItems } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { MessageContentContextKind, type MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { defaultRangeExtractor, type Range } from '@tanstack/react-virtual'
@@ -69,7 +70,7 @@ function getPreviewTopic(target: GlobalSearchMessagePreviewTarget): Topic {
   }
 
   return {
-    id: buildAgentSessionTopicId(target.sessionId),
+    id: buildAgentSessionScopeKey(target.sessionId),
     type: TopicType.Session,
     assistantId: target.agentId ?? '',
     name: target.title,
@@ -84,6 +85,12 @@ function getTargetMessageType(target: GlobalSearchMessagePreviewTarget) {
   return target.sourceType === 'topic'
     ? 'globalSearch.messageSearch.sources.topic'
     : 'globalSearch.messageSearch.sources.session'
+}
+
+function getTargetConversation(target: GlobalSearchMessagePreviewTarget): ConversationRef {
+  return target.sourceType === 'topic'
+    ? { kind: ConversationKind.Chat, id: target.topicId }
+    : { kind: ConversationKind.Agent, id: target.sessionId }
 }
 
 function getMessageRoleLabelKey(role: string) {
@@ -422,6 +429,7 @@ export function GlobalSearchMessagePreviewPanel({
         <MessageContentProvider
           messages={messageItems}
           partsByMessageId={partsByMessageId}
+          contentContext={{ kind: MessageContentContextKind.Durable, conversation: getTargetConversation(target) }}
           topic={previewTopic}
           renderConfig={{ narrowMode: false, showMessageOutline: false }}>
           <DynamicVirtualList

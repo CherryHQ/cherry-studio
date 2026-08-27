@@ -67,6 +67,12 @@ function createAdapter() {
   )
 }
 
+function connectRun(adapter: any): AbortSignal {
+  const controller = new AbortController()
+  adapter.connectAbort = controller
+  return controller.signal
+}
+
 describe('QqAdapter.downloadAttachments', () => {
   beforeEach(() => mockNetFetch.mockReset())
   afterEach(() => vi.restoreAllMocks())
@@ -75,9 +81,10 @@ describe('QqAdapter.downloadAttachments', () => {
     const adapter = createAdapter()
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
 
-    const result = await adapter.downloadAttachments([
-      { url: 'http://169.254.169.254/latest/meta-data/', content_type: 'image/png', filename: 'meta' }
-    ])
+    const result = await adapter.downloadAttachments(
+      [{ url: 'http://169.254.169.254/latest/meta-data/', content_type: 'image/png', filename: 'meta' }],
+      connectRun(adapter)
+    )
 
     expect(result).toEqual({})
     expect(mockNetFetch).not.toHaveBeenCalled()
@@ -88,9 +95,10 @@ describe('QqAdapter.downloadAttachments', () => {
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
     mockNetFetch.mockResolvedValue(mockBinaryResponse(Buffer.from('img'), 'image/png'))
 
-    const result = await adapter.downloadAttachments([
-      { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
-    ])
+    const result = await adapter.downloadAttachments(
+      [{ url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }],
+      connectRun(adapter)
+    )
 
     expect(result.images).toHaveLength(1)
     expect(mockNetFetch).toHaveBeenCalled()
@@ -115,7 +123,7 @@ describe('QqAdapter passive reply', () => {
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
     const bodies = capturePostBodies()
 
-    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+    await adapter.handleGroupMessage(groupMessage('inbound-1'), connectRun(adapter))
     await adapter.sendMessage('group:g1', 'reply', { replyToMessageId: 'inbound-1' })
 
     expect(bodies).toHaveLength(1)
@@ -123,12 +131,51 @@ describe('QqAdapter passive reply', () => {
     expect(bodies[0].msg_seq).toBe(1)
   })
 
+  it('registers the passive reply before answering /whoami', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const bodies = capturePostBodies()
+
+    await adapter.handleGroupMessage(groupMessage('whoami-1', 'g1', '/whoami'), connectRun(adapter))
+
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0].msg_id).toBe('whoami-1')
+    expect(bodies[0].msg_seq).toBe(1)
+  })
+
+  it('freezes the passive reply window at message receipt rather than attachment completion', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))
+      const adapter = createAdapter()
+      let finishDownload!: () => void
+      vi.spyOn(adapter, 'downloadAttachments').mockReturnValue(
+        new Promise((resolve) => {
+          finishDownload = () => resolve({})
+        })
+      )
+      const signal = connectRun(adapter)
+      const handling = adapter.handleGroupMessage(groupMessage('slow-1'), signal)
+      await Promise.resolve()
+
+      vi.setSystemTime(new Date('2026-08-24T00:01:00.000Z'))
+      finishDownload()
+      await handling
+
+      expect(adapter.passiveReplies.get('group:g1:slow-1').receivedAt).toBe(
+        new Date('2026-08-24T00:00:00.000Z').getTime()
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('increments msg_seq across replies so chunks are not deduped', async () => {
     const adapter = createAdapter()
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
     const bodies = capturePostBodies()
 
-    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+    await adapter.handleGroupMessage(groupMessage('inbound-1'), connectRun(adapter))
     await adapter.sendMessage('group:g1', 'first', { replyToMessageId: 'inbound-1' })
     await adapter.sendMessage('group:g1', 'second', { replyToMessageId: 'inbound-1' })
 
@@ -142,8 +189,9 @@ describe('QqAdapter passive reply', () => {
     const bodies = capturePostBodies()
 
     // Two inbound messages arrive; the reply to the first must not bind to the second.
-    await adapter.handleGroupMessage(groupMessage('inbound-1'))
-    await adapter.handleGroupMessage(groupMessage('inbound-2'))
+    const signal = connectRun(adapter)
+    await adapter.handleGroupMessage(groupMessage('inbound-1'), signal)
+    await adapter.handleGroupMessage(groupMessage('inbound-2'), signal)
     await adapter.sendMessage('group:g1', 'answer to first', { replyToMessageId: 'inbound-1' })
 
     expect(bodies).toHaveLength(1)
@@ -158,7 +206,7 @@ describe('QqAdapter passive reply', () => {
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
 
-    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+    await adapter.handleGroupMessage(groupMessage('inbound-1'), connectRun(adapter))
 
     expect(events).toHaveLength(1)
     expect(events[0].messageId).toBe('inbound-1')
@@ -169,12 +217,15 @@ describe('QqAdapter passive reply', () => {
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
     const bodies = capturePostBodies()
 
-    await adapter.handleC2CMessage({
-      id: 'inbound-c2c',
-      author: { user_openid: 'u1', id: 'a1', username: 'u' },
-      content: 'hi',
-      timestamp: ''
-    })
+    await adapter.handleC2CMessage(
+      {
+        id: 'inbound-c2c',
+        author: { user_openid: 'u1', id: 'a1', username: 'u' },
+        content: 'hi',
+        timestamp: ''
+      },
+      connectRun(adapter)
+    )
     // 10 min in: would be expired for a group, still valid for C2C.
     adapter.passiveReplies.get('c2c:u1:inbound-c2c').receivedAt = Date.now() - 10 * 60 * 1000
 
@@ -190,7 +241,7 @@ describe('QqAdapter passive reply', () => {
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
     const bodies = capturePostBodies()
 
-    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+    await adapter.handleGroupMessage(groupMessage('inbound-1'), connectRun(adapter))
     adapter.passiveReplies.get('group:g1:inbound-1').receivedAt = Date.now() - 6 * 60 * 1000
 
     await adapter.sendMessage('group:g1', 'late reply', { replyToMessageId: 'inbound-1' })
@@ -206,7 +257,7 @@ describe('QqAdapter passive reply', () => {
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
     const bodies = capturePostBodies()
 
-    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+    await adapter.handleGroupMessage(groupMessage('inbound-1'), connectRun(adapter))
     // 6 separate passive sends against the same msg_id; QQ allows only 5.
     for (let i = 0; i < 6; i++) {
       await adapter.sendMessage('group:g1', `chunk ${i}`, { replyToMessageId: 'inbound-1' })
@@ -244,12 +295,17 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     )
   }
 
+  function activeDispatch(adapter: any) {
+    const signal = connectRun(adapter)
+    return (eventType: string, data: unknown) => adapter.handleDispatch(eventType, data, signal)
+  }
+
   it('mention_only=true (default): discards all GROUP_MESSAGE_CREATE events', async () => {
     const adapter = createAdapter()
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
 
-    await adapter.handleGroupFullMessage(groupMessage('full-1'))
+    await adapter.handleGroupFullMessage(groupMessage('full-1'), connectRun(adapter))
 
     expect(events).toHaveLength(0)
   })
@@ -259,21 +315,91 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
 
-    await adapter.handleGroupFullMessage(groupMessage('full-1', 'g1', 'hey everyone'))
+    await adapter.handleGroupFullMessage(groupMessage('full-1', 'g1', 'hey everyone'), connectRun(adapter))
 
     expect(events).toHaveLength(1)
     expect(events[0].messageId).toBe('full-1')
     expect(events[0].text).toBe('hey everyone')
   })
 
+  it('ignores a dispatch callback owned by a replaced connect run', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (event: any) => events.push(event))
+    const stale = new AbortController()
+    adapter.connectAbort = new AbortController()
+
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('stale-1'), stale.signal)
+
+    expect(events).toEqual([])
+  })
+
+  it('does not emit after an in-flight dispatch loses connect-run ownership', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (event: any) => events.push(event))
+    let finishDownload!: () => void
+    vi.spyOn(adapter, 'downloadAttachments').mockReturnValue(
+      new Promise((resolve) => {
+        finishDownload = () => resolve({})
+      })
+    )
+    const dispatch = activeDispatch(adapter)
+
+    const handling = dispatch('GROUP_MESSAGE_CREATE', groupMessage('stale-mid-flight'))
+    await Promise.resolve()
+    connectRun(adapter)
+    finishDownload()
+    await handling
+
+    expect(events).toEqual([])
+    expect(adapter.passiveReplies.has('group:g1:stale-mid-flight')).toBe(false)
+    expect(adapter.seenMsgIds.has('stale-mid-flight')).toBe(false)
+  })
+
+  it('does not let an old connect run roll back a newer dedup claim for the same message', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))
+      const adapter = createAdapterWithConfig({ mention_only: false })
+      const events: any[] = []
+      adapter.on('message', (event: any) => events.push(event))
+      let finishOldDownload!: () => void
+      vi.spyOn(adapter, 'downloadAttachments')
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            finishOldDownload = () => resolve({})
+          })
+        )
+        .mockResolvedValue({})
+
+      const oldDispatch = activeDispatch(adapter)
+      const oldHandling = oldDispatch('GROUP_MESSAGE_CREATE', groupMessage('aba-1'))
+      await Promise.resolve()
+
+      vi.setSystemTime(new Date('2026-08-24T00:00:11.000Z'))
+      const currentDispatch = activeDispatch(adapter)
+      await currentDispatch('GROUP_MESSAGE_CREATE', groupMessage('aba-1'))
+      finishOldDownload()
+      await oldHandling
+
+      await currentDispatch('GROUP_MESSAGE_CREATE', groupMessage('aba-1'))
+      expect(events).toHaveLength(1)
+      expect(events[0].messageId).toBe('aba-1')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('mention_only=false: dedup—AT event then FULL event with same msg.id emits once', async () => {
     const adapter = createAdapterWithConfig({ mention_only: false })
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
+    const dispatch = activeDispatch(adapter)
 
     // Real routing through handleDispatch: AT arrives first, then the FULL twin.
-    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
-    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
+    await dispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
+    await dispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
 
     expect(events).toHaveLength(1)
     expect(events[0].messageId).toBe('dup-1')
@@ -283,10 +409,11 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     const adapter = createAdapterWithConfig({ mention_only: false })
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
+    const dispatch = activeDispatch(adapter)
 
     // Real routing through handleDispatch: FULL arrives first, then the AT twin.
-    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
-    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
+    await dispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
+    await dispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
 
     expect(events).toHaveLength(1)
     expect(events[0].messageId).toBe('dup-2')
@@ -296,8 +423,9 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     const adapter = createAdapterWithConfig({ mention_only: false, allowed_chat_ids: ['group:g-whitelist'] })
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
+    const dispatch = activeDispatch(adapter)
 
-    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('full-1', 'g-other', 'hi'))
+    await dispatch('GROUP_MESSAGE_CREATE', groupMessage('full-1', 'g-other', 'hi'))
 
     expect(events).toHaveLength(0)
   })
@@ -306,11 +434,12 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     const adapter = createAdapter()
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
+    const dispatch = activeDispatch(adapter)
 
-    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi'))
+    await dispatch('GROUP_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi'))
     expect(events).toHaveLength(0)
 
-    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi @bot'))
+    await dispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi @bot'))
     expect(events).toHaveLength(1)
     expect(events[0].messageId).toBe('m-1')
   })
@@ -319,15 +448,16 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     const adapter = createAdapterWithConfig({ mention_only: false })
     const events: any[] = []
     adapter.on('message', (e: any) => events.push(e))
+    const dispatch = activeDispatch(adapter)
 
     // First copy fails (e.g. transient download error) — the dedup mark must be rolled back.
     vi.spyOn(adapter, 'processMessage').mockRejectedValueOnce(new Error('download failed'))
-    await expect(adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))).rejects.toThrow(
+    await expect(dispatch('GROUP_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))).rejects.toThrow(
       'download failed'
     )
 
     // Twin AT event arrives — the mark was rolled back, so this copy processes.
-    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))
+    await dispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))
 
     expect(events).toHaveLength(1)
     expect(events[0].messageId).toBe('rb-1')

@@ -6,6 +6,7 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { ConversationRef } from '@shared/ai/conversation'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -27,6 +28,15 @@ import type { FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
 
 export type { MessageUiState } from '@renderer/types/message'
+
+export enum MessageContentContextKind {
+  Durable = 'durable',
+  Ephemeral = 'ephemeral'
+}
+
+export type MessageContentContext =
+  | { kind: MessageContentContextKind.Durable; conversation: ConversationRef }
+  | { kind: MessageContentContextKind.Ephemeral }
 
 export interface MessageListSelectionState {
   enabled: boolean
@@ -404,6 +414,8 @@ export interface MessageListActions {
 }
 
 export interface MessageListMeta {
+  /** Exact business identity for cross-process message actions. */
+  conversation?: ConversationRef
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile

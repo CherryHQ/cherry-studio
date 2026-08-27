@@ -1,3 +1,4 @@
+import { ConversationKind } from '@shared/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -105,7 +106,18 @@ describe('trimOversizedToolOutputs', () => {
         })
       ]
     ],
-    ['already deferred', [toolPart({ $deferredToolResult: { topicId: 't', messageId: 'm', toolCallId: 'c' } })]],
+    [
+      'already deferred',
+      [
+        toolPart({
+          $deferredToolResult: {
+            conversation: { kind: ConversationKind.Chat, id: 't' },
+            messageId: 'm',
+            toolCallId: 'c'
+          }
+        })
+      ]
+    ],
     ['non-tool part', [{ type: 'text', text: BIG } as unknown as CherryMessagePart]]
   ])('passes through untouched: %s', async (_label, parts) => {
     const result = await trimOversizedToolOutputs(parts)

@@ -6,7 +6,7 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Topic } from '@renderer/types/topic'
 import { TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { memo, useCallback, useMemo, useRef } from 'react'
@@ -24,7 +24,7 @@ interface AgentSessionImageCaptureHostProps {
 
 const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: AgentSessionImageCaptureHostProps) => {
   const captureTarget = useRef({ activeAgent, modelFallback, session }).current
-  const topicId = useMemo(() => buildAgentSessionTopicId(captureTarget.session.id), [captureTarget.session.id])
+  const topicId = useMemo(() => buildAgentSessionScopeKey(captureTarget.session.id), [captureTarget.session.id])
   const loadMessages = useCallback(
     () => getAgentSessionMessagesForExport(captureTarget.session, { modelFallback: captureTarget.modelFallback }),
     [captureTarget]
@@ -59,6 +59,7 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
   )
 
   const messageList = useAgentMessageListProviderValue({
+    sessionId: captureTarget.session.id,
     topic,
     messages: messages ?? [],
     partsByMessageId,

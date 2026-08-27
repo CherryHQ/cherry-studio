@@ -3,7 +3,12 @@ import { clampSurrogateBoundary } from '@shared/utils/text'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  ChannelStreamCompletionResult,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
@@ -224,12 +229,13 @@ class SlackAdapter extends ChannelAdapter {
     return !!(this.botToken && this.appToken)
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.botToken) throw new Error('Slack bot token (xoxb-...) is required')
     if (!this.appToken) throw new Error('Slack app-level token (xapp-...) is required for Socket Mode')
     this.shouldStop = false
     await this.fetchBotUserId()
-    await this.startSocketMode()
+    signal.throwIfAborted()
+    await this.startSocketMode(signal)
     this.log.info('Slack bot started')
   }
 
@@ -279,30 +285,34 @@ class SlackAdapter extends ChannelAdapter {
     return data.url
   }
 
-  private async startSocketMode(): Promise<void> {
-    if (this.shouldStop) return
+  private async startSocketMode(signal: AbortSignal): Promise<void> {
+    if (this.shouldStop || !this.isConnectRunActive(signal)) return
 
     try {
       this.cleanup()
 
       const wsUrl = await this.getSocketModeUrl()
+      signal.throwIfAborted()
       this.log.info('Connecting to Slack Socket Mode')
 
       const ws = new WebSocket(wsUrl)
       this.ws = ws
 
       ws.on('open', () => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.info('Slack WebSocket connected')
         // Slack Socket Mode requires periodic pings to keep alive
         this.pingTimer = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
+          if (this.isConnectRunActive(signal) && ws.readyState === WebSocket.OPEN) {
             ws.ping()
           }
         }, 30_000)
       })
 
       ws.on('message', (data: Buffer) => {
-        this.handleSocketMessage(data).catch((err) => {
+        if (!this.isConnectRunActive(signal)) return
+        this.handleSocketMessage(data, signal).catch((err) => {
+          if (!this.isConnectRunActive(signal)) return
           this.log.error('Error handling Socket Mode message', {
             error: err instanceof Error ? err.message : String(err)
           })
@@ -310,25 +320,28 @@ class SlackAdapter extends ChannelAdapter {
       })
 
       ws.on('close', (code, reason) => {
-        this.markDisconnected(`WebSocket closed: ${code}`)
+        if (!this.isConnectRunActive(signal)) return
+        this.markDisconnected(`WebSocket closed: ${code}`, signal)
         this.log.warn(`WebSocket closed (code=${code}, reason=${reason.toString()})`)
-        this.scheduleReconnect()
+        this.scheduleReconnect(signal)
       })
 
       ws.on('error', (err) => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.error('Slack WebSocket error', { error: err.message })
       })
     } catch (error) {
       this.log.error('Failed to start Slack Socket Mode', {
         error: error instanceof Error ? error.message : String(error)
       })
-      this.scheduleReconnect()
+      if (this.isConnectRunActive(signal)) this.scheduleReconnect(signal)
     }
   }
 
   // ─── Socket Mode Message Handling ───────────────────────────
 
-  private async handleSocketMessage(data: Buffer): Promise<void> {
+  private async handleSocketMessage(data: Buffer, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     let envelope: SlackSocketEnvelope
     try {
       envelope = JSON.parse(data.toString())
@@ -344,7 +357,7 @@ class SlackAdapter extends ChannelAdapter {
     switch (envelope.type) {
       case 'hello':
         this.reconnectAttempts = 0
-        this.markConnected()
+        this.markConnected(signal)
         this.log.info('Slack Socket Mode hello received')
         break
       case 'disconnect':
@@ -353,18 +366,19 @@ class SlackAdapter extends ChannelAdapter {
         break
       case 'events_api':
         if (envelope.payload?.event) {
-          await this.handleEvent(envelope.payload.event)
+          await this.handleEvent(envelope.payload.event, signal)
         }
         break
       case 'slash_commands':
         if (envelope.payload) {
-          await this.handleSlashCommand(envelope.payload)
+          await this.handleSlashCommand(envelope.payload, signal)
         }
         break
     }
   }
 
-  private async handleEvent(event: SlackMessageEvent): Promise<void> {
+  private async handleEvent(event: SlackMessageEvent, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     if (event.type !== 'message') return
     // Ignore subtypes (edits, deletes, bot_message, etc.) but allow file_share
     if (event.subtype && event.subtype !== 'file_share') return
@@ -376,9 +390,11 @@ class SlackAdapter extends ChannelAdapter {
 
     // Add 👀 reaction to acknowledge receipt
     await this.addReaction(chatId, event.ts)
+    if (!this.isConnectRunActive(signal)) return
 
     const userId = event.user ?? ''
     const userName = await this.resolveUserName(userId)
+    if (!this.isConnectRunActive(signal)) return
 
     // Strip bot mentions from text
     const rawText = event.text ?? ''
@@ -405,6 +421,7 @@ class SlackAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId)
         return
       }
+      if (!this.isConnectRunActive(signal)) return
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', { chatId, userId, userName, command: cmd })
     } else {
@@ -425,11 +442,16 @@ class SlackAdapter extends ChannelAdapter {
         if (downloaded.length > 0) files = downloaded
       }
 
+      if (!this.isConnectRunActive(signal)) return
       this.emit('message', { chatId, userId, userName, text, images, files })
     }
   }
 
-  private async handleSlashCommand(payload: NonNullable<SlackSocketEnvelope['payload']>): Promise<void> {
+  private async handleSlashCommand(
+    payload: NonNullable<SlackSocketEnvelope['payload']>,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     const command = payload.command?.replace('/', '') ?? ''
     const chatId = payload.channel_id ?? ''
     const userId = payload.user_id ?? ''
@@ -444,6 +466,7 @@ class SlackAdapter extends ChannelAdapter {
     }
 
     if (['new', 'compact', 'help'].includes(command)) {
+      if (!this.isConnectRunActive(signal)) return
       this.emit('command', {
         chatId,
         userId,
@@ -577,12 +600,14 @@ class SlackAdapter extends ChannelAdapter {
     await controller.onText(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
+  override async onStreamComplete(chatId: string, finalText: string): Promise<ChannelStreamCompletionResult> {
     const controller = this.streamingControllers.get(chatId)
-    if (!controller) return false
+    if (!controller) return ChannelStreamCompletionResult.NotHandled
     try {
       await this.removeReaction(chatId)
-      return await controller.complete(finalText)
+      return (await controller.complete(finalText))
+        ? ChannelStreamCompletionResult.Delivered
+        : ChannelStreamCompletionResult.NotHandled
     } finally {
       this.streamingControllers.delete(chatId)
     }
@@ -673,11 +698,11 @@ class SlackAdapter extends ChannelAdapter {
     }
   }
 
-  private scheduleReconnect(): void {
-    if (this.shouldStop) return
+  private scheduleReconnect(signal: AbortSignal): void {
+    if (this.shouldStop || !this.isConnectRunActive(signal)) return
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.markDisconnected('Max reconnect attempts reached')
+      this.markDisconnected('Max reconnect attempts reached', signal)
       this.log.error('Max reconnect attempts reached, giving up')
       return
     }
@@ -689,8 +714,9 @@ class SlackAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
-      if (!this.shouldStop) {
-        this.startSocketMode().catch((err) => {
+      if (!this.shouldStop && this.isConnectRunActive(signal)) {
+        this.startSocketMode(signal).catch((err) => {
+          if (!this.isConnectRunActive(signal)) return
           this.log.error('Reconnect failed', {
             error: err instanceof Error ? err.message : String(err)
           })

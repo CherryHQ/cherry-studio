@@ -21,15 +21,13 @@
  */
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type PinRow, pinTable } from '@data/db/schemas/pin'
 import { classifySqliteError } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DataApiEffectCollector, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePinDto } from '@shared/data/api/schemas/pins'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Pin } from '@shared/data/types/pin'
 import { and, asc, eq, inArray } from 'drizzle-orm'
@@ -50,30 +48,38 @@ function rowToPin(row: PinRow): Pin {
   }
 }
 
-function notifyPinReadModelChange(pins: readonly Pin[], kind: 'membership' | 'order'): void {
+function addPinReadModelEffects(
+  effects: DataApiEffectCollector,
+  pins: readonly Pin[],
+  kind: 'membership' | 'order'
+): void {
   if (pins.length === 0) return
 
   const pinIds = [...new Set(pins.map((pin) => pin.id))]
-  const effects: DataApiDataChangeEffect[] = [
+  effects.add(
     kind === 'membership'
       ? { endpoint: '/pins', kind: 'membership', entityIds: pinIds }
-      : { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: pinIds },
-    { endpoint: '/pins/:id', entityIds: pinIds }
-  ]
+      : { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: pinIds }
+  )
+  for (const id of pinIds) {
+    effects.add({ endpoint: '/pins/:id', routeParams: { id }, entityIds: [id] })
+  }
 
   for (const entityType of ['topic', 'session'] as const) {
     const entityIds = [...new Set(pins.filter((pin) => pin.entityType === entityType).map((pin) => pin.entityId))]
     if (entityIds.length === 0) continue
 
     const endpoint = entityType === 'topic' ? '/topics' : '/agent-sessions'
-    effects.push(
+    effects.add(
       kind === 'membership'
         ? { endpoint, kind: 'membership', dimension: 'pinned', entityIds }
         : { endpoint, kind: 'order', dimension: 'pinned', entityIds }
     )
   }
+}
 
-  notifyDataApiDataChange(effects)
+function notifyPinReadModelChange(pins: readonly Pin[], kind: 'membership' | 'order'): void {
+  application.get('DbService').withEffects((effects) => addPinReadModelEffects(effects, pins, kind))
 }
 
 export class PinService {
@@ -214,7 +220,11 @@ export class PinService {
 
   /** Publish after a caller-owned transaction purges pins through the Tx helpers below. */
   notifyPurged(): void {
-    notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
+    application.get('DbService').withEffects((effects) => this.addPurgeReadModelEffect(effects))
+  }
+
+  addPurgeReadModelEffect(effects: DataApiEffectCollector): void {
+    effects.add({ endpoint: '/pins', kind: 'membership' })
   }
 
   /**

@@ -96,9 +96,13 @@ export interface ListModelsRequest {
 
 export type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
+export enum AiRuntimeKind {
+  AgentSession = 'agent-session'
+}
+
 /** Streaming chat request — serialisable across IPC. */
 export interface AiStreamRequest extends AiBaseRequest {
-  /** `topicId` in the AiStreamManager path. */
+  /** Conversation identifier at the provider request boundary. */
   chatId: string
   trigger: ChatTrigger
   messageId?: string
@@ -111,5 +115,5 @@ export interface AiStreamRequest extends AiBaseRequest {
    * consumers fall back to scanning `messages`.
    */
   retainedContext?: RetainedContext
-  runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
+  runtime?: { kind: AiRuntimeKind.AgentSession; sessionId: string; turnId: string }
 }

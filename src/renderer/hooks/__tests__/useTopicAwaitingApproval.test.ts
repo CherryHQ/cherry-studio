@@ -1,141 +1,111 @@
-import type { TopicStreamStatus } from '@shared/ai/transport'
+import { ConversationKind, type ConversationRef, ConversationStatus } from '@shared/ai/conversation'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockEntry =
-  vi.fn<
-    () =>
-      | {
-          status: TopicStreamStatus | undefined
-          lastCompletedAt?: number
-          activeExecutions: []
-          awaitingApprovalAnchors: []
-        }
-      | undefined
-  >()
-
+const mockEntry = vi.fn()
 let lastSeenCompletion: number | null = null
 const setLastSeenCompletion = vi.fn((next: number | null) => {
   lastSeenCompletion = next
 })
 
-// Mock at the cache layer rather than at useTopicStreamStatus — intra-module
-// vi.mock can't intercept calls between functions in the same source file.
-// The main-owned status entry is observed read-only (useSharedCacheValue);
-// the window-owned lastSeenCompletion marker keeps the writable hook.
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCache: (key: string) => {
-    if (key.startsWith('topic.stream.last_seen_completion.')) {
-      return [lastSeenCompletion, setLastSeenCompletion]
-    }
-    return [mockEntry()]
-  },
+  useSharedCache: () => [lastSeenCompletion, setLastSeenCompletion],
   useSharedCacheValue: () => mockEntry()
 }))
 
 import {
-  useTopicAwaitingApproval,
-  useTopicDbRefreshOnAwaitingApproval,
-  useTopicStreamStatus
-} from '../useTopicStreamStatus'
+  useConversationAwaitingInteraction,
+  useConversationDbRefreshOnAwaitingInteraction,
+  useConversationStreamStatus
+} from '../useConversationStreamStatus'
 
-const setEntry = (status: TopicStreamStatus | undefined, lastCompletedAt?: number) => {
-  mockEntry.mockReturnValue({ status, lastCompletedAt, activeExecutions: [], awaitingApprovalAnchors: [] })
+const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
+
+function setEntry(status: ConversationStatus | undefined, lastCompletedAt?: number): void {
+  mockEntry.mockReturnValue({
+    status,
+    lastCompletedAt,
+    activeExecutions: [],
+    awaitingInteractionExecutions: []
+  })
 }
 
-describe('useTopicAwaitingApproval', () => {
+describe('useConversationAwaitingInteraction', () => {
   beforeEach(() => {
     mockEntry.mockReset()
     setLastSeenCompletion.mockClear()
     lastSeenCompletion = null
   })
 
-  it('is true iff the cross-window shared-cache status is awaiting-approval', () => {
-    setEntry('awaiting-approval')
-    expect(renderHook(() => useTopicAwaitingApproval('t')).result.current).toBe(true)
+  it('is true iff the Main-owned status is WaitingInteraction', () => {
+    setEntry(ConversationStatus.AwaitingInteraction)
+    expect(renderHook(() => useConversationAwaitingInteraction(conversation)).result.current).toBe(true)
   })
 
-  it.each<TopicStreamStatus | undefined>(['pending', 'streaming', 'aborted', 'done', 'error', undefined])(
-    'is false for status %s (no per-window partsMap scan / SWR dependency)',
-    (status) => {
-      setEntry(status)
-      expect(renderHook(() => useTopicAwaitingApproval('t')).result.current).toBe(false)
-    }
-  )
+  it.each<ConversationStatus | undefined>([
+    ConversationStatus.Pending,
+    ConversationStatus.Streaming,
+    ConversationStatus.Aborted,
+    ConversationStatus.Done,
+    ConversationStatus.Error,
+    undefined
+  ])('is false for status %s without scanning per-window message parts', (status) => {
+    setEntry(status)
+    expect(renderHook(() => useConversationAwaitingInteraction(conversation)).result.current).toBe(false)
+  })
 
-  it('treats each stream completion as unread until that specific completion is marked seen', () => {
-    setEntry('done', 1000)
-
-    const { result, rerender } = renderHook(() => useTopicStreamStatus('t'))
-
+  it('treats every durable completion as unread until that exact completion is marked seen', () => {
+    setEntry(ConversationStatus.Done, 1000)
+    const { result, rerender } = renderHook(() => useConversationStreamStatus(conversation))
     expect(result.current.isFulfilled).toBe(true)
 
-    act(() => {
-      result.current.markSeen()
-    })
+    act(() => result.current.markSeen())
     rerender()
-
     expect(result.current.isFulfilled).toBe(false)
 
-    setEntry('done', 2000)
+    setEntry(ConversationStatus.Done, 2000)
     rerender()
-
     expect(result.current.isFulfilled).toBe(true)
   })
 
-  it.each<TopicStreamStatus>(['pending', 'streaming'])(
-    'refreshes once on %s to awaiting-approval',
+  it.each([ConversationStatus.Pending, ConversationStatus.Streaming])(
+    'refreshes once on %s to WaitingInteraction',
     async (liveStatus) => {
       const refresh = vi.fn(async () => {})
       setEntry(liveStatus)
-      const { rerender } = renderHook(() => useTopicDbRefreshOnAwaitingApproval('t', refresh))
+      const { rerender } = renderHook(() => useConversationDbRefreshOnAwaitingInteraction(conversation, refresh))
 
-      setEntry('awaiting-approval')
-      await act(async () => {
-        rerender()
-        await Promise.resolve()
-      })
-      expect(refresh).toHaveBeenCalledTimes(1)
-
-      await act(async () => {
-        rerender()
-        await Promise.resolve()
-      })
-      expect(refresh).toHaveBeenCalledTimes(1)
+      setEntry(ConversationStatus.AwaitingInteraction)
+      await act(async () => rerender())
+      await act(async () => rerender())
+      expect(refresh).toHaveBeenCalledOnce()
     }
   )
 
-  it.each<TopicStreamStatus>(['done', 'error', 'aborted'])(
-    'does not refresh on streaming to %s',
+  it.each([ConversationStatus.Done, ConversationStatus.Error, ConversationStatus.Aborted])(
+    'does not refresh on Streaming to %s',
     async (terminalStatus) => {
       const refresh = vi.fn(async () => {})
-      setEntry('streaming')
-      const { rerender } = renderHook(() => useTopicDbRefreshOnAwaitingApproval('t', refresh))
+      setEntry(ConversationStatus.Streaming)
+      const { rerender } = renderHook(() => useConversationDbRefreshOnAwaitingInteraction(conversation, refresh))
 
       setEntry(terminalStatus)
-      await act(async () => {
-        rerender()
-        await Promise.resolve()
-      })
-
+      await act(async () => rerender())
       expect(refresh).not.toHaveBeenCalled()
     }
   )
 
-  it('does not carry a live edge across topic identities', async () => {
+  it('does not carry a live edge across Conversation identities', async () => {
     const refresh = vi.fn(async () => {})
-    setEntry('streaming')
+    setEntry(ConversationStatus.Streaming)
     const { rerender } = renderHook(
-      ({ topicId }: { topicId: string }) => useTopicDbRefreshOnAwaitingApproval(topicId, refresh),
-      { initialProps: { topicId: 'topic-1' } }
+      ({ value }: { value: ConversationRef }) => useConversationDbRefreshOnAwaitingInteraction(value, refresh),
+      { initialProps: { value: conversation as ConversationRef } }
     )
 
-    setEntry('awaiting-approval')
-    await act(async () => {
-      rerender({ topicId: 'topic-2' })
-      await Promise.resolve()
-    })
-
+    const other = { kind: ConversationKind.Chat, id: 'topic-2' } as const
+    setEntry(ConversationStatus.AwaitingInteraction)
+    await act(async () => rerender({ value: other }))
     expect(refresh).not.toHaveBeenCalled()
   })
 })

@@ -44,7 +44,7 @@ export function buildComposerQueuedPayload(
 
   return {
     text,
-    attachments: attachedFiles.length ? (attachedFiles as unknown as Array<Record<string, unknown>>) : undefined,
+    attachments: attachedFiles.length ? attachedFiles : undefined,
     userMessageParts,
     ...extra?.(tokenIds, attachedFiles)
   }

@@ -222,12 +222,9 @@ export function useTopicMessages(
     }
     return ids
   }, [branchItems])
-
   useDataChange(
     '/topics/:topicId/messages',
     (effects) => {
-      // Membership effects carry the NEW row ids — never in loadedMessageIds yet.
-      // Route scoping already limits them to this topic, so they must always refetch.
       if (
         enabled &&
         effects.some(

@@ -1,3 +1,4 @@
+import { ConversationInputTarget, ConversationKind } from '@shared/ai/conversation'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
@@ -37,12 +38,13 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
 
 describe('ai.stream.open IPC schema', () => {
   const openStream = aiRequestSchemas['ai.stream.open'].input
+  const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
 
   it('preserves reserved-branch target intent at the renderer-to-main boundary', () => {
     expect(
       openStream.parse({
         trigger: 'submit-message',
-        topicId: 'topic-1',
+        conversation,
         parentAnchorId: 'reserved-user',
         userMessageParts: [{ type: 'text', text: 'continue branch' }],
         targetMode: 'reserved-branch'
@@ -54,7 +56,7 @@ describe('ai.stream.open IPC schema', () => {
     expect(
       openStream.safeParse({
         trigger: 'submit-message',
-        topicId: 'topic-1',
+        conversation,
         userMessageParts: [],
         targetMode: 'current-stream'
       }).success
@@ -64,8 +66,8 @@ describe('ai.stream.open IPC schema', () => {
   it('accepts an explicit failed assistant row for in-place retry', () => {
     expect(
       openStream.parse({
-        trigger: 'regenerate-message',
-        topicId: 'topic-1',
+        trigger: 'retry-message',
+        conversation,
         parentAnchorId: 'user-1',
         retryMessageId: 'assistant-failed',
         mentionedModelIds: ['openai::gpt-4o']
@@ -76,8 +78,8 @@ describe('ai.stream.open IPC schema', () => {
   it('preserves an explicit live reply-group append target', () => {
     expect(
       openStream.parse({
-        trigger: 'regenerate-message',
-        topicId: 'topic-1',
+        trigger: 'append-model',
+        conversation,
         parentAnchorId: 'user-1',
         appendToLiveGroupMessageId: 'assistant-source',
         mentionedModelIds: ['anthropic::claude-sonnet']
@@ -85,27 +87,78 @@ describe('ai.stream.open IPC schema', () => {
     ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
   })
 
+  it('requires exactly one model for execution-scoped actions', () => {
+    const actions = [
+      { trigger: 'retry-message', retryMessageId: 'assistant-failed' },
+      { trigger: 'append-model', appendToLiveGroupMessageId: 'assistant-source' }
+    ]
+
+    for (const action of actions) {
+      const base = { ...action, conversation, parentAnchorId: 'user-1' }
+      expect(openStream.safeParse(base).success).toBe(false)
+      expect(
+        openStream.safeParse({ ...base, mentionedModelIds: ['openai::gpt-4o', 'anthropic::claude-sonnet'] }).success
+      ).toBe(false)
+    }
+  })
+
   it('rejects duplicate mentioned model ids before dispatch', () => {
     expect(
       openStream.safeParse({
         trigger: 'submit-message',
-        topicId: 'topic-1',
+        conversation,
         userMessageParts: [],
         mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
       }).success
     ).toBe(false)
   })
 
-  it('rejects combining in-place retry with live reply-group append', () => {
+  it('requires a complete presentation for an Actor-owned NextTurn input', () => {
+    const base = {
+      trigger: 'submit-message',
+      conversation,
+      userMessageParts: [{ type: 'text', text: 'queued' }],
+      inputTarget: ConversationInputTarget.NextTurn
+    }
+    expect(openStream.safeParse(base).success).toBe(false)
+    expect(
+      openStream.safeParse({
+        ...base,
+        inboxPresentation: {
+          draft: { text: 'queued', tokens: [] },
+          payload: { text: 'queued', userMessageParts: base.userMessageParts }
+        }
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects presentation state on direct and NextStep submits', () => {
+    const inboxPresentation = {
+      draft: { text: 'steer', tokens: [] },
+      payload: { text: 'steer', userMessageParts: [{ type: 'text', text: 'steer' }] }
+    }
+    for (const inputTarget of [undefined, ConversationInputTarget.NextStep]) {
+      expect(
+        openStream.safeParse({
+          trigger: 'submit-message',
+          conversation,
+          userMessageParts: [{ type: 'text', text: 'steer' }],
+          inputTarget,
+          inboxPresentation
+        }).success
+      ).toBe(false)
+    }
+  })
+
+  it('rejects action fields on an ordinary regeneration', () => {
     const combined = {
       trigger: 'regenerate-message',
-      topicId: 'topic-1',
+      conversation,
       parentAnchorId: 'user-1',
-      retryMessageId: 'assistant-failed',
       appendToLiveGroupMessageId: 'assistant-source'
     } as const
 
-    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    // @ts-expect-error action fields require their exact trigger in the shared request contract
     const invalidRequest: AiStreamOpenRequest = combined
 
     expect(openStream.safeParse(invalidRequest).success).toBe(false)

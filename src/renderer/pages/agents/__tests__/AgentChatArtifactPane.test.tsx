@@ -524,20 +524,23 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({
     overlay: {},
     liveAssistants: [],
+    optimisticMessages: [],
+    projectedExecutions: [],
+    activeNodeOverride: null,
+    seedReservations: vi.fn(),
     disposeOverlay: vi.fn(),
     reset: vi.fn()
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({ isPending: false, conversationBusy: false })
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
     `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+  buildAgentSessionScopeKey: (sessionId: string) => `agent:${sessionId}`
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -1086,7 +1089,7 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     const tracePane = await screen.findByTestId('trace-pane')
-    expect(tracePane).toHaveAttribute('data-topic-id', 'agent-session:session-1')
+    expect(tracePane).toHaveAttribute('data-topic-id', 'agent:session-1')
     expect(tracePane).toHaveAttribute('data-trace-id', 'trace-a')
     expect(tracePane).toBeVisible()
 

@@ -1,3 +1,4 @@
+import { application } from '@application'
 import {
   type CatalogManifest,
   CatalogManifestSchema,
@@ -10,13 +11,12 @@ import {
 } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { readActiveOverrideManifest } from '@main/data/services/utils/registryDataPaths'
 import { writeProviderRegistrySnapshot } from '@main/services/providerRegistrySnapshot'
 import { regionService } from '@main/services/RegionService'
 import { generateUserAgent } from '@main/utils/systemInfo'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import { type DataApiDataChangeEffect, DataApiDataChangeScope } from '@shared/data/api/types'
 import { app, net } from 'electron'
 
 const logger = loggerService.withContext('ProviderRegistryUpdaterService')
@@ -44,10 +44,17 @@ const SCHEMA_BY_FILE: Record<RemoteRegistryFileName, { parse: (data: unknown) =>
 
 const REGISTRY_DATA_CHANGE_EFFECTS = [
   { endpoint: '/models', kind: 'projection' },
-  { endpoint: '/models/:uniqueModelId*' },
-  { endpoint: '/providers/:providerId/preset' },
-  { endpoint: '/providers/:providerId/models:resolve', kind: 'membership' },
-  { endpoint: '/providers/:providerId/models/:modelId*/image-generation-support' }
+  { endpoint: '/models/:uniqueModelId*', scope: DataApiDataChangeScope.AllRoutes },
+  { endpoint: '/providers/:providerId/preset', scope: DataApiDataChangeScope.AllRoutes },
+  {
+    endpoint: '/providers/:providerId/models:resolve',
+    kind: 'membership',
+    scope: DataApiDataChangeScope.AllRoutes
+  },
+  {
+    endpoint: '/providers/:providerId/models/:modelId*/image-generation-support',
+    scope: DataApiDataChangeScope.AllRoutes
+  }
 ] satisfies DataApiDataChangeEffect[]
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
@@ -98,7 +105,9 @@ export class ProviderRegistryUpdaterService extends BaseService {
       }
       const files = Object.fromEntries(staged.map((s) => [s.file, s.body])) as Record<RemoteRegistryFileName, string>
       await writeProviderRegistrySnapshot(files, manifestBody)
-      notifyDataApiDataChange(REGISTRY_DATA_CHANGE_EFFECTS)
+      application.get('DbService').withEffects((effects) => {
+        for (const effect of REGISTRY_DATA_CHANGE_EFFECTS) effects.add(effect)
+      })
       logger.info(`registry update: applied ${staged.map((s) => `${s.file}@${s.version}`).join(', ')}`)
     } catch (error) {
       logger.warn('registry update: cycle failed', error as Error)

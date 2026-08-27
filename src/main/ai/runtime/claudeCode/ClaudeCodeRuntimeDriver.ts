@@ -48,11 +48,24 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimeReconcileResult,
+  AgentRuntimeRedirectInput,
+  AgentRuntimeRedirectReceipt,
+  AgentRuntimeSegmentId,
+  AgentRuntimeSteerDelivery,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
+} from '../types'
+import {
+  AgentRuntimeAutonomousState,
+  AgentRuntimeEventType,
+  AgentRuntimeMessageAssociation,
+  AgentRuntimeReconcileResult,
+  AgentRuntimeRedirectReceiptKind,
+  AgentSessionUsageCaptureOwner,
+  AiRuntimeCapability,
+  toAgentRuntimeSegmentId
 } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
@@ -135,7 +148,7 @@ type InvocationTiming = {
 type PendingInvocationUsage = {
   requestId: string
   model: string
-  messageAssociation: 'current-turn' | 'stateless'
+  messageAssociation: AgentRuntimeMessageAssociation
   startUsage?: InvocationUsageBuckets
   assistantUsage?: InvocationUsageBuckets
   terminalUsage?: InvocationUsageBuckets
@@ -351,7 +364,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
    *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
-  private steerBoundaryPending?: AgentRuntimeUserInput[]
+  private steerBoundaryPending?: AgentRuntimeSteerDelivery
+  private activeSegmentId?: AgentRuntimeSegmentId
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -360,6 +374,27 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
+  }
+
+  private emitChunk(chunk: Extract<AgentRuntimeEvent, { type: AgentRuntimeEventType.Chunk }>['chunk']): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, segmentId: this.activeSegmentId, chunk })
+  }
+
+  private emitTurnComplete(): void {
+    if (!this.activeSegmentId) return
+    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete, segmentId: this.activeSegmentId })
+  }
+
+  private emitError(error: unknown): void {
+    if (!this.activeSegmentId) {
+      logger.error(
+        'Claude Code runtime failed without an active segment',
+        error instanceof Error ? error : new Error(String(error))
+      )
+      return
+    }
+    this.eventQueue.push({ type: AgentRuntimeEventType.Error, segmentId: this.activeSegmentId, error })
   }
 
   async start(): Promise<this> {
@@ -429,6 +464,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // before any turn opens — is dispatched by the adapter rather than parked by the driver.
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
     this.approvalEmitter = request.settings.approvalEmitter
+    if (this.approvalEmitter) this.approvalEmitter.connectionId = this.input.connectionId
     // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
     // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
@@ -445,11 +481,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {
       this.steerHolder.onInjected = (inputs) => {
-        this.steerBoundaryPending = inputs
+        const sourceSegmentId = this.activeSegmentId
+        if (!sourceSegmentId || inputs.length === 0) return
+        const delivery: AgentRuntimeSteerDelivery = {
+          redirects: inputs,
+          sourceSegmentId,
+          successorSegmentId: toAgentRuntimeSegmentId(crypto.randomUUID())
+        }
+        this.steerBoundaryPending = delivery
         // Reserve the host continuation synchronously before the hook returns. A gateway-backed
         // subprocess can issue its next provider request before the later `message_start` reaches
         // this query loop, so the async `steer-boundary` event is too late for request correlation.
-        this.input.onSteerInjected?.(inputs)
+        this.input.onSteerInjected?.(delivery)
       }
     }
     void this.runQueryLoop()
@@ -466,6 +509,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.activeSegmentId = input.segmentId
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -480,7 +524,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.push(sdkMessage)
   }
 
-  redirect(input: AgentRuntimeUserInput): boolean {
+  redirect(input: AgentRuntimeRedirectInput): AgentRuntimeRedirectReceipt {
+    const rejected = (): AgentRuntimeRedirectReceipt => ({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId: input.redirectId
+    })
     // The hook can only inject text (`extractSteerText` drops everything else), so accept a steer only
     // when every part is one we know survives that reduction — fail closed on anything new rather than
     // silently swallowing it. `data-knowledge-scope` qualifies because the host's fold gate has already
@@ -492,11 +540,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const canInject = input.message.data?.parts?.every(isInjectableSteerPart) ?? true
     // A steer is only injectable into a running turn. The adapter lives for the whole connection,
     // so its turn flag — not its existence — reports whether one is open.
-    if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject) return false
+    if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject || this.activeSegmentId !== input.segmentId) {
+      return rejected()
+    }
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
-    return true
+    return { kind: AgentRuntimeRedirectReceiptKind.Queued, redirectId: input.redirectId }
   }
 
   async reconcile(input: {
@@ -522,7 +572,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
-    if (!this.query) return 'rebuild'
+    if (!this.query) return AgentRuntimeReconcileResult.Rebuild
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
@@ -530,10 +580,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.fastMode === true,
       input.knowledgeBaseIds
     )
-    if (!derived.ok) return 'invalid'
+    if (!derived.ok) return AgentRuntimeReconcileResult.Invalid
     const baseline = this.connectionConfig
     // A connection without its materialized baseline cannot prove what the subprocess serves.
-    if (!baseline) return 'rebuild'
+    if (!baseline) return AgentRuntimeReconcileResult.Rebuild
 
     const fresh = derived.config
     const permissionModeChanged = baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode
@@ -550,7 +600,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!toolPolicyFactsEqual(baseline.live.toolPolicy, applicableToolPolicy)) {
       try {
         const agent = agentService.getAgent(this.input.agentId)
-        if (!agent) return 'invalid'
+        if (!agent) return AgentRuntimeReconcileResult.Invalid
         if (permissionModeChanged && !deferPermissionMode) {
           await this.query.setPermissionMode((fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode)
         }
@@ -572,7 +622,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         )
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
-        return 'failed'
+        return AgentRuntimeReconcileResult.Failed
       }
       this.connectionConfig = {
         ...baseline,
@@ -588,9 +638,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         baselineSignature: baseline.rebuildSignature.slice(0, 12),
         freshSignature: fresh.rebuildSignature.slice(0, 12)
       })
-      return 'rebuild'
+      return AgentRuntimeReconcileResult.Rebuild
     }
-    return patched ? 'patched' : 'current'
+    return patched ? AgentRuntimeReconcileResult.Patched : AgentRuntimeReconcileResult.Current
   }
 
   async getContextUsage(): Promise<AgentSessionContextUsage | null> {
@@ -664,11 +714,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.parent_tool_use_id == null
         ) {
           this.commitPendingInvocations()
-          this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
+          this.activeSegmentId = this.steerBoundaryPending.successorSegmentId
+          this.eventQueue.push({ type: AgentRuntimeEventType.SteerDelivered, ...this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
         }
 
-        const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
+        const messageAssociation = this.adapter!.isTurnActive
+          ? AgentRuntimeMessageAssociation.CurrentTurn
+          : AgentRuntimeMessageAssociation.Stateless
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
         if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
 
@@ -698,7 +751,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          this.eventQueue.push({ type: 'turn-complete' })
+          this.emitTurnComplete()
         }
       }
     } catch (error) {
@@ -725,7 +778,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
       this.teardownSession()
-      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
+      if (salvaged) this.emitTurnComplete()
+      else this.emitError(error)
     } finally {
       this.settlePendingInvocations()
       this.query = undefined
@@ -766,10 +820,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = undefined
     // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
     // recovered turn like any other data part.
-    this.eventQueue.push({
-      type: 'chunk',
-      chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
-    })
+    this.emitChunk({ type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} })
     this.sdkInputQueue.close()
     this.sdkInputQueue = new SdkInputQueue()
     if (this.lastSdkUserMessage) {
@@ -788,10 +839,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       sessionId: this.input.sessionId,
       streamOptions: {} as never,
       sink: {
-        enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+        enqueue: (chunk) => this.emitChunk(chunk)
       },
       statusSink: {
         emit: (event) => {
+          if (
+            event.type === AgentRuntimeEventType.AutonomousTurnState &&
+            event.state === AgentRuntimeAutonomousState.Started
+          ) {
+            this.activeSegmentId = event.segmentId
+          }
           // Mirror `getSupportedCommands`: host-managed commands never reach the catalog, whether it
           // arrives at init or as a mid-session `commands_changed` push.
           if (event.type === 'supported-commands') {
@@ -811,23 +868,28 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private emitPendingSteersAsUndelivered(): void {
     const undelivered = this.steerHolder?.pending.splice(0) ?? []
-    if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
+    const sourceSegmentId = undelivered[0]?.segmentId
+    if (sourceSegmentId) {
+      this.eventQueue.push({
+        type: AgentRuntimeEventType.SteerUndelivered,
+        redirectIds: undelivered.map(({ redirectId }) => redirectId),
+        sourceSegmentId
+      })
+    }
   }
 
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
-    this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
+    this.approvalEmitter.emit = (request) =>
+      this.eventQueue.push({ type: AgentRuntimeEventType.ToolApprovalRequest, request })
     this.approvalEmitter.emitInput = (request) =>
-      this.eventQueue.push({
-        type: 'chunk',
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: request.toolCallId,
-          toolName: request.toolName,
-          input: request.input,
-          providerExecuted: true,
-          dynamic: true
-        }
+      this.emitChunk({
+        type: 'tool-input-available',
+        toolCallId: request.toolCallId,
+        toolName: request.toolName,
+        input: request.input,
+        providerExecuted: true,
+        dynamic: true
       })
   }
 
@@ -843,7 +905,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private teardownSession(): void {
     if (this.sessionTornDown) return
     this.sessionTornDown = true
-    this.approvalEmitter?.dispose?.()
+    this.approvalEmitter?.dispose?.(this.input.connectionId)
     this.steerHolder?.dispose()
     disposeToolPolicySnapshot(this.input.sessionId)
   }
@@ -851,17 +913,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private updateResumeToken(resumeToken: string): void {
     if (resumeToken === this.resumeToken) return
     this.resumeToken = resumeToken
-    this.eventQueue.push({ type: 'resume-token', token: resumeToken })
+    this.eventQueue.push({ type: AgentRuntimeEventType.ResumeToken, token: resumeToken })
   }
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {
     if (!usage) return
-    this.eventQueue.push({
-      type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
-      }
+    this.emitChunk({
+      type: 'message-metadata',
+      messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
     })
   }
 
@@ -870,7 +929,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     messageAssociation: PendingInvocationUsage['messageAssociation']
   ): void {
     const capture = this._usageCapture
-    if (capture?.owner !== 'agent-sdk') return
+    if (capture?.owner !== AgentSessionUsageCaptureOwner.AgentSdk) return
 
     if (this.committedInvocationIds.has(message.message.id)) return
 
@@ -885,7 +944,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     message: SDKPartialAssistantMessage,
     messageAssociation: PendingInvocationUsage['messageAssociation']
   ): void {
-    if (this._usageCapture?.owner !== 'agent-sdk') return
+    if (this._usageCapture?.owner !== AgentSessionUsageCaptureOwner.AgentSdk) return
 
     const lane = this.invocationLane(message.parent_tool_use_id)
     if (message.event.type === 'message_start') {
@@ -1056,7 +1115,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       )
     )
     this.eventQueue.push({
-      type: 'usage',
+      type: AgentRuntimeEventType.Usage,
       invocation: {
         requestId: `claude-agent:${pending.requestId}`,
         model: pending.model,
@@ -1353,7 +1412,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
-  readonly capabilities = ['agent-session'] as const
+  readonly capabilities = [AiRuntimeCapability.AgentSession] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path

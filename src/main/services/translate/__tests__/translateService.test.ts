@@ -3,14 +3,14 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `application.get('PreferenceService')` is mocked globally via
-// tests/main.setup.ts. We only need to override `AiStreamManager` so we can
+// tests/main.setup.ts. We only need to override `PromptStreamManager` so we can
 // assert on the streamPrompt call.
 const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { streamPrompt: streamPromptMock }
+    PromptStreamManager: { streamPrompt: streamPromptMock }
   } as never)
 })
 
@@ -176,10 +176,10 @@ describe('translateService.open', () => {
     expect(arg.reasoningEffort).toBe('none')
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
-    expect(listeners[0].id).toBe(`wc:test:${streamId}`)
+    expect(listeners[0].id).toBe(`prompt-wc:1:${streamId}`)
   })
 
-  it('stacks a PersistenceListener when the request carries a messageId', async () => {
+  it('registers a persistence port when the request carries a messageId', async () => {
     const streamId = 'translate:msg-bound'
     translateService.open(fakeSender, {
       streamId,
@@ -190,21 +190,18 @@ describe('translateService.open', () => {
 
     expect(streamPromptMock).toHaveBeenCalledTimes(1)
     const arg = (
-      streamPromptMock.mock.calls as unknown as Array<[{ listener: { id: string } | Array<{ id: string }> }]>
+      streamPromptMock.mock.calls as unknown as Array<
+        [{ listener: { id: string } | Array<{ id: string }>; persistencePorts: Array<{ id: string }> }]
+      >
     )[0][0]
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
-    expect(listeners).toHaveLength(2)
-    // Persistence listener is registered FIRST so terminal-event dispatch
-    // (which awaits each listener serially in the manager) finishes the DB
-    // write before `WebContentsListener.onDone` sends `Ai_StreamDone`. The
-    // renderer can then trust the standard done IPC as "safe to refresh".
-    expect(listeners[0].id).toContain('persistence:translation')
-    expect(listeners[1].id).toBe(`wc:test:${streamId}`)
+    expect(listeners).toHaveLength(1)
+    expect(listeners[0].id).toBe(`prompt-wc:1:${streamId}`)
+    expect(arg.persistencePorts).toHaveLength(1)
+    expect(arg.persistencePorts[0].id).toContain('persistence:translation')
   })
 
-  it('surfaces a persist failure to the renderer via WebContentsListener.onError (C1)', async () => {
-    // TranslationBackend has no markTerminalError, so the only live-renderer signal on a
-    // persist failure is onPersistFailed → wcListener.onError. Force the persist to throw.
+  it('reports an undurable failure through its persistence port', async () => {
     messageGetByIdMock.mockImplementation(() => {
       throw new Error('db down')
     })
@@ -212,20 +209,20 @@ describe('translateService.open', () => {
     const streamId = 'translate:persist-fail'
     translateService.open(fakeSender, { streamId, text: 'hello', targetLangCode: 'en-us', messageId: 'm1' })
 
-    const arg = (streamPromptMock.mock.calls as unknown as Array<[{ listener: any }]>)[0][0]
-    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
-    const persistence = listeners.find((l: { id: string }) => l.id.includes('persistence'))
-    const wc = listeners.find((l: { id: string }) => l.id.startsWith('wc:'))
-
-    await expect(
-      persistence.onDone({
+    const arg = (
+      streamPromptMock.mock.calls as unknown as Array<
+        [{ persistencePorts: Array<{ onDone: (result: unknown) => Promise<void> }> }]
+      >
+    )[0][0]
+    const persistence = arg.persistencePorts[0]
+    const persisted = persistence
+      .onDone({
         finalMessage: { id: 'x', role: 'assistant', parts: [{ type: 'text', text: 'hola' }] },
         status: 'success'
       })
-    ).rejects.toBeInstanceOf(TerminalPersistenceError)
+      .catch((error: unknown) => error)
 
-    expect(wc.onError).toHaveBeenCalledTimes(1)
-    expect(wc.onError).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', isTopicDone: true }))
+    await expect(persisted).resolves.toBeInstanceOf(TerminalPersistenceError)
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

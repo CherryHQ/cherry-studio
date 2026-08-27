@@ -1,3 +1,4 @@
+import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, render, renderHook } from '@testing-library/react'
 import { Activity } from 'react'
@@ -10,9 +11,9 @@ const mocks = vi.hoisted(() => ({
   useAgentSessionParts: vi.fn(),
   useChatWithHistory: vi.fn(),
   useExecutionOverlay: vi.fn(),
+  seedProjectionReservations: vi.fn(),
   disposeOverlay: vi.fn(),
   resetOverlay: vi.fn(),
-  useTopicOverlayHandoffOnTerminal: vi.fn(),
   sendTurn: vi.fn(),
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
@@ -48,9 +49,8 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({ isPending: false, conversationBusy: false })
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
@@ -161,7 +161,14 @@ describe('useAgentChatRuntimeState', () => {
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
-      activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'assistant-1' }],
+      activeExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
       sendMessage: vi.fn(),
       stop: mocks.chatStop,
       setMessages: mocks.chatSetMessages,
@@ -181,6 +188,17 @@ describe('useAgentChatRuntimeState', () => {
         ]
       },
       liveAssistants: [],
+      optimisticMessages: [],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
+      activeNodeOverride: null,
+      seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,
       reset: mocks.resetOverlay
     })
@@ -215,7 +233,7 @@ describe('useAgentChatRuntimeState', () => {
     expect(sent).toBe(false)
   })
 
-  it('does not wire per-overlay finish refresh for agent sessions', () => {
+  it('wires projection refresh without a per-attempt finish callback', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -224,7 +242,10 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
+    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toEqual({
+      durability: ConversationOverlayDurability.Durable,
+      refreshOnQuiesced: mocks.refresh
+    })
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
@@ -246,7 +267,7 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
   })
 
-  it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
+  it('hands DB refresh ownership to the topic projection', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -255,18 +276,16 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    // The deterministic handoff (fires off the live→terminal status edge, where
-    // the overlay's onFinish is suppressed) must refresh the DB then drop the overlay.
-    const handoff = mocks.useTopicOverlayHandoffOnTerminal.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
-    expect(handoff).toEqual(expect.any(Function))
+    const options = mocks.useExecutionOverlay.mock.calls[0]?.[3] as
+      | { refreshOnQuiesced?: () => Promise<unknown> }
+      | undefined
+    expect(options?.refreshOnQuiesced).toBe(mocks.refresh)
 
     await act(async () => {
-      await handoff?.()
+      await options?.refreshOnQuiesced?.()
     })
 
     expect(mocks.refresh).toHaveBeenCalled()
-    expect(mocks.resetOverlay).toHaveBeenCalled()
-    expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.resetOverlay.mock.invocationCallOrder[0])
   })
 
   it('merges live assistant metadata into displayed session messages', () => {
@@ -281,6 +300,17 @@ describe('useAgentChatRuntimeState', () => {
           }
         } as CherryUIMessage
       ],
+      optimisticMessages: [],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
+      activeNodeOverride: null,
+      seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,
       reset: mocks.resetOverlay
     })
@@ -300,6 +330,17 @@ describe('useAgentChatRuntimeState', () => {
     mocks.useExecutionOverlay.mockReturnValue({
       overlay: { 'assistant-1': [{ type: 'text', text: 'a' }] },
       liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'a' }] } as CherryUIMessage],
+      optimisticMessages: [],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
+      activeNodeOverride: null,
+      seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,
       reset: mocks.resetOverlay
     })
@@ -316,6 +357,17 @@ describe('useAgentChatRuntimeState', () => {
     mocks.useExecutionOverlay.mockReturnValue({
       overlay: { 'assistant-1': [{ type: 'text', text: 'ab' }] },
       liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'ab' }] } as CherryUIMessage],
+      optimisticMessages: [],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
+      activeNodeOverride: null,
+      seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,
       reset: mocks.resetOverlay
     })

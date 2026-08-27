@@ -2,7 +2,7 @@ import { Scrollbar } from '@cherrystudio/ui'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { MessageContentContextKind, type MessageListItem } from '@renderer/components/chat/messages/types'
 import type { Assistant } from '@renderer/types/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Loader2 } from 'lucide-react'
@@ -26,6 +26,7 @@ const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByM
     <MessageContentProvider
       messages={messages}
       partsByMessageId={partsByMessageId}
+      contentContext={{ kind: MessageContentContextKind.Ephemeral }}
       renderConfig={renderConfig}
       actions={platformActions}>
       <Scrollbar

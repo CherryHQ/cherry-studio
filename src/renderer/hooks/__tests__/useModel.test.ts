@@ -1,4 +1,5 @@
 import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
+import { DataApiDataChangeScope } from '@shared/data/api/types'
 import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -185,7 +186,9 @@ describe('useModelById', () => {
     })
     renderHook(() => useModelById('openai::gpt-4o'))
 
-    MockUseDataApiUtils.emitDataChange([{ endpoint: '/models/:uniqueModelId*' }])
+    MockUseDataApiUtils.emitDataChange([
+      { endpoint: '/models/:uniqueModelId*', scope: DataApiDataChangeScope.AllRoutes }
+    ])
 
     expect(refetch).toHaveBeenCalledOnce()
   })

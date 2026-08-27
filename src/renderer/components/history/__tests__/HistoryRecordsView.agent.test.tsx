@@ -1,5 +1,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
+import { ConversationStatus } from '@shared/ai/conversation'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -593,7 +594,12 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('restores the agent status selector and filters by existing stream status', () => {
     MockCacheUtils.setInitialState({
-      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'streaming', activeExecutions: [] }]]
+      shared: [
+        [
+          'conversation.statuses.agent:session-beta',
+          { status: 'streaming', activeExecutions: [], awaitingInteractionExecutions: [] }
+        ]
+      ]
     })
 
     setupAgentHistory()
@@ -611,7 +617,12 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('filters completed and failed sessions by stream status', () => {
     MockCacheUtils.setInitialState({
-      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'error', activeExecutions: [] }]]
+      shared: [
+        [
+          'conversation.statuses.agent:session-beta',
+          { status: 'error', activeExecutions: [], awaitingInteractionExecutions: [] }
+        ]
+      ]
     })
 
     setupAgentHistory()
@@ -636,10 +647,11 @@ describe('HistoryRecordsView agent mode', () => {
     const initialRenderRow = hookMocks.virtualListRenderRows.at(-1)
 
     act(() => {
-      cacheService.setShared('topic.stream.statuses.agent-session:session-beta', {
-        status: 'streaming',
+      cacheService.setShared('conversation.statuses.agent:session-beta', {
+        status: ConversationStatus.Streaming,
         activeExecutions: [],
-        awaitingApprovalAnchors: []
+        awaitingInteractionExecutions: [],
+        inboxRevision: 0
       })
     })
 

@@ -1,11 +1,12 @@
+import { ConversationKind } from '@shared/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import MessageContent from '../frame/MessageContent'
 import { MessageContentProvider } from '../MessageContentProvider'
-import { useMessageListActions } from '../MessageListProvider'
-import type { MessageListItem } from '../types'
+import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
+import { MessageContentContextKind, type MessageListItem } from '../types'
 
 describe('MessageContentProvider', () => {
   const message: MessageListItem = {
@@ -21,7 +22,10 @@ describe('MessageContentProvider', () => {
 
   it('provides the minimal message contexts for standalone content rendering', () => {
     render(
-      <MessageContentProvider messages={[message]} partsByMessageId={partsByMessageId}>
+      <MessageContentProvider
+        messages={[message]}
+        partsByMessageId={partsByMessageId}
+        contentContext={{ kind: MessageContentContextKind.Ephemeral }}>
         <MessageContent message={message} />
       </MessageContentProvider>
     )
@@ -36,7 +40,10 @@ describe('MessageContentProvider', () => {
     }
 
     render(
-      <MessageContentProvider messages={[message]} partsByMessageId={partsByMessageId}>
+      <MessageContentProvider
+        messages={[message]}
+        partsByMessageId={partsByMessageId}
+        contentContext={{ kind: MessageContentContextKind.Ephemeral }}>
         <Probe />
       </MessageContentProvider>
     )
@@ -54,6 +61,7 @@ describe('MessageContentProvider', () => {
       <MessageContentProvider
         messages={[message]}
         partsByMessageId={partsByMessageId}
+        contentContext={{ kind: MessageContentContextKind.Ephemeral }}
         actions={{
           copyText: async () => {},
           notifyError: () => {}
@@ -63,5 +71,26 @@ describe('MessageContentProvider', () => {
     )
 
     expect(screen.getByText('platform-actions')).toBeInTheDocument()
+  })
+
+  it('publishes the exact identity for durable content', () => {
+    const Probe = () => {
+      const conversation = useMessageListMeta().conversation
+      return <span>{conversation ? `${conversation.kind}:${conversation.id}` : 'ephemeral'}</span>
+    }
+
+    render(
+      <MessageContentProvider
+        messages={[message]}
+        partsByMessageId={partsByMessageId}
+        contentContext={{
+          kind: MessageContentContextKind.Durable,
+          conversation: { kind: ConversationKind.Agent, id: 'session-1' }
+        }}>
+        <Probe />
+      </MessageContentProvider>
+    )
+
+    expect(screen.getByText('agent:session-1')).toBeInTheDocument()
   })
 })

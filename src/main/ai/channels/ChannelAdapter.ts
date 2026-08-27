@@ -42,10 +42,17 @@ export type ChannelCommandEvent = {
 
 export type SendMessageOptions = {
   parseMode?: 'MarkdownV2' | 'HTML'
+  /** Aborted when Cherry gives up waiting; adapters should pass it to their transport if supported. */
+  signal?: AbortSignal
   /** Inbound message id to reply against. String for QQ (passive `msg_id`); number for Telegram. */
   replyToMessageId?: string | number
   /** Keep the reply inside the inbound message's thread when the platform supports it. */
   replyInThread?: boolean
+}
+
+export enum ChannelStreamCompletionResult {
+  Delivered = 'delivered',
+  NotHandled = 'not-handled'
 }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
@@ -132,7 +139,8 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Mark the adapter as disconnected when the underlying connection drops unexpectedly.
    * Subclasses should call this from error handlers (e.g. WebSocket close, polling failure).
    */
-  protected markDisconnected(error?: string): void {
+  protected markDisconnected(error?: string, signal?: AbortSignal): void {
+    if (signal && !this.isConnectRunActive(signal)) return
     this._connected = false
     this.emitStatusChange(false, error)
   }
@@ -141,7 +149,8 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Mark the adapter as connected after a successful reconnection.
    * Subclasses with auto-reconnect logic should call this when the connection is re-established.
    */
-  protected markConnected(): void {
+  protected markConnected(signal?: AbortSignal): void {
+    if (signal && !this.isConnectRunActive(signal)) return
     this._connected = true
     this.emitStatusChange(true)
   }
@@ -165,18 +174,25 @@ export abstract class ChannelAdapter extends EventEmitter {
    * markConnected() / markDisconnected() themselves.
    */
   async connect(): Promise<void> {
+    this.connectAbort?.abort(new DOMException('Connect superseded', 'AbortError'))
     this.connectAbort = new AbortController()
     const signal = this.connectAbort.signal
 
-    const ready = await this.checkReady()
-    if (ready) {
-      await this.performConnect(signal)
-    } else {
-      this.performConnect(signal).catch((err) => {
-        if (!signal.aborted) {
-          this.markDisconnected(err instanceof Error ? err.message : String(err))
-        }
-      })
+    try {
+      const ready = await this.checkReady()
+      if (!this.isConnectRunActive(signal)) return
+      if (ready) {
+        await this.performConnect(signal)
+      } else {
+        this.performConnect(signal).catch((err) => {
+          if (this.isConnectRunActive(signal)) {
+            this.markDisconnected(err instanceof Error ? err.message : String(err), signal)
+          }
+        })
+      }
+    } catch (error) {
+      if (!this.isConnectRunActive(signal)) return
+      throw error
     }
   }
 
@@ -213,6 +229,10 @@ export abstract class ChannelAdapter extends EventEmitter {
    */
   protected abstract performDisconnect(): Promise<void>
 
+  protected isConnectRunActive(signal: AbortSignal): boolean {
+    return this.connectAbort?.signal === signal && !signal.aborted
+  }
+
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
   abstract sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void>
 
@@ -239,12 +259,18 @@ export abstract class ChannelAdapter extends EventEmitter {
   /**
    * Called when the stream is complete. The adapter should finalize the
    * streaming UI (close streaming card, send final message, etc.).
-   * @returns true if the adapter handled the final delivery (e.g. updated the card).
-   *          false means the caller should fall back to sendMessage().
+   * @returns `Delivered` if the adapter handled the final delivery; `NotHandled`
+   *          means the caller may fall back to `sendMessage()`.
    */
-  // oxlint-disable-next-line no-unused-vars
-  async onStreamComplete(_chatId: string, _finalText: string, _opts?: SendMessageOptions): Promise<boolean> {
-    return false
+  async onStreamComplete(
+    _chatId: string,
+    _finalText: string,
+    _opts?: SendMessageOptions
+  ): Promise<ChannelStreamCompletionResult> {
+    void _chatId
+    void _finalText
+    void _opts
+    return ChannelStreamCompletionResult.NotHandled
   }
 
   /**

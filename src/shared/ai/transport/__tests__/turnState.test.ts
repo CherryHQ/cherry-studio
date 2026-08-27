@@ -1,107 +1,43 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TopicStreamStatus } from '../stream'
+import { ConversationStatus } from '../../conversation'
 import { classifyTurn, TURN_STATE, type TurnStateFlags } from '../turnState'
 
-const ALL_STATUSES: TopicStreamStatus[] = ['pending', 'streaming', 'done', 'aborted', 'error', 'awaiting-approval']
+const ALL_STATUSES = Object.values(ConversationStatus)
 
 describe('classifyTurn / TURN_STATE', () => {
-  it('has a row for every TopicStreamStatus (exhaustive, no extras)', () => {
+  it('defines exactly one classification for every ConversationStatus', () => {
     expect(Object.keys(TURN_STATE).sort()).toEqual([...ALL_STATUSES].sort())
-  })
-
-  it('classifyTurn(status) returns the table row', () => {
-    for (const s of ALL_STATUSES) {
-      expect(classifyTurn(s)).toBe(TURN_STATE[s])
+    for (const status of ALL_STATUSES) {
+      expect(classifyTurn(status)).toBe(TURN_STATE[status])
     }
   })
 
-  it('classifyTurn(undefined) = no-stream (all flags false)', () => {
+  it('classifies a missing Conversation as inactive', () => {
     expect(classifyTurn(undefined)).toEqual<TurnStateFlags>({
       isStreamLive: false,
       isTurnActive: false,
-      isAwaitingApproval: false,
+      isAwaitingInteraction: false,
       isTerminal: false
     })
   })
 
-  it.each<[TopicStreamStatus, TurnStateFlags]>([
-    [
-      'pending',
-      {
-        isStreamLive: true,
-        isTurnActive: true,
-        isAwaitingApproval: false,
-        isTerminal: false
-      }
-    ],
-    [
-      'streaming',
-      {
-        isStreamLive: true,
-        isTurnActive: true,
-        isAwaitingApproval: false,
-        isTerminal: false
-      }
-    ],
-    [
-      'done',
-      {
-        isStreamLive: false,
-        isTurnActive: false,
-        isAwaitingApproval: false,
-        isTerminal: true
-      }
-    ],
-    [
-      'aborted',
-      {
-        isStreamLive: false,
-        isTurnActive: false,
-        isAwaitingApproval: false,
-        isTerminal: true
-      }
-    ],
-    [
-      'error',
-      {
-        isStreamLive: false,
-        isTurnActive: false,
-        isAwaitingApproval: false,
-        isTerminal: true
-      }
-    ],
-    [
-      'awaiting-approval',
-      {
-        isStreamLive: false,
-        isTurnActive: true,
-        isAwaitingApproval: true,
-        isTerminal: true
-      }
-    ]
-  ])('%s → expected flags', (status, expected) => {
-    expect(classifyTurn(status)).toEqual(expected)
-  })
-
-  // Behavior-preservation guards for the Phase-0 consumer rewrites:
-  it('isStreamLive == old (pending|streaming) — useTopicStreamStatus.isPending / Message.isTopicStreaming', () => {
-    for (const s of ALL_STATUSES) {
-      expect(classifyTurn(s).isStreamLive).toBe(s === 'pending' || s === 'streaming')
+  it.each([
+    [ConversationStatus.Pending, true, true, false, false],
+    [ConversationStatus.Streaming, true, true, false, false],
+    [ConversationStatus.Done, false, false, false, true],
+    [ConversationStatus.Aborted, false, false, false, true],
+    [ConversationStatus.Error, false, false, false, true],
+    [ConversationStatus.AwaitingInteraction, false, true, true, true]
+  ] as const)(
+    '%s exposes the promised live, active, interaction, and terminal flags',
+    (status, isStreamLive, isTurnActive, isAwaitingInteraction, isTerminal) => {
+      expect(classifyTurn(status)).toEqual({
+        isStreamLive,
+        isTurnActive,
+        isAwaitingInteraction,
+        isTerminal
+      })
     }
-  })
-
-  it('isTerminal == old useChatWithHistory set (done|aborted|error|awaiting-approval)', () => {
-    for (const s of ALL_STATUSES) {
-      expect(classifyTurn(s).isTerminal).toBe(
-        s === 'done' || s === 'aborted' || s === 'error' || s === 'awaiting-approval'
-      )
-    }
-  })
-
-  it('isAwaitingApproval == old useTopicAwaitingApproval (status === awaiting-approval)', () => {
-    for (const s of ALL_STATUSES) {
-      expect(classifyTurn(s).isAwaitingApproval).toBe(s === 'awaiting-approval')
-    }
-  })
+  )
 })

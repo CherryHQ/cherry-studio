@@ -83,7 +83,7 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
 
   /**
    * Push API: process one chunk and return the events it produced.
-   * Used by the AiStreamManager `SseListener` path (push), while the
+   * Used by the PromptStreamManager `SseListener` path (push), while the
    * TransformStream path (pull) calls it internally. Lazily emits
    * `message_start` first (idempotent).
    */

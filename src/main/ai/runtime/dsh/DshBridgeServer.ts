@@ -24,7 +24,13 @@ import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import type { AgentRuntimeEvent } from '../types'
+import { AgentUserResponseMode } from '../../conversation'
+import {
+  AgentApprovalLifetime,
+  type AgentRuntimeConnectionId,
+  type AgentRuntimeEvent,
+  AgentRuntimeEventType
+} from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
 
@@ -33,12 +39,13 @@ const logger = loggerService.withContext('DshBridgeServer')
 const READY_TIMEOUT_MS = 15_000
 
 export interface DshBridgeServerOptions {
+  connectionId: AgentRuntimeConnectionId
   /** Agent-session id — keys the neutral approval registry so close()/abort target the right approvals. */
   sessionId: string
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (event: AgentRuntimeEvent) => void
   /** Resolve responder availability at ask-time so warm connections follow the current turn. */
-  getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
+  getInteractionState: () => { userResponse: AgentUserResponseMode }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
@@ -271,13 +278,22 @@ export class DshBridgeServer {
     const toolName = ask.toolName
     const interactionState = this.options.getInteractionState()
     // Unattended turn — fail closed immediately (the wire carries no reason channel).
-    if (interactionState.userResponse === 'unavailable') return Promise.resolve({ outcome: 'rejected' })
+    if (interactionState.userResponse === AgentUserResponseMode.Unavailable) {
+      return Promise.resolve({ outcome: 'rejected' })
+    }
 
     const approvalId = randomUUID()
     const toolCallId = ask.callId || approvalId
     // `args` is protocol-`unknown` (plugin-parsed model output), so keep the shape guard.
     const input = isRecord(ask.args) ? ask.args : {}
-    const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
+    const lifetime =
+      interactionState.userResponse === AgentUserResponseMode.Stream
+        ? AgentApprovalLifetime.ExecutionBound
+        : AgentApprovalLifetime.SessionMessage
+    const ownership =
+      lifetime === AgentApprovalLifetime.SessionMessage
+        ? ({ lifetime: AgentApprovalLifetime.SessionMessage, connectionId: this.options.connectionId } as const)
+        : ({ lifetime: AgentApprovalLifetime.ExecutionBound } as const)
     return new Promise((resolve) => {
       const pending = toolApprovalRegistry.register({
         approvalId,
@@ -285,7 +301,7 @@ export class DshBridgeServer {
         toolCallId,
         toolName,
         originalInput: { ...input },
-        presentation,
+        ...ownership,
         resolve: (decision) => {
           // dsh forbids rewriting tool input, so an edited-input approval degrades to a rejection.
           if (decision.approved && decision.updatedInput) {
@@ -298,13 +314,13 @@ export class DshBridgeServer {
       // resolve already settled the promise, and emitting would leave an unanswerable card.
       if (!pending) return
       this.options.emit({
-        type: 'tool-approval-request',
+        type: AgentRuntimeEventType.ToolApprovalRequest,
         request: {
           approvalId,
           toolCallId,
           toolName,
           input: { ...input },
-          presentation,
+          ...ownership,
           providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
         }
       })
@@ -330,12 +346,19 @@ export class DshBridgeServer {
     }
     if (!ask.callId) return Promise.reject(new Error('dsh bridge plan review is missing its tool call id'))
     const interactionState = this.options.getInteractionState()
-    if (interactionState.userResponse === 'unavailable') {
+    if (interactionState.userResponse === AgentUserResponseMode.Unavailable) {
       return Promise.reject(new Error('no user is available to review the plan'))
     }
     const approvalId = randomUUID()
     const toolCallId = ask.callId
-    const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
+    const lifetime =
+      interactionState.userResponse === AgentUserResponseMode.Stream
+        ? AgentApprovalLifetime.ExecutionBound
+        : AgentApprovalLifetime.SessionMessage
+    const ownership =
+      lifetime === AgentApprovalLifetime.SessionMessage
+        ? ({ lifetime: AgentApprovalLifetime.SessionMessage, connectionId: this.options.connectionId } as const)
+        : ({ lifetime: AgentApprovalLifetime.ExecutionBound } as const)
     const input = { plan: review.detail }
     return new Promise((resolve) => {
       const pending = toolApprovalRegistry.register({
@@ -344,7 +367,7 @@ export class DshBridgeServer {
         toolCallId,
         toolName: 'exit_plan_mode',
         originalInput: { ...input },
-        presentation,
+        ...ownership,
         resolve: (decision) => {
           if (decision.approved && !decision.updatedInput) {
             resolve({ answers: [{ id: review.id, selected: [intent.approve] }] })
@@ -356,13 +379,13 @@ export class DshBridgeServer {
       })
       if (!pending) return
       this.options.emit({
-        type: 'tool-approval-request',
+        type: AgentRuntimeEventType.ToolApprovalRequest,
         request: {
           approvalId,
           toolCallId,
           toolName: 'exit_plan_mode',
           input: { ...input },
-          presentation,
+          ...ownership,
           providerMetadata: {
             cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
           }

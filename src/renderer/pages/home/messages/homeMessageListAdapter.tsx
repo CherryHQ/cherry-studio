@@ -47,6 +47,7 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
@@ -235,6 +236,7 @@ export function useHomeMessageListProviderValue({
     selectionController,
     updateRenderConfig
   } = useMessageListAdapterCapabilities({
+    conversation: { kind: ConversationKind.Chat, id: topic.id },
     topicId,
     topicName: topic.name,
     messages: messageItems,
@@ -901,12 +903,13 @@ export function useHomeMessageListProviderValue({
 
   const meta = useMemo<MessageListMeta>(
     () => ({
+      conversation: { kind: ConversationKind.Chat, id: topic.id },
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile: assistant ? { name: assistant.name, avatar: assistant.emoji } : undefined,
       imageExportFileName: topic.name
     }),
-    [assistant, headerCapabilities.userProfile, topic.name]
+    [assistant, headerCapabilities.userProfile, topic.id, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

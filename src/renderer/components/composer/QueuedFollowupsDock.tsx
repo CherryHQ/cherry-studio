@@ -3,6 +3,7 @@ import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/component
 import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import { cn } from '@renderer/utils/style'
+import type { ConversationInputId } from '@shared/ai/conversation'
 import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,9 +14,9 @@ interface QueuedFollowupsDockProps {
   items: FollowupQueueItem[]
   paused: boolean
   onTogglePause: () => void
-  onSteer: (id: string) => void
-  onEdit: (id: string) => void
-  onRemove: (id: string) => void
+  onSteer: (id: ConversationInputId) => void
+  onEdit: (id: ConversationInputId) => void
+  onRemove: (id: ConversationInputId) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
@@ -57,9 +58,9 @@ function QueuedFollowupRow({
 }: {
   item: FollowupQueueItem
   dragging: boolean
-  onSteer: (id: string) => void
-  onEdit: (id: string) => void
-  onRemove: (id: string) => void
+  onSteer: (id: ConversationInputId) => void
+  onEdit: (id: ConversationInputId) => void
+  onRemove: (id: ConversationInputId) => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
 }) {

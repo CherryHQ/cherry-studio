@@ -9,16 +9,15 @@
  */
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
-import type { DbType } from '@data/db/types'
+import type { DataApiEffectCollector, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePromptDto, ListPromptsQuery, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import { type DataApiDataChangeEffect, DataApiDataChangeScope } from '@shared/data/api/types'
 import type {
   Prompt,
   PromptBindingRelation,
@@ -64,16 +63,45 @@ function bindingTargetKey(target: PromptBindingTarget): string {
   return `${target.type}:${target.id}`
 }
 
-function bindingMembershipEffects(promptIds?: readonly string[], includePromptList = true): DataApiDataChangeEffect[] {
+function bindingMembershipEffects(
+  promptIds?: readonly string[],
+  includePromptList = true,
+  target?: PromptBindingTarget
+): DataApiDataChangeEffect[] {
   const effects: DataApiDataChangeEffect[] = [
-    { endpoint: '/prompt-bindings', kind: 'membership', entityIds: promptIds },
-    { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'membership', entityIds: promptIds },
-    { endpoint: '/prompts/:id/bindings', kind: 'membership' }
+    { endpoint: '/prompt-bindings', kind: 'membership', ...(promptIds ? { entityIds: promptIds } : {}) },
+    target
+      ? {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          routeParams: { targetType: target.type, targetId: target.id },
+          ...(promptIds ? { entityIds: promptIds } : {})
+        }
+      : {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes,
+          ...(promptIds ? { entityIds: promptIds } : {})
+        }
   ]
+  if (promptIds) {
+    for (const id of promptIds) {
+      effects.push({ endpoint: '/prompts/:id/bindings', kind: 'membership', routeParams: { id } })
+    }
+  } else {
+    effects.push({ endpoint: '/prompts/:id/bindings', kind: 'membership', scope: DataApiDataChangeScope.AllRoutes })
+  }
   if (includePromptList) {
-    effects.unshift({ endpoint: '/prompts', kind: 'membership', entityIds: promptIds })
+    effects.unshift({ endpoint: '/prompts', kind: 'membership', ...(promptIds ? { entityIds: promptIds } : {}) })
   }
   return effects
+}
+
+function addDataChangeEffects(
+  collector: Pick<DataApiEffectCollector, 'add'>,
+  effects: readonly DataApiDataChangeEffect[]
+): void {
+  for (const effect of effects) collector.add(effect)
 }
 
 export class PromptService {
@@ -259,14 +287,15 @@ export class PromptService {
       }
 
       logger.info('Created prompt', { id: row.id, bindingTarget: dto.bindingTarget })
-      return rowToPrompt(row)
+      const prompt = rowToPrompt(row)
+      const effects: DataApiDataChangeEffect[] = [
+        { endpoint: '/prompts', kind: 'membership', entityIds: [prompt.id] },
+        { endpoint: '/prompts/:id', routeParams: { id: prompt.id }, entityIds: [prompt.id] }
+      ]
+      if (dto.bindingTarget) effects.push(...bindingMembershipEffects([prompt.id], false, dto.bindingTarget))
+      addDataChangeEffects(tx.effects, effects)
+      return prompt
     })
-    const effects: DataApiDataChangeEffect[] = [
-      { endpoint: '/prompts', kind: 'membership', entityIds: [prompt.id] },
-      { endpoint: '/prompts/:id', entityIds: [prompt.id] }
-    ]
-    if (dto.bindingTarget) effects.push(...bindingMembershipEffects([prompt.id], false))
-    notifyDataApiDataChange(effects)
     return prompt
   }
 
@@ -289,11 +318,11 @@ export class PromptService {
         { promptId, targetType: target.type, targetId: target.id },
         { pkColumn: promptBindingTable.promptId, scope: targetScope }
       )
+      addDataChangeEffects(tx.effects, bindingMembershipEffects([promptId], true, target))
       return true
     })
     if (!changed) return
     logger.info('Bound prompt to target', { promptId, target })
-    notifyDataApiDataChange(bindingMembershipEffects([promptId]))
   }
 
   unbindFromTarget(promptId: string, target: PromptBindingTarget): void {
@@ -309,11 +338,12 @@ export class PromptService {
           )
         )
         .run()
-      return result.changes > 0
+      const changed = result.changes > 0
+      if (changed) addDataChangeEffects(tx.effects, bindingMembershipEffects([promptId], true, target))
+      return changed
     })
     if (!changed) return
     logger.info('Unbound prompt from target', { promptId, target })
-    notifyDataApiDataChange(bindingMembershipEffects([promptId]))
   }
 
   purgeForTargetTx(tx: Pick<DbType, 'delete'>, targetType: PromptBindingTargetType, targetId: string): void {
@@ -324,7 +354,7 @@ export class PromptService {
   }
 
   update(id: string, dto: UpdatePromptDto): Prompt {
-    const { prompt, clearedBindings } = application.get('DbService').withWriteTx((tx) => {
+    const prompt = application.get('DbService').withWriteTx((tx) => {
       const existing = tx
         .select({ id: promptTable.id, visibility: promptTable.visibility })
         .from(promptTable)
@@ -369,17 +399,22 @@ export class PromptService {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
+      const effects: DataApiDataChangeEffect[] = [
+        { endpoint: '/prompts', kind: 'projection', entityIds: [id] },
+        { endpoint: '/prompts', kind: 'membership', entityIds: [id] },
+        { endpoint: '/prompts/:id', routeParams: { id }, entityIds: [id] },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'projection',
+          scope: DataApiDataChangeScope.AllRoutes,
+          entityIds: [id]
+        }
+      ]
+      if (clearedBindings) effects.push(...bindingMembershipEffects([id], false))
+      addDataChangeEffects(tx.effects, effects)
       logger.info('Updated prompt', { id, changes: Object.keys(dto) })
-      return { prompt: rowToPrompt(row), clearedBindings }
+      return rowToPrompt(row)
     })
-    const effects: DataApiDataChangeEffect[] = [
-      { endpoint: '/prompts', kind: 'projection', entityIds: [id] },
-      { endpoint: '/prompts', kind: 'membership', entityIds: [id] },
-      { endpoint: '/prompts/:id', entityIds: [id] },
-      { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'projection', entityIds: [id] }
-    ]
-    if (clearedBindings) effects.push(...bindingMembershipEffects([id], false))
-    notifyDataApiDataChange(effects)
     return prompt
   }
 
@@ -388,8 +423,8 @@ export class PromptService {
     application.get('DbService').withWriteTx((tx) => {
       this.assertPromptsExistTx(tx, [id, ...collectAnchorIds([anchor])])
       applyMoves(tx, promptTable, [{ id, anchor }], { pkColumn: promptTable.id })
+      tx.effects.add({ endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: [id] })
     })
-    notifyDataApiDataChange([{ endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: [id] }])
   }
 
   /** Apply a batch of moves atomically. */
@@ -398,10 +433,13 @@ export class PromptService {
     application.get('DbService').withWriteTx((tx) => {
       this.assertPromptsExistTx(tx, [...moves.map((m) => m.id), ...collectAnchorIds(moves.map((m) => m.anchor))])
       applyMoves(tx, promptTable, moves, { pkColumn: promptTable.id })
+      tx.effects.add({
+        endpoint: '/prompts',
+        kind: 'order',
+        dimension: 'orderKey',
+        entityIds: moves.map((move) => move.id)
+      })
     })
-    notifyDataApiDataChange([
-      { endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: moves.map((move) => move.id) }
-    ])
   }
 
   reorderBinding(target: PromptBindingTarget, promptId: string, anchor: OrderRequest): void {
@@ -411,16 +449,17 @@ export class PromptService {
         pkColumn: promptBindingTable.promptId,
         scope: bindingTargetCondition(target)
       })
+      addDataChangeEffects(tx.effects, [
+        { endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: [promptId] },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'order',
+          dimension: 'orderKey',
+          routeParams: { targetType: target.type, targetId: target.id },
+          entityIds: [promptId]
+        }
+      ])
     })
-    notifyDataApiDataChange([
-      { endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: [promptId] },
-      {
-        endpoint: '/prompt-bindings/:targetType/:targetId',
-        kind: 'order',
-        dimension: 'orderKey',
-        entityIds: [promptId]
-      }
-    ])
   }
 
   reorderBindings(target: PromptBindingTarget, moves: Array<{ id: string; anchor: OrderRequest }>): void {
@@ -431,21 +470,26 @@ export class PromptService {
         pkColumn: promptBindingTable.promptId,
         scope: bindingTargetCondition(target)
       })
+      const promptIds = moves.map((move) => move.id)
+      addDataChangeEffects(tx.effects, [
+        { endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: promptIds },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'order',
+          dimension: 'orderKey',
+          routeParams: { targetType: target.type, targetId: target.id },
+          entityIds: promptIds
+        }
+      ])
     })
-    const promptIds = moves.map((move) => move.id)
-    notifyDataApiDataChange([
-      { endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: promptIds },
-      {
-        endpoint: '/prompt-bindings/:targetType/:targetId',
-        kind: 'order',
-        dimension: 'orderKey',
-        entityIds: promptIds
-      }
-    ])
   }
 
   notifyTargetBindingsChanged(): void {
-    notifyDataApiDataChange(bindingMembershipEffects())
+    application.get('DbService').withEffects((effects) => addDataChangeEffects(effects, bindingMembershipEffects()))
+  }
+
+  addTargetBindingsChangedEffects(effects: DataApiEffectCollector): void {
+    for (const effect of bindingMembershipEffects()) effects.add(effect)
   }
 
   /** Pre-check that every id in a reorder exists; convert to NOT_FOUND otherwise. */
@@ -503,13 +547,20 @@ export class PromptService {
       throw DataApiErrorFactory.notFound('Prompt', id)
     }
     logger.info('Deleted prompt', { id })
-    notifyDataApiDataChange([
-      { endpoint: '/prompts', kind: 'membership', entityIds: [id] },
-      { endpoint: '/prompts/:id', entityIds: [id] },
-      { endpoint: '/prompt-bindings', kind: 'membership', entityIds: [id] },
-      { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'membership', entityIds: [id] },
-      { endpoint: '/prompts/:id/bindings', kind: 'membership' }
-    ])
+    application.get('DbService').withEffects((effects) =>
+      addDataChangeEffects(effects, [
+        { endpoint: '/prompts', kind: 'membership', entityIds: [id] },
+        { endpoint: '/prompts/:id', routeParams: { id }, entityIds: [id] },
+        { endpoint: '/prompt-bindings', kind: 'membership', entityIds: [id] },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes,
+          entityIds: [id]
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', routeParams: { id } }
+      ])
+    )
   }
 }
 

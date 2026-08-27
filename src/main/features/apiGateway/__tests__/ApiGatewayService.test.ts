@@ -46,7 +46,7 @@ vi.mock('@application', async () => {
       set: mockPreferenceSet
     },
     CacheService: { setShared: mockSetShared },
-    AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext }
+    AgentConnectionManager: { getActiveUsageContext: mockGetActiveUsageContext }
   } as any)
 })
 

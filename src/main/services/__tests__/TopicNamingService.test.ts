@@ -690,60 +690,74 @@ describe('TopicNamingService', () => {
     expect(LONE_SURROGATE.test(renamedTo.name)).toBe(false)
   })
 
-  describe('inFlightWrites registry', () => {
-    // Entries self-remove a couple of microtasks after their promise settles
-    // (trackNamingWrite chains `.catch().finally()` off the returned promise).
-    const flushSettles = () => new Promise((resolve) => setImmediate(resolve))
-
-    beforeEach(async () => {
-      // Let deletion chains from earlier tests land before asserting absolute sizes —
-      // the registry is module-level, shared across service instances.
-      await flushSettles()
-    })
-
-    it('maybeRenameAgentSession registers synchronously and self-removes on settle', async () => {
+  describe('awaitable naming operations', () => {
+    it('keeps the Agent summary operation pending until the naming write settles', async () => {
       mocks.getSession.mockReturnValue({
         id: 'session-1',
         agentId: 'agent-1',
         name: 'common.unnamed',
         isNameManuallyEdited: false
       })
+      let finishGeneration!: (value: { text: string }) => void
+      mocks.generateText.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishGeneration = resolve
+          })
+      )
       const service = createService()
 
       const pending = service.maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
         role: 'assistant',
         parts: [{ type: 'text', text: 'Agent response' }]
       } as never)
+      let settled = false
+      void pending.then(() => {
+        settled = true
+      })
 
-      // Registered at method entry, before any await — a detached spawn is
-      // captured before its caller's promise resolves.
-      expect(service.inFlightWrites().size).toBe(1)
-      const [agentKey] = [...service.inFlightWrites().keys()]
-      expect(agentKey).toMatch(/^agent-session:session-1#\d+$/)
+      await vi.waitFor(() => expect(mocks.generateText).toHaveBeenCalledOnce())
+      expect(settled).toBe(false)
 
+      finishGeneration({ text: 'Generated Title' })
       await pending
-      await flushSettles()
-      expect(service.inFlightWrites().size).toBe(0)
+      expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+        name: 'Generated Title',
+        isNameManuallyEdited: false
+      })
     })
 
-    it('maybeRenameFromConversationSummary registers under the topic: prefix', async () => {
+    it('keeps the Chat summary operation pending until the naming write settles', async () => {
+      let finishGeneration!: (value: { text: string }) => void
+      mocks.generateText.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishGeneration = resolve
+          })
+      )
       const service = createService()
 
       const pending = service.maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
         role: 'assistant',
         parts: [{ type: 'text', text: 'Assistant response' }]
       } as never)
+      let settled = false
+      void pending.then(() => {
+        settled = true
+      })
 
-      expect(service.inFlightWrites().size).toBe(1)
-      const [topicKey] = [...service.inFlightWrites().keys()]
-      expect(topicKey).toMatch(/^topic:topic-1#\d+$/)
+      await vi.waitFor(() => expect(mocks.generateText).toHaveBeenCalledOnce())
+      expect(settled).toBe(false)
 
+      finishGeneration({ text: 'Generated Title' })
       await pending
-      await flushSettles()
-      expect(service.inFlightWrites().size).toBe(0)
+      expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
+        name: 'Generated Title',
+        isNameManuallyEdited: false
+      })
     })
 
-    it('removes the entry and resolves even when the rename path no-ops', async () => {
+    it('resolves without starting generation when the rename path no-ops', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
       const service = createService()
 
@@ -752,12 +766,7 @@ describe('TopicNamingService', () => {
         parts: [{ type: 'text', text: 'Agent response' }]
       } as never)
 
-      // Even the disabled early return was registered first…
-      expect(service.inFlightWrites().size).toBe(1)
-      // …and the wrapper never rejects.
       await expect(pending).resolves.toBeUndefined()
-      await flushSettles()
-      expect(service.inFlightWrites().size).toBe(0)
       expect(mocks.generateText).not.toHaveBeenCalled()
     })
   })

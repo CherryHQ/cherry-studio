@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
@@ -59,7 +59,7 @@ function renderActions(
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
   startNewContextBlocked = false,
-  stop: () => Promise<void> = vi.fn(async () => {})
+  stop = vi.fn(async () => {})
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
@@ -89,24 +89,6 @@ function renderActions(
     seedReservedMessages
   }
 }
-
-describe('useChatWriteActions — pause', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('logs a failed stream stop instead of exposing a rejected pause callback', async () => {
-    const stopError = new Error('abort failed')
-    const stop = vi.fn<() => Promise<void>>().mockRejectedValueOnce(stopError)
-    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', false, stop)
-
-    const pauseResult = actions.pause() as unknown
-    if (pauseResult instanceof Promise) await expect(pauseResult).rejects.toBe(stopError)
-
-    expect(pauseResult).toBeUndefined()
-    await vi.waitFor(() =>
-      expect(loggerError).toHaveBeenCalledWith('Failed to pause chat stream', { topicId: 't1', error: stopError })
-    )
-  })
-})
 
 function clearMessage() {
   return {
@@ -270,6 +252,25 @@ describe('useChatWriteActions — clear context', () => {
       await first
     })
     expect(result.current.actions.canStartNewContext).toBe(true)
+  })
+})
+
+describe('useChatWriteActions — Stop boundary', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('logs a rejected Main Stop once at the user action boundary', async () => {
+    const error = new Error('main teardown failed')
+    const stop = vi.fn().mockRejectedValue(error)
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', false, stop)
+
+    actions.pause()
+
+    await waitFor(() =>
+      expect(loggerError).toHaveBeenCalledExactlyOnceWith('Failed to stop Conversation', {
+        topicId: 't1',
+        error
+      })
+    )
   })
 })
 
@@ -487,44 +488,51 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
-    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
-    failedAssistant.metadata.modelId = 'provider::model-a'
-    failedAssistant.metadata.turnOptions = { serviceTier: 'fast' }
-    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
-    const activeExecution = {
-      executionId: 'provider::model-a',
-      attemptId: 2,
-      anchorMessageId: 'a1'
-    }
-    const reservedMessage = {
-      ...failedAssistant,
-      parts: [],
-      metadata: { ...failedAssistant.metadata, status: 'pending' }
-    }
-    streamOpen.mockResolvedValueOnce({
-      mode: 'started',
-      reservedMessages: [reservedMessage],
-      activeExecutions: [activeExecution]
-    })
-    const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+  it.each(['error', 'paused'] as const)(
+    'retries a %s assistant in place through Main and seeds the fresh attempt identity',
+    async (status) => {
+      const terminalAssistant = uiMsg('a1', 'assistant', 'u1', false, status)
+      terminalAssistant.metadata.modelId = 'provider::model-a'
+      terminalAssistant.metadata.turnOptions = { serviceTier: 'fast' }
+      terminalAssistant.parts = [{ type: 'data-error', data: { message: status } }]
+      const activeExecution = {
+        turnId: 'turn-2',
+        executionId: 'execution-2',
+        modelId: 'provider::model-a',
+        outputNodeId: 'a1'
+      }
+      const reservedMessage = {
+        ...terminalAssistant,
+        parts: [],
+        metadata: { ...terminalAssistant.metadata, status: 'pending' }
+      }
+      streamOpen.mockResolvedValueOnce({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
+        activeExecutions: [activeExecution]
+      })
+      const { actions, regenerate, seedReservedMessages } = renderActions([
+        uiMsg('u1', 'user', 'vroot'),
+        terminalAssistant
+      ])
 
-    await actions.regenerate('a1')
+      await actions.regenerate('a1')
 
-    expect(regenerate).not.toHaveBeenCalled()
-    expect(streamOpen).toHaveBeenCalledWith({
-      trigger: 'regenerate-message',
-      topicId: 't1',
-      parentAnchorId: 'u1',
-      retryMessageId: 'a1',
-      mentionedModelIds: ['provider::model-a'],
-      serviceTier: 'fast'
-    })
-    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
-      activeExecutions: [activeExecution],
-      preserveActiveNode: undefined
-    })
-  })
+      expect(regenerate).not.toHaveBeenCalled()
+      expect(streamOpen).toHaveBeenCalledWith({
+        trigger: 'retry-message',
+        conversation: { kind: 'chat', id: 't1' },
+        parentAnchorId: 'u1',
+        retryMessageId: 'a1',
+        mentionedModelIds: ['provider::model-a'],
+        serviceTier: 'fast'
+      })
+      expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
+        activeExecutions: [activeExecution],
+        activeNodeDecision: undefined
+      })
+    }
+  )
 
   it('keeps successful non-text assistants on the ordinary regenerate path', async () => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
@@ -553,15 +561,16 @@ describe('useChatWriteActions — regenerate', () => {
       }
     }
     const activeExecution = {
-      executionId: 'provider::model-b',
-      attemptId: 2,
-      anchorMessageId: 'a2'
+      turnId: 'turn-2',
+      executionId: 'execution-2',
+      modelId: 'provider::model-b',
+      outputNodeId: 'a2'
     }
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [reservedMessage],
       activeExecutions: [activeExecution],
-      preserveActiveNode: true
+      activeNodeDecision: { move: 'keep' }
     })
     const { actions, regenerate, seedReservedMessages } = renderActions([
       uiMsg('u1', 'user', 'vroot'),
@@ -572,15 +581,15 @@ describe('useChatWriteActions — regenerate', () => {
 
     expect(regenerate).not.toHaveBeenCalled()
     expect(streamOpen).toHaveBeenCalledWith({
-      trigger: 'regenerate-message',
-      topicId: 't1',
+      trigger: 'append-model',
+      conversation: { kind: 'chat', id: 't1' },
       parentAnchorId: 'u1',
       appendToLiveGroupMessageId: 'a1',
       mentionedModelIds: ['provider::model-b']
     })
     expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
       activeExecutions: [activeExecution],
-      preserveActiveNode: true
+      activeNodeDecision: { move: 'keep' }
     })
   })
 
@@ -636,7 +645,7 @@ describe('useChatWriteActions — fork and resend', () => {
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
-        topicId: 't1',
+        conversation: { kind: 'chat', id: 't1' },
         parentAnchorId: 'forked-user',
         reasoningEffort: 'high',
         serviceTier: 'flex',

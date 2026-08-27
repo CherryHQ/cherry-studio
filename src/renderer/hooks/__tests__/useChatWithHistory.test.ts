@@ -1,3 +1,4 @@
+import { ConversationKind, type ConversationRef, ConversationStatus } from '@shared/ai/conversation'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
@@ -27,23 +28,19 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-// `useTopicStreamStatus` is driven by the shared
-// `topic.stream.statuses.${topicId}` cache entry in production. Tests
-// stub it here so each `it()` can advance the per-topic view
-// synchronously by calling `setMockStatus`.
-const mockTopicStreamStatus = vi.fn()
-const LIVE_STATUSES = new Set(['streaming', 'pending'])
-vi.mock('../useTopicStreamStatus', () => ({
-  useTopicStreamStatus: (topicId: string) => mockTopicStreamStatus(topicId),
-  useTopicDbRefreshOnAwaitingApproval: (topicId: string, refresh: () => Promise<unknown>) => {
-    const status = mockTopicStreamStatus(topicId)?.status as string | undefined
-    const prevRef = useRef<string | undefined>(undefined)
+const mockConversationStreamStatus = vi.fn()
+const LIVE_STATUSES = new Set([ConversationStatus.Streaming, ConversationStatus.Pending])
+vi.mock('../useConversationStreamStatus', () => ({
+  useConversationStreamStatus: (conversation: ConversationRef) => mockConversationStreamStatus(conversation),
+  useConversationDbRefreshOnAwaitingInteraction: (conversation: ConversationRef, refresh: () => Promise<unknown>) => {
+    const status = mockConversationStreamStatus(conversation)?.status as ConversationStatus | undefined
+    const prevRef = useRef<ConversationStatus | undefined>(undefined)
     const refreshRef = useRef(refresh)
     refreshRef.current = refresh
     useEffect(() => {
       const prev = prevRef.current
       prevRef.current = status
-      if (prev && LIVE_STATUSES.has(prev) && status === 'awaiting-approval') {
+      if (prev && LIVE_STATUSES.has(prev) && status === ConversationStatus.AwaitingInteraction) {
         void refreshRef.current().catch(() => {})
       }
     }, [status])
@@ -51,42 +48,44 @@ vi.mock('../useTopicStreamStatus', () => ({
 }))
 
 describe('useChatWithHistory', () => {
+  const chat = (topicId: string): ConversationRef => ({ kind: ConversationKind.Chat, id: topicId })
   const resumeStream = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
   const setMessages = vi.fn()
-  const stop = vi.fn()
+  const stop = vi.fn<() => Promise<void>>()
   const sendMessage = vi.fn()
   const regenerate = vi.fn()
   const originalApi = window.api as any
   const refreshedMessages = [{ id: 'user-1', role: 'user', parts: [] }] as unknown as CherryUIMessage[]
 
   /**
-   * Per-topic status map the stubbed `useTopicStreamStatus` reads from.
+   * Per-Conversation status map the stubbed `useConversationStreamStatus` reads from.
    * Component re-renders are driven by mutating this map and calling
    * `rerender()` at the test site.
    */
-  const statuses = new Map<string, string | undefined>()
+  const statuses = new Map<string, ConversationStatus | undefined>()
 
-  const setMockStatus = (topicId: string, status: string | undefined) => {
+  const setMockStatus = (topicId: string, status: ConversationStatus | undefined) => {
     statuses.set(topicId, status)
   }
 
   beforeEach(() => {
     statuses.clear()
 
-    mockTopicStreamStatus.mockImplementation((topicId: string) => ({
-      status: statuses.get(topicId),
+    mockConversationStreamStatus.mockImplementation((conversation: ConversationRef) => ({
+      status: statuses.get(conversation.id),
       activeExecutions: [],
-      awaitingApprovalAnchors: [],
-      isPending: statuses.get(topicId) === 'pending' || statuses.get(topicId) === 'streaming',
-      isFulfilled: statuses.get(topicId) === 'done',
+      awaitingInteractionExecutions: [],
+      isPending:
+        statuses.get(conversation.id) === ConversationStatus.Pending ||
+        statuses.get(conversation.id) === ConversationStatus.Streaming,
+      isFulfilled: statuses.get(conversation.id) === ConversationStatus.Done,
       markSeen: vi.fn()
     }))
 
     resumeStream.mockClear()
-    streamAbortMock.mockReset()
-    streamAbortMock.mockResolvedValue(undefined)
     setMessages.mockClear()
-    stop.mockClear()
+    stop.mockReset().mockResolvedValue(undefined)
+    streamAbortMock.mockReset().mockResolvedValue(undefined)
     sendMessage.mockClear()
     regenerate.mockClear()
 
@@ -112,30 +111,30 @@ describe('useChatWithHistory', () => {
   it('creates a fresh Chat instance when the stable owner switches topics', () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
     const { result, rerender } = renderHook(
-      ({ topicId }: { topicId: string }) => useChatWithHistory(topicId, [], refresh),
+      ({ topicId }: { topicId: string }) => useChatWithHistory(chat(topicId), [], refresh),
       { initialProps: { topicId: 'topic-1' } }
     )
     const firstChat = result.current.chat
 
     rerender({ topicId: 'topic-2' })
 
-    expect(result.current.chat.id).toBe('topic-2')
+    expect(result.current.chat.id).toBe('chat:topic-2')
     expect(result.current.chat).not.toBe(firstChat)
   })
 
   it('refreshes history before resuming the matching topic when another window starts streaming', async () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
 
-    const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh))
+    const { rerender } = renderHook(() => useChatWithHistory(chat('topic-1'), [], refresh))
 
     await waitFor(() => {
       expect(resumeStream).toHaveBeenCalledTimes(1)
     })
 
     // Status change on a different topic must not trigger reattach —
-    // `useTopicStreamStatus` is keyed by topicId so the hook under test
+    // `useConversationStreamStatus` is keyed by exact Conversation identity, so the hook under test
     // never sees this change.
-    setMockStatus('other-topic', 'pending')
+    setMockStatus('other-topic', ConversationStatus.Pending)
     rerender()
 
     await waitFor(() => {
@@ -146,7 +145,7 @@ describe('useChatWithHistory', () => {
     // Non-`pending` transitions on our topic must not retrigger reattach
     // (streaming / done / error / aborted describe ongoing lifecycle,
     // not a brand-new stream creation).
-    setMockStatus('topic-1', 'streaming')
+    setMockStatus('topic-1', ConversationStatus.Streaming)
     rerender()
     await waitFor(() => {
       expect(resumeStream).toHaveBeenCalledTimes(1)
@@ -155,7 +154,7 @@ describe('useChatWithHistory', () => {
     // A fresh `pending` on our topic = new ActiveStream created → reattach.
     // The effect guards on the prev-value ref so transitioning via
     // `streaming → pending` still counts as a new pending.
-    setMockStatus('topic-1', 'pending')
+    setMockStatus('topic-1', ConversationStatus.Pending)
     rerender()
 
     await waitFor(() => {
@@ -167,13 +166,13 @@ describe('useChatWithHistory', () => {
 
   it('refreshes when the topic transitions from a live status to awaiting approval', async () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-    setMockStatus('topic-1', 'streaming')
-    const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh))
+    setMockStatus('topic-1', ConversationStatus.Streaming)
+    const { rerender } = renderHook(() => useChatWithHistory(chat('topic-1'), [], refresh))
 
     await waitFor(() => expect(resumeStream).toHaveBeenCalled())
     refresh.mockClear()
 
-    setMockStatus('topic-1', 'awaiting-approval')
+    setMockStatus('topic-1', ConversationStatus.AwaitingInteraction)
     rerender()
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
 
@@ -199,7 +198,7 @@ describe('useChatWithHistory', () => {
       resumeStream
     }))
 
-    const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh))
+    const { rerender } = renderHook(() => useChatWithHistory(chat('topic-1'), [], refresh))
     await waitFor(() => expect(resumeStream).toHaveBeenCalledTimes(1))
 
     for (const nextStatus of ['submitted', 'streaming', 'error', 'ready', 'error', 'ready']) {
@@ -229,17 +228,17 @@ describe('useChatWithHistory', () => {
       error: undefined,
       sendMessage,
       regenerate,
-      resumeStream: chat.id === 'topic-1' ? resumeTopicOne : resumeTopicTwo
+      resumeStream: chat.id === 'chat:topic-1' ? resumeTopicOne : resumeTopicTwo
     }))
 
     const { rerender } = renderHook(
       ({ topicId, refresh }: { topicId: string; refresh: () => Promise<CherryUIMessage[]> }) =>
-        useChatWithHistory(topicId, [], refresh),
+        useChatWithHistory(chat(topicId), [], refresh),
       { initialProps: { topicId: 'topic-1', refresh: topicOneRefresh } }
     )
     await waitFor(() => expect(resumeTopicOne).toHaveBeenCalledTimes(1))
 
-    setMockStatus('topic-1', 'pending')
+    setMockStatus('topic-1', ConversationStatus.Pending)
     rerender({ topicId: 'topic-1', refresh: topicOneRefresh })
     await waitFor(() => expect(topicOneRefresh).toHaveBeenCalledTimes(1))
 
@@ -268,21 +267,21 @@ describe('useChatWithHistory', () => {
       messages: [] as CherryUIMessage[],
       setMessages,
       stop,
-      status: chat.id === 'topic-2' ? 'streaming' : 'ready',
+      status: chat.id === 'chat:topic-2' ? 'streaming' : 'ready',
       error: undefined,
       sendMessage,
       regenerate,
-      resumeStream: chat.id === 'topic-1' ? resumeTopicOne : resumeTopicTwo
+      resumeStream: chat.id === 'chat:topic-1' ? resumeTopicOne : resumeTopicTwo
     }))
 
     const { rerender } = renderHook(
       ({ topicId, refresh }: { topicId: string; refresh: () => Promise<CherryUIMessage[]> }) =>
-        useChatWithHistory(topicId, [], refresh),
+        useChatWithHistory(chat(topicId), [], refresh),
       { initialProps: { topicId: 'topic-1', refresh: topicOneRefresh } }
     )
     await waitFor(() => expect(resumeTopicOne).toHaveBeenCalledTimes(1))
 
-    setMockStatus('topic-1', 'pending')
+    setMockStatus('topic-1', ConversationStatus.Pending)
     rerender({ topicId: 'topic-1', refresh: topicOneRefresh })
     await waitFor(() => expect(topicOneRefresh).toHaveBeenCalledTimes(1))
 
@@ -304,98 +303,66 @@ describe('useChatWithHistory', () => {
     // normally fans `chat.stop()` out as `streamAbort`. The hook wraps `stop`
     // to fire the IPC directly; this test guards against regression.
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+    const { result } = renderHook(() => useChatWithHistory(chat('topic-abort'), [], refresh))
 
     await act(async () => {
       await result.current.stop()
     })
 
-    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort' })
+    expect(streamAbortMock).toHaveBeenCalledWith({ conversation: chat('topic-abort') })
     expect(stop).toHaveBeenCalledTimes(1)
   })
 
-  it('starts the main-process abort before stopping the local SDK stream', async () => {
-    const calls: string[] = []
-    streamAbortMock.mockImplementationOnce(async () => {
-      calls.push('main-abort')
-    })
-    stop.mockImplementationOnce(async () => {
-      calls.push('sdk-stop')
-    })
-    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
-
-    await act(async () => {
-      await result.current.stop()
-    })
-
-    expect(calls).toEqual(['main-abort', 'sdk-stop'])
-  })
-
-  it('does not resolve stop() until the main-process stream has drained', async () => {
-    let finishDrain!: () => void
-    streamAbortMock.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        finishDrain = resolve
-      })
+  it('starts Main and local Stop together and waits for both barriers', async () => {
+    const order: string[] = []
+    let resolveMain!: () => void
+    let resolveLocal!: () => void
+    streamAbortMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push('main')
+          resolveMain = resolve
+        })
     )
-    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+    stop.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push('local')
+          resolveLocal = resolve
+        })
+    )
+    const { result } = renderHook(() =>
+      useChatWithHistory(chat('topic-stop-barrier'), [], vi.fn().mockResolvedValue(refreshedMessages))
+    )
 
-    const stopping = result.current.stop()
     let settled = false
-    void stopping.then(() => {
+    const stopping = result.current.stop().then(() => {
       settled = true
     })
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    expect(stop).toHaveBeenCalledTimes(1)
+    expect(order).toEqual(['main', 'local'])
+    resolveLocal()
+    await Promise.resolve()
     expect(settled).toBe(false)
-
-    finishDrain()
-    await expect(stopping).resolves.toBeUndefined()
+    resolveMain()
+    await stopping
+    expect(settled).toBe(true)
   })
 
-  it('waits for the main-process drain before rejecting a local stop failure', async () => {
-    let finishDrain!: () => void
-    streamAbortMock.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        finishDrain = resolve
-      })
+  it('propagates the Main Stop failure before a local Stop failure', async () => {
+    streamAbortMock.mockRejectedValue(new Error('main teardown failed'))
+    stop.mockRejectedValue(new Error('local stop failed'))
+    const { result } = renderHook(() =>
+      useChatWithHistory(chat('topic-stop-failure'), [], vi.fn().mockResolvedValue(refreshedMessages))
     )
-    const stopError = new Error('local stop failed')
-    stop.mockRejectedValueOnce(stopError)
-    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
 
-    const stopping = result.current.stop()
-    let settled = false
-    void stopping.catch(() => {
-      settled = true
-    })
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    expect(settled).toBe(false)
-
-    finishDrain()
-    await expect(stopping).rejects.toBe(stopError)
-  })
-
-  it('rejects stop() when the main-process stream cannot be aborted', async () => {
-    const abortError = new Error('main abort failed')
-    streamAbortMock.mockRejectedValueOnce(abortError)
-    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
-
-    await expect(result.current.stop()).rejects.toBe(abortError)
-    expect(stop).toHaveBeenCalledTimes(1)
+    await expect(result.current.stop()).rejects.toThrow('main teardown failed')
   })
 
   it('does not refresh on streaming → aborted/error because page handoff owns final refresh', async () => {
-    for (const terminal of ['aborted', 'error'] as const) {
+    for (const terminal of [ConversationStatus.Aborted, ConversationStatus.Error] as const) {
       const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-      setMockStatus('topic-x', 'streaming')
-      const { rerender, unmount } = renderHook(() => useChatWithHistory('topic-x', [], refresh))
+      setMockStatus('topic-x', ConversationStatus.Streaming)
+      const { rerender, unmount } = renderHook(() => useChatWithHistory(chat('topic-x'), [], refresh))
       await waitFor(() => expect(resumeStream).toHaveBeenCalled())
       refresh.mockClear()
 

@@ -1,3 +1,4 @@
+import { ConversationKind, ConversationStatus } from '@shared/ai/conversation'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -10,7 +11,9 @@ import { withMessagePartDiagnosis } from '../../utils/messageDiagnosis'
 import { PartsProvider } from '../MessagePartsContext'
 
 const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
-const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
+const mockConversationStreamState = vi.hoisted(() => ({
+  status: undefined as ConversationStatus | undefined
+}))
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
 const mockReadText = vi.hoisted(() => vi.fn())
@@ -30,12 +33,14 @@ vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false,
 vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
   useIsActiveTurnTarget: () => mockIsActiveTurnTarget()
 }))
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
-    status: mockTopicStreamState.status,
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({
+    status: mockConversationStreamState.status,
     activeExecutions: [],
-    awaitingApprovalAnchors: [],
-    isPending: mockTopicStreamState.status === 'pending' || mockTopicStreamState.status === 'streaming',
+    awaitingInteractionExecutions: [],
+    isPending:
+      mockConversationStreamState.status === ConversationStatus.Pending ||
+      mockConversationStreamState.status === ConversationStatus.Streaming,
     isFulfilled: false,
     markSeen: vi.fn()
   })
@@ -421,9 +426,9 @@ const renderParts = (
   renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
 ) => render(renderPartsTree(parts, message, actions, renderConfig))
 
-function activateTurn(status?: string): void {
+function activateTurn(status?: ConversationStatus): void {
   mockIsActiveTurnTarget.mockReturnValue(true)
-  mockTopicStreamState.status = status
+  mockConversationStreamState.status = status
 }
 
 function expandCollapsedLiveToolGroups(): void {
@@ -481,7 +486,7 @@ function answeredAskUserQuestionPart(toolCallId: string, state = 'output-availab
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
     mockIsActiveTurnTarget.mockReturnValue(false)
-    mockTopicStreamState.status = undefined
+    mockConversationStreamState.status = undefined
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
     mockReadText.mockReset()
@@ -569,7 +574,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('uses activity-specific placeholders for empty streaming content without creating process boundaries', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const reasoning = renderParts(
         [{ type: 'reasoning', text: '', state: 'streaming' }] as unknown as CherryMessagePart[],
         msg({ status: 'pending' })
@@ -937,7 +942,11 @@ describe('MessagePartsRenderer', () => {
           state: 'output-available',
           input: { query: 'q' },
           output: {
-            $deferredToolResult: { topicId: 'agent-session:s1', messageId: 'm1', toolCallId: 'search-1' },
+            $deferredToolResult: {
+              conversation: { kind: ConversationKind.Agent, id: 's1' },
+              messageId: 'm1',
+              toolCallId: 'search-1'
+            },
             skeleton: {
               content: [
                 {
@@ -1090,7 +1099,7 @@ describe('MessagePartsRenderer', () => {
         }
       }
 
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const pendingMessage = msg({ status: 'pending' })
       const reportPart = {
         type: 'dynamic-tool',
@@ -1127,7 +1136,7 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(finalParts, pendingMessage))
 
       mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      mockConversationStreamState.status = ConversationStatus.Done
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
@@ -1140,7 +1149,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const pendingMessage = msg({ status: 'pending' })
       const parts = [
         {
@@ -1158,7 +1167,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('report.md')).toBeNull()
 
       mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      mockConversationStreamState.status = ConversationStatus.Done
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -1198,7 +1207,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('marks only the final open text tail as streaming and ignores hidden markers after it', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           { type: 'text', text: 'sealed narration' },
@@ -1216,7 +1225,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('groups consecutive reasoning and tools while omitting hidden markers', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           { type: 'reasoning', text: 'Inspecting', state: 'streaming' },
@@ -1242,7 +1251,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('renders DeepSeek provider webSearch parts as tools instead of reasoning-only rows', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           { type: 'reasoning', text: 'Finding current sources', state: 'done' },
@@ -1264,7 +1273,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('does not render provider ellipsis fillers or let them split live tools', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           toolPart('read'),
@@ -1281,7 +1290,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('renders the latest running tool after an earlier tool failure', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [toolPart('failed', 'output-error'), toolPart('cleanup', 'input-available')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' })
@@ -1297,7 +1306,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('renders live reasoning after an earlier tool failure', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           toolPart('failed', 'output-error'),
@@ -1366,7 +1375,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('keeps the tool header visible after a tool completes while the reply continues', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           toolPart('read', 'output-available'),
@@ -1381,7 +1390,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('does not rerender settled process history while only the final text tail streams', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const pendingMessage = msg({ status: 'pending' })
       const settledTool = toolPart('read') as unknown as CherryMessagePart
       const { rerender } = renderParts(
@@ -1408,7 +1417,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('updates the active process elapsed time once per second', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const message = msg({ status: 'pending' })
 
       renderParts([toolPart('read', 'input-available')] as unknown as CherryMessagePart[], message)
@@ -1417,7 +1426,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('settles the last tool group once normal text starts rendering after it', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           toolPart('read', 'output-available'),
@@ -1431,7 +1440,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('hides a standalone unanswered AskUserQuestion while the reply is streaming', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [toolPart('question', 'input-available', 'AskUserQuestion')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' })
@@ -1442,7 +1451,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('keeps an answered AskUserQuestion visible and ordered between live process groups', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           toolPart('read', 'output-available', 'Read'),
@@ -1466,7 +1475,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('preserves the projected order across an AskUserQuestion boundary', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       renderParts(
         [
           toolPart('read', 'output-available'),
@@ -1494,7 +1503,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('treats awaiting approval as live even when the persisted message is success', () => {
-      activateTurn('awaiting-approval')
+      activateTurn(ConversationStatus.AwaitingInteraction)
       renderParts(
         [
           toolPart('read'),
@@ -1526,7 +1535,7 @@ describe('MessagePartsRenderer', () => {
 
   describe('terminal layout', () => {
     it('replaces direct live process content with collapsed history and keeps the final answer outside', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const parts = [toolPart('read'), { type: 'text', text: 'final answer' }] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(parts, msg({ status: 'pending' }))
 
@@ -1537,7 +1546,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
 
       mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      mockConversationStreamState.status = ConversationStatus.Done
       rerender(renderPartsTree(parts, msg({ status: 'success', updatedAt: '2026-01-01T00:00:01Z' })))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
@@ -1579,20 +1588,20 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('keeps the final text node mounted across the active-to-terminal frame', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const parts = [{ type: 'text', text: 'stable answer node' }] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(parts, msg({ status: 'pending' }))
       const activeAnswerNode = screen.getByText('stable answer node')
 
       mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      mockConversationStreamState.status = ConversationStatus.Done
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
     })
 
     it('settles a quickly failed live error block into the visible motion state', () => {
-      activateTurn('streaming')
+      activateTurn(ConversationStatus.Streaming)
       const parts = [
         { type: 'data-error', data: { name: 'ProviderError', message: 'failed immediately' } }
       ] as unknown as CherryMessagePart[]
@@ -1603,7 +1612,7 @@ describe('MessagePartsRenderer', () => {
       expect(animatedWrapper).toHaveAttribute('data-motion-state', 'visible')
 
       mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'error'
+      mockConversationStreamState.status = ConversationStatus.Error
       rerender(renderPartsTree(parts, msg({ status: 'error' })))
 
       expect(screen.getByTestId('mock-error-block')).toBe(activeErrorNode)

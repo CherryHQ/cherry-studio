@@ -52,7 +52,7 @@ import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
-import type { AiBaseRequest, CallOverrides } from '../../../types'
+import type { AiBaseRequest, AiStreamRequest, CallOverrides } from '../../../types'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -96,6 +96,7 @@ export interface BuildAgentParamsInput {
     chatId?: string
     messageId?: string
     messages?: UIMessage[]
+    runtime?: AiStreamRequest['runtime']
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
     retainedContext?: RetainedContext
   }

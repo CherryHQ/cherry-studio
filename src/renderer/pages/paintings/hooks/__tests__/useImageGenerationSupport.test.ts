@@ -1,3 +1,4 @@
+import { DataApiDataChangeScope } from '@shared/data/api/types'
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
@@ -16,7 +17,12 @@ it('revalidates mounted image-generation metadata after a registry snapshot upda
   })
   renderHook(() => useImageGenerationSupport('openai', 'gpt-image-1'))
 
-  MockUseDataApiUtils.emitDataChange([{ endpoint: '/providers/:providerId/models/:modelId*/image-generation-support' }])
+  MockUseDataApiUtils.emitDataChange([
+    {
+      endpoint: '/providers/:providerId/models/:modelId*/image-generation-support',
+      scope: DataApiDataChangeScope.AllRoutes
+    }
+  ])
 
   expect(refetch).toHaveBeenCalledOnce()
 })

@@ -1,5 +1,4 @@
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   RefreshProvider,
   TranslationOverlayProvider,
@@ -28,7 +27,7 @@ import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
 import type { AddNewTopicPayload } from './types'
-import { useChatRuntimeState } from './useChatRuntimeState'
+import { type TopicBranchLiveContribution, useChatRuntimeState } from './useChatRuntimeState'
 
 interface Props {
   topic: Topic
@@ -37,7 +36,7 @@ interface Props {
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
-  onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
+  onBranchLiveStateChange?: (contribution: TopicBranchLiveContribution) => void
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
@@ -110,7 +109,7 @@ const ChatContent: FC<Props> = ({
 interface InnerProps extends Props {
   isHistoryLoading: boolean
   isHistoryStale: boolean
-  onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
+  onBranchLiveStateChange?: (contribution: TopicBranchLiveContribution) => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
   /** Live DB-backed message list; reactive to SWR refreshes. */

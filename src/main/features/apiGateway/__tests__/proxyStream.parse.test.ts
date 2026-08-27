@@ -31,7 +31,7 @@ const {
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) =>
-      name === 'AiStreamManager' ? { streamPrompt: mockStreamPrompt, abort: vi.fn() } : undefined
+      name === 'PromptStreamManager' ? { streamPrompt: mockStreamPrompt, abort: vi.fn() } : undefined
     )
   }
 }))

@@ -5,7 +5,8 @@ import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentRuntimeEvent } from '../../types'
+import { AgentUserResponseMode } from '../../../conversation'
+import { type AgentRuntimeEvent, toAgentRuntimeConnectionId } from '../../types'
 import { DshBridgeServer } from '../DshBridgeServer'
 
 const SESSION_ID = 'dsh-bridge-test-session'
@@ -30,7 +31,7 @@ interface Harness {
 const harnesses: Harness[] = []
 
 function makeServer(
-  userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
+  userResponse: AgentUserResponseMode = AgentUserResponseMode.Stream,
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }> = () =>
     Promise.reject(new Error('unexpected tool call')),
   readyTimeoutMs?: number
@@ -38,6 +39,7 @@ function makeServer(
   const events: AgentRuntimeEvent[] = []
   const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
+    connectionId: toAgentRuntimeConnectionId('dsh-connection-1'),
     sessionId: SESSION_ID,
     emit: (event) => events.push(event),
     getInteractionState: () => ({ userResponse }),
@@ -92,7 +94,7 @@ async function connectPlugin(
 }
 
 async function makeHarness(
-  userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
+  userResponse: AgentUserResponseMode = AgentUserResponseMode.Stream,
   onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>
 ): Promise<Harness> {
   const { server, events, lifecycleEdges } = makeServer(userResponse, onToolCall)
@@ -114,7 +116,7 @@ afterEach(async () => {
 
 describe('DshBridgeServer authentication gate', () => {
   it('destroys a socket whose ready token is wrong, without blocking the expected plugin', async () => {
-    const { server } = makeServer('unavailable')
+    const { server } = makeServer(AgentUserResponseMode.Unavailable)
     await server.listen()
     try {
       const ready = server.whenReady(2_000)
@@ -131,7 +133,7 @@ describe('DshBridgeServer authentication gate', () => {
   })
 
   it('destroys a socket whose first request is not ready', async () => {
-    const { server } = makeServer('unavailable')
+    const { server } = makeServer(AgentUserResponseMode.Unavailable)
     await server.listen()
     try {
       const plugin = await connectPlugin(server, { skipReady: true })
@@ -144,7 +146,7 @@ describe('DshBridgeServer authentication gate', () => {
   })
 
   it('destroys a socket that never authenticates, and spares one that did', async () => {
-    const { server } = makeServer('unavailable', undefined, 150)
+    const { server } = makeServer(AgentUserResponseMode.Unavailable, undefined, 150)
     await server.listen()
     try {
       const silent = await connectPlugin(server, { skipReady: true })
@@ -252,7 +254,7 @@ describe('DshBridgeServer', () => {
 
   it('dispatches tool/call to the host bridge and returns success or failure', async () => {
     const onToolCall = vi.fn(async (name: string, args: unknown) => ({ text: `${name}:ok`, data: args }))
-    const harness = await makeHarness('stream', onToolCall)
+    const harness = await makeHarness(AgentUserResponseMode.Stream, onToolCall)
 
     await expect(
       harness.transport.request('tool/call', {
@@ -280,7 +282,7 @@ describe('DshBridgeServer', () => {
   })
 
   it('rejects a tool call addressed to another session', async () => {
-    const harness = await makeHarness('stream', async () => ({ text: 'unused' }))
+    const harness = await makeHarness(AgentUserResponseMode.Stream, async () => ({ text: 'unused' }))
     await expect(
       harness.transport.request('tool/call', {
         sessionId: 'someone-else',
@@ -300,7 +302,7 @@ describe('DshBridgeServer', () => {
           signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
         })
     )
-    const cancelled = await makeHarness('stream', onToolCall)
+    const cancelled = await makeHarness(AgentUserResponseMode.Stream, onToolCall)
     const call = { sessionId: SESSION_ID, callId: 'cancel-me', name: 'slow', args: {} }
     void cancelled.transport.request('tool/call', call).catch(() => undefined)
     await vi.waitFor(() => expect(signals).toHaveLength(1))
@@ -312,7 +314,7 @@ describe('DshBridgeServer', () => {
     cancelled.socket.destroy()
     await vi.waitFor(() => expect(signals[1].aborted).toBe(true))
 
-    const closed = await makeHarness('stream', onToolCall)
+    const closed = await makeHarness(AgentUserResponseMode.Stream, onToolCall)
     void closed.transport.request('tool/call', { ...call, callId: 'close-me' }).catch(() => undefined)
     await vi.waitFor(() => expect(signals).toHaveLength(3))
     await closed.server.close()
@@ -336,7 +338,7 @@ describe('DshBridgeServer', () => {
       toolCallId: 'call-9',
       toolName: 'bash',
       input: { command: 'echo hi' },
-      presentation: 'stream'
+      lifetime: 'execution-bound'
     })
 
     toolApprovalRegistry.dispatch(event.request.approvalId, { approved: true })
@@ -358,7 +360,7 @@ describe('DshBridgeServer', () => {
   })
 
   it('answers rejected immediately when no responder is available, without surfacing a card', async () => {
-    const harness = await makeHarness('unavailable')
+    const harness = await makeHarness(AgentUserResponseMode.Unavailable)
     await expect(
       harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
     ).resolves.toEqual({ outcome: 'rejected' })
@@ -472,7 +474,7 @@ describe('DshBridgeServer', () => {
       })
     ).rejects.toThrow('tool call id')
 
-    const unattended = await makeHarness('unavailable')
+    const unattended = await makeHarness(AgentUserResponseMode.Unavailable)
     await expect(
       unattended.transport.request('question/ask', {
         sessionId: SESSION_ID,

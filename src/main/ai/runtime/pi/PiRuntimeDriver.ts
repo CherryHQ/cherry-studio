@@ -7,13 +7,18 @@ import type { Tool } from '@shared/ai/tool'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeConnection,
+  type AgentSessionRuntimeDriver,
+  AiRuntimeCapability
+} from '../types'
 import { assertPiProviderUsable } from './modelInjection'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi'
-  readonly capabilities = ['agent-session'] as const
+  readonly capabilities = [AiRuntimeCapability.AgentSession] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path

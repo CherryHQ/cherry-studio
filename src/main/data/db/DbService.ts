@@ -3,17 +3,20 @@ import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 
+import { notifyDataApiDataChange } from '../dataApiDataChange'
 import { applyMigrations } from './applyMigrations'
+import { DataApiEffectScope } from './DataApiEffectScope'
 import { checkpointTruncateAssert } from './restore/checkpoint'
 import { snapshotTo } from './restore/snapshot'
 import { seeders } from './seeding/seederRegistry'
 import { SeedRunner } from './seeding/SeedRunner'
-import type { DbOrTx, DbType } from './types'
+import type { DataApiEffectCollector, DbTxWithEffects, DbType } from './types'
 
 const logger = loggerService.withContext('DbService')
 
@@ -40,6 +43,7 @@ export class DbService extends BaseService {
   private sqlite: Database.Database
   private db: DbType
   private pragmasConfigured = false
+  private transactionEffectScope: DataApiEffectScope | undefined
 
   constructor() {
     super()
@@ -201,13 +205,13 @@ export class DbService extends BaseService {
    * synchronous connection, so a transaction runs to completion in a single JS turn
    * and can never interleave with another write — writes serialize by construction,
    * with no process-wide mutex or BUSY retry (those tamed libsql's async
-   * per-transaction connections, upstream issue #288). This is a thin wrapper over
+   * per-transaction connections, upstream issue #288). The SQLite boundary is
    * `db.transaction(fn, { behavior: 'immediate' })`: `BEGIN IMMEDIATE` takes the write
    * lock up front, which matters only if a second connection ever writes concurrently
    * — with today's single connection it behaves identically to a plain
    * `db.transaction(fn)`, so it is the correct write-intent default, not a live
-   * necessity. A direct `db.transaction()` is therefore equivalent for atomicity;
-   * `withWriteTx` is the conventional, greppable write seam.
+   * necessity. `withWriteTx` additionally owns the nested effect scope: it merges
+   * `tx.effects`, drops them on rollback, and publishes once after the outer commit.
    *
    * Returns **synchronously**: better-sqlite3 runs the whole transaction on its
    * single connection with no I/O wait, so the write has already committed by the
@@ -239,11 +243,63 @@ export class DbService extends BaseService {
    * })
    * ```
    */
-  public withWriteTx<T>(fn: (tx: DbOrTx) => T): T {
+  public withWriteTx<T>(fn: (tx: DbTxWithEffects) => T): T {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
-    return this.db.transaction(fn, { behavior: 'immediate' })
+    const { result, committedEffects } = this.getTransactionEffectScope().collect((effects) =>
+      this.db.transaction(
+        (tx) => {
+          const result = fn(Object.assign(tx, { effects }))
+          if (result instanceof Promise) {
+            throw new Error('withWriteTx callback must be synchronous — the transaction commits when it returns')
+          }
+          return result
+        },
+        { behavior: 'immediate' }
+      )
+    )
+    if (committedEffects) this.publishEffectsBestEffort(committedEffects)
+    return result
+  }
+
+  /**
+   * Publish effects for an already-committed autocommit write or composed service result.
+   *
+   * `fn` MUST be synchronous — effects publish the moment it returns, so an async
+   * callback would publish (and clear the collector) before its work ran. A Promise
+   * return therefore throws without publishing anything.
+   */
+  public withEffects<T>(fn: (effects: DataApiEffectCollector) => T): T {
+    if (!this.isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+    if (this.transactionEffectScope?.isCollecting) {
+      throw new Error('withEffects cannot run inside withWriteTx — add effects through tx.effects')
+    }
+    const scope = new DataApiEffectScope()
+    const { result, committedEffects } = scope.collect((effects) => {
+      const result = fn(effects)
+      if (result instanceof Promise) {
+        throw new Error('withEffects callback must be synchronous — effects publish when it returns')
+      }
+      return result
+    })
+    if (committedEffects) this.publishEffectsBestEffort(committedEffects)
+    return result
+  }
+
+  private getTransactionEffectScope(): DataApiEffectScope {
+    return (this.transactionEffectScope ??= new DataApiEffectScope())
+  }
+
+  private publishEffectsBestEffort(effects: readonly DataApiDataChangeEffect[]): void {
+    if (effects.length === 0) return
+    try {
+      notifyDataApiDataChange([...effects])
+    } catch (error) {
+      logger.warn('Failed to publish committed data change effects', error as Error)
+    }
   }
 
   /**

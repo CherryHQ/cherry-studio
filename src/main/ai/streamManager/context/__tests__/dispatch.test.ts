@@ -1,260 +1,419 @@
-import type { ServiceTierSelection } from '@shared/data/types/model'
+import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
+import { BaseService } from '@main/core/lifecycle'
+import {
+  ConversationActiveNodeMove,
+  ConversationBlockReason,
+  ConversationContinuationTrigger,
+  ConversationKind,
+  ConversationOpenMode,
+  ConversationOpenTrigger,
+  ConversationPhase,
+  type ConversationRef
+} from '@shared/ai/conversation'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AiStreamManager } from '../../AiStreamManager'
-import type { StreamListener } from '../../types'
-import type { MainDispatchRequest } from '../dispatch'
-
-// Records the relative order of the steps we care about (prepareDispatch / enqueue / send).
-const order: string[] = []
-// Captures the `hasLiveStream` flag the provider receives in its ctx arg.
-let preparedWithCtx: { hasLiveStream: boolean } | undefined
+import { AiExecutionManager, ConversationRuntimeService } from '../../../conversation'
+import type {
+  CommittedConversationIntent,
+  ConversationHistoryPort,
+  MainDispatchRequest,
+  StreamListener,
+  ValidatedConversationIntent
+} from '../..'
+import {
+  ConversationExecutionDriverBindingKind,
+  ConversationExecutionPreparationKind,
+  ConversationHistoryAdapterKind,
+  ConversationTerminalPersistenceKind
+} from '../ConversationHistoryPort'
 
 const mocks = vi.hoisted(() => ({
-  agentCanHandle: vi.fn<(topicId: string) => boolean>(),
-  agentPrepare: vi.fn(),
-  persistentPrepare: vi.fn(),
-  temporaryCanHandle: vi.fn<(topicId: string) => boolean>(),
-  temporaryPrepare: vi.fn(),
-  isWorkspaceErr: vi.fn<(error: unknown) => boolean>(),
-  setActiveNode: vi.fn()
+  cache: { getShared: vi.fn(), setShared: vi.fn() },
+  agentConnection: {
+    redirectConversationInput: vi.fn(() => false),
+    discardAutonomousBuffer: vi.fn()
+  },
+  getSessionMessage: vi.fn((sessionId: string, id: string) => ({
+    id,
+    sessionId,
+    role: 'user',
+    data: { parts: [] },
+    status: 'success',
+    delivery: null
+  })),
+  namingWrites: new Map<string, Promise<void>>()
 }))
 
-vi.mock('@main/data/services/TopicService', () => ({
-  topicService: { setActiveNode: mocks.setActiveNode }
-}))
-
-vi.mock('../AgentChatContextProvider', () => ({
-  agentChatContextProvider: {
-    name: 'agent',
-    isPersistentConversation: true,
-    canHandle: mocks.agentCanHandle,
-    prepareDispatch: mocks.agentPrepare
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'AgentConnectionManager') return mocks.agentConnection
+      return mocks.cache
+    })
   }
 }))
-vi.mock('../TemporaryChatContextProvider', () => ({
-  temporaryChatContextProvider: {
-    name: 'temporary',
-    isPersistentConversation: false,
-    canHandle: mocks.temporaryCanHandle,
-    prepareDispatch: mocks.temporaryPrepare
-  }
-}))
-vi.mock('../PersistentChatContextProvider', () => ({
-  persistentChatContextProvider: {
-    name: 'persistent',
-    isPersistentConversation: true,
-    canHandle: () => true,
-    prepareDispatch: mocks.persistentPrepare
-  }
-}))
-vi.mock('../../../runtime/agentSessionWorkspace', () => ({
-  isAgentSessionWorkspaceError: mocks.isWorkspaceErr
+
+vi.mock('@main/data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: { getSessionMessage: mocks.getSessionMessage }
 }))
 
-const { dispatchStreamRequest } = await import('../dispatch')
+vi.mock('@main/services/TopicNamingService', () => ({
+  topicNamingService: { inFlightWrites: () => mocks.namingWrites }
+}))
 
-function makeSubscriber(): StreamListener {
-  return { id: 'wc:1', onChunk: vi.fn(), onDone: vi.fn(), onPaused: vi.fn(), onError: vi.fn(), isAlive: () => true }
-}
+const MODEL_A = createUniqueModelId('provider', 'model-a')
+const MODEL_B = createUniqueModelId('provider', 'model-b')
 
-function makeManager(live: boolean): AiStreamManager {
+function listener(): StreamListener {
   return {
-    hasLiveStream: vi.fn(() => live),
-    inspect: vi.fn(() => undefined),
-    enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
-    send: vi.fn(() => {
-      order.push('send')
-      return { mode: live ? ('injected' as const) : ('started' as const), activeExecutions: [] }
-    })
-  } as unknown as AiStreamManager
-}
-
-/** `inject: true` mirrors PersistentChatContextProvider's `hasLiveStream` branch — no models + a user row. */
-function wirePrepare(
-  spy: typeof mocks.agentPrepare,
-  topicId: string,
-  opts: {
-    inject: boolean
-    steer?: boolean
-    reasoningEffort?: ReasoningEffortOption
-    serviceTier?: ServiceTierSelection
-    fastMode?: boolean
+    id: 'wc:1',
+    onChunk: vi.fn(),
+    onDone: vi.fn(),
+    onPaused: vi.fn(),
+    onError: vi.fn(),
+    isAlive: () => true
   }
-) {
-  spy.mockImplementation((_subscriber: StreamListener, _req: MainDispatchRequest, ctx: { hasLiveStream: boolean }) => {
-    order.push('prepareDispatch')
-    preparedWithCtx = ctx
-    return Promise.resolve({
-      topicId,
-      models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
-      listeners: [] as StreamListener[],
-      // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
-      // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
-      pendingSteerUserMessageId: opts.steer ? 'u1' : undefined,
-      pendingSteerReasoningEffort: opts.reasoningEffort,
-      pendingSteerServiceTier: opts.serviceTier,
-      pendingSteerFastMode: opts.fastMode
-    })
-  })
 }
 
-const chatReq = (topicId: string): MainDispatchRequest =>
-  ({ topicId, trigger: 'submit-message', userMessageParts: [] }) as unknown as MainDispatchRequest
+function controlledStream() {
+  let controller!: ReadableStreamDefaultController<UIMessageChunk>
+  const stream = new ReadableStream<UIMessageChunk>({
+    start(value) {
+      controller = value
+    }
+  })
+  return { stream, controller }
+}
 
-beforeEach(() => {
-  order.length = 0
-  preparedWithCtx = undefined
-  vi.clearAllMocks()
-  mocks.agentCanHandle.mockReturnValue(false)
-  mocks.temporaryCanHandle.mockReturnValue(false)
-  mocks.isWorkspaceErr.mockReturnValue(false)
-})
+function request(
+  conversation: ConversationRef,
+  options: {
+    text?: string
+    reasoningEffort?: ReasoningEffortOption
+    fastMode?: boolean
+    headless?: boolean
+  } = {}
+): MainDispatchRequest {
+  return {
+    trigger: ConversationOpenTrigger.SubmitMessage,
+    conversation,
+    userMessageParts: [{ type: 'text', text: options.text ?? 'hello' }],
+    reasoningEffort: options.reasoningEffort,
+    fastMode: options.fastMode,
+    headless: options.headless
+  }
+}
 
-describe('dispatchStreamRequest — steer', () => {
+function validation(
+  req: MainDispatchRequest,
+  hasLiveStream: boolean,
+  models: readonly UniqueModelId[] = hasLiveStream ? [] : [MODEL_A]
+): ValidatedConversationIntent {
+  return {
+    kind: ConversationHistoryAdapterKind.PersistentChat,
+    request: req,
+    context: { hasLiveStream },
+    executionModelIds: models,
+    resolvedModels: [],
+    inputModelId: models[0] ?? MODEL_A
+  }
+}
+
+function committed(
+  req: MainDispatchRequest,
+  hasLiveStream: boolean,
+  models: readonly UniqueModelId[] = hasLiveStream ? [] : [MODEL_A]
+): CommittedConversationIntent {
+  const userMessageParts = req.trigger === ConversationOpenTrigger.SubmitMessage ? req.userMessageParts : []
+  const reasoningEffort = 'reasoningEffort' in req ? req.reasoningEffort : undefined
+  const fastMode = 'fastMode' in req && req.fastMode === true
+  if (hasLiveStream) {
+    return {
+      conversation: req.conversation,
+      input: {
+        historyNodeId: 'user-queued',
+        pendingSteerReasoningEffort: reasoningEffort,
+        pendingSteerFastMode: fastMode
+      },
+      executions: [],
+      reservedMessages: [{ id: 'user-queued', role: 'user', parts: userMessageParts }],
+      activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+      postCommitTasks: []
+    }
+  }
+  return {
+    conversation: req.conversation,
+    input: { historyNodeId: 'user-committed' },
+    executions: models.map((modelId, index) => {
+      const outputNodeId = `assistant-${index + 1}`
+      return {
+        modelId,
+        outputNodeId,
+        preparation: {
+          kind: ConversationExecutionPreparationKind.TemporaryChat as const,
+          conversation: req.conversation,
+          modelId,
+          outputNodeId,
+          messages: [],
+          fastMode: false
+        },
+        preparationIndex: 0,
+        persistence: {
+          kind: ConversationTerminalPersistenceKind.TemporaryChat as const,
+          topicId: req.conversation.id,
+          modelId,
+          messageId: outputNodeId
+        },
+        driver: { kind: ConversationExecutionDriverBindingKind.Chat as const }
+      }
+    }),
+    reservedMessages: [
+      { id: 'user-committed', role: 'user' as const, parts: userMessageParts },
+      ...models.map((_, index) => ({ id: `assistant-${index + 1}`, role: 'assistant' as const, parts: [] }))
+    ],
+    activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+    postCommitTasks: []
+  }
+}
+
+function provider(
+  canHandle: (conversation: ConversationRef) => boolean,
+  hooks: {
+    validate?: ConversationHistoryPort['validateIntent']
+    commit?: ConversationHistoryPort['commitIntent']
+  } = {}
+): ConversationHistoryPort & {
+  validateIntent: ReturnType<typeof vi.fn>
+  commitIntent: ReturnType<typeof vi.fn>
+} {
+  const validateIntent = vi.fn(
+    hooks.validate ??
+      (async (req: MainDispatchRequest, context: { hasLiveStream: boolean }) => validation(req, context.hasLiveStream))
+  )
+  const commitIntent = vi.fn(
+    hooks.commit ??
+      ((current: ValidatedConversationIntent, context: { hasLiveStream: boolean }) =>
+        committed(current.request, context.hasLiveStream, current.executionModelIds))
+  )
+  return {
+    name: 'test-history',
+    isPersistentConversation: true,
+    canHandle,
+    validateIntent,
+    commitIntent,
+    prepareExecutionContext: async (descriptor, signal) => {
+      signal.throwIfAborted()
+      if (descriptor.kind !== ConversationExecutionPreparationKind.TemporaryChat) {
+        throw new Error(`Unexpected test descriptor ${descriptor.kind}`)
+      }
+      return {
+        conversation: descriptor.conversation,
+        models: [
+          {
+            modelId: descriptor.modelId,
+            request: {
+              chatId: descriptor.conversation.id,
+              trigger: ConversationOpenTrigger.SubmitMessage,
+              uniqueModelId: descriptor.modelId,
+              messageId: descriptor.outputNodeId,
+              messages: [...descriptor.messages]
+            }
+          }
+        ]
+      }
+    },
+    persistTerminal: async () => {}
+  } as never
+}
+
+function service(providers: readonly ConversationHistoryPort[], streams = [controlledStream()]) {
+  const remaining = [...streams]
+  const open = vi.fn(async () => remaining.shift()?.stream ?? new ReadableStream<UIMessageChunk>({}))
+  return {
+    runtime: new ConversationRuntimeService({ providers, executionManager: new AiExecutionManager(open) }),
+    open
+  }
+}
+
+describe('ConversationRuntimeService.dispatch — steer and ownership', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    vi.clearAllMocks()
+    mocks.namingWrites.clear()
+  })
+
   it('persists a live chat submit as a steer and enqueues it (no abort, stream stays live)', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-1', {
-      inject: true,
-      steer: true,
-      reasoningEffort: 'high',
-      serviceTier: 'flex'
+    const ref = { kind: ConversationKind.Chat, id: 'topic-1' } as const
+    const contexts: boolean[] = []
+    const history = provider(() => true, {
+      validate: async (req, context) => {
+        contexts.push(context.hasLiveStream)
+        return validation(req, context.hasLiveStream)
+      }
     })
-    const manager = makeManager(true)
+    const { runtime } = service([history])
 
-    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))
+    await runtime.dispatch(listener(), request(ref, { text: 'first' }))
+    const result = await runtime.dispatch(listener(), request(ref, { text: 'steer', reasoningEffort: 'high' }))
 
-    // No abort/evict — prepareDispatch observes the still-live stream and takes its inject branch,
-    // and the persisted user row is enqueued as a pending steer before send (which just attaches).
-    expect(preparedWithCtx).toEqual({ hasLiveStream: true })
-    expect(order).toEqual(['prepareDispatch', 'enqueuePendingSteer', 'send'])
-    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', 'high', 'flex', false)
+    expect(result).toMatchObject({ mode: ConversationOpenMode.Injected, reservedMessages: [{ id: 'user-queued' }] })
+    expect(contexts).toEqual([false, true])
+    expect(runtime.inspect(ref).inbox.nextTurn).toHaveLength(1)
+    expect(runtime.inspect(ref).phase).toBe(ConversationPhase.Running)
   })
 
   it('carries Fast into a queued steer continuation', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-fast', {
-      inject: true,
-      steer: true,
-      reasoningEffort: 'high',
-      fastMode: true
-    })
-    const manager = makeManager(true)
+    const ref = { kind: ConversationKind.Chat, id: 'topic-fast' } as const
+    const first = controlledStream()
+    const second = controlledStream()
+    const history = provider(() => true)
+    const { runtime } = service([history], [first, second])
 
-    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-fast'))
+    await runtime.dispatch(listener(), request(ref, { text: 'first' }))
+    await runtime.dispatch(listener(), request(ref, { text: 'steer', reasoningEffort: 'high', fastMode: true }))
+    first.controller.close()
 
-    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-fast', 'u1', 'high', undefined, true)
+    await vi.waitFor(() =>
+      expect(history.validateIntent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger: ConversationContinuationTrigger.ContinueSteer,
+          reasoningEffort: 'high',
+          fastMode: true
+        }),
+        expect.objectContaining({ hasLiveStream: false }),
+        expect.any(AbortSignal)
+      )
+    )
+    second.controller.close()
   })
 
   it('does not enqueue a steer for a non-live chat submit (normal turn opens models)', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-2', { inject: false })
-    const manager = makeManager(false)
+    const ref = { kind: ConversationKind.Chat, id: 'topic-2' } as const
+    const history = provider(() => true)
+    const { runtime, open } = service([history])
 
-    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-2'))
+    const result = await runtime.dispatch(listener(), request(ref))
 
-    expect(manager.enqueuePendingSteer).not.toHaveBeenCalled()
-    expect(order).toEqual(['prepareDispatch', 'send'])
-    expect(preparedWithCtx).toEqual({ hasLiveStream: false })
-    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ isPersistentConversation: true }))
+    expect(result).toMatchObject({ mode: ConversationOpenMode.Started })
+    expect(runtime.inspect(ref).inbox.nextTurn).toEqual([])
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
   })
 
   it('snapshots temporary ownership at admission', async () => {
-    mocks.temporaryCanHandle.mockReturnValue(true)
-    wirePrepare(mocks.temporaryPrepare, 'temporary-1', { inject: false })
-    const manager = makeManager(false)
+    const ref = { kind: ConversationKind.Chat, id: 'temporary-1' } as const
+    let temporaryOwns = true
+    let finishValidation!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      finishValidation = resolve
+    })
+    const temporary = provider(() => temporaryOwns, {
+      validate: async (req, context) => {
+        await blocked
+        return validation(req, context.hasLiveStream)
+      }
+    })
+    const persistent = provider(() => !temporaryOwns)
+    const { runtime } = service([temporary, persistent])
 
-    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('temporary-1'))
+    const opening = runtime.dispatch(listener(), request(ref))
+    await vi.waitFor(() => expect(temporary.validateIntent).toHaveBeenCalledOnce())
+    temporaryOwns = false
+    finishValidation()
+    await expect(opening).resolves.toMatchObject({ mode: ConversationOpenMode.Started })
 
-    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ isPersistentConversation: false }))
+    expect(temporary.commitIntent).toHaveBeenCalledOnce()
+    expect(persistent.commitIntent).not.toHaveBeenCalled()
   })
 
-  it('never enqueues a chat steer for an agent-session topic (agent runtime owns its follow-ups)', async () => {
-    mocks.agentCanHandle.mockReturnValue(true)
-    wirePrepare(mocks.agentPrepare, 'agent-session:s1', { inject: true })
-    const manager = makeManager(true)
+  it('never classifies an Agent follow-up as a Chat steer', async () => {
+    const ref = { kind: ConversationKind.Agent, id: 'session-1' } as const
+    const history = provider((conversation) => conversation.kind === ConversationKind.Agent)
+    const { runtime } = service([history])
 
-    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))
+    await runtime.dispatch(listener(), request(ref, { text: 'first', headless: true }))
+    const result = await runtime.dispatch(listener(), request(ref, { text: 'follow-up', headless: true }))
 
-    // Even though the agent inject shape has no models, the steer enqueue is gated to the
-    // persistent provider, so the agent path is untouched and still sees the live stream.
-    expect(manager.enqueuePendingSteer).not.toHaveBeenCalled()
-    expect(order).toEqual(['prepareDispatch', 'send'])
-    expect(preparedWithCtx).toEqual({ hasLiveStream: true })
+    expect(result).toMatchObject({ mode: ConversationOpenMode.Injected })
+    expect(runtime.inspect(ref).inbox.nextTurn).toHaveLength(1)
+    expect(runtime.inspect(ref).inbox.nextStep).toEqual([])
   })
 
-  // stream-context-1: the workspace-blocked branch was uncovered (the only test stubbed
-  // isAgentSessionWorkspaceError to always-false).
-  it('returns mode:blocked without sending when prepareDispatch throws a workspace error', async () => {
-    mocks.agentCanHandle.mockReturnValue(true)
-    mocks.isWorkspaceErr.mockReturnValue(true)
-    mocks.agentPrepare.mockRejectedValue(new Error('workspace missing'))
-    const manager = makeManager(true)
+  it('returns mode:blocked without committing when validation throws a workspace error', async () => {
+    const ref = { kind: ConversationKind.Agent, id: 'session-workspace' } as const
+    const history = provider(() => true, {
+      validate: async () => Promise.reject(new AgentSessionWorkspaceError('workspace missing'))
+    })
+    const { runtime, open } = service([history])
 
-    const result = await dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))
-
-    expect(result).toMatchObject({
-      mode: 'blocked',
-      reason: 'agent-session-workspace',
+    await expect(runtime.dispatch(listener(), request(ref))).resolves.toMatchObject({
+      mode: ConversationOpenMode.Blocked,
+      reason: ConversationBlockReason.AgentSessionWorkspace,
       message: 'workspace missing'
     })
-    expect(manager.send).not.toHaveBeenCalled()
+    expect(history.commitIntent).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
   })
 
-  it('rethrows a non-workspace prepareDispatch error and does not send', async () => {
-    mocks.agentCanHandle.mockReturnValue(true)
-    mocks.isWorkspaceErr.mockReturnValue(false)
-    mocks.agentPrepare.mockRejectedValue(new Error('boom'))
-    const manager = makeManager(true)
+  it('rethrows a non-workspace validation error and does not commit', async () => {
+    const ref = { kind: ConversationKind.Agent, id: 'session-error' } as const
+    const history = provider(() => true, { validate: async () => Promise.reject(new Error('boom')) })
+    const { runtime, open } = service([history])
 
-    await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))).rejects.toThrow('boom')
-    expect(manager.send).not.toHaveBeenCalled()
+    await expect(runtime.dispatch(listener(), request(ref))).rejects.toThrow('boom')
+    expect(history.commitIntent).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
   })
 
-  it('validates multi-model placeholders before sending', async () => {
-    mocks.persistentPrepare.mockResolvedValue({
-      topicId: 'topic-3',
-      models: [
-        { modelId: 'p::m1', request: { messageId: 'assistant-1' } },
-        { modelId: 'p::m2', request: {} }
-      ],
-      listeners: [] as StreamListener[],
-      reservedMessages: [{ id: 'assistant-1', role: 'assistant', parts: [] }]
+  it('validates multi-model placeholders before registering resources', async () => {
+    const ref = { kind: ConversationKind.Chat, id: 'topic-3' } as const
+    const history = provider(() => true, {
+      validate: async (req, context) => validation(req, context.hasLiveStream, [MODEL_A, MODEL_B]),
+      commit: (current, context) => committed(current.request, context.hasLiveStream, [MODEL_A])
     })
-    const manager = makeManager(false)
+    const { runtime, open } = service([history])
 
-    await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-3'))).rejects.toThrow(
-      'Multi-model dispatch produced 1 assistant reservations for 2 models'
+    await expect(runtime.dispatch(listener(), request(ref))).rejects.toThrow(
+      'History adapter changed the execution count after admission preview'
     )
-    expect(manager.send).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
   })
 
-  it('activates the reserved assistant when a live-group append settles during preparation', async () => {
-    mocks.persistentPrepare.mockResolvedValue({
-      topicId: 'topic-append',
-      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
-      listeners: [] as StreamListener[],
-      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
-      liveExecutionChange: {
-        mode: 'append',
-        groupAnchorMessageId: 'assistant-1',
-        parentAnchorId: 'user-1',
-        siblingsGroupId: 1,
-        activateFallback: true
-      },
-      preserveActiveNode: true
+  it('opens a regenerate turn when an explicit append target settles during validation', async () => {
+    const ref = { kind: ConversationKind.Chat, id: 'topic-append' } as const
+    const first = controlledStream()
+    const second = controlledStream()
+    let finishAppendValidation!: () => void
+    const appendValidation = new Promise<void>((resolve) => {
+      finishAppendValidation = resolve
     })
-    const manager = makeManager(true)
-    vi.mocked(manager.hasLiveStream).mockReturnValueOnce(true).mockReturnValueOnce(false)
+    const history = provider(() => true, {
+      validate: async (req, context) => {
+        if (req.trigger === ConversationOpenTrigger.AppendModel) await appendValidation
+        return validation(req, context.hasLiveStream, [MODEL_B])
+      },
+      commit: (current, context) => committed(current.request, context.hasLiveStream, current.executionModelIds)
+    })
+    const { runtime, open } = service([history], [first, second])
 
-    const result = await dispatchStreamRequest(manager, makeSubscriber(), {
-      topicId: 'topic-append',
-      trigger: 'regenerate-message',
+    await runtime.dispatch(listener(), request(ref))
+    const append = runtime.dispatch(listener(), {
+      trigger: ConversationOpenTrigger.AppendModel,
+      conversation: ref,
       parentAnchorId: 'user-1',
       appendToLiveGroupMessageId: 'assistant-1',
-      mentionedModelIds: ['p::m2']
+      mentionedModelIds: [MODEL_B]
     })
+    await vi.waitFor(() => expect(history.validateIntent).toHaveBeenCalledTimes(2))
+    first.controller.close()
+    await vi.waitFor(() => expect(runtime.inspect(ref).phase).toBe(ConversationPhase.Idle))
+    finishAppendValidation()
 
-    expect(mocks.setActiveNode).toHaveBeenCalledWith('topic-append', 'assistant-2')
-    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
-    expect(result).toMatchObject({ preserveActiveNode: false })
+    await expect(append).resolves.toMatchObject({ mode: ConversationOpenMode.Started })
+    expect(history.commitIntent).toHaveBeenCalledTimes(2)
+    expect(open).toHaveBeenCalledTimes(2)
+    second.controller.close()
   })
 })

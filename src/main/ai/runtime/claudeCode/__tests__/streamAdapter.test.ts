@@ -1,3 +1,4 @@
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -438,7 +439,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         data: expect.objectContaining({
           event: 'updated',
           taskId: 'task-9',
-          status: 'error', // mapTaskStatus('failed')
+          status: ConversationOutcomeKind.Error, // mapTaskStatus('failed')
           error: 'render crashed',
           activeText: undefined // only set while in_progress
         })
@@ -548,10 +549,9 @@ describe('ClaudeCodeStreamAdapter', () => {
     const persistAssistant = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'agent-session:session-1',
-      backend: { kind: 'test', persistAssistant },
-      onPersistFailed: vi.fn()
+      backend: { kind: 'test', persistAssistant }
     })
-    await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
+    await listener.onDone({ status: ConversationOutcomeKind.Success, finalMessage })
 
     expect(persistAssistant).toHaveBeenCalledWith(
       expect.objectContaining({

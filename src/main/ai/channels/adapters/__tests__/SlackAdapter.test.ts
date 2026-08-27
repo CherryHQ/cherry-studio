@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ChannelStreamCompletionResult } from '../../ChannelAdapter'
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -271,6 +273,30 @@ describe('SlackAdapter', () => {
         text: 'Hello agent'
       })
     )
+  })
+
+  it('does not emit when an in-flight message loses connect-run ownership', async () => {
+    const adapter = await connectAdapter()
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+    let finishUserLookup!: () => void
+    mockNetFetch.mockImplementation((url: string) => {
+      if (url.includes('users.info')) {
+        return new Promise((resolve) => {
+          finishUserLookup = () => resolve(mockJsonResponse({ ok: true, user: { real_name: 'Late User' } }))
+        })
+      }
+      return Promise.resolve(mockJsonResponse({ ok: true }))
+    })
+
+    simulateMessageEvent({ channel: 'C0ALLOWED', user: USER1_ID, text: 'late' })
+    await vi.waitFor(() => expect(finishUserLookup).toBeTypeOf('function'))
+    await adapter.disconnect()
+    finishUserLookup()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(messageSpy).not.toHaveBeenCalled()
   })
 
   it('acknowledges incoming message envelopes', async () => {
@@ -609,7 +635,7 @@ describe('SlackAdapter', () => {
     expect(updateBody.text).toBe('partial text...')
   })
 
-  it('onStreamComplete() edits the final message and returns true', async () => {
+  it('onStreamComplete() edits the final message and reports delivery', async () => {
     const adapter = await connectAdapter()
     vi.useFakeTimers()
 
@@ -617,17 +643,17 @@ describe('SlackAdapter', () => {
     await vi.advanceTimersByTimeAsync(2000)
 
     const result = await adapter.onStreamComplete('C0ALLOWED', 'final text')
-    expect(result).toBe(true)
+    expect(result).toBe(ChannelStreamCompletionResult.Delivered)
 
     const updateCalls = mockNetFetch.mock.calls.filter((c: unknown[]) => (c[0] as string).includes('chat.update'))
     const lastUpdateBody = JSON.parse(updateCalls[updateCalls.length - 1][1].body)
     expect(lastUpdateBody.text).toBe('final text')
   })
 
-  it('onStreamComplete() returns false when no streaming session exists', async () => {
+  it('onStreamComplete() reports an unhandled stream when no streaming session exists', async () => {
     const adapter = await connectAdapter()
     const result = await adapter.onStreamComplete('C0ALLOWED', 'final text')
-    expect(result).toBe(false)
+    expect(result).toBe(ChannelStreamCompletionResult.NotHandled)
   })
 
   it('onStreamError() updates the message with error text', async () => {

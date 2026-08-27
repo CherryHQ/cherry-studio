@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
+import { ConversationTargetMode } from '@shared/ai/conversation'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -555,13 +556,15 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
-  useTopicAwaitingApproval: () => false
-}))
-
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicAwaitingApproval: () => mocks.awaitingApproval,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationAwaitingInteraction: () => mocks.awaitingApproval,
+  useConversationStreamStatus: () => ({
+    isPending: mocks.topicPending,
+    conversationBusy: mocks.topicPending || mocks.awaitingApproval,
+    canSteer: mocks.topicPending && !mocks.awaitingApproval,
+    isFulfilled: false,
+    markSeen: () => {}
+  })
 }))
 
 vi.mock('@shared/utils/model', () => ({
@@ -2225,7 +2228,7 @@ describe('ChatComposer', () => {
   it('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
-    const reservedTarget = { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const
+    const reservedTarget = { parentAnchorId: 'reserved-user', mode: ConversationTargetMode.ReservedBranch } as const
     const view = render(<ChatComposer topic={topic} chatTarget={reservedTarget} onSend={onSend} />)
 
     await act(async () => {
@@ -2242,7 +2245,7 @@ describe('ChatComposer', () => {
     view.rerender(
       <ChatComposer
         topic={topic}
-        chatTarget={{ parentAnchorId: 'different-active-node', mode: 'active-path' }}
+        chatTarget={{ parentAnchorId: 'different-active-node', mode: ConversationTargetMode.ActivePath }}
         onSend={onSend}
       />
     )

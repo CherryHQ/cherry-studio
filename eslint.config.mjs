@@ -92,6 +92,10 @@ const BAN_DRIZZLE_MIGRATOR = {
   message:
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
 }
+const BAN_DATA_CHANGE_PUBLISHER = {
+  group: ['@data/dataApiDataChange', '**/data/dataApiDataChange', '**/dataApiDataChange'],
+  message: 'Publish DataApi effects through DbService.withWriteTx()/withEffects(); do not call the IPC publisher directly.'
+}
 
 // --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
 // An inline custom plugin (like the `lifecycle` plugin below), not no-restricted-paths:
@@ -399,6 +403,44 @@ export default defineConfig([
       'import-zod/prefer-zod-namespace': 'error'
     }
   },
+  {
+    files: ['src/main/**/*.{ts,tsx,js,jsx}'],
+    ignores: [
+      'src/main/data/db/DbService.ts',
+      'src/main/data/dataApiDataChange.ts',
+      'src/main/**/__tests__/**',
+      'src/main/**/__mocks__/**',
+      'src/main/**/*.test.*'
+    ],
+    plugins: {
+      'data-effects': {
+        rules: {
+          'no-direct-publish': {
+            meta: {
+              type: 'problem',
+              schema: [],
+              messages: {
+                restricted:
+                  'DataApi effects must be collected by DbService and published only after commit; use tx.effects.add() or DbService.withEffects().'
+              }
+            },
+            create(context) {
+              return {
+                CallExpression(node) {
+                  if (node.callee.type === 'Identifier' && node.callee.name === 'notifyDataApiDataChange') {
+                    context.report({ node, messageId: 'restricted' })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'data-effects/no-direct-publish': 'error'
+    }
+  },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules
   {
     rules: {
@@ -684,6 +726,21 @@ export default defineConfig([
     // main i18n catalog now lives in `src/main/i18n`, and tests that need renderer
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR, BAN_DATA_CHANGE_PUBLISHER] }
+      ]
+    }
+  },
+  {
+    files: ['src/main/data/db/DbService.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
+    }
+  },
+  {
+    files: ['src/main/data/**/__tests__/**/*.{ts,tsx,js,jsx}', 'src/main/data/**/*.test.*'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
     }

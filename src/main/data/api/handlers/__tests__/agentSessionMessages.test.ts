@@ -1,3 +1,4 @@
+import { ConversationKind } from '@shared/ai/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { listSessionMessagesMock, getSessionMessageMock, updateSessionMessageMock, deleteSessionMessageMock } =
@@ -72,7 +73,7 @@ describe('agentSessionMessageHandlers', () => {
         input: {},
         output: {
           $deferredToolResult: {
-            topicId: 'agent-session:session-1',
+            conversation: { kind: ConversationKind.Agent, id: 'session-1' },
             messageId: 'assistant-message',
             toolCallId: 'tool-call-1'
           }

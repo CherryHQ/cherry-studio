@@ -15,10 +15,11 @@
  */
 
 import { loggerService } from '@logger'
+import { useMessageListMeta } from '@renderer/components/chat/messages/MessageListProvider'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
 import {
@@ -1530,13 +1531,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
-  const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
-  const topicTurnState = classifyTurn(topicStreamStatus)
-  const isProcessing = useIsActiveTurnTarget(message)
-  const isActiveTurnProcessing = isProcessing && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
+  const { conversation } = useMessageListMeta()
+  const { status: conversationStatus } = useConversationStreamStatus(conversation)
+  const turnState = classifyTurn(conversationStatus)
+  const isProcessing = useIsActiveTurnTarget(message, conversation)
+  const isActiveTurnProcessing = isProcessing && (conversationStatus === undefined || turnState.isTurnActive)
   const isStreamLive =
-    isActiveTurnProcessing &&
-    (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
+    isActiveTurnProcessing && (conversationStatus === undefined ? message.status === 'pending' : turnState.isStreamLive)
   const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 

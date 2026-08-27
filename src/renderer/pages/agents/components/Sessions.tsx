@@ -46,7 +46,7 @@ import type { AgentSessionExportOptions } from '@renderer/services/agentSessionE
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
@@ -886,7 +886,7 @@ const Sessions = ({
       const messages = await getAgentSessionMessagesForExport(session)
       if (messages.length < 2) return
 
-      const topicId = buildAgentSessionTopicId(session.id)
+      const topicId = buildAgentSessionScopeKey(session.id)
       startTopicRenaming(topicId)
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })

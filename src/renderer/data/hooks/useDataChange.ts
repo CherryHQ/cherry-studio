@@ -1,17 +1,30 @@
 import { dataApiService } from '@data/DataApiService'
+import type { ParamsForPath } from '@shared/data/api/paths'
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import { useEffect, useRef } from 'react'
 
-export interface UseDataChangeOptions {
-  /** Concrete parameters for a template endpoint. Effects without a route claim still match. */
-  routeParams?: Readonly<Record<string, string>>
-}
+export type UseDataChangeOptions<Path extends GetMethodApiPaths> = [Path] extends [`${string}:${string}`]
+  ? {
+      /** Concrete parameters for a template endpoint. All-routes effects still match. */
+      routeParams?: Readonly<ParamsForPath<Path, 'GET'>>
+    }
+  : {
+      routeParams?: never
+    }
 
-/** Subscribe to typed DataApi read-model changes for the component lifetime. */
-export function useDataChange(
-  endpoints: GetMethodApiPaths | GetMethodApiPaths[],
+export function useDataChange<Path extends GetMethodApiPaths>(
+  endpoints: Path,
   listener: (effects: DataApiDataChangeEffect[]) => void,
-  options: UseDataChangeOptions = {}
+  options?: UseDataChangeOptions<Path>
+): void
+export function useDataChange<Path extends GetMethodApiPaths>(
+  endpoints: Path | readonly Path[],
+  listener: (effects: DataApiDataChangeEffect[]) => void
+): void
+export function useDataChange(
+  endpoints: GetMethodApiPaths | readonly GetMethodApiPaths[],
+  listener: (effects: DataApiDataChangeEffect[]) => void,
+  options: { routeParams?: Readonly<Record<string, unknown>> } = {}
 ): void {
   const listenerRef = useRef(listener)
   const routeParamsRef = useRef(options.routeParams)
@@ -20,18 +33,20 @@ export function useDataChange(
     routeParamsRef.current = options.routeParams
   })
 
-  const endpointsKey = Array.isArray(endpoints) ? endpoints.join('\0') : endpoints
+  const endpointsKey = typeof endpoints === 'string' ? endpoints : endpoints.join('\0')
   useEffect(() => {
     if (endpointsKey === '') return
     const endpointList = endpointsKey.split('\0') as GetMethodApiPaths[]
     return dataApiService.onDataChanged?.(endpointList, (effects) => {
       const routeParams = routeParamsRef.current
       const matchingEffects = routeParams
-        ? effects.filter(
-            (effect) =>
-              !effect.routeParams ||
-              Object.entries(routeParams).every(([key, value]) => effect.routeParams?.[key] === value)
-          )
+        ? effects.filter((effect) => {
+            const effectRouteParams = effect.routeParams as Readonly<Record<string, string>> | undefined
+            return (
+              !effectRouteParams ||
+              Object.entries(routeParams).every(([key, value]) => effectRouteParams[key] === value)
+            )
+          })
         : effects
       if (matchingEffects.length > 0) listenerRef.current(matchingEffects)
     })

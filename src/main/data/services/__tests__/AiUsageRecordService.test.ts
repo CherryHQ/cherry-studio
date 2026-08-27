@@ -15,17 +15,12 @@ import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/feat
 import { createAiUsageCaptureContext, createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import type { LanguageModelMiddleware } from 'ai'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
-  notifyDataApiDataChangeMock: vi.fn()
-}))
-
-vi.mock('@data/dataApiDataChange', () => ({
-  notifyDataApiDataChange: notifyDataApiDataChangeMock
-}))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 const messageId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 
@@ -103,7 +98,7 @@ describe('AiUsageRecordService', () => {
   })
 
   beforeEach(() => {
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
     dbh.db
       .insert(assistantTable)
       .values({
@@ -195,8 +190,8 @@ describe('AiUsageRecordService', () => {
       timeCompletionMs: 900,
       timeThinkingMs: 200
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+    expect(publishedEffects).toHaveBeenCalledTimes(1)
+    expect(publishedEffects).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           endpoint: '/topics/:topicId/messages',

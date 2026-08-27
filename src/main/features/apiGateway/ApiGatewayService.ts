@@ -318,6 +318,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
   resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
-    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
+    return application.get('AgentConnectionManager').getActiveUsageContext(sessionId)
   }
 }

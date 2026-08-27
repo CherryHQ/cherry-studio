@@ -15,49 +15,110 @@
 
 import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
 import { jobService } from '@data/services/JobService'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { DbService as DbServiceClass } from '../DbService'
+
+const { notifyDataApiDataChange } = vi.hoisted(() => ({ notifyDataApiDataChange: vi.fn() }))
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange }))
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
   return mod.mockApplicationFactory()
 })
 
-/**
- * Faithful mirror of production `withWriteTx` (DbService.ts) — a readiness guard
- * in front of one `BEGIN IMMEDIATE` transaction. It is two lines, so keeping it
- * in lockstep with production is trivial; the unit tests below pin the guard
- * branch and the transaction options, which the always-ready integration suite
- * cannot reach.
- */
-function makeWithWriteTx<Tx>(
-  db: { transaction: (fn: (tx: Tx) => unknown, opts: { behavior: 'immediate' }) => unknown },
-  isReady: boolean
-) {
-  return async function withWriteTx<T>(fn: (tx: Tx) => T): Promise<T> {
-    if (!isReady) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-    return db.transaction(fn, { behavior: 'immediate' }) as T
-  }
+const { DbService } = await vi.importActual<{ DbService: typeof DbServiceClass }>('../DbService')
+type DbServiceInstance = InstanceType<typeof DbService>
+
+function bareDbService(ready: boolean): DbServiceInstance {
+  const tx = {}
+  const service = Object.create(DbService.prototype) as DbServiceInstance
+  Object.defineProperty(service, 'db', {
+    value: { transaction: (fn: (value: object) => unknown) => fn(tx) }
+  })
+  Object.defineProperty(service, 'isReady', { value: ready })
+  return service
 }
 
 describe('withWriteTx readiness guard — unit', () => {
-  it('rejects before init() without touching the db', async () => {
-    const transaction = vi.fn()
-    const withWriteTx = makeWithWriteTx({ transaction }, false)
+  beforeEach(() => notifyDataApiDataChange.mockClear())
 
-    await expect(withWriteTx(() => 'never')).rejects.toThrow(/not initialized/i)
-    expect(transaction).not.toHaveBeenCalled()
+  it('rejects before init() without publishing', () => {
+    const service = bareDbService(false)
+
+    expect(() => service.withWriteTx(() => 'never')).toThrow(/not initialized/i)
+    expect(notifyDataApiDataChange).not.toHaveBeenCalled()
   })
 
-  it('runs fn inside a BEGIN IMMEDIATE transaction when ready', async () => {
-    const transaction = vi.fn((fn: (tx: unknown) => unknown) => fn({}))
-    const withWriteTx = makeWithWriteTx({ transaction }, true)
+  it('publishes one deduplicated effect batch after commit', () => {
+    const service = bareDbService(true)
+    const effect: DataApiDataChangeEffect = { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] }
 
-    await expect(withWriteTx(() => 'ok')).resolves.toBe('ok')
-    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { behavior: 'immediate' })
+    expect(
+      service.withWriteTx((tx) => {
+        tx.effects.add(effect)
+        tx.effects.add(effect)
+        return 'ok'
+      })
+    ).toBe('ok')
+    expect(notifyDataApiDataChange).toHaveBeenCalledExactlyOnceWith([effect])
+  })
+
+  it('keeps the committed result successful when effect publication fails', () => {
+    const service = bareDbService(true)
+    notifyDataApiDataChange.mockImplementationOnce(() => {
+      throw new Error('publisher unavailable')
+    })
+
+    expect(
+      service.withWriteTx((tx) => {
+        tx.effects.add({ endpoint: '/agents', kind: 'membership', entityIds: ['agent-1'] })
+        return 'committed'
+      })
+    ).toBe('committed')
+  })
+
+  it('publishes no effects when the write rolls back', () => {
+    const service = bareDbService(true)
+
+    expect(() =>
+      service.withWriteTx((tx) => {
+        tx.effects.add({ endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] })
+        throw new Error('rollback')
+      })
+    ).toThrow('rollback')
+    expect(notifyDataApiDataChange).not.toHaveBeenCalled()
+  })
+
+  it('rejects a Promise-returning callback before commit or publication', () => {
+    const service = bareDbService(true)
+
+    expect(() =>
+      service.withWriteTx(async (tx) => {
+        tx.effects.add({ endpoint: '/topics/latest' })
+      })
+    ).toThrow(/must be synchronous/i)
+    expect(notifyDataApiDataChange).not.toHaveBeenCalled()
+  })
+
+  it('merges nested transaction effects into the outer commit', () => {
+    const service = bareDbService(true)
+
+    service.withWriteTx((outer) => {
+      outer.effects.add({ endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] })
+      service.withWriteTx((inner) => {
+        inner.effects.add({ endpoint: '/topics/latest' })
+      })
+    })
+
+    expect(notifyDataApiDataChange).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] },
+      { endpoint: '/topics/latest' }
+    ])
   })
 })
 
@@ -104,11 +165,7 @@ describe('withWriteTx integration — real better-sqlite3', () => {
     expect(rows).toHaveLength(0)
   })
 
-  it('rejects an async tx fn — enforces the synchronous-fn contract', () => {
-    // Production types `fn` as synchronous; this proves the engine-level guard
-    // that backs that type: better-sqlite3 throws if the callback returns a
-    // promise, so a stray `await` inside a write tx fails loudly instead of
-    // committing early.
+  it('also receives the engine-level async callback guard from better-sqlite3', () => {
     expect(() => dbh.db.transaction(async () => 'nope', { behavior: 'immediate' })).toThrow(/cannot return a promise/i)
   })
 })

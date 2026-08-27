@@ -1,3 +1,4 @@
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,7 +35,7 @@ describe('TranslationBackend.persistAssistant', () => {
     getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: existingParts } })
 
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('你好世界') })
+    backend.persistAssistant({ status: ConversationOutcomeKind.Success, finalMessage: makeFinalMessage('你好世界') })
 
     expect(updateMock).toHaveBeenCalledTimes(1)
     const [, dto] = updateMock.mock.calls[0]
@@ -52,7 +53,7 @@ describe('TranslationBackend.persistAssistant', () => {
       targetLanguage: TARGET,
       sourceLanguage: 'en-us'
     })
-    backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('hi') })
+    backend.persistAssistant({ status: ConversationOutcomeKind.Success, finalMessage: makeFinalMessage('hi') })
 
     const [, dto] = updateMock.mock.calls[0]
     expect(dto.data.parts).toEqual([
@@ -62,7 +63,7 @@ describe('TranslationBackend.persistAssistant', () => {
 
   it('no-ops on paused status (translation is discard-on-cancel)', async () => {
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    backend.persistAssistant({ status: 'paused', finalMessage: makeFinalMessage('partial') })
+    backend.persistAssistant({ status: ConversationOutcomeKind.Paused, finalMessage: makeFinalMessage('partial') })
 
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
@@ -70,7 +71,7 @@ describe('TranslationBackend.persistAssistant', () => {
 
   it('no-ops on error status', async () => {
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    backend.persistAssistant({ status: 'error', finalMessage: makeFinalMessage('partial') })
+    backend.persistAssistant({ status: ConversationOutcomeKind.Error, finalMessage: makeFinalMessage('partial') })
 
     expect(updateMock).not.toHaveBeenCalled()
   })
@@ -78,7 +79,7 @@ describe('TranslationBackend.persistAssistant', () => {
   it('no-ops when finalMessage has no text content', async () => {
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
     backend.persistAssistant({
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       finalMessage: { id: 'final', role: 'assistant', parts: [] } as CherryUIMessage
     })
 
@@ -90,7 +91,7 @@ describe('TranslationBackend.persistAssistant', () => {
 
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
     backend.persistAssistant({
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       finalMessage: {
         id: 'final',
         role: 'assistant',
@@ -113,7 +114,7 @@ describe('TranslationBackend.persistAssistant', () => {
     getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: existingParts } })
 
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('翻译') })
+    backend.persistAssistant({ status: ConversationOutcomeKind.Success, finalMessage: makeFinalMessage('翻译') })
 
     const [, dto] = updateMock.mock.calls[0]
     expect(dto.data.parts).toEqual([

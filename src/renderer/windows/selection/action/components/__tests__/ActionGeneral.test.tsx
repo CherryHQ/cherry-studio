@@ -60,8 +60,8 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -105,6 +105,7 @@ vi.mock('../WindowFooter', () => ({
 }))
 
 vi.mock('@renderer/services/aiTransport', () => ({
+  ConversationOverlayDurability: { Durable: 'durable', Ephemeral: 'ephemeral' },
   ipcChatTransport: {}
 }))
 

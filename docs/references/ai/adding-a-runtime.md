@@ -13,7 +13,7 @@ host/driver architecture itself (turn lifecycle, resume tokens, follow-up
 queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
 document is the operational checklist.
 
-The host (`AgentSessionRuntimeService`) is type-agnostic: it dispatches on
+The host (`AgentConnectionManager`) is type-agnostic: it dispatches on
 `agent.type` through `runtimeDriverRegistry` and never branches on a concrete
 runtime. Renderer UI is descriptor-driven: it reads
 `AGENT_RUNTIME_CAPABILITIES[agent.type]` and never branches on a concrete
@@ -76,15 +76,17 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 `src/main/ai/runtime/types.ts`:
 
 1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
-   - `type` (the `AgentType` literal) and `capabilities: ['agent-session']`
+   - `type` (the `AgentType` literal) and
+     `capabilities: [AiRuntimeCapability.AgentSession]` imported from the
+     runtime contract
    - `validateSession(session)` — throw if the session can't be served
      (missing workspace, agent, model, unusable provider). Must be
      **side-effect free**: it runs on every dispatch, so it must not consume
      API-key rotation, open connections, or write state.
    - `listAvailableTools(mcpIds)` — the tool catalog for approval UI.
    - `connect(input)` — build an `AgentRuntimeConnection`.
-   - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
-     runtimes that benefit from idle warmup (see the Claude driver).
+   - Optional: `onSessionIdle` for runtimes that release or compact resources
+     when the host observes an idle session.
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
@@ -126,7 +128,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    `dsh/dshStreamAdapter.ts`.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
-   (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
+   (called from `AgentConnectionManager.onInit`). Do **not** create a
    side-effect `register.ts` module — an unimported side-effect module is
    how pi's registration was silently lost in a merge.
 

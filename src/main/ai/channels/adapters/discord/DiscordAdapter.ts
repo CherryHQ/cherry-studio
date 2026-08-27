@@ -9,7 +9,12 @@ import { clampSurrogateBoundary } from '@shared/utils/text'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  ChannelStreamCompletionResult,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
@@ -229,7 +234,7 @@ class DiscordAdapter extends ChannelAdapter {
   private resumeGatewayUrl: string | null = null
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  private isConnecting = false
+  private connectingSignal?: AbortSignal
   private shouldStop = false
 
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
@@ -249,10 +254,10 @@ class DiscordAdapter extends ChannelAdapter {
     return !!this.botToken
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.botToken) throw new Error('Discord bot token is required')
     this.shouldStop = false
-    await this.startGateway()
+    await this.startGateway(signal)
     this.log.info('Discord bot started')
   }
 
@@ -283,14 +288,15 @@ class DiscordAdapter extends ChannelAdapter {
     return data.url
   }
 
-  private async startGateway(): Promise<void> {
-    if (this.isConnecting || this.shouldStop) return
-    this.isConnecting = true
+  private async startGateway(signal: AbortSignal): Promise<void> {
+    if (this.connectingSignal === signal || this.shouldStop || !this.isConnectRunActive(signal)) return
+    this.connectingSignal = signal
 
     try {
       this.cleanup()
 
       const gatewayUrl = this.resumeGatewayUrl ?? (await this.getGatewayUrl())
+      signal.throwIfAborted()
       const wsUrl = `${gatewayUrl}?v=10&encoding=json`
       this.log.info('Connecting to Discord gateway', { url: wsUrl })
 
@@ -298,11 +304,14 @@ class DiscordAdapter extends ChannelAdapter {
       this.ws = ws
 
       ws.on('open', () => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.info('Discord WebSocket connected')
       })
 
       ws.on('message', (data: Buffer) => {
-        this.handleWsMessage(data).catch((err) => {
+        if (!this.isConnectRunActive(signal)) return
+        this.handleWsMessage(data, signal).catch((err) => {
+          if (!this.isConnectRunActive(signal)) return
           this.log.error('Error handling WS message', {
             error: err instanceof Error ? err.message : String(err)
           })
@@ -310,15 +319,17 @@ class DiscordAdapter extends ChannelAdapter {
       })
 
       ws.on('close', (code, reason) => {
-        this.markDisconnected(`WebSocket closed: ${code}`)
+        if (!this.isConnectRunActive(signal)) return
+        this.markDisconnected(`WebSocket closed: ${code}`, signal)
         this.log.warn(`WebSocket closed (code=${code}, reason=${reason.toString()})`)
         // 4004 = Authentication failed — do not reconnect
         if (code !== 4004) {
-          this.scheduleReconnect()
+          this.scheduleReconnect(signal)
         }
       })
 
       ws.on('error', (err) => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.error('Discord WebSocket error', {
           error: err.message
         })
@@ -327,15 +338,16 @@ class DiscordAdapter extends ChannelAdapter {
       this.log.error('Failed to start Discord gateway', {
         error: error instanceof Error ? error.message : String(error)
       })
-      this.scheduleReconnect()
+      if (this.isConnectRunActive(signal)) this.scheduleReconnect(signal)
     } finally {
-      this.isConnecting = false
+      if (this.connectingSignal === signal) this.connectingSignal = undefined
     }
   }
 
   // ─── WebSocket Message Handling ───────────────────────────────
 
-  private async handleWsMessage(data: Buffer): Promise<void> {
+  private async handleWsMessage(data: Buffer, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     let payload: { op: number; d?: unknown; s?: number; t?: string }
     try {
       payload = JSON.parse(data.toString())
@@ -349,10 +361,10 @@ class DiscordAdapter extends ChannelAdapter {
 
     switch (payload.op) {
       case OP_HELLO:
-        this.handleHello(payload.d as { heartbeat_interval: number })
+        this.handleHello(payload.d as { heartbeat_interval: number }, signal)
         break
       case OP_DISPATCH:
-        if (payload.t) await this.handleDispatch(payload.t, payload.d)
+        if (payload.t) await this.handleDispatch(payload.t, payload.d, signal)
         break
       case OP_HEARTBEAT_ACK:
         this.heartbeatAcked = true
@@ -370,12 +382,14 @@ class DiscordAdapter extends ChannelAdapter {
         if (resumable && this.sessionId) {
           // Wait 1-5s as per Discord docs then resume
           await new Promise((r) => setTimeout(r, 1000 + Math.random() * 4000))
+          if (!this.isConnectRunActive(signal)) return
           this.sendResume()
         } else {
           this.sessionId = null
           this.lastSeq = null
           this.resumeGatewayUrl = null
           await new Promise((r) => setTimeout(r, 1000 + Math.random() * 4000))
+          if (!this.isConnectRunActive(signal)) return
           this.sendIdentify()
         }
         break
@@ -383,15 +397,17 @@ class DiscordAdapter extends ChannelAdapter {
     }
   }
 
-  private handleHello(data: { heartbeat_interval: number }): void {
+  private handleHello(data: { heartbeat_interval: number }, signal: AbortSignal): void {
     this.heartbeatAcked = true
 
     // Jittered first heartbeat as per Discord docs
     const jitter = Math.random()
     this.heartbeatJitterTimer = setTimeout(() => {
+      if (!this.isConnectRunActive(signal)) return
       this.heartbeatJitterTimer = null
       this.sendHeartbeat()
       this.heartbeatTimer = setInterval(() => {
+        if (!this.isConnectRunActive(signal)) return
         if (!this.heartbeatAcked) {
           this.log.warn('Discord heartbeat not acked, reconnecting')
           this.ws?.close(4000, 'Heartbeat timeout')
@@ -455,7 +471,8 @@ class DiscordAdapter extends ChannelAdapter {
 
   // ─── Dispatch Event Handling ──────────────────────────────────
 
-  private async handleDispatch(eventType: string, data: unknown): Promise<void> {
+  private async handleDispatch(eventType: string, data: unknown, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     switch (eventType) {
       case 'READY': {
         const ready = data as {
@@ -468,7 +485,7 @@ class DiscordAdapter extends ChannelAdapter {
         this.resumeGatewayUrl = ready.resume_gateway_url
         this.applicationId = ready.application.id
         this.reconnectAttempts = 0
-        this.markConnected()
+        this.markConnected(signal)
         this.log.info(`Discord bot ready (user: ${ready.user.username})`)
         this.registerSlashCommands().catch((err) => {
           this.log.warn('Failed to register slash commands', {
@@ -479,19 +496,20 @@ class DiscordAdapter extends ChannelAdapter {
       }
       case 'RESUMED':
         this.reconnectAttempts = 0
-        this.markConnected()
+        this.markConnected(signal)
         this.log.info('Discord session resumed')
         break
       case 'MESSAGE_CREATE':
-        await this.handleMessageCreate(data as DiscordMessage)
+        await this.handleMessageCreate(data as DiscordMessage, signal)
         break
       case 'INTERACTION_CREATE':
-        await this.handleInteraction(data as DiscordInteraction)
+        await this.handleInteraction(data as DiscordInteraction, signal)
         break
     }
   }
 
-  private async handleMessageCreate(msg: DiscordMessage): Promise<void> {
+  private async handleMessageCreate(msg: DiscordMessage, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     // Ignore bot messages (including own)
     if (msg.author.bot) return
 
@@ -507,6 +525,7 @@ class DiscordAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId)
         return
       }
+      if (!this.isConnectRunActive(signal)) return
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', {
         chatId,
@@ -531,6 +550,7 @@ class DiscordAdapter extends ChannelAdapter {
         if (downloaded.length > 0) files = downloaded
       }
 
+      if (!this.isConnectRunActive(signal)) return
       this.emit('message', {
         chatId,
         userId: msg.author.id,
@@ -615,7 +635,8 @@ class DiscordAdapter extends ChannelAdapter {
     this.log.info('Registered Discord slash commands', { count: SLASH_COMMANDS.length })
   }
 
-  private async handleInteraction(interaction: DiscordInteraction): Promise<void> {
+  private async handleInteraction(interaction: DiscordInteraction, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     // Must always ACK a PING
     if (interaction.type === INTERACTION_TYPE_PING) return
 
@@ -646,6 +667,7 @@ class DiscordAdapter extends ChannelAdapter {
 
     // For /new, /compact, /help — ACK with deferred response, then emit command
     await this.ackInteraction(interaction)
+    if (!this.isConnectRunActive(signal)) return
 
     this.emit('command', {
       chatId,
@@ -720,11 +742,13 @@ class DiscordAdapter extends ChannelAdapter {
     await controller.onText(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
+  override async onStreamComplete(chatId: string, finalText: string): Promise<ChannelStreamCompletionResult> {
     const controller = this.streamingControllers.get(chatId)
-    if (!controller) return false
+    if (!controller) return ChannelStreamCompletionResult.NotHandled
     try {
-      return await controller.complete(finalText)
+      return (await controller.complete(finalText))
+        ? ChannelStreamCompletionResult.Delivered
+        : ChannelStreamCompletionResult.NotHandled
     } finally {
       this.streamingControllers.delete(chatId)
     }
@@ -787,11 +811,11 @@ class DiscordAdapter extends ChannelAdapter {
     }
   }
 
-  private scheduleReconnect(): void {
-    if (this.shouldStop) return
+  private scheduleReconnect(signal: AbortSignal): void {
+    if (this.shouldStop || !this.isConnectRunActive(signal)) return
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.markDisconnected('Max reconnect attempts reached')
+      this.markDisconnected('Max reconnect attempts reached', signal)
       this.log.error('Max reconnect attempts reached, giving up')
       return
     }
@@ -803,8 +827,9 @@ class DiscordAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
-      if (!this.shouldStop) {
-        this.startGateway().catch((err) => {
+      if (!this.shouldStop && this.isConnectRunActive(signal)) {
+        this.startGateway(signal).catch((err) => {
+          if (!this.isConnectRunActive(signal)) return
           this.log.error('Reconnect failed', {
             error: err instanceof Error ? err.message : String(err)
           })

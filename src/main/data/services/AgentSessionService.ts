@@ -1,14 +1,13 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx } from '@data/db/types'
+import type { DataApiEffectCollector, DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
@@ -31,7 +30,7 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -116,24 +115,28 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
   return or(nameMatch, descriptionMatch)
 }
 
-export function agentSessionReadModelEffects(
-  sessionIds: readonly string[],
-  kind: 'membership' | 'projection'
-): DataApiDataChangeEffect[] {
-  if (sessionIds.length === 0) return []
-  const entityIds = [...new Set(sessionIds)]
-  return [
-    { endpoint: '/agent-sessions', kind, entityIds },
-    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
-    { endpoint: '/agent-sessions/:sessionId', entityIds },
-    { endpoint: '/agent-sessions/latest' }
-  ]
-}
-
 export class AgentSessionService {
+  addReadModelEffects(
+    effects: DataApiEffectCollector,
+    sessionIds: readonly string[],
+    kind: 'membership' | 'projection'
+  ): void {
+    const entityIds = [...new Set(sessionIds)]
+    if (entityIds.length === 0) return
+    effects.add({ endpoint: '/agent-sessions', kind, entityIds })
+    effects.add({ endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds })
+    for (const sessionId of entityIds) {
+      effects.add({
+        endpoint: '/agent-sessions/:sessionId',
+        routeParams: { sessionId },
+        entityIds: [sessionId]
+      })
+    }
+    effects.add({ endpoint: '/agent-sessions/latest' })
+  }
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
-    const effects = agentSessionReadModelEffects(sessionIds, kind)
-    if (effects.length > 0) notifyDataApiDataChange(effects)
+    application.get('DbService').withEffects((effects) => this.addReadModelEffects(effects, sessionIds, kind))
   }
 
   listAddressableByCursor(query: {

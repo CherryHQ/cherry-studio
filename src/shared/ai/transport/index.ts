@@ -17,12 +17,11 @@ export {
   type PersistedToolOutputSingleRef
 } from './persistedToolOutput'
 export type {
-  ActiveExecution,
+  ActiveNodeDecision,
   AiAgentSessionWarmCloseRequest,
   AiAgentSessionWarmRequest,
   AiChatRequestBody,
   AiStreamAbortRequest,
-  AiStreamAdmissionReason,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
@@ -34,13 +33,28 @@ export type {
   AiToolResultResponse,
   ApprovalDecision,
   ComposerChatTarget,
+  ComposerQueuedDraftSnapshot,
   ComposerQueuedMessagePayload,
+  ConversationActorInputRequest,
+  ConversationExecutionProjection,
+  ConversationInboxItem,
+  ConversationInboxMutation,
+  ConversationInboxPresentation,
+  ConversationInboxSnapshot,
+  ConversationStatusSnapshotEntry,
+  ExecutionAttachSnapshot,
+  ExecutionAttachTerminal,
+  ExecutionReplayCursor,
+  PromptStreamAbortRequest,
+  PromptStreamChunkPayload,
+  PromptStreamDonePayload,
+  PromptStreamErrorPayload,
+  ReplayWindow,
   StreamChunkPayload,
   StreamDonePayload,
-  StreamErrorPayload,
-  TopicStatusSnapshotEntry,
-  TopicStreamStatus
+  StreamErrorPayload
 } from './stream'
-export { aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
+export { isConversationAdmissionReason } from './stream'
+export { ConversationReplayWindowKind } from './stream'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'

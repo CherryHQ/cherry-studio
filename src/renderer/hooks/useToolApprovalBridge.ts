@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
+import type { ConversationRef } from '@shared/ai/conversation'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useToolApprovalBridge')
@@ -17,7 +18,7 @@ type ToolApprovalRespondFn = (args: MessageToolApprovalInput) => Promise<void> |
  * dispatches `continue-conversation` once every approval on the turn is
  * decided.
  */
-export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
+export function useToolApprovalBridge(conversation: ConversationRef): ToolApprovalRespondFn {
   return useCallback(
     async ({ match, approved, reason, updatedInput }) => {
       const approvalId = match.approvalId
@@ -28,7 +29,7 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           approved,
           reason,
           updatedInput,
-          topicId,
+          conversation,
           anchorId: match.messageId
         })
         // Main signals failure via a resolved `{ ok: false }` (e.g. anchor deleted). Surface it as
@@ -45,6 +46,6 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
         throw error instanceof Error ? error : new Error(String(error))
       }
     },
-    [topicId]
+    [conversation]
   )
 }

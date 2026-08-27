@@ -5,12 +5,11 @@ import { PromptService, promptService } from '@data/services/PromptService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { asc, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 const PROMPT_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 const ASSISTANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -25,7 +24,7 @@ describe('PromptService', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
-    notifyDataApiDataChangeMock.mockReset()
+    publishedEffects.mockClear()
   })
 
   async function seedAssistant(id: string, orderKey: string) {
@@ -553,24 +552,29 @@ describe('PromptService', () => {
     it('publishes the prompt collection and entity read models after create', async () => {
       const prompt = await seedPrompt()
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/prompts', kind: 'membership', entityIds: [prompt.id] },
-        { endpoint: '/prompts/:id', entityIds: [prompt.id] }
+        { endpoint: '/prompts/:id', routeParams: { id: prompt.id }, entityIds: [prompt.id] }
       ])
     })
 
     it('publishes every binding-backed read model after bind', async () => {
       await seedAssistant(ASSISTANT_ID, 'a0')
       const prompt = await seedPrompt('Restricted', 'Body', 'restricted')
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       promptService.bindToTarget(prompt.id, { type: 'assistant', id: ASSISTANT_ID })
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/prompts', kind: 'membership', entityIds: [prompt.id] },
         { endpoint: '/prompt-bindings', kind: 'membership', entityIds: [prompt.id] },
-        { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'membership', entityIds: [prompt.id] },
-        { endpoint: '/prompts/:id/bindings', kind: 'membership' }
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          routeParams: { targetType: 'assistant', targetId: ASSISTANT_ID },
+          entityIds: [prompt.id]
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', routeParams: { id: prompt.id } }
       ])
     })
 
@@ -588,16 +592,17 @@ describe('PromptService', () => {
         visibility: 'restricted',
         bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
       })
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       promptService.reorderBinding({ type: 'assistant', id: ASSISTANT_ID }, prompt.id, { position: 'first' })
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/prompts', kind: 'order', dimension: 'orderKey', entityIds: [prompt.id] },
         {
           endpoint: '/prompt-bindings/:targetType/:targetId',
           kind: 'order',
           dimension: 'orderKey',
+          routeParams: { targetType: 'assistant', targetId: ASSISTANT_ID },
           entityIds: [prompt.id]
         }
       ])

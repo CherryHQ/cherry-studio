@@ -1,11 +1,10 @@
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx } from '@data/db/types'
+import type { DataApiEffectCollector, DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
@@ -98,6 +97,15 @@ function buildAgentSearchPredicate(search: string): SQL {
   const assistantDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.ASSISTANT} AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
   const supportDescriptionMatch = sql`${agentsTable.id} = ${CHERRY_SUPPORT_AGENT_ID} AND ${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.SUPPORT} AND ${t('agent.builtin.cherry_support.description')} LIKE ${pattern} ESCAPE '\\'`
   return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch)!
+}
+
+function addAgentReadModelEffects(effects: DataApiEffectCollector, agentIds: readonly string[]): void {
+  const entityIds = [...new Set(agentIds)]
+  if (entityIds.length === 0) return
+  effects.add({ endpoint: '/agents', kind: 'membership', entityIds })
+  for (const agentId of entityIds) {
+    effects.add({ endpoint: '/agents/:agentId', routeParams: { agentId }, entityIds: [agentId] })
+  }
 }
 
 /**
@@ -324,6 +332,7 @@ export class AgentService {
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
+          addAgentReadModelEffects(tx.effects, [id])
           return result
         }),
       defaultHandlersFor('Agent', id)
@@ -333,7 +342,6 @@ export class AgentService {
     }
 
     const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
-    notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -804,22 +812,25 @@ export class AgentService {
           const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
             deleteSessions: options.deleteSessions === true
           })
-          return { ...this.deleteAgentTx(tx, id), sessionImpact }
+          const taskImpacts = agentTaskService.captureReadModelImpactsTx(tx, sessionImpact.taskScheduleIds, id)
+          const deleteResult = this.deleteAgentTx(tx, id)
+          if (deleteResult.rowsAffected > 0) {
+            addAgentReadModelEffects(tx.effects, [id])
+            agentTaskService.addReadModelEffects(tx.effects, taskImpacts)
+            agentSessionService.addReadModelEffects(tx.effects, sessionImpact.sessionIds, sessionImpact.changeKind)
+            pinService.addPurgeReadModelEffect(tx.effects)
+            promptService.addTargetBindingsChangedEffects(tx.effects)
+          }
+          return { ...deleteResult, sessionImpact }
         }),
       defaultHandlersFor('Agent', id)
     )
 
     const deleted = result.rowsAffected > 0
     if (deleted && result.sessionImpact) {
-      agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds)
       getDataService('AgentSessionMessageService').publishDeliveryChanges(result.sessionImpact.deliveryResults)
-      agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
-    }
-    if (deleted) {
-      promptService.notifyTargetBindingsChanged()
       this._onAgentDeleted.fire({ agentId: id })
     }
-    if (deleted) pinService.notifyPurged()
     const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
     return {
       deleted,

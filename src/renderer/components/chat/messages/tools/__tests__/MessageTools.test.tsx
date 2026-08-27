@@ -1,4 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,14 +7,18 @@ import { MessagePartsScopeProvider } from '../../blocks/MessagePartsContext'
 import type * as AgentTools from '../agent'
 import MessageTools from '../MessageTools'
 
-const { useToolResultMock, renderedResponses, topicIdMock } = vi.hoisted(() => ({
+const { useToolResultMock, renderedResponses, conversationMock } = vi.hoisted(() => ({
   useToolResultMock: vi.fn(),
   renderedResponses: [] as unknown[],
-  topicIdMock: vi.fn<() => string | undefined>(() => 'topic-1')
+  conversationMock: vi.fn<() => ConversationRef | undefined>()
 }))
 
+const chatConversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
+
 vi.mock('@renderer/hooks/useToolResult', () => ({ useToolResult: useToolResultMock }))
-vi.mock('../../MessageListProvider', () => ({ useOptionalMessageListTopicId: () => topicIdMock() }))
+vi.mock('../../MessageListProvider', () => ({
+  useOptionalMessageListConversation: () => conversationMock()
+}))
 vi.mock('../MessageTool', () => ({
   default: ({ toolResponse }: { toolResponse: unknown }) => {
     renderedResponses.push(toolResponse)
@@ -69,14 +74,18 @@ function renderInScope(response: unknown) {
 beforeEach(() => {
   vi.clearAllMocks()
   renderedResponses.length = 0
-  topicIdMock.mockReturnValue('topic-1')
+  conversationMock.mockReturnValue(chatConversation)
   useToolResultMock.mockReturnValue({ output: undefined, error: undefined, isLoading: true })
 })
 
 describe('MessageTools cold-reload self-defer', () => {
   it('converts a bare persisted envelope into a resolvable deferred reference', () => {
     renderInScope(entitiesEnvelope)
-    expect(useToolResultMock).toHaveBeenCalledWith({ topicId: 'topic-1', messageId: 'm1', toolCallId: 'call-1' })
+    expect(useToolResultMock).toHaveBeenCalledWith({
+      conversation: chatConversation,
+      messageId: 'm1',
+      toolCallId: 'call-1'
+    })
   })
 
   it('shows the envelope excerpt while the full value loads', () => {
@@ -95,7 +104,7 @@ describe('MessageTools cold-reload self-defer', () => {
   })
 
   it('leaves the raw envelope in place outside a message list scope', () => {
-    topicIdMock.mockReturnValue(undefined)
+    conversationMock.mockReturnValue(undefined)
     renderInScope(entitiesEnvelope)
     expect(useToolResultMock).toHaveBeenCalledWith(undefined)
     expect(renderedResponses.at(-1)).toMatchObject({ response: entitiesEnvelope })
@@ -103,10 +112,18 @@ describe('MessageTools cold-reload self-defer', () => {
 
   it('still resolves an already-projected deferred output as before', () => {
     renderInScope({
-      $deferredToolResult: { topicId: 'topic-9', messageId: 'm9', toolCallId: 'call-1' },
+      $deferredToolResult: {
+        conversation: { kind: ConversationKind.Agent, id: 'session-9' },
+        messageId: 'm9',
+        toolCallId: 'call-1'
+      },
       excerpt: { head: 'p-head', tail: 'p-tail', totalChars: 10, totalLines: 2 }
     })
-    expect(useToolResultMock).toHaveBeenCalledWith({ topicId: 'topic-9', messageId: 'm9', toolCallId: 'call-1' })
+    expect(useToolResultMock).toHaveBeenCalledWith({
+      conversation: { kind: ConversationKind.Agent, id: 'session-9' },
+      messageId: 'm9',
+      toolCallId: 'call-1'
+    })
     expect(renderedResponses.at(-1)).toMatchObject({ response: 'p-head\n…\np-tail' })
   })
 })

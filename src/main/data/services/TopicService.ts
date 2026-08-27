@@ -3,13 +3,12 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
-import type { DbOrTx } from '@data/db/types'
+import type { DataApiEffectCollector, DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -119,15 +118,23 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
-  notifyReadModelChange(topicIds: readonly string[], kind: 'membership' | 'projection'): void {
-    if (topicIds.length === 0) return
+  addReadModelEffects(
+    effects: DataApiEffectCollector,
+    topicIds: readonly string[],
+    kind: 'membership' | 'projection'
+  ): void {
     const entityIds = [...new Set(topicIds)]
-    notifyDataApiDataChange([
-      { endpoint: '/topics', kind, entityIds },
-      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
-      { endpoint: '/topics/:id', entityIds },
-      { endpoint: '/topics/latest' }
-    ])
+    if (entityIds.length === 0) return
+    effects.add({ endpoint: '/topics', kind, entityIds })
+    effects.add({ endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds })
+    for (const id of entityIds) {
+      effects.add({ endpoint: '/topics/:id', routeParams: { id }, entityIds: [id] })
+    }
+    effects.add({ endpoint: '/topics/latest' })
+  }
+
+  notifyReadModelChange(topicIds: readonly string[], kind: 'membership' | 'projection'): void {
+    application.get('DbService').withEffects((effects) => this.addReadModelEffects(effects, topicIds, kind))
   }
 
   getById(id: string): Topic {
@@ -493,18 +500,18 @@ export class TopicService {
   }
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
-    application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
-    notifyDataApiDataChange([
-      {
+    application.get('DbService').withWriteTx((tx) => {
+      this.setActiveNodeTx(tx, topicId, nodeId)
+      tx.effects.add({
         endpoint: '/topics/:topicId/messages',
         kind: 'membership',
         routeParams: { topicId },
         entityIds: [nodeId]
-      },
-      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: [nodeId] },
-      { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
-      { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
-    ])
+      })
+      tx.effects.add({ endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: [nodeId] })
+      tx.effects.add({ endpoint: '/topics', kind: 'projection', entityIds: [topicId] })
+      tx.effects.add({ endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] })
+    })
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }

@@ -4,17 +4,69 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import type { ConversationExecutionId } from '@shared/ai/conversation'
 import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 
-import type { ChannelAdapter } from './ChannelAdapter'
+import type { ChannelAdapter, SendMessageOptions } from './ChannelAdapter'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
 const logger = loggerService.withContext('ChannelManager')
+
+/**
+ * A queued external send, as data (C3).
+ *
+ * Deliberately not a `deliver()` closure: one closes over its producer, so a queue waiting behind
+ * a slow channel used to retain the stream listener, its accumulated text, and the adapter itself.
+ * The adapter is resolved from `channelId` at send time instead, which also means a reconnect
+ * between enqueue and send uses the live adapter rather than a captured dead one.
+ */
+export enum ChannelDeliveryEvent {
+  Done = 'done',
+  Paused = 'paused',
+  Error = 'error',
+  TaskError = 'task-error'
+}
+
+export enum ChannelTerminalAdmissionResult {
+  Accepted = 'accepted',
+  AlreadyOwned = 'already-owned',
+  DroppedByPolicy = 'dropped-by-policy'
+}
+
+export type ChannelDeliveryRequest = {
+  id: string
+  channelId: string
+  chatId: string
+  event: ChannelDeliveryEvent
+  /** Final text to send. Already sanitized by the producer. */
+  text: string
+  /** Sent instead of `text` when the adapter did not absorb the finalize — a paused turn marks
+   *  the message as stopped only in the fallback, never in the adapter's own stream UI. */
+  fallbackText?: string
+  /** Inbound response context (reply target, thread, parse mode) captured at enqueue time. */
+  responseOptions?: SendMessageOptions
+  /** Give the adapter a chance to finalize its streaming UI (e.g. close a Feishu card) first. */
+  finalizeStream?: boolean
+}
+
+export interface ChannelLiveUpdateRequest {
+  channelId: string
+  chatId: string
+  executionId?: ConversationExecutionId
+  text: string
+  responseOptions?: SendMessageOptions
+}
+
+export interface ChannelDeliveryOwner {
+  updateLive(request: ChannelLiveUpdateRequest): boolean
+  enqueueTerminal(request: ChannelDeliveryRequest): ChannelTerminalAdmissionResult
+  isActive(): boolean
+}
 
 // Adapter factory registry -- adapters register themselves here. The factory
 // for a given channel type receives the matching variant of the discriminated
@@ -56,7 +108,7 @@ async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
-export class ChannelManager extends BaseService {
+export class ChannelManager extends BaseService implements ChannelDeliveryOwner {
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
   private readonly qrWaiters = new Map<
     string,
@@ -64,11 +116,11 @@ export class ChannelManager extends BaseService {
   >()
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
+  private nextConnectionEpoch = 0
+  private readonly connectionEpochs = new Map<string, { adapter: ChannelAdapter; epoch: number }>()
 
-  protected async onReady(): Promise<void> {
-    await this.start()
-  }
-
+  // ChannelIngressService starts adapters after producers are ready; this owner
+  // keeps lifecycle stop so terminal delivery remains alive until producers stop.
   protected async onStop(): Promise<void> {
     await this.stop()
   }
@@ -94,6 +146,8 @@ export class ChannelManager extends BaseService {
   }
 
   async start(): Promise<void> {
+    this.delivery.open()
+
     let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
       channels = channelService.listChannels()
@@ -105,6 +159,7 @@ export class ChannelManager extends BaseService {
     }
 
     const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
+    for (const channel of activeChannels) this.delivery.replacementStarted(channel.id)
 
     // Lazy-load only the adapter modules needed for active channels
     const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
@@ -117,6 +172,7 @@ export class ChannelManager extends BaseService {
 
   async stop(): Promise<void> {
     logger.info('Stopping channel manager')
+    await this.delivery.drain()
     const disconnects = Array.from(this.adapters.values()).map((adapter) =>
       adapter.disconnect().catch((err) => {
         logger.warn('Error disconnecting adapter', {
@@ -128,7 +184,33 @@ export class ChannelManager extends BaseService {
     )
     await Promise.all(disconnects)
     this.adapters.clear()
+    this.connectionEpochs.clear()
     logger.info('Channel manager stopped')
+  }
+
+  /**
+   * Accept terminal channel work without holding the stream settlement path.
+   * One owner serializes sends per channel chat and drains them before adapter teardown.
+   */
+  /** Delivery is owned by `ChannelDeliveryService`; kept here as the stable producer port. */
+  enqueueTerminalDelivery(delivery: ChannelDeliveryRequest): ChannelTerminalAdmissionResult {
+    return this.enqueueTerminal(delivery)
+  }
+
+  updateLive(request: ChannelLiveUpdateRequest): boolean {
+    return this.delivery.updateLive(request)
+  }
+
+  enqueueTerminal(request: ChannelDeliveryRequest): ChannelTerminalAdmissionResult {
+    return this.delivery.enqueueTerminal(request)
+  }
+
+  isActive(): boolean {
+    return this.delivery.isActive()
+  }
+
+  private get delivery() {
+    return application.get('ChannelDeliveryService')
   }
 
   /**
@@ -175,6 +257,18 @@ export class ChannelManager extends BaseService {
     return undefined
   }
 
+  /** Resolve only a transport that has reported a successful connection. */
+  getConnectedAdapter(channelId: string): ChannelAdapter | undefined {
+    const adapter = this.getAdapter(channelId)
+    return adapter?.connected ? adapter : undefined
+  }
+
+  resolveConnectedAdapter(channelId: string): { adapter: ChannelAdapter; epoch: number } | undefined {
+    const current = this.connectionEpochs.get(channelId)
+    if (!current || !current.adapter.connected || this.getAdapter(channelId) !== current.adapter) return undefined
+    return current
+  }
+
   /** Get buffered logs for a channel. */
   getChannelLogs(channelId: string): ChannelLogEntry[] {
     return this.channelLogs.get(channelId)
@@ -201,6 +295,11 @@ export class ChannelManager extends BaseService {
   /** Disconnect the adapter for a single channel without reconnecting. */
   async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
     const { suppressErrors = true } = options
+    this.delivery.replacementStarted(channelId)
+    await this.delivery.drain(new Set([channelId]))
+    const epoch = this.connectionEpochs.get(channelId)?.epoch
+    this.connectionEpochs.delete(channelId)
+    this.delivery.connectionLost(channelId, epoch)
     for (const [key, adapter] of this.adapters) {
       if (adapter.channelId !== channelId) continue
 
@@ -246,6 +345,14 @@ export class ChannelManager extends BaseService {
    */
   async disconnectAgent(agentId: string): Promise<void> {
     const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
+    const channelIds = new Set(toDisconnect.map(([, adapter]) => adapter.channelId))
+    for (const channelId of channelIds) this.delivery.replacementStarted(channelId)
+    await this.delivery.drain(channelIds)
+    for (const channelId of channelIds) {
+      const epoch = this.connectionEpochs.get(channelId)?.epoch
+      this.connectionEpochs.delete(channelId)
+      this.delivery.connectionLost(channelId, epoch)
+    }
     await Promise.all(
       toDisconnect.map(([key, adapter]) =>
         adapter
@@ -299,6 +406,7 @@ export class ChannelManager extends BaseService {
     const key = `${agentId}:${row.id}`
     try {
       const adapter = factory(row, agentId)
+      const ownsConnection = (): boolean => this.adapters.get(key) === adapter
 
       // Seed notifyChatIds from DB-persisted activeChatIds (when allowed_chat_ids is empty)
       const hasAllowedIds = adapter.notifyChatIds.length > 0
@@ -323,6 +431,7 @@ export class ChannelManager extends BaseService {
       }
 
       adapter.on('message', (msg) => {
+        if (!ownsConnection()) return
         // Write-quiesce intake gate — also skips trackChatId's `activeChatIds` DB write. The
         // handler's own gate is defense in depth; this one stops the config write too.
         if (channelMessageHandler.isWriteQuiesced) {
@@ -331,6 +440,7 @@ export class ChannelManager extends BaseService {
         }
         trackChatId(msg.chatId)
         channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
+          if (!ownsConnection()) return
           logger.error('Unhandled error in message handler', {
             agentId,
             channelId: row.id,
@@ -346,12 +456,14 @@ export class ChannelManager extends BaseService {
       })
 
       adapter.on('command', (cmd) => {
+        if (!ownsConnection()) return
         if (channelMessageHandler.isWriteQuiesced) {
           logger.warn('Channel command dropped: intake is write-quiesced', { agentId, channelId: row.id })
           return
         }
         trackChatId(cmd.chatId)
         channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
+          if (!ownsConnection()) return
           logger.error('Unhandled error in command handler', {
             agentId,
             channelId: row.id,
@@ -368,6 +480,7 @@ export class ChannelManager extends BaseService {
 
       // Forward QR events to any pending waiters
       adapter.on('qr', (url) => {
+        if (!ownsConnection()) return
         const waiterKey = `${agentId}:${row.id}`
         const waiter = this.qrWaiters.get(waiterKey)
         if (waiter) {
@@ -380,7 +493,9 @@ export class ChannelManager extends BaseService {
       // When an adapter obtains credentials via QR registration, persist them
       // to the channel config and re-sync so a new adapter connects with creds.
       adapter.on('credentials', (creds) => {
+        if (!ownsConnection()) return
         this.saveCredentialsAndReconnect(agentId, row.id, creds).catch((err) => {
+          if (!ownsConnection()) return
           logger.error('Failed to save credentials and reconnect', {
             agentId,
             channelId: row.id,
@@ -391,24 +506,46 @@ export class ChannelManager extends BaseService {
 
       // Forward log & status events to renderer via IPC
       adapter.on('log', (entry) => {
+        if (!ownsConnection()) return
         this.channelLogs.append(entry.channelId, entry)
         this.sendToRenderer('channel.log', entry)
       })
 
       adapter.on('statusChange', (status) => {
+        // A stale adapter may finish after sync installed its replacement; it has no authority to
+        // publish status or reopen delivery for the new connection.
+        if (!ownsConnection()) return
+        if (status.connected) {
+          const epoch = ++this.nextConnectionEpoch
+          this.connectionEpochs.set(row.id, { adapter, epoch })
+          this.delivery.connected(row.id, epoch)
+        } else {
+          const epoch =
+            this.connectionEpochs.get(row.id)?.adapter === adapter
+              ? this.connectionEpochs.get(row.id)?.epoch
+              : undefined
+          if (epoch !== undefined) this.connectionEpochs.delete(row.id)
+          this.delivery.connectionLost(row.id, epoch)
+        }
         this.channelStatuses.set(status.channelId, status)
         this.sendToRenderer('channel.status_changed', status)
       })
 
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
+      this.delivery.replacementStarted(row.id)
       this.adapters.set(key, adapter)
 
       const connect = async () => {
         try {
           await adapter.connect()
+          if (!ownsConnection()) {
+            await adapter.disconnect()
+            return
+          }
           logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
         } catch (error) {
+          if (!ownsConnection()) return
           this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
             agentId,

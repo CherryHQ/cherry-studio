@@ -31,7 +31,9 @@ src/main/data/
 
 ## Data Change Notification
 
-`notifyDataApiDataChange(effects)` is the single publish point for cross-window data convergence: after a business write **successfully commits**, the owning data service states which read models changed (`DataApiDataChangeEffect[]`), and the signal is broadcast to all windows. This is a strictly fenced exception to the "no side effects in data services" rule — see [Fenced Exception: Data Change Notification](../../../docs/references/data/api-design-guidelines.md#fenced-exception-data-change-notification) for the fences, and the notifier's own doc comment for publish invariants (post-commit timing, `*Tx()` never notifies, no-op writes may skip) and the delivery contract.
+`DbService.withWriteTx()` is the transaction publish boundary for cross-window data convergence. A data service declares affected read models with `tx.effects.add(...)` inside the synchronous transaction; nested transactions share the same effect scope, and `DbService` deduplicates and broadcasts the union only after the outermost commit succeeds. Rollback publishes nothing. A successful single-statement autocommit write declares its effects afterward with an independent `DbService.withEffects()` scope. Template endpoints require their schema-defined `routeParams` keys at compile time unless a source-wide refresh explicitly uses `DataApiDataChangeScope.AllRoutes`.
+
+The low-level `notifyDataApiDataChange()` publisher is private to `DbService` by lint rule. See [Fenced Exception: Data Change Notification](../../../docs/references/data/api-design-guidelines.md#fenced-exception-data-change-notification) for the remaining fences and delivery contract.
 
 It deliberately lives at the `data/` top level, not in `api/`: the API framework
 owns request routing and its IPC adapter, while this capability is an

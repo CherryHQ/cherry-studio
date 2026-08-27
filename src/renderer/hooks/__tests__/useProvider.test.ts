@@ -1,3 +1,4 @@
+import { DataApiDataChangeScope } from '@shared/data/api/types'
 import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
@@ -46,7 +47,9 @@ describe('useProviderPreset', () => {
     })
     renderHook(() => useProviderPreset('openai', ['models']))
 
-    MockUseDataApiUtils.emitDataChange([{ endpoint: '/providers/:providerId/preset' }])
+    MockUseDataApiUtils.emitDataChange([
+      { endpoint: '/providers/:providerId/preset', scope: DataApiDataChangeScope.AllRoutes }
+    ])
 
     expect(refetch).toHaveBeenCalledOnce()
   })

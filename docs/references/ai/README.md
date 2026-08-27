@@ -17,9 +17,11 @@ renderer-side transport that connects to them.
 
 | Document | What it covers |
 |---|---|
-| [Core Architecture](./core-architecture.md) | End-to-end call flow: `ai.stream.open` IpcApi route → context provider → AiStreamManager → runtime → broadcast / persist |
-| [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, queue/yield/continuation steering, persistence backends |
+| [Core Architecture](./core-architecture.md) | End-to-end Conversation command/effect flow from IPC through history and execution ports |
+| [Conversation Runtime](./conversation-runtime.md) | Unified Chat/Agent control owner, current ownership failure, trigger/effect matrix, resource boundaries |
+| [Execution Resources](./stream-manager.md) | Provider and one-shot prompt resources below the Conversation owner |
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
+| [Channel Runtime](./channel-runtime.md) | IM adapter connections, ingress lifecycle, live updates, terminal delivery, and connection-epoch fencing |
 | [Adding an Agent Runtime](./adding-a-runtime.md) | Operational checklist for a new runtime: capability descriptor, driver package, registration points, design rules |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
 | [Provider State Ownership](./provider-state-ownership.md) | Where provider facts, endpoint dialects, connection overrides, and per-request controls belong |
@@ -42,17 +44,17 @@ renderer-side transport that connects to them.
 
 | Document | What it covers |
 |---|---|
-| [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnectToStream`, dispatch service, topic-status mirror |
-| [Execution Overlay](./execution-overlay.md) | `TopicStreamSubscription` + `useExecutionOverlay`: ref-counted attach, execution + anchor demux, one-shot `readUIMessageStream` per turn (the renderer half of the same merge function Main uses) |
+| [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnectToStream`, dispatch service, Conversation-status projection |
+| [Execution Overlay](./execution-overlay.md) | `StreamAttachmentService` + `ConversationStreamSubscription` + `ExecutionStreamOverlayService`: observational attachment, exact execution demux, refresh-before-retire |
 | [Tool Approval](./tool-approval.md) | Approval registry, Main-as-writer model, persistent decisions, `useToolApproval` hook |
 
 ## Where the code lives
 
 > **Scope of the focused docs.** The reference documents in this folder map
-> the **chat / stream pipeline** (dispatch → stream manager → runtime →
+> the **chat / stream pipeline** (dispatch → Conversation runtime → execution resource →
 > tools → persistence → renderer transport). The `channels/`, `skills/`, and
-> `mcp/` subsystems are mapped in the tree below but do not yet have dedicated
-> deep-dive docs.
+> `mcp/` subsystems are mapped in the tree below; `skills/` and `mcp/` do not
+> yet have dedicated deep-dive docs.
 
 ```
 src/main/ai/
@@ -62,17 +64,23 @@ src/main/ai/
 │   ├── claudeCode/               ← Claude Code driver, warm query, SDK adapter
 │   ├── pi/                       ← Pi runtime connection and approval extension
 │   └── dsh/                      ← DeepSeek Harness runtime connection
-├── agentSession/                 ← agent-session topic host
-│   └── AgentSessionRuntimeService.ts
+├── conversation/                 ← Conversation owner, pure aggregate, execution resources
+│   ├── ConversationRuntimeService.ts
+│   ├── conversationState.ts
+│   ├── AiExecutionManager.ts
+│   └── PromptStreamManager.ts
+├── agentSession/                 ← Agent driver resource and durable delivery adapters
+│   ├── AgentConnectionManager.ts
+│   └── AgentSessionDeliveryService.ts
 ├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, prompt, heartbeat, builtin/
-├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
-├── streamManager/                ← AiStreamManager + listeners + persistence backends
-│   ├── AiStreamManager.ts        ← active-stream registry and dispatch owner
-│   ├── context/                  ← ChatContextProvider implementations + dispatch
-│   ├── lifecycle/                ← chat / prompt-only stream lifecycles
+├── channels/                     ← connection, ingress, delivery, IM adapters, and output security
+│   ├── ChannelManager.ts         ← adapter pool and connection-epoch authority
+│   ├── ChannelIngressService.ts  ← lifecycle start, pause, and inbound drain
+│   └── ChannelDeliveryService.ts ← live ownership, terminal FIFO/dedupe, block policy
+├── streamManager/                ← history preparation adapters and output ports
+│   ├── context/                  ← Chat/Agent HistoryPort adapters
 │   ├── listeners/                ← WebContents / Persistence / SSE / channel-adapter
-│   ├── persistence/              ← MessageService / TemporaryChat / Translation backends
-│   └── pipeStreamLoop.ts         ← shared chunk-pipe primitive
+│   └── persistence/              ← MessageService / TemporaryChat / Translation backends
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 │   ├── custom/                   ← provider-specific adapters, transports, and wire profiles
 │   ├── config.ts                 ← providerToAiSdkConfig (builder table)
@@ -99,47 +107,46 @@ src/main/ai/
 
 ## How a chat turn flows
 
-1. Renderer `useChat({ transport: IpcChatTransport })` calls `sendMessages` →
-   IpcApi `ai.stream.open` (`{ topicId, trigger, userMessageParts,
-   parentAnchorId?, mentionedModelIds? }`).
-2. The thin handler in `src/main/ipc/handlers/ai.ts` resolves the caller's
-   `WebContents`, wraps it in a `WebContentsListener`, and delegates to
-   `AiStreamManager.dispatch`. Stream state stays in the manager; transport
-   registration stays in IpcApi.
-3. `dispatchStreamRequest` picks the first `ChatContextProvider` whose
-   `canHandle(topicId)` matches (persistent chat / temporary / agent
-   session) and calls `prepareDispatch` — that resolves models, persists
-   the user message, builds listeners, and returns a `PreparedDispatch`.
-4. `AiStreamManager.send(input)` **starts** a turn (no active stream): creates
-   an `ActiveStream`, launches one `StreamExecution` per model. (A chat
-   resubmit on a live topic is persisted + queued as a steer and takes the
-   **inject** path — the running turn yields and `onExecutionDone` chains a
-   continuation; an agent-session follow-up also injects, upserting listeners.)
-5. Each execution's `runExecutionLoop` calls `AiService.streamText(request,
-   signal)`, which builds params (`buildAgentParams`) and constructs an `Agent`
-   composing hooks from `RequestFeature[]` (anthropic cache, gateway usage
-   normalisation, reasoning extraction, …), then calls `agent.stream(messages,
-   signal)` to open the AI SDK stream and yield `UIMessageChunk`s.
-   Agent-session runtime requests are the exception: `AiService.streamText`
-   routes them to `AgentSessionRuntimeService.openTurnStream()` so the
-   registered driver can own the concrete agent runtime.
-6. `pipeStreamLoop` tees the chunk stream: one branch broadcasts to listeners
-   (WebContents / SSE / channel-adapter / persistence), one branch runs
-   `readUIMessageStream` to accumulate a `CherryUIMessage` snapshot.
-7. On terminal (done / error / aborted / paused-for-approval), listeners get
-   a typed terminal callback. `PersistenceListener` writes the final
-   message via the appropriate `PersistenceBackend`.
-8. Renderer reads the persisted row through `useQuery('/topics/:topicId/messages')`
-   and disposes its overlay.
+1. Renderer `IpcChatTransport.sendMessages` sends `ai.stream.open` with an exact
+   `ConversationRef`, trigger, input parts, tree anchor, and model selection.
+2. The IPC handler binds the caller's `WebContents` observer and submits the
+   command to `ConversationRuntimeService`'s per-Conversation lane.
+3. The admission actor validates without writes, previews the reducer transition
+   with preallocated identities, and synchronously asks the Chat or Agent history
+   adapter to commit the SQLite skeleton. Only after that durable boundary does
+   the actor commit `TurnCommitted`, `InputCommitted`, or `StepCommitted` to
+   its aggregate.
+4. The committed aggregate emits `StartExecution`, which is executed by
+   `AiExecutionManager`. Stateless Chat runs
+   call `AiService.streamText`; stateful Agent runs delegate their driver
+   resource to `AgentConnectionManager`. Neither resource admits or settles a
+   logical turn.
+5. Chunks stay on the data plane: listeners receive exact
+   `ConversationRef + TurnId + ExecutionId + chunkSeq`, while
+   `readUIMessageStream` accumulates the terminal snapshot.
+6. First-chunk, interaction, start-failure, and terminal facts return to the
+   same Conversation owner. The aggregate selects an immutable outcome and
+   emits a persistence descriptor.
+7. `ConversationTerminalPersistenceCoordinator` persists that descriptor and
+   returns the exact result command. Only then does Main publish execution and
+   turn terminal events; explicit Stop has the documented deferred-recovery
+   escape.
+8. At Conversation quiescence, the renderer refreshes SQLite/SWR before
+   retiring the matching Turn's overlay. Old-turn callbacks cannot retire a
+   newer Conversation binding.
 
 ## Key invariants
 
-- **Topic-level addressing.** Every IPC and broadcast is keyed by `topicId`.
-  A topic has at most one active stream; subscribers are equal — there's no
-  "owner" window.
+- **Exact Conversation addressing.** Control and stream events carry a
+  `ConversationRef`; Agent Sessions are not encoded as synthetic Topic IDs.
+- **One control owner per Conversation.** `ConversationActor` owns its aggregate,
+  admission FIFO, committed inputs, Stop, interactions, terminal outcome,
+  persistence completion, and quiescence. `ConversationRuntimeService` only
+  routes IPC/results and composes global lifecycle barriers. Resource state
+  never decides those facts.
 - **Main owns persistence.** Renderer closing or crashing does not abort the
-  stream and does not lose data — `PersistenceListener` writes on terminal
-  regardless of who is listening.
+  execution. Attachment is observational; terminal persistence does not depend
+  on a window listener.
 - **Tool approval is Main-authoritative.** The renderer never writes
   `approved`/`denied` parts. It posts the decision over IPC and re-reads the
   authoritative row. See [Tool Approval](./tool-approval.md).

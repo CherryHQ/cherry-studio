@@ -1,10 +1,25 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import {
+  ConversationInboxMutationKind,
+  ConversationInputTarget,
+  ConversationKind,
+  ConversationOpenTrigger,
+  ConversationTargetMode,
+  toConversationExecutionId,
+  toConversationInputId,
+  toConversationTurnId
+} from '@shared/ai/conversation'
 import type {
+  AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolResultRequest,
   AiToolResultResponse,
+  PromptStreamAbortRequest,
+  PromptStreamChunkPayload,
+  PromptStreamDonePayload,
+  PromptStreamErrorPayload,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
@@ -30,7 +45,9 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import { ComposerMessageTokenKindSchema } from '@shared/data/types/uiParts'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { AbsoluteFilePathSchema, FileTypeSchema } from '@shared/types/file'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
@@ -38,7 +55,7 @@ import { defineRoute } from '../define'
 
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
- * generation, model probe, model listing) plus the `AiStreamManager` streaming-chat
+ * generation, model probe, model listing) plus the Conversation streaming-chat
  * link (open/attach/detach/abort requests + chunk/done/error events). Each route
  * delegates to a stateful service method in main.
  *
@@ -146,7 +163,7 @@ const aiImagePayloadSchema = z.strictObject({
 })
 
 const aiStreamRegenerateShape = {
-  trigger: z.literal('regenerate-message'),
+  trigger: z.literal(ConversationOpenTrigger.RegenerateMessage),
   parentAnchorId: z.string().min(1),
   userMessageParts: z.never().optional(),
   targetMode: z.never().optional(),
@@ -155,12 +172,107 @@ const aiStreamRegenerateShape = {
   fastMode: z.boolean().optional()
 }
 
+const aiStreamRetryShape = {
+  ...aiStreamRegenerateShape,
+  trigger: z.literal(ConversationOpenTrigger.RetryMessage),
+  retryMessageId: z.string().min(1),
+  appendToLiveGroupMessageId: z.never().optional()
+}
+
+const aiStreamAppendModelShape = {
+  ...aiStreamRegenerateShape,
+  trigger: z.literal(ConversationOpenTrigger.AppendModel),
+  appendToLiveGroupMessageId: z.string().min(1),
+  retryMessageId: z.never().optional()
+}
+
 const mentionedModelIdsSchema = z
   .array(UniqueModelIdSchema)
   .refine((modelIds) => new Set(modelIds).size === modelIds.length, {
     message: 'mentionedModelIds must not contain duplicate model ids'
   })
   .optional()
+
+const conversationInboxPresentationSchema = z.strictObject({
+  draft: z.strictObject({
+    text: z.string(),
+    tokens: z.array(
+      z.strictObject({
+        id: z.string(),
+        kind: z.union([ComposerMessageTokenKindSchema, z.literal('promptVariable')]),
+        label: z.string(),
+        icon: z.string().optional(),
+        description: z.string().optional(),
+        promptText: z.string().optional(),
+        payload: z.unknown().optional(),
+        index: z.number().int().nonnegative(),
+        textOffset: z.number().int().nonnegative()
+      })
+    )
+  }),
+  payload: z.strictObject({
+    text: z.string(),
+    userMessageParts: z.array(z.custom<CherryMessagePart>()),
+    attachments: z
+      .array(
+        z.strictObject({
+          fileTokenSourceId: z.string().min(1),
+          path: AbsoluteFilePathSchema.optional(),
+          name: z.string(),
+          origin_name: z.string(),
+          ext: z.string(),
+          size: z.number().nonnegative(),
+          type: FileTypeSchema,
+          composerFileKind: z.literal('pasted-text').optional()
+        })
+      )
+      .optional(),
+    mentionedModels: z.array(UniqueModelIdSchema).optional(),
+    reasoningEffort: ReasoningEffortOptionSchema.optional(),
+    serviceTier: ServiceTierSelectionSchema.optional(),
+    fastMode: z.boolean().optional(),
+    chatTarget: z
+      .strictObject({
+        parentAnchorId: z.string().nullable(),
+        mode: z.enum(ConversationTargetMode)
+      })
+      .optional()
+  })
+})
+
+const conversationInboxSnapshotSchema = z.strictObject({
+  revision: z.number().int().nonnegative(),
+  paused: z.boolean(),
+  items: z.array(
+    z.strictObject({
+      id: z.string().min(1).transform(toConversationInputId),
+      presentation: conversationInboxPresentationSchema
+    })
+  )
+})
+
+const aiStreamSubmitShape = {
+  trigger: z.literal(ConversationOpenTrigger.SubmitMessage),
+  parentAnchorId: z.string().optional(),
+  userMessageParts: z.array(z.custom<CherryMessagePart>()),
+  targetMode: z.enum(ConversationTargetMode).optional(),
+  retryMessageId: z.never().optional(),
+  appendToLiveGroupMessageId: z.never().optional(),
+  reasoningEffort: ReasoningEffortOptionSchema.optional(),
+  serviceTier: ServiceTierSelectionSchema.optional(),
+  fastMode: z.boolean().optional()
+}
+
+const conversationRefSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal(ConversationKind.Chat), id: z.string().min(1) }),
+  z.strictObject({ kind: z.literal(ConversationKind.Agent), id: z.string().min(1) })
+])
+
+const executionReplayCursorSchema = z.strictObject({
+  turnId: z.string().min(1).transform(toConversationTurnId),
+  executionId: z.string().min(1).transform(toConversationExecutionId),
+  throughChunkSeq: z.number().int().nonnegative()
+})
 
 export const aiRequestSchemas = {
   // ── One-shot model calls, grouped by output modality (AiService) ──
@@ -210,67 +322,100 @@ export const aiRequestSchemas = {
     output: z.object({ latency: z.number() })
   }),
 
-  // ── Streaming chat (AiStreamManager) ──
+  // ── Conversation streaming ──
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
   'ai.stream.open': defineRoute({
     // Variant union mirrors AiStreamOpenRequest. `userMessageParts` is opaque pass-through
     // (main persists it), so its items are `z.custom<CherryMessagePart>()`.
     input: z.intersection(
       z.object({
-        topicId: z.string().min(1),
-        mentionedModelIds: mentionedModelIdsSchema
+        conversation: conversationRefSchema
       }),
       z.union([
         z.object({
-          trigger: z.literal('submit-message'),
-          parentAnchorId: z.string().optional(),
-          userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
-          retryMessageId: z.never().optional(),
-          appendToLiveGroupMessageId: z.never().optional(),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          serviceTier: ServiceTierSelectionSchema.optional(),
-          fastMode: z.boolean().optional()
+          ...aiStreamSubmitShape,
+          mentionedModelIds: mentionedModelIdsSchema,
+          inputTarget: z.never().optional(),
+          inboxPresentation: z.never().optional()
+        }),
+        z.object({
+          ...aiStreamSubmitShape,
+          mentionedModelIds: mentionedModelIdsSchema,
+          inputTarget: z.literal(ConversationInputTarget.NextTurn),
+          inboxPresentation: conversationInboxPresentationSchema
+        }),
+        z.object({
+          ...aiStreamSubmitShape,
+          mentionedModelIds: mentionedModelIdsSchema,
+          inputTarget: z.literal(ConversationInputTarget.NextStep),
+          inboxPresentation: z.never().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
-          retryMessageId: z.string().min(1),
-          appendToLiveGroupMessageId: z.never().optional()
-        }),
-        z.object({
-          ...aiStreamRegenerateShape,
-          retryMessageId: z.never().optional(),
-          appendToLiveGroupMessageId: z.string().min(1)
-        }),
-        z.object({
-          ...aiStreamRegenerateShape,
+          mentionedModelIds: mentionedModelIdsSchema,
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional()
+        }),
+        z.object({
+          ...aiStreamRetryShape,
+          mentionedModelIds: z.tuple([UniqueModelIdSchema])
+        }),
+        z.object({
+          ...aiStreamAppendModelShape,
+          mentionedModelIds: z.tuple([UniqueModelIdSchema])
         })
       ])
     ),
     output: z.custom<AiStreamOpenResponse>()
   }),
   'ai.stream.attach': defineRoute({
-    input: z.strictObject({ topicId: z.string().min(1) }),
+    input: z.strictObject({
+      conversation: conversationRefSchema,
+      cursors: z.array(executionReplayCursorSchema)
+    }) satisfies z.ZodType<AiStreamAttachRequest>,
     output: z.custom<AiStreamAttachResponse>()
   }),
   'ai.stream.detach': defineRoute({
-    input: z.strictObject({ topicId: z.string().min(1) }),
+    input: z.strictObject({ conversation: conversationRefSchema }),
     output: z.void()
   }),
   'ai.stream.abort': defineRoute({
-    input: z.strictObject({ topicId: z.string().min(1) }),
+    input: z.strictObject({ conversation: conversationRefSchema }),
+    output: z.void()
+  }),
+  'ai.conversation.inbox.get': defineRoute({
+    input: z.strictObject({ conversation: conversationRefSchema }),
+    output: conversationInboxSnapshotSchema
+  }),
+  'ai.conversation.inbox.mutate': defineRoute({
+    input: z.strictObject({
+      conversation: conversationRefSchema,
+      mutation: z.discriminatedUnion('kind', [
+        z.strictObject({
+          kind: z.literal(ConversationInboxMutationKind.Remove),
+          inputId: z.string().min(1).transform(toConversationInputId)
+        }),
+        z.strictObject({
+          kind: z.literal(ConversationInboxMutationKind.Reorder),
+          inputIds: z.array(z.string().min(1).transform(toConversationInputId))
+        }),
+        z.strictObject({ kind: z.literal(ConversationInboxMutationKind.SetPaused), paused: z.boolean() })
+      ])
+    }),
+    output: conversationInboxSnapshotSchema
+  }),
+  'ai.prompt.abort': defineRoute({
+    input: z.strictObject({ streamId: z.string().min(1) }) satisfies z.ZodType<PromptStreamAbortRequest>,
     output: z.void()
   }),
 
   // ── Tool calls: deferred results + approval decisions. Spans two owners
-  // (AiStreamManager holds the live output, AiService applies the decision) —
+  // (ConversationRuntimeService holds the live output, AiService applies the decision) —
   // the subtree groups by domain, not by service.
   'ai.tool.get_result': defineRoute({
     // Mirrors AiToolResultRequest (z.ZodType pins exact-shape drift here, not in a test).
     input: z.strictObject({
-      topicId: z.string().min(1),
+      conversation: conversationRefSchema,
       messageId: z.string().min(1),
       toolCallId: z.string().min(1)
     }) satisfies z.ZodType<AiToolResultRequest>,
@@ -284,7 +429,7 @@ export const aiRequestSchemas = {
       approved: z.boolean(),
       reason: z.string().optional(),
       updatedInput: z.record(z.string(), z.unknown()).optional(),
-      topicId: z.string().optional(),
+      conversation: conversationRefSchema.optional(),
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.object({ ok: z.boolean() })
@@ -377,7 +522,7 @@ export const aiRequestSchemas = {
 
 /**
  * AI events (M→R, pure types — main is the TCB that builds them). High-frequency topic
- * streams: `AiStreamManager`'s per-(topic,window) `WebContentsListener` emits these via
+ * streams: ConversationRuntimeService's per-(conversation,window) observer emits these via
  * directed `webContents.send` on the IpcApi event channel (class-B topic stream), keeping
  * its coalescing/liveness intact — it does not `broadcast`.
  */
@@ -385,6 +530,9 @@ export type AiEventSchemas = {
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
+  'ai.prompt.chunk': PromptStreamChunkPayload
+  'ai.prompt.done': PromptStreamDonePayload
+  'ai.prompt.error': PromptStreamErrorPayload
   // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
   // window showing it should invalidate its cache.
   'ai.topic.auto_renamed': { topicId: string }

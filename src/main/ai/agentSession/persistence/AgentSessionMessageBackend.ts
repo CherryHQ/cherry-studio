@@ -1,10 +1,11 @@
 /**
- * Agent-session DB backend — writes assistant turns to the `agent_session_message`
- * table via `agentSessionMessageService`. The user message is persisted
- * by AgentChatContextProvider before streaming starts (not here).
+ * Agent-session DB backend — settles the pre-reserved assistant placeholder in
+ * the `agent_session_message` table via `agentSessionMessageService`. The user
+ * message is persisted by AgentChatContextProvider before streaming starts.
  *
- * The listener folds any error into `finalMessage.parts` upstream, so a
- * single `persistAssistant` handles success / paused / error uniformly.
+ * All writes here are stream-owned terminal settlements: they are UPDATE-only
+ * and pending-only, so a placeholder deleted mid-stream is never recreated and
+ * a row already settled by another owner is never overwritten.
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -21,7 +22,7 @@ export interface AgentSessionMessageBackendOptions {
   /** Model id used for this assistant message. */
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
-  runtimeResumeToken?: string | (() => string | undefined)
+  runtimeResumeToken?: string
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -38,31 +39,24 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
 
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, runtimeStats } = input
-    const runtimeResumeToken = this.getRuntimeResumeToken()
-    agentSessionMessageService.saveMessage(
-      {
-        sessionId: this.opts.sessionId,
-        ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-        ...(runtimeStats ? { runtimeStats } : {}),
-        message: {
-          id: finalMessage?.id ?? this.opts.assistantMessageId,
-          role: 'assistant',
-          status,
-          data: { parts: finalMessage?.parts ?? [] },
-          modelId: this.opts.modelId
-        }
-      },
-      { publishDataChange: true }
-    )
+    const runtimeResumeToken = this.opts.runtimeResumeToken
+    agentSessionMessageService.settlePendingAssistantMessage({
+      sessionId: this.opts.sessionId,
+      messageId: finalMessage?.id ?? this.opts.assistantMessageId,
+      ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
+      ...(runtimeStats ? { runtimeStats } : {}),
+      ...(this.opts.modelId !== undefined ? { modelId: this.opts.modelId } : {}),
+      status,
+      data: { parts: finalMessage?.parts ?? [] }
+    })
   }
 
   markTerminalError(): void {
-    agentSessionMessageService.markAssistantMessageTerminalError(this.opts.sessionId, this.opts.assistantMessageId)
-  }
-
-  private getRuntimeResumeToken(): string | undefined {
-    return typeof this.opts.runtimeResumeToken === 'function'
-      ? this.opts.runtimeResumeToken()
-      : this.opts.runtimeResumeToken
+    agentSessionMessageService.settlePendingAssistantMessage({
+      sessionId: this.opts.sessionId,
+      messageId: this.opts.assistantMessageId,
+      status: 'error',
+      data: { parts: [] }
+    })
   }
 }

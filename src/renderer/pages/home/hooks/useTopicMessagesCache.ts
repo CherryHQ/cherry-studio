@@ -123,7 +123,10 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   }, [mutate])
 
   const seedReservedMessages = useCallback(
-    async (messages: CherryUIMessage[], options: { preserveActiveNode?: boolean } = {}) => {
+    async (
+      messages: CherryUIMessage[],
+      options: { activeNodeDecision?: { readonly move: 'advance' | 'keep' } } = {}
+    ) => {
       const reservedItems = messages.map((message) => reservedUIMessageToBranchMessage(topicId, message))
       if (reservedItems.length === 0) return
 
@@ -169,7 +172,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
             items: [...firstPage.items, ...newItems],
             // In-place retry and live-group append reservations must never move the active branch.
             activeNodeId:
-              newItems.length > 0 && !options.preserveActiveNode
+              newItems.length > 0 && options.activeNodeDecision?.move !== 'keep'
                 ? (newItems.at(-1)?.message.id ?? firstPage.activeNodeId)
                 : firstPage.activeNodeId
           }

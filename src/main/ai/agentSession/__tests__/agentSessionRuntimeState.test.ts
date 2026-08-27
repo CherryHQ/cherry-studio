@@ -1,171 +1,348 @@
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { describe, expect, it } from 'vitest'
 
 import {
-  createAgentSessionRuntimeState,
-  getAgentSessionRuntimeConnection,
-  getAgentSessionRuntimeCurrentTurn,
-  getAgentSessionRuntimeOccupancy,
-  isAgentSessionRuntimeAutonomous,
-  isAgentSessionRuntimeBusy,
-  transitionAgentSessionRuntime,
-  willAgentSessionRuntimeContinue
-} from '../agentSessionRuntimeState'
+  type AgentRuntimeConnection,
+  type AgentRuntimeRedirectInput,
+  toAgentRuntimeRedirectId,
+  toAgentRuntimeSegmentId
+} from '../../runtime/types'
+import {
+  AgentAutonomousGenerationState,
+  AgentAutonomousResourceOwnership,
+  AgentConnectionDeliveryPhase,
+  AgentConnectionOccupancyKind,
+  AgentConnectionResourceEventType,
+  AgentConnectionResourceKind,
+  type AgentConnectionResourceState,
+  AgentDriverOutcomeKind,
+  AgentStreamResourcePhase,
+  createAgentConnectionResourceState,
+  getAgentConnectionOccupancy,
+  getAgentConnectionResource,
+  getAgentCurrentStreamResource,
+  hasAgentConnectionResources,
+  isAgentAutonomousResourceActive,
+  transitionAgentConnectionResource
+} from '../agentConnectionResourceState'
 
-type Turn = { id: string; terminal?: boolean }
-type PendingTurn = { id: string }
+type Turn = { id: string }
 type Reservation = { id: string }
 
 const turn = (id: string): Turn => ({ id })
-const pending = (id: string): PendingTurn => ({ id })
 const reservation = (id: string): Reservation => ({ id })
-describe('agentSessionRuntimeState', () => {
-  it('models a normal turn and queued follow-up without parallel execution flags', () => {
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(turn('user-1'))
+const chunk = (text: string) => ({ type: 'text-delta' as const, id: 'text-1', delta: text })
+const sourceSegmentId = toAgentRuntimeSegmentId('segment-source')
+const successorSegmentId = toAgentRuntimeSegmentId('segment-successor')
+const autonomousSegmentId = toAgentRuntimeSegmentId('segment-autonomous')
+const staleSegmentId = toAgentRuntimeSegmentId('segment-stale')
 
-    state = transitionAgentSessionRuntime(state, { type: 'queue-turn', turn: pending('user-2') }).state
+function message(id: string): AgentSessionMessageEntity {
+  return {
+    id,
+    sessionId: 'session-1',
+    role: 'user',
+    data: { parts: [{ type: 'text', text: id }] },
+    status: 'success',
+    modelId: null,
+    messageSnapshot: null,
+    stats: null,
+    searchableText: id,
+    runtimeResumeToken: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }
+}
 
-    expect(state.execution).toMatchObject({ kind: 'turn', turn: { id: 'user-1' } })
-    expect(state.queue).toEqual([{ id: 'user-2' }])
-    expect(isAgentSessionRuntimeBusy(state)).toBe(true)
-    expect(willAgentSessionRuntimeContinue(state)).toBe(true)
+const queuedRedirect: AgentRuntimeRedirectInput = {
+  redirectId: toAgentRuntimeRedirectId('redirect-1'),
+  segmentId: sourceSegmentId,
+  message: message('redirect-message-1')
+}
+
+function stateWithTurn(current: Turn): AgentConnectionResourceState<Turn, Reservation> {
+  return transitionAgentConnectionResource(createAgentConnectionResourceState<Turn, Reservation>(), {
+    type: AgentConnectionResourceEventType.BeginTurn,
+    turn: current,
+    segmentId: sourceSegmentId
+  }).state
+}
+
+function queueRedirect(state: AgentConnectionResourceState<Turn, Reservation>) {
+  return transitionAgentConnectionResource(state, {
+    type: AgentConnectionResourceEventType.RedirectQueued,
+    redirect: queuedRedirect
+  }).state
+}
+
+function crossSteerBoundary(state: AgentConnectionResourceState<Turn, Reservation>) {
+  return transitionAgentConnectionResource(state, {
+    type: AgentConnectionResourceEventType.SteerBoundary,
+    redirectIds: [queuedRedirect.redirectId],
+    sourceSegmentId,
+    successorSegmentId,
+    headless: false
+  })
+}
+
+enum RemovedLaunchTarget {
+  QueuedTurn = 'queued-turn',
+  SteerContinuation = 'steer-continuation',
+  ReceiveOnly = 'receive-only',
+  DeferredTurn = 'deferred-turn'
+}
+
+describe('agentSessionRuntimeState owner migration', () => {
+  it('is false with no entry and true while a turn is live', () => {
+    const idle = createAgentConnectionResourceState<Turn, Reservation>()
+    const live = stateWithTurn(turn('user-1'))
+
+    expect(hasAgentConnectionResources(idle)).toBe(false)
+    expect(hasAgentConnectionResources(live)).toBe(true)
   })
 
-  it('tracks stream and admission phases inside the normal turn state', () => {
+  it('is false once a turn settles with no queued follow-ups', () => {
     const current = turn('user-1')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
-
-    expect(state.execution).toMatchObject({ kind: 'turn', stream: 'unopened', admission: 'pending' })
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
-    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
-
-    expect(state.execution).toMatchObject({ kind: 'turn', stream: 'open', admission: 'admitted' })
-  })
-
-  it('waits for stream persistence before a completed normal turn becomes terminal', () => {
-    const current = turn('user-1')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
-
-    const runtimeCompleted = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'success' }
-    })
-
-    expect(runtimeCompleted.state.execution).toMatchObject({
-      kind: 'turn',
+    let state = stateWithTurn(current)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: current
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Success }
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnReleased,
+      turnId: current.id,
       turn: current,
-      stream: 'awaiting-persistence'
-    })
-    expect(runtimeCompleted.effects).toEqual([{ type: 'settle-turn', turn: current, outcome: { status: 'success' } }])
-    expect(isAgentSessionRuntimeBusy(runtimeCompleted.state)).toBe(true)
-
-    const persisted = transitionAgentSessionRuntime(runtimeCompleted.state, {
-      type: 'turn-terminal',
-      turn: current,
-      status: 'success'
-    })
-
-    expect(persisted.state.execution).toEqual({ kind: 'idle', lastTurn: current })
-    expect(persisted.effects).toEqual([])
-    expect(persisted.state.lastTerminal).toBe('success')
-  })
-
-  it('latches a terminal event until an unopened normal stream has emitted its start chunk', () => {
-    const current = turn('user-1')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
-    state = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'error', error: 'early failure' }
+      status: AgentDriverOutcomeKind.Success
     }).state
 
-    expect(state.execution).toMatchObject({
-      kind: 'turn',
-      stream: 'unopened',
-      terminal: { status: 'error', error: 'early failure' }
+    expect(hasAgentConnectionResources(state)).toBe(false)
+  })
+
+  it('is false with no entry, true while a turn streams, false once it settles', () => {
+    const current = turn('user-1')
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    expect(hasAgentConnectionResources(state)).toBe(false)
+
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn: current,
+      segmentId: sourceSegmentId
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: current
+    }).state
+    expect(getAgentCurrentStreamResource(state)).toBe(current)
+
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Success }
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnReleased,
+      turnId: current.id,
+      turn: current,
+      status: AgentDriverOutcomeKind.Success
+    }).state
+    expect(hasAgentConnectionResources(state)).toBe(false)
+  })
+
+  it('stays true mid-roll, when chunks are buffered for the continuation turn', () => {
+    const current = turn('user-1')
+    let state = stateWithTurn(current)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: current
+    }).state
+    state = queueRedirect(state)
+    state = crossSteerBoundary(state).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: successorSegmentId,
+      chunk: chunk('continued')
+    }).state
+
+    expect(hasAgentConnectionResources(state)).toBe(true)
+    expect(state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.SteerTransition,
+      buffer: [chunk('continued')]
+    })
+  })
+
+  it('models a normal turn without retaining the Conversation-owned follow-up queue', () => {
+    const state = stateWithTurn(turn('user-1'))
+
+    expect(state.generation).toMatchObject({ kind: AgentConnectionResourceKind.Turn, turn: { id: 'user-1' } })
+    expect('queue' in state).toBe(false)
+    expect(hasAgentConnectionResources(state)).toBe(true)
+  })
+
+  it('tracks stream and delivery phases inside the normal turn resource', () => {
+    const current = turn('user-1')
+    let state = stateWithTurn(current)
+
+    expect(state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.Turn,
+      stream: AgentStreamResourcePhase.Unopened,
+      delivery: AgentConnectionDeliveryPhase.Pending
+    })
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: current
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnSentToConnection,
+      turn: current
+    }).state
+
+    expect(state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.Turn,
+      stream: AgentStreamResourcePhase.Open,
+      delivery: AgentConnectionDeliveryPhase.Sent
+    })
+    expect('admission' in state.generation).toBe(false)
+  })
+
+  it('waits for Conversation terminal persistence before a completed turn resource becomes idle', () => {
+    const current = turn('user-1')
+    let state = stateWithTurn(current)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: current
+    }).state
+
+    const runtimeCompleted = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Success }
+    })
+    expect(runtimeCompleted.state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.Turn,
+      stream: AgentStreamResourcePhase.AwaitingRelease
+    })
+    expect(runtimeCompleted.effects).toEqual([
+      {
+        type: AgentConnectionResourceEventType.CloseTurnStream,
+        turn: current,
+        outcome: { status: AgentDriverOutcomeKind.Success }
+      }
+    ])
+    expect(hasAgentConnectionResources(runtimeCompleted.state)).toBe(true)
+
+    const persisted = transitionAgentConnectionResource(runtimeCompleted.state, {
+      type: AgentConnectionResourceEventType.TurnReleased,
+      turnId: current.id,
+      turn: current,
+      status: AgentDriverOutcomeKind.Success
+    })
+    expect(persisted.state.generation).toEqual({ kind: AgentConnectionResourceKind.Idle, lastTurn: current })
+  })
+
+  it('latches a terminal event until an unopened normal stream can receive it', () => {
+    const current = turn('user-1')
+    let state = stateWithTurn(current)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Error, error: 'early failure' }
+    }).state
+
+    expect(state.generation).toMatchObject({
+      stream: AgentStreamResourcePhase.Unopened,
+      driverOutcome: { status: AgentDriverOutcomeKind.Error, error: 'early failure' }
+    })
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: current
+    }).state
+    const flushed = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.FlushTransition
     })
 
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
-    const flushed = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
-
-    expect(flushed.state.execution).toMatchObject({ kind: 'turn', stream: 'awaiting-persistence' })
+    expect(flushed.state.generation).toMatchObject({ stream: AgentStreamResourcePhase.AwaitingRelease })
     expect(flushed.effects).toEqual([
       {
-        type: 'settle-turn',
+        type: AgentConnectionResourceEventType.CloseTurnStream,
         turn: current,
-        outcome: { status: 'error', error: 'early failure' }
+        outcome: { status: AgentDriverOutcomeKind.Error, error: 'early failure' }
       }
     ])
   })
 
   it('keeps the first terminal outcome while an unopened stream is waiting to attach', () => {
     const current = turn('user-1')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
-    state = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'error', error: 'first failure' }
+    let state = stateWithTurn(current)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Error, error: 'first failure' }
     }).state
 
-    const duplicate = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'success' }
+    const duplicate = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: sourceSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Success }
     })
 
-    expect(duplicate.state.execution).toMatchObject({
-      kind: 'turn',
-      terminal: { status: 'error', error: 'first failure' }
+    expect(duplicate.state.generation).toMatchObject({
+      driverOutcome: { status: AgentDriverOutcomeKind.Error, error: 'first failure' }
     })
     expect(duplicate.effects).toEqual([])
   })
 
-  it('moves a steer through one discriminated transition and replays its buffer once', () => {
+  it('reserves the gateway continuation before ingress and reuses it when A2 opens', () => {
     const original = turn('assistant-1')
     const continuation = turn('assistant-2')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(original)
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: original }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'reserve-steer',
+    let state = stateWithTurn(original)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: original
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ReserveSteer,
       reservation: reservation('reserved-2')
     }).state
-    const boundary = transitionAgentSessionRuntime(state, {
-      type: 'steer-boundary',
-      inputs: [],
-      headless: false
-    })
-    expect(boundary.state.execution).toMatchObject({
-      kind: 'steer-transition',
-      sourceStream: 'awaiting-persistence',
-      stream: 'unopened'
-    })
-    expect(boundary.effects).toEqual([{ type: 'settle-turn', turn: original, outcome: { status: 'success' } }])
-    const sourceSettled = transitionAgentSessionRuntime(boundary.state, {
-      type: 'turn-terminal',
-      turn: original,
-      status: 'success'
-    })
-    state = sourceSettled.state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'buffer-chunk',
-      chunk: { type: 'text-delta', id: 'text-1', delta: 'continued' }
+    state = queueRedirect(state)
+    state = crossSteerBoundary(state).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: successorSegmentId,
+      chunk: chunk('continued')
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'continuation-turn-created',
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ContinuationTurnCreated,
       turn: continuation
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: continuation }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: continuation
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnReleased,
+      turnId: original.id,
+      turn: original,
+      status: AgentDriverOutcomeKind.Success
+    }).state
 
-    const result = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
-
-    expect(result.state.execution).toEqual({
-      kind: 'turn',
+    const result = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.FlushTransition
+    })
+    expect(result.state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.Turn,
       turn: continuation,
-      stream: 'open',
-      admission: 'admitted'
+      stream: AgentStreamResourcePhase.Open
     })
     expect(result.effects).toEqual([
       {
-        type: 'deliver-buffer',
+        type: AgentConnectionResourceEventType.DeliverBuffer,
         turn: continuation,
-        chunks: [{ type: 'text-delta', id: 'text-1', delta: 'continued' }]
+        chunks: [chunk('continued')]
       }
     ])
   })
@@ -173,355 +350,348 @@ describe('agentSessionRuntimeState', () => {
   it('latches a steer completion that arrives before the continuation stream opens', () => {
     const original = turn('assistant-1')
     const continuation = turn('assistant-2')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(original)
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: original }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'steer-boundary',
-      inputs: [],
-      headless: false
+    let state = stateWithTurn(original)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: original
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'turn-terminal',
-      turn: original,
-      status: 'success'
+    state = queueRedirect(state)
+    state = crossSteerBoundary(state).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: successorSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Success }
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'success' }
-    }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'continuation-turn-created',
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ContinuationTurnCreated,
       turn: continuation
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: continuation }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: continuation
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnReleased,
+      turnId: original.id,
+      turn: original,
+      status: AgentDriverOutcomeKind.Success
+    }).state
 
-    const result = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
-
-    expect(result.state.execution).toMatchObject({ kind: 'turn', stream: 'awaiting-persistence' })
+    const result = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.FlushTransition
+    })
+    expect(result.state.generation).toMatchObject({ stream: AgentStreamResourcePhase.AwaitingRelease })
     expect(result.effects).toContainEqual({
-      type: 'settle-turn',
+      type: AgentConnectionResourceEventType.CloseTurnStream,
       turn: continuation,
-      outcome: { status: 'success' }
+      outcome: { status: AgentDriverOutcomeKind.Success }
     })
   })
 
-  it('latches an early autonomous completion until the receive-only stream opens', () => {
+  it('latches completion after the receive-only turn exists but before its controller is installed', () => {
     const receiveOnly = turn('wake')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started'
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'buffer-chunk',
-      chunk: { type: 'text-delta', id: 'wake-text', delta: 'done' }
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnCreated,
+      turn: receiveOnly
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'success' }
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: autonomousSegmentId,
+      chunk: chunk('done')
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: receiveOnly }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.DriverTerminal,
+      segmentId: autonomousSegmentId,
+      outcome: { status: AgentDriverOutcomeKind.Success }
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: receiveOnly
+    }).state
 
-    const result = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
-
+    const result = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.FlushTransition
+    })
     expect(result.effects).toEqual([
+      { type: AgentConnectionResourceEventType.DeliverBuffer, turn: receiveOnly, chunks: [chunk('done')] },
       {
-        type: 'deliver-buffer',
+        type: AgentConnectionResourceEventType.CloseTurnStream,
         turn: receiveOnly,
-        chunks: [{ type: 'text-delta', id: 'wake-text', delta: 'done' }]
-      },
-      { type: 'settle-turn', turn: receiveOnly, outcome: { status: 'success' } }
+        outcome: { status: AgentDriverOutcomeKind.Success }
+      }
     ])
-    expect(result.state.execution).toMatchObject({
-      kind: 'autonomous-turn',
-      ownership: 'active',
-      buffer: [],
-      stream: 'awaiting-persistence'
-    })
   })
 
-  it('restores a deferred user turn only after autonomous ownership and the wake turn both finish', () => {
-    const deferred = turn('user')
+  it('keeps deferred foreground ownership out of the connection resource', () => {
+    const foreground = turn('foreground')
+    let state = stateWithTurn(foreground)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId,
+      contextTurn: foreground
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Finished,
+      segmentId: autonomousSegmentId
+    }).state
+
+    expect(state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.AutonomousTurn,
+      contextTurn: foreground,
+      ownership: AgentAutonomousResourceOwnership.Released
+    })
+    expect('deferredTurn' in state.generation).toBe(false)
+    expect('launch' in state).toBe(false)
+  })
+
+  it('does not replace a running receive-only resource while Conversation restores foreground', () => {
+    const foreground = turn('foreground')
     const receiveOnly = turn('wake')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(deferred)
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started',
-      deferCurrentTurn: true
+    let state = stateWithTurn(foreground)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId,
+      contextTurn: foreground
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'turn-terminal',
-      turn: receiveOnly,
-      status: 'success'
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnCreated,
+      turn: receiveOnly
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: receiveOnly
     }).state
 
-    expect(state.execution).toMatchObject({ kind: 'autonomous-turn', ownership: 'active' })
-
-    const result = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'finished'
+    const invalid = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn: foreground,
+      segmentId: sourceSegmentId
     })
-
-    expect(result.state.execution).toEqual({
-      kind: 'turn',
-      turn: deferred,
-      stream: 'unopened',
-      admission: 'pending'
-    })
-    expect(result.state.launch).toEqual({ kind: 'scheduled', target: 'deferred-turn' })
-    expect(result.effects).toContainEqual({ type: 'schedule-launch', target: 'deferred-turn' })
+    expect(invalid.state).toBe(state)
+    expect(invalid.effects).toEqual([
+      expect.objectContaining({ type: AgentConnectionResourceEventType.LogInvalidTransition })
+    ])
   })
 
-  it('does not replace a running receive-only launch while restoring its deferred turn', () => {
-    const deferred = turn('user')
-    const receiveOnly = turn('wake')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(deferred)
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started',
-      deferCurrentTurn: true
-    }).state
-    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'launch-requested',
-      target: 'receive-only'
-    }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'launch-started',
-      target: 'receive-only'
-    }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'turn-terminal',
-      turn: receiveOnly,
-      status: 'success'
-    }).state
-
-    const result = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'finished'
-    })
-
-    expect(result.state.execution).toMatchObject({ kind: 'turn', turn: deferred })
-    expect(result.state.launch).toEqual({ kind: 'running', target: 'receive-only' })
-    expect(result.effects).not.toContainEqual({ type: 'schedule-launch', target: 'deferred-turn' })
-  })
-
-  it('drops a chunk with an explicit invalid-transition effect when no buffer owns it', () => {
-    const state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(turn('user-1'))
-
-    const result = transitionAgentSessionRuntime(state, {
-      type: 'buffer-chunk',
-      chunk: { type: 'text-delta', id: 'text-1', delta: 'orphan' }
+  it('ignores a chunk from a stale segment without mutating the live turn', () => {
+    const state = stateWithTurn(turn('user-1'))
+    const result = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.RuntimeChunk,
+      segmentId: staleSegmentId,
+      chunk: chunk('orphan')
     })
 
     expect(result.state).toBe(state)
-    expect(result.effects).toEqual([{ type: 'log-invalid-transition', event: 'buffer-chunk', state: 'turn' }])
+    expect(result.effects).toEqual([])
   })
 
   it('keeps duplicate autonomous and background occupancy events idempotent', () => {
-    const connection = { events: [], close: () => undefined } as never
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, { type: 'connection-started', attemptId: 'connect-1' }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-connected',
-      attemptId: 'connect-1',
+    const connection = {} as AgentRuntimeConnection
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionStarted,
+      connectionAttemptId: 'connect-1'
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionConnected,
+      connectionAttemptId: 'connect-1',
       connection
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started'
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
-    const duplicateAutonomous = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started'
+    const duplicateAutonomous = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     })
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-occupancy',
-      occupancy: 'background',
-      active: true,
-      responder: 'interactive'
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionOccupancy,
+      occupancy: AgentConnectionOccupancyKind.Background,
+      active: true
     }).state
-    const duplicateBackground = transitionAgentSessionRuntime(state, {
-      type: 'connection-occupancy',
-      occupancy: 'background',
-      active: true,
-      responder: 'headless'
+    const duplicateBackground = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionOccupancy,
+      occupancy: AgentConnectionOccupancyKind.Background,
+      active: true
     })
 
-    expect(duplicateAutonomous).toEqual({ state: duplicateAutonomous.state, effects: [] })
-    expect(getAgentSessionRuntimeOccupancy(duplicateBackground.state)).toEqual({
-      background: { responder: 'interactive' }
-    })
+    expect(duplicateAutonomous.effects).toEqual([])
+    expect(getAgentConnectionOccupancy(duplicateBackground.state)).toEqual({ background: true })
     expect(duplicateBackground.effects).toEqual([])
   })
 
-  it('scopes occupancy to the connection: a disconnect erases it structurally', () => {
-    const connection = { events: [], close: () => undefined } as never
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, { type: 'connection-started', attemptId: 'connect-1' }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-connected',
-      attemptId: 'connect-1',
+  it('scopes occupancy to the connection so disconnect erases it structurally', () => {
+    const connection = {} as AgentRuntimeConnection
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionStarted,
+      connectionAttemptId: 'connect-1'
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionConnected,
+      connectionAttemptId: 'connect-1',
       connection
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-occupancy',
-      occupancy: 'background',
-      active: true,
-      responder: 'interactive'
-    }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-occupancy',
-      occupancy: 'compaction',
-      active: true
-    }).state
-    expect(isAgentSessionRuntimeBusy(state)).toBe(true)
+    for (const occupancy of [AgentConnectionOccupancyKind.Background, AgentConnectionOccupancyKind.Compaction]) {
+      state = transitionAgentConnectionResource(state, {
+        type: AgentConnectionResourceEventType.ConnectionOccupancy,
+        occupancy,
+        active: true
+      }).state
+    }
 
-    const disconnected = transitionAgentSessionRuntime(state, { type: 'connection-disconnected', connection })
-
-    expect(getAgentSessionRuntimeOccupancy(disconnected.state)).toBeUndefined()
-    expect(isAgentSessionRuntimeBusy(disconnected.state)).toBe(false)
+    const disconnected = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionDisconnected,
+      connection
+    })
+    expect(getAgentConnectionOccupancy(disconnected.state)).toBeUndefined()
     expect(disconnected.effects).toEqual([
-      { type: 'release-background-waiter', connection },
-      { type: 'compaction-interrupted' }
+      { type: AgentConnectionResourceEventType.ReleaseBackgroundWaiter, connection },
+      { type: AgentConnectionResourceEventType.CompactionInterrupted }
     ])
   })
 
   it('defers a rebuild behind background occupancy and releases it when the work drains', () => {
-    const connection = { events: [], close: () => undefined } as never
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, { type: 'connection-started', attemptId: 'connect-1' }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-connected',
-      attemptId: 'connect-1',
+    const connection = {} as AgentRuntimeConnection
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionStarted,
+      connectionAttemptId: 'connect-1'
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionConnected,
+      connectionAttemptId: 'connect-1',
       connection
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-occupancy',
-      occupancy: 'background',
-      active: true,
-      responder: 'interactive'
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionOccupancy,
+      occupancy: AgentConnectionOccupancyKind.Background,
+      active: true
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-rebuild-deferred',
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionRebuildDeferred,
       connection,
       target: { modelId: 'model-2', reasoningEffort: 'default', serviceTier: 'standard', knowledgeBaseIds: ['kb-1'] }
     }).state
-    expect(state.connection).toMatchObject({ kind: 'connected', pendingRebuild: { modelId: 'model-2' } })
 
-    const result = transitionAgentSessionRuntime(state, {
-      type: 'connection-occupancy',
-      occupancy: 'background',
+    const result = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionOccupancy,
+      occupancy: AgentConnectionOccupancyKind.Background,
       active: false
     })
-
-    expect(getAgentSessionRuntimeConnection(result.state)).toBe(connection)
-    expect(result.state.connection).toEqual({ kind: 'connected', connection, occupancy: {} })
-    expect(result.effects).toContainEqual({ type: 'release-background-waiter', connection })
+    expect(getAgentConnectionResource(result.state)).toBe(connection)
+    expect(result.state.connection).toEqual({ kind: AgentConnectionResourceKind.Connected, connection, occupancy: {} })
+    expect(result.effects).toEqual([{ type: AgentConnectionResourceEventType.ReleaseBackgroundWaiter, connection }])
   })
 
-  it.each(['queued-turn', 'steer-continuation', 'receive-only', 'deferred-turn'] as const)(
-    'represents a suppressed %s launch and resumes it exactly once',
-    (target) => {
-      let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-      state = transitionAgentSessionRuntime(state, { type: 'launch-requested', target }).state
-      state = transitionAgentSessionRuntime(state, { type: 'launch-suppressed', target }).state
-
-      const resumed = transitionAgentSessionRuntime(state, { type: 'launch-resumed' })
-      const duplicate = transitionAgentSessionRuntime(resumed.state, { type: 'launch-resumed' })
-
-      expect(resumed.state.launch).toEqual({ kind: 'scheduled', target })
-      expect(resumed.effects).toEqual([{ type: 'schedule-launch', target }])
-      expect(duplicate.effects).toEqual([{ type: 'log-invalid-transition', event: 'launch-resumed', state: 'idle' }])
+  it.each(Object.values(RemovedLaunchTarget))(
+    'does not retain the removed %s scheduler state in the resource reducer',
+    () => {
+      const state = createAgentConnectionResourceState<Turn, Reservation>()
+      expect('launch' in state).toBe(false)
+      expect('queue' in state).toBe(false)
     }
   )
 
   it('ignores a stale connection detach without changing the current connection', () => {
-    const current = { events: [], close: () => undefined } as never
-    const stale = { events: [], close: () => undefined } as never
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, { type: 'connection-started', attemptId: 'connect-1' }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'connection-connected',
-      attemptId: 'connect-1',
+    const current = {} as AgentRuntimeConnection
+    const stale = {} as AgentRuntimeConnection
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionStarted,
+      connectionAttemptId: 'connect-1'
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionConnected,
+      connectionAttemptId: 'connect-1',
       connection: current
     }).state
 
-    const result = transitionAgentSessionRuntime(state, {
-      type: 'connection-disconnected',
+    const result = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ConnectionDisconnected,
       connection: stale
     })
-
-    expect(getAgentSessionRuntimeConnection(result.state)).toBe(current)
-    expect(result.effects[0]).toMatchObject({ type: 'log-invalid-transition' })
+    expect(getAgentConnectionResource(result.state)).toBe(current)
+    expect(result.effects).toEqual([
+      expect.objectContaining({ type: AgentConnectionResourceEventType.LogInvalidTransition })
+    ])
   })
 
-  it('derives current turn and autonomous ownership from the execution union', () => {
+  it('derives current turn and autonomous ownership from the generation union', () => {
     const receiveOnly = turn('wake')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started'
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnCreated,
+      turn: receiveOnly
+    }).state
 
-    expect(getAgentSessionRuntimeCurrentTurn(state)).toBe(receiveOnly)
-    expect(isAgentSessionRuntimeAutonomous(state)).toBe(true)
+    expect(getAgentCurrentStreamResource(state)).toBe(receiveOnly)
+    expect(isAgentAutonomousResourceActive(state)).toBe(true)
   })
 
   it('does not treat the current receive-only turn as a future continuation', () => {
     const receiveOnly = turn('wake')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started'
+    let state = createAgentConnectionResourceState<Turn, Reservation>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: receiveOnly }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'finished'
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnCreated,
+      turn: receiveOnly
     }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'success' }
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Finished,
+      segmentId: autonomousSegmentId
     }).state
 
-    expect(state.execution).toMatchObject({
-      kind: 'autonomous-turn',
-      ownership: 'released',
-      stream: 'awaiting-persistence'
+    expect(state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.AutonomousTurn,
+      turn: receiveOnly,
+      ownership: AgentAutonomousResourceOwnership.Released
     })
-    expect(willAgentSessionRuntimeContinue(state)).toBe(false)
+    expect('continuation' in state.generation).toBe(false)
   })
 
-  it('keeps a deferred user turn as a continuation after a receive-only turn', () => {
-    const deferred = turn('user')
+  it('keeps a deferred user turn in Conversation state, never in the receive-only resource', () => {
+    const foreground = turn('user')
     const receiveOnly = turn('wake')
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(deferred)
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started',
-      deferCurrentTurn: true
+    let state = stateWithTurn(foreground)
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      segmentId: autonomousSegmentId,
+      contextTurn: foreground
     }).state
-    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
-    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: receiveOnly }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'finished'
-    }).state
-    state = transitionAgentSessionRuntime(state, {
-      type: 'runtime-terminal',
-      outcome: { status: 'success' }
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.AutonomousTurnCreated,
+      turn: receiveOnly
     }).state
 
-    expect(state.execution).toMatchObject({
-      kind: 'autonomous-turn',
-      deferredTurn: deferred,
-      stream: 'awaiting-persistence'
+    expect(state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.AutonomousTurn,
+      turn: receiveOnly,
+      contextTurn: foreground
     })
-    expect(willAgentSessionRuntimeContinue(state)).toBe(true)
+    expect('deferredTurn' in state.generation).toBe(false)
   })
 })

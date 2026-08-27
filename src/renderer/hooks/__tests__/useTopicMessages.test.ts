@@ -61,7 +61,7 @@ describe('useTopicMessages', () => {
     })
   })
 
-  it('revalidates when a loaded message read model changes', () => {
+  it('revalidates only projection changes for messages present in the loaded pages', () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
     const anchorMessage = {
       id: 'anchor-1',
@@ -115,17 +115,27 @@ describe('useTopicMessages', () => {
 
     act(() => {
       MockUseDataApiUtils.emitDataChange([
-        { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['other-anchor'] }
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: ['other-anchor']
+        }
       ])
     })
     expect(mutate).not.toHaveBeenCalled()
 
     act(() => {
       MockUseDataApiUtils.emitDataChange([
-        { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['anchor-1'] }
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: ['anchor-1']
+        }
       ])
     })
-    expect(mutate).toHaveBeenCalledWith()
+    expect(mutate).toHaveBeenCalledTimes(1)
   })
 
   it('revalidates on a same-topic membership change whose entity ids are not loaded yet', () => {
@@ -164,18 +174,6 @@ describe('useTopicMessages', () => {
     } as never)
 
     renderHook(() => useTopicMessages('topic-1'))
-
-    act(() => {
-      MockUseDataApiUtils.emitDataChange([
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          routeParams: { topicId: 'topic-1' },
-          entityIds: ['new-user-1', 'new-placeholder-1']
-        }
-      ])
-    })
-    expect(mutate).not.toHaveBeenCalled()
 
     act(() => {
       MockUseDataApiUtils.emitDataChange([

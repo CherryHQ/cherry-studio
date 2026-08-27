@@ -89,7 +89,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       cwd,
       agentDataPath,
       supportsImages: ctx.supportsImages,
-      interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
+      interaction: application.get('ConversationRuntimeService').getAgentInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false
     })
     if (!decision) return {}
@@ -186,7 +186,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     ) {
       return {}
     }
-    application.get('AgentSessionRuntimeService').recordToolExecutionTiming(sessionId, {
+    application.get('AgentConnectionManager').recordToolExecutionTiming(sessionId, {
       toolCallId,
       toolName,
       durationMs

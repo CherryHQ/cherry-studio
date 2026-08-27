@@ -5,7 +5,16 @@ import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeEvent,
+  AgentRuntimeEventType,
+  AgentRuntimeRedirectReceiptKind,
+  type AgentRuntimeUserInput,
+  toAgentRuntimeConnectionId,
+  toAgentRuntimeRedirectId,
+  toAgentRuntimeSegmentId
+} from '../types'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
 const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
@@ -22,6 +31,8 @@ const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry-tools__config',
   'mcp__agent-memory__memory'
 ]
+const defaultSegmentId = toAgentRuntimeSegmentId('segment-1')
+let redirectSequence = 0
 
 interface FakeSpan {
   name: string
@@ -40,7 +51,7 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   resolveInjection: vi.fn(),
   getPath: vi.fn(),
-  getInteractionState: vi.fn(),
+  getAgentInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
   unregisterApiProviders: vi.fn(),
@@ -103,7 +114,7 @@ vi.mock('@application', () => ({
   application: {
     getPath: mocks.getPath,
     get: (name: string) =>
-      name === 'AgentSessionRuntimeService' ? { getInteractionState: mocks.getInteractionState } : {}
+      name === 'ConversationRuntimeService' ? { getAgentInteractionState: mocks.getAgentInteractionState } : {}
   }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
@@ -217,6 +228,7 @@ const fakePi = {
 }
 
 const input: AgentRuntimeConnectInput = {
+  connectionId: toAgentRuntimeConnectionId('pi-connection-1'),
   sessionId: 'sess-1',
   agentId: 'agent-1',
   modelId: 'p::m'
@@ -234,12 +246,27 @@ function createDeferred<T>() {
 
 function userInput(text: string, systemReminder = false): AgentRuntimeUserInput {
   return {
+    segmentId: defaultSegmentId,
     message: {
       id: `msg-${text}`,
       data: { parts: [{ type: 'text' as const, text }] }
     } as AgentRuntimeUserInput['message'],
     systemReminder
   }
+}
+
+function redirectInput(text: string) {
+  return {
+    ...userInput(text),
+    redirectId: toAgentRuntimeRedirectId(`redirect-${++redirectSequence}`)
+  }
+}
+
+function beginPromptRun(connection: { send(input: AgentRuntimeUserInput): void }, text = 'test request') {
+  const run = createDeferred<void>()
+  mocks.prompt.mockReturnValueOnce(run.promise)
+  connection.send(userInput(text))
+  return run
 }
 
 function approvalGateHandler(): (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined> {
@@ -274,6 +301,7 @@ async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promis
 }
 
 beforeEach(() => {
+  redirectSequence = 0
   vi.clearAllMocks()
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
@@ -293,7 +321,7 @@ beforeEach(() => {
     workspace: { path: WORKSPACE, type: 'system' }
   })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
-  mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+  mocks.getAgentInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
@@ -736,6 +764,7 @@ describe('PiRuntimeConnection', () => {
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
 
     const usage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2 }
@@ -756,6 +785,7 @@ describe('PiRuntimeConnection', () => {
       toolResults: []
     } as unknown as AgentSessionEvent)
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
 
     const events = await collectUntilTerminal(conn.events)
     const terminal = events.filter((e) => e.type === 'turn-complete')
@@ -766,6 +796,7 @@ describe('PiRuntimeConnection', () => {
 
   it('captures a successful provider invocation without relying on turn_end (including compaction)', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     expect(conn.usageCapture).toMatchObject({ owner: 'agent-sdk', providerId: 'p' })
 
     mocks.providerResult = {
@@ -781,6 +812,7 @@ describe('PiRuntimeConnection', () => {
     providerConfig.streamSimple({}, {})
     await vi.waitFor(() => expect(mocks.providerStreamSimple).toHaveBeenCalledTimes(2))
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
 
     const events = await collectUntilTerminal(conn.events)
     expect(events.filter((event) => event.type === 'usage')).toEqual([
@@ -806,6 +838,7 @@ describe('PiRuntimeConnection', () => {
 
   it('does not emit invocation usage for failed assistant responses', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     mocks.providerResult = {
       role: 'assistant',
       responseId: 'failed-response',
@@ -817,6 +850,7 @@ describe('PiRuntimeConnection', () => {
     mocks.registerProvider.mock.calls[0][1].streamSimple({}, {})
     await vi.waitFor(() => expect(mocks.providerStreamSimple).toHaveBeenCalledOnce())
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
 
     expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'usage')).toBe(false)
   })
@@ -968,18 +1002,26 @@ describe('PiRuntimeConnection', () => {
     expect(await nextEventWithin(conn.events)).toBeUndefined()
   })
 
-  it('redirect returns false when no live turn', async () => {
+  it('rejects redirect with its exact identity when no live turn exists', async () => {
     const conn = await new PiRuntimeConnection(input).start()
-    expect(conn.redirect(userInput('change course'))).toBe(false)
+    const steer = redirectInput('change course')
+    expect(conn.redirect(steer)).toEqual({
+      kind: AgentRuntimeRedirectReceiptKind.Rejected,
+      redirectId: steer.redirectId
+    })
     expect(mocks.steer).not.toHaveBeenCalled()
   })
 
   it('redirect stashes a live steer and sends system-reminder-wrapped text to pi', async () => {
     mocks.isStreaming = true
     const conn = await new PiRuntimeConnection(input).start()
-    const steer = userInput('change course')
+    conn.send(userInput('initial request'))
+    const steer = redirectInput('change course')
 
-    expect(conn.redirect(steer)).toBe(true)
+    expect(conn.redirect(steer)).toEqual({
+      kind: AgentRuntimeRedirectReceiptKind.Queued,
+      redirectId: steer.redirectId
+    })
 
     expect(mocks.steer).toHaveBeenCalledWith(
       [
@@ -993,11 +1035,15 @@ describe('PiRuntimeConnection', () => {
     )
   })
 
-  it('emits steer-boundary for a delivered steer before later assistant chunks', async () => {
+  it('emits the exact delivered segment before routing later assistant chunks to it', async () => {
     mocks.isStreaming = true
     const conn = await new PiRuntimeConnection(input).start()
-    const steer = userInput('new direction')
-    expect(conn.redirect(steer)).toBe(true)
+    conn.send(userInput('initial request'))
+    const steer = redirectInput('new direction')
+    expect(conn.redirect(steer)).toEqual({
+      kind: AgentRuntimeRedirectReceiptKind.Queued,
+      redirectId: steer.redirectId
+    })
     const cb = mocks.subscribeCb!
 
     cb({ type: 'message_start', message: { role: 'user' } } as unknown as AgentSessionEvent)
@@ -1010,9 +1056,19 @@ describe('PiRuntimeConnection', () => {
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
 
     const events = await collectUntilTerminal(conn.events)
-    const boundaryIndex = events.findIndex((e) => e.type === 'steer-boundary')
+    const boundaryIndex = events.findIndex((event) => event.type === AgentRuntimeEventType.SteerDelivered)
     const chunkIndex = events.findIndex((e) => e.type === 'chunk')
-    expect(events[boundaryIndex]).toMatchObject({ type: 'steer-boundary', inputs: [steer] })
+    const boundary = events[boundaryIndex]
+    expect(boundary).toMatchObject({
+      type: AgentRuntimeEventType.SteerDelivered,
+      redirects: [steer],
+      sourceSegmentId: defaultSegmentId
+    })
+    if (boundary?.type !== AgentRuntimeEventType.SteerDelivered) throw new Error('steer was not delivered')
+    expect(events[chunkIndex]).toMatchObject({
+      type: AgentRuntimeEventType.Chunk,
+      segmentId: boundary.successorSegmentId
+    })
     expect(boundaryIndex).toBeGreaterThanOrEqual(0)
     expect(boundaryIndex).toBeLessThan(chunkIndex)
   })
@@ -1020,8 +1076,12 @@ describe('PiRuntimeConnection', () => {
   it('emits undelivered steers before turn-complete when the turn ends first', async () => {
     mocks.isStreaming = true
     const conn = await new PiRuntimeConnection(input).start()
-    const steer = userInput('too late')
-    expect(conn.redirect(steer)).toBe(true)
+    conn.send(userInput('initial request'))
+    const steer = redirectInput('too late')
+    expect(conn.redirect(steer)).toEqual({
+      kind: AgentRuntimeRedirectReceiptKind.Queued,
+      redirectId: steer.redirectId
+    })
 
     mocks.isStreaming = false
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
@@ -1029,15 +1089,23 @@ describe('PiRuntimeConnection', () => {
     const events = await collectUntilTerminal(conn.events)
     const undeliveredIndex = events.findIndex((e) => e.type === 'steer-undelivered')
     const completeIndex = events.findIndex((e) => e.type === 'turn-complete')
-    expect(events[undeliveredIndex]).toMatchObject({ type: 'steer-undelivered', inputs: [steer] })
+    expect(events[undeliveredIndex]).toMatchObject({
+      type: AgentRuntimeEventType.SteerUndelivered,
+      redirectIds: [steer.redirectId],
+      sourceSegmentId: defaultSegmentId
+    })
     expect(undeliveredIndex).toBeLessThan(completeIndex)
   })
 
   it('clears pi steering queue on an errored turn with an undelivered steer (no duplicate re-inject)', async () => {
     mocks.isStreaming = true
     const conn = await new PiRuntimeConnection(input).start()
-    const steer = userInput('too late on error')
-    expect(conn.redirect(steer)).toBe(true)
+    conn.send(userInput('initial request'))
+    const steer = redirectInput('too late on error')
+    expect(conn.redirect(steer)).toEqual({
+      kind: AgentRuntimeRedirectReceiptKind.Queued,
+      redirectId: steer.redirectId
+    })
 
     mocks.isStreaming = false
     const cb = mocks.subscribeCb!
@@ -1049,7 +1117,10 @@ describe('PiRuntimeConnection', () => {
     cb({ type: 'agent_end', messages: [{ role: 'assistant', errorMessage: 'boom' }], willRetry: false } as never)
 
     const events = await collectUntilTerminal(conn.events)
-    expect(events.find((e) => e.type === 'steer-undelivered')).toMatchObject({ inputs: [steer] })
+    expect(events.find((e) => e.type === AgentRuntimeEventType.SteerUndelivered)).toMatchObject({
+      redirectIds: [steer.redirectId],
+      sourceSegmentId: defaultSegmentId
+    })
     expect(mocks.clearQueue).toHaveBeenCalledOnce()
     // The turn still surfaces the error terminal; steer-undelivered precedes it.
     expect(events.at(-1)?.type).toBe('error')
@@ -1059,13 +1130,22 @@ describe('PiRuntimeConnection', () => {
     mocks.isStreaming = true
     mocks.steer.mockRejectedValueOnce(new Error('steer rejected'))
     const conn = await new PiRuntimeConnection(input).start()
-    const steer = userInput('bad steer')
-    expect(conn.redirect(steer)).toBe(true)
+    const run = beginPromptRun(conn, 'initial request')
+    const steer = redirectInput('bad steer')
+    expect(conn.redirect(steer)).toEqual({
+      kind: AgentRuntimeRedirectReceiptKind.Queued,
+      redirectId: steer.redirectId
+    })
 
-    const events = await collectUntilTerminal(conn.events)
-    expect(events.find((e) => e.type === 'error')).toMatchObject({ error: new Error('steer rejected') })
+    expect(await nextEventWithin(conn.events)).toMatchObject({ type: AgentRuntimeEventType.ResumeToken })
+    expect(await nextEventWithin(conn.events)).toMatchObject({
+      type: AgentRuntimeEventType.Error,
+      segmentId: defaultSegmentId,
+      error: new Error('steer rejected')
+    })
 
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
     const iter = conn.events[Symbol.asyncIterator]()
     const next = await iter.next()
     expect(next.value?.type).not.toBe('steer-undelivered')
@@ -1092,8 +1172,10 @@ describe('PiRuntimeConnection', () => {
   it('emits a context-usage event on turn completion', async () => {
     mocks.getContextUsage.mockReturnValue({ tokens: 500, contextWindow: 1000, percent: 50 })
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
 
     const events = await collectUntilTerminal(conn.events)
     const usage = events.find((e) => e.type === 'context-usage')
@@ -1112,6 +1194,7 @@ describe('PiRuntimeConnection', () => {
 
   it('maps pi compaction events to Cherry compaction lifecycle events', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
     cb({ type: 'compaction_start', reason: 'threshold' } as unknown as AgentSessionEvent)
     cb({
@@ -1122,6 +1205,7 @@ describe('PiRuntimeConnection', () => {
       willRetry: false
     } as unknown as AgentSessionEvent)
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
 
     const events = await collectUntilTerminal(conn.events)
     const start = events.find((e) => e.type === 'compaction-start')
@@ -1132,6 +1216,7 @@ describe('PiRuntimeConnection', () => {
 
   it('emits compaction-complete before retrying the surrounding turn', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
     const iter = conn.events[Symbol.asyncIterator]()
     cb({ type: 'compaction_start', reason: 'overflow' } as unknown as AgentSessionEvent)
@@ -1149,11 +1234,13 @@ describe('PiRuntimeConnection', () => {
 
     // The retry continues the same host turn; only the eventual agent terminal closes it.
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
     await expect(iter.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
   })
 
   it('surfaces a failed compaction as a compaction-error event', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
     cb({
       type: 'compaction_end',
@@ -1164,6 +1251,7 @@ describe('PiRuntimeConnection', () => {
       errorMessage: 'context too large'
     } as unknown as AgentSessionEvent)
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
 
     const events = await collectUntilTerminal(conn.events)
     const err = events.find((e) => e.type === 'compaction-error')
@@ -1173,9 +1261,11 @@ describe('PiRuntimeConnection', () => {
 
   it('holds the turn open while an auto-retry is pending', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
     cb({ type: 'agent_end', messages: [], willRetry: true } as unknown as AgentSessionEvent)
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
     const events = await collectUntilTerminal(conn.events)
     expect(events.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
   })
@@ -1204,6 +1294,7 @@ describe('PiRuntimeConnection', () => {
 
   it('surfaces an errored turn as a runtime error event', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
     cb({
       type: 'turn_end',
@@ -1215,6 +1306,7 @@ describe('PiRuntimeConnection', () => {
       messages: [{ role: 'assistant', errorMessage: 'kaboom' }],
       willRetry: false
     } as unknown as AgentSessionEvent)
+    run.resolve()
     const events = await collectUntilTerminal(conn.events)
     const err = events.find((e) => e.type === 'error')
     expect(err).toBeTruthy()
@@ -1353,6 +1445,7 @@ describe('PiRuntimeConnection', () => {
 
   it('does not mislabel a successful auto-retry as an error after a prior error turn_end', async () => {
     const conn = await new PiRuntimeConnection(input).start()
+    const run = beginPromptRun(conn)
     const cb = mocks.subscribeCb!
     cb({
       type: 'turn_end',
@@ -1363,13 +1456,14 @@ describe('PiRuntimeConnection', () => {
     cb({ type: 'agent_end', messages: [], willRetry: true } as unknown as AgentSessionEvent)
     // Retry succeeds with no fresh turn_end.
     cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    run.resolve()
 
     const events = await collectUntilTerminal(conn.events)
     expect(events.some((e) => e.type === 'error')).toBe(false)
     expect(events.at(-1)?.type).toBe('turn-complete')
   })
 
-  it('close() aborts an approval still awaiting the renderer decision', async () => {
+  it('leaves connection approval teardown to the manager owner', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
 
@@ -1387,8 +1481,10 @@ describe('PiRuntimeConnection', () => {
     expect(toolApprovalRegistry.size()).toBe(1)
 
     await conn.close()
-    await expect(pending).resolves.toMatchObject({ block: true, reason: 'pi-session-closed' })
-    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(toolApprovalRegistry.size()).toBe(1)
+
+    toolApprovalRegistry.clear('manager-teardown')
+    await expect(pending).resolves.toMatchObject({ block: true, reason: 'manager-teardown' })
   })
 
   it('defers a permission-mode change while streaming and applies it once idle', async () => {

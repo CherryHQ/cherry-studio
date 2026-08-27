@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { AgentApprovalLifetime } from '../../runtime/types'
 import type { DispatchDecision } from '../ToolApprovalRegistry'
 import { toolApprovalRegistry } from '../ToolApprovalRegistry'
 
@@ -18,7 +19,7 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     toolCallId: 'tc1',
     toolName: 'bash',
     originalInput: { cmd: 'ls' },
-    presentation: 'stream' as const,
+    lifetime: AgentApprovalLifetime.ExecutionBound as const,
     resolve,
     ...overrides
   }
@@ -36,9 +37,12 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     expect(toolApprovalRegistry.size()).toBe(1)
 
     expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toEqual({
+      approvalId,
       sessionId: 's1',
       toolCallId: 'tc1',
-      presentation: 'stream'
+      lifetime: AgentApprovalLifetime.ExecutionBound,
+      connectionId: undefined,
+      messageId: undefined
     })
     await expect(result).resolves.toEqual({ approved: true })
     expect(toolApprovalRegistry.size()).toBe(0)
@@ -100,6 +104,23 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     controller.abort()
     await expect(result).resolves.toEqual({ approved: false, reason: 'aborted' })
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('keeps a session-message approval alive when its parent execution signal aborts', () => {
+    const controller = new AbortController()
+    const { entry, approvalId } = makeEntry({
+      lifetime: AgentApprovalLifetime.SessionMessage,
+      signal: controller.signal
+    })
+    toolApprovalRegistry.register(entry)
+
+    controller.abort('parent-turn-ended')
+
+    expect(toolApprovalRegistry.peek(approvalId)).toMatchObject({
+      sessionId: 's1',
+      lifetime: AgentApprovalLifetime.SessionMessage
+    })
+    expect(toolApprovalRegistry.size()).toBe(1)
   })
 
   it('aborts only the matching session and reports the count', async () => {

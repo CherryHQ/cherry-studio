@@ -1,139 +1,118 @@
-import { cacheService } from '@data/CacheService'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { ipcApi } from '@renderer/ipc'
+import {
+  ConversationInboxMutationKind,
+  type ConversationInputId,
+  type ConversationRef,
+  conversationRefKey
+} from '@shared/ai/conversation'
+import type {
+  ComposerQueuedMessagePayload,
+  ConversationInboxMutation,
+  ConversationInboxSnapshot
+} from '@shared/ai/transport'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ComposerSerializedDraft } from './tokens'
 
 export interface FollowupQueueItem {
-  id: string
-  /** Serialized draft (text + tokens) — drives the dock preview and edit-restore. */
+  id: ConversationInputId
   draft: ComposerSerializedDraft
-  /** Send-ready payload (text + parts + files/models) captured at enqueue time. */
   payload: ComposerQueuedMessagePayload
 }
 
-/** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
-const QUEUE_TTL = 24 * 60 * 60 * 1000
-const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
-const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
-
-/** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
-function loadQueue(scopeKey: string): FollowupQueueItem[] {
-  const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
-  return Array.isArray(cached) ? cached : []
-}
-
-function loadPaused(scopeKey: string): boolean {
-  return cacheService.getCasual<boolean>(pausedKeyFor(scopeKey)) === true
-}
-
 interface UseFollowupQueueParams {
-  /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
-  scopeKey: string
-  /** `done`-and-unacknowledged edge from `useTopicStreamStatus` — the live→idle drain trigger. */
-  isFulfilled: boolean
-  /** Acknowledge the completion so the drain fires once per turn. */
-  markSeen: () => void
-  /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
-  onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
-  /** Called when auto-drain fails and leaves the queued item in place. */
-  onDrainFailed?: () => void
+  conversation: ConversationRef
+  onEnqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => Promise<boolean>
 }
 
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
-  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
-  removeId: (id: string) => void
+  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => Promise<boolean>
+  removeId: (id: ConversationInputId) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
   paused: boolean
   setPaused: (paused: boolean) => void
 }
 
-/**
- * Per-conversation FIFO queue of follow-up drafts. While a turn streams the composer enqueues here
- * instead of sending; on the live→idle edge the head auto-drains (one per completion), and the dock
- * lets the user steer/edit/remove individual items or pause auto-drain. Persistence mirrors the
- * draft cache (per-window memory + TTL); this queue remains on the casual cache API.
- */
-export function useFollowupQueue({
-  scopeKey,
-  isFulfilled,
-  markSeen,
-  onDrain,
-  onDrainFailed
-}: UseFollowupQueueParams): FollowupQueueController {
-  const [items, setItems] = useState<FollowupQueueItem[]>(() => loadQueue(scopeKey))
-  const [paused, setPausedState] = useState(() => loadPaused(scopeKey))
+const toItems = (snapshot: ConversationInboxSnapshot): FollowupQueueItem[] =>
+  snapshot.items.map(({ id, presentation }) => ({
+    id,
+    draft: presentation.draft,
+    payload: presentation.payload
+  }))
 
-  // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
-  const scopeKeyRef = useRef(scopeKey)
-  const itemsRef = useRef(items)
-  itemsRef.current = items
-  const onDrainRef = useRef(onDrain)
-  onDrainRef.current = onDrain
-  const onDrainFailedRef = useRef(onDrainFailed)
-  onDrainFailedRef.current = onDrainFailed
+export function useFollowupQueue({ conversation, onEnqueue }: UseFollowupQueueParams): FollowupQueueController {
+  const key = conversationRefKey(conversation)
+  const status = useSharedCacheValue(`conversation.statuses.${key}` as const)
+  const [items, setItems] = useState<FollowupQueueItem[]>([])
+  const [paused, setPausedState] = useState(false)
+  const generationRef = useRef(0)
+  const conversationRef = useRef(conversation)
+  conversationRef.current = conversation
 
-  const persist = useCallback((next: FollowupQueueItem[]) => {
-    cacheService.setCasual(keyFor(scopeKeyRef.current), next, QUEUE_TTL)
+  const install = useCallback((snapshot: ConversationInboxSnapshot, generation: number) => {
+    if (generationRef.current !== generation) return
+    setItems(toItems(snapshot))
+    setPausedState(snapshot.paused)
   }, [])
 
-  // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
+  const refresh = useCallback(async () => {
+    const generation = generationRef.current
+    const snapshot = await ipcApi.request('ai.conversation.inbox.get', { conversation: conversationRef.current })
+    install(snapshot, generation)
+  }, [install])
+
   useEffect(() => {
-    if (scopeKeyRef.current === scopeKey) return
-    scopeKeyRef.current = scopeKey
-    setItems(loadQueue(scopeKey))
-    setPausedState(loadPaused(scopeKey))
-  }, [scopeKey])
-
-  const setPaused = useCallback((nextPaused: boolean) => {
-    cacheService.setCasual(pausedKeyFor(scopeKeyRef.current), nextPaused)
-    setPausedState(nextPaused)
-  }, [])
+    generationRef.current += 1
+    setItems([])
+    setPausedState(false)
+    void refresh()
+  }, [key, refresh, status?.inboxRevision])
 
   const enqueue = useCallback(
-    (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      setItems((prev) => {
-        const next = [...prev, { id: crypto.randomUUID(), draft, payload }]
-        persist(next)
-        return next
-      })
+    async (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
+      const accepted = await onEnqueue(draft, payload)
+      if (accepted) await refresh()
+      return accepted
     },
-    [persist]
+    [onEnqueue, refresh]
+  )
+
+  const mutate = useCallback(
+    async (mutation: ConversationInboxMutation) => {
+      const generation = generationRef.current
+      const snapshot = await ipcApi.request('ai.conversation.inbox.mutate', {
+        conversation: conversationRef.current,
+        mutation
+      })
+      install(snapshot, generation)
+    },
+    [install]
   )
 
   const removeId = useCallback(
-    (id: string) => {
-      setItems((prev) => {
-        const next = prev.filter((item) => item.id !== id)
-        persist(next)
-        return next
-      })
+    (inputId: ConversationInputId) => {
+      void mutate({ kind: ConversationInboxMutationKind.Remove, inputId })
     },
-    [persist]
+    [mutate]
   )
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
       setItems(nextItems)
-      persist(nextItems)
+      void mutate({ kind: ConversationInboxMutationKind.Reorder, inputIds: nextItems.map(({ id }) => id) })
     },
-    [persist]
+    [mutate]
   )
 
-  // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
-  // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
-  useEffect(() => {
-    if (!isFulfilled || paused) return
-    const head = itemsRef.current[0]
-    if (!head) return
-    markSeen()
-    const reportDrainFailure = () => onDrainFailedRef.current?.()
-    void onDrainRef.current(head.payload).then((sent) => {
-      if (sent) removeId(head.id)
-      else reportDrainFailure()
-    }, reportDrainFailure)
-  }, [isFulfilled, paused, markSeen, removeId])
+  const setPaused = useCallback(
+    (nextPaused: boolean) => {
+      setPausedState(nextPaused)
+      void mutate({ kind: ConversationInboxMutationKind.SetPaused, paused: nextPaused })
+    },
+    [mutate]
+  )
 
   return { items, enqueue, removeId, reorder, paused, setPaused }
 }

@@ -1,76 +1,71 @@
-/**
- * Window-level owner of streaming overlay state shared by topic and agent-session
- * consumers (execution readers, live snapshots, interval-batched flushes). Extracted
- * from `useExecutionOverlay` so the overlay's lifetime is keyed by the transport
- * `topicId` routing scope instead of a component instance: while a stream is
- * running, route/tab/conversation switches release their view (refcount)
- * without tearing down readers or detaching the Main listener, and re-acquire
- * the retained view synchronously on remount. An idle entry (no running
- * reader) may drop on release — the next mount rebuilds from SQLite.
- *
- * Lifecycle rules:
- * - Readers start ONLY from a mounted consumer (`syncExecutions`), so the
- *   continue-safe seed rule (see reader notes below) applies unchanged.
- *   While no consumer is mounted, running readers keep assembling;
- *   executions that appear meanwhile get no reader — their chunks queue in
- *   `TopicStreamSubscription`'s auto-created branches (attached) or are
- *   replayed from Main's bounded buffer on the next attach (entry dropped);
- *   SQLite persistence is the durable fallback past the buffer.
- * - Terminal handoff is dual-mode. With a consumer mounted, the
- *   status-edge handoff (`useTopicOverlayHandoffOnTerminal` → refresh →
- *   `reset`) owns disposal, unchanged. With `refCount === 0`, the edge
- *   would be unobservable (it is tracked per component instance), so a
- *   naturally-finished execution drops its overlay immediately — the
- *   persisted DB row owns it. The entry drops once the last reader ends
- *   only after Main says the topic is done; `isTopicDone=false` keeps the
- *   attachment across the gap before a continuation emits its first chunk.
- *   Finished keys are tombstoned in `settledKeys`: a remount
- *   re-reporting a stale set cannot restart them; only an open transport
- *   branch holding a new turn's chunks overrides the tombstone.
- * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop
- *   (lost terminal events, abandoned routing scopes); it cancels readers
- *   first so a truncated stream is never reported as a successful finish.
- *
- * Reader semantics (moved from the hook): each execution gets a
- * one-shot `readUIMessageStream` reader with zero cross-turn state. The
- * reader is seeded with the message whose id is `anchorMessageId` taken from
- * the *current* DB truth supplied by the consumer; for a tool-approval /
- * continue the row already carries the prior assistant parts so a streamed
- * `tool-output` chunk can merge onto the matching `tool-input`. The seed is
- * re-derived on every reader start and never carried across turns — that,
- * plus a fresh reader per turn, is the structural anti-pollution guarantee.
- */
 import { loggerService } from '@logger'
-import type { ActiveExecution } from '@shared/ai/transport'
+import {
+  ConversationActiveNodeMove,
+  type ConversationExecutionId,
+  type ConversationRef,
+  conversationRefKey,
+  type ConversationTurnId
+} from '@shared/ai/conversation'
+import type { ActiveNodeDecision, ConversationExecutionProjection } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
-import { isToolUIPart, readUIMessageStream } from 'ai'
+import { isToolUIPart, readUIMessageStream, type UIMessageChunk } from 'ai'
 
-import { TopicStreamSubscription } from './TopicStreamSubscription'
+import {
+  ConversationStreamRecoveryCompletion,
+  ConversationStreamRecoveryDisposition,
+  ConversationStreamRecoveryReason,
+  type ConversationStreamRecoveryRequest,
+  ConversationStreamSubscription,
+  type ExecutionTerminal
+} from './ConversationStreamSubscription'
+import { projectActiveExecutions } from './executionProjection'
 
 const logger = loggerService.withContext('ExecutionStreamOverlayService')
 
 export interface ExecutionFinishEvent {
-  attemptId: number
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
   message: CherryUIMessage
   isAbort: boolean
   isError: boolean
 }
 
-interface ExecutionOverlayView {
-  /** messageId -> latest streamed parts. messageId = anchorMessageId, or the
-   *  start-chunk id when the execution has no pre-allocated row (temp topic). */
-  overlay: Record<string, CherryMessagePart[]>
-  /** Latest assistant snapshot per execution, in insertion order. */
-  liveAssistants: CherryUIMessage[]
+export enum ExecutionOverlayPhase {
+  Active = 'active',
+  Settled = 'settled'
 }
 
-type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
+export interface ExecutionOverlayRecord {
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  phase: ExecutionOverlayPhase
+  message: CherryUIMessage
+  isAbort: boolean
+  isError: boolean
+}
+
+export interface ExecutionOverlayActiveNodeOverride {
+  previousActiveNodeId: string | null
+  activeNodeId: string
+}
+
+export interface ExecutionOverlayView {
+  overlay: Record<string, CherryMessagePart[]>
+  liveAssistants: CherryUIMessage[]
+  records: ExecutionOverlayRecord[]
+  optimisticMessages: CherryUIMessage[]
+  projectedExecutions: ConversationExecutionProjection[]
+  activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
+  refreshError: Error | null
+}
+
+type FinishListener = (executionId: ConversationExecutionId, event: ExecutionFinishEvent) => void
 
 interface ReaderHandle {
-  executionId: UniqueModelId
-  attemptId: number
-  anchorMessageId?: string
+  readonly branch: ReadableStream<UIMessageChunk>
+  readonly execution: ConversationExecutionProjection
+  readonly seedFromEmpty: boolean | undefined
+  readonly getSeedMessages: () => CherryUIMessage[]
   cancel: () => void
   unregister: () => void
 }
@@ -82,54 +77,109 @@ interface PendingSnapshot {
 }
 
 interface ConsumerContribution {
-  executions: readonly ActiveExecution[]
+  executions: readonly ConversationExecutionProjection[]
   getSeedMessages: () => CherryUIMessage[]
 }
 
+interface ExecutionCandidate {
+  execution: ConversationExecutionProjection
+  seedFromEmpty?: boolean
+  seed: ConsumerContribution
+}
+
+interface Settlement {
+  turnId: ConversationTurnId
+  isAbort: boolean
+  isError: boolean
+}
+
+interface ExecutionOverlayIdentity {
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  outputNodeId: string | undefined
+}
+
+interface ExecutionOverlayEntry {
+  identity: ExecutionOverlayIdentity
+  projection: ConversationExecutionProjection
+  optimisticSeed?: () => CherryUIMessage[]
+  reader?: ReaderHandle
+  snapshot?: CherryUIMessage
+  pendingSnapshot?: PendingSnapshot
+  settlement?: Settlement
+  readerVersion: number
+}
+
+interface HandoffState {
+  pendingTurnIds: Set<ConversationTurnId>
+  retireRecoveries: Map<string, ConversationStreamRecoveryRequest>
+  retryRecoveries: Map<string, ConversationStreamRecoveryRequest>
+  attempt: number
+  retryTimer: number | null
+  inFlight: boolean
+}
+
+export enum ConversationOverlayDurability {
+  Durable = 'durable',
+  Ephemeral = 'ephemeral'
+}
+
+export type ConversationOverlayRecoveryBinding =
+  | {
+      readonly durability: ConversationOverlayDurability.Durable
+      readonly refresh: () => Promise<unknown>
+    }
+  | {
+      readonly durability: ConversationOverlayDurability.Ephemeral
+    }
+
 interface Entry {
-  topicId: string
-  sub: TopicStreamSubscription
+  conversation: ConversationRef
+  key: string
+  sub: ConversationStreamSubscription
   dropped: boolean
   refCount: number
   desired: Map<object, ConsumerContribution>
-  /** executionId -> latest message snapshot. Retained after a reader tears
-   *  down (final frame / Phase 2 last-good) until the same execution
-   *  restarts, an explicit dispose, or the entry is dropped. */
-  snapshots: Record<string, CherryUIMessage>
+  optimisticMessages: Map<string, CherryUIMessage>
+  optimisticMessageTurnIds: Map<string, ConversationTurnId>
+  activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
+  refreshError: Error | null
+  durability: ConversationOverlayDurability
+  refreshPorts: Set<() => Promise<unknown>>
+  notFoundTombstones: Map<ConversationExecutionId, ConversationTurnId>
+  handoff: HandoffState | null
+  executions: Map<ConversationExecutionId, ExecutionOverlayEntry>
   view: ExecutionOverlayView
-  pendingSnapshots: Map<string, PendingSnapshot>
-  readerVersions: Map<string, number>
-  readers: Map<string, ReaderHandle>
-  /** Terminal reader keys that remain reported by a mounted consumer. Keep
-   *  them satisfied until the key leaves the desired set so an overlay
-   *  publication render cannot restart the just-finished execution. */
-  settledKeys: Set<string>
-  /** In-flight reader loops. Kept separately from `readers` so cancellation
-   *  can retire a handle before its async loop reaches `finally`. */
   liveReaderCount: number
   epoch: number
   commitTimer: number | null
   commitDeadline: number | null
-  /** performance.now() of the last snapshot commit — enforces commitIntervalMs(). */
   lastCommitAt: number
   listeners: Set<() => void>
   finishListeners: Set<FinishListener>
   lastActiveAt: number
-  /** Set when refCount hits 0. The next syncExecutions reconciles: snapshots
-   *  whose execution is no longer active are dropped, because the terminal
-   *  status edge that normally hands them off to the DB row is tracked per
-   *  component instance and was unobservable while unmounted. Executions
-   *  still streaming keep their snapshots — that continuity is the point. */
   needsRemountReconcile: boolean
 }
 
 const MAX_ENTRIES = 32
-/** Commit cadence floor/ceiling. Each commit re-runs O(message size) render work (content
- *  transforms + markdown re-lex), so the interval scales with snapshot size to keep the
- *  per-second work bounded — a fixed cadence still melts the renderer as the message grows. */
+const HANDOFF_RETRY_DELAYS_MS = [1_000, 2_000, 5_000, 15_000, 30_000]
 const MIN_COMMIT_INTERVAL_MS = 100
 const MAX_COMMIT_INTERVAL_MS = 3000
 const COMMIT_CHARS_PER_MS = 2000
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled Conversation overlay variant: ${String(value)}`)
+}
+
+const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
+  overlay: Object.freeze({}),
+  liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[],
+  records: Object.freeze([]) as unknown as ExecutionOverlayRecord[],
+  optimisticMessages: Object.freeze([]) as unknown as CherryUIMessage[],
+  projectedExecutions: Object.freeze([]) as unknown as ConversationExecutionProjection[],
+  activeNodeOverride: null,
+  refreshError: null
+})
 
 function commitIntervalMs(pending: Iterable<PendingSnapshot>): number {
   let chars = 0
@@ -141,63 +191,34 @@ function commitIntervalMs(pending: Iterable<PendingSnapshot>): number {
   }
   return Math.min(MAX_COMMIT_INTERVAL_MS, Math.max(MIN_COMMIT_INTERVAL_MS, chars / COMMIT_CHARS_PER_MS))
 }
-// Frozen: its reference identity is what keeps useSyncExternalStore stable,
-// so a consumer mutation would silently poison every topic in the window.
-const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
-  overlay: Object.freeze({}),
-  liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[]
-})
-
-function executionKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
-  return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
-}
 
 function pickSeed(
   uiMessages: CherryUIMessage[],
-  anchorMessageId?: string,
+  outputNodeId?: string,
   seedFromEmpty = false
 ): CherryUIMessage | undefined {
-  if (!anchorMessageId) return undefined
-  if (seedFromEmpty) return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
-  const found = uiMessages.find((m) => m.id === anchorMessageId)
-  if (!found) {
-    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
-  }
-  // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
-  // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
-  // would corrupt cached history and race the DB-authoritative refresh(). Clone the parts so
-  // the reader only ever writes to a throwaway. (DB parts are JSON-serializable.)
+  if (!outputNodeId) return undefined
+  if (seedFromEmpty) return { id: outputNodeId, role: 'assistant', parts: [] } as CherryUIMessage
+  const found = uiMessages.find((message) => message.id === outputNodeId)
+  if (!found) return { id: outputNodeId, role: 'assistant', parts: [] } as CherryUIMessage
   return { ...found, parts: structuredClone(found.parts ?? []) }
 }
 
 function canReuseSettledPart(previous: CherryMessagePart, next: CherryMessagePart): boolean {
   if (previous.type !== next.type) return false
-
   if (previous.type === 'text' && next.type === 'text') {
     return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
   }
-
   if (previous.type === 'reasoning' && next.type === 'reasoning') {
     return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
   }
-
   if (isToolUIPart(previous) && isToolUIPart(next)) {
-    const previousTool = previous as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
-    const nextTool = next as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
-    if (previousTool.toolCallId !== nextTool.toolCallId || previousTool.state !== nextTool.state) return false
-    if (previousTool.state === 'output-available') {
-      return previousTool.preliminary !== true && nextTool.preliminary !== true
-    }
-    return (
-      previousTool.state === 'output-error' ||
-      previousTool.state === 'output-denied' ||
-      previousTool.state === 'cancelled'
-    )
+    const before = previous as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    const after = next as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    if (before.toolCallId !== after.toolCallId || before.state !== after.state) return false
+    if (before.state === 'output-available') return before.preliminary !== true && after.preliminary !== true
+    return before.state === 'output-error' || before.state === 'output-denied' || before.state === 'cancelled'
   }
-
-  // These transport parts are append-only in processUIMessageStream. Data
-  // parts are deliberately excluded because an id-bearing data part can be
-  // updated in place by a later chunk.
   return (
     previous.type === 'file' ||
     previous.type === 'source-url' ||
@@ -206,17 +227,11 @@ function canReuseSettledPart(previous: CherryMessagePart, next: CherryMessagePar
   )
 }
 
-/**
- * `readUIMessageStream` clones the complete message for every chunk. Restore
- * references for protocol-settled parts so rendering work stays proportional
- * to the live frontier instead of the full accumulated transcript.
- */
 function shareSettledPartReferences(
   previous: CherryMessagePart[] | undefined,
   next: CherryMessagePart[]
 ): CherryMessagePart[] {
-  if (!previous || previous.length === 0 || next.length === 0) return next
-
+  if (!previous?.length || next.length === 0) return next
   let reusedAny = false
   let reusedAll = previous.length === next.length
   const shared = next.map((part, index) => {
@@ -228,224 +243,549 @@ function shareSettledPartReferences(
     reusedAll = false
     return part
   })
-
   if (reusedAll) return previous
   return reusedAny ? shared : next
 }
 
-function computeView(snapshots: Record<string, CherryUIMessage>): ExecutionOverlayView {
+function sameExecutionContribution(
+  previous: readonly ConversationExecutionProjection[] | undefined,
+  next: readonly ConversationExecutionProjection[]
+): boolean {
+  if (!previous || previous.length !== next.length) return false
+  return next.every((execution, index) => {
+    const before = previous[index]
+    return (
+      before.turnId === execution.turnId &&
+      before.executionId === execution.executionId &&
+      before.modelId === execution.modelId &&
+      before.outputNodeId === execution.outputNodeId &&
+      before.seedFromEmpty === execution.seedFromEmpty
+    )
+  })
+}
+
+function sameOverlayView(left: ExecutionOverlayView, right: ExecutionOverlayView): boolean {
+  const sameList = <T>(a: readonly T[], b: readonly T[]): boolean =>
+    a.length === b.length && a.every((item, index) => item === b[index])
+  const leftOverlayKeys = Object.keys(left.overlay)
+  return (
+    left.activeNodeOverride === right.activeNodeOverride &&
+    left.refreshError === right.refreshError &&
+    leftOverlayKeys.length === Object.keys(right.overlay).length &&
+    leftOverlayKeys.every((key) => left.overlay[key] === right.overlay[key]) &&
+    sameList(left.liveAssistants, right.liveAssistants) &&
+    sameList(left.records, right.records) &&
+    sameList(left.optimisticMessages, right.optimisticMessages) &&
+    sameList(left.projectedExecutions, right.projectedExecutions)
+  )
+}
+
+function computeView(
+  overlayExecutions: ReadonlyMap<ConversationExecutionId, ExecutionOverlayEntry>,
+  executions: ReadonlyMap<ConversationExecutionId, ConversationExecutionProjection>,
+  optimisticMessages: ReadonlyMap<string, CherryUIMessage>,
+  projectedExecutions: ConversationExecutionProjection[],
+  activeNodeOverride: ExecutionOverlayActiveNodeOverride | null,
+  refreshError: Error | null
+): ExecutionOverlayView {
   const overlay: Record<string, CherryMessagePart[]> = {}
-  for (const snapshot of Object.values(snapshots)) {
-    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
+  for (const { snapshot } of overlayExecutions.values()) {
+    if (!snapshot) continue
+    if (snapshot.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
   }
-  const liveAssistants = Object.values(snapshots).filter((s): s is CherryUIMessage => s?.role === 'assistant')
-  return { overlay, liveAssistants }
+  const records = [...overlayExecutions].flatMap(([executionId, overlayExecution]) => {
+    const { snapshot: message, settlement } = overlayExecution
+    if (!message) return []
+    if (message.role !== 'assistant') return []
+    const execution = executions.get(executionId)
+    const turnId = settlement?.turnId ?? execution?.turnId ?? overlayExecution.identity.turnId
+    if (!turnId) return []
+    return [
+      {
+        turnId,
+        executionId,
+        phase: settlement ? ExecutionOverlayPhase.Settled : ExecutionOverlayPhase.Active,
+        message,
+        isAbort: settlement?.isAbort ?? false,
+        isError: settlement?.isError ?? false
+      }
+    ]
+  })
+  return {
+    overlay,
+    liveAssistants: [...overlayExecutions.values()].flatMap(({ snapshot }) =>
+      snapshot?.role === 'assistant' ? [snapshot] : []
+    ),
+    records,
+    optimisticMessages: [...optimisticMessages.values()],
+    projectedExecutions,
+    activeNodeOverride,
+    refreshError
+  }
+}
+
+function executionIdentity(execution: ConversationExecutionProjection): ExecutionOverlayIdentity {
+  return {
+    turnId: execution.turnId,
+    executionId: execution.executionId,
+    outputNodeId: execution.outputNodeId
+  }
+}
+
+function executionIdentityMatches(
+  overlay: ExecutionOverlayEntry,
+  identity: Pick<ExecutionOverlayIdentity, 'turnId' | 'executionId'>
+): boolean {
+  return overlay.identity.turnId === identity.turnId && overlay.identity.executionId === identity.executionId
+}
+
+function getOrCreateExecutionOverlay(
+  entry: Entry,
+  execution: ConversationExecutionProjection
+): ExecutionOverlayEntry | undefined {
+  const existing = entry.executions.get(execution.executionId)
+  if (existing) {
+    if (existing.identity.turnId !== execution.turnId) return undefined
+    existing.projection = execution
+    existing.identity = executionIdentity(execution)
+    return existing
+  }
+  const created: ExecutionOverlayEntry = {
+    identity: executionIdentity(execution),
+    projection: execution,
+    readerVersion: 0
+  }
+  entry.executions.set(execution.executionId, created)
+  return created
 }
 
 export class ExecutionStreamOverlayService {
   readonly #entries = new Map<string, Entry>()
 
-  acquire(topicId: string): void {
-    const entry = this.#getOrCreate(topicId)
+  acquire(conversation: ConversationRef): void {
+    const entry = this.#getOrCreate(conversation)
     entry.refCount += 1
     entry.lastActiveAt = Date.now()
-    // A hidden window's commit timer may be delayed with snapshots pending; materialize
-    // them so the re-acquiring consumer's first read sees the latest state.
     this.#flushPending(entry, entry.epoch)
   }
 
-  release(topicId: string, consumer: object): void {
-    const entry = this.#entries.get(topicId)
+  release(conversation: ConversationRef, consumer: object): void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return
-    // Remove the contribution WITHOUT converging readers: departure must not
-    // cancel them — surviving unmount is the point of this service. Settled
-    // keys are also kept: pruning them here (when this was the last consumer)
-    // would let a remount with a temporarily stale active set restart a
-    // finished execution and wipe its retained final frame. syncExecutions
-    // prunes them against the union once fresh state arrives.
     entry.desired.delete(consumer)
     entry.refCount = Math.max(0, entry.refCount - 1)
     if (entry.refCount === 0) entry.needsRemountReconcile = true
     this.#maybeDrop(entry)
   }
 
-  /** Converge readers to the union of mounted consumers' active executions.
-   *  Same convergence the hook's effect ran: leaving executions get their
-   *  reader cancelled (suppressing onFinish — the status-driven handoff owns
-   *  that path), new ones start a fresh seeded reader. */
   syncExecutions(
-    topicId: string,
+    conversation: ConversationRef,
     consumer: object,
-    executions: readonly ActiveExecution[],
+    executions: readonly ConversationExecutionProjection[],
     getSeedMessages: () => CherryUIMessage[]
   ): void {
-    const entry = this.#entries.get(topicId)
+    const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return
+    const previous = entry.desired.get(consumer)?.executions
     entry.desired.set(consumer, { executions, getSeedMessages })
 
-    const union = new Map<
-      string,
-      {
-        executionId: UniqueModelId
-        attemptId: number
-        anchorMessageId?: string
-        seedFromEmpty?: boolean
-        seed: ConsumerContribution
-      }
-    >()
+    const candidates = new Map<ConversationExecutionId, ExecutionCandidate>()
+    for (const [executionId, overlayExecution] of entry.executions) {
+      const execution = overlayExecution.projection
+      const getOptimisticSeed = overlayExecution.optimisticSeed
+      if (!getOptimisticSeed) continue
+      candidates.set(executionId, {
+        execution,
+        seedFromEmpty: execution.seedFromEmpty,
+        seed: { executions: [execution], getSeedMessages: getOptimisticSeed }
+      })
+    }
     for (const contribution of entry.desired.values()) {
-      for (const { executionId, attemptId, anchorMessageId, seedFromEmpty } of contribution.executions) {
-        const key = executionKey(executionId, anchorMessageId, attemptId)
-        const existing = union.get(key)
+      for (const execution of contribution.executions) {
+        const existing = candidates.get(execution.executionId)
         if (!existing) {
-          union.set(key, { executionId, attemptId, anchorMessageId, seedFromEmpty, seed: contribution })
-        } else if (seedFromEmpty && !existing.seedFromEmpty) {
-          union.set(key, { ...existing, seedFromEmpty: true })
+          candidates.set(execution.executionId, {
+            execution,
+            seedFromEmpty: execution.seedFromEmpty,
+            seed: contribution
+          })
+        } else if (execution.seedFromEmpty && !existing.seedFromEmpty) {
+          candidates.set(execution.executionId, { ...existing, seedFromEmpty: true })
         }
       }
     }
-
-    for (const key of entry.settledKeys) {
-      if (!union.has(key)) entry.settledKeys.delete(key)
+    const union = new Map<ConversationExecutionId, ExecutionCandidate>()
+    for (const execution of projectActiveExecutions([...candidates.values()].map(({ execution }) => execution))) {
+      const candidate = candidates.get(execution.executionId)
+      if (candidate) union.set(execution.executionId, candidate)
+    }
+    for (const [executionId, turnId] of entry.notFoundTombstones) {
+      const candidate = union.get(executionId)
+      if (!candidate || candidate.execution.turnId !== turnId) {
+        entry.notFoundTombstones.delete(executionId)
+      } else {
+        union.delete(executionId)
+      }
     }
 
     if (entry.needsRemountReconcile) {
       entry.needsRemountReconcile = false
-      const liveExecutionIds = new Set([...union.values()].map((item) => item.executionId as string))
-      let next = entry.snapshots
-      for (const executionId of Object.keys(entry.snapshots)) {
+      const liveExecutionIds = new Set([
+        ...union.keys(),
+        ...[...entry.executions].flatMap(([executionId, overlay]) => (overlay.reader ? [executionId] : []))
+      ])
+      let changed = false
+      for (const [executionId, overlayExecution] of entry.executions) {
+        if (!overlayExecution.snapshot) continue
         if (liveExecutionIds.has(executionId)) continue
-        entry.pendingSnapshots.delete(executionId)
-        entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
-        if (next === entry.snapshots) next = { ...entry.snapshots }
-        delete next[executionId]
+        entry.sub.retireExecution(executionId)
+        entry.executions.delete(executionId)
+        changed = true
       }
-      this.#commitSnapshots(entry, next)
+      if (changed) this.#publishView(entry)
     }
 
-    for (const [key, handle] of [...entry.readers]) {
-      if (union.has(key)) continue
+    for (const [executionId, overlayExecution] of [...entry.executions]) {
+      const handle = overlayExecution.reader
+      if (!handle) continue
+      if (union.has(executionId) || !entry.sub.isSettled(executionId)) continue
       handle.cancel()
       handle.unregister()
-      entry.readers.delete(key)
+      overlayExecution.reader = undefined
+      overlayExecution.readerVersion += 1
     }
-
-    for (const [key, item] of union) {
-      if (entry.readers.has(key)) continue
-      if (entry.settledKeys.has(key)) {
-        // A finished key restarts only on fresh transport evidence: a new
-        // turn's chunks queue in an open branch, while a stale consumer
-        // report has none — restarting on the latter would orphan a zombie
-        // reader on a stream that already ended (A7).
-        if (!entry.sub.hasOpenBranch(item.executionId, item.anchorMessageId, item.attemptId)) continue
-        entry.settledKeys.delete(key)
-      }
-      this.#startReader(
-        entry,
-        key,
-        item.executionId,
-        item.attemptId,
-        item.anchorMessageId,
-        item.seedFromEmpty,
-        item.seed.getSeedMessages
-      )
+    for (const [executionId, candidate] of union) {
+      if (entry.executions.get(executionId)?.reader || entry.sub.isSettled(executionId)) continue
+      this.#startReader(entry, candidate.execution, candidate.seedFromEmpty, candidate.seed.getSeedMessages)
     }
+    if (!sameExecutionContribution(previous, executions)) this.#publishView(entry)
   }
 
-  subscribe(topicId: string, listener: () => void): () => void {
-    const entry = this.#entries.get(topicId)
+  subscribe(conversation: ConversationRef, listener: () => void): () => void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return () => {}
     entry.listeners.add(listener)
     return () => entry.listeners.delete(listener)
   }
 
-  getView(topicId: string): ExecutionOverlayView {
-    return this.#entries.get(topicId)?.view ?? EMPTY_VIEW
+  getView(conversation: ConversationRef): ExecutionOverlayView {
+    return this.#entries.get(conversationRefKey(conversation))?.view ?? EMPTY_VIEW
   }
 
-  onFinish(topicId: string, listener: FinishListener): () => void {
-    const entry = this.#entries.get(topicId)
+  seedReservations(
+    conversation: ConversationRef,
+    messages: readonly CherryUIMessage[],
+    executions: readonly ConversationExecutionProjection[],
+    activeNodeDecision: ActiveNodeDecision | undefined,
+    previousActiveNodeId: string | null,
+    getSeedMessages: () => CherryUIMessage[]
+  ): void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
+    if (!entry) return
+    const turnId = executions[0]?.turnId
+    for (const message of messages) {
+      entry.optimisticMessages.set(message.id, message)
+      if (turnId) entry.optimisticMessageTurnIds.set(message.id, turnId)
+    }
+    for (const execution of executions) {
+      const overlayExecution = getOrCreateExecutionOverlay(entry, execution)
+      if (!overlayExecution) continue
+      overlayExecution.optimisticSeed = getSeedMessages
+      if (!overlayExecution.reader && !entry.sub.isSettled(execution.executionId)) {
+        this.#startReader(entry, execution, execution.seedFromEmpty, getSeedMessages)
+      }
+    }
+    if (activeNodeDecision?.move !== ConversationActiveNodeMove.Keep) {
+      const activeNodeId = messages.at(-1)?.id
+      if (activeNodeId) entry.activeNodeOverride = { previousActiveNodeId, activeNodeId }
+    }
+    this.#publishView(entry)
+  }
+
+  onFinish(conversation: ConversationRef, listener: FinishListener): () => void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return () => {}
     entry.finishListeners.add(listener)
     return () => entry.finishListeners.delete(listener)
   }
 
-  /** Drop one overlay/snapshot entry by its message id (post-persist handoff).
-   *  Skipped when the execution has a live reader: `#startReader` already
-   *  replaced the old snapshot, so the state now belongs to the newer turn and
-   *  a delayed handoff for the finished one must not invalidate it. */
-  disposeOverlay(topicId: string, messageId: string): void {
-    const entry = this.#entries.get(topicId)
-    if (!entry) return
-    const snapshotEntry = Object.entries(entry.snapshots).find(([, snapshot]) => snapshot.id === messageId)
-    const pendingEntry = [...entry.pendingSnapshots].find(([, item]) => item.snapshot.id === messageId)
-    const executionId = snapshotEntry?.[0] ?? pendingEntry?.[0]
-    if (!executionId || this.#liveReaderExecutionIds(entry).has(executionId)) return
-    entry.pendingSnapshots.delete(executionId)
-    entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
-    if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
-    if (snapshotEntry) {
-      const next = { ...entry.snapshots }
-      delete next[snapshotEntry[0]]
-      this.#commitSnapshots(entry, next)
+  registerRecoveryPort(conversation: ConversationRef, binding: ConversationOverlayRecoveryBinding): () => void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
+    if (!entry) return () => {}
+    if (binding.durability === ConversationOverlayDurability.Ephemeral) return () => {}
+    entry.durability = ConversationOverlayDurability.Durable
+    const refresh = binding.refresh
+    entry.refreshPorts.add(refresh)
+    if (entry.handoff && !entry.handoff.inFlight) {
+      this.#clearHandoffTimer(entry)
+      this.#runHandoffRefresh(entry)
     }
+    return () => entry.refreshPorts.delete(refresh)
   }
 
-  /** Drop settled overlay/snapshot entries for a routing scope (terminal handoff).
-   *  Executions with a live reader are left untouched: a delayed handoff for a
-   *  finished turn must not freeze a newer turn already streaming on this topic. */
-  reset(topicId: string): void {
-    const entry = this.#entries.get(topicId)
+  setRefreshError(conversation: ConversationRef, error: Error | null): void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
+    if (!entry || entry.refreshError === error) return
+    entry.refreshError = error
+    this.#publishView(entry)
+  }
+
+  disposeOverlay(conversation: ConversationRef, messageId: string): void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return
-    const liveExecutionIds = this.#liveReaderExecutionIds(entry)
-    if (liveExecutionIds.size === 0) {
-      this.clear(topicId)
-      return
+    const found = [...entry.executions].find(
+      ([, overlayExecution]) =>
+        overlayExecution.snapshot?.id === messageId || overlayExecution.pendingSnapshot?.snapshot.id === messageId
+    )
+    const executionId = found?.[0]
+    const overlayExecution = found?.[1]
+    if (!executionId || !overlayExecution || overlayExecution.reader) return
+    const settlement = overlayExecution.settlement
+    if (settlement) this.#beginHandoff(entry, settlement.turnId)
+  }
+
+  reset(conversation: ConversationRef): void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
+    if (!entry) return
+    const settledTurnIds = new Set(
+      [...entry.executions.values()].flatMap(({ settlement }) => (settlement ? [settlement.turnId] : []))
+    )
+    for (const turnId of settledTurnIds) this.#beginHandoff(entry, turnId)
+  }
+
+  clear(conversation: ConversationRef): void {
+    const entry = this.#entries.get(conversationRefKey(conversation))
+    if (!entry) return
+    this.#clearHandoffTimer(entry)
+    entry.handoff = null
+    this.#invalidatePending(entry)
+    for (const [executionId, overlayExecution] of entry.executions) {
+      overlayExecution.reader?.cancel()
+      overlayExecution.reader?.unregister()
+      entry.sub.retireExecution(executionId)
     }
-    let next = entry.snapshots
-    for (const executionId of new Set([...Object.keys(entry.snapshots), ...entry.pendingSnapshots.keys()])) {
-      if (liveExecutionIds.has(executionId)) continue
-      entry.pendingSnapshots.delete(executionId)
-      entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
-      if (executionId in next) {
-        if (next === entry.snapshots) next = { ...entry.snapshots }
-        delete next[executionId]
+    entry.executions.clear()
+    entry.optimisticMessages.clear()
+    entry.optimisticMessageTurnIds.clear()
+    entry.notFoundTombstones.clear()
+    entry.activeNodeOverride = null
+    entry.refreshError = null
+    this.#publishView(entry)
+  }
+
+  #beginHandoff(entry: Entry, turnId: ConversationTurnId): void {
+    if (entry.handoff) {
+      entry.handoff.pendingTurnIds.add(turnId)
+      entry.handoff.attempt = 0
+      if (entry.handoff.inFlight) return
+      this.#clearHandoffTimer(entry)
+    } else {
+      entry.handoff = {
+        pendingTurnIds: new Set([turnId]),
+        retireRecoveries: new Map(),
+        retryRecoveries: new Map(),
+        attempt: 0,
+        retryTimer: null,
+        inFlight: false
       }
     }
-    if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
-    this.#commitSnapshots(entry, next)
+    this.#runHandoffRefresh(entry)
   }
 
-  /** Destructively drop every overlay/snapshot entry, including live readers'
-   *  future frames (quick-assistant clear()). Not for terminal handoff. */
-  clear(topicId: string): void {
-    const entry = this.#entries.get(topicId)
-    if (!entry) return
-    this.#invalidatePending(entry)
-    entry.readerVersions.clear()
-    if (Object.keys(entry.snapshots).length > 0) this.#commitSnapshots(entry, {})
+  #beginRecoveryHandoff(
+    entry: Entry,
+    request: ConversationStreamRecoveryRequest,
+    disposition:
+      | ConversationStreamRecoveryDisposition.Retired
+      | ConversationStreamRecoveryDisposition.RestartAfterRefresh
+  ): void {
+    const handoff =
+      entry.handoff ??
+      (entry.handoff = {
+        pendingTurnIds: new Set(),
+        retireRecoveries: new Map(),
+        retryRecoveries: new Map(),
+        attempt: 0,
+        retryTimer: null,
+        inFlight: false
+      })
+    const target =
+      disposition === ConversationStreamRecoveryDisposition.Retired ? handoff.retireRecoveries : handoff.retryRecoveries
+    target.set(request.recoveryId, request)
+    handoff.attempt = 0
+    if (handoff.inFlight) return
+    this.#clearHandoffTimer(entry)
+    this.#runHandoffRefresh(entry)
   }
 
-  // ── internals ──────────────────────────────────────────────────────
+  #runHandoffRefresh(entry: Entry): void {
+    const handoff = entry.handoff
+    if (!handoff || handoff.inFlight || entry.dropped) return
+    const refresh = [...entry.refreshPorts].at(-1)
+    if (!refresh) return
+    this.#clearHandoffTimer(entry)
+    handoff.inFlight = true
+    const turnIds = new Set(handoff.pendingTurnIds)
+    const retireRecoveries = new Map(handoff.retireRecoveries)
+    const retryRecoveries = new Map(handoff.retryRecoveries)
+    this.setRefreshError(entry.conversation, null)
+    void (async () => {
+      try {
+        await refresh()
+      } catch (error) {
+        if (entry.handoff !== handoff) return
+        handoff.inFlight = false
+        const refreshError = error instanceof Error ? error : new Error(String(error))
+        this.setRefreshError(entry.conversation, refreshError)
+        logger.warn('conversation projection refresh failed; retaining overlay', {
+          conversation: entry.conversation,
+          error: refreshError
+        })
+        this.#scheduleHandoffRetry(entry)
+        return
+      }
+      if (entry.handoff !== handoff) return
+      handoff.inFlight = false
+      for (const request of retireRecoveries.values()) {
+        this.#retireExecution(entry, request)
+      }
+      for (const request of retryRecoveries.values()) {
+        entry.sub.completeRecovery({
+          recoveryId: request.recoveryId,
+          attachmentGeneration: request.attachmentGeneration,
+          turnId: request.turnId,
+          executionId: request.executionId,
+          disposition: ConversationStreamRecoveryDisposition.RestartAfterRefresh
+        })
+      }
+      this.#retireTurns(entry, turnIds)
+      for (const turnId of turnIds) handoff.pendingTurnIds.delete(turnId)
+      for (const recoveryId of retireRecoveries.keys()) handoff.retireRecoveries.delete(recoveryId)
+      for (const recoveryId of retryRecoveries.keys()) handoff.retryRecoveries.delete(recoveryId)
+      if (handoff.pendingTurnIds.size > 0 || handoff.retireRecoveries.size > 0 || handoff.retryRecoveries.size > 0) {
+        this.#runHandoffRefresh(entry)
+      } else {
+        entry.handoff = null
+        this.setRefreshError(entry.conversation, null)
+      }
+    })()
+  }
 
-  #getOrCreate(topicId: string): Entry {
-    let entry = this.#entries.get(topicId)
-    if (entry) return entry
+  #scheduleHandoffRetry(entry: Entry): void {
+    const handoff = entry.handoff
+    if (!handoff || entry.dropped) return
+    const delay = HANDOFF_RETRY_DELAYS_MS[Math.min(handoff.attempt, HANDOFF_RETRY_DELAYS_MS.length - 1)]
+    handoff.attempt += 1
+    handoff.retryTimer = window.setTimeout(() => {
+      handoff.retryTimer = null
+      this.#runHandoffRefresh(entry)
+    }, delay)
+  }
+
+  #clearHandoffTimer(entry: Entry): void {
+    if (entry.handoff?.retryTimer != null) window.clearTimeout(entry.handoff.retryTimer)
+    if (entry.handoff) entry.handoff.retryTimer = null
+  }
+
+  #retireTurns(entry: Entry, turnIds: ReadonlySet<ConversationTurnId>): void {
+    if (turnIds.size === 0) return
+    for (const [executionId, overlayExecution] of entry.executions) {
+      if (!turnIds.has(overlayExecution.identity.turnId)) continue
+      const handle = overlayExecution.reader
+      if (handle) {
+        handle.cancel()
+        handle.unregister()
+      }
+      entry.sub.retireExecution(executionId)
+      entry.executions.delete(executionId)
+    }
+    for (const [messageId, turnId] of entry.optimisticMessageTurnIds) {
+      if (!turnIds.has(turnId)) continue
+      entry.optimisticMessageTurnIds.delete(messageId)
+      entry.optimisticMessages.delete(messageId)
+      if (entry.activeNodeOverride?.activeNodeId === messageId) entry.activeNodeOverride = null
+    }
+    if (![...entry.executions.values()].some(({ pendingSnapshot }) => pendingSnapshot)) this.#cancelCommit(entry)
+    this.#publishView(entry)
+  }
+
+  #retireExecution(entry: Entry, request: ConversationStreamRecoveryRequest): void {
+    const completion = entry.sub.completeRecovery({
+      recoveryId: request.recoveryId,
+      attachmentGeneration: request.attachmentGeneration,
+      turnId: request.turnId,
+      executionId: request.executionId,
+      disposition: ConversationStreamRecoveryDisposition.Retired
+    })
+    if (completion.status !== ConversationStreamRecoveryCompletion.Applied) return
+    const overlayExecution = entry.executions.get(request.executionId)
+    if (overlayExecution && !executionIdentityMatches(overlayExecution, request)) return
+    const handle = overlayExecution?.reader
+    if (handle) {
+      handle.cancel()
+      handle.unregister()
+    }
+    entry.executions.delete(request.executionId)
+    const outputNodeId = overlayExecution?.identity.outputNodeId ?? request.projection.outputNodeId
+    if (outputNodeId && entry.optimisticMessageTurnIds.get(outputNodeId) === request.turnId) {
+      entry.optimisticMessageTurnIds.delete(outputNodeId)
+      entry.optimisticMessages.delete(outputNodeId)
+      if (entry.activeNodeOverride?.activeNodeId === outputNodeId) entry.activeNodeOverride = null
+    }
+    if (![...entry.executions.values()].some(({ pendingSnapshot }) => pendingSnapshot)) this.#cancelCommit(entry)
+    this.#publishView(entry)
+  }
+
+  #rebaseExecution(entry: Entry, request: ConversationStreamRecoveryRequest): void {
+    const overlayExecution = entry.executions.get(request.executionId)
+    const handle = overlayExecution?.reader
+    if (entry.sub.isSettled(request.executionId)) return
+    if (!overlayExecution || !executionIdentityMatches(overlayExecution, request) || !handle) {
+      this.#retireExecution(entry, request)
+      return
+    }
+    const completion = entry.sub.completeRecovery({
+      recoveryId: request.recoveryId,
+      attachmentGeneration: request.attachmentGeneration,
+      turnId: request.turnId,
+      executionId: request.executionId,
+      disposition: ConversationStreamRecoveryDisposition.Rebased
+    })
+    if (completion.status !== ConversationStreamRecoveryCompletion.Applied || !completion.branch) return
+    handle.cancel()
+    overlayExecution.reader = undefined
+    overlayExecution.pendingSnapshot = undefined
+    overlayExecution.settlement = undefined
+    overlayExecution.snapshot = undefined
+    overlayExecution.readerVersion += 1
+    this.#publishView(entry)
+    this.#startReader(entry, handle.execution, handle.seedFromEmpty, handle.getSeedMessages, completion.branch)
+  }
+
+  #getOrCreate(conversation: ConversationRef): Entry {
+    const key = conversationRefKey(conversation)
+    const existing = this.#entries.get(key)
+    if (existing) return existing
     this.#evictIfNeeded()
-    const sub = new TopicStreamSubscription(topicId)
-    if (topicId) sub.listen()
-    entry = {
-      topicId,
+    const sub = new ConversationStreamSubscription(conversation)
+    if (conversation.id) sub.listen()
+    const entry: Entry = {
+      conversation,
+      key,
       sub,
       dropped: false,
       refCount: 0,
       desired: new Map(),
-      snapshots: {},
+      optimisticMessages: new Map(),
+      optimisticMessageTurnIds: new Map(),
+      activeNodeOverride: null,
+      refreshError: null,
+      durability: ConversationOverlayDurability.Ephemeral,
+      refreshPorts: new Set(),
+      notFoundTombstones: new Map(),
+      handoff: null,
+      executions: new Map(),
       view: EMPTY_VIEW,
-      pendingSnapshots: new Map(),
-      readerVersions: new Map(),
-      readers: new Map(),
-      settledKeys: new Set(),
       liveReaderCount: 0,
       epoch: 0,
       commitTimer: null,
@@ -456,27 +796,46 @@ export class ExecutionStreamOverlayService {
       lastActiveAt: Date.now(),
       needsRemountReconcile: false
     }
-    this.#entries.set(topicId, entry)
-    // Re-check droppability when terminals close branches: an entry retained
-    // only for unclaimed continuation chunks must not outlive their stream.
+    this.#entries.set(key, entry)
     sub.onExecutionTerminal(() => {
-      if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
+      if (this.#entries.get(key) === entry) this.#maybeDrop(entry)
     })
-    sub.onBranchesRetired((branches) => {
-      if (this.#entries.get(topicId) !== entry) return
-      for (const branch of branches) {
-        const key = executionKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
-        entry.settledKeys.add(key)
-        const handle = entry.readers.get(key)
-        if (!handle) continue
-        handle.cancel()
-        handle.unregister()
-        entry.readers.delete(key)
+    sub.onConversationStateChange(() => {
+      if (this.#entries.get(key) === entry) this.#maybeDrop(entry)
+    })
+    sub.onConversationQuiesced((turnId) => {
+      if (this.#entries.get(key) === entry) this.#beginHandoff(entry, turnId)
+    })
+    sub.onRecoveryRequired((request) => {
+      if (this.#entries.get(key) !== entry) return
+      switch (request.reason) {
+        case ConversationStreamRecoveryReason.Rebase:
+          this.#rebaseExecution(entry, request)
+          return
+        case ConversationStreamRecoveryReason.NotFound:
+          entry.notFoundTombstones.set(request.executionId, request.turnId)
+          if (entry.durability === ConversationOverlayDurability.Ephemeral) {
+            this.#retireExecution(entry, request)
+          } else {
+            this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.Retired)
+          }
+          return
+        case ConversationStreamRecoveryReason.AttachUnavailable:
+          if (entry.sub.isSettled(request.executionId)) {
+            if (entry.durability === ConversationOverlayDurability.Durable) {
+              this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.Retired)
+            } else {
+              this.#retireExecution(entry, request)
+            }
+          } else if (entry.durability === ConversationOverlayDurability.Durable) {
+            this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.RestartAfterRefresh)
+          } else {
+            this.#retireExecution(entry, request)
+          }
+          return
+        default:
+          assertNever(request.reason)
       }
-      this.#maybeDrop(entry)
-    })
-    sub.onTopicStateChange(() => {
-      if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
     })
     return entry
   }
@@ -490,106 +849,74 @@ export class ExecutionStreamOverlayService {
       }
       if (!oldest) return
       logger.error('evicting stale overlay entry', {
-        topicId: oldest.topicId,
+        conversation: oldest.conversation,
         entryCount: this.#entries.size,
         liveReaders: oldest.liveReaderCount,
         idleMs: Date.now() - oldest.lastActiveAt
       })
-      // Cancel before dropping: dispose closes branches cleanly, and a still-
-      // running reader would otherwise report the truncated stream as a
-      // successful finish to onFinish consumers.
-      for (const handle of oldest.readers.values()) handle.cancel()
+      for (const { reader } of oldest.executions.values()) reader?.cancel()
       this.#dropEntry(oldest)
     }
   }
 
   #maybeDrop(entry: Entry): void {
     if (entry.refCount > 0 || entry.liveReaderCount > 0) return
-    // A per-execution terminal with `isTopicDone=false` precedes scheduling
-    // the continuation, so there can be no next branch yet. Keep the Main
-    // attachment until an explicit topic terminal closes this ownership gap.
-    if (entry.sub.isTopicOpen()) return
-    // A continuation round's chunks may already be queuing in auto-created
-    // transport branches before any reader claims them (hidden steer/agent
-    // handoff: A ends with isTopicDone=false, B streams right after).
-    // Dropping now would detach the topic mid-turn; the terminal that
-    // eventually closes those branches re-runs this check.
-    if (entry.sub.hasAnyOpenBranch()) return
+    if (entry.sub.isConversationOpen() || entry.sub.hasAnyOpenBranch()) return
     this.#dropEntry(entry)
-  }
-
-  #liveReaderExecutionIds(entry: Entry): Set<string> {
-    const ids = new Set<string>()
-    for (const handle of entry.readers.values()) ids.add(handle.executionId as string)
-    return ids
   }
 
   #dropEntry(entry: Entry): void {
     if (entry.dropped) return
     entry.dropped = true
-    if (this.#entries.get(entry.topicId) === entry) this.#entries.delete(entry.topicId)
-    this.#cancelFrame(entry)
+    if (this.#entries.get(entry.key) === entry) this.#entries.delete(entry.key)
+    this.#clearHandoffTimer(entry)
+    entry.handoff = null
+    this.#cancelCommit(entry)
     entry.sub.dispose()
   }
 
   #startReader(
     entry: Entry,
-    key: string,
-    executionId: UniqueModelId,
-    attemptId: number,
-    anchorMessageId: string | undefined,
+    execution: ConversationExecutionProjection,
     seedFromEmpty: boolean | undefined,
-    getSeedMessages: () => CherryUIMessage[]
+    getSeedMessages: () => CherryUIMessage[],
+    recoveredBranch?: ReadableStream<UIMessageChunk>
   ): void {
-    const branch = entry.sub.register(executionId, anchorMessageId, attemptId)
-    if (!entry.sub.hasOpenBranch(executionId, anchorMessageId, attemptId)) {
-      // A terminal fence can reject stale work after empty-set tombstone pruning.
-      // Do not report its closed stream as success.
-      entry.settledKeys.add(key)
-      return
-    }
+    const { executionId, outputNodeId, turnId } = execution
+    const overlayExecution = getOrCreateExecutionOverlay(entry, execution)
+    if (!overlayExecution) return
+    const branch = recoveredBranch ?? entry.sub.register(execution)
+    if (!entry.sub.hasOpenBranch(executionId)) return
     const readerEpoch = entry.epoch
-    const readerVersion = (entry.readerVersions.get(executionId) ?? 0) + 1
-    entry.readerVersions.set(executionId, readerVersion)
-    entry.pendingSnapshots.delete(executionId)
-    // Readers use execution+anchor keys; snapshots stay executionId-keyed on
-    // the PRECONDITION that at most one anchor is live per execution at a time
-    // (steer continuation hands anchors off sequentially, never in parallel).
-    // New turn for this execution: clear any retained prior snapshot.
-    if (executionId in entry.snapshots) {
-      const next = { ...entry.snapshots }
-      delete next[executionId]
-      this.#commitSnapshots(entry, next)
-    }
+    const readerVersion = overlayExecution.readerVersion + 1
+    overlayExecution.readerVersion = readerVersion
+    overlayExecution.pendingSnapshot = undefined
+    overlayExecution.settlement = undefined
 
     let cancelled = false
     let readerFailed = false
-    let terminal: { isAbort: boolean; isError: boolean } | undefined
-    const offTerminal = entry.sub.onExecutionTerminal((id, t) => {
-      if (id !== executionId) return
-      if (t.attemptId !== undefined && t.attemptId !== attemptId) return
-      if (t.anchorMessageId !== undefined && t.anchorMessageId !== anchorMessageId) return
-      terminal = t
+    let terminal: ExecutionTerminal | undefined
+    const offTerminal = entry.sub.onExecutionTerminal((value) => {
+      if (value.executionId === executionId && value.turnId === turnId) terminal = value
     })
-    const seed = pickSeed(getSeedMessages(), anchorMessageId, seedFromEmpty)
-    const topicId = entry.topicId
-
+    const seed = pickSeed(getSeedMessages(), outputNodeId, seedFromEmpty)
     const handle: ReaderHandle = {
-      executionId,
-      attemptId,
-      anchorMessageId,
+      branch,
+      execution,
+      seedFromEmpty,
+      getSeedMessages,
       cancel: () => {
         cancelled = true
-        entry.sub.cancelBranch(executionId, anchorMessageId, attemptId)
+        entry.sub.cancelBranch(executionId, branch)
       },
       unregister: () => {
         offTerminal()
-        entry.sub.unregister(executionId, anchorMessageId, attemptId)
+        entry.sub.unregister(executionId, branch)
       }
     }
-    entry.readers.set(key, handle)
-
+    overlayExecution.reader = handle
     entry.liveReaderCount += 1
+
     void (async () => {
       let last: CherryUIMessage | undefined
       try {
@@ -597,8 +924,9 @@ export class ExecutionStreamOverlayService {
           stream: branch,
           message: seed,
           terminateOnError: false,
-          onError: (err) => {
-            if (!cancelled) logger.warn('readUIMessageStream error', { topicId, executionId, err })
+          onError: (error) => {
+            if (!cancelled)
+              logger.warn('readUIMessageStream error', { conversation: entry.conversation, executionId, error })
           }
         })) {
           if (cancelled) break
@@ -606,62 +934,48 @@ export class ExecutionStreamOverlayService {
             last?.parts as CherryMessagePart[] | undefined,
             snapshot.parts as CherryMessagePart[]
           )
-          const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
-          last = nextSnapshot
-          this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)
+          last = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
+          this.#queueSnapshot(entry, executionId, last, readerEpoch, readerVersion)
         }
-      } catch (err) {
-        // A crashed reader must not be reported as a clean success: transport
-        // terminals never reach it, so isError has to come from here.
+      } catch (error) {
         readerFailed = true
-        logger.error('execution reader threw', { topicId, executionId, err })
+        logger.error('execution reader threw', { conversation: entry.conversation, executionId, error })
       } finally {
         offTerminal()
-        if (entry.readers.get(key) === handle) {
-          entry.sub.unregister(executionId, anchorMessageId, attemptId)
-          entry.readers.delete(key)
+        if (overlayExecution.reader === handle) {
+          entry.sub.unregister(executionId, branch)
+          overlayExecution.reader = undefined
         }
         if (!cancelled) {
-          // Tombstone the finished key: a consumer remounting with a stale
-          // execution set must not restart it. Only fresh transport evidence
-          // (an open branch holding a new turn's chunks) may override — see
-          // the start loop in syncExecutions.
-          entry.settledKeys.add(key)
           if (entry.refCount === 0) {
-            // Natural end in the background: the persisted DB row is the
-            // authority and the next mount rebuilds from it — this
-            // execution's overlay is not worth carrying.
-            entry.pendingSnapshots.delete(executionId)
-            entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
-            if (executionId in entry.snapshots) {
-              const next = { ...entry.snapshots }
-              delete next[executionId]
-              this.#commitSnapshots(entry, next)
-            }
+            overlayExecution.pendingSnapshot = undefined
+            overlayExecution.settlement = undefined
+            overlayExecution.snapshot = undefined
+            overlayExecution.readerVersion += 1
+            this.#publishView(entry)
           } else {
-            // Terminal frames must be visible before the overlay handoff. This
-            // and the acquire()-time stall flush are the intentional commits
-            // outside the interval cadence.
             this.#flushPending(entry, readerEpoch)
-            const t = terminal ?? { isAbort: false, isError: false }
-            const isError = t.isError || readerFailed
             const message = last ?? seed
+            const isError = terminal?.isError === true || readerFailed
             if (message || isError) {
               const event: ExecutionFinishEvent = {
-                attemptId,
-                message: message ?? { id: '', role: 'assistant', parts: [] },
-                isAbort: t.isAbort,
+                turnId,
+                executionId,
+                message: message ?? ({ id: outputNodeId ?? '', role: 'assistant', parts: [] } as CherryUIMessage),
+                isAbort: terminal?.isAbort ?? false,
                 isError
               }
+              this.#settleExecution(entry, event)
               for (const listener of [...entry.finishListeners]) {
                 try {
                   listener(executionId, event)
-                } catch (err) {
-                  logger.warn('finish listener threw', { topicId, executionId, err })
+                } catch (error) {
+                  logger.warn('finish listener threw', { conversation: entry.conversation, executionId, error })
                 }
               }
             }
           }
+          if (overlayExecution.readerVersion === readerVersion) overlayExecution.readerVersion += 1
         }
         entry.liveReaderCount -= 1
         this.#maybeDrop(entry)
@@ -671,70 +985,104 @@ export class ExecutionStreamOverlayService {
 
   #queueSnapshot(
     entry: Entry,
-    executionId: string,
+    executionId: ConversationExecutionId,
     snapshot: CherryUIMessage,
     epoch: number,
     readerVersion: number
   ): void {
-    if (epoch !== entry.epoch || entry.readerVersions.get(executionId) !== readerVersion) return
-
-    entry.pendingSnapshots.set(executionId, { epoch, readerVersion, snapshot })
-    const deadline = entry.lastCommitAt + commitIntervalMs(entry.pendingSnapshots.values())
+    const overlayExecution = entry.executions.get(executionId)
+    if (!overlayExecution || epoch !== entry.epoch || overlayExecution.readerVersion !== readerVersion) return
+    overlayExecution.pendingSnapshot = { epoch, readerVersion, snapshot }
+    const deadline =
+      entry.lastCommitAt +
+      commitIntervalMs(
+        [...entry.executions.values()].flatMap(({ pendingSnapshot }) => (pendingSnapshot ? [pendingSnapshot] : []))
+      )
     if (entry.commitTimer !== null) {
       if (entry.commitDeadline !== null && deadline <= entry.commitDeadline) return
-      this.#cancelFrame(entry)
+      this.#cancelCommit(entry)
     }
-
     entry.commitDeadline = deadline
-    const delay = Math.max(0, deadline - performance.now())
-    entry.commitTimer = window.setTimeout(() => {
-      entry.commitTimer = null
-      entry.commitDeadline = null
-      this.#flushPending(entry, epoch)
-    }, delay)
+    entry.commitTimer = window.setTimeout(
+      () => {
+        entry.commitTimer = null
+        entry.commitDeadline = null
+        this.#flushPending(entry, epoch)
+      },
+      Math.max(0, deadline - performance.now())
+    )
   }
 
   #flushPending(entry: Entry, expectedEpoch: number): void {
     if (expectedEpoch !== entry.epoch) return
-
-    this.#cancelFrame(entry)
-    const pending = entry.pendingSnapshots
-    if (pending.size === 0) return
-    entry.pendingSnapshots = new Map()
-
-    let next = entry.snapshots
-    for (const [executionId, item] of pending) {
-      if (item.epoch !== entry.epoch) continue
-      if (entry.readerVersions.get(executionId) !== item.readerVersion) continue
-      if (entry.snapshots[executionId] === item.snapshot) continue
-      if (next === entry.snapshots) next = { ...entry.snapshots }
-      next[executionId] = item.snapshot
+    this.#cancelCommit(entry)
+    let changed = false
+    for (const overlayExecution of entry.executions.values()) {
+      const item = overlayExecution.pendingSnapshot
+      overlayExecution.pendingSnapshot = undefined
+      if (!item || item.epoch !== entry.epoch || overlayExecution.readerVersion !== item.readerVersion) continue
+      if (overlayExecution.snapshot === item.snapshot) continue
+      overlayExecution.snapshot = item.snapshot
+      changed = true
     }
-    this.#commitSnapshots(entry, next)
+    if (!changed) return
+    entry.lastCommitAt = performance.now()
+    this.#publishView(entry)
   }
 
-  #commitSnapshots(entry: Entry, next: Record<string, CherryUIMessage>): void {
-    if (next === entry.snapshots) return
-    entry.lastCommitAt = performance.now()
-    entry.snapshots = next
-    entry.view = computeView(next)
+  #settleExecution(entry: Entry, event: ExecutionFinishEvent): void {
+    const overlayExecution = entry.executions.get(event.executionId)
+    if (!overlayExecution || overlayExecution.identity.turnId !== event.turnId) return
+    overlayExecution.settlement = {
+      turnId: event.turnId,
+      isAbort: event.isAbort,
+      isError: event.isError
+    }
+    overlayExecution.optimisticSeed = undefined
+    this.#publishView(entry)
+  }
+
+  #publishView(entry: Entry): void {
+    const projectedExecutions = projectActiveExecutions(
+      [...entry.desired.values()].flatMap(({ executions }) => executions),
+      [...entry.executions.values()].flatMap(({ optimisticSeed, projection }) => (optimisticSeed ? [projection] : []))
+    ).filter(
+      (execution) =>
+        !entry.sub.isSettled(execution.executionId) &&
+        entry.notFoundTombstones.get(execution.executionId) !== execution.turnId
+    )
+    const knownExecutions = new Map<ConversationExecutionId, ConversationExecutionProjection>()
+    for (const contribution of entry.desired.values()) {
+      for (const execution of contribution.executions) knownExecutions.set(execution.executionId, execution)
+    }
+    for (const { projection } of entry.executions.values()) knownExecutions.set(projection.executionId, projection)
+    const next = computeView(
+      entry.executions,
+      knownExecutions,
+      entry.optimisticMessages,
+      projectedExecutions,
+      entry.activeNodeOverride,
+      entry.refreshError
+    )
     entry.lastActiveAt = Date.now()
+    if (sameOverlayView(entry.view, next)) return
+    entry.view = next
     for (const listener of [...entry.listeners]) {
       try {
         listener()
-      } catch (err) {
-        logger.warn('overlay listener threw', { topicId: entry.topicId, err })
+      } catch (error) {
+        logger.warn('overlay listener threw', { conversation: entry.conversation, error })
       }
     }
   }
 
   #invalidatePending(entry: Entry): void {
     entry.epoch += 1
-    entry.pendingSnapshots.clear()
-    this.#cancelFrame(entry)
+    for (const overlayExecution of entry.executions.values()) overlayExecution.pendingSnapshot = undefined
+    this.#cancelCommit(entry)
   }
 
-  #cancelFrame(entry: Entry): void {
+  #cancelCommit(entry: Entry): void {
     if (entry.commitTimer !== null) window.clearTimeout(entry.commitTimer)
     entry.commitTimer = null
     entry.commitDeadline = null

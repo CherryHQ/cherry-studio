@@ -1,511 +1,617 @@
 /**
- * pause() / drainInFlight() write-quiesce contract tests (backup restore, issue #16849).
- *
- * Contract: `pause(reason?): Disposable` gates new-turn ADMISSION — `dispatch()`
- * resolves `{mode:'blocked', reason:'paused'}` (re-checked under the per-topic
- * lock), `startAgentSessionRun` throws before `prepareDispatch` writes rows, and
- * queued steer continuations are suppressed (not consumed). `steer-continuation`
- * dispatches are exempt (grandfathered launches are drain-visible instead).
- * `drainInFlight({timeoutMs})` awaits gate-admitted dispatches through stream
- * handoff, persistence-bearing loop promises, in-flight steer-continuation
- * launches, and the detached naming writes as a fixed point over promise
- * identities; it never rejects and never aborts stragglers. There is no
- * resume(): holds are refcounted, dispose is idempotent, and only the LAST
- * disposal runs the release compensation that re-kicks suppressed
- * continuations — a newer hold inherits the debt, and a dropped hold fails
- * closed.
+ * Write-quiesce contracts retained from AiStreamManager after ConversationRuntime
+ * became the admission and persistence owner.
  */
 
-import { application } from '@application'
-import { BaseService } from '@main/core/lifecycle/BaseService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BaseService } from '@main/core/lifecycle'
+import {
+  ConversationActiveNodeMove,
+  ConversationBlockReason,
+  ConversationKind,
+  ConversationOpenMode,
+  ConversationOpenTrigger,
+  ConversationPhase,
+  type ConversationRef
+} from '@shared/ai/conversation'
+import { createUniqueModelId } from '@shared/data/types/model'
+import type { UIMessageChunk } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../types'
+import {
+  AiExecutionManager,
+  type ConversationNamingTaskExecutor,
+  ConversationRuntimeService,
+  PromptStreamManager
+} from '../../conversation'
+import type {
+  CommittedConversationIntent,
+  ConversationHistoryPort,
+  MainDispatchRequest,
+  StreamCleanupPort,
+  StreamListener,
+  ValidatedConversationIntent
+} from '..'
+import {
+  ConversationAfterPersistTaskKind,
+  ConversationExecutionDriverBindingKind,
+  ConversationExecutionPreparationKind,
+  ConversationHistoryAdapterKind,
+  ConversationPostCommitTaskKind,
+  ConversationTerminalPersistenceKind
+} from '../context/ConversationHistoryPort'
 
-// ── Mocks ───────────────────────────────────────────────────────────
-
-// `dispatchStreamRequest` is the work the admission gate must sit in front of.
-// Deferred so tests control when a grandfathered dispatch settles; `mock.calls`
-// exposes the request (trigger / topicId / userMessageId) for assertions.
-const dispatchResolvers: Array<() => void> = []
-const mockDispatchStreamRequest = vi.fn<
-  (
-    manager: unknown,
-    subscriber: unknown,
-    req: { topicId: string; trigger?: string; userMessageId?: string }
-  ) => Promise<unknown>
->(() => {
-  return new Promise((resolve) => {
-    dispatchResolvers.push(() => resolve({ mode: 'started' }))
-  })
-})
-
-vi.mock('../context/dispatch', () => ({
-  dispatchStreamRequest: mockDispatchStreamRequest
+const services = vi.hoisted(() => ({
+  cache: { getShared: vi.fn(), setShared: vi.fn() },
+  agentConnection: { prepareConversationAutonomous: vi.fn() },
+  ai: { streamText: vi.fn() }
 }))
 
-// Boot-sweep reconcile reads/writes through MessageService.
-const findPendingAssistantMessageIds = vi.fn<() => string[]>(() => [])
-const markMessagesError = vi.fn<(ids: string[]) => void>(() => undefined)
-vi.mock('@main/data/services/MessageService', () => ({
-  messageService: {
-    findPendingAssistantMessageIds: () => findPendingAssistantMessageIds(),
-    markMessagesError: (ids: string[]) => markMessagesError(ids)
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'AgentConnectionManager') return services.agentConnection
+      if (name === 'AiService') return services.ai
+      return services.cache
+    })
   }
 }))
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
-
-// Controllable naming registry — `drainWaitSet` reads `topicNamingService.inFlightWrites()`.
-const namingWrites = new Map<string, Promise<void>>()
 vi.mock('@main/services/TopicNamingService', () => ({
-  topicNamingService: { inFlightWrites: () => namingWrites }
+  topicNamingService: {
+    maybeRenameFromFirstUserMessage: vi.fn(),
+    maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
+    maybeRenameFromConversationSummary: vi.fn(),
+    maybeRenameAgentSession: vi.fn()
+  }
 }))
 
-// `startAgentSessionRun`'s quiesce gate must throw BEFORE prepareDispatch writes rows.
-const prepareDispatchMock = vi.fn()
-vi.mock('../context/AgentChatContextProvider', () => ({
-  agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
-}))
+const modelId = createUniqueModelId('provider', 'model')
+const chatRef = { kind: ConversationKind.Chat, id: 'topic-1' } as const
+const agentRef = { kind: ConversationKind.Agent, id: 'session-1' } as const
 
-const { AiStreamManager } = await import('../AiStreamManager')
-const { startAgentSessionRun } = await import('../api/startAgentSessionRun')
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-type ManagerInstance = InstanceType<typeof AiStreamManager>
-
-/** White-box view of the private quiesce/steer state (house idiom, see JobManager.pause.test.ts). */
-interface ManagerInternals {
-  pauseHolds: Set<symbol>
-  inFlightDispatches: Map<Promise<unknown>, string>
-  suppressedChatContinuationTopicIds: Set<string>
-  inFlightChatContinuations: Map<string, Promise<void>>
-  pendingSteers: Map<string, Array<{ userMessageId: string }>>
-  activeStreams: Map<string, ActiveStream>
-  startNextChatTurn(topicId: string): Promise<void>
+function streamListener(id = 'listener-1'): StreamListener {
+  return {
+    id,
+    onChunk: vi.fn(),
+    onDone: vi.fn(),
+    onPaused: vi.fn(),
+    onError: vi.fn(),
+    isAlive: () => true
+  }
 }
 
-function internals(mgr: ManagerInstance): ManagerInternals {
-  return mgr as unknown as ManagerInternals
+function controlledStream(): {
+  stream: ReadableStream<UIMessageChunk>
+  controller: ReadableStreamDefaultController<UIMessageChunk>
+} {
+  let controller!: ReadableStreamDefaultController<UIMessageChunk>
+  const stream = new ReadableStream<UIMessageChunk>({
+    start(value) {
+      controller = value
+    }
+  })
+  return { stream, controller }
 }
 
-function createManager(): ManagerInstance {
-  BaseService.resetInstances()
-  const Ctor = AiStreamManager as unknown as new (config?: Partial<AiStreamManagerConfig>) => ManagerInstance
-  return new Ctor()
-}
-
-const runOnInit = (mgr: ManagerInstance) => (mgr as unknown as { onInit(): Promise<void> }).onInit()
-
-const fakeSubscriber = {} as StreamListener
-const openReq = (topicId: string) => ({ trigger: 'submit-message', topicId, messages: [] }) as never
-const steerReq = (topicId: string, userMessageId: string) =>
-  ({ trigger: 'steer-continuation', topicId, userMessageId }) as never
-
-function streamListener(id: string): StreamListener {
-  return { id, onChunk: vi.fn(), onDone: vi.fn(), onPaused: vi.fn(), onError: vi.fn(), isAlive: () => true }
-}
-
-/** Drain pending microtasks + the async-mutex acquire (which resolves on a macrotask). */
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
-
-function makeDeferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void
-  const promise = new Promise<void>((r) => {
-    resolve = r
+function deferred<T = void>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
   })
   return { promise, resolve }
 }
 
-/** Observe settlement without consuming the promise. */
-function trackSettled<T>(promise: Promise<T>): { promise: Promise<T>; isSettled: () => boolean } {
-  let settled = false
-  const tracked = promise.then(
-    (value) => {
-      settled = true
-      return value
-    },
-    (error) => {
-      settled = true
-      throw error
+function tracked<T>(promise: Promise<T>): { promise: Promise<T>; settled: () => boolean } {
+  let isSettled = false
+  const observed = promise.finally(() => {
+    isSettled = true
+  })
+  return { promise: observed, settled: () => isSettled }
+}
+
+function request(ref: ConversationRef, text = 'hello'): MainDispatchRequest {
+  return {
+    trigger: ConversationOpenTrigger.SubmitMessage,
+    conversation: ref,
+    userMessageParts: [{ type: 'text', text }]
+  }
+}
+
+function validated(req: MainDispatchRequest, hasLiveStream: boolean): ValidatedConversationIntent {
+  return {
+    kind:
+      req.conversation.kind === ConversationKind.Agent
+        ? ConversationHistoryAdapterKind.Agent
+        : ConversationHistoryAdapterKind.PersistentChat,
+    request: req,
+    context: { hasLiveStream },
+    executionModelIds: hasLiveStream ? [] : [modelId],
+    resolvedModels: [],
+    inputModelId: modelId,
+    ...(req.conversation.kind === ConversationKind.Agent ? { agent: {} as never } : {})
+  } as ValidatedConversationIntent
+}
+
+function committedIntent(
+  validation: ValidatedConversationIntent,
+  options: {
+    cleanup?: StreamCleanupPort
+    postCommitTask?: CommittedConversationIntent['postCommitTasks'][number]
+    afterPersistTask?: NonNullable<CommittedConversationIntent['executions'][number]['afterPersist']>
+  } = {}
+): CommittedConversationIntent {
+  const ref = validation.request.conversation
+  if (validation.context.hasLiveStream) {
+    return {
+      conversation: ref,
+      input: { historyNodeId: `${ref.id}-queued-user` },
+      executions: [],
+      reservedMessages: [{ id: `${ref.id}-queued-user`, role: 'user', parts: [] }],
+      activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+      postCommitTasks: []
     }
-  )
-  return { promise: tracked, isSettled: () => settled }
+  }
+  const outputNodeId = `${ref.id}-assistant`
+  return {
+    conversation: ref,
+    input: { historyNodeId: `${ref.id}-user` },
+    executions: [
+      {
+        modelId,
+        outputNodeId,
+        preparation: {
+          kind: ConversationExecutionPreparationKind.TemporaryChat,
+          conversation: ref,
+          modelId,
+          outputNodeId,
+          messages: [{ id: `${ref.id}-user`, role: 'user', parts: [] }],
+          fastMode: false
+        },
+        preparationIndex: 0,
+        persistence: {
+          kind: ConversationTerminalPersistenceKind.TemporaryChat,
+          topicId: ref.id,
+          modelId,
+          messageId: outputNodeId
+        },
+        ...(options.afterPersistTask ? { afterPersist: options.afterPersistTask } : {}),
+        driver: { kind: ConversationExecutionDriverBindingKind.Chat }
+      }
+    ],
+    reservedMessages: [
+      { id: `${ref.id}-user`, role: 'user', parts: [] },
+      { id: outputNodeId, role: 'assistant', parts: [] }
+    ],
+    activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+    postCommitTasks: [
+      ...(options.cleanup
+        ? [{ kind: ConversationPostCommitTaskKind.RegisterTraceFlush as const, conversationId: options.cleanup.id }]
+        : []),
+      ...(options.postCommitTask ? [options.postCommitTask] : [])
+    ]
+  }
 }
 
-/**
- * Seed a fake stream directly into `activeStreams` — the drain suite only needs
- * the fields `drainWaitSet` reads (listener-key prefixes + `loopPromise`), not a
- * real execution loop.
- */
-function seedFakeStream(
-  mgr: ManagerInstance,
-  topicId: string,
-  opts: { listenerKey: string; loopPromise: Promise<void> }
-): { abortController: AbortController } {
-  const abortController = new AbortController()
-  const stream = {
-    topicId,
-    turnId: 'test-turn',
-    executions: new Map([
-      [
-        'provider::model',
-        {
-          modelId: 'provider::model',
-          abortController,
-          status: 'streaming',
-          buffer: [],
-          droppedChunks: 0,
-          loopPromise: opts.loopPromise,
-          timings: { startedAt: 0 }
-        }
-      ]
-    ]),
-    listeners: new Map([[opts.listenerKey, { id: opts.listenerKey }]]),
-    status: 'streaming',
-    isMultiModel: false,
-    lifecycle: {}
-  } as unknown as ActiveStream
-  internals(mgr).activeStreams.set(topicId, stream)
-  return { abortController }
+function provider(
+  options: {
+    beforeValidation?: () => Promise<void>
+    cleanup?: StreamCleanupPort
+    postCommitTask?: CommittedConversationIntent['postCommitTasks'][number]
+    afterPersistTask?: NonNullable<CommittedConversationIntent['executions'][number]['afterPersist']>
+  } = {}
+): ConversationHistoryPort {
+  return {
+    name: 'pause-contract-history',
+    isPersistentConversation: true,
+    canHandle: () => true,
+    validateIntent: vi.fn(async (req, context, signal) => {
+      await options.beforeValidation?.()
+      signal.throwIfAborted()
+      return validated(req, context.hasLiveStream)
+    }),
+    commitIntent: vi.fn((validation) => committedIntent(validation, options)),
+    prepareExecutionContext: async (descriptor, signal) => {
+      signal.throwIfAborted()
+      if (descriptor.kind !== ConversationExecutionPreparationKind.TemporaryChat) {
+        throw new Error(`Unexpected test descriptor ${descriptor.kind}`)
+      }
+      return {
+        conversation: descriptor.conversation,
+        models: [
+          {
+            modelId: descriptor.modelId,
+            request: {
+              chatId: descriptor.conversation.id,
+              trigger: ConversationOpenTrigger.SubmitMessage,
+              uniqueModelId: descriptor.modelId,
+              messageId: descriptor.outputNodeId,
+              messages: [...descriptor.messages]
+            }
+          }
+        ]
+      }
+    },
+    persistTerminal: async () => {}
+  }
 }
 
-// ── Suite ───────────────────────────────────────────────────────────
+async function waitForIdle(service: ConversationRuntimeService, ref: ConversationRef): Promise<void> {
+  await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+}
 
 describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
-  let mgr: ManagerInstance
-
-  beforeEach(async () => {
-    vi.clearAllMocks()
-    dispatchResolvers.length = 0
-    namingWrites.clear()
-    findPendingAssistantMessageIds.mockReturnValue([])
-    mgr = createManager()
-    // `startAgentSessionRun` resolves the manager via the container.
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
-      if (name === 'AiStreamManager') return mgr
-      throw new Error(`AiStreamManager.pause.test: unexpected application.get('${name}')`)
-    })
-    // onInit resolves the reconcile gate `dispatch` awaits.
-    await runOnInit(mgr)
-  })
-
-  afterEach(() => {
+  beforeEach(() => {
     BaseService.resetInstances()
+    vi.clearAllMocks()
   })
-
-  // -------------------------------------------------------------------------
-  // Blocked surface while paused
-  // -------------------------------------------------------------------------
 
   describe('blocked surface while paused', () => {
     it('blocks dispatch — resolves {mode:"blocked", reason:"paused"} without reaching dispatchStreamRequest', async () => {
-      mgr.pause('test: restore')
+      const history = provider()
+      const service = new ConversationRuntimeService({ providers: [history] })
+      service.pause('test: restore')
 
-      const res = await mgr.dispatch(fakeSubscriber, openReq('t'))
-      expect(res).toEqual({ mode: 'blocked', reason: 'paused' })
-      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+      await expect(service.dispatch(streamListener(), request(chatRef))).resolves.toEqual({
+        mode: ConversationOpenMode.Blocked,
+        reason: ConversationBlockReason.Paused
+      })
+      expect(history.validateIntent).not.toHaveBeenCalled()
+      expect(history.commitIntent).not.toHaveBeenCalled()
     })
 
     it('re-checks the pause flag under the per-topic lock — a dispatch queued behind a live one is still rejected', async () => {
-      // A acquires the lock and parks inside the deferred dispatchStreamRequest; B waits on the mutex.
-      const pA = mgr.dispatch(fakeSubscriber, openReq('t'))
-      const pB = mgr.dispatch(fakeSubscriber, openReq('t'))
-      await flush()
-      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
+      const validation = deferred()
+      const history = provider({ beforeValidation: () => validation.promise })
+      const live = controlledStream()
+      const service = new ConversationRuntimeService({
+        providers: [history],
+        executionManager: new AiExecutionManager(async () => live.stream)
+      })
 
-      // Pause lands while B is parked — the post-mutex re-check must reject it.
-      mgr.pause('test: mutex race')
-      dispatchResolvers[0]()
-      await flush()
+      const first = service.dispatch(streamListener('first'), request(chatRef, 'first'))
+      const second = service.dispatch(streamListener('second'), request(chatRef, 'second'))
+      await vi.waitFor(() => expect(history.validateIntent).toHaveBeenCalledTimes(1))
+      const hold = service.pause('test: FIFO race')
+      validation.resolve()
 
-      await expect(pA).resolves.toMatchObject({ mode: 'started' })
-      await expect(pB).resolves.toMatchObject({ mode: 'blocked', reason: 'paused' })
-      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
+      await expect(first).resolves.toMatchObject({ mode: ConversationOpenMode.Started })
+      await expect(second).resolves.toEqual({
+        mode: ConversationOpenMode.Blocked,
+        reason: ConversationBlockReason.Paused
+      })
+      expect(history.validateIntent).toHaveBeenCalledTimes(1)
+
+      hold.dispose()
+      live.controller.close()
+      await waitForIdle(service, chatRef)
     })
 
     it('exempts steer-continuation dispatches — a grandfathered launch still reaches dispatchStreamRequest', async () => {
-      mgr.pause('test: exemption')
+      const validation = deferred()
+      const history = provider({ beforeValidation: () => validation.promise })
+      const live = controlledStream()
+      const openStream = vi.fn(async () => live.stream)
+      const service = new ConversationRuntimeService({
+        providers: [history],
+        executionManager: new AiExecutionManager(openStream)
+      })
 
-      const p = mgr.dispatch(fakeSubscriber, steerReq('t', 'u1'))
-      await flush()
-      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
-      expect(mockDispatchStreamRequest.mock.calls[0][2]).toMatchObject({ trigger: 'steer-continuation' })
+      const opening = service.dispatch(streamListener(), request(chatRef))
+      await vi.waitFor(() => expect(history.validateIntent).toHaveBeenCalledOnce())
+      const hold = service.pause('test: grandfathered admission')
+      validation.resolve()
 
-      dispatchResolvers[0]()
-      await expect(p).resolves.toMatchObject({ mode: 'started' })
+      await expect(opening).resolves.toMatchObject({ mode: ConversationOpenMode.Started })
+      await vi.waitFor(() => expect(openStream).toHaveBeenCalledOnce())
+
+      hold.dispose()
+      live.controller.close()
+      await waitForIdle(service, chatRef)
     })
 
     it('suppresses a paused startNextChatTurn without consuming the queue head', async () => {
-      mgr.pause('test: suppression')
-      internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }, { userMessageId: 'u2' }])
+      const history = provider()
+      const first = controlledStream()
+      const successor = controlledStream()
+      const service = new ConversationRuntimeService({
+        providers: [history],
+        executionManager: new AiExecutionManager(
+          vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(successor.stream)
+        )
+      })
 
-      await internals(mgr).startNextChatTurn('t')
+      await service.dispatch(streamListener(), request(chatRef, 'first'))
+      await expect(service.dispatch(streamListener(), request(chatRef, 'queued'))).resolves.toMatchObject({
+        mode: ConversationOpenMode.Injected
+      })
+      const hold = service.pause('test: successor suppression')
+      first.controller.close()
+      await waitForIdle(service, chatRef)
 
-      // Queue intact (the steer stays answerable after release) and the topic recorded as debt.
-      expect(internals(mgr).pendingSteers.get('t')).toEqual([{ userMessageId: 'u1' }, { userMessageId: 'u2' }])
-      expect(internals(mgr).suppressedChatContinuationTopicIds.has('t')).toBe(true)
-      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+      expect(service.inspect(chatRef).inbox.nextTurn).toHaveLength(1)
+      expect(history.commitIntent).toHaveBeenCalledTimes(2)
+
+      hold.dispose()
+      await vi.waitFor(() => expect(history.commitIntent).toHaveBeenCalledTimes(3))
+      successor.controller.close()
+      await waitForIdle(service, chatRef)
     })
 
     it('rejects a paused startAgentSessionRun before prepareDispatch writes any rows', async () => {
-      mgr.pause('test: agent-session gate')
+      const history = provider()
+      const service = new ConversationRuntimeService({ providers: [history] })
+      service.pause('test: agent admission')
 
-      await expect(
-        startAgentSessionRun({ sessionId: 's1', userParts: [], listeners: [streamListener('l1')] })
-      ).rejects.toThrow(/write-quiesced/)
-      expect(prepareDispatchMock).not.toHaveBeenCalled()
+      await expect(service.dispatch(streamListener(), request(agentRef))).resolves.toEqual({
+        mode: ConversationOpenMode.Blocked,
+        reason: ConversationBlockReason.Paused
+      })
+      expect(history.validateIntent).not.toHaveBeenCalled()
+      expect(history.commitIntent).not.toHaveBeenCalled()
     })
   })
 
-  // -------------------------------------------------------------------------
-  // drainInFlight
-  // -------------------------------------------------------------------------
-
   describe('drainInFlight', () => {
     it('returns a clean verdict when nothing is in flight', async () => {
-      const hold = mgr.pause('test: clean drain')
+      const service = new ConversationRuntimeService({ providers: [] })
+      const hold = service.pause('test: clean drain')
 
-      await expect(mgr.drainInFlight({ timeoutMs: 200 })).resolves.toEqual({ stragglerIds: [] })
-
+      await expect(service.drainInFlight({ timeoutMs: 200 })).resolves.toEqual({ stragglerIds: [] })
       hold.dispose()
     })
 
     it('resolves with a verdict (no throw) when called without an active hold', async () => {
-      // Precondition violation is warned, not thrown — the verdict is still usable.
-      await expect(mgr.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
+      const service = new ConversationRuntimeService({ providers: [] })
+
+      await expect(service.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
     })
 
     it('waits for a live persistence-bearing stream to settle', async () => {
-      const loop = makeDeferred()
-      seedFakeStream(mgr, 't', { listenerKey: 'persistence:x', loopPromise: loop.promise })
-      const hold = mgr.pause('test: stream drain')
+      const live = controlledStream()
+      const service = new ConversationRuntimeService({
+        providers: [provider()],
+        executionManager: new AiExecutionManager(async () => live.stream)
+      })
+      await service.dispatch(streamListener(), request(chatRef))
+      const hold = service.pause('test: execution drain')
 
-      const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
-      await flush()
-      expect(drain.isSettled()).toBe(false)
+      const drain = tracked(service.drainInFlight({ timeoutMs: 5_000 }))
+      await Promise.resolve()
+      expect(drain.settled()).toBe(false)
 
-      loop.resolve()
+      live.controller.close()
       await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
-
       hold.dispose()
     })
 
     it('waits for an admitted agent dispatch parked in validateSession through stream-registry handoff', async () => {
-      const validateSession = makeDeferred()
-      const streamLoop = makeDeferred()
-      const validateSessionMock = vi.fn(() => validateSession.promise)
-      mockDispatchStreamRequest.mockImplementationOnce(async (manager) => {
-        // Model AgentChatContextProvider.prepareDispatch(): the gate has admitted this dispatch,
-        // but validateSession has not yet allowed it to persist rows or call manager.send().
-        await validateSessionMock()
-        seedFakeStream(manager as ManagerInstance, 'agent-session:s1', {
-          listenerKey: 'persistence:agents-db',
-          loopPromise: streamLoop.promise
-        })
-        return { mode: 'started' }
+      const validation = deferred()
+      const history = provider({ beforeValidation: () => validation.promise })
+      const live = controlledStream()
+      const service = new ConversationRuntimeService({
+        providers: [history],
+        executionManager: new AiExecutionManager(async () => live.stream)
       })
+      const dispatch = tracked(service.dispatch(streamListener(), request(agentRef)))
+      await vi.waitFor(() => expect(history.validateIntent).toHaveBeenCalledOnce())
+      const hold = service.pause('test: validation handoff')
+      const drain = tracked(service.drainInFlight({ timeoutMs: 5_000 }))
 
-      const dispatch = trackSettled(mgr.dispatch(fakeSubscriber, openReq('agent-session:s1')))
-      await flush()
-      expect(validateSessionMock).toHaveBeenCalledOnce()
-      expect(internals(mgr).inFlightDispatches.size).toBe(1)
+      validation.resolve()
+      await vi.waitFor(() => expect(dispatch.settled()).toBe(true))
+      expect(service.inspect(agentRef).phase).toBe(ConversationPhase.Running)
+      expect(drain.settled()).toBe(false)
 
-      const hold = mgr.pause('test: validateSession race')
-      const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
-      await flush()
-      expect(drain.isSettled()).toBe(false)
-
-      validateSession.resolve()
-      await flush()
-      expect(dispatch.isSettled()).toBe(true)
-      expect(internals(mgr).activeStreams.has('agent-session:s1')).toBe(true)
-      // The admission settled only after handing off to the stream registry; fixed-point
-      // collection must now wait on that persistence-bearing stream rather than return clean.
-      expect(drain.isSettled()).toBe(false)
-
-      streamLoop.resolve()
+      live.controller.close()
       await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
-      await expect(dispatch.promise).resolves.toEqual({ mode: 'started' })
-
+      await expect(dispatch.promise).resolves.toMatchObject({ mode: ConversationOpenMode.Started })
       hold.dispose()
     })
 
     it('excludes prompt streams (no persistence:* listener) from the wait-set', async () => {
-      // A never-settling prompt loop (translate / API gateway) must not fake a dirty verdict —
-      // with it excluded the drain returns clean immediately, well inside the short timeout.
-      const never = makeDeferred()
-      seedFakeStream(mgr, 'translate-1', { listenerKey: 'renderer:1', loopPromise: never.promise })
-      const hold = mgr.pause('test: prompt excluded')
+      const prompt = controlledStream()
+      services.ai.streamText.mockResolvedValueOnce(prompt.stream)
+      const promptManager = new PromptStreamManager()
+      promptManager.streamPrompt({
+        streamId: 'translate-1',
+        uniqueModelId: modelId,
+        prompt: 'translate',
+        listener: streamListener('prompt-listener')
+      })
+      const service = new ConversationRuntimeService({ providers: [] })
+      const hold = service.pause('test: prompt excluded')
 
-      await expect(mgr.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+      await expect(service.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+      expect(promptManager.hasLiveStreams()).toBe(true)
 
+      prompt.controller.close()
+      await vi.waitFor(() => expect(promptManager.hasLiveStreams()).toBe(false))
       hold.dispose()
     })
 
     it('reports stragglers on timeout without aborting or evicting them', async () => {
-      const loop = makeDeferred()
-      const loopState = trackSettled(loop.promise)
-      const { abortController } = seedFakeStream(mgr, 't', {
-        listenerKey: 'persistence:x',
-        loopPromise: loop.promise
+      const live = controlledStream()
+      const service = new ConversationRuntimeService({
+        providers: [provider()],
+        executionManager: new AiExecutionManager(async () => live.stream)
       })
-      const hold = mgr.pause('test: straggler')
+      await service.dispatch(streamListener(), request(chatRef))
+      const hold = service.pause('test: straggler')
 
-      const verdict = await mgr.drainInFlight({ timeoutMs: 30 })
-      expect(verdict.stragglerIds).toEqual(['t'])
+      const verdict = await service.drainInFlight({ timeoutMs: 30 })
+      expect(verdict.stragglerIds).toHaveLength(1)
+      expect(verdict.stragglerIds[0]).toMatch(/^execution:chat:topic-1\//)
+      expect(service.hasLiveConversation(chatRef)).toBe(true)
 
-      // Straggler untouched: not aborted, loop still pending, stream not evicted — the restore
-      // orchestrator decides its fate.
-      await flush()
-      expect(abortController.signal.aborted).toBe(false)
-      expect(loopState.isSettled()).toBe(false)
-      expect(internals(mgr).activeStreams.has('t')).toBe(true)
-
+      live.controller.close()
+      await waitForIdle(service, chatRef)
       hold.dispose()
-      loop.resolve()
     })
 
-    it('awaits the detached topic-naming write registry', async () => {
-      const write = makeDeferred()
-      namingWrites.set('topic:t', write.promise)
-      const hold = mgr.pause('test: naming drain')
+    it('awaits the Actor-owned post-commit naming operation', async () => {
+      const naming = deferred()
+      const live = controlledStream()
+      const namingTasks: ConversationNamingTaskExecutor = {
+        executePostCommit: () => naming.promise,
+        executeAfterPersist: async () => {}
+      }
+      const service = new ConversationRuntimeService({
+        providers: [
+          provider({
+            postCommitTask: {
+              kind: ConversationPostCommitTaskKind.RenameChatFromFirstUser,
+              topicId: chatRef.id,
+              userMessageId: 'topic-1-user'
+            }
+          })
+        ],
+        executionManager: new AiExecutionManager(async () => live.stream),
+        namingTasks
+      })
+      await service.dispatch(streamListener(), request(chatRef))
+      const hold = service.pause('test: naming drain')
+      const drain = tracked(service.drainInFlight({ timeoutMs: 5_000 }))
 
-      const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
-      await flush()
-      expect(drain.isSettled()).toBe(false)
+      await Promise.resolve()
+      expect(drain.settled()).toBe(false)
 
-      write.resolve()
+      naming.resolve()
+      live.controller.close()
       await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
-
       hold.dispose()
     })
 
-    it('drains to a fixed point — a naming write spawned by a settling loop is still awaited', async () => {
-      const loop = makeDeferred()
-      const naming = makeDeferred()
-      seedFakeStream(mgr, 't', { listenerKey: 'persistence:x', loopPromise: loop.promise })
-      // Model PersistenceListener's detached spawn: the naming write registers as the loop settles,
-      // AFTER the drain took its first snapshot.
-      void loop.promise.then(() => {
-        namingWrites.set('topic:t', naming.promise)
+    it('drains to a fixed point when terminal persistence spawns an Actor-owned naming operation', async () => {
+      const live = controlledStream()
+      const naming = deferred()
+      let afterPersistStarted = false
+      const namingTasks: ConversationNamingTaskExecutor = {
+        executePostCommit: async () => {},
+        executeAfterPersist: () => {
+          afterPersistStarted = true
+          return naming.promise
+        }
+      }
+      const service = new ConversationRuntimeService({
+        providers: [
+          provider({
+            afterPersistTask: {
+              kind: ConversationAfterPersistTaskKind.RenameChatFromSummary,
+              topicId: chatRef.id,
+              userMessageId: 'topic-1-user'
+            }
+          })
+        ],
+        executionManager: new AiExecutionManager(async () => live.stream),
+        namingTasks
       })
-      const hold = mgr.pause('test: fixed point')
+      await service.dispatch(streamListener(), request(chatRef))
+      const hold = service.pause('test: fixed point')
+      const drain = tracked(service.drainInFlight({ timeoutMs: 5_000 }))
 
-      const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
-      await flush()
-      expect(drain.isSettled()).toBe(false)
-
-      loop.resolve()
-      await flush()
-      // First wait-set (the loop) settled, but the re-collect found the naming write.
-      expect(drain.isSettled()).toBe(false)
+      live.controller.enqueue({ type: 'start', messageId: 'topic-1-assistant' } as UIMessageChunk)
+      live.controller.enqueue({ type: 'text-start', id: 'text-1' })
+      live.controller.enqueue({ type: 'text-delta', id: 'text-1', delta: 'complete' })
+      live.controller.enqueue({ type: 'text-end', id: 'text-1' })
+      live.controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      live.controller.close()
+      await vi.waitFor(() => expect(afterPersistStarted).toBe(true))
+      expect(drain.settled()).toBe(false)
 
       naming.resolve()
       await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
-
       hold.dispose()
     })
   })
 
-  // -------------------------------------------------------------------------
-  // Holds & release compensation
-  // -------------------------------------------------------------------------
-
   describe('holds and release compensation', () => {
     it('refcounts holds — quiesced until the last hold is disposed', () => {
-      const h1 = mgr.pause('holder-1')
-      const h2 = mgr.pause('holder-2')
-      expect(mgr.isWriteQuiesced).toBe(true)
+      const service = new ConversationRuntimeService({ providers: [] })
+      const first = service.pause('holder-1')
+      const second = service.pause('holder-2')
+      expect(service.isWriteQuiesced).toBe(true)
 
-      h1.dispose()
-      expect(mgr.isWriteQuiesced).toBe(true)
+      first.dispose()
+      expect(service.isWriteQuiesced).toBe(true)
 
-      h2.dispose()
-      expect(mgr.isWriteQuiesced).toBe(false)
+      second.dispose()
+      expect(service.isWriteQuiesced).toBe(false)
     })
 
     it('dispose is idempotent — double-dispose cannot release another hold', () => {
-      const h1 = mgr.pause('holder-1')
-      const h2 = mgr.pause('holder-2')
+      const service = new ConversationRuntimeService({ providers: [] })
+      const first = service.pause('holder-1')
+      const second = service.pause('holder-2')
 
-      h1.dispose()
-      h1.dispose() // must not decrement h2's hold
-      expect(mgr.isWriteQuiesced).toBe(true)
+      first.dispose()
+      first.dispose()
+      expect(service.isWriteQuiesced).toBe(true)
 
-      h2.dispose()
-      expect(mgr.isWriteQuiesced).toBe(false)
+      second.dispose()
+      expect(service.isWriteQuiesced).toBe(false)
     })
 
     it('re-kicks a suppressed steer continuation exactly once on last-hold release', async () => {
-      const hold = mgr.pause('test: release kick')
-      internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }])
-      await internals(mgr).startNextChatTurn('t') // suppressed under the hold
-      expect(internals(mgr).suppressedChatContinuationTopicIds.has('t')).toBe(true)
-      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+      const history = provider()
+      const first = controlledStream()
+      const successor = controlledStream()
+      const openStream = vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(successor.stream)
+      const service = new ConversationRuntimeService({
+        providers: [history],
+        executionManager: new AiExecutionManager(openStream)
+      })
+      await service.dispatch(streamListener(), request(chatRef, 'first'))
+      await service.dispatch(streamListener(), request(chatRef, 'queued'))
+      const hold = service.pause('test: release kick')
+      first.controller.close()
+      await waitForIdle(service, chatRef)
 
       hold.dispose()
-      // The launch promise registers SYNCHRONOUSLY (before the microtask body) so a drain started
-      // in the same tick sees it.
-      expect(internals(mgr).inFlightChatContinuations.has('t')).toBe(true)
+      await vi.waitFor(() => expect(openStream).toHaveBeenCalledTimes(2))
+      await Promise.resolve()
+      expect(openStream).toHaveBeenCalledTimes(2)
 
-      await flush()
-      await flush()
-      // The compensation kick launched the continuation for the suppressed topic and consumed the head.
-      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
-      expect(mockDispatchStreamRequest.mock.calls[0][2]).toMatchObject({
-        trigger: 'steer-continuation',
-        topicId: 't',
-        userMessageId: 'u1'
-      })
-      expect(internals(mgr).suppressedChatContinuationTopicIds.size).toBe(0)
-      expect(internals(mgr).pendingSteers.has('t')).toBe(false)
-
-      // Exactly once — settling the launch spawns no second kick, and the registry empties.
-      dispatchResolvers[0]()
-      await flush()
-      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
-      expect(internals(mgr).inFlightChatContinuations.size).toBe(0)
+      successor.controller.close()
+      await waitForIdle(service, chatRef)
     })
 
     it('newer hold inherits the suppressed-continuation debt', async () => {
-      const hA = mgr.pause('holder-A')
-      internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }])
-      await internals(mgr).startNextChatTurn('t') // suppressed under A
-      const hB = mgr.pause('holder-B')
-
-      hA.dispose()
-      await flush()
-      await flush()
-      // Still quiesced under B: nothing kicked, the debt is intact.
-      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
-      expect(internals(mgr).suppressedChatContinuationTopicIds.has('t')).toBe(true)
-
-      hB.dispose()
-      await flush()
-      await flush()
-      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
-      expect(mockDispatchStreamRequest.mock.calls[0][2]).toMatchObject({
-        trigger: 'steer-continuation',
-        topicId: 't',
-        userMessageId: 'u1'
+      const history = provider()
+      const first = controlledStream()
+      const successor = controlledStream()
+      const openStream = vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(successor.stream)
+      const service = new ConversationRuntimeService({
+        providers: [history],
+        executionManager: new AiExecutionManager(openStream)
       })
+      await service.dispatch(streamListener(), request(chatRef, 'first'))
+      await service.dispatch(streamListener(), request(chatRef, 'queued'))
+      const firstHold = service.pause('holder-A')
+      first.controller.close()
+      await waitForIdle(service, chatRef)
+      const secondHold = service.pause('holder-B')
 
-      dispatchResolvers[0]()
-      await flush()
+      firstHold.dispose()
+      await Promise.resolve()
+      expect(openStream).toHaveBeenCalledTimes(1)
+      expect(service.inspect(chatRef).inbox.nextTurn).toHaveLength(1)
+
+      secondHold.dispose()
+      await vi.waitFor(() => expect(openStream).toHaveBeenCalledTimes(2))
+      successor.controller.close()
+      await waitForIdle(service, chatRef)
     })
 
     it('fails closed — a dropped (never disposed) hold keeps admission blocked', async () => {
-      mgr.pause('test: dropped hold')
-      expect(mgr.isWriteQuiesced).toBe(true)
+      const history = provider()
+      const service = new ConversationRuntimeService({ providers: [history] })
+      service.pause('test: dropped hold')
 
-      const res = await mgr.dispatch(fakeSubscriber, openReq('t'))
-      expect(res).toMatchObject({ mode: 'blocked', reason: 'paused' })
-      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+      await expect(service.dispatch(streamListener(), request(chatRef))).resolves.toEqual({
+        mode: ConversationOpenMode.Blocked,
+        reason: ConversationBlockReason.Paused
+      })
+      expect(history.commitIntent).not.toHaveBeenCalled()
     })
   })
 })

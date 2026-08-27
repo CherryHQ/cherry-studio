@@ -17,7 +17,6 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
@@ -48,10 +47,11 @@ export class ClaudeCodeSessionStateService extends BaseService {
     let holder = this.toolApprovalEmitters.get(sessionId)
     if (!holder) {
       const nextHolder: ToolApprovalEmitterHolder = {
-        dispose: () => {
+        dispose: (connectionId) => {
+          if (nextHolder.connectionId && nextHolder.connectionId !== connectionId) return
+          nextHolder.connectionId = undefined
           nextHolder.emit = undefined
           nextHolder.emitInput = undefined
-          toolApprovalRegistry.abort(sessionId, 'stream-ended')
           // Evict so the map doesn't grow unbounded across sessions;
           // the holder is rebuilt lazily on the next settings build.
           if (this.toolApprovalEmitters.get(sessionId) === nextHolder) {
@@ -183,7 +183,9 @@ export class ClaudeCodeSessionStateService extends BaseService {
   }
 
   private disposeAllSessionState(): void {
-    for (const holder of [...this.toolApprovalEmitters.values()]) holder.dispose?.()
+    for (const holder of [...this.toolApprovalEmitters.values()]) {
+      if (holder.connectionId) holder.dispose?.(holder.connectionId)
+    }
     this.toolApprovalEmitters.clear()
     for (const holder of [...this.steerHolders.values()]) holder.dispose()
     this.steerHolders.clear()

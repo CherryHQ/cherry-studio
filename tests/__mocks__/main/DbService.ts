@@ -1,5 +1,9 @@
 import { vi } from 'vitest'
 
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+
+import { DataApiEffectScope } from '../../../src/main/data/db/DataApiEffectScope'
+
 /**
  * Mock DbService for main process testing
  * Simulates the complete main process DbService functionality
@@ -56,8 +60,21 @@ export class MockMainDbService {
   private static instance: MockMainDbService
   private db: unknown = defaultMockDb
   private _isReady = true
+  private readonly transactionEffectScope = new DataApiEffectScope()
+  /**
+   * Production-shaped publish surface: one deduplicated batch per outermost
+   * successful `withWriteTx`/`withEffects`, never called for empty or rolled-back
+   * batches. Assert on this instead of the lint-private `notifyDataApiDataChange`.
+   */
+  public readonly publishedEffects = vi.fn<(effects: DataApiDataChangeEffect[]) => void>()
 
   private constructor() {}
+
+  private assertReady(): void {
+    if (!this._isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+  }
 
   public static getInstance(): MockMainDbService {
     if (!MockMainDbService.instance) {
@@ -66,7 +83,10 @@ export class MockMainDbService {
     return MockMainDbService.instance
   }
 
-  public getDb = vi.fn(() => this.db)
+  public getDb = vi.fn(() => {
+    this.assertReady()
+    return this.db
+  })
 
   /**
    * Write transaction mock. Mirrors `DbService.withWriteTx`: when a real
@@ -76,17 +96,55 @@ export class MockMainDbService {
    * Tests can replace this mock with `vi.spyOn(...)` to assert call order, etc.
    */
   public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => {
-    const db = this.db as { transaction?: (fn: (tx: unknown) => unknown, options?: unknown) => unknown }
-    if (typeof db?.transaction === 'function') {
-      return db.transaction(fn, { behavior: 'immediate' }) as T
+    this.assertReady()
+    const { result, committedEffects } = this.transactionEffectScope.collect((effects) => {
+      const db = this.db as { transaction?: (fn: (tx: unknown) => unknown, options?: unknown) => unknown }
+      const run = (tx: unknown) => {
+        const result = fn(
+          Object.assign(tx as object, {
+            effects
+          })
+        )
+        if (result instanceof Promise) {
+          throw new Error('withWriteTx callback must be synchronous — the transaction commits when it returns')
+        }
+        return result
+      }
+      if (typeof db?.transaction === 'function') {
+        return db.transaction(run, { behavior: 'immediate' }) as T
+      }
+      return run(this.db)
+    })
+    if (committedEffects?.length) this.publishedEffects(committedEffects)
+    return result
+  })
+
+  public withEffects = vi.fn(<T>(fn: (effects: { add: (effect: DataApiDataChangeEffect) => void }) => T): T => {
+    this.assertReady()
+    if (this.transactionEffectScope.isCollecting) {
+      throw new Error('withEffects cannot run inside withWriteTx — add effects through tx.effects')
     }
-    return fn(this.db)
+    const scope = new DataApiEffectScope()
+    const { result, committedEffects } = scope.collect((effects) => {
+      const result = fn(effects)
+      // Mirrors the production guard: effects publish on return, so async callbacks are rejected.
+      if (result instanceof Promise) {
+        throw new Error('withEffects callback must be synchronous — effects publish when it returns')
+      }
+      return result
+    })
+    if (committedEffects?.length) this.publishedEffects(committedEffects)
+    return result
   })
 
   /** Restore-facing APIs (see src/main/data/db/restore/README.md) — no-op spies. */
-  public createSnapshot = vi.fn()
+  public createSnapshot = vi.fn((_targetPath: string) => {
+    this.assertReady()
+  })
 
-  public checkpointTruncate = vi.fn()
+  public checkpointTruncate = vi.fn(() => {
+    this.assertReady()
+  })
 
   public get isReady() {
     return this._isReady
@@ -114,6 +172,8 @@ export const MockMainDbServiceUtils = {
   resetMocks: () => {
     mockInstance.getDb.mockClear()
     mockInstance.withWriteTx.mockClear()
+    mockInstance.withEffects.mockClear()
+    mockInstance.publishedEffects.mockClear()
     mockInstance.createSnapshot.mockClear()
     mockInstance.checkpointTruncate.mockClear()
 

@@ -1,254 +1,181 @@
+import { ConversationKind, toConversationExecutionId, toConversationTurnId } from '@shared/ai/conversation'
+import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from '../buildCompactReplay'
+import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from '../../conversation'
+
+const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
+const turnId = toConversationTurnId('turn-1')
+const executionId = toConversationExecutionId('execution-1')
+let nextChunkSeq = 0
+
+function payload(
+  chunk: UIMessageChunk,
+  overrides: Partial<Omit<StreamChunkPayload, 'chunk'>> = {}
+): StreamChunkPayload {
+  const chunkSeq = ++nextChunkSeq
+  return {
+    conversation,
+    turnId,
+    executionId,
+    modelId: 'provider::model',
+    outputNodeId: 'assistant-1',
+    chunkSeq,
+    throughChunkSeq: chunkSeq,
+    chunk,
+    ...overrides
+  }
+}
+
+function chunks(result: readonly StreamChunkPayload[]): UIMessageChunk[] {
+  return result.map((entry) => entry.chunk)
+}
 
 describe('buildCompactReplay', () => {
   it('merges consecutive text-delta chunks with the same id', () => {
+    nextChunkSeq = 0
     const result = buildCompactReplay([
-      { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-      { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk },
-      { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk },
-      { topicId: 'topic-1', chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk }
+      payload({ type: 'text-start', id: 'p1' }),
+      payload({ type: 'text-delta', id: 'p1', delta: 'hel' }),
+      payload({ type: 'text-delta', id: 'p1', delta: 'lo' }),
+      payload({ type: 'text-end', id: 'p1' })
     ])
 
-    expect(result).toEqual([
-      { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
-      { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
-      { topicId: 'topic-1', chunk: { type: 'text-end', id: 'p1' } }
+    expect(chunks(result)).toEqual([
+      { type: 'text-start', id: 'p1' },
+      { type: 'text-delta', id: 'p1', delta: 'hello', providerMetadata: undefined },
+      { type: 'text-end', id: 'p1' }
     ])
+    expect(result[1]).toMatchObject({ chunkSeq: 2, throughChunkSeq: 3 })
   })
 
   it('does not merge text-delta chunks across different executions', () => {
+    nextChunkSeq = 0
+    const otherExecutionId = toConversationExecutionId('execution-2')
     const result = buildCompactReplay([
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'xx' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk
-      }
+      payload({ type: 'text-start', id: 'p1' }),
+      payload({ type: 'text-delta', id: 'p1', delta: 'hel' }),
+      payload({ type: 'text-start', id: 'p1' }, { executionId: otherExecutionId }),
+      payload({ type: 'text-delta', id: 'p1', delta: 'xx' }, { executionId: otherExecutionId }),
+      payload({ type: 'text-delta', id: 'p1', delta: 'lo' }),
+      payload({ type: 'text-end', id: 'p1' }),
+      payload({ type: 'text-end', id: 'p1' }, { executionId: otherExecutionId })
     ])
 
-    expect(result).toEqual([
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-start', id: 'p1' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'hel' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'text-start', id: 'p1' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'xx' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'lo' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'text-end', id: 'p1' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'text-end', id: 'p1' }
-      }
+    expect(chunks(result)).toEqual([
+      { type: 'text-start', id: 'p1' },
+      { type: 'text-delta', id: 'p1', delta: 'hel' },
+      { type: 'text-start', id: 'p1' },
+      { type: 'text-delta', id: 'p1', delta: 'xx' },
+      { type: 'text-delta', id: 'p1', delta: 'lo' },
+      { type: 'text-end', id: 'p1' },
+      { type: 'text-end', id: 'p1' }
     ])
   })
 
   it('keeps tool-input-start so the renderer can rebuild the tool part on attach', () => {
-    // Regression: when attach happens mid-tool-input (before tool-input-available is
-    // emitted), compact replay must preserve `tool-input-start` — otherwise the
-    // renderer's chat reducer never sees the toolCallId, drops subsequent live deltas,
-    // and the tool call only materializes when tool-input-available eventually arrives.
+    nextChunkSeq = 0
     const result = buildCompactReplay([
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hel' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } as UIMessageChunk
-      }
+      payload({ type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hel' }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' })
     ])
 
-    expect(result).toEqual([
-      { topicId: 'topic-1', chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' } },
-      { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hello"}' } }
+    expect(chunks(result)).toEqual([
+      { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' },
+      { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hello"}' }
+    ])
+  })
+
+  it('drops tool-input deltas whose structural start was evicted', () => {
+    nextChunkSeq = 0
+    const result = buildCompactReplay([
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '"hello"}' }),
+      payload({ type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } })
+    ])
+
+    expect(chunks(result)).toEqual([
+      { type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } }
     ])
   })
 
   it('merges consecutive tool-input-delta chunks with the same toolCallId', () => {
+    nextChunkSeq = 0
     const result = buildCompactReplay([
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '"hello"}' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: 'tc1',
-          toolName: 'search',
-          input: { q: 'hello' }
-        } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
-      }
+      payload({ type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '"hello"}' }),
+      payload({ type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } }),
+      payload({ type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } })
     ])
 
-    expect(result).toEqual([
-      { topicId: 'topic-1', chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } },
-      { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hello"}' } },
-      {
-        topicId: 'topic-1',
-        chunk: { type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } }
-      },
-      { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } }
+    expect(chunks(result)).toEqual([
+      { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' },
+      { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hello"}' },
+      { type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } },
+      { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } }
     ])
   })
 
   it('does not merge tool-input-delta chunks across different executions', () => {
+    nextChunkSeq = 0
+    const otherExecutionId = toConversationExecutionId('execution-2')
     const result = buildCompactReplay([
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' } as UIMessageChunk
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' } as UIMessageChunk
-      }
+      payload({ type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }),
+      payload({ type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }, { executionId: otherExecutionId }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' }, { executionId: otherExecutionId }),
+      payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' })
     ])
 
-    // B1 must not merge into A's run. Tool chunks otherwise preserve the
-    // pre-existing pass-through behavior; A1/A2 stay split because B1
-    // interrupted the run.
-    expect(result).toEqual([
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-b::model-b',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' }
-      },
-      {
-        topicId: 'topic-1',
-        executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' }
-      }
+    expect(chunks(result)).toEqual([
+      { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' },
+      { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' },
+      { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' },
+      { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' },
+      { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' }
     ])
   })
 
   describe('orphan repair after ring eviction', () => {
     it('synthesizes the evicted start for a surviving text/reasoning delta run', () => {
+      nextChunkSeq = 0
       const result = buildCompactReplay([
-        // reasoning-start for r1 was evicted; its tail deltas + end survived.
-        { topicId: 'topic-1', chunk: { type: 'reasoning-delta', id: 'r1', delta: 'tail ' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'reasoning-delta', id: 'r1', delta: 'text' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'reasoning-end', id: 'r1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'answer' } as UIMessageChunk }
+        payload({ type: 'reasoning-delta', id: 'r1', delta: 'tail ' }),
+        payload({ type: 'reasoning-delta', id: 'r1', delta: 'text' }),
+        payload({ type: 'reasoning-end', id: 'r1' }),
+        payload({ type: 'text-start', id: 'p1' }),
+        payload({ type: 'text-delta', id: 'p1', delta: 'answer' })
       ])
 
-      expect(result).toEqual([
-        { topicId: 'topic-1', chunk: { type: 'reasoning-start', id: 'r1' } },
-        { topicId: 'topic-1', chunk: { type: 'reasoning-delta', id: 'r1', delta: 'tail text' } },
-        { topicId: 'topic-1', chunk: { type: 'reasoning-end', id: 'r1' } },
-        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
-        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'answer' } }
+      expect(chunks(result)).toEqual([
+        { type: 'reasoning-start', id: 'r1' },
+        { type: 'reasoning-delta', id: 'r1', delta: 'tail text', providerMetadata: undefined },
+        { type: 'reasoning-end', id: 'r1' },
+        { type: 'text-start', id: 'p1' },
+        { type: 'text-delta', id: 'p1', delta: 'answer' }
       ])
     })
 
     it('drops an end whose start and content were all evicted', () => {
+      nextChunkSeq = 0
       const result = buildCompactReplay([
-        { topicId: 'topic-1', chunk: { type: 'reasoning-end', id: 'r1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } as UIMessageChunk }
+        payload({ type: 'reasoning-end', id: 'r1' }),
+        payload({ type: 'text-end', id: 'p1' }),
+        payload({ type: 'text-start', id: 'p2' })
       ])
 
-      expect(result).toEqual([{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } }])
+      expect(chunks(result)).toEqual([{ type: 'text-start', id: 'p2' }])
     })
   })
 
   describe('mergeDeltaPayload segmentation', () => {
     it('refuses a merge that would exceed maxDeltaBytes so ingest starts a new segment', () => {
-      const tail = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } as UIMessageChunk }
-      const incoming = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'ef' } as UIMessageChunk }
+      nextChunkSeq = 0
+      const tail = payload({ type: 'text-delta', id: 'p1', delta: 'abcd' })
+      const incoming = payload({ type: 'text-delta', id: 'p1', delta: 'ef' })
 
       expect(mergeDeltaPayload(tail, incoming, 5)).toBeUndefined()
       expect(mergeDeltaPayload(tail, incoming, 6)).toMatchObject({ chunk: { delta: 'abcdef' } })
@@ -256,54 +183,74 @@ describe('buildCompactReplay', () => {
     })
 
     it('measures the merge ceiling in UTF-8 bytes', () => {
-      const tail = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: '中' } as UIMessageChunk }
-      const incoming = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'a' } as UIMessageChunk }
+      nextChunkSeq = 0
+      const tail = payload({ type: 'text-delta', id: 'p1', delta: '中' })
+      const incoming = payload({ type: 'text-delta', id: 'p1', delta: 'a' })
 
       expect(mergeDeltaPayload(tail, incoming, 3)).toBeUndefined()
       expect(mergeDeltaPayload(tail, incoming, 4)).toMatchObject({ chunk: { delta: '中a' } })
     })
 
     it('caps tool-input-delta merges the same way', () => {
-      const tail = {
-        topicId: 't',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q"' } as UIMessageChunk
-      }
-      const incoming = {
-        topicId: 't',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: ':1}' } as UIMessageChunk
-      }
+      nextChunkSeq = 0
+      const tail = payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q"' })
+      const incoming = payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: ':1}' })
 
       expect(mergeDeltaPayload(tail, incoming, 6)).toBeUndefined()
       expect(mergeDeltaPayload(tail, incoming, 7)).toMatchObject({ chunk: { inputTextDelta: '{"q":1}' } })
     })
 
     it('splits one oversized incoming delta without breaking Unicode code points', () => {
-      const payload = {
-        topicId: 't',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'a🙂bc' } as UIMessageChunk
-      }
+      nextChunkSeq = 0
+      const result = splitDeltaPayload(payload({ type: 'text-delta', id: 'p1', delta: 'a🙂bc' }), 4)
 
-      expect(splitDeltaPayload(payload, 4).map(({ chunk }) => ('delta' in chunk ? chunk.delta : undefined))).toEqual([
-        'a',
-        '🙂',
-        'bc'
-      ])
+      expect(result.map(({ chunk }) => ('delta' in chunk ? chunk.delta : undefined))).toEqual(['a', '🙂', 'bc'])
     })
 
     it('keeps attach-time compaction under the same delta byte ceiling', () => {
+      nextChunkSeq = 0
       const result = buildCompactReplay(
         [
-          { topicId: 't', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } as UIMessageChunk },
-          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'efgh' } as UIMessageChunk }
+          payload({ type: 'text-start', id: 'p1' }),
+          payload({ type: 'text-delta', id: 'p1', delta: 'abcd' }),
+          payload({ type: 'text-delta', id: 'p1', delta: 'efgh' })
         ],
-        4
+        { maxDeltaBytes: 4 }
       )
 
-      expect(result).toEqual([
-        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } },
-        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } },
-        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'efgh' } }
+      expect(chunks(result)).toEqual([
+        { type: 'text-start', id: 'p1' },
+        { type: 'text-delta', id: 'p1', delta: 'abcd' },
+        { type: 'text-delta', id: 'p1', delta: 'efgh' }
+      ])
+    })
+
+    it('continues an already-applied part without synthesizing a duplicate start', () => {
+      nextChunkSeq = 0
+      payload({ type: 'text-start', id: 'p1' })
+      const delta = payload({ type: 'text-delta', id: 'p1', delta: 'suffix' })
+      const end = payload({ type: 'text-end', id: 'p1' })
+
+      expect(chunks(buildCompactReplay([delta, end], { cursor: 1 }))).toEqual([
+        { type: 'text-delta', id: 'p1', delta: 'suffix' },
+        { type: 'text-end', id: 'p1' }
+      ])
+    })
+
+    it('continues an already-applied tool input without requiring its start in the suffix', () => {
+      nextChunkSeq = 0
+      payload({ type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' })
+      const delta = payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' })
+      const available = payload({
+        type: 'tool-input-available',
+        toolCallId: 'tc1',
+        toolName: 'search',
+        input: { q: 'hello' }
+      })
+
+      expect(chunks(buildCompactReplay([delta, available], { cursor: 1 }))).toEqual([
+        { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' },
+        { type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } }
       ])
     })
   })

@@ -1,4 +1,5 @@
 import type * as AiCore from '@cherrystudio/ai-core'
+import { AiRuntimeKind } from '@main/ai/types'
 import type { ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -6,9 +7,6 @@ const compactModelMessages = vi.fn()
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
   ...(await importOriginal<typeof AiCore>()),
   compactModelMessages: (...args: unknown[]) => compactModelMessages(...args)
-}))
-vi.mock('@main/ai/agentSession/topic', () => ({
-  isAgentSessionTopic: (id: string) => id.startsWith('agent-session:')
 }))
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
@@ -38,9 +36,16 @@ const scope = (overrides: {
   compressEnabled?: boolean
   compressionModel?: unknown
   adapterFamily?: string
+  runtime?: AiRuntimeKind
+  abortSignal?: AbortSignal
 }) =>
   ({
-    request: { chatId: overrides.chatId, contextOwner: overrides.contextOwner },
+    request: {
+      chatId: overrides.chatId,
+      contextOwner: overrides.contextOwner,
+      ...(overrides.runtime ? { runtime: { kind: overrides.runtime, sessionId: 'session-1', turnId: 'turn-1' } } : {})
+    },
+    requestContext: { abortSignal: overrides.abortSignal },
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -110,9 +115,11 @@ describe('inLoopCompactionFeature', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: undefined }))).toBe(true)
   })
 
-  it('does not apply for agent-session topics', () => {
+  it('does not apply for typed Agent runtime requests', () => {
     expect(
-      inLoopCompactionFeature.applies?.(scope({ chatId: 'agent-session:s1', contextWindow: CONTEXT_WINDOW }))
+      inLoopCompactionFeature.applies?.(
+        scope({ chatId: 'session-1', contextWindow: CONTEXT_WINDOW, runtime: AiRuntimeKind.AgentSession })
+      )
     ).toBe(false)
   })
 
@@ -211,7 +218,8 @@ describe('inLoopCompactionFeature', () => {
     expect(compactModelMessages).toHaveBeenCalledWith(messages, COMPRESSION_LANGUAGE_MODEL, {
       keepRecentTurns: expect.any(Number),
       maxOutputTokens: expect.any(Number),
-      maxInputTokens: expect.any(Number)
+      maxInputTokens: expect.any(Number),
+      abortSignal: undefined
     })
     const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
     expect(maxOutputTokens + maxInputTokens).toBeLessThan(100_000) // fits the window
@@ -350,6 +358,34 @@ describe('inLoopCompactionFeature', () => {
     compactModelMessages.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
     const prepareStep = getPrepareStep()
     await expect(prepareStep({ messages: [userMessage(90_000)] } as any)).rejects.toThrow('aborted')
+  })
+
+  it('does not publish or cache a fold that resolves after the owning execution aborts', async () => {
+    compactModelMessages.mockClear()
+    const controller = new AbortController()
+    let resolveCompaction!: (messages: ModelMessage[]) => void
+    compactModelMessages.mockImplementation(
+      () =>
+        new Promise<ModelMessage[]>((resolve) => {
+          resolveCompaction = resolve
+        })
+    )
+    const events: Array<{ status: string }> = []
+    const scoped = scope({
+      chatId: 'topic-1',
+      contextWindow: CONTEXT_WINDOW,
+      abortSignal: controller.signal
+    })
+    ;(scoped as { compactionSink?: unknown }).compactionSink = (_id: string, data: { status: string }) =>
+      events.push(data)
+    const prepareStep = getPrepareStep(scoped)
+    const pending = prepareStep({ messages: [userMessage(90_000)] } as any)
+    await vi.waitFor(() => expect(compactModelMessages).toHaveBeenCalledOnce())
+    expect(compactModelMessages.mock.calls[0][2].abortSignal).toBe(controller.signal)
+    controller.abort()
+    resolveCompaction([userMessage(10)])
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(events.map((event) => event.status)).toEqual(['compacting', 'skipped'])
   })
 
   it('returns no override when compactModelMessages returns the same reference (no-op)', async () => {

@@ -192,7 +192,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.getLastRuntimeResumeToken).not.toHaveBeenCalled()
   })
 
-  it('falls back to the persisted resume token when no explicit token is given', async () => {
+  it('hydrates the persisted resume token before connecting a cold historical session', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue('persisted-token')
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')

@@ -6,6 +6,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { ConversationInboxMutationKind, ConversationInputTarget, toConversationInputId } from '@shared/ai/conversation'
+import type { ConversationInboxItem } from '@shared/ai/transport'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -14,7 +16,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -45,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   modelResult: undefined as Model | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  loggerError: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   createInternalEntry: vi.fn(),
@@ -110,7 +112,10 @@ const mocks = vi.hoisted(() => ({
   sessionWorkspaceName: 'Workspace 1',
   sessionWorkspacePath: '/workspace',
   runtimeProviderMounts: 0,
-  runtimeProviderUnmounts: 0
+  runtimeProviderUnmounts: 0,
+  inboxItems: [] as ConversationInboxItem[],
+  inboxPaused: false,
+  inboxRevision: 0
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -119,6 +124,12 @@ let restoreRequestAnimationFrame: (() => void) | undefined
 const seedInputHistory = (items: string[]) => {
   MockUseCacheUtils.setPersistCacheValue('ui.composer.input_history', items)
 }
+
+const inboxSnapshot = () => ({
+  revision: mocks.inboxRevision,
+  paused: mocks.inboxPaused,
+  items: [...mocks.inboxItems]
+})
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
@@ -276,6 +287,10 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
   }
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: mocks.loggerError }) }
 }))
 
 // useAgentSessionSlashCommands now observes the shared slash-command catalog via
@@ -524,8 +539,8 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({
     isPending: false,
     isFulfilled: mocks.topicFulfilled,
     markSeen: mocks.markTopicSeen
@@ -779,9 +794,20 @@ describe('AgentComposer', () => {
     mocks.agentConfiguration = {}
     mocks.modelResult = model
     mocks.sendMessage.mockReset()
-    mocks.sendMessage.mockResolvedValue(undefined)
+    mocks.sendMessage.mockImplementation(async (_message, options) => {
+      const body = options?.body
+      if (body?.inputTarget === ConversationInputTarget.NextTurn && body.inboxPresentation) {
+        mocks.inboxItems.push({
+          id: toConversationInputId(`queued-${mocks.inboxRevision + 1}`),
+          presentation: body.inboxPresentation
+        })
+        mocks.inboxRevision += 1
+      }
+      return undefined
+    })
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.loggerError.mockReset()
     mocks.topicFulfilled = false
     mocks.markTopicSeen.mockReset()
     mocks.listDirectory.mockReset()
@@ -806,7 +832,36 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.ipcApiRequest.mockReset()
     mocks.ipcApiRequest.mockImplementation(
-      async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
+      async (
+        route: string,
+        input: {
+          items?: { key: string }[]
+          kind?: string
+          path?: string
+          mutation?: { kind: ConversationInboxMutationKind; inputId?: string; inputIds?: string[]; paused?: boolean }
+        }
+      ) => {
+        if (route === 'ai.conversation.inbox.get') return inboxSnapshot()
+        if (route === 'ai.conversation.inbox.mutate') {
+          switch (input.mutation?.kind) {
+            case ConversationInboxMutationKind.Remove:
+              mocks.inboxItems = mocks.inboxItems.filter(({ id }) => id !== input.mutation?.inputId)
+              break
+            case ConversationInboxMutationKind.Reorder: {
+              const byId = new Map(mocks.inboxItems.map((item) => [item.id, item]))
+              mocks.inboxItems = (input.mutation.inputIds ?? []).flatMap((id) => {
+                const item = byId.get(toConversationInputId(id))
+                return item ? [item] : []
+              })
+              break
+            }
+            case ConversationInboxMutationKind.SetPaused:
+              mocks.inboxPaused = input.mutation.paused === true
+              break
+          }
+          mocks.inboxRevision += 1
+          return inboxSnapshot()
+        }
         if (route === 'file.get_metadata') {
           // The session workspace-status preflight stays pending so it never flips the composer into a
           // blocking warning (mirrors the former hanging `isDirectory` default). Send-path physical files
@@ -822,6 +877,9 @@ describe('AgentComposer', () => {
         )
       }
     )
+    mocks.inboxItems = []
+    mocks.inboxPaused = false
+    mocks.inboxRevision = 0
     mocks.timeoutCallbacks.clear()
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
@@ -1055,8 +1113,8 @@ describe('AgentComposer', () => {
       />
     )
     fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(getQueueDock()).toBeTruthy())
     const queued = getQueueDock()
-    expect(queued).toBeTruthy()
     expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
       type: 'data-knowledge-scope',
       data: { baseIds: [knowledgeBaseOne.id] }
@@ -2043,9 +2101,7 @@ describe('AgentComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
-  it('does NOT save input history when the follow-up is enqueued during streaming (only on real drain)', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined)
-
+  it('records input history when Main accepts a queued streaming follow-up', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -2060,12 +2116,21 @@ describe('AgentComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'queued agent follow-up', tokens: [] })
     })
 
-    // Enqueue path: sendMessage is NOT called directly — it goes through the dock.
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'queued agent follow-up' },
+      {
+        body: expect.objectContaining({
+          inputTarget: ConversationInputTarget.NextTurn,
+          inboxPresentation: expect.objectContaining({
+            payload: expect.objectContaining({ text: 'queued agent follow-up' })
+          })
+        })
+      }
+    )
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued agent follow-up'])
     expect(getQueueDock()).toBeTruthy()
 
-    // Manually drain the dock. Now sendMessage runs and saveHistory fires.
+    // Manual steer reuses the accepted payload and removes the retained inbox item only after success.
     const dock = getQueueDock()
     const itemId = dock.props.items[0].id
     await act(async () => {
@@ -2073,7 +2138,7 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.sendMessage).toHaveBeenCalled()
+      expect(mocks.sendMessage).toHaveBeenCalledTimes(2)
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued agent follow-up'])
     })
   })
@@ -4348,7 +4413,9 @@ describe('AgentComposer', () => {
         textOffset: mocks.draftText.length
       } as ComposerSerializedToken
     ]
-    mocks.ipcApiRequest.mockResolvedValue({})
+    mocks.ipcApiRequest.mockImplementation(async (route: string) =>
+      route === 'ai.conversation.inbox.get' ? inboxSnapshot() : {}
+    )
 
     render(
       <AgentComposer
@@ -4513,10 +4580,9 @@ describe('AgentComposer', () => {
     expect(mocks.stop).toHaveBeenCalledTimes(1)
   })
 
-  it('handles a failed active stream stop at the composer boundary', async () => {
-    const stopError = new Error('main abort failed')
-    mocks.stop.mockRejectedValueOnce(stopError)
-    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+  it('logs a rejected stream Stop once at the Agent action boundary', async () => {
+    const error = new Error('main teardown failed')
+    mocks.stop.mockRejectedValueOnce(error)
     render(
       <AgentComposer
         agentId="agent-1"
@@ -4530,14 +4596,14 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('pause'))
 
     await waitFor(() =>
-      expect(loggerError).toHaveBeenCalledWith('Failed to abort agent session', {
-        sessionTopicId: 'agent-session:session-1',
-        error: stopError
+      expect(mocks.loggerError).toHaveBeenCalledExactlyOnceWith('Failed to stop agent Conversation', {
+        conversation: { kind: 'agent', id: 'session-1' },
+        error
       })
     )
   })
 
-  it('queues a follow-up while the agent session is streaming (does not send directly)', () => {
+  it('submits a streaming follow-up to Main NextTurn and shows the retained inbox item', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -4550,9 +4616,11 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
-    // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(getQueueDock()).toBeTruthy()
+    await waitFor(() => expect(getQueueDock()).toBeTruthy())
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'hello' },
+      { body: expect.objectContaining({ inputTarget: ConversationInputTarget.NextTurn }) }
+    )
   })
 
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
@@ -4577,7 +4645,7 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeFalsy()
   })
 
-  it('drains a streaming-period follow-up when the foreground stream ends despite background tasks', async () => {
+  it('keeps a Main-owned follow-up without resubmitting it when only Renderer stream state changes', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' }
     ])
@@ -4595,7 +4663,7 @@ describe('AgentComposer', () => {
     rerender(<AgentComposer {...props(false)} />)
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
-    expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeTruthy()
   })
 
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
@@ -4649,7 +4717,7 @@ describe('AgentComposer', () => {
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Use the pdf skill.queued agent draft'))
 
     const dock = getQueueDock()
     const itemId = dock.props.items[0].id
@@ -4699,7 +4767,7 @@ describe('AgentComposer', () => {
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Use the pdf skill.queued agent draft'))
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
     })
@@ -4757,8 +4825,8 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(getQueueDock()).toBeTruthy())
     const dock = getQueueDock()
-    expect(dock).toBeTruthy()
     const itemId = dock.props.items[0].id
 
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
@@ -4768,7 +4836,7 @@ describe('AgentComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(getQueueDock().props.items.map((entry: any) => entry.id)).toContain(itemId)
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued message'])
   })
 
   it('keeps the current draft, files, and skill tokens untouched when Main blocks a new agent message', async () => {
@@ -5018,12 +5086,12 @@ describe('AgentComposer', () => {
     mocks.surfaceFocus.mockClear()
 
     await act(async () => {
-      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:other-session' })
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent:other-session' })
     })
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
 
     await act(async () => {
-      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:session-1' })
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent:session-1' })
     })
     expect(mocks.surfaceFocus).toHaveBeenCalledTimes(1)
   })

@@ -18,6 +18,7 @@ const assistantContextMock = vi.hoisted(() => ({
   isLoading: false,
   isModelPending: false
 }))
+const branchLiveStateSetter = vi.hoisted(() => vi.fn())
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
 const eventEmitMock = vi.hoisted(() => vi.fn())
 const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
@@ -208,7 +209,7 @@ vi.mock('../components/TopicRightPane', () => {
 
   return {
     TopicRightPane,
-    useTopicBranchLiveStateSetter: () => vi.fn()
+    useTopicBranchLiveStateSetter: () => branchLiveStateSetter
   }
 })
 
@@ -219,6 +220,7 @@ describe('Chat', () => {
     chatContentProps.current = null
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
+    branchLiveStateSetter.mockReset()
     commandHandlers.clear()
     activeTabMock.current = true
   })
@@ -299,6 +301,27 @@ describe('Chat', () => {
     view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
 
     expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
+  })
+
+  it('keeps late branch-live contributions bound to the topic that produced them', () => {
+    const view = render(<Chat activeTopic={topic} />)
+    const topicOneContribution = chatContentProps.current.onBranchLiveStateChange
+
+    view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
+    const topicTwoContribution = chatContentProps.current.onBranchLiveStateChange
+    branchLiveStateSetter.mockClear()
+
+    const topicTwoState = { topicId: 'topic-2', messageIds: ['assistant-2'] }
+    act(() => {
+      topicTwoContribution({ topicId: 'topic-2', state: topicTwoState })
+      topicOneContribution({ topicId: 'topic-1', state: null })
+      topicOneContribution({ topicId: 'topic-2', state: null })
+    })
+
+    expect(branchLiveStateSetter.mock.calls).toEqual([
+      ['topic-2', topicTwoState],
+      ['topic-1', null]
+    ])
   })
 
   it('renders the navbar while the active topic is still resolving', () => {

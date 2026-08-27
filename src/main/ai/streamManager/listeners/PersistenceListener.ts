@@ -6,27 +6,23 @@
 
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type {
-  CherryMessagePart,
-  CherryUIMessage,
-  MessageRuntimeStatsInput,
-  MessageRuntimeTiming
-} from '@shared/data/types/message'
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
+import type { CherryUIMessage, MessageRuntimeStatsInput, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import {
-  dropEmptyContentParts,
-  finalizeInterruptedParts,
-  type PersistenceBackend,
-  stripTransientStatusParts
-} from '../persistence/PersistenceBackend'
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+import { normalizeTerminalMessage } from '../persistence/normalizeTerminalMessage'
+import type { PersistenceBackend } from '../persistence/PersistenceBackend'
+import type { StreamDoneResult, StreamErrorResult, StreamPausedResult, StreamPersistencePort } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
 /** Internal control signal: the persistence failure was already surfaced as an error event. */
-export class TerminalPersistenceError extends Error {}
+export class TerminalPersistenceError extends Error {
+  constructor(readonly serializedError: SerializedError) {
+    super('Terminal persistence failed')
+  }
+}
 
 export interface PersistenceListenerOptions {
   /** Listener id namespace — typically the topic id. */
@@ -34,17 +30,10 @@ export interface PersistenceListenerOptions {
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
-  /**
-   * Called when persistence fails after a terminal event. The DB row is already driven to
-   * `error`; this lets the caller surface that error while the manager suppresses the original
-   * terminal notification.
-   */
-  onPersistFailed: (error: SerializedError) => void
 }
 
-export class PersistenceListener implements StreamListener {
+export class PersistenceListener implements StreamPersistencePort {
   readonly id: string
-  readonly terminalPhase = 'persistence' as const
 
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
@@ -55,29 +44,26 @@ export class PersistenceListener implements StreamListener {
     return this.opts.backend.kind
   }
 
-  onChunk(): void {
-    // Message timing is captured by the runtime collector, not inferred from chunks here.
-  }
-
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, ConversationOutcomeKind.Success, result.runtimeTiming)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    return this.persistAssistant(result.finalMessage, 'paused', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, ConversationOutcomeKind.Paused, result.runtimeTiming)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
-    const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    return this.persistAssistant(withErrorPart, 'error', result.runtimeTiming)
-  }
-
-  isAlive(): boolean {
-    return true
+    return this.persistAssistant(
+      result.finalMessage,
+      ConversationOutcomeKind.Error,
+      result.runtimeTiming,
+      result.error,
+      result.anchorMessageId
+    )
   }
 
   private owns(modelId: UniqueModelId | undefined): boolean {
@@ -86,14 +72,16 @@ export class PersistenceListener implements StreamListener {
 
   private async persistAssistant(
     finalMessage: CherryUIMessage | undefined,
-    status: 'success' | 'paused' | 'error',
-    runtimeTiming: MessageRuntimeTiming | undefined
+    status: ConversationOutcomeKind,
+    runtimeTiming: MessageRuntimeTiming | undefined,
+    error?: SerializedError,
+    anchorMessageId?: string
   ): Promise<void> {
     const canPersistEmpty =
-      status === 'success'
+      status === ConversationOutcomeKind.Success
         ? this.opts.backend.canPersistEmptySuccessTerminal
         : this.opts.backend.canPersistEmptyTerminal
-    if (!finalMessage && !canPersistEmpty) {
+    if (!finalMessage && !(status === ConversationOutcomeKind.Error && error) && !canPersistEmpty) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
@@ -106,15 +94,7 @@ export class PersistenceListener implements StreamListener {
     // text/reasoning parts so neither can reach storage. Applied for all
     // statuses. The `finalMessage`
     // guard is for the typed-undefined error path (no finalMessage).
-    const finalMessageForPersistence = finalMessage
-      ? {
-          ...finalMessage,
-          parts: finalizeInterruptedParts(
-            dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])),
-            status
-          )
-        }
-      : finalMessage
+    const finalMessageForPersistence = normalizeTerminalMessage(finalMessage, status, error, anchorMessageId)
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     const runtimeStats: MessageRuntimeStatsInput = {
       ...(runtimeTiming ? { runtimeTiming } : {}),
@@ -142,31 +122,22 @@ export class PersistenceListener implements StreamListener {
       })
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
-      try {
-        this.opts.backend.markTerminalError?.()
-      } catch (markErr) {
-        logger.error('Failed to mark assistant message as terminal error after persist failure', {
-          backend: this.opts.backend.kind,
-          topicId: this.opts.topicId,
-          status,
-          err: markErr
-        })
+      if (this.opts.backend.markTerminalError) {
+        try {
+          this.opts.backend.markTerminalError()
+        } catch (markErr) {
+          logger.error('Failed to mark assistant message as terminal error after persist failure', {
+            backend: this.opts.backend.kind,
+            topicId: this.opts.topicId,
+            status,
+            err: markErr
+          })
+        }
       }
-      // Surface the persistence error now; the manager suppresses the original terminal notification.
-      try {
-        this.opts.onPersistFailed(serializeError(err))
-      } catch (notifyErr) {
-        logger.error('Failed to surface terminal persistence error', {
-          backend: this.opts.backend.kind,
-          topicId: this.opts.topicId,
-          status,
-          err: notifyErr
-        })
-      }
-      throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
+      throw new TerminalPersistenceError(serializeError(err))
     }
 
-    if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
+    if (status === ConversationOutcomeKind.Success && finalMessageForPersistence && this.opts.backend.afterPersist) {
       void this.opts.backend.afterPersist(finalMessageForPersistence).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,
@@ -176,16 +147,4 @@ export class PersistenceListener implements StreamListener {
       })
     }
   }
-}
-
-/** Returns a synthetic message when the stream errored before producing chunks. */
-function mergeErrorIntoMessage(base: CherryUIMessage | undefined, error: SerializedError): CherryUIMessage {
-  const baseParts = (base?.parts ?? []) as CherryMessagePart[]
-  const errorPart: CherryMessagePart = { type: 'data-error', data: { ...error } }
-  return {
-    id: base?.id ?? crypto.randomUUID(),
-    role: 'assistant',
-    parts: [...baseParts, errorPart],
-    ...(base?.metadata ? { metadata: base.metadata } : {})
-  } as CherryUIMessage
 }

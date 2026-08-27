@@ -5,50 +5,70 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { aiStreamAdmissionReasons, type AiStreamOpenRequest } from '@shared/ai/transport'
+import {
+  ConversationActiveNodeMove,
+  ConversationAdmissionReason,
+  ConversationContinuationTrigger,
+  ConversationKind,
+  ConversationOpenTrigger,
+  ConversationOutcomeKind,
+  type ConversationRef,
+  ConversationTargetMode
+} from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startAiChildTurnSpan } from '../../../observability'
-import { AiStreamAdmissionError } from '../../admission'
-import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
-import type { MainSteerContinuationRequest } from '../dispatch'
+import { ConversationInteractionCommitResultKind } from '../ConversationHistoryPort'
+import type { MainDispatchRequest, MainSteerContinuationRequest } from '../dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from '../modelResolution'
+import { assertPureCommittedIntent } from './assertPureCommittedIntent'
 
 // Stub model resolution + tracing so the test drives the REAL DB history path
 // (`createUserMessageWithPlaceholders` → `getPathToNode`) without provider/model
 // resolution machinery. The history is what we assert on.
 const MODEL_ID = createUniqueModelId('openai', 'gpt-4o')
-const aiStreamManager = vi.hoisted(() => ({
-  admitLiveExecutionChange: vi.fn(),
-  awaitExecutionRetry: vi.fn(),
-  broadcastTopicError: vi.fn()
-}))
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('../../../../../../tests/__mocks__/main/application')
-  const base = mockApplicationFactory()
-  const originalGet = base.application.get
-  base.application.get = vi.fn((name: string) => (name === 'AiStreamManager' ? aiStreamManager : originalGet(name)))
-  return base
-})
-
 vi.mock('../modelResolution', () => ({
   resolveAssistantModelId: vi.fn(() => ({ assistantId: undefined, defaultModelId: MODEL_ID })),
   resolveModels: vi.fn(() => [{ id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }]),
   resolvePersistentSiblingsGroupId: vi.fn(() => 1)
 }))
 
-vi.mock('../../../observability', () => ({
+vi.mock('../../../observability', async (importOriginal) => ({
+  ...(await importOriginal()),
   startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' })),
   deriveRootSpanId: vi.fn(() => '1'.repeat(16)),
   applyTurnInputAttributes: vi.fn()
 }))
 
 const { PersistentChatContextProvider } = await import('../PersistentChatContextProvider')
+
+class PersistentChatHistoryHarness extends PersistentChatContextProvider {
+  async prepareDispatch(
+    _subscriber: StreamListener,
+    request: MainDispatchRequest,
+    context: { hasLiveStream: boolean }
+  ) {
+    const signal = new AbortController().signal
+    const validation = await this.validateIntent(request, context, signal)
+    const committed = this.commitIntent(validation, context)
+    assertPureCommittedIntent(committed)
+    const execution = await this.prepareExecutionContext(committed.executions[0].preparation, signal)
+    return {
+      ...execution,
+      executions: committed.executions,
+      reservedMessages: committed.reservedMessages,
+      siblingsGroupId: committed.executions[0]
+        ? messageService.getById(committed.executions[0].outputNodeId).siblingsGroupId || undefined
+        : undefined,
+      activeNodeDecision: committed.activeNodeDecision
+    }
+  }
+}
+
+const conversation: ConversationRef = { kind: ConversationKind.Chat, id: 'topic-1' }
 
 function makeSubscriber(): StreamListener {
   return { id: 'wc:1', onChunk: vi.fn(), onDone: vi.fn(), onPaused: vi.fn(), onError: vi.fn(), isAlive: () => true }
@@ -67,7 +87,7 @@ function flatten(messages: { role: string; parts: Array<{ type: string; text?: s
 
 describe('PersistentChatContextProvider — steer continuation history', () => {
   const dbh = setupTestDatabase()
-  const provider = new PersistentChatContextProvider()
+  const provider = new PersistentChatHistoryHarness()
 
   // The text a prior turn produced before it yielded to the steer; the steer continuation's
   // history must include it (it was persisted on the assistant row by the normal terminal path).
@@ -117,17 +137,82 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
   })
 
+  it('returns the authoritative Chat outputs repaired during boot recovery', async () => {
+    await dbh.db.insert(messageTable).values({
+      id: 'a2',
+      parentId: 'a1',
+      topicId: 'topic-1',
+      role: 'assistant',
+      data: {
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'tool-1',
+            toolName: 'Read',
+            state: 'input-available',
+            input: { path: '/tmp/input.txt' }
+          }
+        ]
+      },
+      status: 'pending',
+      siblingsGroupId: 2,
+      modelId: MODEL_ID,
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    expect(provider.recoverCrashOrphans()).toEqual({
+      repairedOutputs: [{ outputNodeId: 'a2', status: 'error' }]
+    })
+    expect(messageService.getById('a2')).toMatchObject({
+      status: 'error',
+      data: { parts: [expect.objectContaining({ state: 'output-error' })] }
+    })
+  })
+
+  it('commits a same-profile inbox batch as a user chain with one assistant execution', async () => {
+    const context = { hasLiveStream: false }
+    const validations = await Promise.all(
+      ['follow-up B', 'follow-up C'].map((text) =>
+        provider.validateIntent(
+          {
+            trigger: ConversationOpenTrigger.SubmitMessage,
+            conversation,
+            parentAnchorId: 'a1',
+            userMessageParts: [{ type: 'text', text }]
+          },
+          context,
+          new AbortController().signal
+        )
+      )
+    )
+
+    const committed = provider.commitBatchIntent(validations, context)
+    const execution = committed.executions[0]
+    if (!execution) throw new Error('Expected one Chat execution')
+    const prepared = await provider.prepareExecutionContext(execution.preparation, new AbortController().signal)
+
+    expect(committed.reservedMessages.map(({ role }) => role)).toEqual(['user', 'user', 'assistant'])
+    expect(committed.executions).toHaveLength(1)
+    expect(flatten(prepared.models[0]?.request.messages ?? [])).toEqual([
+      { role: 'user', text: 'first question' },
+      { role: 'assistant', text: PARTIAL },
+      { role: 'user', text: 'follow-up B' },
+      { role: 'user', text: 'follow-up C' }
+    ])
+  })
+
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {
     // Steering: renderer's `activeNodeId` (the streaming/paused assistant row) is sent as
     // `parentAnchorId`, so the new user message is parented on the paused row.
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: 'a1',
         userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
@@ -142,15 +227,15 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
-  it('rejects duplicate mentioned models before reserving any rows', async () => {
+  it('throws on duplicate modelId within a single send call', async () => {
     const childrenBefore = messageService.getChildrenByParentId('a1')
 
     await expect(
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: 'submit-message',
-          topicId: 'topic-1',
+          trigger: ConversationOpenTrigger.SubmitMessage,
+          conversation,
           parentAnchorId: 'a1',
           userMessageParts: [{ type: 'text', text: 'compare twice' }],
           mentionedModelIds: [MODEL_ID, MODEL_ID]
@@ -162,17 +247,56 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(messageService.getChildrenByParentId('a1')).toEqual(childrenBefore)
   })
 
+  it('commits an error-capable assistant skeleton when a queued steer can no longer validate', async () => {
+    const steer = messageService.create('topic-1', {
+      role: 'user',
+      parentId: 'a1',
+      data: { parts: [{ type: 'text', text: 'queued follow-up' }] },
+      status: 'success',
+      modelId: MODEL_ID
+    })
+    const serialized = { name: 'Error', message: 'model removed', stack: null }
+    const failure = provider.validateInputFailure(
+      {
+        trigger: ConversationContinuationTrigger.ContinueSteer,
+        conversation,
+        userMessageId: steer.id,
+        fastMode: false
+      },
+      serialized
+    )
+    if (!failure) throw new Error('failed steer did not validate its terminal fallback')
+    const committed = provider.commitInputFailureIntent(failure)
+
+    expect(committed.executions).toEqual([
+      expect.objectContaining({ modelId: MODEL_ID, outputNodeId: expect.any(String) })
+    ])
+    const execution = committed.executions[0]
+    await expect(provider.prepareExecutionContext(execution.preparation, new AbortController().signal)).rejects.toThrow(
+      'model removed'
+    )
+
+    const outputNodeId = execution.outputNodeId
+    await provider.persistTerminal(execution.persistence, {
+      status: ConversationOutcomeKind.Error,
+      error: serialized,
+      modelId: MODEL_ID,
+      anchorMessageId: outputNodeId
+    })
+    expect(messageService.getById(outputNodeId)).toMatchObject({ status: 'error' })
+  })
+
   it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
     const reservedBranch = messageService.reserveBranch('a1', false)
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: reservedBranch.id,
         userMessageParts: [{ type: 'text', text: 'continue on reserved branch' }],
-        targetMode: 'reserved-branch'
+        targetMode: ConversationTargetMode.ReservedBranch
       },
       { hasLiveStream: false }
     )
@@ -197,11 +321,11 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: 'submit-message',
-          topicId: 'topic-1',
+          trigger: ConversationOpenTrigger.SubmitMessage,
+          conversation,
           parentAnchorId: reservedBranch.id,
           userMessageParts: [{ type: 'text', text: 'wait for the current turn' }],
-          targetMode: 'reserved-branch'
+          targetMode: ConversationTargetMode.ReservedBranch
         },
         { hasLiveStream: true }
       )
@@ -219,11 +343,11 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: 'submit-message',
-          topicId: 'topic-1',
+          trigger: ConversationOpenTrigger.SubmitMessage,
+          conversation,
           parentAnchorId: reservedBranch.id,
           userMessageParts: [{ type: 'text', text: 'duplicate send' }],
-          targetMode: 'reserved-branch'
+          targetMode: ConversationTargetMode.ReservedBranch
         },
         { hasLiveStream: true }
       )
@@ -284,8 +408,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: 'u3',
         userMessageParts: [{ type: 'text', text: 'new question' }]
       },
@@ -327,8 +451,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: 'u-old-branch',
         userMessageParts: [{ type: 'text', text: 'continue old branch' }]
       },
@@ -348,8 +472,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const submitted = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: 'a1',
         userMessageParts: [
           { type: 'text', text: 'search my selected knowledge base' },
@@ -367,8 +491,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const regenerated = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'regenerate-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.RegenerateMessage,
+        conversation,
         parentAnchorId: userMessageId
       },
       { hasLiveStream: false }
@@ -401,8 +525,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'steer-continuation',
-        topicId: 'topic-1',
+        trigger: ConversationContinuationTrigger.ContinueSteer,
+        conversation,
         userMessageId: 'u2',
         serviceTier: 'flex',
         fastMode: false
@@ -442,11 +566,11 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: 'u1',
         userMessageParts: [{ type: 'text', text: 'retry from before' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
@@ -483,8 +607,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: 'u1',
         mentionedModelIds: [selectedModelId],
         userMessageParts: [{ type: 'text', text: 'use the selected model' }]
@@ -526,32 +650,24 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { id: MODEL_B, name: 'Claude Sonnet 4.5', providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' }
     ] as ReturnType<typeof resolveModels>)
     vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(42)
-    // Distinct span per call so index alignment is observable.
-    const spanA = { end: vi.fn() }
-    const spanB = { end: vi.fn() }
-    vi.mocked(startAiChildTurnSpan)
-      .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
-      .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
-
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation,
         parentAnchorId: 'u1',
         mentionedModelIds: [MODEL_A, MODEL_B],
         userMessageParts: [{ type: 'text', text: 'ask both models' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
     // Shared sibling group.
     expect(prepared.siblingsGroupId).toBe(42)
 
-    // One execution per model, in mention order, each carrying its own root span.
+    // One execution per model, in mention order, each carrying only pure resource descriptors.
     expect(prepared.models.map((m) => m.modelId)).toEqual([MODEL_A, MODEL_B])
-    expect(prepared.models[0].rootSpan).toBe(spanA)
-    expect(prepared.models[1].rootSpan).toBe(spanB)
+    expect(prepared.executions.map(({ modelId }) => modelId)).toEqual([MODEL_A, MODEL_B])
 
     // One persisted placeholder per model, both in the shared group, each routed to its
     // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row modelId.
@@ -568,26 +684,17 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(prepared.models[0].request.messageId).toBe(phA?.id)
     expect(prepared.models[1].request.messageId).toBe(phB?.id)
 
-    // One PersistenceListener per placeholder — no missing/extra/duplicate listener for a fan-out.
-    const persistenceListeners = prepared.listeners.filter((l) => l instanceof PersistenceListener)
-    expect(persistenceListeners).toHaveLength(2)
-    // Each listener is keyed (via its sqlite-backed id `persistence:sqlite:<topicId>:<modelId>`) to the
-    // model whose execution carries the matching placeholder messageId — so terminal events route to the
-    // right row. modelId order matches the per-model executions, proving listener[i] ↔ placeholder[i].
-    expect(persistenceListeners.map((l) => l.id)).toEqual([
-      `persistence:sqlite:topic-1:${MODEL_A}`,
-      `persistence:sqlite:topic-1:${MODEL_B}`
+    expect(prepared.executions.map(({ persistence }) => persistence)).toEqual([
+      expect.objectContaining({ modelId: MODEL_A, assistantMessageId: phA?.id }),
+      expect.objectContaining({ modelId: MODEL_B, assistantMessageId: phB?.id })
     ])
 
-    // One trace tree per topic: both models' `ai.turn` spans are parented under the
-    // same container trace, and that id is the topic's persisted ensureTraceId.
+    // History commits describe telemetry without opening spans or creating resource callbacks.
     const containerTraceId = topicService.ensureTraceId('topic-1')
-    const [callA, callB] = vi.mocked(startAiChildTurnSpan).mock.calls.slice(-2)
-    expect(callA[3]).toBe(containerTraceId)
-    expect(callB[3]).toBe(containerTraceId)
+    expect(prepared.executions.map(({ telemetry }) => telemetry?.traceId)).toEqual([containerTraceId, containerTraceId])
   })
 
-  it('appends an @-selected model through another sibling in the live reply group', async () => {
+  it('appends a new model execution after the existing live group without replacing its members', async () => {
     const appendedModelId = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
     const settledSiblingModelId = createUniqueModelId('openai', 'gpt-4.1')
     const [providerKey, modelKey, settledSiblingModelKey] = generateOrderKeySequence(3)
@@ -636,16 +743,11 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       updatedAt: 250
     })
     const userSelectedBranch = messageService.reserveBranch('a2', true)
-    aiStreamManager.admitLiveExecutionChange.mockReturnValueOnce({
-      mode: 'append-live',
-      groupAnchorMessageId: 'a1'
-    })
-
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'regenerate-message',
-        topicId: 'topic-1',
+        trigger: ConversationOpenTrigger.AppendModel,
+        conversation,
         parentAnchorId: 'u1',
         appendToLiveGroupMessageId: 'a2',
         mentionedModelIds: [appendedModelId]
@@ -657,14 +759,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const appended = children.find((message) => message.modelId === appendedModelId)
     expect(appended).toMatchObject({ parentId: 'u1', status: 'pending', siblingsGroupId: 1 })
     expect(prepared).toMatchObject({
-      liveExecutionChange: {
-        mode: 'append',
-        groupAnchorMessageId: 'a1',
-        parentAnchorId: 'u1',
-        siblingsGroupId: 1,
-        activateFallback: true
-      },
-      preserveActiveNode: true,
+      activeNodeDecision: { move: ConversationActiveNodeMove.Keep },
       siblingsGroupId: 1
     })
     expect(prepared.models[0].request.messageId).toBe(appended?.id)
@@ -672,10 +767,76 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(topicService.getById('topic-1')?.activeNodeId).toBe(userSelectedBranch.id)
   })
 
-  it('rejects an @-selected model when only another reply group is live', async () => {
-    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
-      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+  it('accepts the exact live anchor after its persisted sibling group is backfilled', async () => {
+    const appendedModelId = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
+    const [providerKey, modelKey] = generateOrderKeySequence(2)
+    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: providerKey })
+    await dbh.db.insert(userModelTable).values({
+      id: appendedModelId,
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      presetModelId: 'claude-sonnet-4-5',
+      name: 'Claude Sonnet 4.5',
+      isEnabled: true,
+      isHidden: false,
+      orderKey: modelKey
     })
+    messageService.updateSiblingsGroupId('a1', 0)
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      {
+        id: appendedModelId,
+        name: 'Claude Sonnet 4.5',
+        providerId: 'anthropic',
+        apiModelId: 'claude-sonnet-4-5'
+      }
+    ] as ReturnType<typeof resolveModels>)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(7)
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: ConversationOpenTrigger.AppendModel,
+        conversation,
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: [appendedModelId]
+      },
+      { hasLiveStream: true }
+    )
+
+    const children = messageService.getChildrenByParentId('u1')
+    expect(children.find(({ id }) => id === 'a1')?.siblingsGroupId).toBe(7)
+    expect(children.find(({ modelId }) => modelId === appendedModelId)).toMatchObject({
+      status: 'pending',
+      siblingsGroupId: 7
+    })
+    expect(prepared).toMatchObject({
+      activeNodeDecision: { move: ConversationActiveNodeMove.Keep },
+      siblingsGroupId: 7
+    })
+  })
+
+  it('opens an explicit model append as a regenerate turn after the reply group settles', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: ConversationOpenTrigger.AppendModel,
+        conversation,
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: [MODEL_ID]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(messageService.getChildrenByParentId('u1')).toHaveLength(2)
+    expect(prepared).toMatchObject({
+      activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+      models: [expect.objectContaining({ modelId: MODEL_ID })]
+    })
+  })
+
+  it('rejects an @-selected model when only another reply group is live', async () => {
     await dbh.db.insert(messageTable).values({
       id: 'a2',
       parentId: 'u1',
@@ -693,23 +854,51 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: 'regenerate-message',
-          topicId: 'topic-1',
+          trigger: ConversationOpenTrigger.AppendModel,
+          conversation,
           parentAnchorId: 'u1',
           appendToLiveGroupMessageId: 'a2',
           mentionedModelIds: [MODEL_ID]
         },
         { hasLiveStream: true }
       )
-    ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
+    ).rejects.toMatchObject({ reason: ConversationAdmissionReason.TargetNotInLiveGroup })
 
     expect(messageService.getChildrenByParentId('u1')).toHaveLength(2)
   })
 
-  it('rejects a live anchor with the same sibling id under another parent', async () => {
-    aiStreamManager.admitLiveExecutionChange.mockImplementationOnce(() => {
-      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+  it('rejects retry admission when the selected assistant is not in the current live reply group', async () => {
+    await dbh.db.insert(messageTable).values({
+      id: 'a2',
+      parentId: 'u1',
+      topicId: 'topic-1',
+      role: 'assistant',
+      data: { parts: [] },
+      status: 'error',
+      siblingsGroupId: 2,
+      modelId: MODEL_ID,
+      createdAt: 250,
+      updatedAt: 250
     })
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: ConversationOpenTrigger.RetryMessage,
+          conversation,
+          parentAnchorId: 'u1',
+          retryMessageId: 'a2',
+          mentionedModelIds: [MODEL_ID]
+        },
+        { hasLiveStream: true }
+      )
+    ).rejects.toMatchObject({ reason: ConversationAdmissionReason.TargetNotInLiveGroup })
+
+    expect(messageService.getById('a2').status).toBe('error')
+  })
+
+  it('rejects a live anchor with the same sibling id under another parent', async () => {
     await dbh.db.insert(messageTable).values([
       {
         id: 'u2',
@@ -740,21 +929,71 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: 'regenerate-message',
-          topicId: 'topic-1',
+          trigger: ConversationOpenTrigger.AppendModel,
+          conversation,
           parentAnchorId: 'u1',
-          appendToLiveGroupMessageId: 'a1',
+          appendToLiveGroupMessageId: 'a3',
           mentionedModelIds: [createUniqueModelId('anthropic', 'claude-sonnet-4-5')]
         },
         { hasLiveStream: true }
       )
-    ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
+    ).rejects.toMatchObject({ reason: ConversationAdmissionReason.TargetNotInLiveGroup })
+  })
+
+  it('maps a missing persisted reply-group anchor to the live-group admission reason', async () => {
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }
+    ] as ReturnType<typeof resolveModels>)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(1)
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: ConversationOpenTrigger.AppendModel,
+          conversation,
+          parentAnchorId: 'u1',
+          appendToLiveGroupMessageId: 'missing-assistant',
+          mentionedModelIds: [MODEL_ID]
+        },
+        { hasLiveStream: true }
+      )
+    ).rejects.toMatchObject({ reason: ConversationAdmissionReason.TargetNotInLiveGroup })
+  })
+
+  it('propagates database faults while checking a persisted reply-group anchor', async () => {
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }
+    ] as ReturnType<typeof resolveModels>)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(1)
+    const databaseError = new Error('database disk image is malformed')
+    const getById = vi.spyOn(messageService, 'getById').mockImplementationOnce(() => {
+      throw databaseError
+    })
+
+    try {
+      await expect(
+        provider.prepareDispatch(
+          makeSubscriber(),
+          {
+            trigger: ConversationOpenTrigger.AppendModel,
+            conversation,
+            parentAnchorId: 'u1',
+            appendToLiveGroupMessageId: 'a1',
+            mentionedModelIds: [MODEL_ID]
+          },
+          { hasLiveStream: true }
+        )
+      ).rejects.toBe(databaseError)
+    } finally {
+      getById.mockRestore()
+    }
   })
 })
 
 describe('PersistentChatContextProvider — prepareContinueDispatch (resume-after-approval)', () => {
   const dbh = setupTestDatabase()
-  const provider = new PersistentChatContextProvider()
+  const provider = new PersistentChatHistoryHarness()
 
   // The anchor's persisted model differs from the test's default model so a
   // reuse failure (resolving the default instead of the anchor) is observable.
@@ -763,6 +1002,15 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    vi.mocked(resolveModels).mockImplementation(
+      (ids) =>
+        (ids ?? [MODEL_ID]).map((id) => ({
+          id,
+          name: id === ANCHOR_MODEL_ID ? 'GPT-4o mini' : 'GPT-4o',
+          providerId: 'openai',
+          apiModelId: id === ANCHOR_MODEL_ID ? 'gpt-4o-mini' : 'gpt-4o'
+        })) as ReturnType<typeof resolveModels>
+    )
     const [providerKey, modelKey, anchorModelKey] = generateOrderKeySequence(3)
     await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: providerKey })
     await dbh.db.insert(userModelTable).values([
@@ -859,8 +1107,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: 'continue-conversation',
-          topicId: 'topic-1',
+          trigger: ConversationContinuationTrigger.ContinueInteraction,
+          conversation,
           parentAnchorId: 'u1', // a user message — invalid continue anchor
           approvalDecisions: []
         },
@@ -874,8 +1122,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       provider.prepareDispatch(
         makeSubscriber(),
         {
-          trigger: 'continue-conversation',
-          topicId: 'topic-2', // anchor a1 lives on topic-1
+          trigger: ConversationContinuationTrigger.ContinueInteraction,
+          conversation: { kind: ConversationKind.Chat, id: 'topic-2' }, // anchor a1 lives on topic-1
           parentAnchorId: 'a1',
           approvalDecisions: []
         },
@@ -888,8 +1136,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'continue-conversation',
-        topicId: 'topic-1',
+        trigger: ConversationContinuationTrigger.ContinueInteraction,
+        conversation,
         parentAnchorId: 'a1',
         approvalDecisions: [{ approvalId: APPROVAL_ID, approved: true }]
       },
@@ -906,6 +1154,24 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', serviceTier: 'flex', fastMode: true })
   })
 
+  it('records a denied live tool approval as a terminal tool state', () => {
+    const result = provider.commitInteractionDecision('a1', {
+      approvalId: APPROVAL_ID,
+      approved: false,
+      reason: 'user denied'
+    })
+
+    expect(result).toEqual({ kind: ConversationInteractionCommitResultKind.Ready })
+    const anchor = messageService.getById('a1')
+    const toolPart = (anchor.data.parts ?? []).find((part) => part.type === 'tool-fetch_url') as
+      | { state: string; approval?: { id: string; approved?: boolean; reason?: string } }
+      | undefined
+    expect(toolPart).toMatchObject({
+      state: 'approval-responded',
+      approval: { id: APPROVAL_ID, approved: false, reason: 'user denied' }
+    })
+  })
+
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
     const beforeCount = messageService.getPathToNode('a1').length
     vi.mocked(resolveModels).mockReturnValueOnce([
@@ -915,8 +1181,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'continue-conversation',
-        topicId: 'topic-1',
+        trigger: ConversationContinuationTrigger.ContinueInteraction,
+        conversation,
         parentAnchorId: 'a1',
         approvalDecisions: [{ approvalId: APPROVAL_ID, approved: true }]
       },
@@ -927,13 +1193,13 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenCalledWith([ANCHOR_MODEL_ID], ANCHOR_MODEL_ID)
 
-    // Single model, no sibling group, anchored back on the assistant row.
-    expect(prepared.siblingsGroupId).toBeUndefined()
+    // Single model, anchored back on the assistant row without keeping an unrelated live branch.
+    expect(prepared.activeNodeDecision).toEqual({ move: ConversationActiveNodeMove.Advance })
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe(ANCHOR_MODEL_ID)
     expect(prepared.models[0].request.messageId).toBe('a1')
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-approved-tool'])
-    expect(prepared.models[0].runtimeTimingSeed).toEqual({
+    expect(prepared.executions[0]?.runtimeTimingSeed).toEqual({
       startedAt: 1_000,
       completedAt: 2_000,
       spans: []

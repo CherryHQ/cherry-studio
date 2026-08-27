@@ -8,6 +8,8 @@
  */
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import { ConversationKind, ConversationOpenTrigger } from '@shared/ai/conversation'
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -140,7 +142,8 @@ vi.mock('../modelResolution', () => ({
   resolvePersistentSiblingsGroupId: vi.fn(() => 1)
 }))
 
-vi.mock('../../../observability', () => ({
+vi.mock('../../../observability', async (importOriginal) => ({
+  ...(await importOriginal()),
   startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn(), setStatus: vi.fn() } })),
   applyTurnInputAttributes: vi.fn()
 }))
@@ -236,7 +239,29 @@ function makeSubscriber() {
   }
 }
 
-/** Call prepareDispatch with a submit-message trigger pointing to the given anchorId.
+const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
+
+async function prepareCommittedIntent(
+  provider: InstanceType<typeof PersistentChatContextProvider>,
+  _subscriber: ReturnType<typeof makeSubscriber>,
+  anchorId: string
+) {
+  const context = { hasLiveStream: false }
+  const signal = new AbortController().signal
+  const request: AiStreamOpenRequest = {
+    trigger: ConversationOpenTrigger.SubmitMessage,
+    conversation,
+    parentAnchorId: anchorId,
+    userMessageParts: []
+  }
+  const validation = await provider.validateIntent(request, context, signal)
+  const committed = provider.commitIntent(validation, context)
+  return provider.prepareExecutionContext(committed.executions[0].preparation, signal, (id, data) => {
+    capturedChunks.push({ type: 'data-compaction-anchor', id, data })
+  })
+}
+
+/** Prepare a committed submit-message execution pointing to the given anchorId.
  *  Returns `{ messages, prepared }` where messages is the first model's request messages array. */
 async function makeHistory(
   anchorId: string,
@@ -246,7 +271,7 @@ async function makeHistory(
 ) {
   const { resolveModels } = await import('../modelResolution')
   vi.mocked(resolveModels).mockReturnValueOnce(models.map((id) => ({ ...makeModel(id), ...modelPatch })))
-  // Mock createUserMessageWithPlaceholders so prepareDispatch doesn't need a real DB.
+  // Mock createUserMessageWithPlaceholders so the synchronous commit doesn't need a real DB.
   const { messageService } = await import('@main/data/services/MessageService')
   vi.mocked(messageService.createUserMessageWithPlaceholders).mockReturnValueOnce({
     userMessage: fakeMsg('anchor', 'user', 'q') as any,
@@ -254,11 +279,7 @@ async function makeHistory(
   })
 
   const provider = new PersistentChatContextProvider()
-  const prepared = await provider.prepareDispatch(
-    makeSubscriber(),
-    { trigger: 'submit-message', topicId: 'topic-1', parentAnchorId: anchorId, userMessageParts: [] } as any,
-    { hasLiveStream: false }
-  )
+  const prepared = await prepareCommittedIntent(provider, makeSubscriber(), anchorId)
   return { messages: prepared.models[0].request.messages ?? [], prepared }
 }
 
@@ -796,7 +817,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   it("2e. threads the assistant's context-settings override into the request-settings resolver (P2-D)", async () => {
     const OVERRIDE = { truncateThreshold: 4000, compress: { enabled: false } }
     const { resolveAssistantModelId } = await import('../modelResolution')
-    // Once: prepareDispatch calls it a single time; reverts to the undefined-assistant
+    // Once: execution preparation calls it a single time; reverts to the undefined-assistant
     // factory default so later tests are unaffected.
     vi.mocked(resolveAssistantModelId).mockReturnValueOnce({
       assistantId: 'asst-1',
@@ -980,11 +1001,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     })
 
     const provider = new PersistentChatContextProvider()
-    await provider.prepareDispatch(
-      makeSubscriber(),
-      { trigger: 'submit-message', topicId: 'topic-1', parentAnchorId: 'u3', userMessageParts: [] } as any,
-      { hasLiveStream: false }
-    )
+    await prepareCommittedIntent(provider, makeSubscriber(), 'u3')
 
     // Anchor+tail exceeded threshold → compaction must have triggered
     expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
@@ -1025,7 +1042,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 // are its kept tail — disjoint ranges, not a redundant re-summary.
 //
 // Altitude: TRUE integration. The served history is the real output of
-// resolveCompactedHistory (driven via prepareDispatch / makeHistory), bridged to
+// resolveCompactedHistory (driven via the committed execution / makeHistory), bridged to
 // ModelMessage[] with the real `ai` convertToModelMessages — the same conversion
 // the Agent applies downstream — then fed to the real in-loop hook.
 // ---------------------------------------------------------------------------
@@ -1045,12 +1062,14 @@ const estimateModelMessages = (messages: Array<{ content: unknown }>) =>
 /** A scope shaped like the real RequestScope, sized to the turn-start window. */
 function inLoopScope(contextWindow: number) {
   return {
-    request: { chatId: 'topic-1' },
+    request: { chatId: 'topic-1', contextOwner: 'cherry' },
+    requestContext: { abortSignal: new AbortController().signal },
     model: { id: 'openai::gpt-4o', contextWindow },
     // Read only to pick the per-dialect media cost table (`resolveModelTokenDialect`).
     provider: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} },
+    endpointType: 'openai-chat-completions',
     contextSettings: { enabled: true, compress: { enabled: true } },
-    compressionModel: { id: 'compression-model' }
+    compressionModel: { languageModel: { id: 'compression-model' }, contextWindow: null }
   } as any
 }
 
@@ -1115,7 +1134,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
     // tool result, large enough to tip the prompt over the 3200-token trigger.
     const grownPrompt = [
       ...modelMessages,
-      { role: 'assistant' as const, content: [{ type: 'text', text: 'word '.repeat(1500) }] },
+      { role: 'assistant' as const, content: [{ type: 'text', text: 'word '.repeat(5000) }] },
       {
         role: 'tool' as const,
         content: [
@@ -1123,7 +1142,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
             type: 'tool-result',
             toolCallId: 'c1',
             toolName: 'search',
-            output: { type: 'text', value: 'word '.repeat(1500) }
+            output: { type: 'text', value: 'word '.repeat(5000) }
           }
         ]
       }

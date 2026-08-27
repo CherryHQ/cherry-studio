@@ -43,7 +43,7 @@ const invalidArgument = (message: string) => ({
  *
  * `POST /v1beta/models/{model}:generateContent` (JSON) and
  * `:streamGenerateContent` (SSE with `?alt=sse`) both stream through
- * `AiStreamManager`; the model and the streaming flag come from the URL, not the
+ * `PromptStreamManager`; the model and the streaming flag come from the URL, not the
  * body. `:countTokens` estimates the converted representation via the shared local walker
  * (incl. media) — local-only, since the Google SDK exposes no custom-`fetch` hook to honour
  * the app proxy/auth. Errors are shaped into the Google envelope by the app's root `onError`

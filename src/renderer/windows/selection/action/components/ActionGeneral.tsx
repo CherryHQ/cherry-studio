@@ -4,12 +4,13 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { ConversationOverlayDurability, ipcChatTransport } from '@renderer/services/aiTransport'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { cn } from '@renderer/utils/style'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ChevronDown, Loader2 } from 'lucide-react'
@@ -97,12 +98,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   // Temp-topic: no pre-allocated DB row, so the reader keys overlay by the
   // start-chunk id; `liveAssistants` is the streamed snapshot list.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { liveAssistants } = useExecutionOverlay(
-    temporaryTopicId ?? 'pending-temp',
-    activeExecutions,
-    EMPTY_UI_MESSAGES
+  const temporaryConversation = useMemo(
+    () => ({ kind: ConversationKind.Chat, id: temporaryTopicId ?? 'pending-temp' }) as const,
+    [temporaryTopicId]
   )
+  const { activeExecutions, isPending } = useConversationStreamStatus(temporaryConversation)
+  const { liveAssistants } = useExecutionOverlay(temporaryConversation, activeExecutions, EMPTY_UI_MESSAGES, {
+    durability: ConversationOverlayDurability.Ephemeral
+  })
 
   useEffect(() => {
     if (isPending) {

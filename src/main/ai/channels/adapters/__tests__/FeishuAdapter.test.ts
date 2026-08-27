@@ -1,6 +1,8 @@
 import type { NormalizedMessage } from '@larksuiteoapi/node-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ChannelStreamCompletionResult } from '../../ChannelAdapter'
+
 const registrationMocks = vi.hoisted(() => ({ begin: vi.fn(), poll: vi.fn() }))
 const loggerMocks = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() }))
 
@@ -295,7 +297,9 @@ describe('FeishuAdapter', () => {
     const responseOptions = { replyToMessageId: 'msg-in-1' }
     await adapter.onTextUpdate('oc_123', 'partial', responseOptions)
     await adapter.onTextUpdate('oc_123', 'partial response', responseOptions)
-    await expect(adapter.onStreamComplete('oc_123', 'final response', responseOptions)).resolves.toBe(true)
+    await expect(adapter.onStreamComplete('oc_123', 'final response', responseOptions)).resolves.toBe(
+      ChannelStreamCompletionResult.Delivered
+    )
 
     expect(mockStream).toHaveBeenCalledWith('oc_123', expect.any(Object), { replyTo: 'msg-in-1' })
     expect(mockSetContent).toHaveBeenNthCalledWith(1, 'partial')
@@ -313,7 +317,9 @@ describe('FeishuAdapter', () => {
 
     await adapter.onTextUpdate('oc_123', 'partial', { replyToMessageId: 'msg-in-1' })
 
-    await expect(adapter.onStreamComplete('oc_123', 'final', { replyToMessageId: 'msg-in-1' })).resolves.toBe(false)
+    await expect(adapter.onStreamComplete('oc_123', 'final', { replyToMessageId: 'msg-in-1' })).resolves.toBe(
+      ChannelStreamCompletionResult.NotHandled
+    )
   })
 
   it('sends proactive streams at the chat root instead of replying to the last inbound message', async () => {
@@ -426,6 +432,28 @@ describe('FeishuAdapter', () => {
       messageId: 'msg-in-1',
       text: 'Hello agent'
     })
+  })
+
+  it('does not emit when resource loading outlives its connect run', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+    let finishResources!: () => void
+    vi.spyOn(adapter, 'downloadResources').mockReturnValue(
+      new Promise((resolve) => {
+        finishResources = () => resolve({ images: [], files: [] })
+      })
+    )
+
+    channelHandlers.message(incomingMessage())
+    await Promise.resolve()
+    await adapter.disconnect()
+    finishResources()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onMessage).not.toHaveBeenCalled()
   })
 
   it('routes normalized slash commands without invoking the agent', async () => {

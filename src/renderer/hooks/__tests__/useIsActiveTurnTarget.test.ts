@@ -1,17 +1,19 @@
-import type { ActiveExecution } from '@shared/ai/transport'
+import { toConversationExecutionId, toConversationTurnId } from '@shared/ai/conversation'
+import type { ConversationExecutionProjection } from '@shared/ai/transport'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListItem } from '../../components/chat/messages/types'
 import { useIsActiveTurnTarget } from '../useIsActiveTurnTarget'
 
-const activeExecutionsMock = vi.fn<() => ActiveExecution[]>(() => [])
-const awaitingApprovalAnchorsMock = vi.fn<() => ActiveExecution[]>(() => [])
-vi.mock('../useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
+const activeExecutionsMock = vi.fn<() => ConversationExecutionProjection[]>(() => [])
+const awaitingInteractionExecutionsMock = vi.fn<() => ConversationExecutionProjection[]>(() => [])
+vi.mock('../useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({
     status: undefined,
     activeExecutions: activeExecutionsMock(),
-    awaitingApprovalAnchors: awaitingApprovalAnchorsMock(),
+    awaitingInteractionExecutions: awaitingInteractionExecutionsMock(),
     isPending: false,
     isFulfilled: false,
     markSeen: () => {}
@@ -29,14 +31,19 @@ function msg(overrides: Partial<MessageListItem> = {}): MessageListItem {
   } as MessageListItem
 }
 
-function execution(anchorMessageId: string): ActiveExecution {
-  return { executionId: 'p::m', attemptId: 1, anchorMessageId }
+function execution(outputNodeId: string): ConversationExecutionProjection {
+  return {
+    turnId: toConversationTurnId('turn-1'),
+    executionId: toConversationExecutionId(`execution-${outputNodeId}`),
+    modelId: 'p::m' as UniqueModelId,
+    outputNodeId
+  }
 }
 
 describe('useIsActiveTurnTarget', () => {
   beforeEach(() => {
     activeExecutionsMock.mockReset().mockReturnValue([])
-    awaitingApprovalAnchorsMock.mockReset().mockReturnValue([])
+    awaitingInteractionExecutionsMock.mockReset().mockReturnValue([])
   })
 
   it('true when message DB status is pending', () => {
@@ -48,18 +55,18 @@ describe('useIsActiveTurnTarget', () => {
     expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1' }))).result.current).toBe(true)
   })
 
-  it('true when this message id is in `awaitingApprovalAnchors` (Main-broadcast approval anchor)', () => {
-    awaitingApprovalAnchorsMock.mockReturnValue([execution('m1')])
+  it('true when this message id is an awaiting-interaction execution output', () => {
+    awaitingInteractionExecutionsMock.mockReturnValue([execution('m1')])
     // Crucially the message's DB status is 'success' here — the MCP
     // `needsApproval` flow ends cleanly via `done`. The old proxy
     // (`status === 'paused' && isAwaitingApproval`) failed exactly this case
-    // and let the menubar leak through. The Main-broadcast anchor id makes
+    // and let the menubar leak through. The Main-broadcast output id makes
     // it work by construction.
     expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1', status: 'success' }))).result.current).toBe(true)
   })
 
   it('false for a user message even when the topic has awaiting anchors', () => {
-    awaitingApprovalAnchorsMock.mockReturnValue([execution('OTHER')])
+    awaitingInteractionExecutionsMock.mockReturnValue([execution('OTHER')])
     expect(
       renderHook(() => useIsActiveTurnTarget(msg({ role: 'user', status: 'success' as never }))).result.current
     ).toBe(false)
@@ -67,7 +74,7 @@ describe('useIsActiveTurnTarget', () => {
 
   it('false for an old completed assistant (no signal matches)', () => {
     activeExecutionsMock.mockReturnValue([execution('OTHER')])
-    awaitingApprovalAnchorsMock.mockReturnValue([execution('OTHER')])
+    awaitingInteractionExecutionsMock.mockReturnValue([execution('OTHER')])
     expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1' }))).result.current).toBe(false)
   })
 })

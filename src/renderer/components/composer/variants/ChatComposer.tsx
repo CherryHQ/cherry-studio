@@ -32,11 +32,14 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import {
+  useConversationAwaitingInteraction,
+  useConversationStreamStatus
+} from '@renderer/hooks/useConversationStreamStatus'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
-import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -49,7 +52,12 @@ import {
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
-import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { ConversationInputTarget, ConversationKind } from '@shared/ai/conversation'
+import type {
+  ComposerChatTarget,
+  ComposerQueuedMessagePayload,
+  ConversationActorInputRequest
+} from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, ReasoningSummary, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
@@ -162,7 +170,7 @@ export interface ChatComposerProps {
       serviceTier?: ServiceTierSelection
       fastMode?: boolean
       chatTarget?: ComposerChatTarget
-    }
+    } & ConversationActorInputRequest
   ) => boolean | void | Promise<boolean | void>
   chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
@@ -509,7 +517,8 @@ const ChatComposerInner = ({
   deferQuickPanel = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
-  const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
+  const conversation = useMemo(() => ({ kind: ConversationKind.Chat, id: streamScopeKey }) as const, [streamScopeKey])
+  const awaitingInteraction = useConversationAwaitingInteraction(conversation)
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
@@ -554,7 +563,7 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
+  const { isPending, conversationBusy, canSteer } = useConversationStreamStatus(conversation)
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
@@ -984,7 +993,7 @@ const ChatComposerInner = ({
     setIsSending(false)
   }, [scopeKey])
 
-  const loading = isPending || isSending || awaitingApproval
+  const loading = conversationBusy || isSending
   const clearContextDisabled =
     loading ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -993,7 +1002,6 @@ const ChatComposerInner = ({
     chatWrite?.canStartNewContext === false
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
-  const canSteer = isPending && !awaitingApproval
   const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
@@ -1415,11 +1423,11 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, actorInput?: ConversationActorInputRequest) => {
       setIsSending(true)
 
       try {
-        const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        const attachments = payload.attachments ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
         const sent = await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
@@ -1427,7 +1435,8 @@ const ChatComposerInner = ({
           reasoningEffort: payload.reasoningEffort,
           serviceTier: payload.serviceTier,
           ...(payload.fastMode ? { fastMode: true } : {}),
-          chatTarget: payload.chatTarget
+          chatTarget: payload.chatTarget,
+          ...actorInput
         })
         if (sent === false) return false
         saveHistory(getComposerHistoryText(payload.userMessageParts))
@@ -1467,17 +1476,20 @@ const ChatComposerInner = ({
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
-    scopeKey: selectedKnowledgeBasesScopeKey,
-    isFulfilled,
-    markSeen,
-    onDrain: sendQueuedPayload
+    conversation,
+    onEnqueue: (draft, payload) =>
+      sendQueuedPayload(payload, {
+        inputTarget: ConversationInputTarget.NextTurn,
+        inboxPresentation: { draft, payload }
+      })
   })
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      (isPending || awaitingInteraction) && item.payload.chatTarget?.mode === 'reserved-branch',
+    [awaitingInteraction, isPending]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1491,7 +1503,7 @@ const ChatComposerInner = ({
       actionsRef.current.replaceDraft(item.draft)
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
-      setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
+      setFiles(item.payload.attachments ?? [])
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
       const queuedModels = (item.payload.mentionedModels ?? [])
         .map((modelId) => allModels.find((candidate) => candidate.id === modelId))
@@ -1687,8 +1699,7 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        if (await enqueueFollowup(draft, payload)) clearCurrentDraft()
         return
       }
 
@@ -1877,7 +1888,7 @@ const ChatComposerInner = ({
                   if (!item) return
                   // Only drop the item once the send actually succeeds; a failed manual
                   // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
+                  const sent = await sendQueuedPayload(item.payload, { inputTarget: ConversationInputTarget.NextStep })
                   if (sent) removeFollowup(id)
                 }}
                 onEdit={(id) => {

@@ -88,6 +88,23 @@ describe('summarizeModelMessages', () => {
     await summarizeModelMessages([{ role: 'user', content: 'q' }], model, { maxOutputTokens: 12_345 })
     expect(seenMaxOutputTokens).toBe(12_345)
   })
+
+  it('passes the owning execution AbortSignal to the summarize model call', async () => {
+    let seenSignal: AbortSignal | undefined
+    const controller = new AbortController()
+    const model = createSummarizerModel('RECAP')
+    const inner = model.doGenerate.bind(model)
+    model.doGenerate = async (options) => {
+      seenSignal = options.abortSignal
+      return inner(options)
+    }
+
+    await summarizeModelMessages([{ role: 'user', content: 'q' }], model, {
+      abortSignal: controller.signal
+    })
+
+    expect(seenSignal).toBe(controller.signal)
+  })
 })
 
 describe('resolveCompressionOutputTokens', () => {

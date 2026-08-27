@@ -1,799 +1,1088 @@
-import type { ActiveExecution } from '@shared/ai/transport'
+import {
+  ConversationActiveNodeMove,
+  ConversationKind,
+  type ConversationRef,
+  conversationRefKey,
+  toConversationExecutionId,
+  toConversationTurnId
+} from '@shared/ai/conversation'
+import type { ConversationExecutionProjection } from '@shared/ai/transport'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// ── Per-topic controllable fake TopicStreamSubscription ─────────────────
-const mocks = vi.hoisted(() => {
-  type TerminalCb = (
-    id: string,
-    t: { attemptId?: number; anchorMessageId?: string; isAbort: boolean; isError: boolean }
-  ) => void
-  type RetirementCb = (
-    branches: ReadonlyArray<{ executionId: string; attemptId: number; anchorMessageId?: string }>
-  ) => void
-  type Branch = {
+const fakes = vi.hoisted(() => {
+  type Projection = {
+    turnId: string
     executionId: string
-    attemptId?: number
-    anchorMessageId?: string
+    modelId: string
+    outputNodeId?: string
+  }
+  type Terminal = {
+    turnId: string
+    executionId: string
+    outputNodeId: string
+    isAbort: boolean
+    isError: boolean
+  }
+  type Branch = {
     stream: ReadableStream<unknown>
     controller: ReadableStreamDefaultController<unknown>
     closed: boolean
   }
+  type RecoveryRequest = {
+    recoveryId: string
+    attachmentGeneration: number
+    conversation: { kind: string; id: string }
+    turnId: string
+    executionId: string
+    reason: string
+    projection: Projection
+    replay?: { chunks: Array<{ chunk: unknown }>; throughChunkSeq: number }
+  }
 
-  class FakeSubscription {
+  class FakeConversationStreamSubscription {
     readonly branches = new Map<string, Branch>()
-    readonly terminalByKey = new Map<string, { executionId: string; terminal: Parameters<TerminalCb>[1] }>()
-    readonly terminalCbs = new Set<TerminalCb>()
-    readonly retirementCbs = new Set<RetirementCb>()
-    readonly topicStateCbs = new Set<() => void>()
-    readonly cancelledBranchKeys: string[] = []
+    readonly terminals = new Map<string, Terminal>()
+    readonly terminalListeners = new Set<(terminal: Terminal) => void>()
+    readonly stateListeners = new Set<() => void>()
+    readonly quiescedListeners = new Set<(turnId: string) => void>()
+    readonly recoveryRequiredListeners = new Set<(request: RecoveryRequest) => void>()
+    readonly recoveries = new Map<string, RecoveryRequest>()
+    conversationOpen = false
     listenCalls = 0
     disposed = false
-    topicOpen = false
-    terminalAttemptWatermark: number | undefined
 
-    constructor(readonly topicId: string) {
-      subs.set(topicId, this)
-    }
-
-    #key(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
-    }
-
-    #terminalFor(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      const exact = this.terminalByKey.get(this.#key(executionId, anchorMessageId, attemptId))
-      if (exact) return exact
-      if (attemptId) return undefined
-      if (anchorMessageId) return this.terminalByKey.get(this.#key(executionId))
-      return undefined
+    constructor(readonly conversation: { kind: string; id: string }) {
+      instances.set(`${conversation.kind}:${conversation.id}`, this)
     }
 
     listen() {
       this.listenCalls += 1
     }
 
-    #getOrCreate(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      const key = this.#key(executionId, anchorMessageId, attemptId)
-      let branch = this.branches.get(key)
+    private createBranch(): Branch {
+      let controller!: ReadableStreamDefaultController<unknown>
+      const stream = new ReadableStream<unknown>({ start: (value) => (controller = value) })
+      return { stream, controller, closed: false }
+    }
+
+    register(projection: Projection): ReadableStream<unknown> {
+      let branch = this.branches.get(projection.executionId)
       if (!branch) {
-        let controller!: ReadableStreamDefaultController<unknown>
-        const stream = new ReadableStream<unknown>({ start: (c) => (controller = c) })
-        branch = { executionId, attemptId, anchorMessageId, stream, controller, closed: false }
-        if (
-          this.#terminalFor(executionId, anchorMessageId, attemptId) ||
-          (attemptId !== undefined &&
-            this.terminalAttemptWatermark !== undefined &&
-            attemptId <= this.terminalAttemptWatermark)
-        ) {
-          branch.closed = true
-          controller.close()
-          return branch
-        }
-        this.branches.set(key, branch)
+        branch = this.createBranch()
+        this.branches.set(projection.executionId, branch)
       }
-      return branch
+      this.conversationOpen = true
+      return branch.stream
     }
 
-    register(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      return this.#getOrCreate(executionId, anchorMessageId, attemptId).stream
-    }
-
-    hasOpenBranch(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      const branch = this.branches.get(this.#key(executionId, anchorMessageId, attemptId))
-      return branch !== undefined && !branch.closed
+    hasOpenBranch(executionId: string) {
+      return this.branches.get(executionId)?.closed === false
     }
 
     hasAnyOpenBranch() {
-      for (const branch of this.branches.values()) {
-        if (!branch.closed) return true
+      return [...this.branches.values()].some(({ closed }) => !closed)
+    }
+
+    isConversationOpen() {
+      return this.conversationOpen
+    }
+
+    isSettled(executionId: string) {
+      return this.terminals.has(executionId)
+    }
+
+    unregister(executionId: string, expectedStream?: ReadableStream<unknown>) {
+      if (expectedStream && this.branches.get(executionId)?.stream !== expectedStream) return
+      this.close(executionId)
+      this.branches.delete(executionId)
+    }
+
+    retireExecution(executionId: string) {
+      this.unregister(executionId)
+      this.terminals.delete(executionId)
+    }
+
+    cancelBranch(executionId: string, expectedStream?: ReadableStream<unknown>) {
+      if (expectedStream && this.branches.get(executionId)?.stream !== expectedStream) return
+      this.close(executionId)
+    }
+
+    onExecutionTerminal(listener: (terminal: Terminal) => void) {
+      this.terminalListeners.add(listener)
+      for (const terminal of this.terminals.values()) listener(terminal)
+      return () => this.terminalListeners.delete(listener)
+    }
+
+    onConversationStateChange(listener: () => void) {
+      this.stateListeners.add(listener)
+      return () => this.stateListeners.delete(listener)
+    }
+
+    onConversationQuiesced(listener: (turnId: string) => void) {
+      this.quiescedListeners.add(listener)
+      return () => this.quiescedListeners.delete(listener)
+    }
+
+    onRecoveryRequired(listener: (request: RecoveryRequest) => void) {
+      this.recoveryRequiredListeners.add(listener)
+      return () => this.recoveryRequiredListeners.delete(listener)
+    }
+
+    completeRecovery(result: { recoveryId: string; turnId: string; executionId: string; disposition: string }) {
+      const request = this.recoveries.get(result.recoveryId)
+      if (
+        !request ||
+        request.turnId !== result.turnId ||
+        request.executionId !== result.executionId ||
+        !this.branches.has(result.executionId)
+      ) {
+        return { status: 'stale' }
       }
-      return false
-    }
-
-    isTopicOpen() {
-      return this.topicOpen
-    }
-
-    #find(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      return this.branches.get(this.#key(executionId, anchorMessageId, attemptId))
-    }
-
-    unregister(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      const key = this.#key(executionId, anchorMessageId, attemptId)
-      const branch = this.branches.get(key)
-      if (branch) {
-        branch.closed = true
-        try {
-          branch.controller.close()
-        } catch {
-          /* already closed */
-        }
+      this.recoveries.delete(result.recoveryId)
+      if (result.disposition === 'retired') {
+        this.retireExecution(result.executionId)
+        return { status: 'applied', branch: null }
       }
-      this.branches.delete(key)
-      this.terminalByKey.delete(key)
-    }
-
-    cancelBranch(executionId: string, anchorMessageId?: string, attemptId?: number) {
-      const key = this.#key(executionId, anchorMessageId, attemptId)
-      this.cancelledBranchKeys.push(key)
-      const branch = this.branches.get(key)
-      if (!branch || branch.closed) return
-      branch.closed = true
-      branch.controller.error()
-    }
-
-    onExecutionTerminal(cb: TerminalCb) {
-      this.terminalCbs.add(cb)
-      for (const { executionId, terminal } of this.terminalByKey.values()) cb(executionId, terminal)
-      return () => this.terminalCbs.delete(cb)
-    }
-
-    onBranchesRetired(cb: RetirementCb) {
-      this.retirementCbs.add(cb)
-      return () => this.retirementCbs.delete(cb)
-    }
-
-    onTopicStateChange(cb: () => void) {
-      this.topicStateCbs.add(cb)
-      return () => this.topicStateCbs.delete(cb)
+      if (result.disposition === 'rebased') {
+        this.unregister(result.executionId)
+        const stream = this.register(request.projection)
+        const branch = this.branches.get(result.executionId)!
+        for (const payload of request.replay?.chunks ?? []) branch.controller.enqueue(payload.chunk)
+        return { status: 'applied', branch: stream }
+      }
+      return { status: 'applied', branch: this.branches.get(result.executionId)?.stream ?? null }
     }
 
     dispose() {
       this.disposed = true
-      for (const branch of this.branches.values()) {
-        branch.closed = true
-        try {
-          branch.controller.close()
-        } catch {
-          /* already closed */
-        }
-      }
-      this.branches.clear()
-      this.terminalByKey.clear()
-      this.terminalCbs.clear()
-      this.retirementCbs.clear()
-      this.topicStateCbs.clear()
+      for (const executionId of [...this.branches.keys()]) this.unregister(executionId)
     }
 
-    // test helpers
-    emit(
-      executionId: string,
-      chunk: CherryUIMessageChunk,
-      anchorMessageId?: string,
-      attemptId = anchorMessageId === undefined ? undefined : 1
-    ) {
-      // Mirror production #routeChunk: a chunk with no branch auto-creates
-      // one under the exact key and queues there until a reader registers.
-      if (this.disposed) return
-      const branch =
-        this.#find(executionId, anchorMessageId, attemptId) ??
-        this.#getOrCreate(executionId, anchorMessageId, attemptId)
+    emit(executionId: string, chunk: CherryUIMessageChunk) {
+      let branch = this.branches.get(executionId)
+      if (!branch) {
+        branch = this.createBranch()
+        this.branches.set(executionId, branch)
+      }
       if (!branch.closed) branch.controller.enqueue(chunk)
     }
 
-    terminal(
-      executionId: string,
-      t: { isAbort: boolean; isError: boolean; isTopicDone?: boolean },
-      anchorMessageId?: string,
-      attemptId = anchorMessageId === undefined ? undefined : 1
-    ) {
-      const topicOpen = t.isTopicDone === false
-      if (t.isTopicDone !== undefined && this.topicOpen !== topicOpen) {
-        this.topicOpen = topicOpen
-        for (const cb of [...this.topicStateCbs]) cb()
-      }
-      // Mirror production #emitTerminal: an unlabelled topic-level terminal fans out to every
-      // registered branch for that execution and resolves each branch's anchor/attempt identity.
-      const keys =
-        anchorMessageId !== undefined || attemptId !== undefined
-          ? [this.#key(executionId, anchorMessageId, attemptId)]
-          : [...this.branches].filter(([, branch]) => branch.executionId === executionId).map(([key]) => key)
-      if (keys.length === 0) keys.push(this.#key(executionId, undefined, attemptId))
-
-      for (const key of keys) {
-        const branch = this.branches.get(key)
-        if (branch) {
-          branch.closed = true
-          try {
-            branch.controller.close()
-          } catch {
-            /* already closed */
-          }
-        }
-        const terminal = {
-          isAbort: t.isAbort,
-          isError: t.isError,
-          anchorMessageId: anchorMessageId ?? branch?.anchorMessageId,
-          attemptId: attemptId ?? branch?.attemptId
-        }
-        this.terminalByKey.set(key, { executionId, terminal })
-        for (const cb of [...this.terminalCbs]) cb(executionId, terminal)
+    close(executionId: string) {
+      const branch = this.branches.get(executionId)
+      if (!branch || branch.closed) return
+      branch.closed = true
+      try {
+        branch.controller.close()
+      } catch {
+        // Reader already settled.
       }
     }
 
-    retire(branches: ReadonlyArray<{ executionId: string; attemptId: number; anchorMessageId?: string }>) {
-      for (const { attemptId } of branches) {
-        this.terminalAttemptWatermark = Math.max(this.terminalAttemptWatermark ?? 0, attemptId)
+    settle(terminal: Terminal) {
+      this.terminals.set(terminal.executionId, terminal)
+      for (const listener of this.terminalListeners) listener(terminal)
+      this.close(terminal.executionId)
+    }
+
+    quiesce(turnId: string) {
+      this.conversationOpen = false
+      for (const listener of this.stateListeners) listener()
+      for (const listener of this.quiescedListeners) listener(turnId)
+    }
+
+    requestRecovery(projection: Projection, reason: string, replay?: RecoveryRequest['replay']) {
+      const request: RecoveryRequest = {
+        recoveryId: `recovery-${this.recoveries.size + 1}`,
+        attachmentGeneration: 1,
+        conversation: this.conversation,
+        turnId: projection.turnId,
+        executionId: projection.executionId,
+        reason,
+        projection,
+        replay
       }
-      for (const cb of [...this.retirementCbs]) cb(branches)
-      for (const { executionId, attemptId, anchorMessageId } of branches) {
-        this.unregister(executionId, anchorMessageId, attemptId)
-      }
+      this.recoveries.set(request.recoveryId, request)
+      for (const listener of this.recoveryRequiredListeners) listener(request)
     }
   }
 
-  const subs = new Map<string, FakeSubscription>()
-  return { subs, FakeSubscription }
+  const instances = new Map<string, FakeConversationStreamSubscription>()
+  return { FakeConversationStreamSubscription, instances }
 })
 
-vi.mock('../TopicStreamSubscription', () => ({
-  TopicStreamSubscription: mocks.FakeSubscription
+vi.mock('../ConversationStreamSubscription', () => ({
+  ConversationStreamRecoveryCompletion: {
+    Applied: 'applied',
+    Stale: 'stale'
+  },
+  ConversationStreamRecoveryDisposition: {
+    Rebased: 'rebased',
+    Retired: 'retired',
+    RestartAfterRefresh: 'restart-after-refresh'
+  },
+  ConversationStreamRecoveryReason: {
+    Rebase: 'rebase',
+    AttachUnavailable: 'attach-unavailable',
+    NotFound: 'not-found'
+  },
+  ConversationStreamSubscription: fakes.FakeConversationStreamSubscription
 }))
 
-import { ExecutionStreamOverlayService } from '../ExecutionStreamOverlayService'
+import {
+  ConversationOverlayDurability,
+  ExecutionOverlayPhase,
+  ExecutionStreamOverlayService
+} from '../ExecutionStreamOverlayService'
 
-const A = 'openai::gpt-4o' as UniqueModelId
+const modelId = 'openai::gpt-4o' as UniqueModelId
 
-const exec = (
-  executionId: UniqueModelId,
-  anchorMessageId?: string,
-  attemptId = 1,
+const registerDurable = (
+  service: ExecutionStreamOverlayService,
+  conversation: ConversationRef,
+  refresh: () => Promise<unknown>
+) =>
+  service.registerRecoveryPort(conversation, {
+    durability: ConversationOverlayDurability.Durable,
+    refresh
+  })
+
+const chat = (id: string): ConversationRef => ({ kind: ConversationKind.Chat, id })
+const execution = (
+  turn: string,
+  id: string,
+  outputNodeId: string,
   seedFromEmpty?: boolean
-): ActiveExecution => ({
-  executionId,
-  anchorMessageId,
-  attemptId,
-  seedFromEmpty
+): ConversationExecutionProjection => ({
+  turnId: toConversationTurnId(turn),
+  executionId: toConversationExecutionId(id),
+  modelId,
+  outputNodeId,
+  ...(seedFromEmpty ? { seedFromEmpty: true } : {})
 })
-const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
-  ({ id, role: 'assistant', parts }) as CherryUIMessage
+const assistant = (id: string): CherryUIMessage => ({ id, role: 'assistant', parts: [] }) as CherryUIMessage
 
 function streamText(
-  sub: InstanceType<typeof mocks.FakeSubscription>,
-  executionId: string,
-  textId: string,
-  text: string,
-  anchorMessageId = 'anchor-a',
-  attemptId = 1
+  subscription: InstanceType<typeof fakes.FakeConversationStreamSubscription>,
+  id: string,
+  text: string
 ) {
-  sub.emit(executionId, { type: 'text-start', id: textId } as CherryUIMessageChunk, anchorMessageId, attemptId)
-  sub.emit(
-    executionId,
-    { type: 'text-delta', id: textId, delta: text } as CherryUIMessageChunk,
-    anchorMessageId,
-    attemptId
-  )
-  sub.emit(executionId, { type: 'text-end', id: textId } as CherryUIMessageChunk, anchorMessageId, attemptId)
+  subscription.emit(id, { type: 'text-start', id: `text-${id}` } as CherryUIMessageChunk)
+  subscription.emit(id, { type: 'text-delta', id: `text-${id}`, delta: text } as CherryUIMessageChunk)
+  subscription.emit(id, { type: 'text-end', id: `text-${id}` } as CherryUIMessageChunk)
+  subscription.emit(id, { type: 'finish' } as CherryUIMessageChunk)
 }
 
-function textOf(parts: CherryUIMessage['parts'] | undefined): string {
-  return (parts ?? [])
-    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-    .map((p) => p.text)
+function overlayText(service: ExecutionStreamOverlayService, conversation: ConversationRef, messageId: string): string {
+  return (service.getView(conversation).overlay[messageId] ?? [])
+    .flatMap((part) => (part.type === 'text' ? [part.text] : []))
     .join('')
 }
 
-// Reader loops need macrotask turns to drain queued chunks + close; commit
-// timers are left untouched so flush behavior stays observable via nextCommit().
-async function drainStreamMicrotasks(): Promise<void> {
+async function drainReaders(): Promise<void> {
   for (let round = 0; round < 3; round++) {
-    for (let index = 0; index < 24; index++) {
-      await Promise.resolve()
-    }
+    for (let index = 0; index < 24; index++) await Promise.resolve()
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
   }
 }
 
-// Waits past the MIN_COMMIT_INTERVAL_MS floor so the pending snapshot commit fires.
 async function nextCommit(): Promise<void> {
-  await drainStreamMicrotasks()
+  await drainReaders()
   await new Promise<void>((resolve) => setTimeout(resolve, 110))
 }
 
-const TOPIC = 'topic-1'
-const seedRows = [asst('anchor-a')]
-const getSeed = () => seedRows
-
-beforeEach(() => mocks.subs.clear())
-afterEach(() => {
-  vi.useRealTimers()
-  mocks.subs.clear()
-  vi.restoreAllMocks()
-})
+function settle(
+  subscription: InstanceType<typeof fakes.FakeConversationStreamSubscription>,
+  value: ConversationExecutionProjection,
+  flags: { isAbort?: boolean; isError?: boolean } = {}
+): void {
+  subscription.settle({
+    turnId: value.turnId,
+    executionId: value.executionId,
+    outputNodeId: value.outputNodeId ?? '',
+    isAbort: flags.isAbort === true,
+    isError: flags.isError === true
+  })
+}
 
 describe('ExecutionStreamOverlayService', () => {
-  it('starts an in-place retry from empty parts even when cached history still has the old failure', async () => {
+  beforeEach(() => fakes.instances.clear())
+  afterEach(() => vi.useRealTimers())
+
+  it('keeps stream overlays isolated by exact ConversationRef', async () => {
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    const staleSeed = () =>
-      [
-        asst('anchor-a', [
-          { type: 'text', text: 'old partial response' },
-          { type: 'data-error', data: { message: 'old failure' } }
-        ])
-      ] as CherryUIMessage[]
+    const conversationA = chat('a')
+    const conversationB = chat('b')
+    const executionA = execution('turn-a', 'execution-a', 'assistant-a')
+    const executionB = execution('turn-b', 'execution-b', 'assistant-b')
 
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 2, true)], staleSeed)
-    const sub = mocks.subs.get(TOPIC)!
+    service.acquire(conversationA)
+    service.acquire(conversationB)
+    service.syncExecutions(conversationA, {}, [executionA], () => [assistant('assistant-a')])
+    service.syncExecutions(conversationB, {}, [executionB], () => [assistant('assistant-b')])
+    streamText(fakes.instances.get(conversationRefKey(conversationA))!, executionA.executionId, 'A')
+    streamText(fakes.instances.get(conversationRefKey(conversationB))!, executionB.executionId, 'B')
 
-    sub.emit(A, { type: 'text-start', id: 'retry-text' } as CherryUIMessageChunk, 'anchor-a', 2)
-    sub.emit(A, { type: 'text-delta', id: 'retry-text', delta: 'new response' } as CherryUIMessageChunk, 'anchor-a', 2)
+    await waitFor(() => expect(overlayText(service, conversationA, 'assistant-a')).toBe('A'))
+    await waitFor(() => expect(overlayText(service, conversationB, 'assistant-b')).toBe('B'))
+
+    service.clear(conversationA)
+
+    expect(service.getView(conversationA).overlay).toEqual({})
+    expect(overlayText(service, conversationB, 'assistant-b')).toBe('B')
+  })
+
+  it('settles only the exact execution within a multi-execution turn', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('multi-model')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-1', 'execution-2', 'assistant-2')
+    const finished = vi.fn()
+
+    service.acquire(conversation)
+    service.onFinish(conversation, finished)
+    service.syncExecutions(conversation, {}, [first, second], () => [
+      assistant('assistant-1'),
+      assistant('assistant-2')
+    ])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, first.executionId, 'first')
+    streamText(subscription, second.executionId, 'second')
+    subscription.settle({
+      turnId: first.turnId,
+      executionId: first.executionId,
+      outputNodeId: 'assistant-1',
+      isAbort: false,
+      isError: false
+    })
+
+    await waitFor(() => expect(finished).toHaveBeenCalledTimes(1))
+    expect(finished.mock.calls[0]?.[0]).toBe(first.executionId)
+    expect(finished.mock.calls[0]?.[1]).toMatchObject({ turnId: first.turnId, executionId: first.executionId })
+    expect(service.getView(conversation).records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ executionId: first.executionId, phase: ExecutionOverlayPhase.Settled }),
+        expect.objectContaining({ executionId: second.executionId, phase: ExecutionOverlayPhase.Active })
+      ])
+    )
+  })
+
+  it('refreshes durable history before retiring a quiesced turn', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('refresh-handoff')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    let finishRefresh!: () => void
+    const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
+
+    service.acquire(conversation)
+    registerDurable(service, conversation, refresh)
+    service.seedReservations(
+      conversation,
+      [assistant('assistant-1')],
+      [activeExecution],
+      { move: ConversationActiveNodeMove.Advance },
+      null,
+      () => [assistant('assistant-1')]
+    )
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'durable')
+    subscription.settle({
+      turnId: activeExecution.turnId,
+      executionId: activeExecution.executionId,
+      outputNodeId: 'assistant-1',
+      isAbort: false,
+      isError: false
+    })
+    await waitFor(() => expect(service.getView(conversation).records[0]?.phase).toBe(ExecutionOverlayPhase.Settled))
+
+    subscription.quiesce(activeExecution.turnId)
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+    expect(service.getView(conversation).records).toHaveLength(1)
+
+    finishRefresh()
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
+    expect(service.getView(conversation).activeNodeOverride).toBeNull()
+  })
+
+  it('rebases one live reader from a standalone retained snapshot and keeps streaming', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('live-replay-gap')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    const siblingExecution = execution('turn-1', 'execution-2', 'assistant-2')
+    const refresh = vi.fn(async () => undefined)
+
+    service.acquire(conversation)
+    registerDurable(service, conversation, refresh)
+    service.syncExecutions(conversation, {}, [activeExecution, siblingExecution], () => [
+      assistant('assistant-1'),
+      assistant('assistant-2')
+    ])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    subscription.emit(activeExecution.executionId, {
+      type: 'text-start',
+      id: `text-${activeExecution.executionId}`
+    } as CherryUIMessageChunk)
+    streamText(subscription, siblingExecution.executionId, 'sibling')
+    subscription.emit(activeExecution.executionId, {
+      type: 'text-delta',
+      id: `text-${activeExecution.executionId}`,
+      delta: 'before'
+    } as CherryUIMessageChunk)
     await nextCommit()
 
-    const parts = service.getView(TOPIC).overlay['anchor-a']
-    expect(textOf(parts)).toBe('new response')
-    expect(parts?.some((part) => part.type === 'data-error')).toBe(false)
+    subscription.requestRecovery(activeExecution, 'rebase', {
+      chunks: [
+        { chunk: { type: 'text-start', id: `rebased-${activeExecution.executionId}` } },
+        {
+          chunk: {
+            type: 'text-delta',
+            id: `rebased-${activeExecution.executionId}`,
+            delta: 'retained'
+          }
+        }
+      ],
+      throughChunkSeq: 10_001
+    })
+    await nextCommit()
+
+    expect(refresh).not.toHaveBeenCalled()
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(true)
+    subscription.emit(activeExecution.executionId, {
+      type: 'text-delta',
+      id: `rebased-${activeExecution.executionId}`,
+      delta: '-after'
+    } as CherryUIMessageChunk)
+    await nextCommit()
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('retained-after')
+    expect(overlayText(service, conversation, 'assistant-2')).toBe('sibling')
+    expect(subscription.hasOpenBranch(siblingExecution.executionId)).toBe(true)
+  })
+
+  it('retires an unbound rebase branch so a later execution sync can keep streaming', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('late-reader-sync')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+
+    service.acquire(conversation)
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    subscription.register(activeExecution)
+    subscription.requestRecovery(activeExecution, 'rebase', {
+      chunks: [],
+      throughChunkSeq: 10_000
+    })
+
+    expect(subscription.recoveries.size).toBe(0)
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+
+    service.syncExecutions(conversation, {}, [activeExecution], () => [assistant('assistant-1')])
+    streamText(subscription, activeExecution.executionId, 'after-sync')
+
+    await nextCommit()
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('after-sync')
+  })
+
+  it('retires the exact optimistic snapshot and settlement when recovery finds no reader', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('missing-reader-recovery')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+
+    service.acquire(conversation)
+    service.seedReservations(
+      conversation,
+      [assistant('assistant-1')],
+      [activeExecution],
+      { move: ConversationActiveNodeMove.Advance },
+      null,
+      () => [assistant('assistant-1')]
+    )
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'retained')
+    await nextCommit()
+    subscription.close(activeExecution.executionId)
+    await waitFor(() =>
+      expect(service.getView(conversation).records).toEqual([
+        expect.objectContaining({
+          executionId: activeExecution.executionId,
+          phase: ExecutionOverlayPhase.Settled
+        })
+      ])
+    )
+    expect(service.getView(conversation).activeNodeOverride).toEqual({
+      previousActiveNodeId: null,
+      activeNodeId: 'assistant-1'
+    })
+
+    subscription.register(activeExecution)
+    subscription.requestRecovery(activeExecution, 'rebase', { chunks: [], throughChunkSeq: 10_000 })
+
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
+    expect(service.getView(conversation).overlay).toEqual({})
+    expect(service.getView(conversation).activeNodeOverride).toBeNull()
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+  })
+
+  it('refreshes before retiring an optimistic execution that Main reports as NotFound', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('not-found')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    let finishRefresh!: () => void
+    const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
+
+    service.acquire(conversation)
+    registerDurable(service, conversation, refresh)
+    const consumer = {}
+    service.syncExecutions(conversation, consumer, [activeExecution], () => [assistant('assistant-1')])
+    service.seedReservations(
+      conversation,
+      [assistant('assistant-1')],
+      [activeExecution],
+      { move: ConversationActiveNodeMove.Advance },
+      null,
+      () => [assistant('assistant-1')]
+    )
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+
+    subscription.requestRecovery(activeExecution, 'not-found')
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+    expect(service.getView(conversation).activeNodeOverride).toEqual({
+      previousActiveNodeId: null,
+      activeNodeId: 'assistant-1'
+    })
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(true)
+
+    finishRefresh()
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+    expect(service.getView(conversation).activeNodeOverride).toBeNull()
+
+    service.syncExecutions(conversation, consumer, [activeExecution], () => [assistant('assistant-1')])
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+    expect(service.getView(conversation).projectedExecutions).toEqual([])
+    service.syncExecutions(conversation, consumer, [], () => [])
+    service.syncExecutions(conversation, consumer, [activeExecution], () => [assistant('assistant-1')])
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(true)
+  })
+
+  it('retires an ephemeral execution after attach recovery is exhausted', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('ephemeral-attach-unavailable')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+
+    service.acquire(conversation)
+    service.seedReservations(
+      conversation,
+      [assistant('assistant-1')],
+      [activeExecution],
+      { move: ConversationActiveNodeMove.Advance },
+      null,
+      () => [assistant('assistant-1')]
+    )
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'partial')
+    await nextCommit()
+
+    subscription.requestRecovery(activeExecution, 'attach-unavailable')
+
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
+    expect(service.getView(conversation).overlay).toEqual({})
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+    expect(subscription.recoveries.size).toBe(0)
+  })
+
+  it('starts an in-place retry from empty parts even when cached history still has the old failure', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('retry')
+    const retry = execution('turn-2', 'execution-retry', 'assistant-1', true)
+    const staleSeed = () =>
+      [
+        assistant('assistant-1') as CherryUIMessage & {
+          parts: CherryUIMessage['parts']
+        }
+      ].map((message) => ({
+        ...message,
+        parts: [
+          { type: 'text', text: 'old partial response' },
+          { type: 'data-error', data: { message: 'old failure' } }
+        ]
+      })) as CherryUIMessage[]
+
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [retry], staleSeed)
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, retry.executionId, 'new response')
+    await nextCommit()
+
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('new response')
+    expect(service.getView(conversation).overlay['assistant-1']?.some((part) => part.type === 'data-error')).toBe(false)
   })
 
   it('keeps the reader running and the view updating across release, restores synchronously on re-acquire', async () => {
     const service = new ExecutionStreamOverlayService()
+    const conversation = chat('release-retain')
     const consumer = {}
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
-    const sub = mocks.subs.get(TOPIC)!
+    const active = execution('turn-1', 'execution-1', 'assistant-1')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, consumer, [active], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
 
-    streamText(sub, A, 't1', 'before-release')
+    streamText(subscription, active.executionId, 'before-release')
     await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('before-release')
-
-    service.release(TOPIC, consumer)
-
-    // No consumer mounted: the reader must survive and keep assembling.
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-a')
-    sub.emit(A, { type: 'text-delta', id: 't2', delta: ' after-release' } as CherryUIMessageChunk, 'anchor-a')
+    service.release(conversation, consumer)
+    streamText(subscription, active.executionId, ' after-release')
     await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('before-release after-release')
-    expect(sub.disposed).toBe(false)
 
-    // Re-acquire reads the retained view synchronously — no attach/replay wait.
-    service.acquire(TOPIC)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('before-release after-release')
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('before-release after-release')
+    expect(subscription.disposed).toBe(false)
+    service.acquire(conversation)
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('before-release after-release')
   })
 
   it('drops the entry (and detaches) when the last reader ends at refCount 0', async () => {
     const service = new ExecutionStreamOverlayService()
+    const conversation = chat('drop-after-terminal')
     const consumer = {}
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    streamText(sub, A, 't1', 'text')
+    const active = execution('turn-1', 'execution-1', 'assistant-1')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, consumer, [active], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, active.executionId, 'done')
     await nextCommit()
-    service.release(TOPIC, consumer)
-    expect(sub.disposed).toBe(false)
 
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    await drainStreamMicrotasks()
+    service.release(conversation, consumer)
+    settle(subscription, active)
+    subscription.quiesce(active.turnId)
+    await drainReaders()
 
-    // The next mount rebuilds from DB + shared cache, exactly like today's remount.
-    expect(sub.disposed).toBe(true)
-    expect(service.getView(TOPIC).overlay).toEqual({})
+    expect(subscription.disposed).toBe(true)
+    expect(service.getView(conversation).overlay).toEqual({})
   })
 
   it('does NOT self-clean on terminal while a consumer is mounted — the status-edge handoff owns disposal', async () => {
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
-    const sub = mocks.subs.get(TOPIC)!
+    const conversation = chat('mounted-terminal')
+    const active = execution('turn-1', 'execution-1', 'assistant-1')
+    let finishRefresh!: () => void
+    const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
+    service.acquire(conversation)
+    registerDurable(service, conversation, refresh)
+    service.syncExecutions(conversation, {}, [active], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, active.executionId, 'final')
+    settle(subscription, active)
+    await drainReaders()
 
-    streamText(sub, A, 't1', 'final')
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    await drainStreamMicrotasks()
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('final')
+    expect(refresh).not.toHaveBeenCalled()
 
-    // Terminal frame retained for the mounted consumer until refresh() lands.
-    expect(sub.disposed).toBe(false)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
-
-    // Publishing the terminal frame can rerender a mounted consumer before
-    // shared status removes the execution. That same desired key must not
-    // restart a reader and clear the retained final frame.
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
-    expect(sub.branches.size).toBe(0)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
-
-    service.reset(TOPIC)
-    expect(service.getView(TOPIC).overlay).toEqual({})
-
-    service.release(TOPIC, consumer)
-    expect(sub.disposed).toBe(true)
+    subscription.quiesce(active.turnId)
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('final')
+    finishRefresh()
+    await waitFor(() => expect(service.getView(conversation).overlay).toEqual({}))
   })
 
   it('retires watermark-covered sibling readers without reporting an implicit success', async () => {
-    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    const onFinish = vi.fn()
-    service.acquire(TOPIC)
-    service.onFinish(TOPIC, onFinish)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1), exec(B, 'anchor-b', 2)], seed)
-    const sub = mocks.subs.get(TOPIC)!
+    const conversation = chat('sibling-retirement')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-1', 'execution-2', 'assistant-2')
+    const finished = vi.fn()
+    const refresh = vi.fn(async () => undefined)
+    service.acquire(conversation)
+    service.onFinish(conversation, finished)
+    registerDurable(service, conversation, refresh)
+    service.syncExecutions(conversation, {}, [first, second], () => [
+      assistant('assistant-1'),
+      assistant('assistant-2')
+    ])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
 
-    streamText(sub, A, 't1', 'failed partial', 'anchor-a', 1)
-    streamText(sub, B, 't2', 'final answer', 'anchor-b', 2)
-    sub.retire([{ executionId: A, attemptId: 1, anchorMessageId: 'anchor-a' }])
-    sub.terminal(B, { isAbort: false, isError: false }, 'anchor-b', 2)
-    await drainStreamMicrotasks()
+    streamText(subscription, first.executionId, 'partial')
+    streamText(subscription, second.executionId, 'answer')
+    settle(subscription, second)
+    await drainReaders()
+    expect(finished).toHaveBeenCalledTimes(1)
+    expect(finished).toHaveBeenCalledWith(second.executionId, expect.objectContaining({ isError: false }))
 
-    expect(onFinish).toHaveBeenCalledTimes(1)
-    expect(onFinish).toHaveBeenCalledWith(B, expect.objectContaining({ attemptId: 2, isError: false }))
-    expect(sub.cancelledBranchKeys).toEqual([JSON.stringify([A, 'anchor-a', 1])])
-
-    service.syncExecutions(TOPIC, consumer, [], seed)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1), exec(B, 'anchor-b', 2)], seed)
-    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
-    expect(onFinish).toHaveBeenCalledTimes(1)
+    subscription.quiesce(first.turnId)
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+    expect(finished).toHaveBeenCalledTimes(1)
   })
 
   it('remount with a stale active set does not restart a settled execution or wipe its final frame', async () => {
-    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    // A finishes; B keeps streaming so the entry survives the release below.
-    streamText(sub, A, 't1', 'final')
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    const conversation = chat('stale-remount')
+    const firstConsumer = {}
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-1', 'execution-2', 'assistant-2')
+    const seeds = () => [assistant('assistant-1'), assistant('assistant-2')]
+    service.acquire(conversation)
+    service.syncExecutions(conversation, firstConsumer, [first, second], seeds)
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, first.executionId, 'final')
+    settle(subscription, first)
+    subscription.emit(second.executionId, {
+      type: 'text-start',
+      id: `text-${second.executionId}`
+    } as CherryUIMessageChunk)
+    subscription.emit(second.executionId, {
+      type: 'text-delta',
+      id: `text-${second.executionId}`,
+      delta: 'live'
+    } as CherryUIMessageChunk)
     await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
+    service.release(conversation, firstConsumer)
 
-    service.release(TOPIC, consumer)
+    const nextConsumer = {}
+    service.acquire(conversation)
+    service.syncExecutions(conversation, nextConsumer, [first, second], seeds)
+    await drainReaders()
 
-    // Remount while shared status is momentarily stale and still lists A.
-    const consumer2 = {}
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer2, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    await drainStreamMicrotasks()
-
-    // A stays settled: no reader restart, retained final frame intact.
-    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
+    expect(subscription.branches.has(first.executionId)).toBe(false)
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('final')
+    expect(overlayText(service, conversation, 'assistant-2')).toBe('live')
   })
 
   it('reset drops only settled snapshots — a newer turn already streaming keeps its reader publishing', async () => {
-    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    // Turn A finishes (reader settled, snapshot retained); turn B keeps streaming.
-    streamText(sub, A, 't1', 'finished')
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    const conversation = chat('turn-scoped-reset')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-2', 'execution-2', 'assistant-2')
+    service.acquire(conversation)
+    registerDurable(
+      service,
+      conversation,
+      vi.fn(async () => undefined)
+    )
+    service.syncExecutions(conversation, {}, [first, second], () => [
+      assistant('assistant-1'),
+      assistant('assistant-2')
+    ])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, first.executionId, 'finished')
+    settle(subscription, first)
+    subscription.emit(second.executionId, {
+      type: 'text-start',
+      id: `text-${second.executionId}`
+    } as CherryUIMessageChunk)
+    subscription.emit(second.executionId, {
+      type: 'text-delta',
+      id: `text-${second.executionId}`,
+      delta: 'live'
+    } as CherryUIMessageChunk)
     await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('finished')
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
 
-    // The delayed DB handoff for turn A must not invalidate turn B.
-    service.reset(TOPIC)
-    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
+    service.reset(conversation)
+    await waitFor(() => expect(service.getView(conversation).overlay['assistant-1']).toBeUndefined())
+    expect(overlayText(service, conversation, 'assistant-2')).toBe('live')
 
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
+    subscription.emit(second.executionId, {
+      type: 'text-delta',
+      id: `text-${second.executionId}`,
+      delta: '-more'
+    } as CherryUIMessageChunk)
     await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
+    expect(overlayText(service, conversation, 'assistant-2')).toBe('live-more')
   })
 
   it('clear destructively drops everything, including a live reader’s future frames', async () => {
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    sub.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk, 'anchor-a')
-    sub.emit(A, { type: 'text-delta', id: 't1', delta: 'live' } as CherryUIMessageChunk, 'anchor-a')
+    const conversation = chat('destructive-clear')
+    const active = execution('turn-1', 'execution-1', 'assistant-1')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [active], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, active.executionId, 'live')
     await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('live')
 
-    service.clear(TOPIC)
-    expect(service.getView(TOPIC).overlay).toEqual({})
-
-    // Frames from the (stopped) stream after clear must stay dropped.
-    sub.emit(A, { type: 'text-delta', id: 't1', delta: '-stale' } as CherryUIMessageChunk, 'anchor-a')
+    service.clear(conversation)
+    subscription.emit(active.executionId, {
+      type: 'text-delta',
+      id: `text-${active.executionId}`,
+      delta: '-stale'
+    } as CherryUIMessageChunk)
     await nextCommit()
-    expect(service.getView(TOPIC).overlay).toEqual({})
+
+    expect(service.getView(conversation).overlay).toEqual({})
   })
 
   it('reconciles on remount: drops snapshots of no-longer-active executions, keeps streaming ones', async () => {
-    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
+    const conversation = chat('reconcile-remount')
     const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    streamText(sub, A, 't1', 'finished-while-away')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'still-live' } as CherryUIMessageChunk, 'anchor-b')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-1', 'execution-2', 'assistant-2')
+    const seeds = () => [assistant('assistant-1'), assistant('assistant-2')]
+    service.acquire(conversation)
+    service.syncExecutions(conversation, consumer, [first, second], seeds)
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, first.executionId, 'finished-away')
+    streamText(subscription, second.executionId, 'still-live')
     await nextCommit()
+    service.release(conversation, consumer)
+    settle(subscription, first)
+    await drainReaders()
 
-    service.release(TOPIC, consumer)
-    // A terminates while no consumer is mounted — the status edge that would
-    // hand its frame off to the DB row fires unobserved, so the frame is
-    // dropped immediately: the persisted DB row owns it.
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    await drainStreamMicrotasks()
-    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [second], seeds)
 
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(B, 'anchor-b')], seed)
-
-    // B streams on across the remount.
-    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('still-live')
+    expect(service.getView(conversation).overlay['assistant-1']).toBeUndefined()
+    expect(overlayText(service, conversation, 'assistant-2')).toBe('still-live')
   })
 
   it('A7: does not restart an execution that finished in the background when a stale set is re-reported', async () => {
-    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
+    const conversation = chat('background-finish')
     const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    streamText(sub, A, 't1', 'first')
-    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-1', 'execution-2', 'assistant-2')
+    const seeds = () => [assistant('assistant-1'), assistant('assistant-2')]
+    service.acquire(conversation)
+    service.syncExecutions(conversation, consumer, [first, second], seeds)
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, first.executionId, 'first')
+    streamText(subscription, second.executionId, 'live')
     await nextCommit()
-    service.release(TOPIC, consumer)
+    service.release(conversation, consumer)
+    settle(subscription, first)
+    await drainReaders()
 
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    await drainStreamMicrotasks()
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [first, second], seeds)
+    await drainReaders()
 
-    // Natural end in the background: A's overlay is dropped outright — the
-    // persisted DB row owns it and the next mount rebuilds from there.
-    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
-    expect(sub.disposed).toBe(false)
-
-    // Remount with the stale Activity-preserved set that still lists A.
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    await drainStreamMicrotasks()
-
-    // Tombstoned: no zombie reader, no new branch for A; B is untouched.
-    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
-    expect(sub.branches.size).toBe(1)
-    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
-    await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
+    expect(subscription.branches.has(first.executionId)).toBe(false)
+    expect(subscription.branches.has(second.executionId)).toBe(true)
   })
 
   it('hidden steer continuation: keeps the entry attached while the next round’s chunks queue unclaimed', async () => {
     const service = new ExecutionStreamOverlayService()
+    const conversation = chat('hidden-continuation')
     const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], seed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    streamText(sub, A, 't1', 'first')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-2', 'execution-2', 'assistant-2')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, consumer, [first], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, first.executionId, 'first')
     await nextCommit()
-    service.release(TOPIC, consumer)
+    service.release(conversation, consumer)
+    settle(subscription, first)
+    await drainReaders()
+    expect(subscription.disposed).toBe(false)
 
-    // Production order: Main broadcasts A done(false), waits for listeners,
-    // and only then schedules B. The empty inter-turn gap must stay attached.
-    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: false }, 'anchor-a')
-    await drainStreamMicrotasks()
-    expect(sub.disposed).toBe(false)
-
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-b')
-
-    // The unclaimed continuation then pins the same retained entry.
-    expect(sub.disposed).toBe(false)
-
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-b')], seed)
+    streamText(subscription, second.executionId, 'second')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [second], () => [assistant('assistant-2')])
     await nextCommit()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('second')
+
+    expect(subscription.disposed).toBe(false)
+    expect(overlayText(service, conversation, 'assistant-2')).toBe('second')
   })
 
   it('hidden steer continuation: drops the pinned entry once its queued round terminates unobserved', async () => {
     const service = new ExecutionStreamOverlayService()
+    const conversation = chat('hidden-terminal')
     const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], seed)
-    const sub = mocks.subs.get(TOPIC)!
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-2', 'execution-2', 'assistant-2')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, consumer, [first], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    service.release(conversation, consumer)
+    settle(subscription, first)
+    await drainReaders()
 
-    streamText(sub, A, 't1', 'first')
-    await nextCommit()
-    service.release(TOPIC, consumer)
+    streamText(subscription, second.executionId, 'second')
+    settle(subscription, second)
+    subscription.quiesce(second.turnId)
+    await drainReaders()
 
-    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: false }, 'anchor-a')
-    await drainStreamMicrotasks()
-    expect(sub.disposed).toBe(false)
-
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    // The user never returns; round B ends and closes the queued branch.
-    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: true }, 'anchor-b')
-    await drainStreamMicrotasks()
-    expect(sub.disposed).toBe(true)
+    expect(subscription.disposed).toBe(true)
   })
 
   it('restarts a finished execution only when a new turn’s chunks are already queued in the transport', async () => {
-    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
+    const conversation = chat('queued-restart')
     const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    const sub = mocks.subs.get(TOPIC)!
-
-    streamText(sub, A, 't1', 'first')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-2', 'execution-2', 'assistant-1')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, consumer, [first], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, first.executionId, 'first')
     await nextCommit()
-    service.release(TOPIC, consumer)
+    service.release(conversation, consumer)
+    settle(subscription, first)
+    await drainReaders()
 
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    await drainStreamMicrotasks()
-
-    // A new turn on the same key starts while hidden: the transport
-    // auto-creates an open branch and queues its chunks.
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-a')
-    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-a')
-
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    streamText(subscription, second.executionId, 'second')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [second], () => [assistant('assistant-1')])
     await nextCommit()
 
-    // Fresh transport evidence overrides the tombstone and replays the queue.
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('second')
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('second')
   })
 
   it('notifies every mounted consumer exactly once per execution finish', async () => {
     const service = new ExecutionStreamOverlayService()
-    const consumer1 = {}
-    const consumer2 = {}
-    service.acquire(TOPIC)
-    service.acquire(TOPIC)
-    const onFinish1 = vi.fn()
-    const onFinish2 = vi.fn()
-    service.onFinish(TOPIC, onFinish1)
-    service.onFinish(TOPIC, onFinish2)
-    service.syncExecutions(TOPIC, consumer1, [exec(A, 'anchor-a')], getSeed)
-    // Second consumer contributes the same shared-cache execution set; the
-    // reader must not be duplicated.
-    service.syncExecutions(TOPIC, consumer2, [exec(A, 'anchor-a')], getSeed)
-    const sub = mocks.subs.get(TOPIC)!
-    expect(sub.branches.size).toBe(1)
+    const conversation = chat('finish-listeners')
+    const active = execution('turn-1', 'execution-1', 'assistant-1')
+    const firstConsumer = {}
+    const secondConsumer = {}
+    const firstFinish = vi.fn()
+    const secondFinish = vi.fn()
+    service.acquire(conversation)
+    service.acquire(conversation)
+    service.onFinish(conversation, firstFinish)
+    service.onFinish(conversation, secondFinish)
+    service.syncExecutions(conversation, firstConsumer, [active], () => [assistant('assistant-1')])
+    service.syncExecutions(conversation, secondConsumer, [active], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    expect(subscription.branches.size).toBe(1)
 
-    streamText(sub, A, 't1', 'x')
-    sub.terminal(A, { isAbort: true, isError: false }, 'anchor-a')
-    await drainStreamMicrotasks()
+    streamText(subscription, active.executionId, 'final')
+    settle(subscription, active, { isAbort: true })
+    await drainReaders()
 
-    expect(onFinish1).toHaveBeenCalledTimes(1)
-    expect(onFinish2).toHaveBeenCalledTimes(1)
-    expect(onFinish1.mock.calls[0][1].isAbort).toBe(true)
+    expect(firstFinish).toHaveBeenCalledOnce()
+    expect(secondFinish).toHaveBeenCalledOnce()
+    expect(firstFinish.mock.calls[0]?.[1]).toMatchObject({ executionId: active.executionId, isAbort: true })
   })
 
   it('extends the shared commit deadline when a larger execution joins the pending batch', async () => {
     vi.useFakeTimers()
-    const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    const seed = () => [asst('anchor-a'), asst('anchor-b')]
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    const sub = mocks.subs.get(TOPIC)!
-    const onChange = vi.fn()
-    service.subscribe(TOPIC, onChange)
+    const conversation = chat('commit-deadline')
+    const first = execution('turn-1', 'execution-1', 'assistant-1')
+    const second = execution('turn-1', 'execution-2', 'assistant-2')
+    const changed = vi.fn()
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [first, second], () => [
+      assistant('assistant-1'),
+      assistant('assistant-2')
+    ])
+    service.subscribe(conversation, changed)
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
 
-    streamText(sub, A, 'initial', 'initial')
+    streamText(subscription, first.executionId, 'initial')
     await vi.advanceTimersByTimeAsync(100)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('initial')
-    onChange.mockClear()
-
-    streamText(sub, A, 'small', 'small')
+    changed.mockClear()
+    streamText(subscription, first.executionId, 'small')
     await vi.advanceTimersByTimeAsync(0)
-    streamText(sub, B, 'large', 'x'.repeat(600_000), 'anchor-b')
-    await vi.advanceTimersByTimeAsync(0)
-
+    streamText(subscription, second.executionId, 'x'.repeat(600_000))
     await vi.advanceTimersByTimeAsync(100)
-    expect(onChange).not.toHaveBeenCalled()
-    expect(service.getView(TOPIC).overlay['anchor-b']).toBeUndefined()
+
+    expect(changed).not.toHaveBeenCalled()
+    expect(service.getView(conversation).overlay['assistant-2']).toBeUndefined()
 
     await vi.advanceTimersByTimeAsync(201)
-    expect(onChange).toHaveBeenCalledTimes(1)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toHaveLength(600_000)
-
-    sub.emit(A, { type: 'text-start', id: 'terminal' } as CherryUIMessageChunk, 'anchor-a')
-    sub.emit(A, { type: 'text-delta', id: 'terminal', delta: '-terminal' } as CherryUIMessageChunk, 'anchor-a')
-    await vi.advanceTimersByTimeAsync(0)
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(onChange).toHaveBeenCalledTimes(2)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('initialsmall-terminal')
+    expect(changed).toHaveBeenCalledOnce()
+    expect(overlayText(service, conversation, 'assistant-2')).toHaveLength(600_000)
   })
 
   it('flushes stalled pending snapshots on acquire (hidden-window timer stall)', async () => {
     const service = new ExecutionStreamOverlayService()
-    const consumer = {}
-    service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
-    const sub = mocks.subs.get(TOPIC)!
+    const conversation = chat('stalled-commit')
+    const active = execution('turn-1', 'execution-1', 'assistant-1')
+    service.acquire(conversation)
+    service.syncExecutions(conversation, {}, [active], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
 
-    // Two quick commits so lastCommitAt is fresh when the third snapshot queues,
-    // pinning its commit timer behind the interval floor.
-    streamText(sub, A, 't1', 'committed')
+    streamText(subscription, active.executionId, 'committed')
     await nextCommit()
-    streamText(sub, A, 't2', '-flushed')
-    await drainStreamMicrotasks()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('committed-flushed')
+    streamText(subscription, active.executionId, '-flushed')
+    await drainReaders()
+    streamText(subscription, active.executionId, '-stalled')
+    await drainReaders()
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('committed-flushed')
 
-    streamText(sub, A, 't3', '-stalled')
-    await drainStreamMicrotasks()
-    // Commit timer still pending — the view is stale…
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('committed-flushed')
-
-    // …until a consumer re-acquires, which materializes pending frames.
-    service.acquire(TOPIC)
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('committed-flushed-stalled')
+    service.acquire(conversation)
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('committed-flushed-stalled')
   })
 
   it('evicts the oldest refCount-0 entry past MAX_ENTRIES as a leak backstop', async () => {
     const service = new ExecutionStreamOverlayService()
-    // 32 released-but-live entries (reader parked on an open stream — the
-    // "terminal never arrived" leak shape the backstop exists for).
     for (let index = 0; index < 32; index++) {
-      const topicId = `leak-${index}`
+      const conversation = chat(`leak-${index}`)
       const consumer = {}
-      service.acquire(topicId)
-      service.syncExecutions(topicId, consumer, [exec(A, 'anchor-a')], getSeed)
-      service.release(topicId, consumer)
+      service.acquire(conversation)
+      service.syncExecutions(conversation, consumer, [execution('turn-1', `execution-${index}`, 'assistant-1')], () => [
+        assistant('assistant-1')
+      ])
+      service.release(conversation, consumer)
     }
-    await drainStreamMicrotasks()
-    expect(mocks.subs.get('leak-0')!.disposed).toBe(false)
+    await drainReaders()
 
-    service.acquire('fresh-topic')
+    service.acquire(chat('fresh-topic'))
 
-    expect(mocks.subs.get('leak-0')!.disposed).toBe(true)
-    expect(mocks.subs.get('leak-1')!.disposed).toBe(false)
-    expect(mocks.subs.get('fresh-topic')).toBeDefined()
+    expect(fakes.instances.get('chat:leak-0')?.disposed).toBe(true)
+    expect(fakes.instances.get('chat:leak-1')?.disposed).toBe(false)
+    expect(fakes.instances.get('chat:fresh-topic')).toBeDefined()
   })
 
   it('does not let an evicted reader finalizer delete a replacement entry for the same topic', async () => {
     const service = new ExecutionStreamOverlayService()
     for (let index = 0; index < 32; index++) {
-      const topicId = `leak-${index}`
+      const conversation = chat(`replace-${index}`)
       const consumer = {}
-      service.acquire(topicId)
-      service.syncExecutions(topicId, consumer, [exec(A, 'anchor-a')], getSeed)
-      service.release(topicId, consumer)
+      service.acquire(conversation)
+      service.syncExecutions(conversation, consumer, [execution('turn-1', `execution-${index}`, 'assistant-1')], () => [
+        assistant('assistant-1')
+      ])
+      service.release(conversation, consumer)
     }
+    service.acquire(chat('fresh-topic'))
+    expect(fakes.instances.get('chat:replace-0')?.disposed).toBe(true)
 
-    service.acquire('fresh-topic')
-    expect(mocks.subs.get('leak-0')!.disposed).toBe(true)
+    const replacementConversation = chat('replace-0')
+    const replacement = execution('turn-2', 'replacement-execution', 'assistant-2')
+    service.acquire(replacementConversation)
+    service.syncExecutions(replacementConversation, {}, [replacement], () => [assistant('assistant-2')])
+    await drainReaders()
 
-    const replacementConsumer = {}
-    service.acquire('leak-0')
-    const replacement = mocks.subs.get('leak-0')!
-    await drainStreamMicrotasks()
-
-    service.syncExecutions('leak-0', replacementConsumer, [exec(A, 'anchor-a')], getSeed)
-    expect(replacement.disposed).toBe(false)
-    expect(replacement.branches.size).toBe(1)
+    expect(fakes.instances.get('chat:replace-0')?.disposed).toBe(false)
+    expect(fakes.instances.get('chat:replace-0')?.branches.has(replacement.executionId)).toBe(true)
   })
 
   it('does not listen on an empty topicId (pending temp topic)', () => {
     const service = new ExecutionStreamOverlayService()
-    service.acquire('')
-    expect(mocks.subs.get('')!.listenCalls).toBe(0)
+    const emptyConversation = chat('')
+
+    service.acquire(emptyConversation)
+
+    expect(fakes.instances.get('chat:')?.listenCalls).toBe(0)
+  })
+
+  it.each(['dispose', 'reset'] as const)('refreshes durable history before retiring through %s', async (action) => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat(`manual-${action}`)
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    let finishRefresh!: () => void
+    const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
+
+    service.acquire(conversation)
+    registerDurable(service, conversation, refresh)
+    service.syncExecutions(conversation, {}, [activeExecution], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'durable')
+    subscription.settle({
+      turnId: activeExecution.turnId,
+      executionId: activeExecution.executionId,
+      outputNodeId: 'assistant-1',
+      isAbort: false,
+      isError: false
+    })
+    await waitFor(() => expect(service.getView(conversation).records[0]?.phase).toBe(ExecutionOverlayPhase.Settled))
+
+    if (action === 'dispose') service.disposeOverlay(conversation, 'assistant-1')
+    else service.reset(conversation)
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+    expect(service.getView(conversation).records).toHaveLength(1)
+    finishRefresh()
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
   })
 })

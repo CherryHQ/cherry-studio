@@ -18,6 +18,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -25,14 +26,15 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
+import { DataApiDataChangeScope } from '@shared/data/api/types'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
@@ -180,7 +182,7 @@ describe('AgentService', () => {
 
   describe('createAgent', () => {
     it('notifies live agent lists after creation', () => {
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       const agent = createAgentForTest({
         type: 'claude-code',
@@ -188,8 +190,9 @@ describe('AgentService', () => {
         model: TEST_MODEL_ID
       })
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: agent.id }, entityIds: [agent.id] }
       ])
     })
 
@@ -1080,13 +1083,25 @@ describe('AgentService', () => {
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
       pinService.pin({ entityType: 'agent', entityId: id })
       const otherPin = pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       agentService.deleteAgent(id)
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] },
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', scope: DataApiDataChangeScope.AllRoutes }
+      ])
     })
 
     it('purges prompt bindings without deleting the global prompt', async () => {
@@ -1136,7 +1151,7 @@ describe('AgentService', () => {
           orderKey: 'a1'
         }
       ])
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       const result = agentService.deleteAgent(id, { deleteSessions: true })
 
@@ -1146,7 +1161,9 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] },
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
         {
           endpoint: '/agent-sessions',
@@ -1154,10 +1171,22 @@ describe('AgentService', () => {
           dimension: 'lastActivityAt',
           entityIds: ['session-delete-with-agent']
         },
-        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
-        { endpoint: '/agent-sessions/latest' }
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          routeParams: { sessionId: 'session-delete-with-agent' },
+          entityIds: ['session-delete-with-agent']
+        },
+        { endpoint: '/agent-sessions/latest' },
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', scope: DataApiDataChangeScope.AllRoutes }
       ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {
@@ -1184,7 +1213,7 @@ describe('AgentService', () => {
         taskScheduleId: task.id,
         orderKey: 'a0'
       })
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
 
@@ -1193,7 +1222,22 @@ describe('AgentService', () => {
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
       expect(session).toEqual({ agentId: null, taskScheduleId: null })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] },
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
+        { endpoint: '/agent-tasks/:taskId', routeParams: { taskId: task.id }, entityIds: [task.id] },
+        {
+          endpoint: '/agents/:agentId/tasks',
+          kind: 'projection',
+          routeParams: { agentId: id },
+          entityIds: [task.id]
+        },
+        {
+          endpoint: '/agents/:agentId/tasks/:taskId',
+          routeParams: { agentId: id, taskId: task.id },
+          entityIds: [task.id]
+        },
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
           endpoint: '/agent-sessions',
@@ -1201,9 +1245,64 @@ describe('AgentService', () => {
           dimension: 'lastActivityAt',
           entityIds: ['session-default-detach']
         },
-        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-default-detach'] },
-        { endpoint: '/agent-sessions/latest' }
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          routeParams: { sessionId: 'session-default-detach' },
+          entityIds: ['session-default-detach']
+        },
+        { endpoint: '/agent-sessions/latest' },
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', scope: DataApiDataChangeScope.AllRoutes }
       ])
+    })
+
+    it('does not re-query task enrichment after commit and publishes the complete impact batch', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_effect_impact_001' })
+      const task = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'delete-impact-task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: id, prompt: 'test', timeoutMinutes: 0, workspace: { type: 'system' } },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-delete-effect-impact',
+        name: 'Workspace',
+        path: '/tmp/delete-effect-impact',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-delete-effect-impact',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-delete-effect-impact',
+        taskScheduleId: task.id,
+        orderKey: 'a0'
+      })
+      const postCommitEnrichment = vi.spyOn(agentTaskService, 'getTaskById').mockImplementation(() => {
+        throw new Error('post-commit enrichment must not run')
+      })
+      publishedEffects.mockClear()
+
+      try {
+        expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
+      } finally {
+        postCommitEnrichment.mockRestore()
+      }
+
+      expect(postCommitEnrichment).not.toHaveBeenCalled()
+      const endpoints = publishedEffects.mock.calls.flatMap(([effects]) => effects.map((effect) => effect.endpoint))
+      expect(endpoints).toEqual(
+        expect.arrayContaining(['/agents', '/agent-tasks', '/agents/:agentId/tasks', '/agent-sessions', '/pins'])
+      )
+      expect(publishedEffects).toHaveBeenCalledTimes(1)
     })
 
     it('rolls back the already-deleted sessions when a later delete step fails', async () => {

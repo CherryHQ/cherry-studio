@@ -4,7 +4,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChannelMessageEvent } from '../ChannelAdapter'
+import { type ChannelMessageEvent, ChannelStreamCompletionResult } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
 import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
 
@@ -32,11 +32,14 @@ vi.mock('../security/OutputSanitizer', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
 
-// The global mock (tests/main.setup.ts) wires the default service set, which omits
-// AiStreamManager; the abort path reads it, so override locally.
+// The global mock omits the Conversation runtime; the abort path reads it, so override locally.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: { abort: vi.fn() } } as never)
+  return mockApplicationFactory({
+    ConversationRuntimeService: { abort: vi.fn() },
+    ChannelManager: { getAdapter: () => undefined },
+    ChannelDeliveryService: { updateLive: () => true, enqueueTerminal: () => true, isActive: () => true }
+  } as never)
 })
 
 vi.mock('@data/services/AgentService', () => ({
@@ -74,6 +77,8 @@ vi.mock('@shared/data/types/model', async (importOriginal) => {
 
 const { mockStartAgentSessionRun } = vi.hoisted(() => ({ mockStartAgentSessionRun: vi.fn() }))
 vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
+  StartAgentSessionRunMode: { Started: 'started', NotStarted: 'not-started' },
+  StartAgentSessionRunRejection: { Busy: 'busy', SessionInvalid: 'session-invalid' },
   startAgentSessionRun: (...args: unknown[]) => mockStartAgentSessionRun(...args)
 }))
 
@@ -136,7 +141,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
-  adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
+  adapter.onStreamComplete = vi.fn().mockResolvedValue(ChannelStreamCompletionResult.NotHandled)
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   adapter.notifyChatIds = []
   return adapter

@@ -1,20 +1,21 @@
+import { DataApiDataChangeScope } from '@shared/data/api/types'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  netFetchMock,
-  getCatalogVersionMock,
-  getCountryMock,
-  notifyDataChangeMock,
-  readActiveManifestMock,
-  writeSnapshotMock
-} = vi.hoisted(() => ({
-  netFetchMock: vi.fn(),
-  getCatalogVersionMock: vi.fn(),
-  getCountryMock: vi.fn(),
-  notifyDataChangeMock: vi.fn(),
-  readActiveManifestMock: vi.fn(),
-  writeSnapshotMock: vi.fn()
-}))
+const { netFetchMock, getCatalogVersionMock, getCountryMock, readActiveManifestMock, writeSnapshotMock } = vi.hoisted(
+  () => ({
+    netFetchMock: vi.fn(),
+    getCatalogVersionMock: vi.fn(),
+    getCountryMock: vi.fn(),
+    readActiveManifestMock: vi.fn(),
+    writeSnapshotMock: vi.fn()
+  })
+)
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -34,7 +35,6 @@ vi.mock('@main/utils/systemInfo', () => ({ generateUserAgent: () => 'test-ua' })
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
   providerRegistryService: { getCatalogVersion: getCatalogVersionMock }
 }))
-vi.mock('@main/data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 vi.mock('@main/data/services/utils/registryDataPaths', () => ({
   readActiveOverrideManifest: readActiveManifestMock
 }))
@@ -104,7 +104,7 @@ describe('ProviderRegistryUpdaterService.check', () => {
     netFetchMock.mockReset()
     getCatalogVersionMock.mockReset()
     getCountryMock.mockReset()
-    notifyDataChangeMock.mockReset()
+    MockMainDbServiceUtils.resetMocks()
     readActiveManifestMock.mockReset()
     writeSnapshotMock.mockReset()
     getCatalogVersionMock.mockReturnValue('v1') // current on-disk catalog is at v1
@@ -127,12 +127,19 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(manifest.revision).toBe(2)
     expect(manifest.files['models.json']).toBe('v2')
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/providers.json'), expect.anything())
-    expect(notifyDataChangeMock).toHaveBeenCalledWith(
+    expect(MockMainDbServiceExport.dbService.publishedEffects).toHaveBeenCalledWith(
       expect.arrayContaining([
         { endpoint: '/models', kind: 'projection' },
-        { endpoint: '/models/:uniqueModelId*' },
-        { endpoint: '/providers/:providerId/models:resolve', kind: 'membership' },
-        { endpoint: '/providers/:providerId/models/:modelId*/image-generation-support' }
+        { endpoint: '/models/:uniqueModelId*', scope: DataApiDataChangeScope.AllRoutes },
+        {
+          endpoint: '/providers/:providerId/models:resolve',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        {
+          endpoint: '/providers/:providerId/models/:modelId*/image-generation-support',
+          scope: DataApiDataChangeScope.AllRoutes
+        }
       ])
     )
   })

@@ -1,7 +1,7 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 
-import type { AgentRuntimeToolApprovalRequest, AgentRuntimeUserInput } from '../types'
+import type { AgentRuntimeConnectionId, AgentRuntimeRedirectInput, AgentRuntimeToolApprovalRequest } from '../types'
 
 export type McpToolDisplayMetadata = {
   type: 'mcp'
@@ -65,22 +65,23 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
 }
 
 export type ToolApprovalEmitterHolder = {
+  connectionId?: AgentRuntimeConnectionId
   /** Bound for the connection lifetime; the host decides whether to stream or persist the request. */
   emit?: (request: AgentRuntimeToolApprovalRequest) => void
   /** Replaces a streamed tool call's raw input with the SDK-normalized input before approval. */
   emitInput?: (request: Pick<AgentRuntimeToolApprovalRequest, 'toolCallId' | 'toolName' | 'input'>) => void
-  /** Session-scoped cleanup (e.g. `toolApprovalRegistry.abort(sessionId)`). */
-  dispose?: () => void
+  /** Session-scoped cleanup delegated to the approval lifecycle coordinator. */
+  dispose?: (connectionId?: AgentRuntimeConnectionId) => void
 }
 
 export type SteerHolder = {
   /** Mid-turn steers stashed via the connection's `redirect()`; drained in place (splice) by the
    *  PreToolUse steer hook, or emitted as `steer-undelivered` when the turn ends before injection. */
-  pending: AgentRuntimeUserInput[]
+  pending: AgentRuntimeRedirectInput[]
   /** Fired by the PreToolUse steer hook the moment it injects the drained steers as `additionalContext`.
    *  The connection uses this to arm a `steer-boundary` at the next assistant message so the host can
    *  roll the assistant row (A1a + A2). Bound by the live connection at start; absent ⇒ no roll. */
-  onInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  onInjected?: (inputs: AgentRuntimeRedirectInput[]) => void
   /** Session-scoped cleanup — clears pending + evicts the holder. */
   dispose: () => void
 }

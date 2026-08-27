@@ -15,7 +15,84 @@ import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
-export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
+export enum AiRuntimeCapability {
+  AgentSession = 'agent-session',
+  ChatTurn = 'chat-turn',
+  GenerateText = 'generate-text',
+  Embed = 'embed',
+  Image = 'image'
+}
+
+export enum AgentSessionUsageCaptureOwner {
+  AgentSdk = 'agent-sdk',
+  ProviderCalls = 'provider-calls'
+}
+
+export enum AgentApprovalLifetime {
+  ExecutionBound = 'execution-bound',
+  SessionMessage = 'session-message'
+}
+
+export enum AgentRuntimeMessageAssociation {
+  CurrentTurn = 'current-turn',
+  Stateless = 'stateless'
+}
+
+export enum AgentRuntimeEventType {
+  Chunk = 'chunk',
+  ToolApprovalRequest = 'tool-approval-request',
+  Usage = 'usage',
+  ResumeToken = 'resume-token',
+  TurnComplete = 'turn-complete',
+  SteerUndelivered = 'steer-undelivered',
+  SteerDelivered = 'steer-delivered',
+  CompactionStart = 'compaction-start',
+  CompactionComplete = 'compaction-complete',
+  CompactionError = 'compaction-error',
+  ApiRetry = 'api-retry',
+  ContextUsage = 'context-usage',
+  SupportedCommands = 'supported-commands',
+  BackgroundTasks = 'background-tasks',
+  BackgroundWorkState = 'background-work-state',
+  BackgroundTaskEvent = 'background-task-event',
+  BackgroundFlowChunk = 'background-flow-chunk',
+  AutonomousTurnState = 'autonomous-turn-state',
+  Error = 'error'
+}
+
+export enum AgentRuntimeAutonomousState {
+  Started = 'started',
+  Finished = 'finished'
+}
+
+declare const agentRuntimeSegmentIdBrand: unique symbol
+declare const agentRuntimeRedirectIdBrand: unique symbol
+declare const agentRuntimeConnectionIdBrand: unique symbol
+
+export type AgentRuntimeSegmentId = string & { readonly [agentRuntimeSegmentIdBrand]: true }
+export type AgentRuntimeRedirectId = string & { readonly [agentRuntimeRedirectIdBrand]: true }
+export type AgentRuntimeConnectionId = string & { readonly [agentRuntimeConnectionIdBrand]: true }
+
+export function toAgentRuntimeSegmentId(value: string): AgentRuntimeSegmentId {
+  return value as AgentRuntimeSegmentId
+}
+
+export function toAgentRuntimeRedirectId(value: string): AgentRuntimeRedirectId {
+  return value as AgentRuntimeRedirectId
+}
+
+export function toAgentRuntimeConnectionId(value: string): AgentRuntimeConnectionId {
+  return value as AgentRuntimeConnectionId
+}
+
+export enum AgentRuntimeRedirectReceiptKind {
+  Queued = 'queued',
+  Rejected = 'rejected'
+}
+
+export type AgentRuntimeRedirectReceipt =
+  | { readonly kind: AgentRuntimeRedirectReceiptKind.Queued; readonly redirectId: AgentRuntimeRedirectId }
+  | { readonly kind: AgentRuntimeRedirectReceiptKind.Rejected; readonly redirectId: AgentRuntimeRedirectId }
 
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
@@ -24,7 +101,7 @@ export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text
  */
 export type AgentSessionUsageCapture =
   | {
-      owner: 'agent-sdk'
+      owner: AgentSessionUsageCaptureOwner.AgentSdk
       credentialReceipt: AiUsageCredentialReceipt
       providerId: string
       providerName: string | null
@@ -37,7 +114,7 @@ export type AgentSessionUsageCapture =
         pricingSnapshot: AiUsagePricingSnapshot | null
       }>
     }
-  | { owner: 'provider-calls' }
+  | { owner: AgentSessionUsageCaptureOwner.ProviderCalls }
 
 export interface AiRuntimeDriver {
   readonly type: string
@@ -54,6 +131,7 @@ export interface AgentRuntimeTraceContext {
 }
 
 export interface AgentRuntimeConnectInput {
+  connectionId: AgentRuntimeConnectionId
   sessionId: string
   agentId: string
   modelId: UniqueModelId
@@ -72,10 +150,11 @@ export interface AgentRuntimeConnectInput {
    * before the SDK can issue its next provider request to reserve the continuation correlation;
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
-  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  onSteerInjected?: (delivery: AgentRuntimeSteerDelivery) => void
 }
 
 export interface AgentRuntimeUserInput {
+  segmentId: AgentRuntimeSegmentId
   message: AgentSessionMessageEntity
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
@@ -86,31 +165,46 @@ export interface AgentRuntimeUserInput {
   messageSnapshot?: MessageSnapshot
 }
 
+export interface AgentRuntimeRedirectInput extends AgentRuntimeUserInput {
+  redirectId: AgentRuntimeRedirectId
+}
+
+export interface AgentRuntimeSteerDelivery {
+  readonly redirects: readonly AgentRuntimeRedirectInput[]
+  readonly sourceSegmentId: AgentRuntimeSegmentId
+  readonly successorSegmentId: AgentRuntimeSegmentId
+}
+
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
  * renderer stream: the host can append it to the current turn or persist an independent
  * interaction message when the requesting agent outlives that turn.
  */
-export interface AgentRuntimeToolApprovalRequest {
+interface AgentRuntimeToolApprovalRequestBase {
   approvalId: string
   toolCallId: string
   toolName: string
   input: Record<string, unknown>
-  presentation: 'stream' | 'message'
   providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']
 }
 
+export type AgentRuntimeToolApprovalRequest = AgentRuntimeToolApprovalRequestBase &
+  (
+    | { lifetime: AgentApprovalLifetime.ExecutionBound; connectionId?: AgentRuntimeConnectionId }
+    | { lifetime: AgentApprovalLifetime.SessionMessage; connectionId: AgentRuntimeConnectionId }
+  )
+
 export type AgentRuntimeEvent =
-  | { type: 'chunk'; chunk: UIMessageChunk }
-  | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
+  | { type: AgentRuntimeEventType.Chunk; segmentId: AgentRuntimeSegmentId; chunk: UIMessageChunk }
+  | { type: AgentRuntimeEventType.ToolApprovalRequest; request: AgentRuntimeToolApprovalRequest }
   | {
-      type: 'usage'
+      type: AgentRuntimeEventType.Usage
       invocation: {
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
         model: string
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
-        messageAssociation: 'current-turn' | 'stateless'
+        messageAssociation: AgentRuntimeMessageAssociation
         usage?: {
           inputTokens: number
           outputTokens: number
@@ -127,44 +221,52 @@ export type AgentRuntimeEvent =
         }
       }
     }
-  | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete' }
+  | { type: AgentRuntimeEventType.ResumeToken; token: string }
+  | { type: AgentRuntimeEventType.TurnComplete; segmentId: AgentRuntimeSegmentId }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
-  | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
+  | {
+      type: AgentRuntimeEventType.SteerUndelivered
+      redirectIds: readonly AgentRuntimeRedirectId[]
+      sourceSegmentId: AgentRuntimeSegmentId
+    }
   /** A steer was injected mid-turn (PreToolUse hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn. */
-  | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
-  | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
-  | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
-  | { type: 'compaction-error'; error: string }
+  | ({ type: AgentRuntimeEventType.SteerDelivered } & AgentRuntimeSteerDelivery)
+  | { type: AgentRuntimeEventType.CompactionStart; trigger?: AgentSessionCompactionTrigger }
+  | { type: AgentRuntimeEventType.CompactionComplete; anchor?: AgentSessionCompactionAnchorData }
+  | { type: AgentRuntimeEventType.CompactionError; error: string }
   /** The SDK is backing off before retrying a failed API request (`system/api_retry`). Ephemeral
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
-  | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
-  | { type: 'context-usage'; usage: AgentSessionContextUsage }
+  | { type: AgentRuntimeEventType.ApiRetry; retry: AgentSessionApiRetryInfo }
+  | { type: AgentRuntimeEventType.ContextUsage; usage: AgentSessionContextUsage }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
-  | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
+  | { type: AgentRuntimeEventType.SupportedCommands; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
-  | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
+  | { type: AgentRuntimeEventType.BackgroundTasks; tasks: AgentSessionBackgroundTasks }
   /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
    *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
    *  work have drained. This does not block host-admitted user turns unless a rebuild is required. */
-  | { type: 'background-work-state'; active: boolean }
+  | { type: AgentRuntimeEventType.BackgroundWorkState; active: boolean }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
-  | { type: 'background-task-event'; data: AgentTaskEventPartData }
+  | { type: AgentRuntimeEventType.BackgroundTaskEvent; data: AgentTaskEventPartData }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
-  | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
+  | { type: AgentRuntimeEventType.BackgroundFlowChunk; rootToolCallId: string; chunk: UIMessageChunk }
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
    *  transfers generation ownership and asks the host to open a receive-only transcript turn;
    *  `finished` releases ownership after the SDK result, independently from turn completion. */
-  | { type: 'autonomous-turn-state'; state: 'started' | 'finished' }
-  | { type: 'error'; error: unknown }
+  | {
+      type: AgentRuntimeEventType.AutonomousTurnState
+      state: AgentRuntimeAutonomousState
+      segmentId: AgentRuntimeSegmentId
+    }
+  | { type: AgentRuntimeEventType.Error; segmentId: AgentRuntimeSegmentId; error: unknown }
 
 /**
  * Verdict of {@link AgentRuntimeConnection.reconcile}.
@@ -175,7 +277,13 @@ export type AgentRuntimeEvent =
  * - `invalid`: the desired config can no longer be derived (agent/session/model deleted) — close.
  * - `failed`: a live patch failed — fail closed; the connection may be enforcing the OLD policy.
  */
-export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
+export enum AgentRuntimeReconcileResult {
+  Current = 'current',
+  Patched = 'patched',
+  Rebuild = 'rebuild',
+  Invalid = 'invalid',
+  Failed = 'failed'
+}
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
@@ -192,7 +300,7 @@ export interface AgentRuntimeConnection {
    * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
    * host always queues.
    */
-  redirect?(input: AgentRuntimeUserInput): boolean
+  redirect?(input: AgentRuntimeRedirectInput): AgentRuntimeRedirectReceipt
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for

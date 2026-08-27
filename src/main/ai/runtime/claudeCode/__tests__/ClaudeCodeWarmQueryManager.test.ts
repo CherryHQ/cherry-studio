@@ -2,6 +2,8 @@ import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/life
 import { deriveRootSpanId } from '@shared/data/types/trace'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentSessionUsageCaptureOwner } from '../../types'
+
 const {
   startupMock,
   buildWarmRequestMock,
@@ -321,7 +323,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
       options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
       credentialsFingerprint: 'set-1',
       usageCapture: {
-        owner: 'agent-sdk',
+        owner: AgentSessionUsageCaptureOwner.AgentSdk,
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
         providerId: 'anthropic',
         providerName: 'Anthropic',
@@ -336,7 +338,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
       options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-b' } } as any,
       credentialsFingerprint: 'set-1',
       usageCapture: {
-        owner: 'agent-sdk',
+        owner: AgentSessionUsageCaptureOwner.AgentSdk,
         credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'key-***' },
         providerId: 'anthropic',
         providerName: 'Anthropic',

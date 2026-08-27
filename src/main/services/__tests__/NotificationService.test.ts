@@ -2,6 +2,7 @@ import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
+import { ConversationKind } from '@shared/ai/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -79,7 +80,7 @@ const mainWindowInfo = (overrides: Partial<WindowInfo> = {}): WindowInfo => ({
 
 function emitCompletion(overrides: Partial<ConversationCompletedEvent> = {}): void {
   mocks.completionListener?.({
-    topicId: 'topic-1',
+    conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
     turnId: 'turn-1',
     completedAt: 100,
     ...overrides
@@ -89,7 +90,7 @@ function emitCompletion(overrides: Partial<ConversationCompletedEvent> = {}): vo
 function emitApproval(overrides: Partial<ApprovalRequestedEvent> = {}, source: 'stream' | 'agent' = 'stream'): void {
   const listener = source === 'stream' ? mocks.streamApprovalListener : mocks.agentApprovalListener
   listener?.({
-    topicId: 'topic-1',
+    conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
     approvalId: 'approval-1',
     requestedAt: 200,
     ...overrides
@@ -111,7 +112,7 @@ describe('NotificationService', () => {
     mocks.topicGetById.mockReturnValue({ name: 'Research notes' })
     mocks.agentSessionGetById.mockReturnValue({ name: 'Refactor project' })
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'AiStreamManager') {
+      if (name === 'ConversationRuntimeService') {
         return {
           onApprovalRequested: (listener: (event: ApprovalRequestedEvent) => void) => {
             mocks.streamApprovalListener = listener
@@ -123,7 +124,7 @@ describe('NotificationService', () => {
           }
         }
       }
-      if (name === 'AgentSessionRuntimeService') {
+      if (name === 'AgentConnectionManager') {
         return {
           onApprovalRequested: (listener: (event: ApprovalRequestedEvent) => void) => {
             mocks.agentApprovalListener = listener
@@ -205,7 +206,7 @@ describe('NotificationService', () => {
 
     emitApproval(
       {
-        topicId: 'agent-session:session-1',
+        conversation: { kind: ConversationKind.Agent, id: 'session-1' },
         approvalId: 'approval-agent'
       },
       'agent'
@@ -233,7 +234,7 @@ describe('NotificationService', () => {
       throw new Error('missing')
     })
 
-    emitCompletion({ topicId: 'agent-session:missing' })
+    emitCompletion({ conversation: { kind: ConversationKind.Agent, id: 'missing' } })
 
     expect(mocks.electronNotifications[0].options).toEqual({ title: 'Agent task complete', body: 'New task' })
     expect(mocks.loggerWarn).toHaveBeenCalledWith(

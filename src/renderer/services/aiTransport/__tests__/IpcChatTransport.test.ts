@@ -1,6 +1,16 @@
+import {
+  ConversationAttachStatus,
+  ConversationKind,
+  ConversationOpenMode,
+  ConversationOpenTrigger,
+  type ConversationRef,
+  ConversationStreamTerminalStatus,
+  toConversationExecutionId,
+  toConversationTurnId
+} from '@shared/ai/conversation'
+import type { StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,34 +39,21 @@ interface MockAiApi {
   streamAttach: ReturnType<typeof vi.fn>
   streamAbort: ReturnType<typeof vi.fn>
   streamDetach: ReturnType<typeof vi.fn>
-  onStreamChunk: ReturnType<typeof vi.fn>
   onStreamDone: ReturnType<typeof vi.fn>
   onStreamError: ReturnType<typeof vi.fn>
 }
 
 function createMockAiApi() {
   const listeners = {
-    chunk: [] as Array<(data: { topicId: string; executionId?: UniqueModelId; chunk: UIMessageChunk }) => void>,
-    done: [] as Array<
-      (data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean; status?: string }) => void
-    >,
-    error: [] as Array<
-      (data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean; error: SerializedError }) => void
-    >
+    done: [] as Array<(data: StreamDonePayload) => void>,
+    error: [] as Array<(data: StreamErrorPayload) => void>
   }
 
   const mockApi: MockAiApi = {
-    streamOpen: vi.fn().mockResolvedValue({ mode: 'started' }),
-    streamAttach: vi.fn().mockResolvedValue({ status: 'not-found' }),
+    streamOpen: vi.fn().mockResolvedValue({ mode: ConversationOpenMode.Started }),
+    streamAttach: vi.fn().mockResolvedValue({ status: ConversationAttachStatus.NotFound }),
     streamAbort: vi.fn().mockResolvedValue(undefined),
     streamDetach: vi.fn().mockResolvedValue(undefined),
-    onStreamChunk: vi.fn((cb) => {
-      listeners.chunk.push(cb)
-      return () => {
-        const i = listeners.chunk.indexOf(cb)
-        if (i >= 0) listeners.chunk.splice(i, 1)
-      }
-    }),
     onStreamDone: vi.fn((cb) => {
       listeners.done.push(cb)
       return () => {
@@ -90,8 +87,6 @@ function createMockAiApi() {
   }
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream.chunk':
-        return mockApi.onStreamChunk(cb)
       case 'ai.stream.done':
         return mockApi.onStreamDone(cb)
       case 'ai.stream.error':
@@ -106,15 +101,29 @@ function createMockAiApi() {
     listeners,
     request,
     on,
-    emitChunk: (topicId: string, chunk: UIMessageChunk, executionId?: UniqueModelId) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, chunk })
+    emitDone: (conversation: ConversationRef, turnTerminal = true) => {
+      for (const cb of [...listeners.done])
+        cb({
+          conversation,
+          turnId: toConversationTurnId('turn-1'),
+          executionId: toConversationExecutionId('execution-1'),
+          modelId: 'provider::model' as UniqueModelId,
+          outputNodeId: 'assistant-1',
+          status: ConversationStreamTerminalStatus.Done,
+          turnTerminal
+        })
     },
-    emitDone: (topicId: string, executionId?: UniqueModelId, isTopicDone?: boolean) => {
-      for (const cb of [...listeners.done]) cb({ topicId, executionId, isTopicDone, status: 'success' })
-    },
-    emitError: (topicId: string, message: string, executionId?: UniqueModelId, isTopicDone?: boolean) => {
+    emitError: (conversation: ConversationRef, message: string, turnTerminal = true) => {
       for (const cb of [...listeners.error]) {
-        cb({ topicId, executionId, isTopicDone, error: { name: 'Error', message, stack: null } })
+        cb({
+          conversation,
+          turnId: toConversationTurnId('turn-1'),
+          executionId: toConversationExecutionId('execution-1'),
+          modelId: 'provider::model' as UniqueModelId,
+          outputNodeId: 'assistant-1',
+          turnTerminal,
+          error: { name: 'Error', message, stack: null }
+        })
       }
     }
   }
@@ -134,8 +143,9 @@ describe('IpcChatTransport', () => {
   })
 
   const topicId = 'topic-1'
+  const conversation = { kind: ConversationKind.Chat, id: topicId } as const
   const baseOptions = {
-    trigger: 'submit-message' as const,
+    trigger: ConversationOpenTrigger.SubmitMessage as const,
     chatId: topicId,
     messageId: undefined,
     messages: [] as CherryUIMessage[],
@@ -148,78 +158,49 @@ describe('IpcChatTransport', () => {
     expect(mock.mockApi.streamOpen).toHaveBeenCalledOnce()
     expect(mock.mockApi.streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
-        topicId,
-        trigger: 'submit-message'
+        conversation,
+        trigger: ConversationOpenTrigger.SubmitMessage
       })
     )
 
     await stream.cancel()
 
-    expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId })
-    expect(mock.listeners.chunk).toHaveLength(0)
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ conversation })
     expect(mock.listeners.done).toHaveLength(0)
     expect(mock.listeners.error).toHaveLength(0)
   })
 
-  it('filters chunks by topicId', async () => {
+  it('filters terminal events by exact Conversation identity', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    // Chunk for different topic — ignored
-    mock.emitChunk('other-topic', { type: 'text-start', id: 'x' } as UIMessageChunk)
+    mock.emitError({ kind: ConversationKind.Chat, id: 'other-topic' }, 'wrong conversation')
+    mock.emitDone(conversation)
 
-    // Chunks for our topic
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
-    mock.emitChunk(topicId, { type: 'text-delta', id: 't1', delta: 'Hello' } as UIMessageChunk)
-    mock.emitDone(topicId)
-
-    const chunks: UIMessageChunk[] = []
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-    }
-
-    expect(chunks).toHaveLength(2)
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
   })
 
   it('closes stream on done', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
-    mock.emitDone(topicId)
+    mock.emitDone(conversation)
 
-    const { done: firstDone } = await reader.read()
-    expect(firstDone).toBe(false)
-
-    const { done: secondDone } = await reader.read()
-    expect(secondDone).toBe(true)
-  })
-
-  it('primary stream ignores execution-scoped chunks', async () => {
-    const stream = await transport.sendMessages(baseOptions)
-    const reader = stream.getReader()
-
-    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' } as UIMessageChunk, 'provider-a::model-a')
-    mock.emitDone(topicId, undefined, true)
-
-    const { done } = await reader.read()
-    expect(done).toBe(true)
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
   })
 
   it('errors stream on error event', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    mock.emitError(topicId, 'Something went wrong')
+    mock.emitError(conversation, 'Something went wrong')
 
     await expect(reader.read()).rejects.toThrow('Something went wrong')
   })
 
   it('closes the stream when dispatch is blocked', async () => {
     mock.mockApi.streamOpen.mockResolvedValue({
-      mode: 'blocked',
+      mode: ConversationOpenMode.Blocked,
       reason: 'agent-session-workspace',
       message: 'Workspace path for session session-1 is not accessible: /missing'
     })
@@ -238,7 +219,6 @@ describe('IpcChatTransport', () => {
     })
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
     abortController.abort()
 
     const chunks: UIMessageChunk[] = []
@@ -248,8 +228,8 @@ describe('IpcChatTransport', () => {
       chunks.push(value)
     }
 
-    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
-    expect(chunks).toHaveLength(1)
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ conversation })
+    expect(chunks).toHaveLength(0)
   })
 
   it('handles already-aborted signal', async () => {
@@ -264,21 +244,19 @@ describe('IpcChatTransport', () => {
 
     const { done } = await reader.read()
     expect(done).toBe(true)
-    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ conversation })
   })
 
   it('cleans up IPC listeners after done', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    expect(mock.listeners.chunk).toHaveLength(1)
     expect(mock.listeners.done).toHaveLength(1)
     expect(mock.listeners.error).toHaveLength(1)
 
-    mock.emitDone(topicId)
+    mock.emitDone(conversation)
     await reader.read()
 
-    expect(mock.listeners.chunk).toHaveLength(0)
     expect(mock.listeners.done).toHaveLength(0)
     expect(mock.listeners.error).toHaveLength(0)
   })
@@ -286,11 +264,15 @@ describe('IpcChatTransport', () => {
   it('reconnectToStream returns null when not found', async () => {
     const result = await transport.reconnectToStream({ chatId: topicId })
     expect(result).toBeNull()
-    expect(mock.mockApi.streamAttach).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamAttach).toHaveBeenCalledWith({ conversation, cursors: [] })
   })
 
   it('reconnectToStream returns stream when attached', async () => {
-    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks: [] })
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: ConversationAttachStatus.Live,
+      turnId: 'turn-1',
+      executions: []
+    })
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)
@@ -298,7 +280,12 @@ describe('IpcChatTransport', () => {
   })
 
   it('reconnectToStream returns closed stream when done', async () => {
-    mock.mockApi.streamAttach.mockResolvedValue({ status: 'done', finalMessage: {} })
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: ConversationAttachStatus.Settled,
+      turnId: 'turn-1',
+      executions: [],
+      terminal: { status: ConversationStreamTerminalStatus.Done }
+    })
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)

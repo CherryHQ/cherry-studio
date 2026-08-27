@@ -16,18 +16,12 @@ import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
-  notifyDataApiDataChangeMock: vi.fn()
-}))
-
-vi.mock('@data/dataApiDataChange', () => ({
-  notifyDataApiDataChange: notifyDataApiDataChangeMock
-}))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -137,7 +131,7 @@ describe('MessageService', () => {
 
   beforeEach(async () => {
     mockMainLoggerService.warn.mockClear()
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
     const [providerAKey, providerBKey, modelAKey, modelBKey] = generateOrderKeySequence(4)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'provider-a', name: 'Provider A', orderKey: providerAKey },
@@ -479,6 +473,36 @@ describe('MessageService', () => {
 
       const pendingIds = messageService.findPendingAssistantMessageIds()
       expect(pendingIds).toEqual(['m-pending'])
+    })
+
+    it('reconciles the exact crash-orphaned Chat skeleton with its terminal snapshot', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-crash', activeNodeId: 'm-crash', orderKey: 'b1' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-crash', [
+          {
+            id: 'm-crash',
+            parentId: null,
+            topicId: 'topic-crash',
+            role: 'assistant',
+            data: mainText('partial'),
+            status: 'pending',
+            siblingsGroupId: 1,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
+
+      expect(messageService.findCrashOrphanedAssistantMessages()).toEqual([
+        { id: 'm-crash', topicId: 'topic-crash', data: mainText('partial') }
+      ])
+      messageService.resolveCrashOrphanedMessages([{ id: 'm-crash', data: mainText('terminalized') }])
+
+      expect(messageService.getById('m-crash')).toMatchObject({
+        status: 'error',
+        data: mainText('terminalized')
+      })
+      expect(messageService.findCrashOrphanedAssistantMessages()).toEqual([])
     })
   })
 
@@ -2032,7 +2056,7 @@ describe('MessageService', () => {
 
     it('clearTopicMessages removes every content message, keeps the virtual root, and clears activeNodeId', async () => {
       await seedMultiModelTree() // root + m-root/m-a1/m-a2/m-follow, activeNodeId='m-follow'
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       const result = messageService.clearTopicMessages('topic-1')
       expect(result.deletedIds.slice().sort()).toEqual(['m-a1', 'm-a2', 'm-follow', 'm-root'])
@@ -2041,7 +2065,7 @@ describe('MessageService', () => {
       expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
       expect(topicRow.activeNodeId).toBeNull()
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
         {
           endpoint: '/topics/:topicId/messages',
           kind: 'membership',
@@ -2053,7 +2077,11 @@ describe('MessageService', () => {
           routeParams: { topicId: 'topic-1' },
           entityIds: result.deletedIds
         },
-        { endpoint: '/messages/:id', entityIds: result.deletedIds },
+        ...result.deletedIds.map((id) => ({
+          endpoint: '/messages/:id' as const,
+          routeParams: { id },
+          entityIds: [id]
+        })),
         { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] },
         { endpoint: '/topics/:id', routeParams: { id: 'topic-1' }, entityIds: ['topic-1'] },
         { endpoint: '/topics/latest' }
@@ -2063,14 +2091,14 @@ describe('MessageService', () => {
     it('clearTopicMessages on an empty topic is a no-op that keeps the root', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-empty', activeNodeId: null, orderKey: 'a0' })
       messageService.createRootMessageTx(dbh.db, 'topic-empty')
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       const result = messageService.clearTopicMessages('topic-empty')
       expect(result.deletedIds).toEqual([])
       const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-empty'))
       expect(rows).toHaveLength(1)
       expect(rows[0].role).toBe('root')
-      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      expect(publishedEffects).not.toHaveBeenCalled()
     })
 
     it('cascade-deleting the active first-turn subtree clears activeNodeId (never points it at the root)', async () => {
@@ -3186,13 +3214,14 @@ describe('MessageService', () => {
     it('publishes the message read-model change after every committed approval decision', async () => {
       await seedAnchorWithTwoApprovals()
       const getMessageProjectionNotifications = () =>
-        notifyDataApiDataChangeMock.mock.calls
-          .map(([effects]) => effects)
-          .filter(([effect]) => effect?.endpoint === '/topics/:topicId/messages')
+        publishedEffects.mock.calls
+          .map(([effects]) => effects.filter((effect) => effect.endpoint === '/topics/:topicId/messages'))
+          .filter((effects) => effects.length > 0)
       const expectedNotification = [
         {
           endpoint: '/topics/:topicId/messages',
           kind: 'projection',
+          routeParams: { topicId: 'topic-ap' },
           entityIds: ['anchor']
         }
       ]

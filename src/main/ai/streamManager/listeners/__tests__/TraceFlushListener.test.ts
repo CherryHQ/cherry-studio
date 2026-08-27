@@ -1,3 +1,4 @@
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -21,28 +22,39 @@ describe('TraceFlushListener', () => {
     mocks.saveSpans.mockResolvedValue(undefined)
   })
 
-  it('flushes the topic trace cache when the topic turn is done', async () => {
+  it('flushes trace spans for completed chat topics', async () => {
     const listener = new TraceFlushListener('topic-1')
 
-    await listener.onDone({ status: 'success', isTopicDone: true })
+    await listener.onTopicQuiesced({ status: ConversationOutcomeKind.Success })
 
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
   })
 
-  it('waits for the topic-level terminal event before flushing', async () => {
-    const listener = new TraceFlushListener('topic-1')
+  it('flushes trace spans for completed agent-session topics', async () => {
+    const listener = new TraceFlushListener('session-1')
 
-    await listener.onDone({ status: 'success', isTopicDone: false })
+    await listener.onTopicQuiesced({ status: ConversationOutcomeKind.Success })
 
-    expect(mocks.saveSpans).not.toHaveBeenCalled()
+    expect(mocks.saveSpans).toHaveBeenCalledWith('session-1')
   })
 
-  it('does not throw when trace persistence fails', async () => {
+  it('flushes when the cleanup port is invoked for a paused topic', async () => {
+    const listener = new TraceFlushListener('topic-1')
+
+    await listener.onTopicQuiesced({ status: ConversationOutcomeKind.Paused })
+
+    expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
+  })
+
+  it('does not let trace flush failure block terminal completion', async () => {
     mocks.saveSpans.mockRejectedValueOnce(new Error('trace write failed'))
     const listener = new TraceFlushListener('topic-1')
 
     await expect(
-      listener.onError({ status: 'error', isTopicDone: true, error: { name: 'Error', message: 'boom', stack: null } })
+      listener.onTopicQuiesced({
+        status: ConversationOutcomeKind.Error,
+        error: { name: 'Error', message: 'boom', stack: null }
+      })
     ).resolves.toBe(undefined)
 
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')

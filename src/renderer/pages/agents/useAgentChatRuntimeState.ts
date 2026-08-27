@@ -1,7 +1,4 @@
-import {
-  createOverlayRefreshHandoff,
-  useMessageStreamingLayers
-} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import { useMessageStreamingLayers } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -12,20 +9,27 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/composer/
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import {
   type ConversationHistoryAdapter,
+  type ReservedMessageSeedOptions,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import {
+  ConversationInputTarget,
+  ConversationKind,
+  ConversationOpenTrigger,
+  conversationRefKey
+} from '@shared/ai/conversation'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -34,6 +38,8 @@ type AskUserQuestionApprovalPart = CherryMessagePart & {
   input?: unknown
   output?: unknown
 }
+
+const EMPTY_OPTIMISTIC_INPUTS: Record<string, unknown> = {}
 
 export type AgentSendOptions = AgentComposerSendOptions
 
@@ -128,14 +134,15 @@ export function useAgentChatRuntimeState({
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
-  const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
+  const conversation = useMemo(() => ({ kind: ConversationKind.Agent, id: sessionId }) as const, [sessionId])
+  const scopeKey = conversationRefKey(conversation)
   const {
     messages: uiMessages,
     isLoading,
     hasOlder,
     loadOlder,
     refresh,
-    seedReservedMessages,
+    seedReservedMessages: seedSessionMessages,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId, {
     enabled: sessionMessagesEnabled,
@@ -144,10 +151,27 @@ export function useAgentChatRuntimeState({
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return
-    void seedReservedMessages(reservedMessages)
-  }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
+    void seedSessionMessages(reservedMessages)
+  }, [reservedMessages, seedSessionMessages, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop } = useChatWithHistory(conversation, uiMessages, refresh)
+  const {
+    overlay,
+    liveAssistants,
+    optimisticMessages,
+    projectedExecutions,
+    seedReservations: seedProjectionReservations
+  } = useExecutionOverlay(conversation, activeExecutions, uiMessages, {
+    durability: ConversationOverlayDurability.Durable,
+    refreshOnQuiesced: refresh
+  })
+  const seedReservedMessages = useCallback(
+    async (messages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
+      seedProjectionReservations(messages, options.activeExecutions ?? [], options.activeNodeDecision, null)
+      await seedSessionMessages(messages)
+    },
+    [seedProjectionReservations, seedSessionMessages]
+  )
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -156,20 +180,39 @@ export function useAgentChatRuntimeState({
     }),
     [refresh, seedReservedMessages]
   )
-  const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
+  const ensureConversation = useCallback(
+    () => ({ conversation: { kind: ConversationKind.Agent, id: sessionId } as const }),
+    [sessionId]
+  )
   const buildStreamRequest = useCallback(
-    (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
-      trigger: 'submit-message',
-      topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input),
-      reasoningEffort: input.options?.body?.reasoningEffort,
-      serviceTier: input.options?.body?.serviceTier,
-      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
-    }),
+    (
+      input: AgentTurnInput,
+      target: { conversation: { kind: ConversationKind.Agent; id: string } }
+    ): AiStreamOpenRequest => {
+      const body = input.options?.body
+      const actorInput =
+        body?.inputTarget === ConversationInputTarget.NextTurn
+          ? { inputTarget: body.inputTarget, inboxPresentation: body.inboxPresentation }
+          : body?.inputTarget === ConversationInputTarget.NextStep
+            ? { inputTarget: body.inputTarget }
+            : {}
+      return {
+        trigger: ConversationOpenTrigger.SubmitMessage,
+        conversation: target.conversation,
+        userMessageParts: getAgentTurnParts(input),
+        reasoningEffort: body?.reasoningEffort,
+        serviceTier: body?.serviceTier,
+        ...actorInput,
+        ...(body?.fastMode === true ? { fastMode: true } : {})
+      }
+    },
     []
   )
-  const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
-    scopeKey: sessionTopicId,
+  const { send } = useConversationTurnController<
+    AgentTurnInput,
+    { conversation: { kind: ConversationKind.Agent; id: string } }
+  >({
+    scopeKey,
     historyAdapter,
     ensureConversation,
     buildStreamRequest
@@ -189,36 +232,31 @@ export function useAgentChatRuntimeState({
     [deleteSessionMessage, setMessages]
   )
 
-  const {
-    overlay,
-    liveAssistants,
-    reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
     messages: uiMessages,
     overlay,
-    executions: activeExecutions,
+    executions: projectedExecutions,
     liveAssistants
   })
-  const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
-    Record<string, unknown>
-  >({})
+  const [optimisticInputState, setOptimisticInputState] = useState<{
+    topicId: string
+    inputs: Record<string, unknown>
+  }>(() => ({ topicId: scopeKey, inputs: {} }))
+  const optimisticAskUserQuestionInputsByToolCallId =
+    optimisticInputState.topicId === scopeKey ? optimisticInputState.inputs : EMPTY_OPTIMISTIC_INPUTS
+  const updateOptimisticInputs = useCallback(
+    (update: (current: Record<string, unknown>) => Record<string, unknown>) => {
+      setOptimisticInputState((current) => {
+        const inputs = current.topicId === scopeKey ? current.inputs : {}
+        const next = update(inputs)
+        return current.topicId === scopeKey && next === inputs ? current : { topicId: scopeKey, inputs: next }
+      })
+    },
+    [scopeKey]
+  )
 
-  // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
-
-  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
-  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
-  // setState bail-out and force a re-render on every tab switch.
-  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
   useEffect(() => {
-    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
-    optimisticInputsResetTopicIdRef.current = sessionTopicId
-    setOptimisticAskUserQuestionInputsByToolCallId({})
-  }, [sessionTopicId])
-
-  useEffect(() => {
-    setOptimisticAskUserQuestionInputsByToolCallId((current) => {
+    updateOptimisticInputs((current) => {
       let next = current
       let changed = false
       for (const toolCallId of Object.keys(current)) {
@@ -232,18 +270,24 @@ export function useAgentChatRuntimeState({
       }
       return changed ? next : current
     })
-  }, [partsByMessageId])
+  }, [partsByMessageId, updateOptimisticInputs])
 
-  const removeOptimisticAskUserQuestionInput = useCallback((toolCallId: string) => {
-    setOptimisticAskUserQuestionInputsByToolCallId((current) => {
-      if (!(toolCallId in current)) return current
-      const next = { ...current }
-      delete next[toolCallId]
-      return next
-    })
-  }, [])
+  const removeOptimisticAskUserQuestionInput = useCallback(
+    (toolCallId: string) => {
+      updateOptimisticInputs((current) => {
+        if (!(toolCallId in current)) return current
+        const next = { ...current }
+        delete next[toolCallId]
+        return next
+      })
+    },
+    [updateOptimisticInputs]
+  )
 
-  const displayMessages = useMemo(() => mergeMessagesById(uiMessages, liveAssistants), [liveAssistants, uiMessages])
+  const displayMessages = useMemo(
+    () => mergeMessagesById(uiMessages, optimisticMessages, liveAssistants),
+    [liveAssistants, optimisticMessages, uiMessages]
+  )
 
   const respondToolApproval = useCallback(
     async (input: MessageToolApprovalInput) => {
@@ -252,7 +296,7 @@ export function useAgentChatRuntimeState({
       const optimisticToolCallId = isAskUserQuestionApprovalResponse(input) ? match.toolCallId : undefined
 
       if (optimisticToolCallId) {
-        setOptimisticAskUserQuestionInputsByToolCallId((current) => ({
+        updateOptimisticInputs((current) => ({
           ...current,
           [optimisticToolCallId]: input.updatedInput
         }))
@@ -265,7 +309,7 @@ export function useAgentChatRuntimeState({
           approved,
           reason,
           updatedInput,
-          topicId: sessionTopicId,
+          conversation,
           anchorId: match.messageId
         })
       } catch (error) {
@@ -279,14 +323,14 @@ export function useAgentChatRuntimeState({
       }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [conversation, refresh, removeOptimisticAskUserQuestionInput, updateOptimisticInputs]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval
   })
-  const { isPending } = useTopicStreamStatus(sessionTopicId)
+  const { conversationBusy } = useConversationStreamStatus(conversation)
 
   const composerContext = useMemo<ComposerContextValue>(
     () => ({
@@ -304,7 +348,7 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
-    isPending,
+    isPending: conversationBusy,
     stop,
     sendMessage,
     deleteMessage,

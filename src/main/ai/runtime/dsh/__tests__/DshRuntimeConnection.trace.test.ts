@@ -1,7 +1,15 @@
 import { trace } from '@opentelemetry/api'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeTraceContext } from '../../types'
+import {
+  AgentApprovalLifetime,
+  type AgentRuntimeConnectInput,
+  AgentRuntimeEventType,
+  type AgentRuntimeTraceContext,
+  type AgentRuntimeUserInput,
+  toAgentRuntimeSegmentId
+} from '../../types'
 
 interface FakeSpan {
   name: string
@@ -163,6 +171,26 @@ const connectInput = {
   modelId: 'deepseek::deepseek-chat',
   trace: traceContext
 } as unknown as AgentRuntimeConnectInput
+const segmentId = toAgentRuntimeSegmentId('segment-1')
+
+function userInput(): AgentRuntimeUserInput {
+  const now = new Date().toISOString()
+  const message = {
+    id: 'user-1',
+    sessionId: 'session-1',
+    role: 'user',
+    data: { parts: [{ type: 'text', text: 'hello' }] },
+    status: 'success',
+    modelId: null,
+    messageSnapshot: null,
+    stats: null,
+    searchableText: 'hello',
+    runtimeResumeToken: null,
+    createdAt: now,
+    updatedAt: now
+  } satisfies AgentSessionMessageEntity
+  return { segmentId, message }
+}
 
 /** Yield until the notification pump has drained what was pushed. */
 const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -238,15 +266,21 @@ describe('DshRuntimeConnection tracing', () => {
       const connection = await new DshRuntimeConnection(connectInput).start()
       const events = connection.events[Symbol.asyncIterator]()
       await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token' }, done: false })
-      if (state === 'active') await connection.send({ message: {} } as never)
+      if (state === 'active') await connection.send(userInput())
 
       subscription.fail(new Error('notification transport died'))
       await drain()
 
-      await expect(events.next()).resolves.toMatchObject({
-        value: { type: 'error', error: expect.objectContaining({ message: 'notification transport died' }) },
-        done: false
-      })
+      if (state === 'active') {
+        await expect(events.next()).resolves.toMatchObject({
+          value: {
+            type: 'error',
+            segmentId,
+            error: expect.objectContaining({ message: 'notification transport died' })
+          },
+          done: false
+        })
+      }
       await expect(events.next()).resolves.toEqual({ value: undefined, done: true })
       await connection.close()
     }
@@ -256,17 +290,17 @@ describe('DshRuntimeConnection tracing', () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const events = connection.events[Symbol.asyncIterator]()
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
-    await connection.send({ message: {} } as never)
+    await connection.send(userInput())
 
     const { emit } = vi.mocked(DshBridgeServer).mock.calls[0][0]
     emit({
-      type: 'tool-approval-request',
+      type: AgentRuntimeEventType.ToolApprovalRequest,
       request: {
         approvalId: 'approval-1',
         toolCallId: 'call-1',
         toolName: 'exit_plan_mode',
         input: { plan: '# Ship it' },
-        presentation: 'stream'
+        lifetime: AgentApprovalLifetime.ExecutionBound
       }
     })
 
