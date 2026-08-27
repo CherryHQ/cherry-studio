@@ -55,6 +55,10 @@ SPREADSHEET_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 RELATIONSHIP_ATTR_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PACKAGE_RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
+# ISO 29500 Strict binds the same elements to a second namespace family. Every lookup below matches
+# the Transitional URIs above literally, so a Strict package is out of scope — see reject_strict_ooxml.
+STRICT_NS_PREFIX = "http://purl.oclc.org/ooxml/"
+
 A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
 
 CONTENT_TYPES_PART = "[Content_Types].xml"
@@ -75,6 +79,24 @@ MAX_ROW_NUMBER = 1_048_576
 def fail(message: str) -> "sys.NoReturn":
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def reject_strict_ooxml(namespace: str, part: str) -> None:
+    """Refuse an ISO 29500 Strict package by name rather than by its symptom.
+
+    Matching both families would assert the two are interchangeable, which they are not — attribute
+    value spaces and date representations differ — and it would buy nothing, since openpyxl and
+    python-docx, the readers this skill pairs with, cannot open Strict either. Only the diagnosis is
+    worth fixing. Without this a Strict workbook reports having no worksheets at all, and a Strict
+    paragraph is refused for "containing <w:r>": both send the caller searching the wrong file for
+    the wrong problem.
+    """
+    if namespace.startswith(STRICT_NS_PREFIX):
+        fail(
+            f"{part} uses the ISO 29500 Strict namespace ({namespace}); this script reads Transitional "
+            f"OOXML only, which is what Excel and Word write by default. Re-save the file in the "
+            f'default format (not "Strict Open XML"), then retry.'
+        )
 
 
 @contextlib.contextmanager
@@ -266,6 +288,8 @@ def resolve_rel_target(target: str) -> str:
 
 def resolve_worksheet_part(archive: zipfile.ZipFile, sheet_name: str) -> str:
     workbook = ET.fromstring(read_xml_part(archive, "xl/workbook.xml"))
+    root_namespace = workbook.tag[1:].split("}", 1)[0] if workbook.tag.startswith("{") else ""
+    reject_strict_ooxml(root_namespace, WORKBOOK_PART)
     relationship_id = None
     for sheet in workbook.iter(f"{{{SPREADSHEET_NS}}}sheet"):
         if sheet.get("name") == sheet_name:
@@ -698,6 +722,7 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         fail("docx edits require a non-empty 'replacements' array")
 
     doc = minidom.parseString(read_xml_part(archive, "word/document.xml"))
+    reject_strict_ooxml(resolve_namespace(doc.documentElement), "word/document.xml")
     body = first_child(doc.documentElement, "body")
     if body is None:
         fail("word/document.xml has no body element")
