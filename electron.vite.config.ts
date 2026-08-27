@@ -11,6 +11,7 @@ import { parse } from 'yaml'
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
+import { patchedVendorGuardPlugin } from './scripts/verifyPatchedVendor'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 
@@ -62,7 +63,7 @@ export const isMainExternalModule = (id: string) => {
 
 export default defineConfig({
   main: {
-    plugins: [chunkExportGuardPlugin(), ...visualizerPlugin('main')],
+    plugins: [chunkExportGuardPlugin(), patchedVendorGuardPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),

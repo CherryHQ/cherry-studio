@@ -13,7 +13,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MessageItem from '../frame/MessageFrame'
 import {
   useMessageListActions,
-  useMessageListSelection,
+  useMessageSelectionMode,
   useMessageListUiSelectors,
   useMessageRenderConfig
 } from '../MessageListProvider'
@@ -66,14 +66,14 @@ const MessageGroup = ({
   // Hooks
   const actions = useMessageListActions()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
-  const selection = useMessageListSelection()
+  const selectionMode = useMessageSelectionMode()
   const messageUi = useMessageListUiSelectors()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
   const currentTabId = useCurrentTabId()
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
-  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
+  const isMultiSelectMode = selectionMode?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
     [messageUi]

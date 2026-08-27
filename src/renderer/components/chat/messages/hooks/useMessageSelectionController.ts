@@ -15,6 +15,8 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+import { MessageSelectionStore } from '@renderer/components/chat/messages/selection/MessageSelectionStore'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useMessageSelectionController')
@@ -30,6 +32,8 @@ interface UseMessageSelectionControllerParams {
 
 interface MessageSelectionController {
   selection: MessageListSelectionState
+  /** Per-message subscription mirror of `selection.selectedMessageIds` (#19209). */
+  selectionStore: MessageSelectionStore
   actions: Pick<
     MessageListActions,
     | 'selectMessage'
@@ -55,6 +59,18 @@ export function useMessageSelectionController({
   latestExportDataRef.current = { messages, partsByMessageId, copyRichContent }
 
   const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
+
+  // Per-message subscription mirror: the controller's cached state stays the
+  // source of truth; the store fans updates out to id-level subscribers so one
+  // toggle does not re-render every frame (#19209).
+  const storeRef = useRef<MessageSelectionStore | null>(null)
+  if (storeRef.current === null) storeRef.current = new MessageSelectionStore()
+  const selectionStore = storeRef.current
+  const selectedIdsRef = useRef(selectedIds)
+  selectedIdsRef.current = selectedIds
+  useEffect(() => {
+    selectionStore.replace(selectedIds)
+  }, [selectedIds, selectionStore])
 
   const toggleMultiSelectMode = useCallback(
     (enabled: boolean) => {
@@ -82,12 +98,12 @@ export function useMessageSelectionController({
     [setSelectedMessageIds]
   )
 
-  const resolveMessageIds = useCallback(
-    (messageIds?: readonly string[]) => {
-      return messageIds?.length ? [...messageIds] : selectedIds
-    },
-    [selectedIds]
-  )
+  // Reads the current selection through a ref: export/delete callbacks keep a
+  // stable identity while the selection changes, so the actions context stops
+  // invalidating on every toggle (#19209).
+  const resolveMessageIds = useCallback((messageIds?: readonly string[]) => {
+    return messageIds?.length ? [...messageIds] : selectedIdsRef.current
+  }, [])
 
   const ensureSelection = useCallback(
     (messageIds?: readonly string[]) => {
@@ -226,5 +242,5 @@ export function useMessageSelectionController({
     ]
   )
 
-  return useMemo(() => ({ selection, actions }), [actions, selection])
+  return useMemo(() => ({ selection, selectionStore, actions }), [actions, selection, selectionStore])
 }

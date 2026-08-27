@@ -1,7 +1,8 @@
 import type { Context, ReactNode } from 'react'
-import { createContext, use, useMemo } from 'react'
+import { useCallback, createContext, use, useMemo, useSyncExternalStore } from 'react'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
+import type { MessageSelectionStore } from '@renderer/components/chat/messages/selection/MessageSelectionStore'
 import type {
   MessageListActions,
   MessageListItem,
@@ -80,11 +81,24 @@ const MessageListActionsContext = createContext<MessageListActions | null>(null)
 const MessageListMetaContext = createContext<MessageListMeta | null>(null)
 const MessageListRenderConfigContext = createContext<MessageRenderConfig | null>(null)
 const MessageListSelectionContext = createContext<MessageListSelectionState | undefined | null>(null)
+
+/**
+ * Mode-only projection of the selection state (enabled / multi-select). Changes
+ * identity ONLY when the mode toggles — never when the selected-id set grows
+ * or shrinks — so per-frame subscribers stay idle during selection (#19209).
+ */
+const MessageListSelectionModeContext = createContext<
+  Pick<MessageListSelectionState, 'enabled' | 'isMultiSelectMode'> | undefined | null
+>(null)
+
+/** Per-message selection subscription store; null in embeds without selection. */
+const MessageSelectionStoreContext = createContext<MessageSelectionStore | null>(null)
 const MessageListUiStaticContext = createContext<MessageListUiStaticValue | null>(null)
 const MessageListUiSelectorsContext = createContext<MessageListUiSelectorsValue | null>(null)
 const MessageListEditingContext = createContext<string | null>(null)
 
 export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
+  const { selectionStore } = value
   const { state, actions, meta } = value
 
   const data = useMemo<MessageListDataValue>(
@@ -152,6 +166,14 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     ]
   )
 
+  const selectionMode = useMemo(
+    () =>
+      state.selection
+        ? { enabled: state.selection.enabled, isMultiSelectMode: state.selection.isMultiSelectMode }
+        : undefined,
+    [state.selection?.enabled, state.selection?.isMultiSelectMode]
+  )
+
   return (
     <MessageListDataContext value={data}>
       <MessageListMessagesContext value={state.messages}>
@@ -159,15 +181,23 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
           <MessageListActionsContext value={actions}>
             <MessageListMetaContext value={meta}>
               <MessageListRenderConfigContext value={state.renderConfig}>
-                <MessageListSelectionContext value={state.selection}>
-                  <MessageListUiStaticContext value={uiStatic}>
-                    <MessageListUiSelectorsContext value={uiSelectors}>
-                      <MessageListEditingContext value={state.editingMessageId ?? null}>
-                        {children}
-                      </MessageListEditingContext>
-                    </MessageListUiSelectorsContext>
-                  </MessageListUiStaticContext>
-                </MessageListSelectionContext>
+                <MessageListSelectionModeContext value={selectionMode}>
+                  <MessageSelectionStoreContext value={selectionStore ?? null}>
+                    <MessageListSelectionModeContext value={selectionMode}>
+                      <MessageSelectionStoreContext value={selectionStore ?? null}>
+                        <MessageListSelectionContext value={state.selection}>
+                          <MessageListUiStaticContext value={uiStatic}>
+                            <MessageListUiSelectorsContext value={uiSelectors}>
+                              <MessageListEditingContext value={state.editingMessageId ?? null}>
+                                {children}
+                              </MessageListEditingContext>
+                            </MessageListUiSelectorsContext>
+                          </MessageListUiStaticContext>
+                        </MessageListSelectionContext>
+                      </MessageSelectionStoreContext>
+                    </MessageListSelectionModeContext>
+                  </MessageSelectionStoreContext>
+                </MessageListSelectionModeContext>
               </MessageListRenderConfigContext>
             </MessageListMetaContext>
           </MessageListActionsContext>
@@ -262,6 +292,54 @@ export const useMessageListSelection = (): MessageListSelectionState | undefined
   }
   return value
 }
+
+/**
+ * Mode-only selection view (enabled / multi-select). Identity changes only
+ * when the mode toggles — not on selection-set changes (#19209).
+ */
+export const useMessageSelectionMode = ():
+  | Pick<MessageListSelectionState, 'enabled' | 'isMultiSelectMode'>
+  | undefined => {
+  const value = use(MessageListSelectionModeContext)
+  if (value === null) {
+    throw new Error('useMessageSelectionMode must be used within MessageListProvider')
+  }
+  return value
+}
+
+/**
+ * Per-message selected-state subscription: re-renders only when THIS message's
+ * boolean flips, not when the selection set changes elsewhere (#19209).
+ * Outside a selecting list (no store) the answer is always false.
+ */
+export const useIsMessageSelected = (messageId: string): boolean => {
+  const store = use(MessageSelectionStoreContext)
+  const subscribe = useCallback(
+    (listener: () => void) => (store ? store.subscribeId(messageId, listener) : () => {}),
+    [store, messageId]
+  )
+  return useSyncExternalStore(
+    subscribe,
+    () => store?.isSelected(messageId) ?? false,
+    () => false
+  )
+}
+
+/**
+ * Full selected-id list via the store: stable identity between changes; used
+ * by the toolbar / popup / whole-list consumers that genuinely need every id.
+ */
+export const useSelectedMessageIds = (): readonly string[] => {
+  const store = use(MessageSelectionStoreContext)
+  const subscribe = useCallback((listener: () => void) => (store ? store.subscribeList(listener) : () => {}), [store])
+  return useSyncExternalStore(
+    subscribe,
+    () => store?.getSnapshot() ?? EMPTY_SELECTED_MESSAGE_IDS,
+    () => EMPTY_SELECTED_MESSAGE_IDS
+  )
+}
+
+const EMPTY_SELECTED_MESSAGE_IDS: readonly string[] = []
 
 /** Id of the message currently being edited (null when none). Non-throwing: "not editing"
  * is a valid state, so embeds that never set it simply get null. */
