@@ -100,7 +100,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
         'feature.selection.enabled': true,
         'feature.selection.trigger_mode': 'shortcut',
         'shortcut.selection.capture_text': {
-          binding: ['CommandOrControl', 'Alt', 'Shift', 'K'],
+          binding: ['CommandOrControl', 'Shift', 'K'],
           enabled: true
         }
       })
@@ -113,16 +113,13 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   const selection = await app.window('/windows/selection/toolbar/')
   const readLabel = selection.getByRole('button', { name: 'Read validation label', exact: true })
   await expect(readLabel).toBeVisible()
+  await page.evaluate(() => window.api.ipcApi.request('selection.hide_toolbar'))
+  await expect.poll(() => selection.evaluate(() => document.visibilityState)).toBe('hidden')
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
   await expect
     .poll(
       async () => {
-        sendSystemHotkey(app.record.platform, [
-          app.record.platform === 'macos' ? 'Meta' : 'Control',
-          'Alt',
-          'Shift',
-          'k'
-        ])
+        sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 'k'])
         await selection.waitForTimeout(1_000)
         return selection.evaluate(() => document.visibilityState)
       },

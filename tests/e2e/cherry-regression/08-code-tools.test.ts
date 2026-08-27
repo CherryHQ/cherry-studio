@@ -86,14 +86,13 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
   await openCodeTool(page, 'OpenClaw')
   await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
   const codeView = page.locator('[data-ui="code.view"]:visible').first()
+  const codeMateTab = page.locator('[data-ui="app.tab-bar"] button[data-tab-id][aria-label="Code Mate"]').last()
+  await expect(codeMateTab).toBeVisible()
   await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
   await expect
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
 
-  const openClawTab = page.locator('[data-ui="app.tab-bar"] button[data-tab-id][aria-label="OpenClaw"]').last()
-  const codeMateTab = openClawTab.locator('xpath=preceding::button[@data-tab-id][1]')
-  await expect(codeMateTab).toHaveAttribute('aria-label', 'Code Mate')
   await codeMateTab.click()
   const activeCodeView = page.locator('[data-ui="code.view"]:visible').first()
   const stop = activeCodeView.getByRole('button', { name: 'Stop', exact: true })
