@@ -94,6 +94,23 @@ describe('useProviders', () => {
     expect(result.current.providers).toBe(firstProviders)
   })
 
+  it('exposes a provider list read failure instead of presenting only an empty list', () => {
+    const error = new Error('Provider registry unavailable')
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useProviders())
+
+    expect(result.current.providers).toEqual([])
+    expect(result.current.error).toBe(error)
+  })
+
   it('should call useQuery with /providers path', () => {
     renderHook(() => useProviders())
 
