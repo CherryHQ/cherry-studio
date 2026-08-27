@@ -1,4 +1,4 @@
-import type { LocalInferenceRuntimeProfile } from './inferenceProtocol'
+import type { LocalInferenceRuntimeProfile } from './protocol/envelope'
 
 const COREML_FLAG_ONLY_ALLOW_STATIC_INPUT_SHAPES = 8
 

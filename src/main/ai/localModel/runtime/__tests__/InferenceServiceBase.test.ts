@@ -141,7 +141,7 @@ describe('InferenceService worker exit / failAll', () => {
     const worker = await latestWorker()
 
     // Settle the request so the worker goes idle (pending empty) before it crashes.
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1, 0.2]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1, 0.2]] } })
     await pending
 
     worker.emit('exit', 1)
@@ -235,13 +235,13 @@ describe('InferenceService worker exit / failAll', () => {
     expect(liveRejected).toBe(false)
     // Settle B's request (queue concurrency: 1 — the next request below stays queued
     // otherwise) before checking that reusing B spawns no third worker.
-    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.1]] })
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), payload: { embeddings: [[0.1]] } })
     await live
 
     const reused = embeddingInferenceService.embed(['c'], MODEL_DIR, 'q8')
     expect(fakeWorkers).toHaveLength(2)
     await waitForPostedRequests(workerB, 2)
-    workerB.emit('message', { type: 'result', id: lastPostedId(workerB), embeddings: [[0.2]] })
+    workerB.emit('message', { type: 'result', id: lastPostedId(workerB), payload: { embeddings: [[0.2]] } })
     await reused
   })
 
@@ -267,7 +267,7 @@ describe('InferenceService worker exit / failAll', () => {
 
     expect(liveRejected).toBe(false)
     // Settle B's request so the shared queue's concurrency slot is free for the next test.
-    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.1]] })
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), payload: { embeddings: [[0.1]] } })
     await live
   })
 })
@@ -309,7 +309,7 @@ describe('embeddingInferenceService / ocrInferenceService isolation', () => {
     await Promise.resolve()
     expect(ocrSettled).toBe(false)
 
-    ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
+    ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), payload: { text: 'ok', lines: [] } })
     await expect(ocrPending).resolves.toEqual({ text: 'ok', lines: [] })
   })
 })
@@ -349,7 +349,11 @@ describe('InferenceService worker init message', () => {
     expect(embedInit.proxyRouting).toEqual(DIRECT_ROUTING)
     expect(embedInit.runtimeProfile?.id).toBe('directml')
     // Settle so the shared queue's concurrency slot is free for the OCR request below.
-    embeddingWorker.emit('message', { type: 'result', id: lastRequestId(embeddingWorker), embeddings: [[0.1]] })
+    embeddingWorker.emit('message', {
+      type: 'result',
+      id: lastRequestId(embeddingWorker),
+      payload: { embeddings: [[0.1]] }
+    })
     await embedPending
 
     const ocrPending = ocrInferenceService.recognize(
@@ -362,7 +366,7 @@ describe('InferenceService worker init message', () => {
     expect(ocrInit.appPath).toBeTruthy()
     expect(ocrInit.proxyRouting).toEqual(DIRECT_ROUTING)
     expect(ocrInit.runtimeProfile?.id).toBe('directml')
-    ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
+    ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), payload: { text: 'ok', lines: [] } })
     await ocrPending
   })
 
@@ -374,21 +378,21 @@ describe('InferenceService worker init message', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.local_model.hardware_acceleration.enabled', false)
     expect(workerA.terminate).not.toHaveBeenCalled()
 
-    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
+    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), payload: { embeddings: [[0.1]] } })
     await first
 
     const workerB = await latestWorker(2)
     expect(workerA.terminate).toHaveBeenCalledTimes(1)
     expect(initMessage(workerB).runtimeProfile?.id).toBe('cpu')
 
-    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.2]] })
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), payload: { embeddings: [[0.2]] } })
     await expect(second).resolves.toEqual([[0.2]])
   })
 
   it('restarts the worker before the next request when ProxyService advances the routing version', async () => {
     const first = embeddingInferenceService.embed(['first'], MODEL_DIR, 'q8')
     const workerA = await latestWorker()
-    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
+    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), payload: { embeddings: [[0.1]] } })
     await first
 
     const updatedRouting: ProxyRoutingSnapshot = { version: 2, mode: 'direct' }
@@ -399,14 +403,14 @@ describe('InferenceService worker init message', () => {
     expect(workerA.terminate).toHaveBeenCalledTimes(1)
     expect(workerB).not.toBe(workerA)
     expect(initMessage(workerB).proxyRouting).toEqual(updatedRouting)
-    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.2]] })
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), payload: { embeddings: [[0.2]] } })
     await expect(second).resolves.toEqual([[0.2]])
   })
 
   it('does not respawn after terminate wins a routing-version teardown race', async () => {
     const first = embeddingInferenceService.embed(['first'], MODEL_DIR, 'q8')
     const workerA = await latestWorker()
-    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
+    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), payload: { embeddings: [[0.1]] } })
     await first
 
     let releaseExit!: (code: number) => void
@@ -443,7 +447,7 @@ describe('InferenceService idle-release timer', () => {
 
     const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
     const worker = await latestWorker()
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await pending
 
     expect(worker.terminate).not.toHaveBeenCalled()
@@ -458,14 +462,14 @@ describe('InferenceService idle-release timer', () => {
 
     const first = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
     const worker = await latestWorker()
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await first
 
     await vi.advanceTimersByTimeAsync(30_000)
 
     const second = embeddingInferenceService.embed(['bye'], MODEL_DIR, 'q8')
     await waitForPostedRequests(worker, 2)
-    worker.emit('message', { type: 'result', id: lastPostedId(worker), embeddings: [[0.2]] })
+    worker.emit('message', { type: 'result', id: lastPostedId(worker), payload: { embeddings: [[0.2]] } })
     await second
 
     await vi.advanceTimersByTimeAsync(59_000)
@@ -503,14 +507,14 @@ describe('InferenceService request queue', () => {
     await Promise.resolve()
     expect(postedRequestCount()).toBe(1)
 
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await first
 
     // Settling the first dispatches the second — still to the same (single) worker.
     expect(postedRequestCount()).toBe(2)
     expect(fakeWorkers).toHaveLength(1)
 
-    worker.emit('message', { type: 'result', id: lastPostedId(worker), embeddings: [[0.2]] })
+    worker.emit('message', { type: 'result', id: lastPostedId(worker), payload: { embeddings: [[0.2]] } })
     await expect(second).resolves.toEqual([[0.2]])
   })
 
@@ -521,7 +525,7 @@ describe('InferenceService request queue', () => {
     const second = embeddingInferenceService.embed(['b'], MODEL_DIR, 'q8', controller.signal)
 
     controller.abort()
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await first
 
     await expect(second).rejects.toThrow()
@@ -563,7 +567,7 @@ describe('InferenceService terminateThen', () => {
     const third = embeddingInferenceService.embed(['c'], MODEL_DIR, 'q8')
     const newWorker = await latestWorker(2)
     expect(newWorker).not.toBe(worker)
-    newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), embeddings: [[0.3]] })
+    newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), payload: { embeddings: [[0.3]] } })
     await expect(third).resolves.toEqual([[0.3]])
   })
 
@@ -575,7 +579,7 @@ describe('InferenceService terminateThen', () => {
 
     const pending = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
     const worker = await latestWorker()
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await expect(pending).resolves.toEqual([[0.1]])
   })
 
@@ -599,7 +603,7 @@ describe('InferenceService terminateThen', () => {
     const third = embeddingInferenceService.embed(['c'], MODEL_DIR, 'q8')
     const newWorker = await latestWorker(2)
     expect(newWorker).not.toBe(worker)
-    newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), embeddings: [[0.3]] })
+    newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), payload: { embeddings: [[0.3]] } })
     await expect(third).resolves.toEqual([[0.3]])
   })
 })
@@ -627,7 +631,7 @@ describe('EmbeddingInferenceService.embed', () => {
     expect(request.modelDir).toBe(MODEL_DIR)
     expect(request.texts).toEqual(['hi'])
 
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1, 0.2]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1, 0.2]] } })
 
     await expect(pending).resolves.toEqual([[0.1, 0.2]])
   })
@@ -638,7 +642,7 @@ describe('EmbeddingInferenceService.embed', () => {
 
     // A protocol drift (field renamed / dropped) must fail the request loudly —
     // resolving [] would let empty vectors flow into the index as real ones.
-    worker.emit('message', { type: 'result', id: lastRequestId(worker) })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: {} })
 
     await expect(pending).rejects.toThrow('without embeddings')
   })
@@ -667,7 +671,7 @@ describe('EmbeddingInferenceService.countTokens', () => {
     expect(request.modelDir).toBe(MODEL_DIR)
     expect(request.texts).toEqual(['hi', 'there'])
 
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), tokenCounts: [1, 2] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { tokenCounts: [1, 2] } })
 
     await expect(pending).resolves.toEqual([1, 2])
   })
@@ -676,9 +680,9 @@ describe('EmbeddingInferenceService.countTokens', () => {
     const pending = embeddingInferenceService.countTokens(['hi'], MODEL_DIR, 'q8')
     const worker = await latestWorker()
 
-    worker.emit('message', { type: 'result', id: lastRequestId(worker) })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: {} })
 
-    await expect(pending).rejects.toThrow('without token counts')
+    await expect(pending).rejects.toThrow('without tokenCounts')
   })
 
   it('supports aborting a queued countTokens request', async () => {
@@ -688,7 +692,7 @@ describe('EmbeddingInferenceService.countTokens', () => {
     const second = embeddingInferenceService.countTokens(['b'], MODEL_DIR, 'q8', controller.signal)
 
     controller.abort()
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await first
 
     await expect(second).rejects.toThrow()
@@ -711,7 +715,7 @@ describe('InferenceService abort listener cleanup', () => {
 
     const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8', controller.signal)
     const worker = await latestWorker()
-    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await pending
 
     // A caller reusing this same long-lived signal for many embed() calls (e.g.

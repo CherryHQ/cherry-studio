@@ -6,8 +6,8 @@ import { Worker } from 'node:worker_threads'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { resolveLocalInferenceProfile } from '../inferenceAcceleration'
-import type { InferenceRequest, InferenceResponse } from '../inferenceProtocol'
-import { inferenceWorkerSource } from '../inferenceWorkerSource'
+import type { InferenceRequest, InferenceResponse } from '../protocol/envelope'
+import { inferenceWorkerSource } from '../workerSource/buildWorkerSource'
 
 const DIRECTML_PROFILE = resolveLocalInferenceProfile(true, { platform: 'win32', arch: 'x64' })
 const COREML_PROFILE = resolveLocalInferenceProfile(true, { platform: 'darwin', arch: 'arm64' })
@@ -149,7 +149,7 @@ describe('inference worker hardware acceleration', () => {
 
     await expect(
       request({ type: 'embedding.embed', id: 'embed', modelDir: '/hardware-ok', dtype: 'q8', texts: ['hello'] })
-    ).resolves.toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
+    ).resolves.toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
     await expect(
       request({
         type: 'ocr.recognize',
@@ -157,7 +157,7 @@ describe('inference worker hardware acceleration', () => {
         modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
         source: { kind: 'path', imagePath: import.meta.filename }
       })
-    ).resolves.toMatchObject({ type: 'result', text: 'hardware result' })
+    ).resolves.toMatchObject({ type: 'result', payload: { text: 'hardware result' } })
 
     expect(workerLogs()).toContain('hardware provider active provider=coreml runtime=embedding')
     expect(workerLogs()).toContain('hardware provider active provider=coreml runtime=ocr')
@@ -167,7 +167,7 @@ describe('inference worker hardware acceleration', () => {
   it('uses DirectML session options for embedding', async () => {
     await expect(
       request({ type: 'embedding.embed', id: 'embed', modelDir: '/hardware-ok', dtype: 'q8', texts: ['hello'] })
-    ).resolves.toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
+    ).resolves.toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
 
     expect(workerLogs()).toContain('hardware provider active provider=directml runtime=embedding')
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
@@ -189,8 +189,8 @@ describe('inference worker hardware acceleration', () => {
       texts: ['again']
     })
 
-    expect(first).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
-    expect(second).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
+    expect(first).toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
+    expect(second).toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
   })
 
@@ -203,7 +203,7 @@ describe('inference worker hardware acceleration', () => {
       texts: ['hello']
     })
 
-    expect(response).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
+    expect(response).toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
     expect(messages).toContainEqual({
       type: 'log',
       level: 'warn',
@@ -225,8 +225,8 @@ describe('inference worker hardware acceleration', () => {
       source: { kind: 'path', imagePath: import.meta.filename }
     })
 
-    expect(hardware).toMatchObject({ type: 'result', text: 'hardware result' })
-    expect(fallback).toMatchObject({ type: 'result', text: 'cpu result' })
+    expect(hardware).toMatchObject({ type: 'result', payload: { text: 'hardware result' } })
+    expect(fallback).toMatchObject({ type: 'result', payload: { text: 'cpu result' } })
     expect(workerLogs()).toContain('hardware provider active provider=directml runtime=ocr')
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
   })
@@ -245,8 +245,8 @@ describe('inference worker hardware acceleration', () => {
       source: { kind: 'path', imagePath: import.meta.filename }
     })
 
-    expect(fallback).toMatchObject({ type: 'result', text: 'cpu result' })
-    expect(nextModel).toMatchObject({ type: 'result', text: 'cpu result' })
+    expect(fallback).toMatchObject({ type: 'result', payload: { text: 'cpu result' } })
+    expect(nextModel).toMatchObject({ type: 'result', payload: { text: 'cpu result' } })
     expect(workerLogs()).not.toContain('hardware provider active provider=directml runtime=ocr')
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
     expect(workerLogs().some((message) => message.includes('OCR session hardware provider failed'))).toBe(true)
@@ -269,7 +269,7 @@ describe('inference worker hardware acceleration', () => {
     expect(unreadable).toMatchObject({ type: 'error' })
     expect(unreadable).toHaveProperty('message', expect.stringContaining('ENOENT'))
     expect(unreadable).toHaveProperty('message', expect.not.stringContaining('hardware inference failed'))
-    expect(next).toMatchObject({ type: 'result', text: 'hardware result' })
+    expect(next).toMatchObject({ type: 'result', payload: { text: 'hardware result' } })
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })
 

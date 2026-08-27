@@ -6,8 +6,8 @@ import { Worker } from 'node:worker_threads'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { CPU_LOCAL_INFERENCE_PROFILE } from '../inferenceAcceleration'
-import type { InferenceResponse } from '../inferenceProtocol'
-import { inferenceWorkerSource } from '../inferenceWorkerSource'
+import type { InferenceResponse } from '../protocol/envelope'
+import { inferenceWorkerSource } from '../workerSource/buildWorkerSource'
 
 /**
  * These run the production worker source against the REAL `@huggingface/transformers`,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { inferenceWorkerSource } from '../inferenceWorkerSource'
 import { l2normalize } from '../pooling'
+import { inferenceWorkerSource } from '../workerSource/buildWorkerSource'
 
 describe('pooling', () => {
   it('l2normalize returns a unit vector', () => {

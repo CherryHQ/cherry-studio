@@ -2,7 +2,7 @@ import http from 'node:http'
 import net from 'node:net'
 import { Worker } from 'node:worker_threads'
 
-import { inferenceWorkerSource } from '@main/ai/localModel/runtime/inferenceWorkerSource'
+import { inferenceWorkerSource } from '@main/ai/localModel/runtime/workerSource/buildWorkerSource'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createProxyBypassMatcher } from '../bypassRules'

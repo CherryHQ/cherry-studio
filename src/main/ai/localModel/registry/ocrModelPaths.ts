@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { OcrModelPaths } from '../runtime/inferenceProtocol'
+import type { OcrModelPaths } from '../runtime/protocol/ocr'
 import { bundleFile, bundleForCapability } from './catalog'
 import { localModelRegistry } from './LocalModelRegistry'
 

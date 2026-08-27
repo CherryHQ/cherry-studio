@@ -12,28 +12,27 @@ import { resolveLocalInferenceProfile } from './inferenceAcceleration'
 import type {
   InferenceInitMessage,
   InferenceRequest,
+  InferenceRequestType,
   InferenceResponse,
-  LocalInferenceProfileId,
-  OcrLine
-} from './inferenceProtocol'
-import { inferenceWorkerSource } from './inferenceWorkerSource'
+  InferenceResultPayloads,
+  LocalInferenceProfileId
+} from './protocol/envelope'
+import { INFERENCE_RESULT_KEYS } from './protocol/envelope'
+import { inferenceWorkerSource } from './workerSource/buildWorkerSource'
 
 const INFERENCE_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
 
 /** Per-member Omit so union variants keep their own fields (built-in Omit drops them). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
-/** One worker `result` message, narrowed to the field the caller cares about. */
-interface InferenceResult {
-  embeddings?: number[][] | null
-  text?: string | null
-  lines?: OcrLine[][] | null
-  tokenCounts?: number[] | null
-}
-
 interface Pending {
-  resolve: (result: InferenceResult) => void
+  /** The request's own payload type is restored by {@link InferenceServiceBase.send};
+   * `pending` holds every capability's at once and cannot name one. */
+  resolve: (payload: never) => void
   reject: (err: Error) => void
+  /** What was asked, so the arrival check in `handleMessage` knows which payload keys
+   * the worker owed (and can name the request in the failure). */
+  requestType: InferenceRequestType
   /** Detaches the abort listener `sendNow` registered (a no-op once it has
    * already fired, since it's `{ once: true }`). */
   cleanup: () => void
@@ -179,14 +178,18 @@ export abstract class InferenceServiceBase extends BaseService {
         if (!pending) return
         this.pending.delete(msg.id)
         pending.cleanup()
-        // Explicit allowlist, not a spread: every protocol field a caller reads must be
-        // added here too, or it is silently dropped between the worker and the service.
-        pending.resolve({
-          embeddings: msg.embeddings ?? null,
-          text: msg.text ?? null,
-          lines: msg.lines ?? null,
-          tokenCounts: msg.tokenCounts ?? null
-        })
+        const payload: Record<string, unknown> = msg.payload ?? {}
+        const missing = INFERENCE_RESULT_KEYS[pending.requestType].filter((key) => payload[key] === undefined)
+        // A worker that answers without what it promised is a protocol violation, not an
+        // empty result: resolving it would hand a caller `undefined` where it declared a
+        // value — embedding nothing, and indexing it as real.
+        if (missing.length > 0) {
+          pending.reject(
+            new Error(`inference worker returned a ${pending.requestType} result without ${missing.join(', ')}`)
+          )
+          return
+        }
+        pending.resolve(payload as never)
         return
       }
       case 'error': {
@@ -212,10 +215,11 @@ export abstract class InferenceServiceBase extends BaseService {
     this.pending.clear()
   }
 
-  protected async send(
-    request: DistributiveOmit<InferenceRequest, 'id'>,
+  /** Send one request and resolve with that request type's own payload. */
+  protected async send<T extends InferenceRequestType>(
+    request: Extract<DistributiveOmit<InferenceRequest, 'id'>, { type: T }>,
     opts: { signal?: AbortSignal } = {}
-  ): Promise<InferenceResult> {
+  ): Promise<InferenceResultPayloads[T]> {
     // Fail fast on an already-aborted signal rather than occupying a queue slot
     // (sendNow's own check below only fires once this request reaches the front).
     if (opts.signal?.aborted) {
@@ -223,7 +227,7 @@ export abstract class InferenceServiceBase extends BaseService {
     }
     this.clearIdleReleaseTimer()
     try {
-      const result = await this.queue.add(() => this.sendNow(request, opts))
+      const result = await this.queue.add(() => this.sendNow<T>(request, opts))
       if (!result) throw new Error('inference request queue did not return a result')
       return result
     } finally {
@@ -231,10 +235,10 @@ export abstract class InferenceServiceBase extends BaseService {
     }
   }
 
-  private async sendNow(
-    request: DistributiveOmit<InferenceRequest, 'id'>,
+  private async sendNow<T extends InferenceRequestType>(
+    request: Extract<DistributiveOmit<InferenceRequest, 'id'>, { type: T }>,
     opts: { signal?: AbortSignal }
-  ): Promise<InferenceResult> {
+  ): Promise<InferenceResultPayloads[T]> {
     if (opts.signal?.aborted) {
       throw opts.signal.reason instanceof Error ? opts.signal.reason : new Error('aborted')
     }
@@ -251,7 +255,7 @@ export abstract class InferenceServiceBase extends BaseService {
         reject(opts.signal?.reason instanceof Error ? opts.signal.reason : new Error('aborted'))
       }
       const cleanup = () => opts.signal?.removeEventListener('abort', onAbort)
-      this.pending.set(id, { resolve, reject, cleanup })
+      this.pending.set(id, { resolve, reject, cleanup, requestType: request.type })
       opts.signal?.addEventListener('abort', onAbort, { once: true })
       worker.postMessage({ ...request, id } as InferenceRequest)
     })

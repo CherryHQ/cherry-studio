@@ -1,7 +1,7 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import type { OcrLine, OcrModelPaths, OcrRecognizeSource } from './runtime/inferenceProtocol'
 import { InferenceServiceBase } from './runtime/InferenceServiceBase'
+import type { OcrLine, OcrModelPaths, OcrRecognizeSource } from './runtime/protocol/ocr'
 
 /** Local OCR inference (PaddleOCR via ppu-paddle-ocr) in its own worker; see
  * {@link InferenceServiceBase} for the shared worker lifecycle. */
@@ -23,7 +23,6 @@ export class OcrInferenceService extends InferenceServiceBase {
     source: OcrRecognizeSource,
     signal?: AbortSignal
   ): Promise<{ text: string; lines: OcrLine[][] }> {
-    const result = await this.send({ type: 'ocr.recognize', modelPaths, source }, { signal })
-    return { text: result.text ?? '', lines: result.lines ?? [] }
+    return this.send({ type: 'ocr.recognize', modelPaths, source }, { signal })
   }
 }

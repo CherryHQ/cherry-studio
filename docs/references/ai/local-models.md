@@ -1,5 +1,5 @@
 ---
-description: Local model subsystem — the bundle catalog, on-disk registry, and the verified acquisition layer that installs models and shared native runtimes
+description: Local model subsystem — the bundle catalog, on-disk registry, the verified acquisition layer, and the worker runtime that infers over the installed models
 sources:
   - src/main/ai/localModel
   - src/shared/data/presets/localModel.ts
@@ -12,10 +12,8 @@ Cherry Studio can run two models on the user's own machine: the knowledge-base
 embedding model and the PaddleOCR text recognizer. Neither ships in the installer —
 both are fetched on demand, together with the native onnxruntime binary they share.
 
-This page covers **acquisition**: what can be installed, how bytes get onto disk
-safely, and how they come off again. Inference over those models (the worker host,
-the message protocol, hardware acceleration) still lives in `src/main/ai/inference`
-and is documented alongside it.
+One module owns the whole path: what can be installed, how bytes get onto disk safely,
+how they come off again, and how inference runs over them once they are there.
 
 ## Layout
 
@@ -28,12 +26,20 @@ src/main/ai/localModel/
 │   ├── LocalModelRegistry.ts      ← what is installed now; artifact install/remove
 │   ├── BundleInstallManager.ts    ← one bundle's install lifecycle, generic over the catalog
 │   └── installers.ts              ← one manager per bundle, plus readiness and artifact GC
-└── acquisition/
-    ├── modelSource.ts             ← HuggingFace / ModelScope mirror table
-    ├── downloadEngine.ts          ← mirror fallback, streaming + sha256, atomic writes
-    ├── bundleDownload.ts          ← a bundle's files: mirror order, weighted progress
-    ├── derivations.ts             ← transforms applied to a fetched file before it lands
-    └── tarballArtifact.ts         ← npm-published native runtimes
+├── acquisition/
+│   ├── modelSource.ts             ← HuggingFace / ModelScope mirror table
+│   ├── downloadEngine.ts          ← mirror fallback, streaming + sha256, atomic writes
+│   ├── bundleDownload.ts          ← a bundle's files: mirror order, weighted progress
+│   ├── derivations.ts             ← transforms applied to a fetched file before it lands
+│   └── tarballArtifact.ts         ← npm-published native runtimes
+├── runtime/
+│   ├── InferenceServiceBase.ts    ← the worker host: spawn, queue, idle release, teardown
+│   ├── inferenceAcceleration.ts   ← platform → execution provider
+│   ├── pooling.ts                 ← mean pooling for the embedding worker
+│   ├── protocol/                  ← the main ↔ worker message types, one file per capability
+│   └── workerSource/              ← the worker script, assembled from capability modules
+├── EmbeddingInferenceService.ts   ← capability facade: embed / countTokens
+└── OcrInferenceService.ts         ← capability facade: recognize
 ```
 
 ## The catalog is the only per-model code
@@ -194,6 +200,68 @@ counted only installed bundles — so deleting one model could pull the runtime 
 a download that was at that moment waiting for it. A bundle counts as needing its artifacts
 while it is installed **or** downloading.
 
+## Runtime
+
+Inference runs in a `worker_threads` worker, **one per capability**. Sharing a single
+worker would mean that cancelling an OCR download — which must release the file handles on
+its weights — also evicts the 600MB embedding pipeline an unrelated knowledge-base index is
+mid-way through. Separate workers make that impossible by construction: no shared thread,
+no shared pending map, no shared `terminate()`.
+
+Each host is a lifecycle service (`EmbeddingInferenceService`, `OcrInferenceService`) over
+`InferenceServiceBase`, which owns everything that is not capability-specific:
+
+- **Lazy spawn** on the first request, and respawn when the acceleration profile or the
+  proxy routing changes — a worker's execution provider is fixed at session creation.
+- **One request at a time** through a `concurrency: 1` queue. A single CPU onnxruntime
+  session gains nothing from concurrent calls, and this lets several callers reach the same
+  instance with no other coordination.
+- **Idle release** after 60s, because a loaded model holds hundreds of MB.
+- **Teardown** on stop/destroy — the worker is a real OS thread that must not outlive
+  shutdown.
+
+### Protocol
+
+`protocol/` holds structured-clone-safe types only: no class instances, no functions, no
+Electron types. That constraint is what keeps the host swappable — moving a capability to
+an Electron `utilityProcess` for crash isolation would touch the spawn/teardown internals
+and nothing else.
+
+Results are typed **per request type** (`InferenceResultPayloads`) rather than merged into
+one struct of optional fields, so a caller gets exactly its own payload and a new capability
+cannot widen what every other capability sees. `INFERENCE_RESULT_KEYS` declares which keys
+each request promises, and the host checks them on arrival: a handler that drops a field
+fails the request instead of resolving a caller with `undefined` where it declared a value —
+an empty embedding written into the index is silent and unrecoverable.
+
+### Worker source
+
+The worker script is a **string**, assembled at import time from `workerCore` plus one
+module per capability and run with `eval: true`. It is not a separate entry file because
+electron-vite bundles the main process with `inlineDynamicImports`, which cannot emit the
+extra chunk a `new Worker(path)` would need.
+
+`workerCore` knows nothing about embedding or OCR. Each capability module registers itself
+into a `CAPABILITIES` table keyed by request type:
+
+| Hook | When it runs |
+|---|---|
+| `handle(msg, prepared)` | Answers the request; retried once on CPU if the hardware provider fails |
+| `prepare(msg)` | Setup that must **not** be retried — reading the image file, say, so a bad path is never blamed on the GPU |
+| `dispose()` | Releases that capability's cached sessions when a provider is abandoned |
+
+So adding a capability is a new module, not another branch in a dispatch chain — and the
+two places that previously had to know both capabilities at once (disposing every cache
+before a CPU retry, and OCR's non-retryable file read) are now that table's job.
+
+### Hardware fallback
+
+A worker started on DirectML/CoreML that fails mid-request disposes its cached sessions,
+drops to CPU **for the rest of its life**, and retries once. Staying on CPU matters: a
+provider that failed once will fail again on the next cache miss, and re-discovering that
+per request would pay the fallback cost every time. If CPU fails too, the error names both
+failures, since "CoreML crashed" and "the model is corrupt" need different fixes.
+
 ## Management plane
 
 One generic IPC surface (`local_model.*`), addressed by bundle id:
@@ -223,6 +291,9 @@ handler and no component — only the catalog and the shared id list.
    capability needs.
 6. For a new capability, add its card icon in `LocalModelsSection` and its `name`/`subtitle`
    i18n keys. An existing capability needs neither.
+7. For a new capability, add its request/result types under `runtime/protocol/`, a worker
+   module registering its `CAPABILITIES` entry, and a facade service over
+   `InferenceServiceBase`. A new bundle for an existing capability needs none of this.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
@@ -230,8 +301,10 @@ rather than on a user's machine.
 
 ## Known limits
 
-- The subsystem is mid-refactor: the inference host still lives in `@main/ai/inference` and
-  joins this module in a later step.
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
+- No streaming inference. Every request is one round trip with a complete result; a
+  transcription capability that wants partial output would add a response frame type.
+- onnxruntime is the only runtime. A second one (llama.cpp, sherpa-onnx) fits the shared
+  artifact and worker-module seams, but nothing exercises them yet.

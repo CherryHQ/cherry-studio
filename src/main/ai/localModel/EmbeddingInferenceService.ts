@@ -1,7 +1,7 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import type { EmbeddingModelDir } from './runtime/inferenceProtocol'
 import { InferenceServiceBase } from './runtime/InferenceServiceBase'
+import type { EmbeddingModelDir } from './runtime/protocol/embedding'
 
 /** Local text-embedding inference (transformers.js / Qwen3-Embedding) in its own
  * worker; see {@link InferenceServiceBase} for the shared worker lifecycle. */
@@ -14,11 +14,8 @@ export class EmbeddingInferenceService extends InferenceServiceBase {
 
   /** Embed texts off the main thread, loading the model from `modelDir` if it is not cached in memory. */
   async embed(texts: string[], modelDir: EmbeddingModelDir, dtype: string, signal?: AbortSignal): Promise<number[][]> {
-    const result = await this.send({ type: 'embedding.embed', modelDir, dtype, texts }, { signal })
-    // A missing field is a protocol violation — silently embedding nothing would
-    // poison every downstream consumer (empty vectors indexed as real ones).
-    if (!result.embeddings) throw new Error('inference worker returned an embed result without embeddings')
-    return result.embeddings
+    const { embeddings } = await this.send({ type: 'embedding.embed', modelDir, dtype, texts }, { signal })
+    return embeddings
   }
 
   /** Count tokens via the pipeline's own tokenizer, off the main thread — the main
@@ -30,10 +27,7 @@ export class EmbeddingInferenceService extends InferenceServiceBase {
     dtype: string,
     signal?: AbortSignal
   ): Promise<number[]> {
-    const result = await this.send({ type: 'embedding.countTokens', modelDir, dtype, texts }, { signal })
-    // Same protocol guard as embed: `[count] = []` would make every chunk-size
-    // comparison silently false instead of failing the indexing request.
-    if (!result.tokenCounts) throw new Error('inference worker returned a countTokens result without token counts')
-    return result.tokenCounts
+    const { tokenCounts } = await this.send({ type: 'embedding.countTokens', modelDir, dtype, texts }, { signal })
+    return tokenCounts
   }
 }
