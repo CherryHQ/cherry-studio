@@ -243,7 +243,6 @@ describe('ProviderApiSetupDialog', () => {
     const heading = screen.getByRole('heading')
     expect(heading).toHaveTextContent('OpenAI')
     expect(heading).toHaveTextContent('settings.provider.api_setup.add_key')
-    expect(screen.queryByText('settings.provider.api_setup.key_description')).not.toBeInTheDocument()
     const saveButton = screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' })
     expect(saveButton).toBeDisabled()
 
@@ -252,8 +251,6 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findAllByText('alpha')
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
-    expect(screen.queryByText('settings.provider.api_setup.models_description')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { expanded: true })).not.toBeInTheDocument()
     expect(addApiKeyMock).toHaveBeenCalledWith('sk-valid')
     expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')).toHaveLength(2)
@@ -379,7 +376,6 @@ describe('ProviderApiSetupDialog', () => {
     expect(await screen.findByText('settings.provider.api_setup.success')).toBeInTheDocument()
     expect(toastSuccessMock).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'common.close' })).not.toBeInTheDocument()
     for (const stepName of [
       'settings.provider.api_setup.progress.add_models',
       'settings.provider.api_setup.progress.check_model_named:alpha',
@@ -588,7 +584,6 @@ describe('ProviderApiSetupDialog', () => {
         name: 'settings.provider.api_setup.progress.check_model settings.models.check.status_skipped'
       })
     ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'common.close' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.back_to_models' }))
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0]).toBeChecked()

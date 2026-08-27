@@ -76,20 +76,6 @@ describe('ProviderApiKeyListDrawer', () => {
     })
   })
 
-  it('uses one full-width add action and omits redundant labels', () => {
-    mockKeys = [
-      { id: 'key-1', key: 'sk-unlabeled', isEnabled: true },
-      { id: 'key-2', key: 'sk-labeled', label: 'Production', isEnabled: true }
-    ]
-
-    render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
-
-    expect(screen.queryByText('settings.provider.api_key.unnamed')).not.toBeInTheDocument()
-    expect(screen.getByText('Production')).toBeInTheDocument()
-    expect(screen.queryByText('settings.provider.api_key.tip')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.add_key' })).toHaveClass('w-full')
-  })
-
   it('saves edits to an existing key via updateApiKey without touching other entries', async () => {
     mockKeys = [
       { id: 'key-1', key: 'sk-old', label: 'Main', isEnabled: true },

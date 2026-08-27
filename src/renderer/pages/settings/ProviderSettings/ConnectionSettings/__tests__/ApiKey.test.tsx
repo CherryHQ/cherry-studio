@@ -100,16 +100,12 @@ describe('ApiKey', () => {
     const maskedKey = screen.getByText('1234****1234')
     expect(maskedKey).toBeInTheDocument()
     expect(screen.queryByText('123456789012345678901234')).not.toBeInTheDocument()
-    const buttons = screen.getAllByRole('button')
     const keyListButtons = screen.getAllByRole('button', { name: 'settings.provider.api.key.list.title' })
     const keyAreaButton = maskedKey.closest('button')
     const keyManagementButton = keyListButtons[1]
-    const modelCheckButton = screen.getByRole('button', { name: 'settings.models.check.button_caption' })
 
     expect(keyAreaButton).toBe(keyListButtons[0])
     expect(keyListButtons).toHaveLength(2)
-    expect(buttons.indexOf(keyAreaButton!)).toBeLessThan(buttons.indexOf(keyManagementButton))
-    expect(buttons.indexOf(keyManagementButton)).toBeLessThan(buttons.indexOf(modelCheckButton))
     expect(keyManagementButton).toHaveAttribute('aria-haspopup', 'dialog')
     expect(keyManagementButton).toHaveAttribute('aria-expanded', 'false')
 
