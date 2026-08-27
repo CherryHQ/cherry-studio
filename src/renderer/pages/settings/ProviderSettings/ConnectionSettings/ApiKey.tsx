@@ -111,6 +111,19 @@ export default function ApiKey({
                     <span className="shrink-0 text-muted-foreground text-xs">+{apiKeys.length - 1}</span>
                   ) : null}
                 </button>
+                <Tooltip content={t('settings.provider.api.key.list.title')}>
+                  <span className="inline-flex shrink-0">
+                    <button
+                      type="button"
+                      className={fieldClasses.inputActionButton}
+                      aria-label={t('settings.provider.api.key.list.title')}
+                      aria-haspopup="dialog"
+                      aria-expanded={keyListOpen}
+                      onClick={() => setKeyListOpen(true)}>
+                      <KeyRound size={14} />
+                    </button>
+                  </span>
+                </Tooltip>
                 <ProviderModelCheck onAddModels={onContinueApiSetup} />
               </div>
             ) : (

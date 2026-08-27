@@ -89,7 +89,7 @@ describe('ApiKey', () => {
     expect(screen.getByRole('dialog', { name: 'settings.provider.api.key.list.title' })).toBeInTheDocument()
   })
 
-  it('opens key management from the masked saved-key area without a separate management button', async () => {
+  it('keeps a separate key-management action beside the masked saved-key area', async () => {
     const user = userEvent.setup()
     useProviderApiKeysMock.mockReturnValue({
       data: { keys: [{ id: 'key-1', key: '123456789012345678901234', isEnabled: true }] }
@@ -103,14 +103,19 @@ describe('ApiKey', () => {
     const buttons = screen.getAllByRole('button')
     const keyListButtons = screen.getAllByRole('button', { name: 'settings.provider.api.key.list.title' })
     const keyAreaButton = maskedKey.closest('button')
+    const keyManagementButton = keyListButtons[1]
     const modelCheckButton = screen.getByRole('button', { name: 'settings.models.check.button_caption' })
 
     expect(keyAreaButton).toBe(keyListButtons[0])
-    expect(keyListButtons).toHaveLength(1)
-    expect(buttons.indexOf(keyAreaButton!)).toBeLessThan(buttons.indexOf(modelCheckButton))
+    expect(keyListButtons).toHaveLength(2)
+    expect(buttons.indexOf(keyAreaButton!)).toBeLessThan(buttons.indexOf(keyManagementButton))
+    expect(buttons.indexOf(keyManagementButton)).toBeLessThan(buttons.indexOf(modelCheckButton))
+    expect(keyManagementButton).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(keyManagementButton).toHaveAttribute('aria-expanded', 'false')
 
-    await user.click(maskedKey)
+    await user.click(keyManagementButton)
 
+    expect(keyManagementButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('dialog', { name: 'settings.provider.api.key.list.title' })).toBeInTheDocument()
   })
 
