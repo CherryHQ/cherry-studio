@@ -25,15 +25,16 @@ src/main/ai/localModel/
 ├── registry/
 │   ├── types.ts                   ← ModelBundle, SharedArtifact, InstallState
 │   ├── catalog.ts                 ← the single source of truth: every bundle and artifact
-│   └── LocalModelRegistry.ts      ← what is installed now; artifact install/remove
+│   ├── LocalModelRegistry.ts      ← what is installed now; artifact install/remove
+│   ├── BundleInstallManager.ts    ← one bundle's install lifecycle, generic over the catalog
+│   └── installers.ts              ← one manager per bundle, with its capability's hooks
 └── acquisition/
     ├── modelSource.ts             ← HuggingFace / ModelScope mirror table
     ├── downloadEngine.ts          ← mirror fallback, streaming + sha256, atomic writes
+    ├── bundleDownload.ts          ← a bundle's files: mirror order, weighted progress
+    ├── derivations.ts             ← transforms applied to a fetched file before it lands
     └── tarballArtifact.ts         ← npm-published native runtimes
 ```
-
-The per-model download services (`src/main/services/localModel`) drive the user-facing
-lifecycle — status, progress broadcast, cancellation, removal — on top of this module.
 
 ## The catalog is the only per-model code
 
@@ -127,6 +128,37 @@ Bundle files and shared artifacts are scanned separately, and callers compose th
 bundle whose weights are complete but whose runtime is missing is an offer to download
 ~40MB, not a broken install — so it reports as not-installed rather than as an error.
 
+### Superseded layouts
+
+A bundle may declare a `legacyInstallSubdir` alongside its current one. `resolveInstalledDir`
+prefers the current layout, falls back to the legacy directory, and — when only the legacy
+copy exists — tries once to move the files into place.
+
+That move is best-effort on purpose: a live inference worker can hold the files open, and
+the fallback (keep loading them where they are, retry on a later run) costs nothing, while
+treating a failed move as "not installed" would re-download hundreds of MB that are already
+on disk.
+
+## Installing and removing
+
+`BundleInstallManager` owns one bundle's lifecycle — status, download with progress,
+cancellation, removal — and is generic over the catalog: a new model is an entry plus its
+hooks, not another copy of the machinery. `installers.ts` holds the instances.
+
+Downloads run shared runtimes first, then the bundle's own **missing** files, on one
+weighted progress scale. Two consequences worth keeping:
+
+- Files already on disk are never re-fetched, so repairing a half-finished install — or one
+  missing only its runtime — costs only what is actually missing.
+- Nothing is deleted when a download fails. Every write goes through a temp file renamed
+  only on completion, so a failed attempt leaves no partials, while the files already there
+  may predate it entirely. Wiping them would turn a failed ~40MB runtime fetch into the loss
+  of a complete ~614MB model.
+
+What a capability contributes is narrow, and only what the registry cannot know:
+refusing removal while the model is still referenced, releasing the inference worker around
+the delete, and any housekeeping once the files are gone.
+
 ## Removal
 
 Removing a bundle has two independent questions, and they are answered in different places:
@@ -150,6 +182,8 @@ fail outright.
 3. If it needs a native runtime that is not already a `SharedArtifact`, add one and list
    every platform it ships binaries for — omissions are what make a platform unsupported.
 4. Add the capability to the shared vocabulary in `src/shared/data/presets/localModel.ts`.
+5. Add a `BundleInstallManager` for it in `registry/installers.ts`, with the hooks its
+   capability needs.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
@@ -157,7 +191,7 @@ rather than on a user's machine.
 
 ## Known limits
 
-- The subsystem is mid-refactor: the download services and the inference host still live
+- The subsystem is mid-refactor: the OCR download service and the inference host still live
   outside this module and join it in later steps.
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.

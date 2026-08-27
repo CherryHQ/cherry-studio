@@ -3,6 +3,5 @@
  * embedding + PaddleOCR models and the shared onnxruntime-node native binary.
  * Public surface only — the subclasses and base are internal to this module.
  */
-export { localEmbeddingDownloadService } from './LocalEmbeddingDownloadService'
 export { localOcrDownloadService } from './LocalOcrDownloadService'
 export { isLocalModelReady } from './readiness'

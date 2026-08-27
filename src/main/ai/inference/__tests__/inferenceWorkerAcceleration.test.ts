@@ -17,11 +17,6 @@ const env = {}
 
 async function pipeline(_task, model, options = {}) {
   const device = options.device
-  if (model === 'download-model') {
-    if (device !== 'cpu') throw new Error('downloads must stay on cpu')
-    options.progress_callback?.({ status: 'ready', progress: 100 })
-  }
-  if (model === 'download-fail') throw new Error('network download failed')
   if (device === 'dml') {
     const session = options.session_options || {}
     const providers = JSON.stringify(session.executionProviders)
@@ -169,43 +164,11 @@ describe('inference worker hardware acceleration', () => {
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })
 
-  it('uses DirectML for embedding while keeping the download pipeline on CPU', async () => {
-    await expect(
-      request({
-        type: 'embedding.load',
-        id: 'download',
-        modelRepo: 'download-model',
-        dtype: 'q8',
-        source: { remoteHost: 'https://example.com', remotePathTemplate: '{model}', revision: 'main' }
-      })
-    ).resolves.toMatchObject({ type: 'result', embeddings: null })
-
+  it('uses DirectML session options for embedding', async () => {
     await expect(
       request({ type: 'embedding.embed', id: 'embed', modelDir: '/hardware-ok', dtype: 'q8', texts: ['hello'] })
     ).resolves.toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
 
-    expect(workerLogs()).toContain('hardware provider active provider=directml runtime=embedding')
-    expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
-  })
-
-  it('does not treat embedding download failures as hardware failures', async () => {
-    const download = await request({
-      type: 'embedding.load',
-      id: 'download-fail',
-      modelRepo: 'download-fail',
-      dtype: 'q8',
-      source: { remoteHost: 'https://example.com', remotePathTemplate: '{model}', revision: 'main' }
-    })
-    const embed = await request({
-      type: 'embedding.embed',
-      id: 'embed-after-download-fail',
-      modelDir: '/hardware-ok',
-      dtype: 'q8',
-      texts: ['hello']
-    })
-
-    expect(download).toMatchObject({ type: 'error', message: 'network download failed' })
-    expect(embed).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
     expect(workerLogs()).toContain('hardware provider active provider=directml runtime=embedding')
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })

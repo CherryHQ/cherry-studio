@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { defaultModelSourceId, getModelSource, modelSourceOrder, resolveModelFileUrl } from '../modelSource'
+import { defaultModelSourceId, modelSourceOrder, resolveModelFileUrl } from '../modelSource'
 
 describe('modelSource', () => {
   it('defaults to ModelScope when in China, HuggingFace otherwise', () => {
@@ -23,13 +23,5 @@ describe('modelSource', () => {
     expect(resolveModelFileUrl('modelscope', 'PaddlePaddle/PP-OCRv6_medium_rec_onnx', 'inference.onnx')).toBe(
       'https://www.modelscope.cn/models/PaddlePaddle/PP-OCRv6_medium_rec_onnx/resolve/master/inference.onnx'
     )
-  })
-
-  it('getModelSource still returns the transformers.js env triple for embedding', () => {
-    expect(getModelSource('modelscope')).toEqual({
-      remoteHost: 'https://www.modelscope.cn',
-      remotePathTemplate: 'models/{model}/resolve/{revision}',
-      revision: 'master'
-    })
   })
 })

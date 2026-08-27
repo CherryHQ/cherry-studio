@@ -74,6 +74,13 @@ export const LOCAL_MODEL_BUNDLES = {
     id: 'qwen3-embedding-0.6b',
     capability: 'embedding',
     installDirKey: 'feature.embedding.models',
+    // transformers.js loads a model from the directory holding its config.json, and
+    // earlier releases let it name that directory after the repo. Keeping the same layout
+    // is what lets existing installs upgrade without re-fetching 614MB.
+    installSubdir: 'onnx-community/Qwen3-Embedding-0.6B-ONNX',
+    // ModelScope downloads used to nest one more level, because transformers.js appends
+    // any revision that is not `main`.
+    legacyInstallSubdir: 'onnx-community/Qwen3-Embedding-0.6B-ONNX/master',
     requires: ['onnxruntime-node'],
     runtime: { dtype: 'q8' },
     files: [

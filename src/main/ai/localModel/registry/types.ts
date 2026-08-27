@@ -93,6 +93,14 @@ export interface ModelBundle {
   capability: LocalModelCapability
   /** Install root; every {@link BundleFile.relPath} resolves under it. */
   installDirKey: PathKey
+  /** Subdirectory of the install root the files actually live in. Present only where a
+   * loader dictates the layout — transformers.js resolves a model relative to the
+   * directory holding its `config.json`, and that directory is named after the repo. */
+  installSubdir?: string
+  /** A subdirectory an earlier release installed this bundle into. Still accepted so an
+   * upgrade never re-downloads, and lifted into {@link installSubdir} opportunistically.
+   * Removable once the upgrade window has passed. */
+  legacyInstallSubdir?: string
   files: BundleFile[]
   /** Shared runtimes this bundle cannot run without. Also the removal-GC input: a shared
    * artifact outlives a bundle exactly as long as another installed bundle requires it. */

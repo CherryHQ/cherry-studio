@@ -1,21 +1,15 @@
 /**
- * Download mirrors for local models (embedding + OCR). HuggingFace and its
- * ModelScope mirror both expose the HF-compatible `/<repo>/resolve/<revision>/<file>`
- * route; ModelScope nests repos under `models/` and defaults its branch to
- * `master` (HF uses `main`). One mirror table feeds two consumers:
- *   - transformers.js (embedding) takes the `{remoteHost, remotePathTemplate,
- *     revision}` triple as env values and fetches the model itself.
- *   - the OCR download service builds explicit per-file URLs from the same table
- *     via {@link resolveModelFileUrl} and fetches the weights directly.
+ * Download mirrors for model weights. HuggingFace and its ModelScope mirror both expose
+ * the HF-compatible `/<repo>/resolve/<revision>/<file>` route; ModelScope nests repos
+ * under `models/` and defaults its branch to `master` (HF uses `main`), which is why the
+ * addressing scheme is a table rather than a base URL.
  *
- * Download-time only. Embedding inference never consults this table: it loads the
- * cached model by absolute path, which is what keeps it off the network entirely.
+ * Download-time only. Inference never consults it: models load by absolute path, which is
+ * what keeps them off the network entirely.
  */
 export type ModelSourceId = 'huggingface' | 'modelscope'
 
-/** One mirror's addressing scheme. Matches the triple transformers.js takes as env
- * values, which is why it can be handed to the worker as-is. */
-export interface ModelSource {
+interface ModelSource {
   /** e.g. `https://huggingface.co`. */
   remoteHost: string
   /** e.g. `{model}/resolve/{revision}`. */
@@ -38,18 +32,6 @@ const SOURCES: Record<ModelSourceId, ModelSource> = {
 }
 
 /**
- * The exhaustive mirror set. LocalEmbeddingDownloadService's on-disk cache probe must cover
- * it whole: each mirror's revision lands in its own cache layout, so a probe that skipped one
- * would report a perfectly good download as incomplete — and, since that probe is also what
- * hands inference its model directory, would leave a downloaded model unusable.
- */
-export const ALL_MODEL_SOURCE_IDS = Object.keys(SOURCES) as readonly ModelSourceId[]
-
-export function getModelSource(id: ModelSourceId): ModelSource {
-  return SOURCES[id]
-}
-
-/**
  * China defaults to ModelScope (HuggingFace is hard to reach in China). `inChina` is the
  * egress-IP-based signal from `regionService.isInChina()` — the same one BinaryManager uses
  * to pick binary download mirrors — not the app's display locale, which reflects language
@@ -67,8 +49,6 @@ export function modelSourceOrder(inChina: boolean): [ModelSourceId, ...ModelSour
 /**
  * Direct download URL for `<repo>/<file>` on a given mirror, e.g.
  * `https://huggingface.co/PaddlePaddle/PP-OCRv6_medium_det_onnx/resolve/main/inference.onnx`.
- * Used for manually-fetched model files (OCR); embedding lets transformers.js
- * build its own URLs from the env triple.
  */
 export function resolveModelFileUrl(id: ModelSourceId, repo: string, file: string): string {
   const source = SOURCES[id]

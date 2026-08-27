@@ -10,6 +10,7 @@ import {
   type BundleFile,
   bundleFile,
   bundleForCapability,
+  dictTextFromInferenceYml,
   localModelRegistry,
   modelSourceOrder,
   resolveModelFileUrl
@@ -17,31 +18,10 @@ import {
 import { regionService } from '@main/services/RegionService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { net } from 'electron'
-import { parse } from 'yaml'
 
 import { LocalModelDownloadService, type LocalModelFilesState } from './LocalModelDownloadService'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
-
-/**
- * Build PaddleOCR's on-disk dictionary from the recognition model's
- * `inference.yml`. The `*_onnx` repos ship the dictionary only inside that
- * config (under `PostProcess.character_dict`), not as a standalone file.
- *
- * Format matters: ppu-paddle-ocr reads the dictionary file with
- * `split(/\r?\n/)` and no trimming, then its CTC decoder treats index 0 as the
- * blank token and the trailing entry as the space class. So the file must be a
- * leading blank line, the `character_dict` entries, then a trailing newline —
- * which reproduces the dictionary byte-for-byte.
- */
-export function dictTextFromInferenceYml(yml: string): string {
-  const config = parse(yml) as { PostProcess?: { character_dict?: unknown } } | null
-  const characters = config?.PostProcess?.character_dict
-  if (!Array.isArray(characters) || characters.length === 0) {
-    throw new Error('inference.yml is missing PostProcess.character_dict')
-  }
-  return `\n${characters.map(String).join('\n')}\n`
-}
 
 /**
  * On-disk lifecycle of the local PaddleOCR model: download (with mirror fallback

@@ -10,17 +10,6 @@ import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
  * functions, and Electron types.
  */
 
-/** Where transformers.js downloads ONNX weights from (HuggingFace / ModelScope mirror).
- * Download only — inference resolves the cached model by absolute path instead. */
-export interface InferenceModelSource {
-  /** transformers.js `env.remoteHost`, e.g. `https://huggingface.co`. */
-  remoteHost: string
-  /** transformers.js `env.remotePathTemplate`, e.g. `{model}/resolve/{revision}`. */
-  remotePathTemplate: string
-  /** Branch/tag — `main` on HuggingFace, `master` on ModelScope. */
-  revision: string
-}
-
 export type LocalInferenceProfileId = 'cpu' | 'directml' | 'coreml'
 export type LocalInferenceDevice = 'cpu' | 'dml' | 'coreml'
 export type LocalInferenceExecutionProvider = 'cpu' | 'dml' | 'coreml' | { name: 'coreml'; coreMlFlags: number }
@@ -47,27 +36,17 @@ export interface LocalInferenceRuntimeProfile {
 /** One-time setup sent right after the worker spawns. */
 export interface InferenceInitMessage {
   type: 'init'
-  /** transformers.js cache dir (resolved from an Electron path in the main process). */
-  cacheDir?: string
   /** App root, used by the worker to resolve `@huggingface/transformers`. */
   appPath: string
   /** Absolute path to the downloaded onnxruntime-node native binding — set as
    * `CHERRY_ONNXRUNTIME_BINDING_PATH` in the worker's own env before its first lazy
-   * require of `@huggingface/transformers`/`ppu-paddle-ocr` (see OnnxRuntimeBinaryService). */
+   * require of `@huggingface/transformers`/`ppu-paddle-ocr` (see the onnxruntime-node
+   * shared artifact in `ai/localModel`). */
   onnxRuntimeBindingPath: string
   /** Platform-resolved runtime configuration for embedding and OCR. */
   runtimeProfile: LocalInferenceRuntimeProfile
   /** ProxyService-owned routing decision; the worker never parses proxy or bypass config. */
   proxyRouting: ProxyRoutingSnapshot
-}
-
-/** Load (downloading if absent) the embedding pipeline; emits progress. */
-export interface EmbeddingLoadMessage {
-  type: 'embedding.load'
-  id: string
-  modelRepo: string
-  dtype: string
-  source: InferenceModelSource
 }
 
 /**
@@ -131,26 +110,9 @@ export interface OcrRecognizeMessage {
   source: OcrRecognizeSource
 }
 
-export type InferenceRequest =
-  | EmbeddingLoadMessage
-  | EmbeddingEmbedMessage
-  | EmbeddingCountTokensMessage
-  | OcrRecognizeMessage
+export type InferenceRequest = EmbeddingEmbedMessage | EmbeddingCountTokensMessage | OcrRecognizeMessage
 
 // -- worker → main --------------------------------------------------------
-
-/** Download/load progress for the in-flight request `id`. */
-export interface InferenceProgressMessage {
-  type: 'progress'
-  id: string
-  /** transformers.js status: `initiate` | `download` | `progress` | `done` | `ready`. */
-  status: string
-  file?: string
-  loaded?: number
-  total?: number
-  /** 0–100. */
-  progress?: number
-}
 
 /** Worker-side log line, surfaced through the main-process logger. */
 export interface InferenceLogMessage {
@@ -163,7 +125,7 @@ export interface InferenceLogMessage {
 export interface InferenceResultMessage {
   type: 'result'
   id: string
-  /** Embedding vectors (`embedding.embed`); null for a pure `embedding.load`. */
+  /** Embedding vectors (`embedding.embed`). */
   embeddings?: number[][] | null
   /** Recognized text (`ocr.recognize`). */
   text?: string | null
@@ -179,8 +141,4 @@ export interface InferenceErrorMessage {
   message: string
 }
 
-export type InferenceResponse =
-  | InferenceProgressMessage
-  | InferenceLogMessage
-  | InferenceResultMessage
-  | InferenceErrorMessage
+export type InferenceResponse = InferenceLogMessage | InferenceResultMessage | InferenceErrorMessage

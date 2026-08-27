@@ -2,8 +2,6 @@ import { EventEmitter } from 'node:events'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { InferenceModelSource } from '../inferenceProtocol'
-
 class FakeWorker extends EventEmitter {
   postMessage = vi.fn()
   unref = vi.fn()
@@ -25,11 +23,6 @@ const { OcrInferenceService } = await import('../OcrInferenceService')
 const embeddingInferenceService = new EmbeddingInferenceService()
 const ocrInferenceService = new OcrInferenceService()
 
-const SOURCE: InferenceModelSource = {
-  remoteHost: 'https://huggingface.co',
-  remotePathTemplate: '{model}/resolve/{revision}',
-  revision: 'main'
-}
 const MODEL_DIR = '/models/qwen3-embedding/org/model'
 
 describe('InferenceService on darwin-x64', () => {
@@ -39,11 +32,6 @@ describe('InferenceService on darwin-x64', () => {
 
   it('rejects embed without spawning a worker', async () => {
     await expect(embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')).rejects.toThrow(/darwin x64/)
-    expect(WorkerCtor).not.toHaveBeenCalled()
-  })
-
-  it('rejects loadEmbedding without spawning a worker', async () => {
-    await expect(embeddingInferenceService.loadEmbedding(SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 

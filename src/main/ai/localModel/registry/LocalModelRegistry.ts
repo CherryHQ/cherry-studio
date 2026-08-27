@@ -2,10 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 
 import { artifactEntryPath, installArtifact, isArtifactInstalled, removeArtifact } from '../acquisition/tarballArtifact'
 import { getSharedArtifact } from './catalog'
 import type { BundleFile, InstallState, ModelBundle, SharedArtifactId } from './types'
+
+const logger = loggerService.withContext('LocalModelRegistry')
 
 /**
  * What is installed right now, and the gatekeeper for installing or deleting shared
@@ -21,12 +24,33 @@ class LocalModelRegistry {
    * the same runtime await a single fetch instead of both writing the same files. */
   private readonly artifactInstalls = new Map<SharedArtifactId, Promise<void>>()
 
-  bundleInstallDir(bundle: ModelBundle): string {
+  /** The bundle's own root — what removal deletes. Wider than the model directory when
+   * a loader dictates a nested layout, so no empty parent chain is left behind. */
+  bundleRootDir(bundle: ModelBundle): string {
     return application.getPath(bundle.installDirKey)
   }
 
-  private bundleFilePath(bundle: ModelBundle, file: BundleFile): string {
-    return path.join(this.bundleInstallDir(bundle), file.relPath)
+  /** Where the bundle's files belong: the directory loaders are pointed at. */
+  bundleInstallDir(bundle: ModelBundle): string {
+    return path.join(this.bundleRootDir(bundle), bundle.installSubdir ?? '')
+  }
+
+  private bundleFilePath(bundle: ModelBundle, file: BundleFile, dir = this.bundleInstallDir(bundle)): string {
+    return path.join(dir, file.relPath)
+  }
+
+  private missingFilesIn(bundle: ModelBundle, dir: string): BundleFile[] {
+    return bundle.files.filter((file) => {
+      const stat = fs.statSync(this.bundleFilePath(bundle, file, dir), { throwIfNoEntry: false })
+      return !stat?.isFile() || stat.size < file.minBytes
+    })
+  }
+
+  /** The files a download still has to fetch. Everything already on disk is left alone, so
+   * repairing a half-finished install — or one missing only its shared runtime — does not
+   * re-fetch hundreds of MB that are already there. */
+  pendingBundleFiles(bundle: ModelBundle): BundleFile[] {
+    return this.missingFilesIn(bundle, this.bundleInstallDir(bundle))
   }
 
   /**
@@ -38,16 +62,52 @@ class LocalModelRegistry {
    * download otherwise reads as a complete model and fails at load time instead.
    */
   scanBundleFiles(bundle: ModelBundle): InstallState {
-    const missingFiles = bundle.files
-      .filter((file) => {
-        const stat = fs.statSync(this.bundleFilePath(bundle, file), { throwIfNoEntry: false })
-        return !stat?.isFile() || stat.size < file.minBytes
-      })
-      .map((file) => file.relPath)
+    if (this.resolveInstalledDir(bundle)) return { status: 'installed' }
 
-    if (missingFiles.length === 0) return { status: 'installed' }
-    if (missingFiles.length === bundle.files.length) return { status: 'not_installed' }
-    return { status: 'incomplete', missingFiles }
+    const missing = this.missingFilesIn(bundle, this.bundleInstallDir(bundle))
+    if (missing.length === bundle.files.length) return { status: 'not_installed' }
+    return { status: 'incomplete', missingFiles: missing.map((file) => file.relPath) }
+  }
+
+  /**
+   * The directory holding a complete copy of the bundle, or null when none does. Prefers
+   * the current layout and falls back to {@link ModelBundle.legacyInstallSubdir}, so an
+   * install written by an earlier release keeps working instead of being re-downloaded.
+   *
+   * Finding only the legacy copy also triggers a one-shot attempt to lift it into place.
+   * That attempt is best-effort by design: the files may be held open by a live inference
+   * worker, and the fallback — keep loading them where they are — costs nothing.
+   */
+  resolveInstalledDir(bundle: ModelBundle): string | null {
+    const installDir = this.bundleInstallDir(bundle)
+    if (this.missingFilesIn(bundle, installDir).length === 0) return installDir
+
+    if (!bundle.legacyInstallSubdir) return null
+    const legacyDir = path.join(this.bundleRootDir(bundle), bundle.legacyInstallSubdir)
+    if (this.missingFilesIn(bundle, legacyDir).length > 0) return null
+
+    return this.liftLegacyInstall(bundle, legacyDir, installDir) ? installDir : legacyDir
+  }
+
+  private liftLegacyInstall(bundle: ModelBundle, legacyDir: string, installDir: string): boolean {
+    try {
+      for (const file of bundle.files) {
+        const target = this.bundleFilePath(bundle, file, installDir)
+        fs.mkdirSync(path.dirname(target), { recursive: true })
+        fs.renameSync(this.bundleFilePath(bundle, file, legacyDir), target)
+      }
+      fs.rmSync(legacyDir, { recursive: true, force: true })
+      logger.info('lifted a legacy local model install into the current layout', { bundle: bundle.id })
+      return true
+    } catch (error) {
+      // Leave both sides as they are and keep serving from the legacy directory; a later
+      // run retries once whatever held the files open has let go.
+      logger.warn('could not lift a legacy local model install; using it in place', {
+        bundle: bundle.id,
+        error: String(error)
+      })
+      return false
+    }
   }
 
   isArtifactReady(id: SharedArtifactId): boolean {

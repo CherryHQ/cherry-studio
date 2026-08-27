@@ -23,15 +23,6 @@ const INFERENCE_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
 /** Per-member Omit so union variants keep their own fields (built-in Omit drops them). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
-export interface InferenceProgress {
-  status: string
-  file?: string
-  loaded?: number
-  total?: number
-  /** 0–100. */
-  progress?: number
-}
-
 /** One worker `result` message, narrowed to the field the caller cares about. */
 interface InferenceResult {
   embeddings?: number[][] | null
@@ -43,7 +34,6 @@ interface InferenceResult {
 interface Pending {
   resolve: (result: InferenceResult) => void
   reject: (err: Error) => void
-  onProgress?: (p: InferenceProgress) => void
   /** Detaches the abort listener `sendNow` registered (a no-op once it has
    * already fired, since it's `{ once: true }`). */
   cleanup: () => void
@@ -102,8 +92,8 @@ export abstract class InferenceServiceBase extends BaseService {
       throw new Error('inference host is shutting down')
     }
     // Last line of defense: the settings/KB cards already hide on Intel Mac (see
-    // LocalModelDownloadService.getStatus), but this is the spawn point every
-    // caller (embed/loadEmbedding/recognize, including the OCR agent tool)
+    // BundleInstallManager.getStatusInfo), but this is the spawn point every
+    // caller (embed/countTokens/recognize, including the OCR agent tool)
     // funnels through, so anything that reaches it programmatically fails fast
     // instead of loading a worker that will crash on the missing native binding.
     if (isDarwinX64) {
@@ -169,21 +159,11 @@ export abstract class InferenceServiceBase extends BaseService {
       runtimeProfile,
       proxyRouting
     }
-    // Only the embedding worker reads cacheDir (transformers.js model cache); the OCR
-    // worker uses explicit modelPaths and never reads it, so OCR omits the field.
-    const cacheDir = this.workerCacheDir()
-    if (cacheDir !== undefined) init.cacheDir = cacheDir
     worker.postMessage(init)
     this.worker = worker
     this.workerProxyVersion = proxyRouting.version
     this.workerProfileId = runtimeProfile.id
     return worker
-  }
-
-  /** Directory passed to the worker as its model cache. Overridden by the
-   * embedding service; the base (and the OCR service) supply nothing. */
-  protected workerCacheDir(): string | undefined {
-    return undefined
   }
 
   private handleMessage(msg: InferenceResponse): void {
@@ -194,15 +174,6 @@ export abstract class InferenceServiceBase extends BaseService {
         log.call(this.logger, `[worker] ${msg.message}`)
         return
       }
-      case 'progress':
-        this.pending.get(msg.id)?.onProgress?.({
-          status: msg.status,
-          file: msg.file,
-          loaded: msg.loaded,
-          total: msg.total,
-          progress: msg.progress
-        })
-        return
       case 'result': {
         const pending = this.pending.get(msg.id)
         if (!pending) return
@@ -243,7 +214,7 @@ export abstract class InferenceServiceBase extends BaseService {
 
   protected async send(
     request: DistributiveOmit<InferenceRequest, 'id'>,
-    opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal } = {}
+    opts: { signal?: AbortSignal } = {}
   ): Promise<InferenceResult> {
     // Fail fast on an already-aborted signal rather than occupying a queue slot
     // (sendNow's own check below only fires once this request reaches the front).
@@ -262,7 +233,7 @@ export abstract class InferenceServiceBase extends BaseService {
 
   private async sendNow(
     request: DistributiveOmit<InferenceRequest, 'id'>,
-    opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal }
+    opts: { signal?: AbortSignal }
   ): Promise<InferenceResult> {
     if (opts.signal?.aborted) {
       throw opts.signal.reason instanceof Error ? opts.signal.reason : new Error('aborted')
@@ -280,7 +251,7 @@ export abstract class InferenceServiceBase extends BaseService {
         reject(opts.signal?.reason instanceof Error ? opts.signal.reason : new Error('aborted'))
       }
       const cleanup = () => opts.signal?.removeEventListener('abort', onAbort)
-      this.pending.set(id, { resolve, reject, onProgress: opts.onProgress, cleanup })
+      this.pending.set(id, { resolve, reject, cleanup })
       opts.signal?.addEventListener('abort', onAbort, { once: true })
       worker.postMessage({ ...request, id } as InferenceRequest)
     })

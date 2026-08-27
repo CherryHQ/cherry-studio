@@ -1,8 +1,7 @@
-import { application } from '@application'
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import type { EmbeddingModelDir, InferenceModelSource } from './inferenceProtocol'
-import { type InferenceProgress, InferenceServiceBase } from './InferenceServiceBase'
+import type { EmbeddingModelDir } from './inferenceProtocol'
+import { InferenceServiceBase } from './InferenceServiceBase'
 
 /** Local text-embedding inference (transformers.js / Qwen3-Embedding) in its own
  * worker; see {@link InferenceServiceBase} for the shared worker lifecycle. */
@@ -13,11 +12,6 @@ export class EmbeddingInferenceService extends InferenceServiceBase {
     super('embedding')
   }
 
-  /** The embedding worker caches transformers.js weights under this directory. */
-  protected override workerCacheDir(): string {
-    return application.getPath('feature.embedding.models')
-  }
-
   /** Embed texts off the main thread, loading the model from `modelDir` if it is not cached in memory. */
   async embed(texts: string[], modelDir: EmbeddingModelDir, dtype: string, signal?: AbortSignal): Promise<number[][]> {
     const result = await this.send({ type: 'embedding.embed', modelDir, dtype, texts }, { signal })
@@ -25,17 +19,6 @@ export class EmbeddingInferenceService extends InferenceServiceBase {
     // poison every downstream consumer (empty vectors indexed as real ones).
     if (!result.embeddings) throw new Error('inference worker returned an embed result without embeddings')
     return result.embeddings
-  }
-
-  /** Download/load the embedding model, reporting progress (used by the model card). */
-  async loadEmbedding(
-    source: InferenceModelSource,
-    modelRepo: string,
-    dtype: string,
-    onProgress?: (p: InferenceProgress) => void,
-    signal?: AbortSignal
-  ): Promise<void> {
-    await this.send({ type: 'embedding.load', modelRepo, dtype, source }, { onProgress, signal })
   }
 
   /** Count tokens via the pipeline's own tokenizer, off the main thread — the main

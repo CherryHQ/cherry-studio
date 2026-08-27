@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/inference/inferenceAcceleration'
-import { localModelRegistry } from '@main/ai/localModel'
-import { localEmbeddingDownloadService, localOcrDownloadService } from '@main/services/localModel'
+import { localEmbeddingInstaller, localModelRegistry } from '@main/ai/localModel'
+import { localOcrDownloadService } from '@main/services/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import type { localModelRequestSchemas } from '@shared/ipc/schemas/localModel'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -10,13 +10,13 @@ const logger = loggerService.withContext('localModelHandlers')
 
 /** The two download services share one method shape — pick by `model`. */
 function serviceFor(model: LocalModelKind) {
-  return model === 'embedding' ? localEmbeddingDownloadService : localOcrDownloadService
+  return model === 'embedding' ? localEmbeddingInstaller : localOcrDownloadService
 }
 
 /** The other of the two — checked on removal to decide whether the onnxruntime
  * binary they share is still needed. */
 function siblingFor(model: LocalModelKind) {
-  return model === 'embedding' ? localOcrDownloadService : localEmbeddingDownloadService
+  return model === 'embedding' ? localOcrDownloadService : localEmbeddingInstaller
 }
 
 /** Drop the shared runtime unless the sibling model still needs it. The caller checks

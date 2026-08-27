@@ -5,14 +5,14 @@
  *
  * Public surface only — everything else under this directory is internal.
  */
-export type { ModelSource, ModelSourceId } from './acquisition/modelSource'
+export { dictTextFromInferenceYml } from './acquisition/derivations'
+export type { ModelSourceId } from './acquisition/modelSource'
 export {
-  ALL_MODEL_SOURCE_IDS,
   defaultModelSourceId,
-  getModelSource,
   modelSourceOrder,
   resolveModelFileUrl
 } from './acquisition/modelSource'
+export type { CapabilityHooks } from './registry/BundleInstallManager'
 export {
   ALL_MODEL_BUNDLE_IDS,
   bundleDtype,
@@ -23,6 +23,7 @@ export {
   LOCAL_MODEL_BUNDLES,
   SHARED_ARTIFACTS
 } from './registry/catalog'
+export { localEmbeddingInstaller } from './registry/installers'
 export { localModelRegistry } from './registry/LocalModelRegistry'
 export type {
   BundleFile,

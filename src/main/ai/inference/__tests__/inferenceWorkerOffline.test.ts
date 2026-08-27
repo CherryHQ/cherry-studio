@@ -6,7 +6,7 @@ import { Worker } from 'node:worker_threads'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { CPU_LOCAL_INFERENCE_PROFILE } from '../inferenceAcceleration'
-import type { InferenceModelSource, InferenceResponse } from '../inferenceProtocol'
+import type { InferenceResponse } from '../inferenceProtocol'
 import { inferenceWorkerSource } from '../inferenceWorkerSource'
 
 /**
@@ -25,11 +25,8 @@ import { inferenceWorkerSource } from '../inferenceWorkerSource'
  */
 
 const MODEL_REPO = 'test-org/test-embedding'
-const MODELSCOPE_SOURCE: InferenceModelSource = {
-  remoteHost: 'https://www.modelscope.cn',
-  remotePathTemplate: 'models/{model}/resolve/{revision}',
-  revision: 'master'
-}
+/** ModelScope's branch name, which is the segment its cache layout nests under. */
+const MODELSCOPE_REVISION = 'master'
 
 /** Marks any network attempt so a failure can be attributed to it rather than to ONNX. */
 const NETWORK_TRIPWIRE = 'CHERRY_TEST_NETWORK_BLOCKED'
@@ -76,7 +73,7 @@ const CONFIG_JSON = JSON.stringify({
  * discovery to the network.
  */
 async function seedModelScopeCache(): Promise<string> {
-  const modelDir = path.join(cacheDir, ...MODEL_REPO.split('/'), MODELSCOPE_SOURCE.revision)
+  const modelDir = path.join(cacheDir, ...MODEL_REPO.split('/'), MODELSCOPE_REVISION)
   await mkdir(path.join(modelDir, 'onnx'), { recursive: true })
   await writeFile(path.join(modelDir, 'config.json'), CONFIG_JSON)
   await writeFile(path.join(modelDir, 'tokenizer.json'), TOKENIZER_JSON)
@@ -128,7 +125,6 @@ function startWorker(): Worker {
   spawned.postMessage({
     type: 'init',
     appPath,
-    cacheDir,
     onnxRuntimeBindingPath: '',
     runtimeProfile: CPU_LOCAL_INFERENCE_PROFILE,
     proxyRouting: { version: 0, mode: 'direct' }

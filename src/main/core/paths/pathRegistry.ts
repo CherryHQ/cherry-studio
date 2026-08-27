@@ -111,7 +111,7 @@ export function buildPathRegistry() {
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
-    // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
+    // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)

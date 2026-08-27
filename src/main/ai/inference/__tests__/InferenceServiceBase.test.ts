@@ -328,27 +328,23 @@ describe('InferenceService worker init message', () => {
   /** The one-time init message is the first thing posted to a freshly spawned worker. */
   function initMessage(worker: FakeWorker): {
     type: string
-    cacheDir?: string
     appPath?: string
     proxyRouting?: ProxyRoutingSnapshot
     runtimeProfile?: { id: string }
   } {
     return worker.postMessage.mock.calls[0][0] as {
       type: string
-      cacheDir?: string
       appPath?: string
       proxyRouting?: ProxyRoutingSnapshot
       runtimeProfile?: { id: string }
     }
   }
 
-  it('sends cacheDir to the embedding worker but omits it for the OCR worker', async () => {
+  it('inits each capability worker with the app root, proxy routing and acceleration profile', async () => {
     const embedPending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
     const embeddingWorker = await latestWorker()
     const embedInit = initMessage(embeddingWorker)
     expect(embedInit.type).toBe('init')
-    // Embedding must still receive the transformers.js model cache dir (unchanged behavior).
-    expect(embedInit.cacheDir).toBeTruthy()
     expect(embedInit.appPath).toBeTruthy()
     expect(embedInit.proxyRouting).toEqual(DIRECT_ROUTING)
     expect(embedInit.runtimeProfile?.id).toBe('directml')
@@ -363,9 +359,6 @@ describe('InferenceService worker init message', () => {
     const ocrWorker = await latestWorker(2)
     const ocrInit = initMessage(ocrWorker)
     expect(ocrInit.type).toBe('init')
-    // The OCR worker uses explicit modelPaths and never reads cacheDir — the field is
-    // omitted entirely (absent, not set to undefined). This is the load-bearing half of #9.
-    expect('cacheDir' in ocrInit).toBe(false)
     expect(ocrInit.appPath).toBeTruthy()
     expect(ocrInit.proxyRouting).toEqual(DIRECT_ROUTING)
     expect(ocrInit.runtimeProfile?.id).toBe('directml')

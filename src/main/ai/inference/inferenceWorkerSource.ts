@@ -25,12 +25,11 @@ import { l2normalize } from './pooling'
  * TODO(packaged): the worker resolves `@huggingface/transformers` and
  * `ppu-paddle-ocr` off `app.root`; verify both resolve once the packaged-app build
  * is exercised. The onnxruntime-node native binding is downloaded on demand (not
- * bundled/asarUnpack'd) — see OnnxRuntimeBinaryService.
+ * bundled/asarUnpack'd) — see the onnxruntime-node shared artifact in `ai/localModel`.
  */
 export const inferenceWorkerSource = `
 const { parentPort } = require('node:worker_threads')
 
-let cacheDir = null
 let appPath = null
 let transformers = null
 let ppu = null
@@ -70,19 +69,7 @@ function describeError(error) {
 
 function requestLogContext(msg) {
   const context = ['request=' + msg.type, 'proxy=' + proxyStatus]
-  if (typeof msg.modelRepo === 'string') context.push('model=' + JSON.stringify(msg.modelRepo))
   if (typeof msg.modelDir === 'string') context.push('modelDir=' + JSON.stringify(msg.modelDir))
-  // OCR carries its own \`source\` (where the image comes from); only a download source has a remoteHost.
-  if (msg.source && typeof msg.source.remoteHost === 'string') {
-    let origin
-    try {
-      origin = new URL(msg.source.remoteHost).origin
-    } catch {
-      // Keep the invalid marker without echoing an untrusted URL into logs.
-      origin = '<invalid>'
-    }
-    context.push('source=' + JSON.stringify(origin))
-  }
   return context.join(' ')
 }
 
@@ -124,10 +111,7 @@ function getLocalPipeline(modelDir, dtype) {
   let promise = pipelines.get(key)
   if (!promise) {
     promise = (async () => {
-      const { pipeline, env } = getTransformers()
-      // Leave env.remoteHost/remotePathTemplate untouched: an absolute model id never
-      // consults them, and clearing them would race the download path sharing this env.
-      if (cacheDir) env.cacheDir = cacheDir
+      const { pipeline } = getTransformers()
       const extractor = await pipeline('feature-extraction', modelDir, {
         dtype,
         device: runtimeProfile.transformersDevice,
@@ -145,35 +129,6 @@ function getLocalPipeline(modelDir, dtype) {
   return promise
 }
 
-/**
- * Download the model into the transformers.js cache. Unlike inference this needs a repo id
- * and the mirror env, and the resulting pipeline is discarded: inference reloads by
- * absolute path, so keeping this instance would pin ~600MB for nothing.
- */
-async function downloadPipeline(id, repo, dtype, source) {
-  const { pipeline, env } = getTransformers()
-  env.allowRemoteModels = true
-  if (cacheDir) env.cacheDir = cacheDir
-  env.remoteHost = source.remoteHost
-  env.remotePathTemplate = source.remotePathTemplate
-  await pipeline('feature-extraction', repo, {
-    dtype,
-    device: 'cpu',
-    revision: source.revision,
-    progress_callback: (p) => {
-      parentPort.postMessage({
-        type: 'progress',
-        id,
-        status: p.status,
-        file: p.file,
-        loaded: p.loaded,
-        total: p.total,
-        progress: p.progress
-      })
-    }
-  })
-}
-
 async function handleEmbed(msg) {
   const extractor = await getLocalPipeline(msg.modelDir, msg.dtype)
   const vectors = []
@@ -185,11 +140,6 @@ async function handleEmbed(msg) {
     vectors.push(l2normalize(tokens[seq - 1]))
   }
   parentPort.postMessage({ type: 'result', id: msg.id, embeddings: vectors })
-}
-
-async function handleLoad(msg) {
-  await downloadPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source)
-  parentPort.postMessage({ type: 'result', id: msg.id, embeddings: null })
 }
 
 async function handleCountTokens(msg) {
@@ -279,8 +229,7 @@ async function runWithHardwareFallback(msg, run) {
   try {
     await run(msg)
   } catch (hardwareError) {
-    // Downloads already run on CPU, so their failures cannot diagnose a hardware provider.
-    if (msg.type === 'embedding.load' || runtimeProfile.id === 'cpu') throw hardwareError
+    if (runtimeProfile.id === 'cpu') throw hardwareError
 
     const provider = runtimeProfile.id
     postLog(
@@ -315,7 +264,6 @@ async function runWithHardwareFallback(msg, run) {
 parentPort.on('message', (msg) => {
   if (!msg || typeof msg !== 'object') return
   if (msg.type === 'init') {
-    cacheDir = msg.cacheDir
     appPath = msg.appPath
     runtimeProfile = msg.runtimeProfile
     const proxy = configureWorkerProxy(appPath, msg.proxyRouting, createProxyBypassMatcher)
@@ -339,13 +287,11 @@ parentPort.on('message', (msg) => {
   const run =
     msg.type === 'embedding.embed'
       ? handleEmbed
-      : msg.type === 'embedding.load'
-        ? handleLoad
-        : msg.type === 'embedding.countTokens'
-          ? handleCountTokens
-          : msg.type === 'ocr.recognize'
-            ? handleOcr
-            : null
+      : msg.type === 'embedding.countTokens'
+        ? handleCountTokens
+        : msg.type === 'ocr.recognize'
+          ? handleOcr
+          : null
   if (!run) {
     parentPort.postMessage({ type: 'error', id: msg.id, message: 'unknown message type: ' + msg.type })
     return

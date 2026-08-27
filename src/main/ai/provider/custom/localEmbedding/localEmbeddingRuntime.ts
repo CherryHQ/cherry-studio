@@ -1,16 +1,14 @@
 import { application } from '@application'
 import type { EmbeddingModelDir } from '@main/ai/inference/inferenceProtocol'
-import { bundleDtype, bundleForCapability } from '@main/ai/localModel'
-import { localEmbeddingDownloadService } from '@main/services/localModel'
+import { bundleDtype, bundleForCapability, localModelRegistry } from '@main/ai/localModel'
 
 /**
- * The cached model's directory, for loading it straight off disk. Resolving it here — from
- * the download service's own on-disk probe — rather than handing the worker a list of mirror
- * revisions to try means a missing cache fails in the main process with a clear message,
- * instead of surfacing as a transformers.js resolution error per candidate.
+ * The installed model's directory, for loading it straight off disk. Resolving it in the
+ * main process — where the on-disk scan already lives — means a missing model fails here
+ * with a clear message instead of as a transformers.js resolution error in the worker.
  */
 export function currentModelDir(): EmbeddingModelDir {
-  const modelDir = localEmbeddingDownloadService.completeCacheDir()
+  const modelDir = localModelRegistry.resolveInstalledDir(bundleForCapability('embedding'))
   if (!modelDir) {
     throw new Error('the local embedding model is not fully downloaded')
   }

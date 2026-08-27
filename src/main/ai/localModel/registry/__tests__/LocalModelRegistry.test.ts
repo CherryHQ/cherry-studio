@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -32,19 +32,22 @@ const BUNDLE: ModelBundle = {
   ]
 }
 
+/** An install an earlier release wrote under a now-superseded subdirectory. */
+const LEGACY_BUNDLE: ModelBundle = { ...BUNDLE, installSubdir: 'model', legacyInstallSubdir: 'model/master' }
+
 function writeBundleFile(relPath: string, size: number): void {
   const target = path.join(installDir, relPath)
   mkdirSync(path.dirname(target), { recursive: true })
   writeFileSync(target, Buffer.alloc(size))
 }
 
+beforeEach(() => {
+  installDir = mkdtempSync(path.join(tmpdir(), 'local-model-registry-test-'))
+})
+
+afterEach(() => rmSync(installDir, { recursive: true, force: true }))
+
 describe('scanBundleFiles', () => {
-  beforeEach(() => {
-    installDir = mkdtempSync(path.join(tmpdir(), 'local-model-registry-test-'))
-  })
-
-  afterEach(() => rmSync(installDir, { recursive: true, force: true }))
-
   it('reports not_installed when nothing is on disk', () => {
     expect(localModelRegistry.scanBundleFiles(BUNDLE)).toEqual({ status: 'not_installed' })
   })
@@ -82,5 +85,50 @@ describe('scanBundleFiles', () => {
     mkdirSync(path.join(installDir, 'nested', 'b.onnx'), { recursive: true })
 
     expect(localModelRegistry.scanBundleFiles(BUNDLE).status).toBe('incomplete')
+  })
+})
+
+describe('resolveInstalledDir', () => {
+  it('returns the current layout and leaves a stale legacy directory alone', () => {
+    writeBundleFile('model/a.onnx', 20)
+    writeBundleFile('model/nested/b.onnx', 20)
+    writeBundleFile('model/master/a.onnx', 20)
+
+    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model'))
+    expect(existsSync(path.join(installDir, 'model/master/a.onnx'))).toBe(true)
+  })
+
+  it('lifts a legacy-only install into the current layout instead of re-downloading it', () => {
+    writeBundleFile('model/master/a.onnx', 20)
+    writeBundleFile('model/master/nested/b.onnx', 20)
+
+    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model'))
+    expect(existsSync(path.join(installDir, 'model/nested/b.onnx'))).toBe(true)
+    expect(existsSync(path.join(installDir, 'model/master'))).toBe(false)
+  })
+
+  it('reports a legacy-only install as installed, so no re-download is offered', () => {
+    writeBundleFile('model/master/a.onnx', 20)
+    writeBundleFile('model/master/nested/b.onnx', 20)
+
+    expect(localModelRegistry.scanBundleFiles(LEGACY_BUNDLE)).toEqual({ status: 'installed' })
+  })
+
+  it('serves the legacy install in place when the lift cannot complete', () => {
+    // Something is occupying the destination path (a live worker's open handle does the
+    // same on Windows). Losing a complete model over a failed move would be the worse
+    // outcome, so the legacy copy stays usable and a later run retries.
+    writeBundleFile('model/master/a.onnx', 20)
+    writeBundleFile('model/master/nested/b.onnx', 20)
+    mkdirSync(path.join(installDir, 'model', 'a.onnx', 'blocker'), { recursive: true })
+
+    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model/master'))
+    expect(existsSync(path.join(installDir, 'model/master/a.onnx'))).toBe(true)
+  })
+
+  it('returns null when neither layout holds a complete install', () => {
+    writeBundleFile('model/master/a.onnx', 20)
+
+    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBeNull()
   })
 })

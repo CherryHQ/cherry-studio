@@ -1,6 +1,6 @@
+import { localEmbeddingInstaller } from '@main/ai/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 
-import { localEmbeddingDownloadService } from './LocalEmbeddingDownloadService'
 import { localOcrDownloadService } from './LocalOcrDownloadService'
 
 /**
@@ -15,6 +15,6 @@ import { localOcrDownloadService } from './LocalOcrDownloadService'
  * read, so UI and execution never disagree.
  */
 export function isLocalModelReady(kind: LocalModelKind): boolean {
-  const service = kind === 'embedding' ? localEmbeddingDownloadService : localOcrDownloadService
+  const service = kind === 'embedding' ? localEmbeddingInstaller : localOcrDownloadService
   return service.getStatus() === 'ready'
 }
