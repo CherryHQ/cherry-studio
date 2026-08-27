@@ -3,11 +3,7 @@
  *
  * A real local HTTP server drives the actual `webdav` client, so the
  * `.status`-bearing error shape reaching `describeWebDavError` is the exact
- * production shape — a stubbed client would only pin our wrapper, not the
- * library contract it depends on. Each test names the bug it catches:
- * status/stage/path reaching the renderer (classification input), non-status
- * errors passing through unwrapped (TLS / idle-timeout matcher input), and
- * checkConnection probing the configured path instead of the server root.
+ * production shape — a stubbed client would only pin our wrapper.
  */
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import http from 'node:http'
@@ -75,8 +71,8 @@ describe('WebDav failure contracts', () => {
     // The response body never enters the thrown message — log-only.
     expect((error as Error).message).not.toMatch(/quota/)
     // Body reaches the error log redacted: embedded credentials masked.
-    const logCall = mockMainLoggerService.error.mock.calls.find(
-      (call) => call[0] === 'Error putting file contents on WebDAV:'
+    const logCall = mockMainLoggerService.error.mock.calls.find((call) =>
+      String(call[0]).includes('putting file contents')
     )
     expect(logCall).toBeDefined()
     const context = logCall?.[2] as { bodySnippet?: string }
@@ -85,9 +81,8 @@ describe('WebDav failure contracts', () => {
   })
 
   it('carries stage and path when the ensure-directory step fails', async () => {
-    // Bug caught: an MKCOL rejection (e.g. 403 write-scope on the backup
-    // folder) surfaced as a bare error with no indication of which stage
-    // failed — indistinguishable from a PUT failure.
+    // Bug caught: an MKCOL rejection surfaced with no indication of which
+    // stage failed — indistinguishable from a PUT failure.
     handler = (req, res) => {
       if (req.method === 'PROPFIND') {
         res.writeHead(404)
@@ -111,16 +106,27 @@ describe('WebDav failure contracts', () => {
 
   it('passes non-status failures through unwrapped (TLS/timeout matcher input)', async () => {
     // Bug caught: wrapping every rejection would destroy the renderer's
-    // raw-text classification for TLS certificate errors and the
-    // idle-timeout DOMException, which carry no `.status`.
+    // raw-text classification, which keys on the original message.
     const webdav = new WebDav({ webdavHost: 'https://example.com' })
-    const nativeError = new Error('self-signed certificate')
+    const tlsError = new Error('self-signed certificate')
+    const timeoutError = new DOMException('Idle timeout exceeded', 'TimeoutError')
     webdav.instance = {
-      exists: vi.fn().mockRejectedValue(nativeError),
+      exists: vi.fn().mockRejectedValueOnce(tlsError).mockRejectedValueOnce(timeoutError),
       createDirectory: vi.fn()
     } as unknown as WebDAVClient
 
-    await expect(webdav.putFileContents('backup.zip', Buffer.from('x'))).rejects.toBe(nativeError)
+    const first: unknown = await webdav.putFileContents('f.zip', Buffer.from('x')).then(
+      () => null,
+      (e) => e
+    )
+    const second: unknown = await webdav.putFileContents('f.zip', Buffer.from('x')).then(
+      () => null,
+      (e) => e
+    )
+
+    expect(first).toBe(tlsError)
+    expect(second).toBe(timeoutError)
+    expect((second as Error).message).not.toMatch(/HTTP/)
   })
 
   it('checkConnection probes the configured path, not the server root', async () => {

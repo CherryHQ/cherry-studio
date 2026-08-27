@@ -26,12 +26,9 @@ interface DescribedWebDavError {
 }
 
 /**
- * Wrap WebDAV failures that carry an HTTP status with the stable
- * renderer-matchable token (`HTTP <code>`), the operation stage, and the
- * remote path. Every other failure — TLS certificate text, idle-timeout
- * aborts, network errors — passes through untouched: the renderer classifies
- * those on their raw message text. The response body never enters the thrown
- * message; it is returned for the caller to redact into the error log.
+ * Wrap status-bearing WebDAV failures with the renderer-matchable
+ * `HTTP <code>` token, stage, and remote path; everything else passes through
+ * untouched (the renderer matches TLS/timeout errors on raw message text).
  */
 async function describeWebDavError(error: unknown, stage: string, remotePath: string): Promise<DescribedWebDavError> {
   const status = (error as { status?: unknown }).status
@@ -41,13 +38,14 @@ async function describeWebDavError(error: unknown, stage: string, remotePath: st
   const response = (error as { response?: { statusText?: string; text?: () => Promise<string> } }).response
   let bodySnippet: string | undefined
   try {
+    // Redact before truncating so a secret split at the cap cannot leak a fragment.
     if (typeof response?.text === 'function') {
-      bodySnippet = (await response.text()).slice(0, REMOTE_ERROR_BODY_SNIPPET_LIMIT)
+      bodySnippet = redactSecretText(await response.text()).slice(0, REMOTE_ERROR_BODY_SNIPPET_LIMIT)
     }
   } catch {
     // Best-effort diagnostics: a failed body read must not alter the error flow.
   }
-  const statusText = response?.statusText || error.message
+  const statusText = response?.statusText || error.message.slice(0, 120)
   return {
     error: new Error(`${stage} ${remotePath} failed: HTTP ${status} (${statusText})`, { cause: error }),
     bodySnippet
@@ -99,7 +97,7 @@ export default class WebDav {
       logger.error(
         'Error creating directory on WebDAV:',
         error as Error,
-        described.bodySnippet ? { bodySnippet: redactSecretText(described.bodySnippet) } : {}
+        described.bodySnippet ? { bodySnippet: described.bodySnippet } : {}
       )
       throw described.error
     }
@@ -121,7 +119,7 @@ export default class WebDav {
       logger.error(
         'Error putting file contents on WebDAV:',
         error as Error,
-        described.bodySnippet ? { bodySnippet: redactSecretText(described.bodySnippet) } : {}
+        described.bodySnippet ? { bodySnippet: described.bodySnippet } : {}
       )
       throw described.error
     }

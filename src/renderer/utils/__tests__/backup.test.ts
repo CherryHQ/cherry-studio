@@ -30,6 +30,14 @@ describe('getLocalizedBackupErrorMessage', () => {
     expect(result).toBe('localized:backup.error.remote_quota_exceeded (Invalid response: 507 Insufficient Storage)')
   })
 
+  it('classifies the enriched quota message from our WebDav layer (dual source)', () => {
+    expect(
+      getLocalizedBackupErrorMessage(new Error('WebDAV PUT /b/backup.zip failed: HTTP 507 (Insufficient Storage)'))
+    ).toBe(
+      'localized:backup.error.remote_quota_exceeded (WebDAV PUT /b/backup.zip failed: HTTP 507 (Insufficient Storage))'
+    )
+  })
+
   it('classifies the enriched access-denied message from our WebDav layer', () => {
     const result = getLocalizedBackupErrorMessage(
       new Error('WebDAV ensure directory /backups failed: HTTP 403 (Forbidden)')

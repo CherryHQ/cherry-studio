@@ -18,16 +18,14 @@ type BackupMessageKey =
   | 'backup.error.remote_server_error'
   | 'backup.error.upload_stalled'
 
-// Prefix-anchored on the stable tokens our WebDav layer emits (`HTTP <code>`)
-// and the webdav client's native `Invalid response: <code> <statusText>` —
-// bare prose like "401 Unauthorized" must NOT classify, or any error text
-// that happens to contain a number would be misattributed. 5xx is listed
-// explicitly (not \d{3}) so the specific 507/413 arms win first.
+// Anchored on our `HTTP <code>` token and the webdav client's native
+// `Invalid response: <code>` text; bare prose like "401 Unauthorized" must NOT classify.
+const STATUS_PREFIX = '(?:HTTP|Invalid response:) ?'
 const REMOTE_STATUS_MESSAGE_PATTERNS: ReadonlyArray<{ pattern: RegExp; key: BackupMessageKey }> = [
-  { pattern: /(?:HTTP|Invalid response:) ?(?:401|403)\b/, key: 'backup.error.remote_access_denied' },
-  { pattern: /(?:HTTP|Invalid response:) ?507\b/, key: 'backup.error.remote_quota_exceeded' },
-  { pattern: /(?:HTTP|Invalid response:) ?413\b/, key: 'backup.error.remote_file_too_large' },
-  { pattern: /(?:HTTP|Invalid response:) ?(?:500|502|503|504)\b/, key: 'backup.error.remote_server_error' }
+  { pattern: new RegExp(`${STATUS_PREFIX}(?:401|403)\\b`), key: 'backup.error.remote_access_denied' },
+  { pattern: new RegExp(`${STATUS_PREFIX}507\\b`), key: 'backup.error.remote_quota_exceeded' },
+  { pattern: new RegExp(`${STATUS_PREFIX}413\\b`), key: 'backup.error.remote_file_too_large' },
+  { pattern: new RegExp(`${STATUS_PREFIX}(?:500|502|503|504)\\b`), key: 'backup.error.remote_server_error' }
 ]
 
 // IdleTimeoutController aborts stalled uploads with this DOMException message.

@@ -331,11 +331,8 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
   })
 
   it('skips the directory fsync entirely on win32 (no dir open, no warn)', async () => {
-    // Regression guard for issue #10512: libuv cannot fsync a directory
-    // handle on Windows, so the open used to fail with EPERM on every atomic
-    // write and the warn flooded every Windows log, derailing backup
-    // diagnosis. The gate must skip BEFORE attempting the dir open — mock the
-    // dir open to throw and assert it is never even reached.
+    // Regression guard for issue #10512: skip BEFORE attempting the dir open —
+    // libuv cannot fsync a directory handle on win32, so EPERM is pure noise.
     const originalPlatform = process.platform
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
     try {
