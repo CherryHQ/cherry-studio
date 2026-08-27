@@ -1,6 +1,8 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useIpcOn } from '@renderer/ipc'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,6 +21,9 @@ interface Props {
  */
 export function ApiGatewayRequiredDialog({ sessionId }: Props) {
   const [open, setOpen] = useState(false)
+  const [policyVersion] = usePreference('app.privacy.policy_version')
+  const [dataCollectionEnabled] = usePreference('app.privacy.data_collection.enabled')
+  const privacyUpdateRequired = dataCollectionEnabled && policyVersion !== LATEST_PRIVACY_POLICY_VERSION
 
   useIpcOn('api_gateway.required', (payload) => {
     if (payload.sessionId === sessionId) setOpen(true)
@@ -26,7 +31,7 @@ export function ApiGatewayRequiredDialog({ sessionId }: Props) {
 
   // Every agent chat renders this, but the prompt is rare — keep the gateway preference and
   // shared-cache subscriptions out of the common path until it actually fires.
-  if (!open) return null
+  if (!open || privacyUpdateRequired) return null
   return <GatewayPrompt onOpenChange={setOpen} />
 }
 
