@@ -1,4 +1,5 @@
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 
@@ -83,6 +84,14 @@ export function getPrepareDiagnosticReportResult(
     return toolResponse ? resultFromToolResponse(toolResponse) : undefined
   }
   return undefined
+}
+
+export function isPrepareDiagnosticReportResultPart(part: CherryMessagePart): boolean {
+  if (!isToolUIPart(part) || part.state !== 'output-available') return false
+
+  const toolResponse = buildToolResponseFromPart(part)
+  if (!toolResponse || !isPrepareDiagnosticReportToolResponse(toolResponse)) return false
+  return isDeferredToolOutput(toolResponse.response) || resultFromToolResponse(toolResponse) !== undefined
 }
 
 export function findLatestPrepareDiagnosticReportResult(

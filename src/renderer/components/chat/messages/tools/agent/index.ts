@@ -8,7 +8,8 @@ export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
 export {
   findLatestPrepareDiagnosticReportResult,
-  getPrepareDiagnosticReportResult
+  getPrepareDiagnosticReportResult,
+  isPrepareDiagnosticReportResultPart
 } from './prepareDiagnosticReportResult'
 export { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
