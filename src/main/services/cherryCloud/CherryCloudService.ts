@@ -284,7 +284,7 @@ export class CherryCloudService extends BaseService {
     return receiver
   }
 
-  public async handleCallback(url: URL): Promise<void> {
+  private async handleCallback(url: URL): Promise<void> {
     if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.pathname !== '/cloud-auth/callback') {
       throw new Error('Invalid Cherry Cloud callback')
     }
@@ -483,7 +483,7 @@ export class CherryCloudService extends BaseService {
     this.modelSyncCache = null
   }
 
-  public async syncEntitledModels(): Promise<CloudModelSyncResult> {
+  private async syncEntitledModels(): Promise<CloudModelSyncResult> {
     await this.pruneExpiredState()
     const generation = this.sessionGeneration
     if (this.modelSyncPromise?.generation === generation) return this.modelSyncPromise.promise

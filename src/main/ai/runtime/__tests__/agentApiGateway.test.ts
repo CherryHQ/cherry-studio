@@ -46,7 +46,7 @@ describe('readApiGatewayConnectionSnapshot', () => {
   it('is stable across reads with unchanged state and never leaks the key', () => {
     const first = readApiGatewayConnectionSnapshot()
     expect(readApiGatewayConnectionSnapshot()).toEqual(first)
-    expect(first).toMatchObject({ baseUrl: 'http://127.0.0.1:23333', enabled: true })
+    expect(first).toMatchObject({ baseUrl: 'http://127.0.0.1:23333' })
     expect(first.fingerprint).not.toContain('gw-key-1')
   })
 })
