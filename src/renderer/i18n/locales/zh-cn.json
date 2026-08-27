@@ -19,7 +19,9 @@
     "askUserQuestion": {
       "answered": "已回答",
       "close": "关闭",
+      "collapseQuestion": "收起问题",
       "customPlaceholder": "输入您的回答...",
+      "expandQuestion": "展开完整问题",
       "loading": "正在加载问题...",
       "multiSelect": "多选",
       "next": "下一个",

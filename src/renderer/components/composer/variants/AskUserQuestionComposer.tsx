@@ -3,8 +3,8 @@ import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { ArrowRight, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Pencil, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerOverride } from '../ComposerContext'
@@ -45,13 +45,32 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>({})
   const [customAnswers, setCustomAnswers] = useState<Record<number, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+  const [isQuestionClamped, setIsQuestionClamped] = useState(false)
+  const questionRef = useRef<HTMLHeadingElement>(null)
 
   const currentQuestion = questions[currentIndex]
+  const isQuestionExpanded = expandedIndex === currentIndex
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
   const currentCustomAnswer = customAnswers[currentIndex] ?? ''
   const currentCustomAnswerText = currentCustomAnswer.trim()
+
+  // The question is clamped to keep the dock compact; only offer the expand
+  // toggle when the clamp actually hides part of it.
+  useEffect(() => {
+    const element = questionRef.current
+    if (!element) return
+
+    const measure = () => setIsQuestionClamped(element.scrollHeight > element.clientHeight + 1)
+    measure()
+
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [currentQuestion?.question, isQuestionExpanded])
 
   const hasAnswerAt = useCallback(
     (index: number, answersByIndex: AnswersByIndex = selectedAnswers) => {
@@ -201,12 +220,35 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       <div
         className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
-        <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="line-clamp-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5">
+        <div className="flex items-start justify-between gap-3 px-1">
+          <h2
+            ref={questionRef}
+            className={cn(
+              // mt-1 keeps a single-line question centered against the 28px buttons;
+              // padding would let the clamped text bleed into it.
+              'mt-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5',
+              isQuestionExpanded ? 'max-h-30 overflow-y-auto' : 'line-clamp-2'
+            )}>
             {currentQuestion.question}
           </h2>
 
           <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground">
+            {(isQuestionClamped || isQuestionExpanded) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-7 shadow-none"
+                aria-label={
+                  isQuestionExpanded
+                    ? t('agent.askUserQuestion.collapseQuestion')
+                    : t('agent.askUserQuestion.expandQuestion')
+                }
+                aria-expanded={isQuestionExpanded}
+                onClick={() => setExpandedIndex(isQuestionExpanded ? null : currentIndex)}>
+                {isQuestionExpanded ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"

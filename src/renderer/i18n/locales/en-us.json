@@ -19,7 +19,9 @@
     "askUserQuestion": {
       "answered": "answered",
       "close": "Close",
+      "collapseQuestion": "Collapse question",
       "customPlaceholder": "Enter your answer...",
+      "expandQuestion": "Show full question",
       "loading": "Loading questions...",
       "multiSelect": "Multi-select",
       "next": "Next",

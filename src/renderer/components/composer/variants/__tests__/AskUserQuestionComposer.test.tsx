@@ -13,7 +13,9 @@ vi.mock('react-i18next', async (importOriginal) => ({
       return (
         {
           'agent.askUserQuestion.close': 'Close',
+          'agent.askUserQuestion.collapseQuestion': 'Collapse question',
           'agent.askUserQuestion.customPlaceholder': 'Enter your answer...',
+          'agent.askUserQuestion.expandQuestion': 'Show full question',
           'agent.askUserQuestion.next': 'Next',
           'agent.askUserQuestion.previous': 'Previous',
           'agent.askUserQuestion.skip': 'Skip',
@@ -134,6 +136,29 @@ describe('AskUserQuestionComposer', () => {
         }
       }
     })
+  })
+
+  it('offers an expand toggle only when the question does not fit the clamped title', () => {
+    const { unmount } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'Show full question' })).not.toBeInTheDocument()
+    unmount()
+
+    const scrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight')
+    Object.defineProperty(Element.prototype, 'scrollHeight', { configurable: true, get: () => 60 })
+
+    try {
+      render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+      const expand = screen.getByRole('button', { name: 'Show full question' })
+      expect(expand).toHaveAttribute('aria-expanded', 'false')
+
+      fireEvent.click(expand)
+
+      expect(screen.getByRole('button', { name: 'Collapse question' })).toHaveAttribute('aria-expanded', 'true')
+    } finally {
+      if (scrollHeight) Object.defineProperty(Element.prototype, 'scrollHeight', scrollHeight)
+    }
   })
 
   it('disables controls while the final response is submitting', async () => {
