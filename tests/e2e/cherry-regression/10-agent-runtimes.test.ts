@@ -63,13 +63,13 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
       'Use a real web search about Cherry Studio, then create cherry-regression-31415.pptx in the current working directory. Its exact title must be Cherry Regression 31415 and it must contain exactly three slides. Open the generated deck after creating it.'
     )
   await page.getByRole('button', { name: 'Send', exact: true }).click()
-  const allow = page.getByRole('button', { name: /Allow/ }).first()
-  if (await allow.isVisible({ timeout: 60_000 }).catch(() => false)) await allow.click()
 
   const output = join(app.paths.workspace, 'cherry-regression-31415.pptx')
   await expect
     .poll(
       async () => {
+        const allow = page.getByRole('button', { name: /Allow/ }).first()
+        if (await allow.isVisible().catch(() => false)) await allow.click()
         try {
           await validateFileEvidence(output, {
             exactSlides: 3,

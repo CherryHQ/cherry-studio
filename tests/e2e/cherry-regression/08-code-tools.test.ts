@@ -101,7 +101,10 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
     .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
     .toBe(true)
 
-  await page.getByRole('banner').getByRole('button', { name: 'Code Mate', exact: true }).last().click()
+  const openClawTab = page.locator('[data-ui="app.tab-bar"] button[data-tab-id][aria-label="OpenClaw"]').last()
+  const codeMateTab = openClawTab.locator('xpath=preceding::button[@data-tab-id][1]')
+  await expect(codeMateTab).toHaveAttribute('aria-label', 'Code Mate')
+  await codeMateTab.click()
   const activeCodeView = page.locator('[data-ui="code.view"]:visible').first()
   const stop = activeCodeView.getByRole('button', { name: 'Stop', exact: true })
   await expect(stop).toBeVisible()

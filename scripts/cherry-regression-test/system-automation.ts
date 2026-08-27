@@ -100,13 +100,34 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
     )
   } else {
     const script = [
-      `$process = Start-Process notepad.exe -ArgumentList '${escapePowerShell(filePath)}' -PassThru`,
-      '$null = $process.WaitForInputIdle(5000)',
-      'Start-Sleep -Seconds 2',
+      `Start-Process notepad.exe -ArgumentList '${escapePowerShell(filePath)}'`,
+      'Add-Type -AssemblyName UIAutomationClient',
+      'Add-Type -AssemblyName UIAutomationTypes',
+      `$expected = (Get-Content -Raw -LiteralPath '${escapePowerShell(filePath)}').Trim()`,
+      '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+      '$documentCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$document = $null',
+      '$range = $null',
+      'do {',
+      '  $documents = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $documentCondition)',
+      '  foreach ($candidate in $documents) {',
+      '    try {',
+      '      $candidateRange = $candidate.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern).DocumentRange',
+      '      if ($candidateRange.GetText(-1).Trim().Contains($expected)) {',
+      '        $document = $candidate',
+      '        $range = $candidateRange',
+      '        break',
+      '      }',
+      '    } catch {}',
+      '  }',
+      '  if (-not $document) { Start-Sleep -Milliseconds 200 }',
+      '} while (-not $document -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $document) { throw "Notepad document was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
-      'if (-not $shell.AppActivate($process.Id)) { throw "Notepad window could not be activated" }',
-      'Start-Sleep -Milliseconds 500',
-      '$shell.SendKeys("^a")',
+      'if (-not $shell.AppActivate($document.Current.ProcessId)) { throw "Notepad window could not be activated" }',
+      '$document.SetFocus()',
+      '$range.Select()',
       'Start-Sleep -Milliseconds 500'
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
@@ -160,7 +181,6 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'if (-not $dialog) { throw "Native file dialog was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
       `if (-not $shell.AppActivate(${electronPid})) { throw "Native file dialog could not be activated" }`,
-      '$dialog.SetFocus()',
       'Start-Sleep -Milliseconds 300',
       ...(isDirectory
         ? [

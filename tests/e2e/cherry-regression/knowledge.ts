@@ -75,7 +75,7 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
   }
 
   const readyFiles = page.getByText('Ready', { exact: true })
-  if ((await readyFiles.count()) < 3) {
+  if ((await readyFiles.count()) === 0) {
     const folder = page.getByRole('button', { name: 'Folder', exact: true })
     if (await folder.isVisible().catch(() => false)) await folder.click()
     else {

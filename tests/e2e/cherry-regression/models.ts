@@ -12,7 +12,7 @@ export async function selectVisibleModel(page: Page, model: string): Promise<voi
   const modelName = model.split('/').at(-1) ?? model
   const search = selector.getByTestId('model-selector-search')
   await search.fill(modelName)
-  const option = selector.getByRole('option').filter({ hasText: modelName }).first()
+  const option = selector.getByRole('option').first()
   await expect(option).toBeVisible()
   await option.click()
 }

@@ -5,6 +5,7 @@ import type { Page } from '@playwright/test'
 import type { RegressionApp } from './app'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
+import { selectVisibleModel } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 export async function selectAgent(page: Page, name: string): Promise<void> {
@@ -44,10 +45,7 @@ export async function createAgent(
     await dialog.getByText(options.permission, { exact: true }).last().click()
   }
   await dialog.getByRole('button', { name: 'Model', exact: true }).click()
-  const search = dialog.getByPlaceholder(/Search/i).last()
-  await search.fill(app.config.cherryIn.chatModel)
-  await expect(page.getByRole('option').first()).toBeVisible()
-  await search.press('Enter')
+  await selectVisibleModel(page, app.config.cherryIn.chatModel)
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
