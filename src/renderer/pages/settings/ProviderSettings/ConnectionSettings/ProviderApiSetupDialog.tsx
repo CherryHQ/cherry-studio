@@ -32,13 +32,11 @@ import { getProviderSetupErrorSummary, persistProviderModels } from '../utils/pr
 const SUCCESS_FEEDBACK_DURATION_MS = 1200
 
 export type ProviderApiSetupInitialStep = 'api-key' | 'models'
-export type ProviderApiSetupModelSelectionMode = 'setup' | 'check'
 type ProviderApiSetupStep = ProviderApiSetupInitialStep | 'verification'
 
 interface ProviderApiSetupDialogProps {
   providerId: string
   initialStep: ProviderApiSetupInitialStep
-  modelSelectionMode?: ProviderApiSetupModelSelectionMode
   onClose: () => void
 }
 
@@ -52,12 +50,7 @@ interface SetupError {
   message: string
 }
 
-export default function ProviderApiSetupDialog({
-  providerId,
-  initialStep,
-  modelSelectionMode = 'setup',
-  onClose
-}: ProviderApiSetupDialogProps) {
+export default function ProviderApiSetupDialog({ providerId, initialStep, onClose }: ProviderApiSetupDialogProps) {
   const { t } = useTranslation()
   const { provider, addApiKey, updateApiKey, updateProvider, enableProvider } = useProvider(providerId)
   const providerMeta = useProviderMeta(providerId)
@@ -96,9 +89,7 @@ export default function ProviderApiSetupDialog({
       ? 'settings.provider.api_setup.add_key'
       : step === 'verification'
         ? 'settings.provider.api_setup.verify_and_enable'
-        : modelSelectionMode === 'check'
-          ? 'settings.provider.api_setup.models_check_title'
-          : 'settings.provider.api_setup.models_title'
+        : 'settings.provider.api_setup.models_title'
   )
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
   const modelListView = useModelListSyncView({
@@ -567,7 +558,6 @@ export default function ProviderApiSetupDialog({
                   selectedModelIds={selectedModelIds}
                   isLoading={busyState === 'loading-models' || isLoadingModels}
                   isApplying={isBusy}
-                  disabled={requiresManualConfirmation}
                   hideEmptyFilters
                   flattenSingleGroup
                   onSelectModels={setModelSelection}
@@ -576,7 +566,7 @@ export default function ProviderApiSetupDialog({
                       type="button"
                       variant="outline"
                       size="lg"
-                      disabled={modelListView.filteredModels.length === 0 || isBusy || requiresManualConfirmation}
+                      disabled={modelListView.filteredModels.length === 0 || isBusy}
                       onClick={toggleAllFiltered}>
                       {t(allFilteredSelected ? 'settings.provider.api_setup.deselect_all' : 'common.select_all')}
                     </Button>
@@ -585,12 +575,6 @@ export default function ProviderApiSetupDialog({
               )}
 
               {error?.kind !== 'models' && error ? <SetupErrorMessage message={error.message} /> : null}
-              {requiresManualConfirmation ? (
-                <div className="rounded-xl border border-warning-border bg-warning-subtle p-3 text-warning-subtle-foreground">
-                  <div className="font-medium text-sm">{t('settings.provider.api_setup.manual_title')}</div>
-                  <div className="mt-1 text-xs leading-5">{t('settings.provider.api_setup.manual_description')}</div>
-                </div>
-              ) : null}
             </div>
           ) : (
             <div className="space-y-5">

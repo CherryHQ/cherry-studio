@@ -80,8 +80,12 @@ describe('ApiKey', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_key' }))
     expect(onOpenApiSetup).toHaveBeenCalledTimes(1)
 
-    await user.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.title' }))
+    const keyManagementButton = screen.getByRole('button', { name: 'settings.provider.api.key.list.title' })
+    expect(keyManagementButton).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(keyManagementButton).toHaveAttribute('aria-expanded', 'false')
+    await user.click(keyManagementButton)
 
+    expect(keyManagementButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('dialog', { name: 'settings.provider.api.key.list.title' })).toBeInTheDocument()
   })
 

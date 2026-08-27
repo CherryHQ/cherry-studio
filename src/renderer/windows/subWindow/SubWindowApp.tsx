@@ -18,6 +18,7 @@ import { useEffect } from 'react'
 // none of the main-only concerns (boot spinner/timer, update/storage notification).
 function SubWindowRuntime(): null {
   useWindowRuntime()
+
   // Same route tree as main, so topic/message exports run here too — register the
   // image-mode popup behind the services seam like MainApp does.
   useEffect(() => {

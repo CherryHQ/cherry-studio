@@ -125,6 +125,8 @@ export default function ApiKey({
                       type="button"
                       className={fieldClasses.inputActionButton}
                       aria-label={t('settings.provider.api.key.list.title')}
+                      aria-haspopup="dialog"
+                      aria-expanded={keyListOpen}
                       onClick={() => setKeyListOpen(true)}>
                       <KeyRound size={14} />
                     </button>

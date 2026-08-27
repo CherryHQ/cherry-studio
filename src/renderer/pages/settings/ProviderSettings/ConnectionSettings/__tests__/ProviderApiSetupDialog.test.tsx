@@ -283,16 +283,6 @@ describe('ProviderApiSetupDialog', () => {
     expect(apiKeyLink).toHaveAttribute('target', '_blank')
   })
 
-  it('labels model selection entered from the check action', async () => {
-    render(
-      <ProviderApiSetupDialog providerId="openai" initialStep="models" modelSelectionMode="check" onClose={vi.fn()} />
-    )
-
-    expect(
-      await screen.findByRole('heading', { name: /settings\.provider\.api_setup\.models_check_title/ })
-    ).toBeInTheDocument()
-  })
-
   it('stays on the key step when the explicit save fails', async () => {
     addApiKeyMock.mockRejectedValueOnce(new Error('storage unavailable'))
 

@@ -33,6 +33,9 @@ vi.mock('../ProviderList', () => ({
       <button type="button" onClick={() => onSelectProvider('anthropic')}>
         select-anthropic
       </button>
+      <button type="button" onClick={() => onSelectProvider('custom-with-key')}>
+        select-custom-with-key
+      </button>
       <button
         type="button"
         onClick={() => {
@@ -143,5 +146,21 @@ describe('ProviderSettingsPage', () => {
 
     expect(await screen.findByText(`provider-setting-${providerId}`)).toBeInTheDocument()
     expect(screen.getByText(`api-setup-${expectedStep}`)).toBeInTheDocument()
+  })
+
+  it('does not reopen a stale setup request after selecting another provider', async () => {
+    const user = userEvent.setup()
+    useProvidersMock.mockReturnValue({
+      providers: [...providers, { id: 'custom-with-key', name: 'Custom', isEnabled: false }]
+    })
+
+    render(<ProviderSettingsPage />)
+    await user.click(screen.getByRole('button', { name: 'create-custom-with-key' }))
+    expect(screen.getByText('api-setup-models')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'select-openai' }))
+    await user.click(screen.getByRole('button', { name: 'select-custom-with-key' }))
+
+    expect(screen.queryByText('api-setup-models')).not.toBeInTheDocument()
   })
 })

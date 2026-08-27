@@ -50,6 +50,7 @@ export default function ProviderSettingsPage() {
   }, [lastSelectedProviderId])
 
   const setSelectedProviderId = useCallback((providerId: string | undefined) => {
+    setPendingApiSetup((current) => (current?.providerId === providerId ? current : null))
     setLastSelectedProviderIdRef.current(providerId ?? null)
     startTransition(() => setSelectedProviderIdState(providerId))
   }, [])
