@@ -1,5 +1,5 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { LocalModelErrorCode, LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
+import type { LocalModelBundleId, LocalModelErrorCode, LocalModelStatus } from '@shared/data/presets/localModel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
@@ -12,7 +12,7 @@ interface LocalModelState {
   errorCode: LocalModelErrorCode | null
 }
 
-export function useLocalModel(model: LocalModelKind) {
+export function useLocalModel(id: LocalModelBundleId) {
   const [state, setState] = useState<LocalModelState>({ status: 'not_downloaded', errorCode: null })
   const [isStatusResolved, setIsStatusResolved] = useState(false)
   const [percent, setPercent] = useState(0)
@@ -20,7 +20,7 @@ export function useLocalModel(model: LocalModelKind) {
 
   const refreshStatus = useCallback(async () => {
     try {
-      const result = await ipcApi.request('local_model.get_status', { model })
+      const result = await ipcApi.request('local_model.get_status', { id })
       if (mountedRef.current) {
         setState({ status: result.status, errorCode: result.errorCode ?? null })
         setIsStatusResolved(true)
@@ -28,7 +28,7 @@ export function useLocalModel(model: LocalModelKind) {
     } catch {
       // Status probing is best-effort; keep the last observed state.
     }
-  }, [model])
+  }, [id])
 
   useEffect(() => {
     mountedRef.current = true
@@ -40,7 +40,7 @@ export function useLocalModel(model: LocalModelKind) {
   }, [refreshStatus])
 
   useIpcOn('local_model.download_progress', (progress) => {
-    if (!mountedRef.current || progress.model !== model) {
+    if (!mountedRef.current || progress.id !== id) {
       return
     }
 
@@ -65,7 +65,7 @@ export function useLocalModel(model: LocalModelKind) {
     }
 
     try {
-      const result = await ipcApi.request('local_model.download', { model })
+      const result = await ipcApi.request('local_model.download', { id })
       if (!mountedRef.current) {
         return false
       }
@@ -84,27 +84,27 @@ export function useLocalModel(model: LocalModelKind) {
       setState({ status: 'error', errorCode: 'download_failed' })
       throw error
     }
-  }, [model])
+  }, [id])
 
   const cancel = useCallback(async () => {
     try {
-      await ipcApi.request('local_model.cancel', { model })
+      await ipcApi.request('local_model.cancel', { id })
     } finally {
       if (mountedRef.current) {
         setState({ status: 'not_downloaded', errorCode: null })
         setPercent(0)
       }
     }
-  }, [model])
+  }, [id])
 
   const remove = useCallback(async () => {
-    const result = await ipcApi.request('local_model.remove', { model })
+    const result = await ipcApi.request('local_model.remove', { id })
     if (result.removed && mountedRef.current) {
       setState({ status: 'not_downloaded', errorCode: null })
       setPercent(0)
     }
     return result
-  }, [model])
+  }, [id])
 
   return { status: state.status, errorCode: state.errorCode, isStatusResolved, percent, download, cancel, remove }
 }

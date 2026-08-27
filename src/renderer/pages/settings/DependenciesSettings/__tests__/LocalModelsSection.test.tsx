@@ -7,11 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LocalModelsSection from '../LocalModelsSection'
 
-type ProgressPayload = { model: string; status: string; percent: number }
+type ProgressPayload = { id: string; status: string; percent: number }
 
 const mockRequest = vi.fn()
 // Both cards subscribe, so collect every handler and fan a progress event out to
-// all of them — each card ignores events whose `model` isn't its own.
+// all of them — each card ignores events whose `id` isn't its own.
 const { progressHandlers } = vi.hoisted(() => ({
   progressHandlers: [] as Array<(p: ProgressPayload) => void>
 }))
@@ -61,6 +61,23 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
+const EMBEDDING = 'qwen3-embedding-0.6b'
+
+/** What the registry reports as installable; the cards are rendered from it. */
+const LISTED_MODELS = {
+  models: [
+    { id: EMBEDDING, capability: 'embedding' },
+    { id: 'pp-ocrv6-medium', capability: 'ocr' }
+  ]
+}
+
+/** Answer `local_model.list` for every test, and layer the test's own routes over it. */
+function mockRoutes(handler: (route: string, input?: { id: string }) => unknown): void {
+  mockRequest.mockImplementation((route: string, input?: { id: string }) =>
+    route === 'local_model.list' ? Promise.resolve(LISTED_MODELS) : Promise.resolve(handler(route, input))
+  )
+}
+
 /** The embedding card is the first of the two rendered list items. */
 const embeddingCard = () => screen.getAllByRole('listitem')[0]
 
@@ -73,7 +90,7 @@ describe('LocalModelsSection', () => {
 
   it('shows a supported acceleration switch and persists the user choice', async () => {
     const user = userEvent.setup()
-    mockRequest.mockImplementation((route: string) => {
+    mockRoutes((route) => {
       if (route === 'local_model.get_acceleration_capability') return Promise.resolve({ supported: true })
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
       return Promise.resolve()
@@ -92,7 +109,7 @@ describe('LocalModelsSection', () => {
   })
 
   it('hides the acceleration switch when the main process reports no supported provider', async () => {
-    mockRequest.mockImplementation((route: string) => {
+    mockRoutes((route) => {
       if (route === 'local_model.get_acceleration_capability') return Promise.resolve({ supported: false })
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
       return Promise.resolve()
@@ -109,7 +126,7 @@ describe('LocalModelsSection', () => {
   it('logs acceleration capability probe failures while keeping the switch hidden', async () => {
     const error = new Error('capability probe failed')
     const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
-    mockRequest.mockImplementation((route: string) => {
+    mockRoutes((route) => {
       if (route === 'local_model.get_acceleration_capability') return Promise.reject(error)
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
       return Promise.resolve()
@@ -127,26 +144,26 @@ describe('LocalModelsSection', () => {
 
   it('renders live percent, and cancelling neither fails nor shows a failure notice', async () => {
     let resolveDownload: ((result: { result: 'cancelled' }) => void) | undefined
-    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+    mockRoutes((route, input) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
-      if (route === 'local_model.download' && input?.model === 'embedding')
+      if (route === 'local_model.download' && input?.id === EMBEDDING)
         return new Promise<{ result: 'cancelled' }>((resolve) => (resolveDownload = resolve))
       return Promise.resolve()
     })
 
     render(<LocalModelsSection />)
-    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { id: EMBEDDING }))
 
     fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.download'))
     await waitFor(() =>
       expect(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel')).toBeInTheDocument()
     )
 
-    act(() => progressHandlers.forEach((h) => h({ model: 'embedding', status: 'downloading', percent: 45 })))
+    act(() => progressHandlers.forEach((h) => h({ id: EMBEDDING, status: 'downloading', percent: 45 })))
     expect(within(embeddingCard()).getByText('45%')).toBeInTheDocument()
 
     fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel'))
-    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { model: 'embedding' }))
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { id: EMBEDDING }))
 
     // Backend aborts → the in-flight download resolves as cancelled. A user cancel must not
     // surface as a "download failed" notice, and the card returns to the idle
@@ -159,14 +176,14 @@ describe('LocalModelsSection', () => {
   })
 
   it('surfaces a failure notice when the download genuinely fails', async () => {
-    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+    mockRoutes((route, input) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
-      if (route === 'local_model.download' && input?.model === 'embedding') return Promise.reject(new Error('boom'))
+      if (route === 'local_model.download' && input?.id === EMBEDDING) return Promise.reject(new Error('boom'))
       return Promise.resolve()
     })
 
     render(<LocalModelsSection />)
-    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { id: EMBEDDING }))
 
     fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.download'))
 
@@ -180,9 +197,9 @@ describe('LocalModelsSection', () => {
 
   it('shows a shared failure as retryable when reopening settings', async () => {
     const user = userEvent.setup()
-    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+    mockRoutes((route, input) => {
       if (route === 'local_model.get_status') {
-        return Promise.resolve({ status: input?.model === 'embedding' ? 'error' : 'not_downloaded' })
+        return Promise.resolve({ status: input?.id === EMBEDDING ? 'error' : 'not_downloaded' })
       }
       if (route === 'local_model.download') return Promise.resolve({ result: 'ready' })
       return Promise.resolve()
@@ -197,18 +214,16 @@ describe('LocalModelsSection', () => {
     )
     await user.click(within(embeddingCard()).getByText('common.retry'))
 
-    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.download', { model: 'embedding' }))
-    expect(mockRequest).not.toHaveBeenCalledWith('local_model.remove', { model: 'embedding' })
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.download', { id: EMBEDDING }))
+    expect(mockRequest).not.toHaveBeenCalledWith('local_model.remove', { id: EMBEDDING })
   })
 
   it('replaces a stale incomplete-cache notice when the retry itself fails in transport', async () => {
     const user = userEvent.setup()
-    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+    mockRoutes((route, input) => {
       if (route === 'local_model.get_status') {
         return Promise.resolve(
-          input?.model === 'embedding'
-            ? { status: 'error', errorCode: 'incomplete_cache' }
-            : { status: 'not_downloaded' }
+          input?.id === EMBEDDING ? { status: 'error', errorCode: 'incomplete_cache' } : { status: 'not_downloaded' }
         )
       }
       if (route === 'local_model.download') return Promise.reject(new Error('ipc transport failed'))
@@ -237,12 +252,10 @@ describe('LocalModelsSection', () => {
   })
 
   it('words an incomplete-cache error as repair-by-redownload, not a connection problem', async () => {
-    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+    mockRoutes((route, input) => {
       if (route === 'local_model.get_status') {
         return Promise.resolve(
-          input?.model === 'embedding'
-            ? { status: 'error', errorCode: 'incomplete_cache' }
-            : { status: 'not_downloaded' }
+          input?.id === EMBEDDING ? { status: 'error', errorCode: 'incomplete_cache' } : { status: 'not_downloaded' }
         )
       }
       return Promise.resolve()
@@ -261,15 +274,17 @@ describe('LocalModelsSection', () => {
   })
 
   it('shows an explicit unsupported state once both cards report unsupported (e.g. Intel Mac)', async () => {
-    mockRequest.mockImplementation((route: string) => {
+    mockRoutes((route) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'unsupported' })
       return Promise.resolve()
     })
 
     render(<LocalModelsSection />)
 
-    await waitFor(() => expect(screen.queryAllByRole('listitem')).toHaveLength(0))
+    // The cards give way to one explanation, rather than each offering a download
+    // that could only fail.
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0)
     expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toBeInTheDocument()
   })
 })

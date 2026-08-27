@@ -486,7 +486,9 @@ describe('processing settings pages', () => {
       )
       await user.click(await screen.findByRole('button', { name: 'settings.dependencies.localModels.download' }))
 
-      await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('local_model.download', { model: 'ocr' }))
+      await waitFor(() =>
+        expect(ipcRequestMock).toHaveBeenCalledWith('local_model.download', { id: 'pp-ocrv6-medium' })
+      )
       expect(setPreferencesMock).not.toHaveBeenCalled()
     }
   )

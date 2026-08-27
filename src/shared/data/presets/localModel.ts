@@ -1,7 +1,7 @@
 /**
- * Shared vocabulary for the downloadable local-model subsystem (embedding + OCR)
- * — the settings download cards and their `local_model.*` IPC. The embedding
- * model/provider identity lives in `localEmbedding.ts`.
+ * Shared vocabulary for the downloadable local-model subsystem — the settings
+ * download cards and their `local_model.*` IPC. The embedding model/provider
+ * identity lives in `localEmbedding.ts`.
  */
 
 /**
@@ -23,6 +23,33 @@ export type LocalModelErrorCode = (typeof LOCAL_MODEL_ERROR_CODES)[number]
 export const LOCAL_MODEL_DOWNLOAD_RESULTS = ['ready', 'cancelled'] as const
 export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[number]
 
-/** Which downloadable local model a settings card / IPC route targets. */
-export const LOCAL_MODEL_KINDS = ['embedding', 'ocr'] as const
-export type LocalModelKind = (typeof LOCAL_MODEL_KINDS)[number]
+/**
+ * What a local model *does*. Features ask for a capability ("this OCR processor
+ * needs the ocr model"), never for a specific bundle — one capability may later be
+ * served by several bundles, or by a different one on a different platform.
+ */
+export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr'] as const
+export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
+
+/**
+ * What a user *installs*: the addressing key of the whole management plane — status,
+ * download, cancel, remove and their progress events. Adding a model means adding an
+ * id here and a catalog entry beside it, not another IPC route or another card.
+ *
+ * Kept in sync with `src/main/ai/localModel/registry/catalog.ts` by construction: the
+ * catalog's own bundle-id type is this one, so an unlisted id fails to typecheck.
+ */
+export const LOCAL_MODEL_BUNDLE_IDS = ['qwen3-embedding-0.6b', 'pp-ocrv6-medium'] as const
+export type LocalModelBundleId = (typeof LOCAL_MODEL_BUNDLE_IDS)[number]
+
+/**
+ * The bundle that serves each capability today — how a feature that needs a capability
+ * ("this OCR processor needs the ocr model") names the bundle it must install.
+ *
+ * Declared here rather than in the renderer so there is one answer, and checked against
+ * the catalog by that module's own test so the two cannot drift.
+ */
+export const LOCAL_MODEL_BUNDLE_BY_CAPABILITY = {
+  embedding: 'qwen3-embedding-0.6b',
+  ocr: 'pp-ocrv6-medium'
+} as const satisfies Record<LocalModelCapability, LocalModelBundleId>

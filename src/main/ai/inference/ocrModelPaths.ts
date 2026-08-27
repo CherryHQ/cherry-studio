@@ -9,16 +9,8 @@ import { bundleFile, bundleForCapability, localModelRegistry } from '@main/ai/lo
  * model catalog; this module derives the absolute paths the OCR processor works with.
  */
 
-function ocrBundle() {
-  return bundleForCapability('ocr')
-}
-
-export function ocrModelDir(): string {
-  return localModelRegistry.bundleInstallDir(ocrBundle())
-}
-
 export function ocrModelPaths(): OcrModelPaths {
-  const bundle = ocrBundle()
+  const bundle = bundleForCapability('ocr')
   const dir = localModelRegistry.bundleInstallDir(bundle)
   const filePath = (key: string) => path.join(dir, bundleFile(bundle, key).relPath)
   return {
@@ -26,9 +18,4 @@ export function ocrModelPaths(): OcrModelPaths {
     recognition: filePath('recognition'),
     charactersDictionary: filePath('dictionary')
   }
-}
-
-/** Whether every local PaddleOCR file is on disk (weights + the parsed dictionary). */
-export function isLocalPaddleocrModelDownloaded(): boolean {
-  return localModelRegistry.scanBundleFiles(ocrBundle()).status === 'installed'
 }

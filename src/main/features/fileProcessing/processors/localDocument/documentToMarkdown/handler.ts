@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 import { loggerService } from '@logger'
-import { isLocalModelReady } from '@main/services/localModel'
+import { isLocalModelReady } from '@main/ai/localModel'
 import { createPdfParser } from '@main/utils/pdf'
 
 import type { FileProcessingCapabilityHandler } from '../../types'

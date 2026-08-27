@@ -1,14 +1,11 @@
 import type { PathKey } from '@main/core/paths/pathRegistry'
-import type { LocalModelKind } from '@shared/data/presets/localModel'
+import type { LocalModelBundleId, LocalModelCapability } from '@shared/data/presets/localModel'
 
 /**
  * Vocabulary of the local-model registry: *what* can be installed, *where* its
  * bytes come from, and *whether* they are on disk right now. Data shapes only —
  * fetching lives in `../acquisition`, state in `./LocalModelRegistry`.
  */
-
-/** Which feature a bundle serves. One capability may span several bundles later (ASR = model + VAD). */
-export type LocalModelCapability = LocalModelKind
 
 /** `${process.platform}-${process.arch}`, e.g. `darwin-arm64`. */
 export type PlatformKey = string
@@ -89,7 +86,7 @@ export interface BundleFile {
  * a single file — OCR already needs detection + recognition + dictionary.
  */
 export interface ModelBundle {
-  id: ModelBundleId
+  id: LocalModelBundleId
   capability: LocalModelCapability
   /** Install root; every {@link BundleFile.relPath} resolves under it. */
   installDirKey: PathKey
@@ -109,8 +106,6 @@ export interface ModelBundle {
    * quantization selector, which must match the weights file the bundle actually installs. */
   runtime?: { dtype: string }
 }
-
-export type ModelBundleId = 'qwen3-embedding-0.6b' | 'pp-ocrv6-medium'
 
 /**
  * On-disk presence of a bundle. Derived from the filesystem on demand rather than

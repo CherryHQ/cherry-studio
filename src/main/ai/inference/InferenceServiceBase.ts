@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { localModelRegistry } from '@main/ai/localModel'
 import { BaseService } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
-import type { LocalModelKind } from '@shared/data/presets/localModel'
+import type { LocalModelCapability } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
 import { resolveLocalInferenceProfile } from './inferenceAcceleration'
@@ -48,7 +48,7 @@ interface Pending {
  * thread, a `pending` map, or a `terminate()`.
  *
  * The worker source, the wire protocol, and the public method signatures are
- * all process-agnostic: moving to an Electron `utilityProcess` per kind (for
+ * all process-agnostic: moving to an Electron `utilityProcess` per capability (for
  * crash isolation) later touches only the spawn/teardown internals here.
  *
  * Lifecycle-managed: the worker is a real OS thread that must not outlive a
@@ -82,9 +82,9 @@ export abstract class InferenceServiceBase extends BaseService {
   private closing = false
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
-  protected constructor(kind: LocalModelKind) {
+  protected constructor(capability: LocalModelCapability) {
     super()
-    this.logger = loggerService.withContext(`InferenceService:${kind}`)
+    this.logger = loggerService.withContext(`InferenceService:${capability}`)
   }
 
   private async ensureWorker(): Promise<Worker> {

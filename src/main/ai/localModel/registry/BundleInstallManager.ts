@@ -12,13 +12,10 @@ import type { ModelBundle } from './types'
 const logger = loggerService.withContext('BundleInstallManager')
 
 /** Progress / terminal-state payload broadcast to the renderer download cards. */
-export interface LocalModelDownloadProgress {
+interface LocalModelDownloadProgress {
   status: string
   percent: number
   errorCode?: LocalModelErrorCode
-  loaded?: number
-  total?: number
-  file?: string
 }
 
 /**
@@ -214,9 +211,7 @@ export class BundleInstallManager {
   }
 
   private broadcast(payload: LocalModelDownloadProgress): void {
-    application
-      .get('IpcApiService')
-      .broadcast('local_model.download_progress', { model: this.bundle.capability, ...payload })
+    application.get('IpcApiService').broadcast('local_model.download_progress', { id: this.bundle.id, ...payload })
   }
 }
 

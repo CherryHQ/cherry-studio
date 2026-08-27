@@ -1,4 +1,6 @@
-import type { ModelBundle, ModelBundleId, SharedArtifact, SharedArtifactId } from './types'
+import type { LocalModelBundleId } from '@shared/data/presets/localModel'
+
+import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 /**
  * Single source of truth for everything installable locally: which bundles exist,
@@ -165,11 +167,11 @@ export const LOCAL_MODEL_BUNDLES = {
       }
     ]
   }
-} as const satisfies Record<ModelBundleId, ModelBundle>
+} as const satisfies Record<LocalModelBundleId, ModelBundle>
 
-export const ALL_MODEL_BUNDLE_IDS = Object.keys(LOCAL_MODEL_BUNDLES) as readonly ModelBundleId[]
+export const ALL_MODEL_BUNDLE_IDS = Object.keys(LOCAL_MODEL_BUNDLES) as readonly LocalModelBundleId[]
 
-export function getModelBundle(id: ModelBundleId): ModelBundle {
+export function getModelBundle(id: LocalModelBundleId): ModelBundle {
   return LOCAL_MODEL_BUNDLES[id]
 }
 

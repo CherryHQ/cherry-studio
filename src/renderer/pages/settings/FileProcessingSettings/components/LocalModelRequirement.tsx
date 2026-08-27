@@ -3,7 +3,7 @@ import { LocalModelDownloadProgress } from '@renderer/components/LocalModelDownl
 import { SettingHelpText, SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { toast } from '@renderer/services/toast'
-import type { LocalModelKind } from '@shared/data/presets/localModel'
+import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelCapability } from '@shared/data/presets/localModel'
 import { Download, RefreshCw, SquareCheckBig, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,10 +11,10 @@ import { useTranslation } from 'react-i18next'
 const SUBTITLE_KEY = {
   embedding: 'settings.dependencies.localModels.embedding.subtitle',
   ocr: 'settings.dependencies.localModels.ocr.subtitle'
-} as const satisfies Record<LocalModelKind, string>
+} as const satisfies Record<LocalModelCapability, string>
 
 type LocalModelRequirementProps = {
-  model: LocalModelKind
+  capability: LocalModelCapability
   /** The processor's own description, shown either way. */
   description: string
   /** Commits a pending processor selection once this panel observes a ready model. */
@@ -30,9 +30,9 @@ type LocalModelRequirementProps = {
  * settings page the user had no reason to visit. Mounted per processor rather
  * than per row so the status probe fires once, when the panel is open.
  */
-export function LocalModelRequirement({ model, description, onReady }: LocalModelRequirementProps) {
+export function LocalModelRequirement({ capability, description, onReady }: LocalModelRequirementProps) {
   const { t } = useTranslation()
-  const { status, percent, download, cancel } = useLocalModel(model)
+  const { status, percent, download, cancel } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
   const onReadyRef = useRef(onReady)
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export function LocalModelRequirement({ model, description, onReady }: LocalMode
               {t('settings.tool.file_processing.processors.local_paddleocr.status.local')}
             </SettingRowTitle>
           ) : (
-            <SettingRowTitle className="text-xs">{t(SUBTITLE_KEY[model])}</SettingRowTitle>
+            <SettingRowTitle className="text-xs">{t(SUBTITLE_KEY[capability])}</SettingRowTitle>
           )}
           <SettingHelpText className="mt-1 text-xs">{description}</SettingHelpText>
         </div>

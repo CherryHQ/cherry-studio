@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useLocalModel } from '../useLocalModel'
 
-type ProgressPayload = { model: 'embedding' | 'ocr'; status: string; percent: number }
+type ProgressPayload = { id: 'qwen3-embedding-0.6b' | 'pp-ocrv6-medium'; status: string; percent: number }
 
 const { mockRequest, progressHandler } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
@@ -31,7 +31,7 @@ describe('useLocalModel', () => {
           resolveStatus = resolve
         })
     )
-    const { result } = renderHook(() => useLocalModel('embedding'))
+    const { result } = renderHook(() => useLocalModel('qwen3-embedding-0.6b'))
 
     expect(result.current.isStatusResolved).toBe(false)
     act(() => resolveStatus?.({ status: 'unsupported' }))
@@ -42,28 +42,30 @@ describe('useLocalModel', () => {
 
   it('tracks matching progress and external ready events', async () => {
     mockRequest.mockResolvedValue({ status: 'not_downloaded' })
-    const { result } = renderHook(() => useLocalModel('embedding'))
+    const { result } = renderHook(() => useLocalModel('qwen3-embedding-0.6b'))
 
-    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
+    await waitFor(() =>
+      expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { id: 'qwen3-embedding-0.6b' })
+    )
 
-    act(() => progressHandler.current?.({ model: 'ocr', status: 'downloading', percent: 20 }))
+    act(() => progressHandler.current?.({ id: 'pp-ocrv6-medium', status: 'downloading', percent: 20 }))
     expect(result.current.percent).toBe(0)
 
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'downloading', percent: 45 }))
+    act(() => progressHandler.current?.({ id: 'qwen3-embedding-0.6b', status: 'downloading', percent: 45 }))
     expect(result.current.status).toBe('downloading')
     expect(result.current.percent).toBe(45)
 
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'ready', percent: 100 }))
+    act(() => progressHandler.current?.({ id: 'qwen3-embedding-0.6b', status: 'ready', percent: 100 }))
     expect(result.current.status).toBe('ready')
   })
 
   it('returns to not downloaded when another page cancels the download', async () => {
     mockRequest.mockResolvedValue({ status: 'downloading' })
-    const { result } = renderHook(() => useLocalModel('embedding'))
+    const { result } = renderHook(() => useLocalModel('qwen3-embedding-0.6b'))
     await waitFor(() => expect(result.current.status).toBe('downloading'))
 
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'downloading', percent: 45 }))
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'not_downloaded', percent: 0 }))
+    act(() => progressHandler.current?.({ id: 'qwen3-embedding-0.6b', status: 'downloading', percent: 45 }))
+    act(() => progressHandler.current?.({ id: 'qwen3-embedding-0.6b', status: 'not_downloaded', percent: 0 }))
 
     expect(result.current.status).toBe('not_downloaded')
     expect(result.current.percent).toBe(0)
@@ -75,7 +77,7 @@ describe('useLocalModel', () => {
       if (route === 'local_model.download') return Promise.resolve({ result: 'ready' })
       return Promise.resolve()
     })
-    const { result } = renderHook(() => useLocalModel('embedding'))
+    const { result } = renderHook(() => useLocalModel('qwen3-embedding-0.6b'))
     await waitFor(() => expect(result.current.status).toBe('not_downloaded'))
 
     let completed = false
@@ -102,8 +104,8 @@ describe('useLocalModel', () => {
       }
       return Promise.resolve()
     })
-    const downloader = renderHook(() => useLocalModel('embedding'))
-    const canceller = renderHook(() => useLocalModel('embedding'))
+    const downloader = renderHook(() => useLocalModel('qwen3-embedding-0.6b'))
+    const canceller = renderHook(() => useLocalModel('qwen3-embedding-0.6b'))
     await waitFor(() => expect(downloader.result.current.status).toBe('not_downloaded'))
     await waitFor(() => expect(canceller.result.current.status).toBe('not_downloaded'))
 
@@ -130,7 +132,7 @@ describe('useLocalModel', () => {
       if (route === 'local_model.download') return Promise.reject(failure)
       return Promise.resolve()
     })
-    const { result } = renderHook(() => useLocalModel('embedding'))
+    const { result } = renderHook(() => useLocalModel('qwen3-embedding-0.6b'))
     await waitFor(() => expect(result.current.status).toBe('not_downloaded'))
 
     let caught: unknown

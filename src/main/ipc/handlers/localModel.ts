@@ -1,79 +1,41 @@
-import { loggerService } from '@logger'
 import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/inference/inferenceAcceleration'
-import { localEmbeddingInstaller, localModelRegistry } from '@main/ai/localModel'
-import { localOcrDownloadService } from '@main/services/localModel'
-import type { LocalModelKind } from '@shared/data/presets/localModel'
+import { ALL_MODEL_BUNDLE_IDS, gcSharedArtifacts, getModelBundle, installerFor } from '@main/ai/localModel'
 import type { localModelRequestSchemas } from '@shared/ipc/schemas/localModel'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-const logger = loggerService.withContext('localModelHandlers')
-
-/** The two download services share one method shape — pick by `model`. */
-function serviceFor(model: LocalModelKind) {
-  return model === 'embedding' ? localEmbeddingInstaller : localOcrDownloadService
-}
-
-/** The other of the two — checked on removal to decide whether the onnxruntime
- * binary they share is still needed. */
-function siblingFor(model: LocalModelKind) {
-  return model === 'embedding' ? localOcrDownloadService : localEmbeddingInstaller
-}
-
-/** Drop the shared runtime unless the sibling model still needs it. The caller checks
- * that *before* the binary is gone, so the sibling's status is still an accurate signal. */
-async function removeSharedRuntimeIfUnused(stillNeeded: boolean): Promise<void> {
-  if (stillNeeded) return
-  await localModelRegistry.removeArtifact('onnxruntime-node')
-}
-
-async function cleanupSharedRuntimeAfterInterruptedDownload(model: LocalModelKind): Promise<void> {
-  // 'downloading' counts as still needed — the sibling may be awaiting the same
-  // coalesced binary download.
-  const siblingStatus = siblingFor(model).getStatus()
-  try {
-    await removeSharedRuntimeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
-  } catch (cleanupError) {
-    // Best-effort: a locked file must not turn a cancellation into a failure or
-    // mask the original download error.
-    logger.warn('failed to clean up the shared onnxruntime binary after an interrupted download', {
-      error: String(cleanupError)
-    })
-  }
-}
-
 /**
- * Thin adapters for local model routes. Lifecycle routes dispatch by `model` to
- * its owning download service, while the capability route reports platform
- * support directly. `download` resolves only when the download finishes.
+ * Thin adapters for local model routes. Every lifecycle route resolves its bundle
+ * through the registry, so a new model is a catalog entry rather than a new route.
+ * `download` resolves only when the download finishes.
  */
 export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas> = {
   'local_model.get_acceleration_capability': async () => ({
     supported: isLocalInferenceHardwareAccelerationSupported()
   }),
-  'local_model.get_status': async ({ model }) => serviceFor(model).getStatusInfo(),
-  'local_model.download': async ({ model }) => {
+  'local_model.list': async () => ({
+    models: ALL_MODEL_BUNDLE_IDS.map((id) => ({ id, capability: getModelBundle(id).capability }))
+  }),
+  'local_model.get_status': async ({ id }) => installerFor(id).getStatusInfo(),
+  'local_model.download': async ({ id }) => {
     try {
-      const result = await serviceFor(model).download()
-      if (result === 'cancelled') {
-        await cleanupSharedRuntimeAfterInterruptedDownload(model)
-      }
+      const result = await installerFor(id).download()
+      // A cancelled download may have installed a shared runtime nothing now uses; a
+      // half-installed runtime would otherwise read as ready to the next status query.
+      if (result === 'cancelled') await gcSharedArtifacts()
       return { result }
     } catch (error) {
-      // Drop the shared onnxruntime binary so a half-installed runtime doesn't read as
-      // ready. The model weights are deliberately left alone — a failed download never
-      // writes partials, so whatever is on disk is a complete earlier download.
-      await cleanupSharedRuntimeAfterInterruptedDownload(model)
+      // Same cleanup on failure. The model files are deliberately left alone — a failed
+      // download never writes partials, so whatever is on disk is a complete earlier one.
+      await gcSharedArtifacts()
       throw error
     }
   },
-  'local_model.cancel': async ({ model }) => serviceFor(model).cancel(),
-  'local_model.remove': async ({ model }) => {
-    const result = await serviceFor(model).remove()
-    // Only the removed feature's own weights are gone here — the shared onnxruntime
-    // binary is a separate concern, cleaned up only once the sibling feature is gone too.
-    if (result.removed) {
-      await removeSharedRuntimeIfUnused(siblingFor(model).getStatus() === 'ready')
-    }
+  'local_model.cancel': async ({ id }) => installerFor(id).cancel(),
+  'local_model.remove': async ({ id }) => {
+    const result = await installerFor(id).remove()
+    // Only this bundle's own files are gone here; a shared runtime survives exactly as
+    // long as another installed bundle still requires it.
+    await gcSharedArtifacts()
     return result
   }
 }

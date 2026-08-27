@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { isLocalModelReady } from '@main/services/localModel'
+import { isLocalModelReady } from '@main/ai/localModel'
 import type { FileProcessorFeature, FileProcessorId, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   FILE_PROCESSOR_LOCAL_MODEL,

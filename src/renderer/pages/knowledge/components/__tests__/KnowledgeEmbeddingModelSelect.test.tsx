@@ -104,7 +104,7 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     await user.click(screen.getByRole('button', { name: 'select-local-model' }))
 
     expect(mockShowDownloadPopup).toHaveBeenCalledWith({
-      model: 'embedding',
+      id: 'qwen3-embedding-0.6b',
       description: 'Qwen3 Embedding 0.6B · ~614 MB'
     })
     // The dialog stays open for the whole download, so nothing is selected yet.

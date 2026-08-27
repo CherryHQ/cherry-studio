@@ -1,4 +1,8 @@
-import { LOCAL_MODEL_KINDS } from '@shared/data/presets/localModel'
+import {
+  LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
+  LOCAL_MODEL_BUNDLE_IDS,
+  LOCAL_MODEL_CAPABILITIES
+} from '@shared/data/presets/localModel'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -44,7 +48,7 @@ describe('local model catalog', () => {
     }
   })
 
-  it.each(LOCAL_MODEL_KINDS)('capability %s resolves to exactly one bundle', (capability) => {
+  it.each(LOCAL_MODEL_CAPABILITIES)('capability %s resolves to exactly one bundle', (capability) => {
     const matching = bundles.filter((bundle) => bundle.capability === capability)
 
     expect(matching).toHaveLength(1)
@@ -53,6 +57,16 @@ describe('local model catalog', () => {
 
   it('exposes every bundle id', () => {
     expect([...ALL_MODEL_BUNDLE_IDS].sort()).toEqual(bundles.map((bundle) => bundle.id).sort())
+  })
+
+  it('agrees with the vocabulary the renderer addresses it by', () => {
+    // The renderer cannot import the catalog, so `@shared` declares the ids and the
+    // capability→bundle mapping separately. A bundle renamed on one side only would
+    // leave every card and download entry pointing at a model that does not exist.
+    expect([...LOCAL_MODEL_BUNDLE_IDS].sort()).toEqual(bundles.map((bundle) => bundle.id).sort())
+    for (const [capability, id] of Object.entries(LOCAL_MODEL_BUNDLE_BY_CAPABILITY)) {
+      expect(bundleForCapability(capability as (typeof LOCAL_MODEL_CAPABILITIES)[number]).id).toBe(id)
+    }
   })
 
   it.each(artifacts)('$id ships a complete file set for each platform it supports', (artifact) => {

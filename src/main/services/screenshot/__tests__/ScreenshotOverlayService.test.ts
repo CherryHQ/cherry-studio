@@ -31,7 +31,7 @@ const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
 const localModel = vi.hoisted(() => ({ isLocalModelReady: vi.fn(() => true) }))
-vi.mock('@main/services/localModel', () => localModel)
+vi.mock('@main/ai/localModel/registry/installers', () => localModel)
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────

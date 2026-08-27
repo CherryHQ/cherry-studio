@@ -11,7 +11,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-vi.mock('@main/services/localModel', () => ({
+vi.mock('@main/ai/localModel/registry/installers', () => ({
   isLocalModelReady: isLocalModelReadyMock
 }))
 

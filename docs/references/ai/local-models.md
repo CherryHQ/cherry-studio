@@ -2,8 +2,8 @@
 description: Local model subsystem — the bundle catalog, on-disk registry, and the verified acquisition layer that installs models and shared native runtimes
 sources:
   - src/main/ai/localModel
-  - src/main/services/localModel
   - src/shared/data/presets/localModel.ts
+  - src/shared/ipc/schemas/localModel.ts
 ---
 
 # Local Models
@@ -27,7 +27,7 @@ src/main/ai/localModel/
 │   ├── catalog.ts                 ← the single source of truth: every bundle and artifact
 │   ├── LocalModelRegistry.ts      ← what is installed now; artifact install/remove
 │   ├── BundleInstallManager.ts    ← one bundle's install lifecycle, generic over the catalog
-│   └── installers.ts              ← one manager per bundle, with its capability's hooks
+│   └── installers.ts              ← one manager per bundle, plus readiness and artifact GC
 └── acquisition/
     ├── modelSource.ts             ← HuggingFace / ModelScope mirror table
     ├── downloadEngine.ts          ← mirror fallback, streaming + sha256, atomic writes
@@ -65,6 +65,21 @@ Each `BundleFile` carries:
 `sha256` and `minBytes` describe different things whenever a `derivation` is present: the
 OCR dictionary is fetched as the recognition model's `inference.yml` (digest checked) and
 written as a parsed `ppocrv6_dict.txt` (size floor checked).
+
+### Capabilities and bundles
+
+Two words, deliberately distinct, both declared in `src/shared/data/presets/localModel.ts`
+so the renderer can speak them too:
+
+- A **capability** is what a feature needs (`ocr`). Features gate on
+  `isLocalModelReady(capability)` and never name a bundle.
+- A **bundle id** is what a user installs (`pp-ocrv6-medium`). It is the addressing key of
+  the whole management plane — status, download, cancel, remove, progress events.
+
+`LOCAL_MODEL_BUNDLE_BY_CAPABILITY` maps one to the other for the few UI entry points that
+must offer a download for a capability. The catalog's own test asserts that map, and the
+shared id list, still match the catalog — the renderer cannot import the catalog, so this
+is the seam where the two could drift.
 
 ### Shared artifacts
 
@@ -173,6 +188,27 @@ Both cases must release the inference worker before deleting files. The worker c
 native sessions with the weight files open, so on Windows an open handle makes the unlink
 fail outright.
 
+`gcSharedArtifacts()` answers the second question, and is the *only* answer: it runs after a
+removal and after an interrupted download alike. Those two paths used to disagree — removal
+counted only installed bundles — so deleting one model could pull the runtime out from under
+a download that was at that moment waiting for it. A bundle counts as needing its artifacts
+while it is installed **or** downloading.
+
+## Management plane
+
+One generic IPC surface (`local_model.*`), addressed by bundle id:
+
+| Route | Purpose |
+|---|---|
+| `list` | Everything installable, with each bundle's capability |
+| `get_status` / `download` / `cancel` / `remove` | That bundle's lifecycle |
+| `get_acceleration_capability` | Whether this platform has a hardware provider |
+| `download_progress` (event) | Progress, tagged with the same bundle id |
+
+The settings cards render from `list`, one card per bundle, with name and subtitle read
+from the capability's i18n keys. Shipping another model therefore touches no route, no
+handler and no component — only the catalog and the shared id list.
+
 ## Adding a model
 
 1. Add a `ModelBundle` to `registry/catalog.ts` — every file with a real `sha256`
@@ -181,9 +217,12 @@ fail outright.
    (see [paths/README](../../../src/main/core/paths/README.md)).
 3. If it needs a native runtime that is not already a `SharedArtifact`, add one and list
    every platform it ships binaries for — omissions are what make a platform unsupported.
-4. Add the capability to the shared vocabulary in `src/shared/data/presets/localModel.ts`.
+4. Add its id — and, for a new capability, that capability and its bundle mapping — to
+   `src/shared/data/presets/localModel.ts`.
 5. Add a `BundleInstallManager` for it in `registry/installers.ts`, with the hooks its
    capability needs.
+6. For a new capability, add its card icon in `LocalModelsSection` and its `name`/`subtitle`
+   i18n keys. An existing capability needs neither.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
@@ -191,8 +230,8 @@ rather than on a user's machine.
 
 ## Known limits
 
-- The subsystem is mid-refactor: the OCR download service and the inference host still live
-  outside this module and join it in later steps.
+- The subsystem is mid-refactor: the inference host still lives in `@main/ai/inference` and
+  joins this module in a later step.
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.

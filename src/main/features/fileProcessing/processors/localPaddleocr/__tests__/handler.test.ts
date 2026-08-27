@@ -23,7 +23,7 @@ vi.mock('@main/ai/inference/ocrModelPaths', () => ({
   ocrModelPaths: ocrModelPathsMock
 }))
 
-vi.mock('@main/services/localModel', () => ({
+vi.mock('@main/ai/localModel/registry/installers', () => ({
   isLocalModelReady: isLocalModelReadyMock
 }))
 
