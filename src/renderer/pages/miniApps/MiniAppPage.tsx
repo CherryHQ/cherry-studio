@@ -127,8 +127,7 @@ const MiniAppPage: FC = () => {
     // Prefer closing the tab that hosts this mini app — the pool's orphan
     // cleanup then ends the webview process. Fall back to direct pool
     // eviction when no tab exists (detached window or orphaned pool entry).
-    const tabId =
-      currentTabId && currentTab && isMiniAppTabUrl(currentTab.url, app.appId) ? currentTabId : null
+    const tabId = currentTabId && currentTab && isMiniAppTabUrl(currentTab.url, app.appId) ? currentTabId : null
     if (tabId && closeTab) {
       closeTab(tabId)
     } else {

@@ -1,15 +1,15 @@
 import { useCache } from '@data/hooks/useCache'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useTabs } from '@renderer/hooks/tab'
+import { TabsContext, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -28,6 +28,7 @@ const isCompactMinWidthRoute = (url?: string): boolean =>
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
+  const tabsApi = useTabs()
   const {
     tabs,
     activeTabId,
@@ -40,7 +41,7 @@ export const AppShell = () => {
     unpinTab,
     detachTab,
     openTab
-  } = useTabs()
+  } = tabsApi
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const canCycleTabs = tabs.length > 1 && !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
@@ -59,7 +60,7 @@ export const AppShell = () => {
   )
   const isFullscreen = useNativeFullscreen()
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
-  const [, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const {
     openedKeepAliveMiniApps,
     currentMiniAppId,
@@ -96,13 +97,15 @@ export const AppShell = () => {
         if (appId) closingMiniAppIds.add(appId)
       }
       if (closingMiniAppIds.size === 0) return
-      // Check which of those ids still have a surviving tab after the close
+      // Check which of those ids still have a surviving tab after the close,
+      // or are still shown in the split pane (splitPooledIds has no expiry).
       const survivingMiniAppIds = new Set<string>()
       for (const tab of tabs) {
         if (closedIdSet.has(tab.id)) continue
         const appId = miniAppIdFromTabUrl(tab.url)
         if (appId) survivingMiniAppIds.add(appId)
       }
+      if (splitOpen && splitMiniAppId) survivingMiniAppIds.add(splitMiniAppId)
       const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
       if (orphanedIds.length === 0) return
       const orphanedSet = new Set(orphanedIds)
@@ -116,6 +119,8 @@ export const AppShell = () => {
     },
     [
       tabs,
+      splitOpen,
+      splitMiniAppId,
       currentMiniAppId,
       openedOneOffMiniApp,
       setOpenedKeepAliveMiniApps,
@@ -148,9 +153,7 @@ export const AppShell = () => {
       }
       // Clear split if the last mini-app tab is among those being closed
       if (miniAppIdsToClose.size > 0 && splitOpen) {
-        const hasSurvivingMiniAppTab = tabs.some(
-          (t) => !ids.includes(t.id as string) && miniAppIdFromTabUrl(t.url) !== null
-        )
+        const hasSurvivingMiniAppTab = tabs.some((t) => !ids.includes(t.id) && miniAppIdFromTabUrl(t.url) !== null)
         if (!hasSurvivingMiniAppTab) {
           setSplitOpen(false)
           setSplitMiniAppId('')
@@ -272,29 +275,42 @@ export const AppShell = () => {
     />
   )
 
-  const contentArea = (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
-      <main
-        data-ui="app.content"
-        className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
-        {/* Route Tabs: Only render non-dormant tabs */}
-        <ResourceViewSourceProvider>
-          {tabs
-            .filter((t) => t.type === 'route' && !t.isDormant)
-            .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
-            ))}
-        </ResourceViewSourceProvider>
+  // Expose an eviction-aware close through TabsContext so in-page surfaces
+  // (MiniAppPage toolbar) benefit from the same cleanup as the tab bar.
+  const tabsContextValue = useMemo(
+    () => ({
+      ...tabsApi,
+      closeTab: handleCloseTab,
+      closeTabs: handleCloseTabs
+    }),
+    [tabsApi, handleCloseTab, handleCloseTabs]
+  )
 
-        {/* MiniApp keep-alive WebView pool — global, shared across modes */}
-        <MiniAppTabsPool />
-      </main>
-    </div>
+  const contentArea = (
+    <TabsContext value={tabsContextValue}>
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
+        <main
+          data-ui="app.content"
+          className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+          {/* Route Tabs: Only render non-dormant tabs */}
+          <ResourceViewSourceProvider>
+            {tabs
+              .filter((t) => t.type === 'route' && !t.isDormant)
+              .map((tab) => (
+                <TabRouter
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
+              ))}
+          </ResourceViewSourceProvider>
+
+          {/* MiniApp keep-alive WebView pool — global, shared across modes */}
+          <MiniAppTabsPool />
+        </main>
+      </div>
+    </TabsContext>
   )
 
   const contentColumn = (
