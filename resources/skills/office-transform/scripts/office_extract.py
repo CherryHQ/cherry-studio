@@ -349,6 +349,8 @@ def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
         if table_cell is not None and paragraph_index is not None:
             fail("pptx anchor has both 'paragraph' and 'tableCell'; they address different things — pick one")
         if table_cell is not None:
+            if not isinstance(table_cell, dict):
+                fail(f"pptx anchor 'tableCell' must be an object with 'row' and 'col': {table_cell!r}")
             if not (getattr(shape, "has_table", False) and shape.has_table):
                 fail(f"shape {node_id!r} is not a table but anchor has 'tableCell'")
             rows = list(shape.table.rows)

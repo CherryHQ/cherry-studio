@@ -134,7 +134,7 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
   strings, and booleans; an existing formula in an edited cell is replaced by the value.
   Replacing a formula also drops `xl/calcChain.xml` (a recalculation cache Excel rebuilds);
   keeping a chain entry for a cell that no longer has a formula makes Excel report the
-  derived file as damaged. Cells in a **shared or array formula group are refused** — the
+  derived file as damaged. Cells in a **shared, array, or data-table formula group are refused** — the
   expression lives in one member and the others only reference it, so overwriting a member
   would strip the formula from cells you never named. Rewrite such a range with `openpyxl`.
   Coordinates outside the worksheet grid (past XFD or row 1048576) are refused too.
@@ -156,7 +156,12 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
 - Any text written into a cell or paragraph must be storable in XML: control characters
   other than tab, newline and carriage return are refused. Text extracted from a deck can
   carry them (python-pptx maps a soft line break to `\x0B`), so strip them before feeding
-  extracted text back in as an edit value.
+  extracted text back in as an edit value. A **docx paragraph** refuses tab, newline and
+  carriage return as well: WordprocessingML spells those `<w:tab/>` and `<w:br/>`, and the
+  single `w:t` this rewrite emits cannot carry them. Extracting a paragraph that holds them
+  gives you `\t` / `\n`, so editing that string and writing it back would delete the
+  elements while reading identically — split the content across separate body paragraphs,
+  or see **"Edit docx"** below.
 
 ### Generate — write ad-hoc library code for new documents
 

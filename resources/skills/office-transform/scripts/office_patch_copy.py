@@ -17,11 +17,12 @@ Edit JSON shapes (pass via --edits):
 
 xlsx: each cell is overwritten with the JSON value (number, string, or
 boolean); an ordinary formula in that cell is replaced by the value, while a
-cell belonging to a shared or array formula group is refused (see
-reject_grouped_formula). The worksheet's <dimension> is widened when edits
-create cells outside it. Replacing a formula also drops xl/calcChain.xml (see
-drop_calc_chain); that and [Content_Types].xml / workbook.xml.rels are the only
-parts besides the edited worksheet this script ever rewrites.
+cell belonging to a shared, array, or data-table formula group is refused (see
+reject_shared_formula and grouped_formula_ranges). The worksheet's <dimension>
+is widened when edits create cells outside it. Replacing a formula also drops
+xl/calcChain.xml (see drop_calc_chain); that and [Content_Types].xml /
+workbook.xml.rels are the only parts besides the edited worksheet this script
+ever rewrites.
 docx: 'paragraph' is the zero-based ordinal among BODY-LEVEL paragraphs
 (direct w:body children; tables excluded); the paragraph keeps its paragraph
 style and the first run's character style, and extra run-level styling is
@@ -296,8 +297,8 @@ def reject_shared_formula(formula, ref: str) -> None:
     A shared-formula master (`<f t="shared" ref="B2:B4" si="0">`) is the only place the expression is
     stored; its followers carry just `si`. Deleting either one silently guts cells the caller never
     named — openpyxl reads the orphans back as a bare "=" — so this is a refusal, not a repair.
-    Array groups are handled by `array_formula_ranges` instead: their followers carry no `<f>` at all,
-    so there is nothing here to inspect.
+    Array and data-table groups are handled by `grouped_formula_ranges` instead: their followers carry
+    no `<f>` at all, so there is nothing here to inspect.
     """
     if formula.getAttribute("t") != "shared":
         return
@@ -333,18 +334,29 @@ def merged_ranges(worksheet) -> list[tuple[str, tuple[int, int, int, int]]]:
     return ranges
 
 
-def array_formula_ranges(sheet_data) -> list[tuple[str, tuple[int, int, int, int]]]:
-    """Every range owned by an array formula, as (ref, (min_col, min_row, max_col, max_row)).
+GROUPED_FORMULA_KINDS = {"array": "array formula", "dataTable": "data table"}
+
+
+def grouped_formula_ranges(sheet_data) -> list[tuple[str, str, tuple[int, int, int, int]]]:
+    """Every range owned by an array or data-table formula, as (kind, ref, (min_col, min_row, max_col, max_row)).
 
     Only the master cell of an array formula carries `<f t="array" ref="...">`; the cells it spills
     into hold a plain `<v>` and nothing else. Inspecting the edited cell therefore cannot tell you it
     belongs to an array — the range has to be collected up front and the coordinate tested against it.
+
+    A data table (`<f t="dataTable" ref="...">`, Excel's What-If analysis) is the fourth member of the
+    same `t` enum and stores its grid the same way, so it is collected here too. Left out, writing the
+    master deletes the one `<f>` that defines the whole grid and leaves its other cells as orphan
+    literals — a write naming one cell quietly changing several.
     """
     ranges = []
     for row in element_children(sheet_data, "row"):
         for cell in element_children(row, "c"):
             formula = first_child(cell, "f")
-            if formula is None or formula.getAttribute("t") != "array":
+            if formula is None:
+                continue
+            kind = GROUPED_FORMULA_KINDS.get(formula.getAttribute("t"))
+            if kind is None:
                 continue
             ref = formula.getAttribute("ref")
             if not ref:
@@ -352,7 +364,7 @@ def array_formula_ranges(sheet_data) -> list[tuple[str, tuple[int, int, int, int
             corners = [parse_a1_cell(part) for part in ref.split(":")]
             cols = [column for column, _ in corners]
             rows = [row_number for _, row_number in corners]
-            ranges.append((ref, (min(cols), min(rows), max(cols), max(rows))))
+            ranges.append((kind, ref, (min(cols), min(rows), max(cols), max(rows))))
     return ranges
 
 
@@ -443,7 +455,7 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
     if sheet_data is None:
         fail(f"{part_name} has no sheetData element")
 
-    array_ranges = array_formula_ranges(sheet_data)
+    grouped_ranges = grouped_formula_ranges(sheet_data)
     merges = merged_ranges(worksheet)
 
     edited: list[tuple[int, int]] = []
@@ -457,11 +469,11 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
                     f"displayed, so this write would be invisible in Excel. Target "
                     f"{index_to_column(min_col)}{min_row} instead."
                 )
-        for array_ref, (min_col, min_row, max_col, max_row) in array_ranges:
+        for kind, group_ref, (min_col, min_row, max_col, max_row) in grouped_ranges:
             if min_col <= column <= max_col and min_row <= row_number <= max_row:
                 fail(
-                    f"cell {ref} sits inside the array formula covering {array_ref}; an array range is "
-                    f"computed as a unit, so writing one of its cells leaves the range inconsistent. "
+                    f"cell {ref} sits inside the {kind} covering {group_ref}; that range is computed as "
+                    f"a unit, so writing one of its cells leaves the range inconsistent. "
                     f"Rewrite it with a library (`uv run --with openpyxl python`) instead of patch-copy."
                 )
         row = find_or_create_ordered(doc, sheet_data, "row", lambda r: int(r), row_number, str(row_number))
@@ -600,6 +612,29 @@ def reject_unrepresentable_content(paragraph, index: int) -> None:
                 )
 
 
+def reject_break_characters(text: str, index: int) -> None:
+    """Refuse tab, newline and CR in docx replacement text, which one `<w:t>` cannot represent.
+
+    WordprocessingML spells a tab `<w:tab/>` and a line break `<w:br/>` — separate elements, not
+    characters. Translating rather than refusing would be a guess, because the mapping is not
+    reversible: `w:br`, `w:cr` and a page break all read back as the same newline. This is reachable
+    from the skill's own round trip, where it is also silent — extracting a paragraph that holds a
+    real `w:tab` or `w:br` yields those characters, and writing the edited string back drops the
+    elements while the text still reads the same.
+
+    Only docx goes through here. `reject_invalid_xml_text` stays as it is: an xlsx inline string is
+    where a newline legitimately means a line break inside the cell.
+    """
+    for name, char in (("a tab", "\t"), ("a line break", "\n"), ("a carriage return", "\r")):
+        if char in text:
+            fail(
+                f"replacement text for paragraph {index} contains {name}, which this rewrite cannot "
+                f'represent: it emits one <w:t>, while WordprocessingML spells these as <w:tab/> and '
+                f'<w:br/> elements. Split the content across separate body paragraphs, or see '
+                f'"Edit docx" in SKILL.md for a run-level edit.'
+            )
+
+
 def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes], set[str]]:
     replacements = edits.get("replacements")
     if not isinstance(replacements, list) or not replacements:
@@ -612,6 +647,8 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
     paragraphs = list(element_children(body, "p"))
 
     for replacement in replacements:
+        if not isinstance(replacement, dict):
+            fail(f"each replacement must be an object with 'paragraph' and 'text': {replacement!r}")
         index = replacement.get("paragraph")
         text = replacement.get("text")
         if index is None or not isinstance(text, str):
@@ -626,6 +663,7 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         paragraph = paragraphs[index]
 
         reject_invalid_xml_text(text, f"replacement text for paragraph {index}")
+        reject_break_characters(text, index)
         reject_unrepresentable_content(paragraph, index)
 
         properties = first_child(paragraph, "pPr")
