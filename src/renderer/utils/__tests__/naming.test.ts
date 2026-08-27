@@ -380,6 +380,13 @@ describe('naming', () => {
       expect(getProviderDisplayNameById('minimax')).toBe('MiniMax CN')
     })
 
+    it.each([
+      ['openai-codex', 'OpenAI Codex'],
+      ['grok-cli', 'Grok CLI']
+    ])('uses the canonical label for the registry provider id %s', (providerId, expectedLabel) => {
+      expect(getProviderDisplayNameById(providerId)).toBe(expectedLabel)
+    })
+
     it('preserves a custom provider id when metadata is unavailable', () => {
       expect(getProviderDisplayNameById('my-custom')).toBe('my-custom')
     })

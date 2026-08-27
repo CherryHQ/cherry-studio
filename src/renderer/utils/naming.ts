@@ -112,7 +112,8 @@ export const getFancyProviderName = (provider: Provider) => {
  * Custom provider ids remain unchanged until provider metadata is available.
  */
 export function getProviderDisplayNameById(providerId: string): string {
-  return isSystemProviderId(providerId) ? i18n.t(getProviderLabelKey(providerId)) : providerId
+  const labelKey = getProviderLabelKey(providerId, '')
+  return labelKey ? i18n.t(labelKey) : providerId
 }
 
 /**
