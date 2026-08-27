@@ -1,7 +1,7 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 
-import type { AgentRuntimeRedirectInput, AgentRuntimeToolApprovalRequest } from '../types'
+import type { AgentRuntimeConnectionId, AgentRuntimeRedirectInput, AgentRuntimeToolApprovalRequest } from '../types'
 
 export type McpToolDisplayMetadata = {
   type: 'mcp'
@@ -65,12 +65,13 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
 }
 
 export type ToolApprovalEmitterHolder = {
+  connectionId?: AgentRuntimeConnectionId
   /** Bound for the connection lifetime; the host decides whether to stream or persist the request. */
   emit?: (request: AgentRuntimeToolApprovalRequest) => void
   /** Replaces a streamed tool call's raw input with the SDK-normalized input before approval. */
   emitInput?: (request: Pick<AgentRuntimeToolApprovalRequest, 'toolCallId' | 'toolName' | 'input'>) => void
   /** Session-scoped cleanup delegated to the approval lifecycle coordinator. */
-  dispose?: () => void
+  dispose?: (connectionId?: AgentRuntimeConnectionId) => void
 }
 
 export type SteerHolder = {

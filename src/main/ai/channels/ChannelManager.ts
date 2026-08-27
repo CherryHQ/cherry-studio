@@ -32,6 +32,12 @@ export enum ChannelDeliveryEvent {
   TaskError = 'task-error'
 }
 
+export enum ChannelTerminalAdmissionResult {
+  Accepted = 'accepted',
+  AlreadyOwned = 'already-owned',
+  DroppedByPolicy = 'dropped-by-policy'
+}
+
 export type ChannelDeliveryRequest = {
   id: string
   channelId: string
@@ -58,7 +64,7 @@ export interface ChannelLiveUpdateRequest {
 
 export interface ChannelDeliveryOwner {
   updateLive(request: ChannelLiveUpdateRequest): boolean
-  enqueueTerminal(request: ChannelDeliveryRequest): boolean
+  enqueueTerminal(request: ChannelDeliveryRequest): ChannelTerminalAdmissionResult
   isActive(): boolean
 }
 
@@ -187,7 +193,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
    * One owner serializes sends per channel chat and drains them before adapter teardown.
    */
   /** Delivery is owned by `ChannelDeliveryService`; kept here as the stable producer port. */
-  enqueueTerminalDelivery(delivery: ChannelDeliveryRequest): boolean {
+  enqueueTerminalDelivery(delivery: ChannelDeliveryRequest): ChannelTerminalAdmissionResult {
     return this.enqueueTerminal(delivery)
   }
 
@@ -195,7 +201,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
     return this.delivery.updateLive(request)
   }
 
-  enqueueTerminal(request: ChannelDeliveryRequest): boolean {
+  enqueueTerminal(request: ChannelDeliveryRequest): ChannelTerminalAdmissionResult {
     return this.delivery.enqueueTerminal(request)
   }
 

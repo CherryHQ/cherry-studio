@@ -10,6 +10,7 @@ import {
   AgentRuntimeEventType,
   AgentRuntimeRedirectReceiptKind,
   type AgentRuntimeUserInput,
+  toAgentRuntimeConnectionId,
   toAgentRuntimeRedirectId,
   toAgentRuntimeSegmentId
 } from '../types'
@@ -221,6 +222,7 @@ const fakePi = {
 }
 
 const input: AgentRuntimeConnectInput = {
+  connectionId: toAgentRuntimeConnectionId('pi-connection-1'),
   sessionId: 'sess-1',
   agentId: 'agent-1',
   modelId: 'p::m'
@@ -1353,7 +1355,7 @@ describe('PiRuntimeConnection', () => {
     expect(events.at(-1)?.type).toBe('turn-complete')
   })
 
-  it('close() aborts an approval still awaiting the renderer decision', async () => {
+  it('leaves connection approval teardown to the manager owner', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
 
@@ -1371,8 +1373,10 @@ describe('PiRuntimeConnection', () => {
     expect(toolApprovalRegistry.size()).toBe(1)
 
     await conn.close()
-    await expect(pending).resolves.toMatchObject({ block: true, reason: 'pi-session-closed' })
-    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(toolApprovalRegistry.size()).toBe(1)
+
+    toolApprovalRegistry.clear('manager-teardown')
+    await expect(pending).resolves.toMatchObject({ block: true, reason: 'manager-teardown' })
   })
 
   it('defers a permission-mode change while streaming and applies it once idle', async () => {

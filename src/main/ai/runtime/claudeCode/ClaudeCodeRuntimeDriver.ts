@@ -464,6 +464,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // before any turn opens — is dispatched by the adapter rather than parked by the driver.
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
     this.approvalEmitter = request.settings.approvalEmitter
+    if (this.approvalEmitter) this.approvalEmitter.connectionId = this.input.connectionId
     // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
     // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
@@ -904,7 +905,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private teardownSession(): void {
     if (this.sessionTornDown) return
     this.sessionTornDown = true
-    this.approvalEmitter?.dispose?.()
+    this.approvalEmitter?.dispose?.(this.input.connectionId)
     this.steerHolder?.dispose()
     disposeToolPolicySnapshot(this.input.sessionId)
   }

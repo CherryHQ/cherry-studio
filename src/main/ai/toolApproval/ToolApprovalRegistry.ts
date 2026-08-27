@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import { AgentApprovalLifetime } from '../runtime/types'
+import { AgentApprovalLifetime, type AgentRuntimeConnectionId } from '../runtime/types'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
@@ -22,6 +22,7 @@ export type PendingApproval = {
   toolName: string
   originalInput: Record<string, unknown>
   lifetime: AgentApprovalLifetime
+  connectionId?: AgentRuntimeConnectionId
   messageId?: string
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
@@ -31,13 +32,16 @@ export type PendingApproval = {
 
 export type ApprovalRegistration = Pick<
   PendingApproval,
-  'approvalId' | 'sessionId' | 'toolCallId' | 'lifetime' | 'messageId'
+  'approvalId' | 'sessionId' | 'connectionId' | 'toolCallId' | 'lifetime' | 'messageId'
 >
-type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'claimToken' | 'lifetime'> & {
-  lifetime?: PendingApproval['lifetime']
-}
+type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'claimToken' | 'lifetime'> &
+  (
+    | { lifetime?: AgentApprovalLifetime.ExecutionBound; connectionId?: never }
+    | { lifetime: AgentApprovalLifetime.SessionMessage; connectionId: AgentRuntimeConnectionId }
+  )
 
 export interface AgentMessageApprovalClaim extends ApprovalRegistration {
+  readonly connectionId: AgentRuntimeConnectionId
   readonly token: symbol
 }
 
@@ -94,19 +98,30 @@ class ToolApprovalRegistry {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
       lifetime: entry.lifetime,
+      connectionId: entry.connectionId,
       messageId: entry.messageId
     }
   }
 
-  claimMessage(approvalId: string, sessionId: string): AgentMessageApprovalClaim | undefined {
+  claimMessage(
+    approvalId: string,
+    sessionId: string,
+    connectionId: AgentRuntimeConnectionId
+  ): AgentMessageApprovalClaim | undefined {
     const entry = this.pending.get(approvalId)
-    if (!entry || entry.sessionId !== sessionId || entry.lifetime !== AgentApprovalLifetime.SessionMessage)
+    if (
+      !entry ||
+      entry.sessionId !== sessionId ||
+      entry.connectionId !== connectionId ||
+      entry.lifetime !== AgentApprovalLifetime.SessionMessage
+    )
       return undefined
     return {
       approvalId: entry.approvalId,
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
       lifetime: entry.lifetime,
+      connectionId,
       messageId: entry.messageId,
       token: entry.claimToken
     }
@@ -118,12 +133,36 @@ class ToolApprovalRegistry {
       !entry ||
       entry.claimToken !== claim.token ||
       entry.sessionId !== claim.sessionId ||
+      entry.connectionId !== claim.connectionId ||
       entry.lifetime !== AgentApprovalLifetime.SessionMessage
     ) {
       return false
     }
     entry.messageId = messageId
     return true
+  }
+
+  listConnection(sessionId: string, connectionId: AgentRuntimeConnectionId): AgentMessageApprovalClaim[] {
+    return [...this.pending.values()].flatMap((entry) => {
+      if (
+        entry.sessionId !== sessionId ||
+        entry.connectionId !== connectionId ||
+        entry.lifetime !== AgentApprovalLifetime.SessionMessage
+      ) {
+        return []
+      }
+      return [
+        {
+          approvalId: entry.approvalId,
+          sessionId: entry.sessionId,
+          toolCallId: entry.toolCallId,
+          lifetime: entry.lifetime,
+          connectionId,
+          messageId: entry.messageId,
+          token: entry.claimToken
+        }
+      ]
+    })
   }
 
   listSession(sessionId: string, lifetime?: AgentApprovalLifetime): ApprovalRegistration[] {
@@ -147,6 +186,7 @@ class ToolApprovalRegistry {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
       lifetime: entry.lifetime,
+      connectionId: entry.connectionId,
       messageId: entry.messageId
     }))
   }
@@ -163,8 +203,22 @@ class ToolApprovalRegistry {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
       lifetime: entry.lifetime,
+      connectionId: entry.connectionId,
       messageId: entry.messageId
     }
+  }
+
+  dispatchClaim(claim: AgentMessageApprovalClaim, decision: DispatchDecision): ApprovalRegistration | undefined {
+    const entry = this.pending.get(claim.approvalId)
+    if (
+      !entry ||
+      entry.claimToken !== claim.token ||
+      entry.sessionId !== claim.sessionId ||
+      entry.connectionId !== claim.connectionId
+    ) {
+      return undefined
+    }
+    return this.dispatch(claim.approvalId, decision)
   }
 
   abort(sessionId: string, reason = 'session-aborted'): number {

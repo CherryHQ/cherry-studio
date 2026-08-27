@@ -36,7 +36,12 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import { AgentUserResponseMode } from '../../conversation'
-import { AgentApprovalLifetime, type AgentRuntimeEvent, AgentRuntimeEventType } from '../types'
+import {
+  AgentApprovalLifetime,
+  type AgentRuntimeConnectionId,
+  type AgentRuntimeEvent,
+  AgentRuntimeEventType
+} from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
@@ -62,6 +67,7 @@ const META_TOOLS = new Set<string>(
 const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
 
 export interface PiApprovalContext {
+  connectionId: AgentRuntimeConnectionId
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
   sessionId: string
   /** Session workspace root used to resolve relative tool paths and as a trusted read/write root. */
@@ -187,6 +193,10 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       interactionState.userResponse === AgentUserResponseMode.Stream
         ? AgentApprovalLifetime.ExecutionBound
         : AgentApprovalLifetime.SessionMessage
+    const ownership =
+      lifetime === AgentApprovalLifetime.SessionMessage
+        ? ({ lifetime: AgentApprovalLifetime.SessionMessage, connectionId: ctx.connectionId } as const)
+        : ({ lifetime: AgentApprovalLifetime.ExecutionBound } as const)
     const resumeExecutionTimeout = onApprovalPending?.()
     let decision: DispatchDecision
     try {
@@ -197,7 +207,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
           toolCallId,
           toolName,
           originalInput: { ...input },
-          lifetime,
+          ...ownership,
           signal,
           resolve
         })
@@ -212,7 +222,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
             toolCallId,
             toolName,
             input: { ...input },
-            lifetime,
+            ...ownership,
             providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName } satisfies CherryToolMeta }
           }
         })

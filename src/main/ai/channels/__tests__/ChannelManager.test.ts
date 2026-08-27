@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelAdapter, type ChannelAdapterConfig, ChannelStreamCompletionResult } from '../ChannelAdapter'
 import { ChannelDeliveryService } from '../ChannelDeliveryService'
-import { ChannelDeliveryEvent, ChannelManager, registerAdapterFactory } from '../ChannelManager'
+import {
+  ChannelDeliveryEvent,
+  ChannelManager,
+  ChannelTerminalAdmissionResult,
+  registerAdapterFactory
+} from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
 // Real delivery service: these tests exercise FIFO, dedupe, the bounded send and drain, so a
@@ -204,8 +209,8 @@ describe('ChannelManager', () => {
       text: 'once'
     }
 
-    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(true)
-    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(false)
+    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(ChannelTerminalAdmissionResult.Accepted)
+    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(ChannelTerminalAdmissionResult.AlreadyOwned)
     await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(1))
   })
 
@@ -254,7 +259,7 @@ describe('ChannelManager', () => {
           event: ChannelDeliveryEvent.Done,
           text: 'never lands'
         })
-      ).toBe(true)
+      ).toBe(ChannelTerminalAdmissionResult.Accepted)
       // B is already in the owned FIFO before A times out. Blocking must purge it rather than
       // letting its pre-created continuation run through the now-untrusted channel.
       expect(
@@ -265,7 +270,7 @@ describe('ChannelManager', () => {
           event: ChannelDeliveryEvent.Done,
           text: 'must be skipped'
         })
-      ).toBe(true)
+      ).toBe(ChannelTerminalAdmissionResult.Accepted)
       await vi.waitFor(() => expect(createdAdapters[0].sendMessage).toHaveBeenCalledTimes(1))
 
       await vi.advanceTimersByTimeAsync(15_000)
@@ -281,7 +286,7 @@ describe('ChannelManager', () => {
           event: ChannelDeliveryEvent.Done,
           text: 'blocked'
         })
-      ).toBe(false)
+      ).toBe(ChannelTerminalAdmissionResult.DroppedByPolicy)
       expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'later chunk' })).toBe(false)
     } finally {
       vi.useRealTimers()
@@ -303,7 +308,7 @@ describe('ChannelManager', () => {
       text: 'after-stop'
     })
 
-    expect(accepted).toBe(false)
+    expect(accepted).toBe(ChannelTerminalAdmissionResult.DroppedByPolicy)
   })
 
   it('disconnectAgent disconnects all adapters for agent and clears session tracker', async () => {
@@ -401,7 +406,7 @@ describe('ChannelManager', () => {
         event: ChannelDeliveryEvent.Done,
         text: 'new epoch'
       })
-    ).toBe(true)
+    ).toBe(ChannelTerminalAdmissionResult.Accepted)
     await vi.waitFor(() => expect(createdAdapters[2].sendMessage).toHaveBeenCalledTimes(1))
   })
 
@@ -495,6 +500,44 @@ describe('ChannelManager', () => {
     expect(createdAdapters).toHaveLength(2)
   })
 
+  it('retains terminal work arriving during replacement for the new adapter', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const adapterA = createdAdapters[0]
+    let finishClaimed!: () => void
+    adapterA.sendMessage.mockImplementationOnce(() => new Promise<void>((resolve) => (finishClaimed = resolve)))
+    channelManager.enqueueTerminalDelivery({
+      id: 'claimed-before-replacement',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'claimed'
+    })
+    await vi.waitFor(() => expect(adapterA.sendMessage).toHaveBeenCalledOnce())
+
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    const replacing = channelManager.syncChannel('ch-1', { awaitConnect: true })
+    await Promise.resolve()
+    expect(
+      channelManager.enqueueTerminalDelivery({
+        id: 'retained-during-replacement',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: ChannelDeliveryEvent.Done,
+        text: 'retained'
+      })
+    ).toBe(ChannelTerminalAdmissionResult.Accepted)
+    expect(adapterA.sendMessage).toHaveBeenCalledOnce()
+
+    finishClaimed()
+    await replacing
+    const adapterB = createdAdapters[1]
+    await vi.waitFor(() =>
+      expect(adapterB.sendMessage).toHaveBeenCalledExactlyOnceWith('chat-1', 'retained', expect.any(Object))
+    )
+    expect(adapterA.sendMessage).toHaveBeenCalledOnce()
+  })
+
   it('aborts the old live epoch and routes later chunks through the replacement adapter', async () => {
     vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
     await channelManager.start()
@@ -540,7 +583,7 @@ describe('ChannelManager', () => {
         event: ChannelDeliveryEvent.Done,
         text: 'must stay blocked'
       })
-    ).toBe(false)
+    ).toBe(ChannelTerminalAdmissionResult.Accepted)
   })
 
   it('keeps delivery blocked when a background reconnect fails', async () => {
@@ -560,7 +603,7 @@ describe('ChannelManager', () => {
         event: ChannelDeliveryEvent.Done,
         text: 'must stay blocked'
       })
-    ).toBe(false)
+    ).toBe(ChannelTerminalAdmissionResult.Accepted)
   })
 
   it('inactive channels are skipped', async () => {

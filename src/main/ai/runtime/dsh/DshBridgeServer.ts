@@ -25,7 +25,12 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import { AgentUserResponseMode } from '../../conversation'
-import { AgentApprovalLifetime, type AgentRuntimeEvent, AgentRuntimeEventType } from '../types'
+import {
+  AgentApprovalLifetime,
+  type AgentRuntimeConnectionId,
+  type AgentRuntimeEvent,
+  AgentRuntimeEventType
+} from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
 
@@ -34,6 +39,7 @@ const logger = loggerService.withContext('DshBridgeServer')
 const READY_TIMEOUT_MS = 15_000
 
 export interface DshBridgeServerOptions {
+  connectionId: AgentRuntimeConnectionId
   /** Agent-session id — keys the neutral approval registry so close()/abort target the right approvals. */
   sessionId: string
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
@@ -284,6 +290,10 @@ export class DshBridgeServer {
       interactionState.userResponse === AgentUserResponseMode.Stream
         ? AgentApprovalLifetime.ExecutionBound
         : AgentApprovalLifetime.SessionMessage
+    const ownership =
+      lifetime === AgentApprovalLifetime.SessionMessage
+        ? ({ lifetime: AgentApprovalLifetime.SessionMessage, connectionId: this.options.connectionId } as const)
+        : ({ lifetime: AgentApprovalLifetime.ExecutionBound } as const)
     return new Promise((resolve) => {
       const pending = toolApprovalRegistry.register({
         approvalId,
@@ -291,7 +301,7 @@ export class DshBridgeServer {
         toolCallId,
         toolName,
         originalInput: { ...input },
-        lifetime,
+        ...ownership,
         resolve: (decision) => {
           // dsh forbids rewriting tool input, so an edited-input approval degrades to a rejection.
           if (decision.approved && decision.updatedInput) {
@@ -310,7 +320,7 @@ export class DshBridgeServer {
           toolCallId,
           toolName,
           input: { ...input },
-          lifetime,
+          ...ownership,
           providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
         }
       })
@@ -345,6 +355,10 @@ export class DshBridgeServer {
       interactionState.userResponse === AgentUserResponseMode.Stream
         ? AgentApprovalLifetime.ExecutionBound
         : AgentApprovalLifetime.SessionMessage
+    const ownership =
+      lifetime === AgentApprovalLifetime.SessionMessage
+        ? ({ lifetime: AgentApprovalLifetime.SessionMessage, connectionId: this.options.connectionId } as const)
+        : ({ lifetime: AgentApprovalLifetime.ExecutionBound } as const)
     const input = { plan: review.detail }
     return new Promise((resolve) => {
       const pending = toolApprovalRegistry.register({
@@ -353,7 +367,7 @@ export class DshBridgeServer {
         toolCallId,
         toolName: 'exit_plan_mode',
         originalInput: { ...input },
-        lifetime,
+        ...ownership,
         resolve: (decision) => {
           if (decision.approved && !decision.updatedInput) {
             resolve({ answers: [{ id: review.id, selected: [intent.approve] }] })
@@ -371,7 +385,7 @@ export class DshBridgeServer {
           toolCallId,
           toolName: 'exit_plan_mode',
           input: { ...input },
-          lifetime,
+          ...ownership,
           providerMetadata: {
             cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
           }

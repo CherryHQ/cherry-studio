@@ -20,7 +20,6 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { agentMessageInteractionCoordinator } from '@main/ai/toolApproval/AgentMessageInteractionCoordinator'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -374,6 +373,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.connectionSignature = snapshot.signature
 
       this.bridge = new DshBridgeServer({
+        connectionId: this.input.connectionId,
         sessionId: this.input.sessionId,
         emit: (event) => this.emitBridgeEvent(event),
         getInteractionState: () =>
@@ -611,9 +611,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed) return
     this.closed = true
     this.subagents.close()
-    // Deny any approval still awaiting a renderer decision so its held tool
-    // promise resolves instead of hanging past teardown.
-    agentMessageInteractionCoordinator.teardownSession(this.input.sessionId, 'dsh-session-closed')
     this.subscription?.close()
     this.subscription = undefined
     try {

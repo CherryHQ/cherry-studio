@@ -72,6 +72,7 @@ import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
   AgentRuntimeConnection,
+  AgentRuntimeConnectionId,
   AgentRuntimeEvent,
   AgentRuntimeRedirectId,
   AgentRuntimeRedirectInput,
@@ -90,6 +91,7 @@ import {
   AgentRuntimeReconcileResult,
   AgentRuntimeRedirectReceiptKind,
   AgentSessionUsageCaptureOwner,
+  toAgentRuntimeConnectionId,
   toAgentRuntimeSegmentId
 } from '../runtime/types'
 import type { StreamListener, StreamPausedResult } from '../streamManager'
@@ -392,6 +394,7 @@ export class AgentConnectionManager extends BaseService {
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; connection start ids reject stale completions. */
   private readonly connectionStarts = new Map<string, { id: string; promise: Promise<boolean> }>()
+  private readonly connectionIds = new WeakMap<AgentRuntimeConnection, AgentRuntimeConnectionId>()
   /** Per-session teardown is the resource fence joined by Stop, replacement, warm close, and retry. */
   private readonly sessionTeardowns = new Map<string, AgentSessionTeardown>()
   /** Parked stream resources keyed by the exact suspend effect that owns them. */
@@ -1082,6 +1085,7 @@ export class AgentConnectionManager extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
+    const connectionId = fallbackConnection ? this.connectionIds.get(fallbackConnection) : undefined
     const pendingConnectionStart = this.connectionStarts.get(sessionId)?.promise
     const connectionLoop = entry.connectionLoop
     const checkpoint = entry.lastResumeToken ? { runtimeResumeToken: entry.lastResumeToken } : undefined
@@ -1090,19 +1094,32 @@ export class AgentConnectionManager extends BaseService {
         (turnId): turnId is string => turnId !== undefined
       )
     )
-    this.entries.delete(sessionId)
+    const teardown: AgentSessionTeardown = {
+      id: crypto.randomUUID(),
+      checkpoint,
+      runtimeTurnIds,
+      promise: Promise.resolve()
+    }
+    this.sessionTeardowns.set(sessionId, teardown)
+    try {
+      if (connectionId) {
+        agentMessageInteractionCoordinator.teardownConnection(sessionId, connectionId, 'session-ended')
+      }
+    } catch (error) {
+      const failed = Promise.reject(error).finally(() => {
+        if (this.sessionTeardowns.get(sessionId) === teardown) this.sessionTeardowns.delete(sessionId)
+      })
+      teardown.promise = failed
+      void failed.catch(() => {})
+      return failed
+    }
+    if (this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
     let closing: Promise<void>
     try {
       closing = this.closeEntry(entry)
     } catch (error) {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
       closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
-    }
-    const teardown: AgentSessionTeardown = {
-      id: crypto.randomUUID(),
-      checkpoint,
-      runtimeTurnIds,
-      promise: Promise.resolve()
     }
     const promise = Promise.allSettled([closing, pendingConnectionStart, connectionLoop])
       .then((results) => {
@@ -1113,7 +1130,6 @@ export class AgentConnectionManager extends BaseService {
         if (this.sessionTeardowns.get(sessionId) === teardown) this.sessionTeardowns.delete(sessionId)
       })
     teardown.promise = promise
-    this.sessionTeardowns.set(sessionId, teardown)
     void promise.catch(() => {})
     return promise
   }
@@ -1639,7 +1655,9 @@ export class AgentConnectionManager extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
+    const connectionId = toAgentRuntimeConnectionId(connectionAttemptId)
     const connection = await driver.connect({
+      connectionId,
       sessionId: entry.conversation.id,
       agentId: entry.agentId,
       modelId: target.modelId,
@@ -1651,6 +1669,7 @@ export class AgentConnectionManager extends BaseService {
       trace: this.sessionTraceContext(entry, target.modelId),
       onSteerInjected: (delivery) => this.reserveSteerContinuation(entry, delivery)
     })
+    this.connectionIds.set(connection, connectionId)
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.conversation.id)
       return false
@@ -1673,6 +1692,15 @@ export class AgentConnectionManager extends BaseService {
     if (this.resourceStatus(entry) === AgentConnectionResourceStatus.Active) this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+      try {
+        agentMessageInteractionCoordinator.teardownConnection(entry.conversation.id, connectionId, 'connection-ended')
+      } catch (error) {
+        logger.warn('Failed to terminalize connection approvals after runtime exit', {
+          sessionId: entry.conversation.id,
+          connectionId,
+          error
+        })
+      }
       void this.closeRuntimeConnection(connection, entry.conversation.id).catch(() => {})
       if (this.currentConnection(entry) === connection) {
         this.resetConnectionResources(entry, connection)
@@ -1726,7 +1754,7 @@ export class AgentConnectionManager extends BaseService {
         break
       }
       case AgentRuntimeEventType.ToolApprovalRequest:
-        this.handleToolApprovalRequest(entry, event.request)
+        this.handleToolApprovalRequest(entry, event.request, connection)
         break
       case AgentRuntimeEventType.Usage:
         this.recordRuntimeUsage(entry, event.invocation)
@@ -2363,7 +2391,11 @@ export class AgentConnectionManager extends BaseService {
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
   }
 
-  private handleToolApprovalRequest(entry: AgentConnectionEntry, request: AgentRuntimeToolApprovalRequest): void {
+  private handleToolApprovalRequest(
+    entry: AgentConnectionEntry,
+    request: AgentRuntimeToolApprovalRequest,
+    connection?: AgentRuntimeConnection
+  ): void {
     if (request.lifetime === AgentApprovalLifetime.ExecutionBound) {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
@@ -2384,6 +2416,15 @@ export class AgentConnectionManager extends BaseService {
           reason: 'The turn ended before this approval request could be presented'
         })
       }
+      return
+    }
+
+    const connectionId = connection ? this.connectionIds.get(connection) : undefined
+    if (!connectionId || request.connectionId !== connectionId) {
+      toolApprovalRegistry.dispatch(request.approvalId, {
+        approved: false,
+        reason: 'The runtime connection ended before this approval request could be presented'
+      })
       return
     }
 

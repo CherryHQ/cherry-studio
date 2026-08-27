@@ -1,6 +1,6 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
-import type { AgentRuntimeToolApprovalRequest } from '@main/ai/runtime/types'
+import type { AgentRuntimeConnectionId, AgentRuntimeToolApprovalRequest } from '@main/ai/runtime/types'
 import { AgentApprovalLifetime } from '@main/ai/runtime/types'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, MessageSnapshot } from '@shared/data/types/message'
@@ -18,7 +18,7 @@ class AgentMessageInteractionCoordinator {
     messageSnapshot?: MessageSnapshot
   }): AgentSessionMessageEntity | undefined {
     const { sessionId, request } = input
-    const claim = toolApprovalRegistry.claimMessage(request.approvalId, sessionId)
+    const claim = toolApprovalRegistry.claimMessage(request.approvalId, sessionId, request.connectionId)
     if (!claim) return undefined
     const part = {
       type: `tool-${request.toolName}`,
@@ -74,10 +74,10 @@ class AgentMessageInteractionCoordinator {
     return toolApprovalRegistry.dispatch(approvalId, decision) !== undefined
   }
 
-  teardownSession(sessionId: string, reason = 'session-ended'): number {
-    const pending = toolApprovalRegistry.listSession(sessionId)
+  teardownConnection(sessionId: string, connectionId: AgentRuntimeConnectionId, reason = 'session-ended'): number {
+    const pending = toolApprovalRegistry.listConnection(sessionId, connectionId)
     const messageApprovals = pending.flatMap((approval) =>
-      approval.lifetime === AgentApprovalLifetime.SessionMessage && approval.messageId
+      approval.messageId
         ? [
             {
               sessionId,
@@ -87,22 +87,28 @@ class AgentMessageInteractionCoordinator {
           ]
         : []
     )
-    try {
-      agentSessionMessageService.applyToolApprovalDecisions(messageApprovals)
-    } catch (error) {
-      logger.error('Failed to terminalize session-message approvals during teardown', { sessionId, error })
-    }
+    agentSessionMessageService.applyToolApprovalDecisions(messageApprovals)
     let resolved = 0
     for (const approval of pending) {
-      if (toolApprovalRegistry.dispatch(approval.approvalId, { approved: false, reason })) resolved += 1
+      if (toolApprovalRegistry.dispatchClaim(approval, { approved: false, reason })) resolved += 1
     }
     return resolved
   }
 
   clear(reason = 'service-shutdown'): number {
-    const sessionIds = new Set(toolApprovalRegistry.listAll().map(({ sessionId }) => sessionId))
+    const connections = new Map<string, { sessionId: string; connectionId: AgentRuntimeConnectionId }>()
+    for (const approval of toolApprovalRegistry.listAll()) {
+      if (approval.lifetime !== AgentApprovalLifetime.SessionMessage || !approval.connectionId) continue
+      connections.set(`${approval.sessionId}:${approval.connectionId}`, {
+        sessionId: approval.sessionId,
+        connectionId: approval.connectionId
+      })
+    }
     let resolved = 0
-    for (const sessionId of sessionIds) resolved += this.teardownSession(sessionId, reason)
+    for (const { sessionId, connectionId } of connections.values()) {
+      resolved += this.teardownConnection(sessionId, connectionId, reason)
+    }
+    resolved += toolApprovalRegistry.clear(reason)
     return resolved
   }
 }

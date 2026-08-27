@@ -1,6 +1,6 @@
 import type { ChannelStreamCompletionResult } from '@main/ai/channels/ChannelAdapter'
 import { type ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
-import type { ChannelDeliveryOwner } from '@main/ai/channels/ChannelManager'
+import { type ChannelDeliveryOwner, ChannelTerminalAdmissionResult } from '@main/ai/channels/ChannelManager'
 import {
   ConversationKind,
   ConversationOutcomeKind,
@@ -34,7 +34,7 @@ const immediateDeliveryOwner: ChannelDeliveryOwner = {
   },
   enqueueTerminal(request) {
     const adapter = deliveryAdapter
-    if (!adapter) return false
+    if (!adapter) return ChannelTerminalAdmissionResult.DroppedByPolicy
     void (async () => {
       if (
         request.finalizeStream &&
@@ -45,7 +45,7 @@ const immediateDeliveryOwner: ChannelDeliveryOwner = {
       const text = request.fallbackText ?? request.text
       await adapter.sendMessage(request.chatId, text, request.responseOptions)
     })()
-    return true
+    return ChannelTerminalAdmissionResult.Accepted
   },
   isActive: () => true
 }
@@ -87,7 +87,7 @@ describe('ChannelAdapterListener', () => {
   it('hands terminal channel sends to the delivery owner', () => {
     const deliveryOwner: ChannelDeliveryOwner = {
       updateLive: vi.fn().mockReturnValue(true),
-      enqueueTerminal: vi.fn().mockReturnValue(true),
+      enqueueTerminal: vi.fn().mockReturnValue(ChannelTerminalAdmissionResult.Accepted),
       isActive: () => true
     }
     const listener = new ChannelAdapterListener(deliveryOwner, 'ch-1', 'chat-1')

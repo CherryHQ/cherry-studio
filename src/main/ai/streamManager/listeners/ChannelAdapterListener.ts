@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import {
   ChannelDeliveryEvent,
   type ChannelDeliveryOwner,
+  ChannelTerminalAdmissionResult,
   sanitizeChannelOutput,
   type SendMessageOptions
 } from '@main/ai/channels'
@@ -81,8 +82,7 @@ export class ChannelAdapterListener implements StreamListener {
     opts: { finalizeStream?: boolean; fallbackText?: string } = {}
   ): void {
     if (this.terminalDeliveryQueued) return
-    this.terminalDeliveryQueued = true
-    this.deliveryOwner.enqueueTerminal({
+    const result = this.deliveryOwner.enqueueTerminal({
       id: `stream:${this.deliveryListenerId}:${event}:${executionId ?? 'unscoped'}`,
       channelId: this.channelId,
       chatId: this.platformChatId,
@@ -91,6 +91,13 @@ export class ChannelAdapterListener implements StreamListener {
       ...(this.responseOptions !== undefined ? { responseOptions: this.responseOptions } : {}),
       ...opts
     })
+    switch (result) {
+      case ChannelTerminalAdmissionResult.Accepted:
+      case ChannelTerminalAdmissionResult.AlreadyOwned:
+      case ChannelTerminalAdmissionResult.DroppedByPolicy:
+        this.terminalDeliveryQueued = true
+        return
+    }
   }
 
   onChunk(chunk: UIMessageChunk, identity?: ConversationStreamIdentity): void {

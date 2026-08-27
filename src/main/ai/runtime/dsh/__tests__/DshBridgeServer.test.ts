@@ -6,7 +6,7 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentUserResponseMode } from '../../../conversation'
-import type { AgentRuntimeEvent } from '../../types'
+import { type AgentRuntimeEvent, toAgentRuntimeConnectionId } from '../../types'
 import { DshBridgeServer } from '../DshBridgeServer'
 
 const SESSION_ID = 'dsh-bridge-test-session'
@@ -39,6 +39,7 @@ function makeServer(
   const events: AgentRuntimeEvent[] = []
   const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
+    connectionId: toAgentRuntimeConnectionId('dsh-connection-1'),
     sessionId: SESSION_ID,
     emit: (event) => events.push(event),
     getInteractionState: () => ({ userResponse }),

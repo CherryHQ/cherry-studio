@@ -19,7 +19,7 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     toolCallId: 'tc1',
     toolName: 'bash',
     originalInput: { cmd: 'ls' },
-    lifetime: AgentApprovalLifetime.ExecutionBound,
+    lifetime: AgentApprovalLifetime.ExecutionBound as const,
     resolve,
     ...overrides
   }
@@ -41,6 +41,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
       sessionId: 's1',
       toolCallId: 'tc1',
       lifetime: AgentApprovalLifetime.ExecutionBound,
+      connectionId: undefined,
       messageId: undefined
     })
     await expect(result).resolves.toEqual({ approved: true })

@@ -520,11 +520,17 @@ async function buildToolPermissions(
         ? AgentApprovalLifetime.SessionMessage
         : AgentApprovalLifetime.ExecutionBound
     const approvalId = randomUUID()
-    const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
-    if (!emit) {
+    const approvalEmitter = sessionState().peekToolApprovalEmitter(session.id)
+    const emit = approvalEmitter?.emit
+    const connectionId = approvalEmitter?.connectionId
+    if (!emit || !connectionId) {
       logger.warn('Approval requested but no emitter bound — denying', { approvalId, toolName })
       return { behavior: 'deny', message: 'Approval emitter not ready' }
     }
+    const ownership =
+      lifetime === AgentApprovalLifetime.SessionMessage
+        ? ({ lifetime: AgentApprovalLifetime.SessionMessage, connectionId } as const)
+        : ({ lifetime: AgentApprovalLifetime.ExecutionBound } as const)
     return new Promise<PermissionResult>((resolve) => {
       const pending = toolApprovalRegistry.register({
         approvalId,
@@ -532,7 +538,7 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
-        lifetime,
+        ...ownership,
         signal: opts.signal,
         resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
       })
@@ -542,7 +548,7 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         input,
-        lifetime,
+        ...ownership,
         providerMetadata: {
           cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
         }

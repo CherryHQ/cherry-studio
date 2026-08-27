@@ -20,7 +20,6 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { agentMessageInteractionCoordinator } from '@main/ai/toolApproval/AgentMessageInteractionCoordinator'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
@@ -259,6 +258,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         citationsGuidance
       })
       const approvalContext = {
+        connectionId: this.input.connectionId,
         sessionId: this.input.sessionId,
         workspacePath,
         agentDataPath,
@@ -533,9 +533,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    // Deny any approval still awaiting a renderer decision so its held tool
-    // promise resolves instead of hanging past teardown (plan Phase 3).
-    agentMessageInteractionCoordinator.teardownSession(this.input.sessionId, 'pi-session-closed')
     // Unsubscribe first so the abort's terminal events do not race into a
     // closing queue.
     this.unsubscribe?.()

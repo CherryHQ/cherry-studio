@@ -67,9 +67,11 @@ export enum AgentRuntimeAutonomousState {
 
 declare const agentRuntimeSegmentIdBrand: unique symbol
 declare const agentRuntimeRedirectIdBrand: unique symbol
+declare const agentRuntimeConnectionIdBrand: unique symbol
 
 export type AgentRuntimeSegmentId = string & { readonly [agentRuntimeSegmentIdBrand]: true }
 export type AgentRuntimeRedirectId = string & { readonly [agentRuntimeRedirectIdBrand]: true }
+export type AgentRuntimeConnectionId = string & { readonly [agentRuntimeConnectionIdBrand]: true }
 
 export function toAgentRuntimeSegmentId(value: string): AgentRuntimeSegmentId {
   return value as AgentRuntimeSegmentId
@@ -77,6 +79,10 @@ export function toAgentRuntimeSegmentId(value: string): AgentRuntimeSegmentId {
 
 export function toAgentRuntimeRedirectId(value: string): AgentRuntimeRedirectId {
   return value as AgentRuntimeRedirectId
+}
+
+export function toAgentRuntimeConnectionId(value: string): AgentRuntimeConnectionId {
+  return value as AgentRuntimeConnectionId
 }
 
 export enum AgentRuntimeRedirectReceiptKind {
@@ -124,6 +130,7 @@ export interface AgentRuntimeTraceContext {
 }
 
 export interface AgentRuntimeConnectInput {
+  connectionId: AgentRuntimeConnectionId
   sessionId: string
   agentId: string
   modelId: UniqueModelId
@@ -181,7 +188,10 @@ interface AgentRuntimeToolApprovalRequestBase {
 }
 
 export type AgentRuntimeToolApprovalRequest = AgentRuntimeToolApprovalRequestBase &
-  ({ lifetime: AgentApprovalLifetime.ExecutionBound } | { lifetime: AgentApprovalLifetime.SessionMessage })
+  (
+    | { lifetime: AgentApprovalLifetime.ExecutionBound; connectionId?: AgentRuntimeConnectionId }
+    | { lifetime: AgentApprovalLifetime.SessionMessage; connectionId: AgentRuntimeConnectionId }
+  )
 
 export type AgentRuntimeEvent =
   | { type: AgentRuntimeEventType.Chunk; segmentId: AgentRuntimeSegmentId; chunk: UIMessageChunk }

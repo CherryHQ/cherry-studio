@@ -6,6 +6,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentUserResponseMode } from '../../conversation'
+import { toAgentRuntimeConnectionId } from '../types'
 import type { PiApprovalContext } from './approvalExtension'
 
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
@@ -63,6 +64,7 @@ function buildGate(
   const emitted: any[] = []
   let handler!: Handler
   const context: PiApprovalContext = {
+    connectionId: toAgentRuntimeConnectionId('pi-connection-1'),
     sessionId: 's1',
     workspacePath: workspace,
     agentDataPath: agentData,

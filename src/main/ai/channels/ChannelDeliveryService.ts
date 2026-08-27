@@ -1,9 +1,18 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import {
+  OwnedOperationAttemptDisposition,
+  type OwnedOperationHandle,
+  OwnedOperationRegistry
+} from '@main/core/concurrency/OwnedOperationRegistry'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { type ChannelAdapter, ChannelStreamCompletionResult } from './ChannelAdapter'
-import type { ChannelDeliveryRequest, ChannelLiveUpdateRequest } from './ChannelManager'
+import {
+  type ChannelDeliveryRequest,
+  type ChannelLiveUpdateRequest,
+  ChannelTerminalAdmissionResult
+} from './ChannelManager'
 
 const logger = loggerService.withContext('ChannelDeliveryService')
 
@@ -41,8 +50,13 @@ interface TerminalDeliveryAttempt {
 
 interface TerminalDeliveryQueue {
   channelId: string
-  requests: ChannelDeliveryRequest[]
+  requests: OwnedTerminalDelivery[]
   waitingForConnection: boolean
+}
+
+interface OwnedTerminalDelivery {
+  request: ChannelDeliveryRequest
+  operation: OwnedOperationHandle<string>
 }
 
 /**
@@ -63,6 +77,7 @@ export class ChannelDeliveryService extends BaseService {
   private readonly queues = new Map<string, TerminalDeliveryQueue>()
   private readonly runners = new Map<string, { channelId: string; promise: Promise<void> }>()
   private readonly deliveryIds = new Set<string>()
+  private readonly terminalOperations = new OwnedOperationRegistry<string>()
   private readonly blockedChannelIds = new Set<string>()
   private readonly frozenChannelIds = new Set<string>()
   /** Consumer-side stale fence copied from ChannelManager; this service never generates epochs. */
@@ -108,10 +123,14 @@ export class ChannelDeliveryService extends BaseService {
     this.accepting = false
     for (const controller of this.liveEpochControllers.values()) controller.abort('channel-delivery-close')
     this.liveEpochControllers.clear()
+    this.dropAllQueued()
   }
 
   replacementStarted(channelId: string): void {
     this.frozenChannelIds.add(channelId)
+    for (const queue of this.queues.values()) {
+      if (queue.channelId === channelId) queue.waitingForConnection = true
+    }
   }
 
   connectionLost(channelId: string, connectionEpoch?: number): void {
@@ -187,19 +206,15 @@ export class ChannelDeliveryService extends BaseService {
     if (pending.length > 0) await Promise.allSettled(pending)
   }
 
-  enqueueTerminal(request: ChannelDeliveryRequest): boolean {
-    if (
-      !this.accepting ||
-      this.blockedChannelIds.has(request.channelId) ||
-      this.frozenChannelIds.has(request.channelId)
-    ) {
+  enqueueTerminal(request: ChannelDeliveryRequest): ChannelTerminalAdmissionResult {
+    if (!this.accepting || this.blockedChannelIds.has(request.channelId)) {
       logger.warn('Rejected terminal channel delivery: channel is stopping or blocked', {
         deliveryId: request.id,
         channelId: request.channelId,
         chatId: request.chatId,
         event: request.event
       })
-      return false
+      return ChannelTerminalAdmissionResult.DroppedByPolicy
     }
     if (this.deliveryIds.has(request.id)) {
       logger.warn('Ignored duplicate terminal channel delivery', {
@@ -208,7 +223,7 @@ export class ChannelDeliveryService extends BaseService {
         chatId: request.chatId,
         event: request.event
       })
-      return false
+      return ChannelTerminalAdmissionResult.AlreadyOwned
     }
 
     this.deliveryIds.add(request.id)
@@ -217,16 +232,18 @@ export class ChannelDeliveryService extends BaseService {
       if (oldestId) this.deliveryIds.delete(oldestId)
     }
 
+    const operation = this.terminalOperations.open(request.id)
     const key = `${request.channelId}\0${request.chatId}`
     const queue = this.queues.get(key) ?? {
       channelId: request.channelId,
       requests: [],
       waitingForConnection: false
     }
-    queue.requests.push(request)
+    queue.requests.push({ request, operation })
+    if (this.frozenChannelIds.has(request.channelId)) queue.waitingForConnection = true
     this.queues.set(key, queue)
-    if (!this.runners.has(key)) this.startRunner(key, queue)
-    return true
+    if (!this.runners.has(key) && !queue.waitingForConnection) this.startRunner(key, queue)
+    return ChannelTerminalAdmissionResult.Accepted
   }
 
   private startRunner(key: string, queue: TerminalDeliveryQueue): void {
@@ -247,25 +264,50 @@ export class ChannelDeliveryService extends BaseService {
 
   private async runQueue(key: string, queue: TerminalDeliveryQueue): Promise<void> {
     while (this.queues.get(key) === queue) {
-      const request = queue.requests.shift()
-      if (!request) return
-      if (this.blockedChannelIds.has(request.channelId)) {
-        this.logSkipped(request)
-        continue
-      }
-      const result = await this.send(request)
-      if (result === TerminalDeliveryResult.RetryWhenConnected) {
-        queue.requests.unshift(request)
+      if (this.frozenChannelIds.has(queue.channelId)) {
         queue.waitingForConnection = true
         return
       }
+      const owned = queue.requests.shift()
+      if (!owned) return
+      const { request, operation } = owned
+      if (this.blockedChannelIds.has(request.channelId)) {
+        this.logSkipped(request)
+        this.terminalOperations.settle(operation, OwnedOperationAttemptDisposition.Abandon)
+        continue
+      }
+      const attempt = this.terminalOperations.beginAttempt(operation)
+      const result = await this.send(request)
+      if (result === TerminalDeliveryResult.RetryWhenConnected) {
+        this.terminalOperations.settleAttempt(attempt, OwnedOperationAttemptDisposition.Retain)
+        queue.requests.unshift(owned)
+        queue.waitingForConnection = true
+        return
+      }
+      this.terminalOperations.settleAttempt(
+        attempt,
+        result === TerminalDeliveryResult.Complete
+          ? OwnedOperationAttemptDisposition.Complete
+          : OwnedOperationAttemptDisposition.Abandon
+      )
     }
   }
 
   private dropQueued(channelId: string): void {
     for (const queue of this.queues.values()) {
       if (queue.channelId !== channelId) continue
-      for (const request of queue.requests.splice(0)) this.logSkipped(request)
+      for (const { request, operation } of queue.requests.splice(0)) {
+        this.logSkipped(request)
+        this.terminalOperations.settle(operation, OwnedOperationAttemptDisposition.Abandon)
+      }
+    }
+  }
+
+  private dropAllQueued(): void {
+    for (const queue of this.queues.values()) {
+      for (const { operation } of queue.requests.splice(0)) {
+        this.terminalOperations.settle(operation, OwnedOperationAttemptDisposition.Abandon)
+      }
     }
   }
 

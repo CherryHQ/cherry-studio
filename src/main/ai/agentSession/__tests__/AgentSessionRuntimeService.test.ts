@@ -78,6 +78,7 @@ import {
   type AgentRuntimeUserInput,
   AgentSessionUsageCaptureOwner,
   AiRuntimeCapability,
+  toAgentRuntimeConnectionId,
   toAgentRuntimeRedirectId,
   toAgentRuntimeSegmentId
 } from '../../runtime/types'
@@ -116,6 +117,7 @@ const chunk = (text: string) => ({ type: 'text-delta' as const, id: 'text-1', de
 const sourceSegmentId = toAgentRuntimeSegmentId('segment-source')
 const successorSegmentId = toAgentRuntimeSegmentId('segment-successor')
 const autonomousSegmentId = toAgentRuntimeSegmentId('segment-autonomous')
+const connectionId = toAgentRuntimeConnectionId('connection-1')
 
 function resourceState(current?: Turn): AgentConnectionResourceState<Turn, Reservation> {
   const state = createAgentConnectionResourceState<Turn, Reservation>()
@@ -231,9 +233,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         toolName: 'AskUserQuestion',
         originalInput: { questions: [] },
         lifetime: AgentApprovalLifetime.SessionMessage,
+        connectionId,
         resolve
       })
-      const claim = toolApprovalRegistry.claimMessage('approval-bg', 'session-1')
+      const claim = toolApprovalRegistry.claimMessage('approval-bg', 'session-1', connectionId)
       if (!claim) throw new Error('message approval was not claimable')
       toolApprovalRegistry.bindMessage(claim, 'approval-message-1')
       const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
@@ -263,9 +266,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         toolName: 'AskUserQuestion',
         originalInput: { questions: [] },
         lifetime: AgentApprovalLifetime.SessionMessage,
+        connectionId,
         resolve
       })
-      const claim = toolApprovalRegistry.claimMessage('approval-bg', 'session-1')
+      const claim = toolApprovalRegistry.claimMessage('approval-bg', 'session-1', connectionId)
       if (!claim) throw new Error('message approval was not claimable')
       toolApprovalRegistry.bindMessage(claim, 'approval-message-1')
       const manager = new AgentConnectionManager()
@@ -2593,7 +2597,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const entry = (
         manager as unknown as { entries: Map<string, { resources: ReturnType<typeof resourceState> }> }
       ).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof resourceState>
+      let resources = entry.resources
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
         connectionAttemptId: 'connect-1'
@@ -3962,10 +3966,26 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       }
       const internals = manager as unknown as {
         entries: Map<string, typeof entry>
-        handleRuntimeEvent: (current: typeof entry, event: AgentRuntimeEvent) => void
+        connectionIds: WeakMap<AgentRuntimeConnection, typeof connectionId>
+        handleRuntimeEvent: (
+          current: typeof entry,
+          event: AgentRuntimeEvent,
+          connection: AgentRuntimeConnection
+        ) => void
       }
+      const connection = {
+        events: neverRuntimeEvents(),
+        send: vi.fn(),
+        reconcile: vi.fn(),
+        close: vi.fn()
+      } as unknown as AgentRuntimeConnection
       internals.entries.set('session-1', entry)
-      return { entry, handleRuntimeEvent: internals.handleRuntimeEvent.bind(manager) }
+      internals.connectionIds.set(connection, connectionId)
+      return {
+        entry,
+        handleRuntimeEvent: (current: typeof entry, event: AgentRuntimeEvent) =>
+          internals.handleRuntimeEvent.call(manager, current, event, connection)
+      }
     }
 
     it('persists an out-of-turn interaction as an independent assistant message', () => {
@@ -3979,6 +3999,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         toolName: 'AskUserQuestion',
         originalInput: {},
         lifetime: AgentApprovalLifetime.SessionMessage,
+        connectionId,
         resolve: vi.fn()
       })
       const manager = new AgentConnectionManager()
@@ -3994,7 +4015,8 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
           toolCallId: 'tool-call-bg',
           toolName: 'AskUserQuestion',
           input: inputData,
-          lifetime: AgentApprovalLifetime.SessionMessage
+          lifetime: AgentApprovalLifetime.SessionMessage,
+          connectionId
         }
       })
 
@@ -4039,6 +4061,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         toolName: 'AskUserQuestion',
         originalInput: {},
         lifetime: AgentApprovalLifetime.SessionMessage,
+        connectionId,
         resolve
       })
       const manager = new AgentConnectionManager()
@@ -4053,7 +4076,8 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
           toolCallId: 'tool-call-bg',
           toolName: 'AskUserQuestion',
           input: {},
-          lifetime: AgentApprovalLifetime.SessionMessage
+          lifetime: AgentApprovalLifetime.SessionMessage,
+          connectionId
         }
       })
 
@@ -4524,11 +4548,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const followUp = userMessage('user-2', ['kb-1'])
       const redirected: AgentRuntimeRedirectInput = {
         redirectId: toAgentRuntimeRedirectId('redirect-ended-before-injection'),
-        segmentId: getAgentCurrentSegmentId(entry.resources as ReturnType<typeof resourceState>)!,
+        segmentId: getAgentCurrentSegmentId(entry.resources)!,
         message: followUp,
         systemReminder: true
       }
-      entry.resources = transitionAgentConnectionResource(entry.resources as ReturnType<typeof resourceState>, {
+      entry.resources = transitionAgentConnectionResource(entry.resources, {
         type: AgentConnectionResourceEventType.RedirectQueued,
         redirect: redirected
       }).state
