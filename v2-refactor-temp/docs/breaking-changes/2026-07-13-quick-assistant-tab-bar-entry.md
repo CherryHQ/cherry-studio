@@ -9,10 +9,11 @@ date: 2026-07-13
 ## What changed
 
 The main window tab bar now shows a Quick Assistant entry by default when Quick Assistant is enabled.
+The Quick Assistant window also provides a "Back to Main Window" action that returns to Main and dismisses Quick Assistant even when it is pinned.
 
 ## Why this matters to the user
 
-Users who enable Quick Assistant will see a new icon in the main window's tab bar for opening it directly.
+Users can now move directly between Main and Quick Assistant from either window instead of relying only on the keyboard shortcut or tray action.
 
 ## What the user should do
 

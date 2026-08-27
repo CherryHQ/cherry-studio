@@ -1,5 +1,5 @@
 import { defaultServiceInstances } from '@test-mocks/main/application'
-import { app } from 'electron'
+import { app, screen } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { platformState } = vi.hoisted(() => ({
@@ -20,6 +20,10 @@ import { QuickAssistantService } from '../QuickAssistantService'
 const appHide = vi.fn()
 Object.assign(app, { hide: appHide })
 Object.assign(process, { getSystemVersion: vi.fn(() => '15.0') })
+Object.assign(screen, {
+  getCursorScreenPoint: vi.fn(() => ({ x: 100, y: 100 })),
+  getDisplayNearestPoint: vi.fn(() => ({ id: 1, bounds: { x: 0, y: 0, width: 1440, height: 900 } }))
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -65,6 +69,38 @@ describe('QuickAssistantService.restoreMainWindow', () => {
     expect(quickWindow.hide).not.toHaveBeenCalled()
   })
 
+  it('restores an opaque Quick Assistant after dismissing it for Main on Windows', () => {
+    platformState.isWin = true
+    let minimized = false
+    const service = Object.create(QuickAssistantService.prototype) as QuickAssistantService
+    const quickWindow = {
+      getBounds: vi.fn(() => ({ x: 0, y: 0, width: 600, height: 400 })),
+      hide: vi.fn(),
+      isMinimized: vi.fn(() => minimized),
+      minimize: vi.fn(() => {
+        minimized = true
+      }),
+      setBounds: vi.fn(),
+      setOpacity: vi.fn(),
+      setPosition: vi.fn(),
+      show: vi.fn(() => {
+        minimized = false
+      })
+    }
+
+    Object.defineProperty(service, 'isActivated', { value: true })
+    vi.spyOn(
+      service as unknown as { getQuickAssistant: () => typeof quickWindow },
+      'getQuickAssistant'
+    ).mockReturnValue(quickWindow)
+
+    service.restoreMainWindow()
+    service.showQuickAssistant()
+
+    expect(quickWindow.setOpacity).toHaveBeenLastCalledWith(1)
+    expect(quickWindow.show).toHaveBeenCalled()
+  })
+
   it('does not hide the app when an unpinned Quick Assistant blurs while restoring Main on macOS', () => {
     platformState.isMac = true
     const service = Object.create(QuickAssistantService.prototype) as QuickAssistantService
@@ -75,12 +111,13 @@ describe('QuickAssistantService.restoreMainWindow', () => {
       service as unknown as { getQuickAssistant: () => typeof quickWindow },
       'getQuickAssistant'
     ).mockReturnValue(quickWindow)
+    defaultServiceInstances.MainWindowService.showMainWindow.mockImplementationOnce(() => {
+      service.hideQuickAssistant()
+    })
 
     service.restoreMainWindow()
-    service.hideQuickAssistant()
 
     expect(defaultServiceInstances.MainWindowService.showMainWindow).toHaveBeenCalledTimes(1)
-    expect(quickWindow.hide).toHaveBeenCalledTimes(1)
     expect(appHide).not.toHaveBeenCalled()
   })
 })

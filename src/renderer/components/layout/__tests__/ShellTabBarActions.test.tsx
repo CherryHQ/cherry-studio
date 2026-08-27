@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { cacheState, mocks, preferenceState, updateState } = vi.hoisted(() => ({
+const { cacheState, mocks, updateState } = vi.hoisted(() => ({
   cacheState: { sidebarWidth: 50 },
   mocks: {
     ipcRequest: vi.fn(),
@@ -13,10 +14,6 @@ const { cacheState, mocks, preferenceState, updateState } = vi.hoisted(() => ({
     openSettingsTab: vi.fn(),
     showSearchPopup: vi.fn(),
     showUpdatePopup: vi.fn()
-  },
-  preferenceState: {
-    quickAssistantEnabled: false,
-    showQuickAssistantInTabBar: true
   },
   updateState: {
     available: false,
@@ -55,14 +52,6 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [cacheState.sidebarWidth, vi.fn()]
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    if (key === 'feature.quick_assistant.enabled') return [preferenceState.quickAssistantEnabled]
-    if (key === 'feature.quick_assistant.show_in_tab_bar') return [preferenceState.showQuickAssistantInTabBar]
-    return [undefined]
-  }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -134,8 +123,6 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   cacheState.sidebarWidth = 50
-  preferenceState.quickAssistantEnabled = false
-  preferenceState.showQuickAssistantInTabBar = true
   updateState.available = false
   updateState.downloaded = false
   updateState.info = null
@@ -143,6 +130,9 @@ afterEach(() => {
 
 describe('ShellTabBarActions', () => {
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', false)
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.show_in_tab_bar', true)
     mocks.ipcRequest.mockResolvedValue(undefined)
     Object.defineProperty(window, 'toast', {
       configurable: true,
@@ -165,25 +155,27 @@ describe('ShellTabBarActions', () => {
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
-  it('shows the Quick Assistant action only when the feature and tab bar entry are enabled', () => {
-    preferenceState.quickAssistantEnabled = true
-    const { rerender } = render(<ShellTabBarActions />)
+  it('shows the Quick Assistant action when the feature and tab bar entry are enabled', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
+    render(<ShellTabBarActions />)
 
     expect(screen.getByRole('button', { name: 'Open Quick Assistant' })).toBeInTheDocument()
+  })
 
-    preferenceState.showQuickAssistantInTabBar = false
-    rerender(<ShellTabBarActions />)
-    expect(screen.queryByRole('button', { name: 'Open Quick Assistant' })).not.toBeInTheDocument()
+  it.each([
+    [false, true],
+    [true, false]
+  ])('hides the Quick Assistant action when enabled=%s and tabBarEntry=%s', (enabled, tabBarEntry) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', enabled)
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.show_in_tab_bar', tabBarEntry)
+    render(<ShellTabBarActions />)
 
-    preferenceState.quickAssistantEnabled = false
-    preferenceState.showQuickAssistantInTabBar = true
-    rerender(<ShellTabBarActions />)
     expect(screen.queryByRole('button', { name: 'Open Quick Assistant' })).not.toBeInTheDocument()
   })
 
   it('opens the Quick Assistant from the action area', async () => {
     const user = userEvent.setup()
-    preferenceState.quickAssistantEnabled = true
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
 
     render(<ShellTabBarActions />)
     await user.click(screen.getByRole('button', { name: 'Open Quick Assistant' }))
@@ -194,7 +186,7 @@ describe('ShellTabBarActions', () => {
   it('logs Quick Assistant launcher failures', async () => {
     const user = userEvent.setup()
     const error = new Error('open failed')
-    preferenceState.quickAssistantEnabled = true
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
     mocks.ipcRequest.mockRejectedValueOnce(error)
 
     render(<ShellTabBarActions />)

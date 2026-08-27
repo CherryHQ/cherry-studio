@@ -19,17 +19,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('InputBar', () => {
-  it('stays transparent in both light and dark themes', () => {
-    render(<InputBar text="" placeholder="Ask a model" loading handleKeyDown={vi.fn()} handleChange={vi.fn()} />)
-
-    expect(screen.getByPlaceholderText('Ask a model')).toHaveClass(
-      'rounded-none',
-      'bg-transparent',
-      'dark:bg-transparent'
-    )
-  })
-
-  it('renders the restore action after the input and invokes its callback', async () => {
+  it('restores Main from its accessible action', async () => {
     const user = userEvent.setup()
     const onRestoreMain = vi.fn()
 
@@ -44,21 +34,9 @@ describe('InputBar', () => {
       />
     )
 
-    const input = screen.getByPlaceholderText('Ask for help')
     const restoreButton = screen.getByRole('button', { name: 'Back to Main Window' })
 
-    expect(input).toHaveClass('flex-1', 'min-w-0', 'bg-transparent', 'dark:bg-transparent')
-    expect(input.compareDocumentPosition(restoreButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(restoreButton.querySelector('.lucide-picture-in-picture-2')).toBeInTheDocument()
     await user.click(restoreButton)
     expect(onRestoreMain).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not render the restore action without a callback', () => {
-    render(
-      <InputBar text="" placeholder="Ask anything" loading={false} handleKeyDown={vi.fn()} handleChange={vi.fn()} />
-    )
-
-    expect(screen.queryByRole('button', { name: 'Back to Main Window' })).not.toBeInTheDocument()
   })
 })

@@ -51,7 +51,7 @@ const InputBar = ({
             size="icon"
             aria-label={t('quickAssistant.tooltip.restore_main')}
             onClick={onRestoreMain}
-            className="nodrag h-8 w-8 shrink-0 rounded-[8px] text-foreground-secondary">
+            className="nodrag h-8 w-8 shrink-0 rounded-[8px] text-muted-foreground">
             <PictureInPicture2 size={16} strokeWidth={1.8} />
           </Button>
         </Tooltip>
