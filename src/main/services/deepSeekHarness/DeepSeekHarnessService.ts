@@ -1,6 +1,4 @@
 import type { ChildProcess } from 'node:child_process'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
@@ -8,7 +6,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { BinaryAvailability } from '@shared/types/binary'
@@ -31,7 +29,6 @@ import {
 } from './config'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
-const execFileAsync = promisify(execFile)
 
 const START_TIMEOUT_MS = 30_000
 const GRACEFUL_STOP_TIMEOUT_MS = 3000
@@ -336,11 +333,11 @@ export class DeepSeekHarnessService extends BaseService {
     const child = this.child
     if (!child) return
     this.stoppingChild = child
-    await terminateOwnedProcess(child, false)
-    if (await waitForTermination(child, GRACEFUL_STOP_TIMEOUT_MS)) return
+    await terminateProcessTree(child, false, 'DeepSeek Harness')
+    if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 
-    await terminateOwnedProcess(child, true)
-    if (!(await waitForTermination(child, FORCE_STOP_TIMEOUT_MS))) {
+    await terminateProcessTree(child, true, 'DeepSeek Harness')
+    if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
       throw new Error('DeepSeek Harness did not exit after forced termination')
     }
   }
@@ -431,43 +428,5 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
     child.once('close', onClose)
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) onAbort()
-  })
-}
-
-async function terminateOwnedProcess(child: ChildProcess, force: boolean): Promise<void> {
-  if (!child.pid) return
-  if (isWin) {
-    const args = ['/PID', String(child.pid), '/T', ...(force ? ['/F'] : [])]
-    await execFileAsync('taskkill', args, { windowsHide: true }).catch((error) => {
-      if (child.exitCode !== null || child.signalCode !== null) return
-      if (force) throw error
-      logger.warn('Failed to gracefully stop the managed DeepSeek Harness process tree', error as Error)
-    })
-    return
-  }
-
-  try {
-    process.kill(-child.pid, force ? 'SIGKILL' : 'SIGTERM')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-  }
-}
-
-function waitForTermination(child: ChildProcess, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      child.off('exit', onClose)
-      child.off('close', onClose)
-      resolve(false)
-    }, timeoutMs)
-    const onClose = () => {
-      clearTimeout(timeout)
-      child.off('exit', onClose)
-      child.off('close', onClose)
-      resolve(true)
-    }
-    child.once('exit', onClose)
-    child.once('close', onClose)
   })
 }

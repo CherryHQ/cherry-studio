@@ -3404,6 +3404,14 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
+      // Establish the offset that the runtime would already know from the
+      // browser's normal scroll event stream before this keyboard gesture.
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(500)
+        runtime!.scrollerProps.onScrollEnd()
+      })
+
       // Enter reading mode — the viewport freezes at scrollTop 500.
       act(() => runtime!.takeUserControl('user-scrolled-up'))
       expect(scrollTop).toBe(500)
@@ -3412,7 +3420,7 @@ describe('useChatVirtualizerRuntime', () => {
       // before the ResizeObserver fires.
       now = 1_010
       act(() => {
-        runtime!.markUserInput()
+        runtime!.markUserInput('up')
         // The browser scrolled — but the ResizeObserver hasn't fired yet.
         scrollTop = 460
       })
@@ -3439,12 +3447,118 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('does not claim a scroll that moves opposite to fresh keyboard intent', () => {
+    const restoreResizeObserver = installResizeObserverMock([])
+    const raf = installQueuedAnimationFrame()
+    let now = 1_000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(500)
+        runtime!.scrollerProps.onScrollEnd()
+      })
+
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      expect(scrollTop).toBe(500)
+
+      now = 1_010
+      act(() => {
+        runtime!.markUserInput('down')
+        scrollTop = 460
+        runtime!.scrollerProps.onScroll(460)
+      })
+
+      expect(scrollTop).toBe(500)
+
+      // The corrective scroll back to the anchor must not reuse the rejected
+      // downward intent and become a new user gesture.
+      act(() => runtime!.scrollerProps.onScroll(500))
+      runtime!.scrollerProps.onScrollEnd()
+      scrollTop = 510
+      act(() => runtime!.scrollerProps.onScroll(510))
+      expect(scrollTop).toBe(500)
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('keeps the settled viewport anchored after repeated keyboard scrolling', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    let now = 1_000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+      now = 1_010
+      act(() => {
+        runtime!.markUserInput()
+        scrollTop = 460
+        runtime!.scrollerProps.onScroll(460)
+      })
+
+      now = 1_020
+      act(() => {
+        runtime!.markUserInput()
+        scrollTop = 420
+        runtime!.scrollerProps.onScroll(420)
+        runtime!.scrollerProps.onScrollEnd()
+      })
+
+      now = 1_030
+      scrollTop = 430
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(420)
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it('treats a later resize as programmatic when keydown intent expires without a scroll', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
-    // Advance time past the intent window after markUserInput fires so
-    // hasRecentUserScrollIntent() returns false when the ResizeObserver runs.
+    // Advance time past the pending-intent window after markUserInput fires.
     let now = 1_000
     const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
 
