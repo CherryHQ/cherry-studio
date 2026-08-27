@@ -7,6 +7,11 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
+  OwnedOperationAttemptDisposition,
+  type OwnedOperationHandle,
+  OwnedOperationRegistry
+} from '@main/core/concurrency/OwnedOperationRegistry'
+import {
   BaseService,
   DependsOn,
   type Disposable,
@@ -132,6 +137,7 @@ import {
 
 const logger = loggerService.withContext('AgentConnectionManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const CONNECTION_APPROVAL_TEARDOWN_RETRY_INTERVAL_MS = 5_000
 /**
  * Grace period before a session with no remaining warm-lease holders is actually torn down.
  * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
@@ -303,6 +309,16 @@ interface AgentSessionTeardown {
   promise: Promise<void>
 }
 
+interface AgentConnectionApprovalTeardown {
+  readonly sessionId: string
+  readonly connectionId: AgentRuntimeConnectionId
+  readonly entry: AgentConnectionEntry
+  readonly connection: AgentRuntimeConnection
+  readonly connectionLoop: Promise<void>
+  readonly operation: OwnedOperationHandle<AgentRuntimeConnectionId>
+  run?: Promise<void>
+}
+
 type AgentConnectionEntry = {
   conversation: AgentConversationRef
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
@@ -397,6 +413,9 @@ export class AgentConnectionManager extends BaseService {
   private readonly connectionIds = new WeakMap<AgentRuntimeConnection, AgentRuntimeConnectionId>()
   /** Per-session teardown is the resource fence joined by Stop, replacement, warm close, and retry. */
   private readonly sessionTeardowns = new Map<string, AgentSessionTeardown>()
+  /** Durable SessionMessage approval teardown outlives a failed attempt for the exact connection. */
+  private readonly approvalTeardowns = new Map<AgentRuntimeConnectionId, AgentConnectionApprovalTeardown>()
+  private readonly approvalTeardownOperations = new OwnedOperationRegistry<AgentRuntimeConnectionId>()
   /** Parked stream resources keyed by the exact suspend effect that owns them. */
   private readonly suspendedConversationTurns = new Map<ConversationEffectId, SuspendedConversationTurn>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -430,6 +449,7 @@ export class AgentConnectionManager extends BaseService {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
+    this.registerInterval(() => this.retryRetainedApprovalTeardowns(), CONNECTION_APPROVAL_TEARDOWN_RETRY_INTERVAL_MS)
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -587,6 +607,7 @@ export class AgentConnectionManager extends BaseService {
     input: PrepareAgentConnectionTurnInput,
     signal: AbortSignal
   ): Promise<AgentConnectionStreamHandle> {
+    await this.awaitConnectionApprovalTeardown(input.conversation.id, signal)
     await this.awaitSessionTeardown(input.conversation.id, signal)
     const existing = this.entries.get(input.conversation.id)
     if (existing && this.resourceStatus(existing) !== AgentConnectionResourceStatus.Idle) {
@@ -783,6 +804,7 @@ export class AgentConnectionManager extends BaseService {
   async primeConnection(sessionId: string): Promise<void> {
     try {
       if (this.isWriteQuiesced) return
+      await this.awaitConnectionApprovalTeardown(sessionId)
       await this.awaitSessionTeardown(sessionId)
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1082,6 +1104,11 @@ export class AgentConnectionManager extends BaseService {
   closeSession(sessionId: string): Promise<void> {
     const existingTeardown = this.sessionTeardowns.get(sessionId)
     if (existingTeardown) return existingTeardown.promise
+    const approvalTeardown = this.approvalTeardownForSession(sessionId)
+    if (approvalTeardown) {
+      void this.runApprovalTeardown(approvalTeardown)
+      return approvalTeardown.operation.completed.then(() => this.closeSession(sessionId))
+    }
     const entry = this.entries.get(sessionId)
     if (!entry) return Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
@@ -1261,7 +1288,12 @@ export class AgentConnectionManager extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
-    if (this.connectionStarts.size > 0 || this.sessionTeardowns.size > 0 || this.inFlightBackgroundFlowFlushes.size > 0)
+    if (
+      this.connectionStarts.size > 0 ||
+      this.sessionTeardowns.size > 0 ||
+      this.approvalTeardownOperations.openOperations().length > 0 ||
+      this.inFlightBackgroundFlowFlushes.size > 0
+    )
       return true
     for (const sessionId of this.entries.keys()) {
       if (this.isSessionBusy(sessionId)) return true
@@ -1316,6 +1348,7 @@ export class AgentConnectionManager extends BaseService {
     const seen = new WeakSet<Promise<unknown>>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
+      this.retryRetainedApprovalTeardowns()
       for (const [sessionId, operation] of this.connectionStarts) {
         const promise = operation.promise
         if (seen.has(promise)) continue
@@ -1329,6 +1362,14 @@ export class AgentConnectionManager extends BaseService {
         if (seen.has(promise)) continue
         seen.add(promise)
         pending.set(promise, `connection-close:${sessionId}:${operation.id}`)
+        const remove = () => pending.delete(promise)
+        promise.then(remove, remove)
+      }
+      for (const operation of this.approvalTeardownOperations.openOperations()) {
+        const promise = operation.completed
+        if (seen.has(promise)) continue
+        seen.add(promise)
+        pending.set(promise, `approval-teardown:${String(operation.id)}`)
         const remove = () => pending.delete(promise)
         promise.then(remove, remove)
       }
@@ -1537,6 +1578,7 @@ export class AgentConnectionManager extends BaseService {
   }
 
   private async ensureConnection(entry: AgentConnectionEntry): Promise<boolean> {
+    await this.awaitConnectionApprovalTeardown(entry.conversation.id)
     while (this.isCurrentEntry(entry)) {
       const target = this.connectionTarget(entry)
       const connection = this.currentConnection(entry)
@@ -1692,24 +1734,87 @@ export class AgentConnectionManager extends BaseService {
     if (this.resourceStatus(entry) === AgentConnectionResourceStatus.Active) this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
-      try {
-        agentMessageInteractionCoordinator.teardownConnection(entry.conversation.id, connectionId, 'connection-ended')
-      } catch (error) {
-        logger.warn('Failed to terminalize connection approvals after runtime exit', {
-          sessionId: entry.conversation.id,
-          connectionId,
-          error
-        })
-      }
-      void this.closeRuntimeConnection(connection, entry.conversation.id).catch(() => {})
-      if (this.currentConnection(entry) === connection) {
-        this.resetConnectionResources(entry, connection)
-        this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.ConnectionDisconnected, connection })
-      }
-      if (entry.connectionLoop === connectionLoop) entry.connectionLoop = undefined
+      this.retainConnectionApprovalTeardown(entry, connection, connectionId, connectionLoop)
     })
     entry.connectionLoop = connectionLoop
     return true
+  }
+
+  private retainConnectionApprovalTeardown(
+    entry: AgentConnectionEntry,
+    connection: AgentRuntimeConnection,
+    connectionId: AgentRuntimeConnectionId,
+    connectionLoop: Promise<void>
+  ): void {
+    const existing = this.approvalTeardowns.get(connectionId)
+    if (existing) {
+      void this.runApprovalTeardown(existing)
+      return
+    }
+    const record: AgentConnectionApprovalTeardown = {
+      sessionId: entry.conversation.id,
+      connectionId,
+      entry,
+      connection,
+      connectionLoop,
+      operation: this.approvalTeardownOperations.open(connectionId)
+    }
+    this.approvalTeardowns.set(connectionId, record)
+    void this.runApprovalTeardown(record)
+  }
+
+  private runApprovalTeardown(record: AgentConnectionApprovalTeardown): Promise<void> {
+    if (record.run) return record.run
+    const attempt = this.approvalTeardownOperations.beginAttempt(record.operation)
+    const run = (async () => {
+      try {
+        agentMessageInteractionCoordinator.teardownConnection(record.sessionId, record.connectionId, 'connection-ended')
+        await this.closeRuntimeConnection(record.connection, record.sessionId)
+        if (this.currentConnection(record.entry) === record.connection) {
+          this.resetConnectionResources(record.entry, record.connection)
+          this.applyResourceEvent(record.entry, {
+            type: AgentConnectionResourceEventType.ConnectionDisconnected,
+            connection: record.connection
+          })
+          if (record.entry.connectionLoop === record.connectionLoop) record.entry.connectionLoop = undefined
+        }
+        this.approvalTeardowns.delete(record.connectionId)
+        this.approvalTeardownOperations.settleAttempt(attempt, OwnedOperationAttemptDisposition.Complete)
+      } catch (error) {
+        this.approvalTeardownOperations.settleAttempt(attempt, OwnedOperationAttemptDisposition.Retain)
+        logger.warn('Failed to terminalize approvals for ended runtime connection; retaining teardown', {
+          sessionId: record.sessionId,
+          connectionId: record.connectionId,
+          error
+        })
+      }
+    })().finally(() => {
+      if (record.run === run) record.run = undefined
+    })
+    record.run = run
+    return run
+  }
+
+  private retryRetainedApprovalTeardowns(): void {
+    for (const record of this.approvalTeardowns.values()) {
+      if (!record.run) void this.runApprovalTeardown(record)
+    }
+  }
+
+  private approvalTeardownForSession(sessionId: string): AgentConnectionApprovalTeardown | undefined {
+    for (const record of this.approvalTeardowns.values()) {
+      if (record.sessionId === sessionId) return record
+    }
+    return undefined
+  }
+
+  private async awaitConnectionApprovalTeardown(sessionId: string, signal?: AbortSignal): Promise<void> {
+    const record = this.approvalTeardownForSession(sessionId)
+    if (!record) return
+    signal?.throwIfAborted()
+    void this.runApprovalTeardown(record)
+    await record.operation.completed
+    signal?.throwIfAborted()
   }
 
   private hydrateResumeToken(entry: AgentConnectionEntry): void {

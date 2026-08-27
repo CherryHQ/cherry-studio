@@ -83,6 +83,7 @@ import {
   toAgentRuntimeSegmentId
 } from '../../runtime/types'
 import { agentChatContextProvider } from '../../streamManager'
+import { agentMessageInteractionCoordinator } from '../../toolApproval/AgentMessageInteractionCoordinator'
 import { toolApprovalRegistry } from '../../toolApproval/ToolApprovalRegistry'
 import { AgentConnectionManager } from '../AgentConnectionManager'
 import {
@@ -2285,6 +2286,65 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const hold = manager.pause('backup')
       await expect(manager.drainInFlight({ timeoutMs: 0 })).resolves.toEqual({ stragglerIds: [] })
       hold.dispose()
+    })
+
+    it('retains a naturally ended connection until its approval teardown can complete', async () => {
+      runtimeDriverRegistry.clearForTest()
+      const firstEvents = closableRuntimeEvents()
+      const firstConnection = {
+        events: firstEvents.events,
+        send: vi.fn(),
+        close: vi.fn(firstEvents.close),
+        reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
+      } satisfies AgentRuntimeConnection
+      const successorEvents = closableRuntimeEvents()
+      const successorConnection = {
+        events: successorEvents.events,
+        send: vi.fn(),
+        close: vi.fn(successorEvents.close),
+        reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
+      } satisfies AgentRuntimeConnection
+      const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(successorConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: [AiRuntimeCapability.AgentSession],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      vi.spyOn(agentSessionService, 'getById').mockReturnValue({ id: 'session-1', agentId: 'agent-1' } as never)
+      vi.spyOn(agentSessionService, 'ensureTraceId').mockReturnValue('b'.repeat(32))
+      vi.spyOn(agentSessionMessageService, 'getLastRuntimeResumeToken').mockReturnValue(null)
+      vi.spyOn(agentService, 'getAgent').mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: 'provider::model',
+        knowledgeBaseIds: []
+      } as never)
+      const teardown = vi
+        .spyOn(agentMessageInteractionCoordinator, 'teardownConnection')
+        .mockImplementationOnce(() => {
+          throw new Error('database busy')
+        })
+        .mockReturnValueOnce(1)
+      const manager = new AgentConnectionManager()
+
+      await manager.primeConnection('session-1')
+      firstEvents.close()
+      await vi.waitFor(() => expect(teardown).toHaveBeenCalledTimes(1))
+
+      expect(firstConnection.close).not.toHaveBeenCalled()
+      expect(connect).toHaveBeenCalledTimes(1)
+      expect(manager.hasBusySessions()).toBe(true)
+
+      await manager.primeConnection('session-1')
+      await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+
+      expect(teardown).toHaveBeenCalledTimes(2)
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(successorConnection.close).not.toHaveBeenCalled()
+      await manager.closeSession('session-1')
+      runtimeDriverRegistry.clearForTest()
     })
 
     it('aborts live streams before shutdown clears their pending approvals', async () => {
