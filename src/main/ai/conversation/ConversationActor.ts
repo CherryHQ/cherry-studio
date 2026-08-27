@@ -163,6 +163,7 @@ export interface ConversationAdmissionContext {
   readonly sequence: number
   readonly signal: AbortSignal
   assertCurrent(): void
+  commit<T>(task: () => T): T
 }
 
 export class StaleConversationAdmissionError extends Error {
@@ -263,7 +264,11 @@ export class ConversationActor {
           id: operation.id,
           sequence: operation.sequence,
           signal: controller.signal,
-          assertCurrent: () => this.assertCurrent(operation)
+          assertCurrent: () => this.assertCurrent(operation),
+          commit: (commit) => {
+            this.assertCurrent(operation)
+            return commit()
+          }
         }
         const result = await task(context)
         context.assertCurrent()

@@ -465,24 +465,26 @@ export class ConversationRuntimeService extends BaseService {
         request.trigger === ConversationOpenTrigger.SubmitMessage &&
         request.inputTarget === ConversationInputTarget.NextTurn
       ) {
-        operation.assertCurrent()
-        return this.commitQueuedDispatch(ref, subscriber, request, extraListeners, validation, reservation)
+        return operation.commit(() =>
+          this.commitQueuedDispatch(ref, subscriber, request, extraListeners, validation, reservation)
+        )
       }
-      const committed = provider.commitIntent(validation, { ...dispatchContext, hasLiveStream })
-      operation.assertCurrent()
-      if (reservation.kind === ConversationHistoryCommitKind.FreshTurn) {
-        return this.commitFreshDispatch(ref, request, subscriber, extraListeners, committed, reservation, provider)
-      }
-      return this.commitActiveDispatch(
-        ref,
-        subscriber,
-        request,
-        extraListeners,
-        validation,
-        committed,
-        reservation,
-        provider
-      )
+      return operation.commit(() => {
+        const committed = provider.commitIntent(validation, { ...dispatchContext, hasLiveStream })
+        if (reservation.kind === ConversationHistoryCommitKind.FreshTurn) {
+          return this.commitFreshDispatch(ref, request, subscriber, extraListeners, committed, reservation, provider)
+        }
+        return this.commitActiveDispatch(
+          ref,
+          subscriber,
+          request,
+          extraListeners,
+          validation,
+          committed,
+          reservation,
+          provider
+        )
+      })
     })
   }
 
@@ -514,9 +516,10 @@ export class ConversationRuntimeService extends BaseService {
         anchorNodeId: null,
         responder: ConversationResponderKind.Headless
       })
-      const committed = provider.commitIntent(validation, { hasLiveStream: false, requireIdle: true })
-      operation.assertCurrent()
-      return this.commitFreshDispatch(ref, request, subscriber, [], committed, reservation, provider)
+      return operation.commit(() => {
+        const committed = provider.commitIntent(validation, { hasLiveStream: false, requireIdle: true })
+        return this.commitFreshDispatch(ref, request, subscriber, [], committed, reservation, provider)
+      })
     })
   }
 
@@ -701,8 +704,9 @@ export class ConversationRuntimeService extends BaseService {
         return false
       }
       const provider = this.providerFor(ref)
-      if (!provider.commitInteractionDecision) return false
-      const result = provider.commitInteractionDecision(anchorId, decision)
+      const commitInteractionDecision = provider.commitInteractionDecision
+      if (!commitInteractionDecision) return false
+      const result = operation.commit(() => commitInteractionDecision(anchorId, decision))
       if (result.kind === ConversationInteractionCommitResultKind.Missing) return false
       const continuation =
         result.kind === ConversationInteractionCommitResultKind.Duplicate ? result.continuation : result.kind
@@ -722,9 +726,10 @@ export class ConversationRuntimeService extends BaseService {
         const interaction = state.turn.interactions.get(interactionId)
         if (!interaction) return false
         const admission = this.actorFor(ref).reserveInteraction(state.turn.id, interactionId, interaction.executionId)
-        return (
-          this.actorFor(ref).resolveInteraction(interactionId, admission.resumeEffectId, admission.statusEffectId)
-            .rejection === undefined
+        return operation.commit(
+          () =>
+            this.actorFor(ref).resolveInteraction(interactionId, admission.resumeEffectId, admission.statusEffectId)
+              .rejection === undefined
         )
       }
       if (!subscriber) return false
@@ -736,39 +741,40 @@ export class ConversationRuntimeService extends BaseService {
         approvalDecisions: [decision]
       }
       const validation = await provider.validateIntent(request, { hasLiveStream: false }, operation.signal)
-      operation.assertCurrent()
-      const state = this.inspect(ref)
-      if (state.phase === ConversationPhase.Idle) {
-        const admission = this.actorFor(ref).reserveFreshTurn({
-          executionModelIds: validation.executionModelIds,
-          turnKind: ConversationTurnKind.Submit,
-          anchorNodeId: request.parentAnchorId,
-          responder: ConversationResponderKind.Interactive
-        })
+      return operation.commit(() => {
+        const state = this.inspect(ref)
+        if (state.phase === ConversationPhase.Idle) {
+          const admission = this.actorFor(ref).reserveFreshTurn({
+            executionModelIds: validation.executionModelIds,
+            turnKind: ConversationTurnKind.Submit,
+            anchorNodeId: request.parentAnchorId,
+            responder: ConversationResponderKind.Interactive
+          })
+          const committed = provider.commitIntent(validation, { hasLiveStream: false })
+          this.commitFreshDispatch(ref, request, subscriber, [], committed, admission, provider)
+          return true
+        }
+        if (state.phase !== ConversationPhase.Running) return false
+        const interactionId = toConversationInteractionId(decision.approvalId)
+        const interaction = state.turn.interactions.get(interactionId)
+        if (!interaction || !this.canContinueInteraction(ref, decision.approvalId)) return false
+        if (validation.executionModelIds.length !== 1) {
+          throw new Error('Interaction continuation must reserve one execution')
+        }
+        const admission = this.actorFor(ref).reserveInteraction(state.turn.id, interactionId, interaction.executionId)
         const committed = provider.commitIntent(validation, { hasLiveStream: false })
-        this.commitFreshDispatch(ref, request, subscriber, [], committed, admission, provider)
+        this.commitInteractionExecution(
+          ref,
+          state.turn.id,
+          interaction.executionId,
+          interactionId,
+          committed,
+          admission,
+          provider,
+          subscriber
+        )
         return true
-      }
-      if (state.phase !== ConversationPhase.Running) return false
-      const interactionId = toConversationInteractionId(decision.approvalId)
-      const interaction = state.turn.interactions.get(interactionId)
-      if (!interaction || !this.canContinueInteraction(ref, decision.approvalId)) return false
-      if (validation.executionModelIds.length !== 1) {
-        throw new Error('Interaction continuation must reserve one execution')
-      }
-      const admission = this.actorFor(ref).reserveInteraction(state.turn.id, interactionId, interaction.executionId)
-      const committed = provider.commitIntent(validation, { hasLiveStream: false })
-      this.commitInteractionExecution(
-        ref,
-        state.turn.id,
-        interaction.executionId,
-        interactionId,
-        committed,
-        admission,
-        provider,
-        subscriber
-      )
-      return true
+      })
     })
   }
 
@@ -1442,62 +1448,63 @@ export class ConversationRuntimeService extends BaseService {
   ): Promise<void> {
     return this.actorFor(ref).enqueue(ConversationAdmissionOperationKind.RuntimeContinuation, async (operation) => {
       if (this.isWriteQuiesced) throw new Error('Conversation runtime is write-quiesced')
-      operation.assertCurrent()
-      const state = this.inspect(ref)
-      const resource = this.bindings.input(input.id)
-      const presentation = this.presentation.inputBinding(input.id)
-      if (!resource || !presentation) throw new Error(`Conversation input resource is missing: ${input.id}`)
-      if (
-        ref.kind !== ConversationKind.Agent ||
-        state.phase !== ConversationPhase.Running ||
-        state.runMode !== ConversationRunMode.Preempting ||
-        state.suspendEffectId !== suspendEffectId
-      ) {
-        throw new Error('Agent autonomous preemption was superseded before history commit')
-      }
-      const intent = application
-        .get('AgentConnectionManager')
-        .describeConversationAutonomous(ref.id, resource.request.headless === true)
-      const { turnId, executions } = this.actorFor(ref).reserveRuntimeTurn(input, suspendEffectId, [intent.modelId])
-      const committed = agentChatContextProvider.commitRuntimeIntent(intent)
-      const plans = this.installCommittedExecutions(
-        ref,
-        turnId,
-        committed,
-        agentChatContextProvider,
-        [presentation.subscriber, ...(presentation.extraListeners ?? [])],
-        new Map(),
-        executions
-      )
-      const turn: TurnProjection = {
-        ref,
-        id: turnId,
-        inputId: input.id,
-        isPersistentConversation: true,
-        listeners: new Map(
-          [presentation.subscriber, ...(presentation.extraListeners ?? [])].map((listener) => [listener.id, listener])
-        ),
-        executions: new Map(plans.map(({ projection }) => [projection.id, projection])),
-        reservedMessages: [...committed.reservedMessages],
-        activeNodeDecision: { move: ConversationActiveNodeMove.Advance }
-      }
-      this.bindings.setTurn(ref, turnId, {
-        history: agentChatContextProvider,
-        postCommitTasks: committed.postCommitTasks
+      return operation.commit(() => {
+        const state = this.inspect(ref)
+        const resource = this.bindings.input(input.id)
+        const presentation = this.presentation.inputBinding(input.id)
+        if (!resource || !presentation) throw new Error(`Conversation input resource is missing: ${input.id}`)
+        if (
+          ref.kind !== ConversationKind.Agent ||
+          state.phase !== ConversationPhase.Running ||
+          state.runMode !== ConversationRunMode.Preempting ||
+          state.suspendEffectId !== suspendEffectId
+        ) {
+          throw new Error('Agent autonomous preemption was superseded before history commit')
+        }
+        const intent = application
+          .get('AgentConnectionManager')
+          .describeConversationAutonomous(ref.id, resource.request.headless === true)
+        const { turnId, executions } = this.actorFor(ref).reserveRuntimeTurn(input, suspendEffectId, [intent.modelId])
+        const committed = agentChatContextProvider.commitRuntimeIntent(intent)
+        const plans = this.installCommittedExecutions(
+          ref,
+          turnId,
+          committed,
+          agentChatContextProvider,
+          [presentation.subscriber, ...(presentation.extraListeners ?? [])],
+          new Map(),
+          executions
+        )
+        const turn: TurnProjection = {
+          ref,
+          id: turnId,
+          inputId: input.id,
+          isPersistentConversation: true,
+          listeners: new Map(
+            [presentation.subscriber, ...(presentation.extraListeners ?? [])].map((listener) => [listener.id, listener])
+          ),
+          executions: new Map(plans.map(({ projection }) => [projection.id, projection])),
+          reservedMessages: [...committed.reservedMessages],
+          activeNodeDecision: { move: ConversationActiveNodeMove.Advance }
+        }
+        this.bindings.setTurn(ref, turnId, {
+          history: agentChatContextProvider,
+          postCommitTasks: committed.postCommitTasks
+        })
+        this.presentation.setTurn(turn)
+        const transition = this.actorFor(ref).commitRuntimeTurn(
+          input,
+          suspendEffectId,
+          turnId,
+          plans.map(({ plan }) => plan)
+        )
+        if (transition.rejection) {
+          this.releaseTurn(turn)
+          throw new Error(`Committed autonomous turn was rejected: ${transition.rejection}`)
+        }
+        this.schedulePostCommitTasks(ref, turnId, committed.postCommitTasks)
+        this.deleteCommittedInput(input.id)
       })
-      this.presentation.setTurn(turn)
-      const transition = this.actorFor(ref).commitRuntimeTurn(
-        input,
-        suspendEffectId,
-        turnId,
-        plans.map(({ plan }) => plan)
-      )
-      if (transition.rejection) {
-        this.releaseTurn(turn)
-        throw new Error(`Committed autonomous turn was rejected: ${transition.rejection}`)
-      }
-      this.schedulePostCommitTasks(ref, turnId, committed.postCommitTasks)
-      this.deleteCommittedInput(input.id)
     })
   }
 
@@ -1546,7 +1553,7 @@ export class ConversationRuntimeService extends BaseService {
           inputs
         })
         historyProvider = agentChatContextProvider
-        committed = agentChatContextProvider.commitRuntimeIntent(intent)
+        committed = operation.commit(() => agentChatContextProvider.commitRuntimeIntent(intent))
       } else {
         const provider = this.providerFor(ref)
         historyProvider = provider
@@ -1560,7 +1567,8 @@ export class ConversationRuntimeService extends BaseService {
             serializeError(error),
             validated ?? resource.validation
           )
-          if (!failure || !provider.commitInputFailureIntent) throw error
+          const commitInputFailureIntent = provider.commitInputFailureIntent
+          if (!failure || !commitInputFailureIntent) throw error
           admission = this.actorFor(ref).reserveFreshTurn({
             executionModelIds: failure.executionModelIds,
             turnKind,
@@ -1568,7 +1576,7 @@ export class ConversationRuntimeService extends BaseService {
             responder: first.input.responder,
             inputs
           })
-          committed = provider.commitInputFailureIntent(failure)
+          committed = operation.commit(() => commitInputFailureIntent(failure))
           if (committed.executions.length === 0) throw error
           return true
         }
@@ -1604,10 +1612,11 @@ export class ConversationRuntimeService extends BaseService {
             inputs
           })
           try {
-            committed =
+            committed = operation.commit(() =>
               validations.length > 1
                 ? provider.commitBatchIntent?.(validations, { hasLiveStream: false })
                 : provider.commitIntent(validations[0], { hasLiveStream: false })
+            )
             if (!committed) throw new Error(`${provider.name} does not support batched Conversation inputs`)
           } catch (error) {
             if (!commitFailure(error, validations[0])) return
@@ -1617,27 +1626,32 @@ export class ConversationRuntimeService extends BaseService {
       if (!committed || !admission || !historyProvider) {
         throw new Error('Conversation successor did not produce a committed turn')
       }
-      this.commitFreshDispatch(
-        ref,
-        resource.request,
-        firstPresentation.subscriber,
-        [
-          ...new Map(
-            entries
-              .flatMap((entry) => [
-                ...(entry.presentation ? [entry.presentation.subscriber] : []),
-                ...(entry.presentation?.extraListeners ?? [])
-              ])
-              .filter((listener) => listener.id !== firstPresentation.subscriber.id)
-              .map((listener) => [listener.id, listener])
-          ).values()
-        ],
-        committed,
-        admission,
-        historyProvider,
-        inputs
-      )
-      for (const input of inputs) this.deleteCommittedInput(input.id)
+      const committedIntent = committed
+      const committedAdmission = admission
+      const committedHistoryProvider = historyProvider
+      operation.commit(() => {
+        this.commitFreshDispatch(
+          ref,
+          resource.request,
+          firstPresentation.subscriber,
+          [
+            ...new Map(
+              entries
+                .flatMap((entry) => [
+                  ...(entry.presentation ? [entry.presentation.subscriber] : []),
+                  ...(entry.presentation?.extraListeners ?? [])
+                ])
+                .filter((listener) => listener.id !== firstPresentation.subscriber.id)
+                .map((listener) => [listener.id, listener])
+            ).values()
+          ],
+          committedIntent,
+          committedAdmission,
+          committedHistoryProvider,
+          inputs
+        )
+        for (const input of inputs) this.deleteCommittedInput(input.id)
+      })
     })
   }
 
@@ -1680,7 +1694,7 @@ export class ConversationRuntimeService extends BaseService {
         if (intent.segmentId !== segmentId) throw new Error('Agent continuation segment was superseded')
         admission = this.actorFor(ref).reserveStep(turnId, inputs, [intent.modelId])
         historyProvider = agentChatContextProvider
-        committed = agentChatContextProvider.commitRuntimeIntent(intent)
+        committed = operation.commit(() => agentChatContextProvider.commitRuntimeIntent(intent))
       } else {
         const provider = this.providerFor(ref)
         historyProvider = provider
@@ -1695,39 +1709,41 @@ export class ConversationRuntimeService extends BaseService {
         const current = this.inspect(ref)
         if (current.phase !== ConversationPhase.Running || current.turn.id !== turnId) return
         admission = this.actorFor(ref).reserveStep(turnId, inputs, validation.executionModelIds)
-        committed = provider.commitIntent(validation, { hasLiveStream: false })
+        committed = operation.commit(() => provider.commitIntent(validation, { hasLiveStream: false }))
       }
-      const listeners = entries.flatMap((entry) =>
-        entry.presentation ? [entry.presentation.subscriber, ...(entry.presentation.extraListeners ?? [])] : []
-      )
-      const plans = this.installCommittedExecutions(
-        ref,
-        turnId,
-        committed,
-        historyProvider,
-        listeners,
-        this.presentation.turn(ref, turnId)?.listeners,
-        admission.executions
-      )
-      const turn = this.presentation.turn(ref, turnId)
-      if (!turn) throw new Error('Conversation step projection is missing')
-      for (const { projection } of plans) turn.executions.set(projection.id, projection)
-      for (const listener of listeners) {
-        turn.listeners.set(listener.id, listener)
-      }
-      const transition = this.actorFor(ref).commitStep(
-        turnId,
-        inputs.map(({ id }) => id),
-        plans.map(({ plan }) => plan)
-      )
-      if (transition.rejection) {
-        for (const { projection } of plans) {
-          this.executionManager.release(ref, turnId, projection.id)
-          turn.executions.delete(projection.id)
+      operation.commit(() => {
+        const listeners = entries.flatMap((entry) =>
+          entry.presentation ? [entry.presentation.subscriber, ...(entry.presentation.extraListeners ?? [])] : []
+        )
+        const plans = this.installCommittedExecutions(
+          ref,
+          turnId,
+          committed,
+          historyProvider,
+          listeners,
+          this.presentation.turn(ref, turnId)?.listeners,
+          admission.executions
+        )
+        const turn = this.presentation.turn(ref, turnId)
+        if (!turn) throw new Error('Conversation step projection is missing')
+        for (const { projection } of plans) turn.executions.set(projection.id, projection)
+        for (const listener of listeners) {
+          turn.listeners.set(listener.id, listener)
         }
-        throw new Error(`Committed Conversation step was rejected: ${transition.rejection}`)
-      }
-      for (const input of inputs) this.deleteCommittedInput(input.id)
+        const transition = this.actorFor(ref).commitStep(
+          turnId,
+          inputs.map(({ id }) => id),
+          plans.map(({ plan }) => plan)
+        )
+        if (transition.rejection) {
+          for (const { projection } of plans) {
+            this.executionManager.release(ref, turnId, projection.id)
+            turn.executions.delete(projection.id)
+          }
+          throw new Error(`Committed Conversation step was rejected: ${transition.rejection}`)
+        }
+        for (const input of inputs) this.deleteCommittedInput(input.id)
+      })
     })
   }
 

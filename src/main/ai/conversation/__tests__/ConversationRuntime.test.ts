@@ -164,6 +164,27 @@ describe('ConversationRuntime', () => {
     expect(actor.inspect().phase).toBe(ConversationPhase.Idle)
   })
 
+  it('rejects a synchronous admission commit after Stop supersedes its operation', async () => {
+    let releaseValidation!: () => void
+    const validation = new Promise<void>((resolve) => {
+      releaseValidation = resolve
+    })
+    const commit = vi.fn(() => 'committed')
+    const actor = actorFor(chat)
+    const admission = actor.enqueue(ConversationAdmissionOperationKind.Dispatch, async (operation) => {
+      await validation
+      return operation.commit(commit)
+    })
+
+    await Promise.resolve()
+    const stop = actor.stop('user-stop')
+    releaseValidation()
+
+    await expect(admission).rejects.toThrow('superseded')
+    await expect(stop.completed).resolves.toBeUndefined()
+    expect(commit).not.toHaveBeenCalled()
+  })
+
   it('rejects a duplicate live model from the Actor admission preview', () => {
     open()
 
