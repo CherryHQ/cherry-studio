@@ -240,7 +240,9 @@ const AgentChat = ({
       !runtime.hasOlder &&
       runtime.uiMessages.length === 0
   )
-  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
+  // A started conversation keeps its workspace, except when that workspace is unreachable: the
+  // session can no longer send anything, so relocating it is the only way out of the dead end.
+  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && (isEmptyConversation || workspaceWarning))
   const runAfterFileNavigation = useCallback(
     (transition: () => void) => {
       if (requestFileNavigation) {

@@ -1,3 +1,5 @@
+import { mkdirSync, renameSync, rmSync } from 'node:fs'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -53,13 +55,17 @@ describe('AgentSessionService', () => {
 
   afterEach(() => {
     ;(application.get('DbService').withWriteTx as Mock).mockReset()
+    rmSync(root, { recursive: true, force: true })
   })
 
   function workspacePath(...segments: string[]) {
     return path.join(root, ...segments)
   }
 
+  // User workspaces are real folders: the service reads the directory to decide whether a
+  // messaged session may still be relocated, so the fixture has to exist on disk.
   async function createWorkspace(name: string): Promise<AgentWorkspaceEntity> {
+    mkdirSync(workspacePath(name), { recursive: true })
     return dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath(name)))
   }
 
@@ -623,6 +629,33 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.getById(session.id)).toMatchObject({
       workspaceId: firstWorkspace.id
     })
+  })
+
+  it('relocates a messaged session whose workspace directory was renamed away', async () => {
+    const renamedWorkspace = await createWorkspace('renamed-outside-the-app')
+    const relocationTarget = await createWorkspace('relocation-target')
+    const session = await createSession('Renamed workspace', renamedWorkspace.id)
+    await insertSessionMessage(session.id, 'message-before-rename')
+    renameSync(renamedWorkspace.path, workspacePath('renamed-outside-the-app-new-name'))
+
+    const updated = agentSessionService.setWorkspace(session.id, {
+      type: 'user',
+      workspaceId: relocationTarget.id
+    })
+
+    expect(updated.workspaceId).toBe(relocationTarget.id)
+    expect(updated.workspace.path).toBe(relocationTarget.path)
+  })
+
+  it('lets a messaged session with a missing workspace fall back to a system workspace', async () => {
+    const missingWorkspace = await createWorkspace('deleted-outside-the-app')
+    const session = await createSession('Deleted workspace', missingWorkspace.id)
+    await insertSessionMessage(session.id, 'message-before-delete')
+    rmSync(missingWorkspace.path, { recursive: true, force: true })
+
+    const updated = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+    expect(updated.workspace.type).toBe('system')
   })
 
   it('rejects switching a messaged system workspace session to a user workspace', async () => {

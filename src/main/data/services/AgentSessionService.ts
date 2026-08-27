@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { statSync } from 'node:fs'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -43,6 +44,19 @@ const logger = loggerService.withContext('AgentSessionService')
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
+
+/**
+ * A user workspace whose directory was renamed, moved, or deleted outside the app. System
+ * workspaces are app-owned and recreated on demand, so they are never "missing" in this sense.
+ */
+function boundUserWorkspaceIsMissing(workspace: AgentWorkspaceRow): boolean {
+  if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) return false
+  try {
+    return !statSync(workspace.path).isDirectory()
+  } catch {
+    return true
+  }
+}
 
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
@@ -531,8 +545,11 @@ export class AgentSessionService {
   /**
    * Replace a session's workspace. Only an empty session (no messages) may
    * change its workspace; once a conversation has started the binding is
-   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
-   * generic PATCH because it creates/deletes the backing system workspace row.
+   * permanent — the one exception being a bound user directory that no longer
+   * exists, which would otherwise strand the session (see
+   * {@link boundUserWorkspaceIsMissing}). Lives on
+   * `PUT /agent-sessions/:id/workspace` rather than the generic PATCH because
+   * it creates/deletes the backing system workspace row.
    */
   setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
     withSqliteErrors(
@@ -545,8 +562,12 @@ export class AgentSessionService {
 
   setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
     const current = this.getJoinedSessionRowTx(tx, id)
-    // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    // The workspace binding is locked the moment a session has any message, unless the bound
+    // directory is gone: the session can then neither run nor be repointed, so relocating it
+    // is the only way out.
+    if (!boundUserWorkspaceIsMissing(current.workspace)) {
+      this.assertSessionHasNoMessagesTx(tx, id)
+    }
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
