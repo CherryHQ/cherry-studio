@@ -17,8 +17,8 @@ function decimalPlaces(value: number): number {
 export function alignRangeValue(value: number, min: number, max: number, step: number): number {
   const clamped = Math.min(max, Math.max(min, value))
   if (!(step > 0) || min === max) return clamped
-  const stepsFromMin = Math.round((clamped - min) / step)
   const precision = Math.max(decimalPlaces(min), decimalPlaces(step))
+  const stepsFromMin = Math.round(Number(((clamped - min) / step).toFixed(precision)))
   let aligned = Number((min + stepsFromMin * step).toFixed(precision))
   if (aligned > max) {
     aligned = Number((min + (stepsFromMin - 1) * step).toFixed(precision))

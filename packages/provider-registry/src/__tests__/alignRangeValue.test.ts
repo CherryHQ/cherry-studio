@@ -21,6 +21,12 @@ describe('alignRangeValue', () => {
     expect(alignRangeValue(4.56, 1, 20, 0.1)).toBe(4.6)
   })
 
+  it('rounds exact decimal half-steps up when IEEE remainder is just below n+0.5', () => {
+    expect(alignRangeValue(4.55, 1, 20, 0.1)).toBe(4.6)
+    expect(alignRangeValue(0.15, 0, 1, 0.1)).toBe(0.2)
+    expect(alignRangeValue(2.05, 1, 4, 0.1)).toBe(2.1)
+  })
+
   it('measures steps from min, not from zero', () => {
     expect(alignRangeValue(1.1, 0.5, 2, 0.25)).toBe(1)
     expect(alignRangeValue(1.2, 0.5, 2, 0.25)).toBe(1.25)
