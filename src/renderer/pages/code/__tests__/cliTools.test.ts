@@ -1,8 +1,23 @@
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli, GATEWAY_CAPABLE_CLI_TOOLS, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
+import {
+  CodeCli,
+  GATEWAY_CAPABLE_CLI_TOOLS,
+  LOGIN_CAPABLE_CLI_TOOLS,
+  PROVIDERLESS_CLI_TOOLS
+} from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS } from '../constants/cliTools'
+
+const provider = (partial: Record<string, unknown>): Provider =>
+  ({
+    id: 'provider',
+    name: 'Provider',
+    authType: 'api-key',
+    apiKeys: [],
+    endpointConfigs: {},
+    ...partial
+  }) as unknown as Provider
 
 describe('CLI_TOOLS', () => {
   it('exposes every CodeCli enum value with a renderable icon component', () => {
@@ -26,6 +41,7 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
         CodeCli.GEMINI_CLI,
         CodeCli.QWEN_CODE,
         CodeCli.KIMI_CODE,
+        CodeCli.MCODE,
         CodeCli.PI
       ].sort()
     )
@@ -38,10 +54,36 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
   })
 })
 
-describe('Hermes provider support', () => {
-  const provider = (partial: Record<string, unknown>): Provider =>
-    ({ id: 'provider', name: 'Provider', endpointConfigs: {}, ...partial }) as unknown as Provider
+describe('MiniMax Code provider support', () => {
+  it('offers MiniMax Official, Unified Gateway, and providers using a supported API format', () => {
+    expect(LOGIN_CAPABLE_CLI_TOOLS.has(CodeCli.MCODE)).toBe(true)
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.MCODE)).toBe(true)
+    expect(PROVIDERLESS_CLI_TOOLS.has(CodeCli.MCODE)).toBe(false)
 
+    const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.MCODE]([
+      provider({
+        id: 'anthropic',
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } }
+      }),
+      provider({
+        id: 'openai-chat',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({
+        id: 'openai-responses',
+        endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({
+        id: 'gemini-only',
+        endpointConfigs: { 'google-generate-content': { baseUrl: 'https://api.example' } }
+      })
+    ])
+
+    expect(supported.map((item) => item.id)).toEqual(['anthropic', 'openai-chat', 'openai-responses'])
+  })
+})
+
+describe('Hermes provider support', () => {
   it('offers the Unified Gateway plus Anthropic and OpenAI-compatible providers', () => {
     expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.HERMES)).toBe(true)
     const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.HERMES]([
@@ -55,16 +97,6 @@ describe('Hermes provider support', () => {
 })
 
 describe('DeepSeek Harness provider support', () => {
-  const provider = (partial: Record<string, unknown>): Provider =>
-    ({
-      id: 'provider',
-      name: 'Provider',
-      authType: 'api-key',
-      apiKeys: [],
-      endpointConfigs: {},
-      ...partial
-    }) as unknown as Provider
-
   it('offers the Unified Gateway and providers with usable API-key credentials', () => {
     expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.DEEPSEEK_HARNESS)).toBe(true)
     const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.DEEPSEEK_HARNESS]([

@@ -40,6 +40,12 @@ describe('mergeBinaryExecutionEnv', () => {
 
     expect(PATH.split(':')).toEqual([shims, '/opt/mise/bin', '/usr/bin'])
   })
+
+  it('inserts a fixed runtime before the mutable shims directory', () => {
+    const { PATH } = mergeBinaryExecutionEnv({ PATH: '/usr/bin' }, [], ['/opt/mcode-node/bin'])
+
+    expect(PATH.split(':')).toEqual(['/opt/mcode-node/bin', shims, '/usr/bin'])
+  })
 })
 
 describe('getBinaryIsolatedHomeEnv', () => {

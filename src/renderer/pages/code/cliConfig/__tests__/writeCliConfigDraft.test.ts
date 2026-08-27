@@ -101,6 +101,7 @@ describe('writeCliConfigDraft', () => {
           })
         }
       }
+      if (route === 'code_cli.mcode_provider.apply') return { success: true }
       // The disk mutation is main-process now (`code_cli.write_config` carries
       // a target, never a path). Translate each write target back to the
       // same `/resolved~/…` path so the content fixtures stay unchanged.
@@ -130,6 +131,27 @@ describe('writeCliConfigDraft', () => {
     await expect(writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
       /Provider not found/
     )
+  })
+
+  it('applies a MiniMax Code provider through its public provider-management boundary', async () => {
+    mockGet({
+      '/providers/deepseek': () => codexProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => ({ endpointTypes: ['openai-responses'] })
+    })
+
+    await writeCliConfigDraft({
+      cliTool: CodeCli.MCODE,
+      modelId: 'deepseek::deepseek-reasoner'
+    })
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.mcode_provider.apply', {
+      providerName: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiFormat: 'openai-responses',
+      model: 'deepseek-reasoner',
+      apiKey: 'sk-secret'
+    })
   })
 
   it('writes Hermes custom-runtime metadata separately from the API key', async () => {

@@ -2458,6 +2458,46 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
     })
 
+    it.each([
+      { nodeVersion: '20.19.4', expectedRuntime: 'node@22.19' },
+      { nodeVersion: '24.11.1', expectedRuntime: 'core:node@24.11.1' }
+    ])('selects a compatible Node for MiniMax Code when custom Node is $nodeVersion', async (testCase) => {
+      const service = makeService()
+      manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: testCase.nodeVersion }]
+      let installed = false
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) {
+          return {
+            stdout: JSON.stringify({
+              node: [{ version: testCase.nodeVersion, active: true }],
+              ...(installed ? { 'npm:@minimax-ai/code': [{ version: '0.2.3', active: true }] } : {})
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@minimax-ai/code': [{ version: '0.2.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'which') return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installByName({ name: 'mcode' })
+
+      const useCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'use')
+      expect(useCall?.[1]).toEqual([
+        'use',
+        '-g',
+        testCase.expectedRuntime,
+        'npm:@minimax-ai/code[allow_builds=["better-sqlite3"]]@latest'
+      ])
+      expect(useCall?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
+    })
+
     it('does not adopt an unapplied custom runtime for a package install, using the default runtime', async () => {
       const service = makeService()
       manifestRef.value = [

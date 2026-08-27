@@ -2,7 +2,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
+import {
+  resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
+  resolveMiniMaxCodeProviderInfo,
+  resolvePiProviderInfo
+} from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -180,6 +185,27 @@ describe('resolvePiProviderInfo', () => {
       api: 'google-generative-ai',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
       endpointType: 'google-generate-content'
+    })
+  })
+})
+
+describe('resolveMiniMaxCodeProviderInfo', () => {
+  it('uses the selected model endpoint and maps it to the MiniMax Code API format', () => {
+    expect(
+      resolveMiniMaxCodeProviderInfo(
+        provider({
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://anthropic.example' },
+            'openai-responses': { baseUrl: 'https://openai.example' }
+          }
+        }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      apiFormat: 'openai-responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
     })
   })
 })

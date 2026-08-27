@@ -4,7 +4,7 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { type CodeCli, isApiGatewayProviderId, PROVIDERLESS_CLI_TOOLS } from '@shared/types/codeCli'
 import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +20,6 @@ import {
   writeCliConfigDraft
 } from '../cliConfig'
 import type { LaunchDialog } from '../components/LaunchDialog'
-import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 import { useAvailableTerminals } from './useAvailableTerminals'
 
@@ -88,9 +87,9 @@ export function useLaunchDialogController({
 
   // The CLI config file is written at "enable" time, not here — launch only
   // opens a terminal running the CLI in the provider's directory. Provider-less
-  // tools (qoder / copilot) launch with a directory only.
+  // tools (Qoder / Copilot) launch with a directory only.
   const handleLaunch = useCallback(async () => {
-    // Provider-less tools (qoder/copilot) and the virtual "own login" option both
+    // Provider-less tools (Qoder/Copilot) and the virtual "own login" option both
     // launch with a directory only — no Cherry provider/model is injected.
     const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
     if (!directory || (!runWithoutProvider && !enabledProvider)) {

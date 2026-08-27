@@ -9,8 +9,8 @@ import { operationResultSchema } from './common'
  * Code CLI runtime schemas — launch/binary/terminal management plus the config
  * write boundary. File-based CLIs (Claude Code, Codex, OpenCode, Gemini, Qwen,
  * Kimi) build config drafts renderer-side and persist them through
- * code_cli.write_config; OpenClaw config is written by its own main-process
- * service.
+ * code_cli.write_config; MiniMax Code is configured through its public provider
+ * commands; OpenClaw config is written by its own main-process service.
  */
 const terminalConfigSchema = z.object({
   id: z.string(),
@@ -44,13 +44,26 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
     cliTool: z.literal(CodeCli.CLAUDE_CODE)
   }),
   // Launch with no injected provider: the tool's own stored login (login-capable
-  // CLIs) and providerless CLIs (qoder/copilot) both send this shape.
+  // CLIs) and providerless CLIs (Qoder/Copilot) both send this shape.
   runBaseSchema.extend({
     mode: z.literal('own-login')
   })
 ])
 
 export type CodeCliRunInput = z.infer<typeof codeCliRunInputSchema>
+
+const miniMaxCodeProviderApplyInputSchema = z.object({
+  providerName: z.string().trim().min(1).max(200),
+  baseUrl: z.string().url().max(2048),
+  apiFormat: z.enum(['anthropic-messages', 'openai-completions', 'openai-responses']),
+  model: z.string().trim().min(1).max(1000),
+  apiKey: z
+    .string()
+    .min(1)
+    .max(64 * 1024)
+})
+
+export type MiniMaxCodeProviderApplyInput = z.infer<typeof miniMaxCodeProviderApplyInputSchema>
 
 // ── Request schemas ──
 export const codeCliRequestSchemas = {
@@ -96,6 +109,18 @@ export const codeCliRequestSchemas = {
         )
         .min(1)
     }),
+    output: operationResultSchema
+  }),
+  'code_cli.mcode_provider.apply': defineRoute({
+    input: miniMaxCodeProviderApplyInputSchema,
+    output: operationResultSchema
+  }),
+  'code_cli.mcode_provider.clear': defineRoute({
+    input: z.void(),
+    output: operationResultSchema
+  }),
+  'code_cli.mcode_provider.activate_official': defineRoute({
+    input: z.void(),
     output: operationResultSchema
   }),
   'code_cli.get_available_terminals': defineRoute({

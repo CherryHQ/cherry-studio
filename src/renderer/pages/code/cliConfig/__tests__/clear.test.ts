@@ -34,6 +34,7 @@ beforeEach(() => {
         })
       }
     }
+    if (route === 'code_cli.mcode_provider.clear') return { success: true }
     for (const file of input.files as CliConfigWriteFile[]) {
       const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`
       if ('delete' in file) deletes.push(resolvedPath)
@@ -288,6 +289,12 @@ describe('clearCliConfig', () => {
       providers: { userprov: { type: 'openai' } },
       models: { 'user-model': { provider: 'userprov' } }
     })
+  })
+
+  it('mcode: clears only the Cherry-managed provider through the main-process boundary', async () => {
+    await clearCliConfig({ cliTool: CodeCli.MCODE })
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.mcode_provider.clear')
   })
 
   it('hermes: strips only the Cherry-managed custom runtime and credential', async () => {
