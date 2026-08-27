@@ -4,23 +4,26 @@ import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import { Eye } from 'lucide-react'
 import { type FC, type SVGProps, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { ExtraProps } from 'streamdown'
 
-interface SvgProps extends SVGProps<SVGSVGElement> {
+interface SvgProps extends SVGProps<SVGSVGElement>, ExtraProps {
   'data-needs-measurement'?: 'true'
 }
 
 const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
-  const { 'data-needs-measurement': needsMeasurement, ...restProps } = props
+  const { 'data-needs-measurement': needsMeasurement, node, ...restProps } = props
   const svgRef = useRef<SVGSVGElement>(null)
-  const isMeasuredRef = useRef(false)
+  const measuredSourceRef = useRef<string | null>(null)
   const { t } = useTranslation()
+  const sourceKey = useMemo(() => `${needsMeasurement ?? ''}:${JSON.stringify(node) ?? ''}`, [needsMeasurement, node])
+  const isMeasured = measuredSourceRef.current === sourceKey
 
   useEffect(() => {
-    if (needsMeasurement && svgRef.current && !isMeasuredRef.current) {
+    if (needsMeasurement && svgRef.current && measuredSourceRef.current !== sourceKey) {
       makeSvgSizeAdaptive(svgRef.current)
-      isMeasuredRef.current = true
+      measuredSourceRef.current = sourceKey
     }
-  }, [needsMeasurement])
+  }, [needsMeasurement, sourceKey])
 
   const onPreview = useCallback(() => {
     if (!svgRef.current) return
@@ -28,7 +31,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   }, [])
 
   const finalProps = { ...restProps }
-  if (isMeasuredRef.current) {
+  if (isMeasured) {
     delete finalProps.width
     delete finalProps.height
   }
@@ -42,7 +45,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
 
   return (
     <CommandContextMenu location="webcontents.context" extraItems={items}>
-      <svg ref={svgRef} {...finalProps} />
+      <svg key={sourceKey} ref={svgRef} {...finalProps} />
     </CommandContextMenu>
   )
 }

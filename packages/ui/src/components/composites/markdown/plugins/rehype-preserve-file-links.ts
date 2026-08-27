@@ -5,9 +5,28 @@ export const FILE_LINK_MARKER_PROPERTY = 'dataMarkdownFileHref'
 
 const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
 const WINDOWS_DRIVE_PATH_PATTERN = /^[a-z]:[/\\]/i
+const ASCII_CONTROL_CHARACTER_MAX_CODE = 0x1f
+const ASCII_DELETE_CHARACTER_CODE = 0x7f
+
+function containsAsciiControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0)
+    if (code <= ASCII_CONTROL_CHARACTER_MAX_CODE || code === ASCII_DELETE_CHARACTER_CODE) return true
+  }
+  return false
+}
 
 function isFileLinkHref(href: unknown): href is string {
-  if (typeof href !== 'string' || !href || href.startsWith('#') || href.startsWith('//')) return false
+  if (
+    typeof href !== 'string' ||
+    !href ||
+    href.startsWith('#') ||
+    href.startsWith('//') ||
+    href.startsWith(' ') ||
+    containsAsciiControlCharacter(href)
+  ) {
+    return false
+  }
   return WINDOWS_DRIVE_PATH_PATTERN.test(href) || !URI_SCHEME_PATTERN.test(href)
 }
 

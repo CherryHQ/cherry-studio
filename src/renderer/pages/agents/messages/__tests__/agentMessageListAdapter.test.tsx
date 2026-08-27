@@ -317,6 +317,13 @@ describe('useAgentMessageListProviderValue', () => {
     void value?.actions.openPath?.('dist/report.md')
     expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
 
+    ipcApiRequest.mockResolvedValueOnce({ kind: 'file' })
+    await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
+    expect(ipcApiRequest).toHaveBeenLastCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/tmp/workspace/dist/report.md'
+    })
+
     ipcApiRequest.mockResolvedValueOnce({ kind: 'directory' })
     await expect(value?.actions.isDirectory?.('dist')).resolves.toBe(true)
     expect(ipcApiRequest).toHaveBeenLastCalledWith('file.get_metadata', {

@@ -8,7 +8,7 @@ date: 2026-08-24
 
 ## What changed
 
-In agent session messages and rendered Markdown artifact previews, schemeless local links resolve from the agent workspace root. Files open in the artifact pane, while directories open in the system file manager; other Markdown surfaces keep their existing link behavior.
+In agent session messages and rendered Markdown artifact previews, relative local links resolve from the agent workspace root. Absolute links are used as written, and relative links that escape with `..` can target paths outside the workspace. Files open in the artifact pane, while directories open in the system file manager; other Markdown surfaces keep their existing link behavior.
 
 ## Why this matters to the user
 

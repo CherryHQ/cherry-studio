@@ -1125,6 +1125,42 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
+  it('ignores a stale artifact metadata resolution after the user selects another file', async () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'report.md'
+    })
+    let resolveMetadata: (metadata: PhysicalFileMetadata | null) => void = () => {}
+    ipcRequestMock.mockImplementationOnce(
+      () =>
+        new Promise<PhysicalFileMetadata | null>((resolve) => {
+          resolveMetadata = resolve
+        })
+    )
+
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+
+    await act(async () => {
+      resolveMetadata({ kind: 'file', type: 'text', size: 1, createdAt: 1, modifiedAt: 1, mime: 'text/plain' })
+    })
+
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('src/deep.ts')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+  })
+
   it('opens Markdown preview directory links in the system file manager without clearing the current preview', async () => {
     ipcRequestMock.mockResolvedValue({
       kind: 'directory',

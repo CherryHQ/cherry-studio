@@ -183,6 +183,24 @@ describe('Markdown (static)', () => {
     expect(container.querySelector('img')?.getAttribute('src')).toBe('https://cdn.example.com/image.png')
   })
 
+  it('does not preserve a control-character-obfuscated external href as a file link', () => {
+    const obfuscatedHref = '\u0001//attacker.example/path'
+    const { container } = render(
+      <Markdown
+        id="obfuscated-external-link"
+        preserveFileLinkHrefs
+        components={{
+          a: ({ children, href }) => <a href={href}>{children}</a>
+        }}>
+        {`<a href="${obfuscatedHref}">External</a>`}
+      </Markdown>
+    )
+
+    expect(container.textContent).toContain('External')
+    expect(container.querySelector('a[href]')).toBeNull()
+    expect(container.innerHTML).not.toContain('attacker.example')
+  })
+
   it('forwards an extra rehype plugin', () => {
     let visited = 0
     const counterPlugin = () => (tree: { children: unknown[] }) => {

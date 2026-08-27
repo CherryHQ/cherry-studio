@@ -141,8 +141,14 @@ ${fencedHtml}`
 
     expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: false }))
 
-    const openArtifactFile = vi.fn()
     const openPath = vi.fn()
+    mocks.actions = { openPath }
+    view.rerender(<ChatMarkdown block={block} />)
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: false }))
+    expect(mocks.renderProvider.mock.calls.at(-1)?.[0].openFilePath).toBeUndefined()
+
+    const openArtifactFile = vi.fn()
     const isDirectory = vi.fn().mockResolvedValue(true)
     mocks.actions = { openArtifactFile, openPath, isDirectory }
     view.rerender(<ChatMarkdown block={block} />)

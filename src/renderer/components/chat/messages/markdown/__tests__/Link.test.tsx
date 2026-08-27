@@ -1,5 +1,5 @@
 import type { Citation } from '@renderer/types/message'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -158,10 +158,13 @@ describe('Link file-path opener', () => {
 
   it('routes a schemeless file-path link to the opener without navigating', () => {
     const openFilePath = vi.fn()
+    const onParentClick = vi.fn()
     const { container } = render(
-      <Link href="./DESIGN.md" openFilePath={openFilePath}>
-        Design
-      </Link>
+      <div onClick={onParentClick}>
+        <Link href="./DESIGN.md" openFilePath={openFilePath}>
+          Design
+        </Link>
+      </div>
     )
 
     // Not a web link: no Hyperlink wrapper, no new-window target.
@@ -170,7 +173,11 @@ describe('Link file-path opener', () => {
     expect(anchor.getAttribute('target')).toBeNull()
     expect(anchor).toHaveClass('text-link')
 
-    fireEvent.click(anchor)
+    const clickEvent = createEvent.click(anchor)
+    fireEvent(anchor, clickEvent)
+
+    expect(clickEvent.defaultPrevented).toBe(true)
+    expect(onParentClick).not.toHaveBeenCalled()
     expect(openFilePath).toHaveBeenCalledWith('./DESIGN.md')
   })
 

@@ -276,6 +276,7 @@ export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | n
 }
 
 interface AgentRightPaneActionsProviderProps {
+  artifactOpenRequestRef: { current: number }
   children: ReactNode
   conversationState: AgentConversationState
   sessionId?: string
@@ -291,6 +292,7 @@ interface AgentRightPaneActionsProviderProps {
 }
 
 function AgentRightPaneActionsProvider({
+  artifactOpenRequestRef,
   children,
   conversationState,
   sessionId,
@@ -306,7 +308,6 @@ function AgentRightPaneActionsProvider({
 }: AgentRightPaneActionsProviderProps) {
   const { t } = useTranslation()
   const panelActions = useRightPanelActions()
-  const artifactOpenRequestRef = useRef(0)
   // Invalidate in-flight artifact-open requests when the session or workspace
   // changes (and on unmount), so a late getMetadata resolution cannot restore a
   // preview that the switch just cleared.
@@ -314,7 +315,7 @@ function AgentRightPaneActionsProvider({
     return () => {
       artifactOpenRequestRef.current += 1
     }
-  }, [sessionId, workspacePath])
+  }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
@@ -363,7 +364,7 @@ function AgentRightPaneActionsProvider({
         }
       })
     },
-    [canOpenArtifactFile, panelActions, requestFileSelection, t, workspacePath]
+    [artifactOpenRequestRef, canOpenArtifactFile, panelActions, requestFileSelection, t, workspacePath]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
@@ -428,6 +429,7 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
@@ -494,6 +496,7 @@ function AgentRightPaneStateProvider({
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null) => {
       if (isSameFileSelection(previewFileSelection, selection)) return
+      artifactOpenRequestRef.current += 1
       requestFileTransition(() => {
         setEditMode('preview')
         setPreviewFileSelection(selection)
@@ -632,6 +635,7 @@ function AgentRightPaneStateProvider({
               present={present}>
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
+                artifactOpenRequestRef={artifactOpenRequestRef}
                 conversationState={conversationState}
                 sessionId={sessionId}
                 workspacePath={workspacePath}
