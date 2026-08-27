@@ -329,6 +329,33 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
     expect(await readFile(target, 'utf-8')).toBe('payload')
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
+
+  it('skips the directory fsync entirely on win32 (no dir open, no warn)', async () => {
+    // Regression guard for issue #10512: libuv cannot fsync a directory
+    // handle on Windows, so the open used to fail with EPERM on every atomic
+    // write and the warn flooded every Windows log, derailing backup
+    // diagnosis. The gate must skip BEFORE attempting the dir open — mock the
+    // dir open to throw and assert it is never even reached.
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    try {
+      const target = path.join(tmp, 'data.txt')
+      mockOpen.mockImplementation(async (p, flags) => {
+        if (flags === 'r' && p === path.dirname(target)) {
+          throw makeErrnoErr('EPERM', 'operation not permitted')
+        }
+        return actualOpen(p as string, flags as never)
+      })
+
+      await atomicWriteFile(target as AbsoluteFilePath, 'payload')
+
+      expect(await readFile(target, 'utf-8')).toBe('payload')
+      expect(mockOpen).not.toHaveBeenCalledWith(path.dirname(target), 'r')
+      expect(mockLoggerWarn).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
+  })
 })
 
 describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
