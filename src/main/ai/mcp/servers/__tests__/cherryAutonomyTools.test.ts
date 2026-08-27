@@ -162,6 +162,7 @@ async function callTool(
 describe('CherryAutonomyTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
     mockSearchSessions.mockReturnValue([])
@@ -536,7 +537,7 @@ describe('CherryAutonomyTools', () => {
     it('should parse hour+minute durations', async () => {
       mockCreateTask.mockReturnValue({ id: 'task_3' })
 
-      const server = createServer()
+      const server = createServer('agent_test', WORKSPACE_PATH, null)
       await callTool(server, {
         action: 'add',
         name: 'test',
@@ -555,7 +556,7 @@ describe('CherryAutonomyTools', () => {
     it('should create a one-time task with at', async () => {
       mockCreateTask.mockReturnValue({ id: 'task_4' })
 
-      const server = createServer()
+      const server = createServer('agent_test', WORKSPACE_PATH, null)
       await callTool(server, {
         action: 'add',
         name: 'Deploy',
@@ -694,6 +695,21 @@ describe('CherryAutonomyTools', () => {
       expect(result.content[0].text).toContain('Channel "ch_foreign" not found')
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
+
+    it('rejects default recipients that were reassigned after the turn began', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch1', agentId: 'agent_2' })
+
+      const result = await callTool(createServer('agent_1'), {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Channel "ch1" not found')
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
   })
 
   describe('list action', () => {
@@ -799,6 +815,17 @@ describe('CherryAutonomyTools', () => {
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
+    it('revokes a trusted recipient after the channel is reassigned', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch1', agentId: 'agent_2' })
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+      const result = await callTool(createServer('agent_1'), { message: 'Nope' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
     it('fans task notifications out to every configured recipient for both text and files', async () => {
       mockSendMessage.mockResolvedValue(undefined)
       mockSendFile.mockResolvedValue(undefined)
@@ -853,13 +880,29 @@ describe('CherryAutonomyTools', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch1', 'ch2'] }))
     })
 
-    it('should return message when no notify channels found', async () => {
+    it('fails before dispatch when one configured recipient has no runtime adapter', async () => {
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+      const result = await callTool(
+        createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']),
+        { message: 'Hello' },
+        'notify'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Configured notification recipient is unavailable: ch2')
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
+    it('reports a configured recipient with no runtime adapter as unavailable', async () => {
       mockGetNotifyAdapters.mockReturnValue([])
 
       const server = createServer('agent_1')
       const result = await callTool(server, { message: 'Hello' }, 'notify')
 
-      expect(result.content[0].text).toContain('No connected channels found')
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Configured notification recipient is unavailable: ch1')
+      expect(result.content[0].text).not.toContain('Configure at least one channel')
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
