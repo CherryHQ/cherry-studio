@@ -67,6 +67,7 @@ patchedDependencies:
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
   '@ai-sdk/openai@3.0.53': 9d370fa143fdb495dc3e197872be775853e61aa51fc2d3b3e1afd8279883e55c
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
+  '@earendil-works/pi-ai@0.80.6': ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206
   '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': 4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25
@@ -102,8 +103,8 @@ importers:
         specifier: 0.1.0-rc.7
         version: 0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-llm@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-attachment@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-brand@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-timeout@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))))(@deepseek-ai/dsh-session@0.1.0-rc.7(1dcde9bfc9fa0140c66648fbcb67b346))(@deepseek-ai/dsh-subagent@0.1.0-rc.7(1b6079401dbb31e84cdd730e8138699a))
       '@earendil-works/pi-ai':
-        specifier: 0.80.3
-        version: 0.80.3(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
+        specifier: 0.80.6
+        version: 0.80.6(patch_hash=ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
       '@earendil-works/pi-coding-agent':
         specifier: 0.80.3
         version: 0.80.3(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
@@ -3989,8 +3990,8 @@ packages:
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-ai@0.80.3':
-    resolution: {integrity: sha512-jPZLMeGL5kkMSEAwAklfXTMHqZvfhsJtCCpKGIr5Duk7mc0n4skjB1dugk7y0z3z8ZHIUCmPAWHdyDqgUz5vdA==}
+  '@earendil-works/pi-ai@0.80.6':
+    resolution: {integrity: sha512-7xfLk8sANBp+bpPEbjoOZTbPxsa+++b1JXAoSJsNa3vbs9AHHEclmvg54XLQcxH+fuwaeti/g2jeIfJ+mVYLpA==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
@@ -16331,10 +16332,10 @@ snapshots:
       '@aws-sdk/middleware-eventstream': 3.972.26
       '@aws-sdk/middleware-websocket': 3.972.49
       '@aws-sdk/token-providers': 3.1048.0
-      '@aws-sdk/types': 3.973.8
+      '@aws-sdk/types': 3.974.2
       '@smithy/core': 3.31.1
       '@smithy/fetch-http-handler': 5.6.13
-      '@smithy/node-http-handler': 4.7.3
+      '@smithy/node-http-handler': 4.9.13
       '@smithy/types': 4.7.1
       tslib: 2.8.1
 
@@ -16506,9 +16507,9 @@ snapshots:
 
   '@aws-sdk/credential-provider-login@3.972.12':
     dependencies:
-      '@aws-sdk/core': 3.973.14
+      '@aws-sdk/core': 3.977.6
       '@aws-sdk/nested-clients': 3.996.2
-      '@aws-sdk/types': 3.973.8
+      '@aws-sdk/types': 3.974.2
       '@smithy/property-provider': 4.2.10
       '@smithy/protocol-http': 5.3.10
       '@smithy/shared-ini-file-loader': 4.4.5
@@ -16751,19 +16752,19 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.14
+      '@aws-sdk/core': 3.977.6
       '@aws-sdk/middleware-host-header': 3.972.5
       '@aws-sdk/middleware-logger': 3.972.5
       '@aws-sdk/middleware-recursion-detection': 3.972.5
       '@aws-sdk/middleware-user-agent': 3.972.14
       '@aws-sdk/region-config-resolver': 3.972.5
-      '@aws-sdk/types': 3.973.8
+      '@aws-sdk/types': 3.974.2
       '@aws-sdk/util-endpoints': 3.996.2
       '@aws-sdk/util-user-agent-browser': 3.972.5
       '@aws-sdk/util-user-agent-node': 3.972.13
       '@smithy/config-resolver': 4.4.9
-      '@smithy/core': 3.23.6
-      '@smithy/fetch-http-handler': 5.3.11
+      '@smithy/core': 3.31.1
+      '@smithy/fetch-http-handler': 5.6.13
       '@smithy/hash-node': 4.2.10
       '@smithy/invalid-dependency': 4.2.10
       '@smithy/middleware-content-length': 4.2.10
@@ -16829,7 +16830,7 @@ snapshots:
     dependencies:
       '@aws-sdk/core': 3.977.6
       '@aws-sdk/nested-clients': 3.997.41
-      '@aws-sdk/types': 3.973.8
+      '@aws-sdk/types': 3.974.2
       '@smithy/core': 3.31.1
       '@smithy/types': 4.7.1
       tslib: 2.8.1
@@ -16845,9 +16846,9 @@ snapshots:
 
   '@aws-sdk/token-providers@3.998.0':
     dependencies:
-      '@aws-sdk/core': 3.973.14
+      '@aws-sdk/core': 3.977.6
       '@aws-sdk/nested-clients': 3.996.2
-      '@aws-sdk/types': 3.973.8
+      '@aws-sdk/types': 3.974.2
       '@smithy/property-provider': 4.2.10
       '@smithy/shared-ini-file-loader': 4.4.5
       '@smithy/types': 4.7.1
@@ -18509,7 +18510,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.80.3(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)':
+  '@earendil-works/pi-ai@0.80.6(patch_hash=ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.3.4)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
@@ -18554,7 +18555,7 @@ snapshots:
   '@earendil-works/pi-coding-agent@0.80.3(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)':
     dependencies:
       '@earendil-works/pi-agent-core': 0.80.10(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
-      '@earendil-works/pi-ai': 0.80.3(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
+      '@earendil-works/pi-ai': 0.80.6(patch_hash=ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
       '@earendil-works/pi-tui': 0.80.10
       '@silvia-odwyer/photon-node': 0.3.4
       chalk: 5.6.2
