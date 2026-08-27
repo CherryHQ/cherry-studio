@@ -104,7 +104,9 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ description }: { description?: ReactNode }) => <div role="alert">{description}</div>,
+  // No `role` here: the real Alert derives it from `type` (`status` for anything but
+  // `error`), so hardcoding one would let assertions pin a role the component never emits.
+  Alert: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Button: ({
     variant,
     size,
@@ -587,12 +589,12 @@ describe('CodeCliPage', () => {
     )
 
     const { unmount } = render(<CodeCliPage />)
-    expect(screen.getByRole('alert')).toHaveTextContent('code.gemini_cli_discontinued')
+    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
     unmount()
 
     mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
     render(<CodeCliPage />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.gemini_cli_discontinued')).not.toBeInTheDocument()
   })
 
   it('keeps launch, upgrade, and uninstall actions available for an installed Gemini CLI', () => {

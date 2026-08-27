@@ -1,13 +1,14 @@
 import { readFile } from 'node:fs/promises'
-import path from 'node:path'
 
 import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
-import { atomicWriteFile, ensureDir } from '@main/utils/file'
+import { atomicWriteFile } from '@main/utils/file'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
+
+import { isShellSafeModelId } from './shellQuote'
 
 type NormalRunInput = Extract<CodeCliRunInput, { mode: 'normal' }>
 
@@ -19,9 +20,7 @@ interface AntigravityLaunchConfig {
 
 async function ensureGeminiModeSettings(): Promise<string> {
   const geminiDir = application.getPath('feature.cli.antigravity.root')
-  const settingsDir = AbsoluteFilePathSchema.parse(path.join(geminiDir, 'antigravity-cli'))
-  const settingsPath = AbsoluteFilePathSchema.parse(path.join(settingsDir, 'settings.json'))
-  await ensureDir(settingsDir)
+  const settingsPath = AbsoluteFilePathSchema.parse(application.getPath('feature.cli.antigravity.settings.file'))
 
   let settings: Record<string, unknown> = {}
   try {
@@ -68,6 +67,9 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
   }
 
   if (!apiKey) throw new Error('Antigravity CLI requires an API key')
+  // Reject before `ensureGeminiModeSettings` so a launch that cannot proceed leaves
+  // the isolated settings file untouched.
+  if (!isShellSafeModelId(model)) throw new Error(`Unsupported model id for antigravity-cli: ${model}`)
 
   return {
     env: {

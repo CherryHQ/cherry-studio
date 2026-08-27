@@ -2,7 +2,7 @@
 title: Gemini CLI replaced by Antigravity CLI
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#19474'
 date: 2026-08-26
 ---
 

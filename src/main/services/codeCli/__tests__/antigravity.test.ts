@@ -13,12 +13,22 @@ const mocks = vi.hoisted(() => ({
   getMultiple: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    getPath: vi.fn(() => mocks.root),
-    get: vi.fn(() => ({ getMultiple: mocks.getMultiple }))
+vi.mock('@application', async () => {
+  const { mkdirSync } = await import('node:fs')
+  const nodePath = await import('node:path')
+  return {
+    application: {
+      // Mirrors Application.getPath: a `…file` key auto-creates its parent directory.
+      getPath: vi.fn((key: string) => {
+        if (key !== 'feature.cli.antigravity.settings.file') return mocks.root
+        const settingsPath = nodePath.join(mocks.root, 'antigravity-cli', 'settings.json')
+        mkdirSync(nodePath.dirname(settingsPath), { recursive: true })
+        return settingsPath
+      }),
+      get: vi.fn(() => ({ getMultiple: mocks.getMultiple }))
+    }
   }
-}))
+})
 
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
@@ -94,6 +104,23 @@ describe('prepareAntigravityLaunch', () => {
     expect(result.model).toBe('gemini-api://provider-a/models/models/gemini-flash')
     expect(result.model).not.toContain('@cherry')
     expect(mocks.getByProviderId).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unsafe model id without touching the isolated settings', async () => {
+    const settingsPath = path.join(mocks.root, 'antigravity-cli', 'settings.json')
+    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
+    mocks.getRotatedApiKey.mockReturnValue('direct-secret')
+
+    await expect(
+      prepareAntigravityLaunch({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini; open /Applications/Calculator.app',
+        directory: '/tmp/project'
+      })
+    ).rejects.toThrow('Unsupported model id')
+    await expect(readFile(settingsPath, 'utf8')).rejects.toThrow(/ENOENT/)
   })
 
   it('rejects malformed isolated settings instead of overwriting them', async () => {

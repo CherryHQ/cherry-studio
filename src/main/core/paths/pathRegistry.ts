@@ -137,8 +137,16 @@ export function buildPathRegistry() {
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
 
-    // Code CLI session data
+    // Code CLI session data. `root` is handed to the binary as `--gemini_dir`; the
+    // CLI itself resolves its settings under the fixed `antigravity-cli/` subdir.
     'feature.cli.antigravity.root': path.join(appUserDataData, 'CodeCli', 'Antigravity'),
+    'feature.cli.antigravity.settings.file': path.join(
+      appUserDataData,
+      'CodeCli',
+      'Antigravity',
+      'antigravity-cli',
+      'settings.json'
+    ),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),

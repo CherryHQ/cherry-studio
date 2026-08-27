@@ -571,6 +571,9 @@ export class CodeCliService extends BaseService {
         return { success: false, message }
       }
 
+      // `prepareAntigravityLaunch` already rejects unsafe ids (before it writes settings),
+      // but this is the boundary where the model is concatenated into a shell string and a
+      // .bat, so it re-checks rather than trust its caller.
       if (!isShellSafeModelId(launchConfig.model)) {
         const message = `Unsupported model id for ${cliTool}: ${launchConfig.model}`
         logger.error(message)

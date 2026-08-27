@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-08-06T03:38:10.988Z
- * Total icons: 23
+ * Generated at: 2026-08-27T03:01:24.432Z
+ * Total icons: 24
  */
 
 export { AddCategory } from './add-category'

@@ -803,6 +803,39 @@ describe('CodeCliService', () => {
       }
     })
 
+    it('%-doubles the Antigravity isolated dir and carries a gateway model into the .bat verbatim', async () => {
+      antigravityLaunchMock.mockResolvedValueOnce({
+        env: { GEMINI_API_KEY: 'antigravity-secret' },
+        geminiDir: 'C:\\Users\\me\\100% data\\Antigravity',
+        model: 'gemini-api://618d8838/models/gemini-2.5-pro'
+      })
+
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'cherry-api-gateway',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        })
+
+        expect(result.success).toBe(true)
+        const [, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        // CMD expands %…% even inside double quotes, so the isolated dir must be %-doubled
+        // or the CLI lands on a truncated --gemini_dir and rewrites the wrong settings.json.
+        expect(batContent).toContain('"--gemini_dir=C:\\Users\\me\\100%% data\\Antigravity"')
+        // The gateway address carries `://` and `/models/`; the route parses it back into
+        // `providerId:apiModelId`, so quoting must not mangle or split it.
+        expect(batContent).toContain('--model "gemini-api://618d8838/models/gemini-2.5-pro"')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('includes cherry.bin and appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
       // Regression (PR #16402 review): the launch env must carry the bundled
       // git dir at the very tail so a terminal-launched CLI resolves a bare

@@ -146,6 +146,12 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.cli.antigravity.root']).toBe(path.join('/mock/userData', 'Data', 'CodeCli', 'Antigravity'))
     expect(shouldAutoEnsure('feature.cli.antigravity.root')).toBe(true)
+    // The settings file must sit under the dir handed to the CLI as `--gemini_dir`,
+    // in the fixed `antigravity-cli/` subdir the binary itself resolves.
+    expect(registry['feature.cli.antigravity.settings.file']).toBe(
+      path.join(registry['feature.cli.antigravity.root'], 'antigravity-cli', 'settings.json')
+    )
+    expect(shouldAutoEnsure('feature.cli.antigravity.settings.file')).toBe(true)
   })
 })
 
