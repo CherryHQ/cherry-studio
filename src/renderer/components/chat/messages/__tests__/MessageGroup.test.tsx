@@ -200,7 +200,12 @@ vi.mock('../MessageListProvider', () => ({
       multiModelGridPopoverTrigger: settings.gridPopoverTrigger
     }
   },
-  useMessageListSelection: () => mocks.messageListSelection(),
+  useMessageSelectionMode: () => {
+    const selection = mocks.messageListSelection()
+    return selection ? { enabled: selection.enabled, isMultiSelectMode: selection.isMultiSelectMode } : undefined
+  },
+  useIsMessageSelected: () => false,
+  useSelectedMessageIds: () => [],
   useMessageListEditingId: () => mocks.messageListEditingId(),
   useMessageListMeta: () => ({
     userProfile: { avatar: '' }
