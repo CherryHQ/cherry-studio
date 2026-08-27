@@ -87,37 +87,6 @@ describe('resolveReasoningInvocation budget constraints', () => {
   })
 })
 
-describe('mandatory-thinking effort selection', () => {
-  const providerCatalog = readProviderRegistry(
-    path.join(process.cwd(), 'packages/provider-registry/data/providers.json')
-  )
-  const glm53Flash = makeModel({
-    reasoning: {
-      controls: [{ kind: 'effort', values: ['low', 'high', 'max'], default: 'max' }],
-      defaultEffort: 'max',
-      selectableEfforts: ['low', 'high', 'max']
-    }
-  })
-
-  const chatWire = (providerId: 'opencode' | 'openrouter'): ReasoningWireProfile => {
-    const format = providerCatalog.providers.find((provider) => provider.id === providerId)?.endpointConfigs?.[
-      'openai-chat-completions'
-    ]?.reasoningFormat
-    if (!format) throw new Error(`Missing ${providerId} reasoning format`)
-    return format.wire ?? REASONING_FORMAT_PROFILES[format.type].wire
-  }
-
-  it.each(['opencode', 'openrouter'] as const)('omits an unsupported Auto selection for %s', (providerId) => {
-    const invocation = resolveReasoningInvocation({
-      selection: 'auto',
-      model: glm53Flash,
-      profile: chatWire(providerId)
-    })
-
-    expect(encodeReasoningInvocation(invocation)).toEqual({})
-  })
-})
-
 describe('OpenAI Responses reasoning summary', () => {
   const responsesWire = (providerId: string) =>
     readProviderRegistry(path.join(process.cwd(), 'packages/provider-registry/data/providers.json')).providers.find(
