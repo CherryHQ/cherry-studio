@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.description_too_long': 'The problem description is too long',
     'settings.about.diagnostics.report.failure_reasons.service_unavailable': 'The report service is unavailable.',
     'settings.about.diagnostics.report.feedback_id': 'Feedback ID',
-    'settings.about.diagnostics.report.open_manual_form': 'Open manual form',
+    'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
     'settings.about.diagnostics.report.retry': 'Retry',
     'settings.about.diagnostics.report.retry_unknown_description':
       'The previous submission may already have succeeded. Retrying can create a duplicate report.',
@@ -295,9 +295,13 @@ describe('DiagnosticUploadDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show in folder' }))
     expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path: fallbackPath })
-    await user.click(screen.getByRole('button', { name: 'Open manual form' }))
+    const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(manualFeedback.compareDocumentPosition(retry)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    await user.click(manualFeedback)
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await user.click(retry)
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.retry_upload', { bundleId })
     expect(await screen.findByText(reportId)).toBeInTheDocument()
   })
@@ -321,7 +325,7 @@ describe('DiagnosticUploadDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
     expect(await screen.findByText('Submission result is unknown')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open manual form' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manual feedback' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show in folder' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))

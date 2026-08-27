@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "Dịch vụ báo cáo chẩn đoán hiện không khả dụng. Vui lòng thử lại sau.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "Báo cáo chẩn đoán đã bị từ chối.",
   "settings.about.diagnostics.report.feedback_id": "Mã phản hồi",
-  "settings.about.diagnostics.report.open_manual_form": "Mở biểu mẫu phản hồi thủ công",
+  "settings.about.diagnostics.report.open_manual_form": "Phản hồi thủ công",
   "settings.about.diagnostics.report.retry": "Thử lại",
   "settings.about.diagnostics.report.retry_unknown_description": "Lần gửi trước có thể đã thành công. Thử lại có thể tạo báo cáo trùng lặp.",
   "settings.about.diagnostics.report.retry_unknown_title": "Thử gửi lại báo cáo chẩn đoán?",

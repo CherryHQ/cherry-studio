@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "Сервис диагностических отчётов недоступен. Повторите попытку позже.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "Диагностический отчёт отклонён.",
   "settings.about.diagnostics.report.feedback_id": "Идентификатор обращения",
-  "settings.about.diagnostics.report.open_manual_form": "Открыть форму ручной отправки",
+  "settings.about.diagnostics.report.open_manual_form": "Ручная отправка",
   "settings.about.diagnostics.report.retry": "Повторить",
   "settings.about.diagnostics.report.retry_unknown_description": "Предыдущая отправка уже могла завершиться успешно. Повторная попытка может создать дубликат отчёта.",
   "settings.about.diagnostics.report.retry_unknown_title": "Повторить отправку диагностического отчёта?",

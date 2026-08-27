@@ -351,6 +351,11 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                     {t('settings.about.diagnostics.actions.reveal')}
                   </Button>
                 ) : null}
+                {result.status === 'submission_failed' ? (
+                  <Button variant="outline" onClick={() => void openManualForm()}>
+                    {t('settings.about.diagnostics.report.open_manual_form')}
+                  </Button>
+                ) : null}
                 {result.status !== 'uploaded' ? (
                   <Button
                     ref={primaryActionRef}
@@ -363,11 +368,6 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                       }
                     }}>
                     {t('settings.about.diagnostics.report.retry')}
-                  </Button>
-                ) : null}
-                {result.status === 'submission_failed' ? (
-                  <Button variant="outline" onClick={() => void openManualForm()}>
-                    {t('settings.about.diagnostics.report.open_manual_form')}
                   </Button>
                 ) : null}
               </>

@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "診斷報告服務目前無法使用，請稍後再試。",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "診斷報告遭到拒絕。",
   "settings.about.diagnostics.report.feedback_id": "回饋 ID",
-  "settings.about.diagnostics.report.open_manual_form": "開啟手動回饋表單",
+  "settings.about.diagnostics.report.open_manual_form": "手動回饋",
   "settings.about.diagnostics.report.retry": "重試",
   "settings.about.diagnostics.report.retry_unknown_description": "上一次提交可能已經成功。重試可能會產生重複報告。",
   "settings.about.diagnostics.report.retry_unknown_title": "重試診斷報告？",

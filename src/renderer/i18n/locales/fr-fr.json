@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "Le service de rapports de diagnostic est indisponible. Réessayez plus tard.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "Le rapport de diagnostic a été refusé.",
   "settings.about.diagnostics.report.feedback_id": "Identifiant du retour",
-  "settings.about.diagnostics.report.open_manual_form": "Ouvrir le formulaire de retour manuel",
+  "settings.about.diagnostics.report.open_manual_form": "Retour manuel",
   "settings.about.diagnostics.report.retry": "Réessayer",
   "settings.about.diagnostics.report.retry_unknown_description": "L’envoi précédent a peut-être déjà réussi. Une nouvelle tentative peut créer un rapport en double.",
   "settings.about.diagnostics.report.retry_unknown_title": "Réessayer d’envoyer le rapport de diagnostic ?",

@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "Der Dienst für Diagnoseberichte ist nicht verfügbar. Versuchen Sie es später erneut.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "Der Diagnosebericht wurde abgelehnt.",
   "settings.about.diagnostics.report.feedback_id": "Feedback-ID",
-  "settings.about.diagnostics.report.open_manual_form": "Manuelles Feedback-Formular öffnen",
+  "settings.about.diagnostics.report.open_manual_form": "Manuelles Feedback",
   "settings.about.diagnostics.report.retry": "Erneut versuchen",
   "settings.about.diagnostics.report.retry_unknown_description": "Die vorherige Übermittlung war möglicherweise bereits erfolgreich. Ein erneuter Versuch kann einen doppelten Bericht erzeugen.",
   "settings.about.diagnostics.report.retry_unknown_title": "Diagnosebericht erneut übermitteln?",

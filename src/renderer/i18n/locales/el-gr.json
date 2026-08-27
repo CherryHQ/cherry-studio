@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "Η υπηρεσία διαγνωστικών αναφορών δεν είναι διαθέσιμη. Δοκιμάστε ξανά αργότερα.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "Η διαγνωστική αναφορά απορρίφθηκε.",
   "settings.about.diagnostics.report.feedback_id": "Αναγνωριστικό σχολίων",
-  "settings.about.diagnostics.report.open_manual_form": "Άνοιγμα φόρμας μη αυτόματων σχολίων",
+  "settings.about.diagnostics.report.open_manual_form": "Μη αυτόματα σχόλια",
   "settings.about.diagnostics.report.retry": "Επανάληψη",
   "settings.about.diagnostics.report.retry_unknown_description": "Η προηγούμενη υποβολή μπορεί να έχει ήδη ολοκληρωθεί. Η επανάληψη μπορεί να δημιουργήσει διπλή αναφορά.",
   "settings.about.diagnostics.report.retry_unknown_title": "Επανάληψη διαγνωστικής αναφοράς;",

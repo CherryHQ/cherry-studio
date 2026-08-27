@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "Serviciul de rapoarte de diagnosticare nu este disponibil. Încearcă din nou mai târziu.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "Raportul de diagnosticare a fost respins.",
   "settings.about.diagnostics.report.feedback_id": "ID feedback",
-  "settings.about.diagnostics.report.open_manual_form": "Deschide formularul manual de feedback",
+  "settings.about.diagnostics.report.open_manual_form": "Feedback manual",
   "settings.about.diagnostics.report.retry": "Încearcă din nou",
   "settings.about.diagnostics.report.retry_unknown_description": "Este posibil ca trimiterea anterioară să fi reușit deja. Reîncercarea poate crea un raport duplicat.",
   "settings.about.diagnostics.report.retry_unknown_title": "Reîncerci trimiterea raportului de diagnosticare?",

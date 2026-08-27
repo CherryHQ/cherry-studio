@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "診断レポートサービスを利用できません。後でもう一度お試しください。",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "診断レポートが拒否されました。",
   "settings.about.diagnostics.report.feedback_id": "フィードバック ID",
-  "settings.about.diagnostics.report.open_manual_form": "手動フィードバックフォームを開く",
+  "settings.about.diagnostics.report.open_manual_form": "手動フィードバック",
   "settings.about.diagnostics.report.retry": "再試行",
   "settings.about.diagnostics.report.retry_unknown_description": "前回の送信はすでに成功している可能性があります。再試行するとレポートが重複することがあります。",
   "settings.about.diagnostics.report.retry_unknown_title": "診断レポートを再送信しますか？",

@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "诊断报告服务暂不可用，请稍后重试。",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "诊断报告被拒绝。",
   "settings.about.diagnostics.report.feedback_id": "反馈 ID",
-  "settings.about.diagnostics.report.open_manual_form": "打开手动反馈表单",
+  "settings.about.diagnostics.report.open_manual_form": "手动反馈",
   "settings.about.diagnostics.report.retry": "重试",
   "settings.about.diagnostics.report.retry_unknown_description": "上一次提交可能已经成功。重试可能会生成重复报告。",
   "settings.about.diagnostics.report.retry_unknown_title": "重试诊断报告？",

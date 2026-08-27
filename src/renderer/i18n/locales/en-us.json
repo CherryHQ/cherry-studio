@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "The diagnostic report service is unavailable. Try again later.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "The diagnostic report was rejected.",
   "settings.about.diagnostics.report.feedback_id": "Feedback ID",
-  "settings.about.diagnostics.report.open_manual_form": "Open manual feedback form",
+  "settings.about.diagnostics.report.open_manual_form": "Manual feedback",
   "settings.about.diagnostics.report.retry": "Retry",
   "settings.about.diagnostics.report.retry_unknown_description": "The previous submission may already have succeeded. Retrying can create a duplicate report.",
   "settings.about.diagnostics.report.retry_unknown_title": "Retry diagnostic report?",

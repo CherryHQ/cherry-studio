@@ -3217,7 +3217,7 @@
   "settings.about.diagnostics.report.failure_reasons.service_unavailable": "El servicio de informes de diagnóstico no está disponible. Inténtalo de nuevo más tarde.",
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "El informe de diagnóstico fue rechazado.",
   "settings.about.diagnostics.report.feedback_id": "ID de comentarios",
-  "settings.about.diagnostics.report.open_manual_form": "Abrir formulario manual de comentarios",
+  "settings.about.diagnostics.report.open_manual_form": "Comentarios manuales",
   "settings.about.diagnostics.report.retry": "Reintentar",
   "settings.about.diagnostics.report.retry_unknown_description": "Es posible que el envío anterior ya se haya completado. Reintentarlo puede crear un informe duplicado.",
   "settings.about.diagnostics.report.retry_unknown_title": "¿Reintentar el informe de diagnóstico?",
