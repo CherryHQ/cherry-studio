@@ -6,7 +6,7 @@ import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
  * Single source of truth for everything installable locally: which bundles exist,
  * what files they are made of, where those bytes come from and what they must hash
  * to. Data only — fetching lives in `../acquisition`, on-disk state in
- * `./LocalModelRegistry`, mirror resolution in `../acquisition/modelSource`.
+ * `../installation/LocalModelStorageService`, mirror resolution in `../acquisition/modelSource`.
  *
  * Adding a model means adding an entry here; nothing else in the subsystem is
  * per-model. See `docs/references/ai/local-models.md` for the checklist.

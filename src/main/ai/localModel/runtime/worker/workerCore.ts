@@ -4,19 +4,17 @@ import { configureWorkerProxy } from '@main/services/proxy/workerProxy'
 import { CPU_LOCAL_INFERENCE_PROFILE } from '../inferenceAcceleration'
 
 /**
- * The capability-agnostic half of the inference worker: init, logging, the package
- * resolvers, the hardware-fallback retry, and dispatch.
+ * The capability-agnostic half of the inference worker: init, logging,
+ * hardware-fallback retry, and dispatch.
  *
- * It knows nothing about embedding or OCR. Each capability module (loaded after this one
- * into the same script scope) registers itself into `CAPABILITIES`, so adding one is a new
- * module rather than another branch in a shared dispatch chain.
+ * It knows nothing about embedding or OCR. The one capability module loaded after this
+ * core registers its request handlers without adding a branch here.
  */
 export const workerCoreSource = `
 const { parentPort } = require('node:worker_threads')
 
 let appPath = null
-let transformers = null
-let ppu = null
+let workerCapability = null
 let proxyStatus = 'not-initialized'
 const CPU_RUNTIME_PROFILE = ${JSON.stringify(CPU_LOCAL_INFERENCE_PROFILE)}
 let runtimeProfile = CPU_RUNTIME_PROFILE
@@ -27,7 +25,7 @@ let runtimeProfile = CPU_RUNTIME_PROFILE
  *   prepare(msg)           request setup that must NOT be retried (e.g. reading a file)
  *   dispose()              release cached sessions when a hardware provider is abandoned
  */
-const CAPABILITIES = {}
+const REQUEST_HANDLERS = {}
 
 // Injected from services/proxy (a single, unit-tested source). Bound to consts so the call
 // sites work even if the bundler renames the functions' own symbols.
@@ -35,7 +33,15 @@ const createProxyBypassMatcher = ${createProxyBypassMatcher.toString()}
 const configureWorkerProxy = ${configureWorkerProxy.toString()}
 
 function postLog(level, message) {
-  parentPort.postMessage({ type: 'log', level, message })
+  parentPort.postMessage({ kind: 'log', level, message })
+}
+
+function postResult(msg, payload) {
+  parentPort.postMessage({ kind: 'result', requestId: msg.requestId, payload })
+}
+
+function postError(requestId, message) {
+  parentPort.postMessage({ kind: 'error', requestId, message })
 }
 
 function describeError(error) {
@@ -57,8 +63,10 @@ function describeError(error) {
 }
 
 function requestLogContext(msg) {
-  const context = ['request=' + msg.type, 'proxy=' + proxyStatus]
-  if (typeof msg.modelDir === 'string') context.push('modelDir=' + JSON.stringify(msg.modelDir))
+  const context = ['capability=' + msg.capability, 'request=' + msg.type, 'proxy=' + proxyStatus]
+  if (msg.payload && typeof msg.payload.modelDir === 'string') {
+    context.push('modelDir=' + JSON.stringify(msg.payload.modelDir))
+  }
   return context.join(' ')
 }
 
@@ -93,34 +101,9 @@ async function disposeCached(cache) {
   }
 }
 
-function getTransformers() {
-  if (!transformers) {
-    // Resolve from the app root rather than the worker's cwd, so it works both
-    // in dev (project root) and in the packaged app (app.asar).
-    const { createRequire } = require('node:module')
-    const projectRequire = createRequire((appPath || process.cwd()) + '/')
-    transformers = projectRequire('@huggingface/transformers')
-  }
-  return transformers
-}
-
-async function getPpu() {
-  if (!ppu) {
-    // ppu-paddle-ocr is pure ESM. Resolve its entry off app.root (dev + packaged),
-    // then load it with a dynamic import so this works regardless of the host
-    // Node's require(esm) support.
-    const { createRequire } = require('node:module')
-    const { pathToFileURL } = require('node:url')
-    const projectRequire = createRequire((appPath || process.cwd()) + '/')
-    const entry = projectRequire.resolve('ppu-paddle-ocr')
-    ppu = await import(pathToFileURL(entry).href)
-  }
-  return ppu
-}
-
 async function disposeCachedInference() {
-  for (const capability of Object.values(CAPABILITIES)) {
-    if (capability.dispose) await capability.dispose()
+  for (const handler of Object.values(REQUEST_HANDLERS)) {
+    if (handler.dispose) await handler.dispose()
   }
 }
 
@@ -167,8 +150,9 @@ async function runWithHardwareFallback(msg, capability) {
 
 parentPort.on('message', (msg) => {
   if (!msg || typeof msg !== 'object') return
-  if (msg.type === 'init') {
+  if (msg.kind === 'init') {
     appPath = msg.appPath
+    workerCapability = msg.capability
     runtimeProfile = msg.runtimeProfile
     const proxy = configureWorkerProxy(appPath, msg.proxyRouting, createProxyBypassMatcher)
     proxyStatus = proxy.status
@@ -182,20 +166,25 @@ parentPort.on('message', (msg) => {
     } else {
       postLog('error', 'network proxy configuration failed: ' + proxy.error)
     }
-    // Must be set before the first lazy require of @huggingface/transformers /
-    // ppu-paddle-ocr (getTransformers/getPpu), both of which transitively require
+    // Must be set before a capability lazily loads a package that transitively requires
     // onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
-    if (msg.onnxRuntimeBindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = msg.onnxRuntimeBindingPath
+    const onnxRuntimeBindingPath = msg.artifactPaths && msg.artifactPaths['onnxruntime-node']
+    if (onnxRuntimeBindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = onnxRuntimeBindingPath
     return
   }
-  const capability = CAPABILITIES[msg.type]
-  if (!capability) {
-    parentPort.postMessage({ type: 'error', id: msg.id, message: 'unknown message type: ' + msg.type })
+  if (msg.kind !== 'request') return
+  if (msg.capability !== workerCapability) {
+    postError(msg.requestId, 'worker capability mismatch: expected ' + workerCapability + ', received ' + msg.capability)
     return
   }
-  runWithHardwareFallback(msg, capability).catch((err) => {
+  const handler = REQUEST_HANDLERS[msg.type]
+  if (!handler) {
+    postError(msg.requestId, 'unknown request type: ' + msg.type)
+    return
+  }
+  runWithHardwareFallback(msg, handler).catch((err) => {
     postLog('error', 'request failed ' + requestLogContext(msg) + ' error=' + describeError(err))
-    parentPort.postMessage({ type: 'error', id: msg.id, message: err && err.message ? err.message : String(err) })
+    postError(msg.requestId, err && err.message ? err.message : String(err))
   })
 })
 `

@@ -5,10 +5,16 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 
 import { artifactEntryPath, installArtifact, isArtifactInstalled, removeArtifact } from '../acquisition/tarballArtifact'
-import { getSharedArtifact } from './catalog'
-import type { BundleFile, InstallState, ModelBundle, SharedArtifactId } from './types'
+import { getSharedArtifact } from '../catalog/catalog'
+import {
+  type BundleFile,
+  currentPlatformKey,
+  type InstallState,
+  type ModelBundle,
+  type SharedArtifactId
+} from '../catalog/types'
 
-const logger = loggerService.withContext('LocalModelRegistry')
+const logger = loggerService.withContext('LocalModelStorageService')
 
 /**
  * What is installed right now, and the gatekeeper for installing or deleting shared
@@ -19,7 +25,7 @@ const logger = loggerService.withContext('LocalModelRegistry')
  * user clears a directory behind the app's back — and "the database says installed, the
  * disk disagrees" is a worse failure than a scan.
  */
-class LocalModelRegistry {
+export class LocalModelStorageService {
   /** One in-flight install per artifact, so an embedding and an OCR download racing for
    * the same runtime await a single fetch instead of both writing the same files. */
   private readonly artifactInstalls = new Map<SharedArtifactId, Promise<void>>()
@@ -114,6 +120,14 @@ class LocalModelRegistry {
     return isArtifactInstalled(getSharedArtifact(id))
   }
 
+  isArtifactSupported(id: SharedArtifactId): boolean {
+    return getSharedArtifact(id).platforms[currentPlatformKey()] !== undefined
+  }
+
+  isBundleSupported(bundle: ModelBundle): boolean {
+    return bundle.requires.every((id) => this.isArtifactSupported(id))
+  }
+
   /** Absolute path to the artifact's loadable entry file (see {@link artifactEntryPath}). */
   artifactPath(id: SharedArtifactId): string {
     return artifactEntryPath(getSharedArtifact(id))
@@ -144,4 +158,4 @@ class LocalModelRegistry {
   }
 }
 
-export const localModelRegistry = new LocalModelRegistry()
+export const localModelStorageService = new LocalModelStorageService()

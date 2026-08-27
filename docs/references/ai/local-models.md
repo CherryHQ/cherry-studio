@@ -1,5 +1,5 @@
 ---
-description: Local model subsystem — the bundle catalog, on-disk registry, the verified acquisition layer, and the worker runtime that infers over the installed models
+description: Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models
 sources:
   - src/main/ai/localModel
   - src/shared/data/presets/localModel.ts
@@ -20,31 +20,33 @@ how they come off again, and how inference runs over them once they are there.
 ```text
 src/main/ai/localModel/
 ├── index.ts                       ← the module's public API; import through it
-├── registry/
+├── LocalModelService.ts           ← management facade: list/status/download/remove/readiness/GC
+├── catalog/
 │   ├── types.ts                   ← ModelBundle, SharedArtifact, InstallState
-│   ├── catalog.ts                 ← the single source of truth: every bundle and artifact
-│   ├── LocalModelRegistry.ts      ← what is installed now; artifact install/remove
-│   ├── BundleInstallManager.ts    ← one bundle's install lifecycle, generic over the catalog
-│   └── installers.ts              ← one manager per bundle, plus readiness and artifact GC
+│   └── catalog.ts                 ← the single source of truth: every bundle and artifact
 ├── acquisition/
 │   ├── modelSource.ts             ← HuggingFace / ModelScope mirror table
 │   ├── downloadEngine.ts          ← mirror fallback, streaming + sha256, atomic writes
 │   ├── bundleDownload.ts          ← a bundle's files: mirror order, weighted progress
 │   ├── derivations.ts             ← transforms applied to a fetched file before it lands
 │   └── tarballArtifact.ts         ← npm-published native runtimes
+├── installation/
+│   ├── LocalModelStorageService.ts ← disk state, installed paths, shared artifacts
+│   └── BundleInstaller.ts          ← one bundle's download/cancel/remove lifecycle
 ├── runtime/
 │   ├── InferenceServiceBase.ts    ← the worker host: spawn, queue, idle release, teardown
 │   ├── inferenceAcceleration.ts   ← platform → execution provider
-│   ├── pooling.ts                 ← mean pooling for the embedding worker
-│   ├── protocol/                  ← the main ↔ worker message types, one file per capability
-│   └── workerSource/              ← the worker script, assembled from capability modules
-├── EmbeddingInferenceService.ts   ← capability facade: embed / countTokens
-└── OcrInferenceService.ts         ← capability facade: recognize
+│   ├── protocol.ts                ← generic init/request/result/error envelopes
+│   └── worker/                    ← capability-neutral worker core and source builder
+└── capabilities/
+    ├── capabilityHooks.ts         ← removal behavior keyed by capability
+    ├── embedding/                 ← facade, protocol, pooling, worker module, limits
+    └── ocr/                       ← facade, protocol, model paths, worker module
 ```
 
 ## The catalog is the only per-model code
 
-Everything about a model is one entry in `registry/catalog.ts`. Nothing else in the
+Everything about a model is one entry in `catalog/catalog.ts`. Nothing else in the
 subsystem branches per model, which is the property that keeps a third or fourth model
 from adding a third or fourth copy of the download machinery.
 
@@ -78,7 +80,7 @@ Two words, deliberately distinct, both declared in `src/shared/data/presets/loca
 so the renderer can speak them too:
 
 - A **capability** is what a feature needs (`ocr`). Features gate on
-  `isLocalModelReady(capability)` and never name a bundle.
+  `localModelService.isReady(capability)` and never name a bundle.
 - A **bundle id** is what a user installs (`pp-ocrv6-medium`). It is the addressing key of
   the whole management plane — status, download, cancel, remove, progress events.
 
@@ -135,7 +137,7 @@ LFS pointers and captive-portal pages as a side effect.
 
 ## Install state comes from disk
 
-`LocalModelRegistry` derives state by scanning, and stores nothing. A recorded flag drifts
+`LocalModelStorageService` derives state by scanning, and stores nothing. A recorded flag drifts
 the moment a user clears a directory behind the app's back, and recovering from "the
 database says installed, the disk disagrees" is worse than the scan it would save.
 
@@ -162,9 +164,10 @@ on disk.
 
 ## Installing and removing
 
-`BundleInstallManager` owns one bundle's lifecycle — status, download with progress,
-cancellation, removal — and is generic over the catalog: a new model is an entry plus its
-hooks, not another copy of the machinery. `installers.ts` holds the instances.
+`BundleInstaller` owns one bundle's lifecycle — status, download with progress,
+cancellation, removal — and is generic over the catalog. `LocalModelService` creates one
+installer for every catalog entry and exposes the management API, so a new bundle does not
+need a second registration site.
 
 Downloads run shared runtimes first, then the bundle's own **missing** files, on one
 weighted progress scale. Two consequences worth keeping:
@@ -176,7 +179,7 @@ weighted progress scale. Two consequences worth keeping:
   may predate it entirely. Wiping them would turn a failed ~40MB runtime fetch into the loss
   of a complete ~614MB model.
 
-What a capability contributes is narrow, and only what the registry cannot know:
+What a capability contributes is narrow, and only what the generic installation layer cannot know:
 refusing removal while the model is still referenced, releasing the inference worker around
 the delete, and any housekeeping once the files are gone.
 
@@ -186,7 +189,7 @@ Removing a bundle has two independent questions, and they are answered in differ
 
 - **Is the bundle itself still in use?** A capability-specific concern — the embedding
   model checks whether any knowledge base still references it, and refuses if so. This
-  guard belongs with the capability, not with the registry.
+  guard belongs with the capability, not with the generic installation layer.
 - **Is a shared artifact still needed?** A structural question answered from `requires`:
   the artifact goes when no other installed bundle declares it.
 
@@ -222,27 +225,26 @@ Each host is a lifecycle service (`EmbeddingInferenceService`, `OcrInferenceServ
 
 ### Protocol
 
-`protocol/` holds structured-clone-safe types only: no class instances, no functions, no
-Electron types. That constraint is what keeps the host swappable — moving a capability to
-an Electron `utilityProcess` for crash isolation would touch the spawn/teardown internals
-and nothing else.
+`runtime/protocol.ts` owns the structured-clone-safe envelope only: init carries the
+capability and an artifact-path map; requests carry `capability`, `type`, `requestId`, and
+`payload`; responses carry a result, error, or log. Capability payload/result maps live
+beside their facade under `capabilities/<name>/protocol.ts`, so the common runtime never
+imports a union of every supported capability.
 
-Results are typed **per request type** (`InferenceResultPayloads`) rather than merged into
-one struct of optional fields, so a caller gets exactly its own payload and a new capability
-cannot widen what every other capability sees. `INFERENCE_RESULT_KEYS` declares which keys
-each request promises, and the host checks them on arrival: a handler that drops a field
-fails the request instead of resolving a caller with `undefined` where it declared a value —
-an empty embedding written into the index is silent and unrecoverable.
+Results are typed **per request type** rather than merged into one struct of optional fields,
+so a caller gets exactly its own payload. Each capability declares its own result keys, and
+the host checks them on arrival: a handler that drops a field fails the request instead of
+resolving a caller with `undefined` where it declared a value.
 
 ### Worker source
 
-The worker script is a **string**, assembled at import time from `workerCore` plus one
-module per capability and run with `eval: true`. It is not a separate entry file because
+Each worker script is a **string**, assembled at import time from `workerCore` plus exactly
+one capability module and run with `eval: true`. It is not a separate entry file because
 electron-vite bundles the main process with `inlineDynamicImports`, which cannot emit the
 extra chunk a `new Worker(path)` would need.
 
-`workerCore` knows nothing about embedding or OCR. Each capability module registers itself
-into a `CAPABILITIES` table keyed by request type:
+`workerCore` knows nothing about embedding or OCR. The selected capability module registers
+its request types in a `REQUEST_HANDLERS` table:
 
 | Hook | When it runs |
 |---|---|
@@ -250,9 +252,9 @@ into a `CAPABILITIES` table keyed by request type:
 | `prepare(msg)` | Setup that must **not** be retried — reading the image file, say, so a bad path is never blamed on the GPU |
 | `dispose()` | Releases that capability's cached sessions when a provider is abandoned |
 
-So adding a capability is a new module, not another branch in a dispatch chain — and the
-two places that previously had to know both capabilities at once (disposing every cache
-before a CPU retry, and OCR's non-retryable file read) are now that table's job.
+Adding a capability is therefore a new module, not another branch in a dispatch chain. Its
+production worker cannot load another capability's dependencies because that module is not
+part of its source string.
 
 ### Hardware fallback
 
@@ -279,7 +281,7 @@ handler and no component — only the catalog and the shared id list.
 
 ## Adding a model
 
-1. Add a `ModelBundle` to `registry/catalog.ts` — every file with a real `sha256`
+1. Add a `ModelBundle` to `catalog/catalog.ts` — every file with a real `sha256`
    (see [Obtaining a checksum](#obtaining-a-checksum)) and a `minBytes` floor.
 2. Add its install directory to the path registry as a `feature.*` key
    (see [paths/README](../../../src/main/core/paths/README.md)).
@@ -287,13 +289,13 @@ handler and no component — only the catalog and the shared id list.
    every platform it ships binaries for — omissions are what make a platform unsupported.
 4. Add its id — and, for a new capability, that capability and its bundle mapping — to
    `src/shared/data/presets/localModel.ts`.
-5. Add a `BundleInstallManager` for it in `registry/installers.ts`, with the hooks its
-   capability needs.
+5. For a new capability, add its removal hooks in `capabilities/capabilityHooks.ts`. A new
+   bundle for an existing capability needs no installer registration.
 6. For a new capability, add its card icon in `LocalModelsSection` and its `name`/`subtitle`
    i18n keys. An existing capability needs neither.
-7. For a new capability, add its request/result types under `runtime/protocol/`, a worker
-   module registering its `CAPABILITIES` entry, and a facade service over
-   `InferenceServiceBase`. A new bundle for an existing capability needs none of this.
+7. For a new capability, add a directory under `capabilities/` containing its request/result
+   maps, worker module, and facade service over `InferenceServiceBase`. A new bundle for an
+   existing capability needs none of this.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI

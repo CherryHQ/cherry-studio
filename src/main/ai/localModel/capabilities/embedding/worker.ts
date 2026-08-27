@@ -1,12 +1,22 @@
-import { l2normalize } from '../pooling'
+import { l2normalize } from './pooling'
 
 /**
  * The embedding capability inside the worker: transformers.js feature extraction, its
  * pipeline cache, and the two requests it answers. Registers itself into the core's
- * `CAPABILITIES` table — see `./workerCore.ts` for what a capability may contribute.
+ * `REQUEST_HANDLERS` table — see the runtime worker core for the handler contract.
  */
-export const embeddingWorkerModuleSource = `
+export const embeddingWorkerSource = `
 const embeddingPipelines = new Map() // key: modelDir|dtype -> Promise<extractor>
+let transformers = null
+
+function getTransformers() {
+  if (!transformers) {
+    const { createRequire } = require('node:module')
+    const projectRequire = createRequire((appPath || process.cwd()) + '/')
+    transformers = projectRequire('@huggingface/transformers')
+  }
+  return transformers
+}
 
 // Injected from pooling.ts (a single, unit-tested source) — the worker never imports
 // project modules, so the math is baked in at build time and cannot drift.
@@ -35,27 +45,29 @@ function getLocalPipeline(modelDir, dtype) {
   })
 }
 
-CAPABILITIES['embedding.embed'] = {
+REQUEST_HANDLERS.embed = {
   dispose: () => disposeCached(embeddingPipelines),
   handle: async (msg) => {
-    const extractor = await getLocalPipeline(msg.modelDir, msg.dtype)
+    const { modelDir, dtype, texts } = msg.payload
+    const extractor = await getLocalPipeline(modelDir, dtype)
     const embeddings = []
-    for (const text of msg.texts) {
+    for (const text of texts) {
       // pooling:'none' -> tensor of shape [batch=1, sequence, hidden].
       const output = await extractor(text, { pooling: 'none', normalize: false })
       const seq = output.dims[1]
       const tokens = output.tolist()[0]
       embeddings.push(l2normalize(tokens[seq - 1]))
     }
-    parentPort.postMessage({ type: 'result', id: msg.id, payload: { embeddings } })
+    postResult(msg, { embeddings })
   }
 }
 
-CAPABILITIES['embedding.countTokens'] = {
+REQUEST_HANDLERS.countTokens = {
   handle: async (msg) => {
-    const extractor = await getLocalPipeline(msg.modelDir, msg.dtype)
-    const tokenCounts = msg.texts.map((text) => extractor.tokenizer.encode(text, { add_special_tokens: true }).length)
-    parentPort.postMessage({ type: 'result', id: msg.id, payload: { tokenCounts } })
+    const { modelDir, dtype, texts } = msg.payload
+    const extractor = await getLocalPipeline(modelDir, dtype)
+    const tokenCounts = texts.map((text) => extractor.tokenizer.encode(text, { add_special_tokens: true }).length)
+    postResult(msg, { tokenCounts })
   }
 }
 `

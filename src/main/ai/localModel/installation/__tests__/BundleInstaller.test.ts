@@ -5,7 +5,7 @@ import path from 'node:path'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { BundleFile, ModelBundle } from '../types'
+import type * as CatalogTypesModule from '../../catalog/types'
 
 let rootDir: string
 
@@ -26,7 +26,7 @@ vi.mock('@application', async () => {
   return result
 })
 
-// Only the shared-artifact leaf is stubbed: the registry above it — path resolution and
+// Only the shared-artifact leaf is stubbed: the storage service above it — path resolution and
 // the on-disk scan that decides every status — stays real, against a temp directory.
 vi.mock('../../acquisition/tarballArtifact', () => ({
   isArtifactInstalled: artifactInstalled,
@@ -37,14 +37,16 @@ vi.mock('../../acquisition/tarballArtifact', () => ({
 
 vi.mock('../../acquisition/bundleDownload', () => ({ downloadBundleFiles }))
 
-// Pin to a supported platform so status and download are deterministic regardless of the
-// machine this runs on (the Intel Mac gate has its own test).
-vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
+// Pin the artifact support matrix to a supported platform; unsupported inference has its own test.
+vi.mock('../../catalog/types', async (importOriginal) => {
+  const actual = await importOriginal<typeof CatalogTypesModule>()
+  return { ...actual, currentPlatformKey: () => 'darwin-arm64' }
+})
 
 const { application } = await import('@application')
-const { BundleInstallManager } = await import('../BundleInstallManager')
+const { BundleInstaller } = await import('../BundleInstaller')
 
-const FILES: BundleFile[] = [
+const FILES: CatalogTypesModule.BundleFile[] = [
   {
     key: 'config',
     relPath: 'config.json',
@@ -65,7 +67,7 @@ const FILES: BundleFile[] = [
   }
 ]
 
-const BUNDLE: ModelBundle = {
+const BUNDLE: CatalogTypesModule.ModelBundle = {
   id: 'qwen3-embedding-0.6b',
   capability: 'embedding',
   installDirKey: 'feature.embedding.models',
@@ -80,10 +82,10 @@ let terminateRuntimeThen: ReturnType<typeof vi.fn>
 let acquireRemovalGuard: ReturnType<typeof vi.fn>
 let releaseRemovalGuard: ReturnType<typeof vi.fn>
 let afterRemove: ReturnType<typeof vi.fn>
-let manager: InstanceType<typeof BundleInstallManager>
+let manager: InstanceType<typeof BundleInstaller>
 
 function newManager() {
-  return new BundleInstallManager(BUNDLE, {
+  return new BundleInstaller(BUNDLE, {
     acquireRemovalGuard,
     terminateRuntimeThen,
     afterRemove
@@ -111,7 +113,7 @@ function broadcasts(): Array<{ status: string; percent: number; errorCode?: stri
 
 beforeEach(() => {
   vi.clearAllMocks()
-  rootDir = mkdtempSync(path.join(tmpdir(), 'bundle-install-manager-test-'))
+  rootDir = mkdtempSync(path.join(tmpdir(), 'bundle-installer-test-'))
   releaseRemovalGuard = vi.fn()
   acquireRemovalGuard = vi.fn(() => releaseRemovalGuard)
   afterRemove = vi.fn(async () => {})

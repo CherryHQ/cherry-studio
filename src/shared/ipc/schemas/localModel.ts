@@ -14,8 +14,8 @@ import { defineRoute } from '../define'
 /**
  * Local downloadable model IPC — drives the model cards in the Environment
  * Dependencies settings. Every lifecycle route is parameterized by the bundle `id`
- * and dispatches through the registry, so shipping another model adds a catalog
- * entry, not a route. `local_model.list` is what makes the cards registry-driven;
+ * and dispatches through the local-model facade, so shipping another model adds a catalog
+ * entry, not a route. `local_model.list` is what makes the cards catalog-driven;
  * the acceleration capability route reports platform support. Progress is pushed
  * back as a `download_progress` event tagged with the same `id`.
  *

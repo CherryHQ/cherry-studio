@@ -36,7 +36,7 @@ export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
  * download, cancel, remove and their progress events. Adding a model means adding an
  * id here and a catalog entry beside it, not another IPC route or another card.
  *
- * Kept in sync with `src/main/ai/localModel/registry/catalog.ts` by construction: the
+ * Kept in sync with `src/main/ai/localModel/catalog/catalog.ts` by construction: the
  * catalog's own bundle-id type is this one, so an unlisted id fails to typecheck.
  */
 export const LOCAL_MODEL_BUNDLE_IDS = ['qwen3-embedding-0.6b', 'pp-ocrv6-medium'] as const

@@ -5,8 +5,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { regionService } from '@main/services/RegionService'
 
-import type { ArtifactPlatformFiles, SharedArtifact } from '../registry/types'
-import { currentPlatformKey } from '../registry/types'
+import type { ArtifactPlatformFiles, SharedArtifact } from '../catalog/types'
+import { currentPlatformKey } from '../catalog/types'
 import { streamToFileVerified, withMirrorFallback } from './downloadEngine'
 
 const logger = loggerService.withContext('sharedArtifactAcquisition')
@@ -72,7 +72,7 @@ function tarballUrls(artifact: SharedArtifact, inChina: boolean): string[] {
 
 /**
  * Download and install the artifact for the current platform. Not idempotent by itself —
- * {@link LocalModelRegistry.ensureArtifact} owns the already-installed check and the
+ * {@link LocalModelStorageService.ensureArtifact} owns the already-installed check and the
  * coalescing of concurrent callers.
  */
 export async function installArtifact(

@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { BundleFile, ModelBundle } from '../../registry/types'
+import type { BundleFile, ModelBundle } from '../../catalog/types'
 import type * as DownloadEngineModule from '../downloadEngine'
 
 const { isInChina, streamToFileVerified, fetchTextVerified, writeFileAtomic } = vi.hoisted(() => ({

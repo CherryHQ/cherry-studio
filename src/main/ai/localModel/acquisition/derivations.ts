@@ -1,6 +1,6 @@
 import { parse } from 'yaml'
 
-import type { BundleFileDerivation } from '../registry/types'
+import type { BundleFileDerivation } from '../catalog/types'
 
 /**
  * Transforms applied to a fetched file before it lands on disk, for the cases where a

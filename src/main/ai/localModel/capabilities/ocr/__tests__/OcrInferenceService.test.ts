@@ -61,17 +61,17 @@ vi.mock('@application', async () => {
   return result
 })
 
-// Pin to a supported platform so the suite is deterministic regardless of the host.
-vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
+vi.mock('../../../installation/LocalModelStorageService', () => ({
+  localModelStorageService: {
+    resolveInstalledDir: () => '/models/paddleocr',
+    isArtifactReady: () => true,
+    isArtifactSupported: () => true,
+    artifactPath: () => '/runtime/onnxruntime_binding.node'
+  }
+}))
 
 const { OcrInferenceService } = await import('../OcrInferenceService')
 const ocrInferenceService = new OcrInferenceService()
-
-const MODEL_PATHS = {
-  detection: '/models/paddleocr/det.onnx',
-  recognition: '/models/paddleocr/rec.onnx',
-  charactersDictionary: '/models/paddleocr/dict.txt'
-}
 
 function bytes(text: string): Uint8Array {
   return new TextEncoder().encode(text)
@@ -96,7 +96,7 @@ afterAll(async () => {
 
 describe('OcrInferenceService.recognize', () => {
   it('feeds in-memory bytes straight to the engine, with no file on disk to read', async () => {
-    const result = await ocrInferenceService.recognize(MODEL_PATHS, { kind: 'bytes', imageBytes: bytes('from-memory') })
+    const result = await ocrInferenceService.recognize({ kind: 'bytes', imageBytes: bytes('from-memory') })
 
     expect(result.text).toBe('from-memory')
   })
@@ -105,13 +105,13 @@ describe('OcrInferenceService.recognize', () => {
     const imagePath = path.join(appRoot.path, 'page.bin')
     await writeFile(imagePath, 'from-disk')
 
-    const result = await ocrInferenceService.recognize(MODEL_PATHS, { kind: 'path', imagePath })
+    const result = await ocrInferenceService.recognize({ kind: 'path', imagePath })
 
     expect(result.text).toBe('from-disk')
   })
 
   it('delivers the engine boxes to the caller unchanged', async () => {
-    const result = await ocrInferenceService.recognize(MODEL_PATHS, { kind: 'bytes', imageBytes: bytes('boxed') })
+    const result = await ocrInferenceService.recognize({ kind: 'bytes', imageBytes: bytes('boxed') })
 
     // Boxes are what a selectable text layer is drawn from — losing or reshaping them
     // anywhere between the worker and here leaves the overlay with text and no geometry.
@@ -119,7 +119,7 @@ describe('OcrInferenceService.recognize', () => {
   })
 
   it('reports no boxes as an empty list, so callers never guard against null', async () => {
-    const result = await ocrInferenceService.recognize(MODEL_PATHS, { kind: 'bytes', imageBytes: bytes('no-lines') })
+    const result = await ocrInferenceService.recognize({ kind: 'bytes', imageBytes: bytes('no-lines') })
 
     expect(result.lines).toEqual([])
     expect(result.text).toBe('no-lines')
@@ -128,8 +128,6 @@ describe('OcrInferenceService.recognize', () => {
   it('fails a path source that does not exist instead of recognizing an empty image', async () => {
     const missing = path.join(appRoot.path, 'missing.png')
 
-    await expect(ocrInferenceService.recognize(MODEL_PATHS, { kind: 'path', imagePath: missing })).rejects.toThrow(
-      /ENOENT/
-    )
+    await expect(ocrInferenceService.recognize({ kind: 'path', imagePath: missing })).rejects.toThrow(/ENOENT/)
   })
 })

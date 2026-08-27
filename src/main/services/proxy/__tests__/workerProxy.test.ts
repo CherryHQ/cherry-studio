@@ -2,7 +2,8 @@ import http from 'node:http'
 import net from 'node:net'
 import { Worker } from 'node:worker_threads'
 
-import { inferenceWorkerSource } from '@main/ai/localModel/runtime/workerSource/buildWorkerSource'
+import { embeddingWorkerSource } from '@main/ai/localModel/capabilities/embedding/worker'
+import { buildInferenceWorkerSource } from '@main/ai/localModel/runtime/worker/buildWorkerSource'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createProxyBypassMatcher } from '../bypassRules'
@@ -11,6 +12,7 @@ import { configureWorkerProxy } from '../workerProxy'
 
 const servers: Array<http.Server | net.Server> = []
 const workers: Worker[] = []
+const inferenceWorkerSource = buildInferenceWorkerSource(embeddingWorkerSource)
 
 async function listen(server: http.Server | net.Server): Promise<number> {
   servers.push(server)

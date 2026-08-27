@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { regionService } from '@main/services/RegionService'
 
-import type { BundleFile, ModelBundle } from '../registry/types'
+import type { BundleFile, ModelBundle } from '../catalog/types'
 import { applyDerivation } from './derivations'
 import { fetchTextVerified, streamToFileVerified, withMirrorFallback, writeFileAtomic } from './downloadEngine'
 import { modelSourceOrder, resolveModelFileUrl } from './modelSource'

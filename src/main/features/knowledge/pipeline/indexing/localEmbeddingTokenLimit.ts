@@ -1,7 +1,5 @@
 import { application } from '@application'
 import { LOCAL_EMBEDDING_MAX_INPUT_TOKENS, LOCAL_EMBEDDING_MAX_OVERLAP_TOKENS } from '@main/ai/localModel'
-import { bundleDtype, bundleForCapability } from '@main/ai/localModel'
-import { currentModelDir } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { ChunkedKnowledgeContent } from './chunk'
@@ -30,13 +28,8 @@ export async function refineLocalEmbeddingChunks(
  * transitively requires onnxruntime-node's native binding (see
  * patches/onnxruntime-node@1.25.1.patch). */
 async function getLocalEmbeddingTokenCounter(signal?: AbortSignal): Promise<CountTokens> {
-  // Resolve the cache directory once: the worker may be recycled between counts (idle
-  // release), but it reloads from this same path, so it stays valid for the whole run.
-  const modelDir = currentModelDir()
   return async (text: string) => {
-    const [count] = await application
-      .get('EmbeddingInferenceService')
-      .countTokens([text], modelDir, bundleDtype(bundleForCapability('embedding')), signal)
+    const [count] = await application.get('EmbeddingInferenceService').countTokens([text], signal)
     return count
   }
 }

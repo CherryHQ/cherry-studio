@@ -5,9 +5,13 @@ import { Worker } from 'node:worker_threads'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import type { EmbeddingEmbedPayload } from '../../capabilities/embedding/protocol'
+import { embeddingWorkerSource } from '../../capabilities/embedding/worker'
+import type { OcrRecognizePayload } from '../../capabilities/ocr/protocol'
+import { ocrWorkerSource } from '../../capabilities/ocr/worker'
 import { resolveLocalInferenceProfile } from '../inferenceAcceleration'
-import type { InferenceRequest, InferenceResponse } from '../protocol/envelope'
-import { inferenceWorkerSource } from '../workerSource/buildWorkerSource'
+import type { InferenceRequestMessage, InferenceResponse, LocalInferenceRuntimeProfile } from '../protocol'
+import { buildInferenceWorkerSource } from '../worker/buildWorkerSource'
 
 const DIRECTML_PROFILE = resolveLocalInferenceProfile(true, { platform: 'win32', arch: 'x64' })
 const COREML_PROFILE = resolveLocalInferenceProfile(true, { platform: 'darwin', arch: 'arm64' })
@@ -77,6 +81,10 @@ export class PaddleOcrService {
 }
 `
 
+type TestRequest =
+  | InferenceRequestMessage<'embedding', 'embed', EmbeddingEmbedPayload>
+  | InferenceRequestMessage<'ocr', 'recognize', OcrRecognizePayload>
+
 let appPath: string
 let worker: Worker
 let messages: InferenceResponse[]
@@ -99,24 +107,64 @@ async function seedFakeDependencies(root: string): Promise<void> {
   ])
 }
 
-function startWorker(profile = DIRECTML_PROFILE): Worker {
-  const spawned = new Worker(inferenceWorkerSource, { eval: true })
+function startWorker(
+  capability: 'embedding' | 'ocr',
+  profile: LocalInferenceRuntimeProfile = DIRECTML_PROFILE
+): Worker {
+  const moduleSource = capability === 'embedding' ? embeddingWorkerSource : ocrWorkerSource
+  const spawned = new Worker(buildInferenceWorkerSource(moduleSource), { eval: true })
   messages = []
   spawned.on('message', (message: InferenceResponse) => messages.push(message))
   spawned.postMessage({
-    type: 'init',
+    kind: 'init',
+    capability,
     appPath,
-    onnxRuntimeBindingPath: '',
+    artifactPaths: {},
     proxyRouting: { version: 0, mode: 'direct' },
     runtimeProfile: profile
   })
   return spawned
 }
 
-function request(message: InferenceRequest): Promise<InferenceResponse> {
+async function switchWorker(
+  capability: 'embedding' | 'ocr',
+  profile: LocalInferenceRuntimeProfile = DIRECTML_PROFILE
+): Promise<void> {
+  await worker.terminate()
+  worker = startWorker(capability, profile)
+}
+
+function embeddingRequest(requestId: string, modelDir: string): TestRequest {
+  return {
+    kind: 'request',
+    capability: 'embedding',
+    type: 'embed',
+    requestId,
+    payload: { modelDir, dtype: 'q8', texts: ['hello'] }
+  }
+}
+
+function ocrRequest(requestId: string, detection: string, imagePath = import.meta.filename): TestRequest {
+  return {
+    kind: 'request',
+    capability: 'ocr',
+    type: 'recognize',
+    requestId,
+    payload: {
+      modelPaths: { detection, recognition: '/rec', charactersDictionary: '/dict' },
+      source: { kind: 'path', imagePath }
+    }
+  }
+}
+
+function request(message: TestRequest): Promise<InferenceResponse> {
   return new Promise((resolve, reject) => {
     const onMessage = (response: InferenceResponse) => {
-      if ('id' in response && response.id === message.id && (response.type === 'result' || response.type === 'error')) {
+      if (
+        'requestId' in response &&
+        response.requestId === message.requestId &&
+        (response.kind === 'result' || response.kind === 'error')
+      ) {
         worker.off('message', onMessage)
         resolve(response)
       }
@@ -128,13 +176,13 @@ function request(message: InferenceRequest): Promise<InferenceResponse> {
 }
 
 function workerLogs(): string[] {
-  return messages.filter((message) => message.type === 'log').map((message) => message.message)
+  return messages.filter((message) => message.kind === 'log').map((message) => message.message)
 }
 
 beforeEach(async () => {
   appPath = await mkdtemp(path.join(tmpdir(), 'cherry-inference-acceleration-'))
   await seedFakeDependencies(appPath)
-  worker = startWorker()
+  worker = startWorker('embedding')
 })
 
 afterEach(async () => {
@@ -143,145 +191,93 @@ afterEach(async () => {
 })
 
 describe('inference worker hardware acceleration', () => {
-  it('uses runtime-specific CoreML session options for embedding and OCR', async () => {
-    await worker.terminate()
-    worker = startWorker(COREML_PROFILE)
-
-    await expect(
-      request({ type: 'embedding.embed', id: 'embed', modelDir: '/hardware-ok', dtype: 'q8', texts: ['hello'] })
-    ).resolves.toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
-    await expect(
-      request({
-        type: 'ocr.recognize',
-        id: 'ocr',
-        modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-        source: { kind: 'path', imagePath: import.meta.filename }
-      })
-    ).resolves.toMatchObject({ type: 'result', payload: { text: 'hardware result' } })
-
+  it('uses runtime-specific CoreML session options for each capability worker', async () => {
+    await switchWorker('embedding', COREML_PROFILE)
+    await expect(request(embeddingRequest('embed', '/hardware-ok'))).resolves.toMatchObject({
+      kind: 'result',
+      payload: { embeddings: [[0.6, 0.8]] }
+    })
     expect(workerLogs()).toContain('hardware provider active provider=coreml runtime=embedding')
+
+    await switchWorker('ocr', COREML_PROFILE)
+    await expect(request(ocrRequest('ocr', '/hardware-ok'))).resolves.toMatchObject({
+      kind: 'result',
+      payload: { text: 'hardware result' }
+    })
     expect(workerLogs()).toContain('hardware provider active provider=coreml runtime=ocr')
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })
 
   it('uses DirectML session options for embedding', async () => {
-    await expect(
-      request({ type: 'embedding.embed', id: 'embed', modelDir: '/hardware-ok', dtype: 'q8', texts: ['hello'] })
-    ).resolves.toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
+    await expect(request(embeddingRequest('embed', '/hardware-ok'))).resolves.toMatchObject({
+      kind: 'result',
+      payload: { embeddings: [[0.6, 0.8]] }
+    })
 
     expect(workerLogs()).toContain('hardware provider active provider=directml runtime=embedding')
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })
 
   it('falls embedding back to CPU once and keeps CPU for the worker lifetime', async () => {
-    const first = await request({
-      type: 'embedding.embed',
-      id: 'first',
-      modelDir: '/hardware-fail',
-      dtype: 'q8',
-      texts: ['hello']
-    })
-    const second = await request({
-      type: 'embedding.embed',
-      id: 'second',
-      modelDir: '/hardware-fail-again',
-      dtype: 'q8',
-      texts: ['again']
-    })
+    const first = await request(embeddingRequest('first', '/hardware-fail'))
+    const second = await request(embeddingRequest('second', '/hardware-fail-again'))
 
-    expect(first).toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
-    expect(second).toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
+    expect(first).toMatchObject({ kind: 'result', payload: { embeddings: [[0.6, 0.8]] } })
+    expect(second).toMatchObject({ kind: 'result', payload: { embeddings: [[0.6, 0.8]] } })
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
   })
 
   it('logs disposal failures without blocking CPU fallback', async () => {
-    const response = await request({
-      type: 'embedding.embed',
-      id: 'dispose-fail',
-      modelDir: '/hardware-fail-dispose-fail',
-      dtype: 'q8',
-      texts: ['hello']
-    })
+    const response = await request(embeddingRequest('dispose-fail', '/hardware-fail-dispose-fail'))
 
-    expect(response).toMatchObject({ type: 'result', payload: { embeddings: [[0.6, 0.8]] } })
+    expect(response).toMatchObject({ kind: 'result', payload: { embeddings: [[0.6, 0.8]] } })
     expect(messages).toContainEqual({
-      type: 'log',
+      kind: 'log',
       level: 'warn',
       message: 'failed to dispose cached inference resource error=Error: embedding dispose failed'
     })
   })
 
-  it('uses DirectML for OCR and falls only that worker back to CPU on failure', async () => {
-    const hardware = await request({
-      type: 'ocr.recognize',
-      id: 'hardware',
-      modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-      source: { kind: 'path', imagePath: import.meta.filename }
-    })
-    const fallback = await request({
-      type: 'ocr.recognize',
-      id: 'fallback',
-      modelPaths: { detection: '/runtime-fail', recognition: '/rec', charactersDictionary: '/dict' },
-      source: { kind: 'path', imagePath: import.meta.filename }
-    })
+  it('uses DirectML for OCR and falls that capability worker back to CPU on failure', async () => {
+    await switchWorker('ocr')
+    const hardware = await request(ocrRequest('hardware', '/hardware-ok'))
+    const fallback = await request(ocrRequest('fallback', '/runtime-fail'))
 
-    expect(hardware).toMatchObject({ type: 'result', payload: { text: 'hardware result' } })
-    expect(fallback).toMatchObject({ type: 'result', payload: { text: 'cpu result' } })
+    expect(hardware).toMatchObject({ kind: 'result', payload: { text: 'hardware result' } })
+    expect(fallback).toMatchObject({ kind: 'result', payload: { text: 'cpu result' } })
     expect(workerLogs()).toContain('hardware provider active provider=directml runtime=ocr')
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
   })
 
   it('turns PaddleOCR internal fallback into sticky worker-level CPU fallback', async () => {
-    const fallback = await request({
-      type: 'ocr.recognize',
-      id: 'internal-fallback',
-      modelPaths: { detection: '/initialize-fallback', recognition: '/rec', charactersDictionary: '/dict' },
-      source: { kind: 'path', imagePath: import.meta.filename }
-    })
-    const nextModel = await request({
-      type: 'ocr.recognize',
-      id: 'next-model',
-      modelPaths: { detection: '/hardware-ok-after-fallback', recognition: '/rec', charactersDictionary: '/dict' },
-      source: { kind: 'path', imagePath: import.meta.filename }
-    })
+    await switchWorker('ocr')
+    const fallback = await request(ocrRequest('internal-fallback', '/initialize-fallback'))
+    const nextModel = await request(ocrRequest('next-model', '/hardware-ok-after-fallback'))
 
-    expect(fallback).toMatchObject({ type: 'result', payload: { text: 'cpu result' } })
-    expect(nextModel).toMatchObject({ type: 'result', payload: { text: 'cpu result' } })
+    expect(fallback).toMatchObject({ kind: 'result', payload: { text: 'cpu result' } })
+    expect(nextModel).toMatchObject({ kind: 'result', payload: { text: 'cpu result' } })
     expect(workerLogs()).not.toContain('hardware provider active provider=directml runtime=ocr')
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
     expect(workerLogs().some((message) => message.includes('OCR session hardware provider failed'))).toBe(true)
   })
 
   it('reports unreadable OCR images without disabling hardware acceleration', async () => {
-    const unreadable = await request({
-      type: 'ocr.recognize',
-      id: 'unreadable',
-      modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-      source: { kind: 'path', imagePath: path.join(appPath, 'missing.png') }
-    })
-    const next = await request({
-      type: 'ocr.recognize',
-      id: 'next',
-      modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-      source: { kind: 'path', imagePath: import.meta.filename }
-    })
+    await switchWorker('ocr')
+    const unreadable = await request(ocrRequest('unreadable', '/hardware-ok', path.join(appPath, 'missing.png')))
+    const next = await request(ocrRequest('next', '/hardware-ok'))
 
-    expect(unreadable).toMatchObject({ type: 'error' })
+    expect(unreadable).toMatchObject({ kind: 'error' })
     expect(unreadable).toHaveProperty('message', expect.stringContaining('ENOENT'))
     expect(unreadable).toHaveProperty('message', expect.not.stringContaining('hardware inference failed'))
-    expect(next).toMatchObject({ type: 'result', payload: { text: 'hardware result' } })
+    expect(next).toMatchObject({ kind: 'result', payload: { text: 'hardware result' } })
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })
 
   it('reports both hardware and CPU errors when the fallback also fails', async () => {
-    const response = await request({
-      type: 'ocr.recognize',
-      id: 'both-fail',
-      modelPaths: { detection: '/both-fail', recognition: '/rec', charactersDictionary: '/dict' },
-      source: { kind: 'path', imagePath: import.meta.filename }
-    })
+    await switchWorker('ocr')
+    const response = await request(ocrRequest('both-fail', '/both-fail'))
 
-    expect(response).toMatchObject({ type: 'error' })
+    expect(response).toMatchObject({ kind: 'error' })
     expect(response).toHaveProperty('message', expect.stringContaining('ocr failed on dml'))
     expect(response).toHaveProperty('message', expect.stringContaining('ocr failed on cpu'))
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)

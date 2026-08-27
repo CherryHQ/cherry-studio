@@ -7,7 +7,7 @@
  * pooling.
  *
  * Single source of the algorithm: the worker runs as an eval'd string and cannot
- * import project modules, so `inferenceWorkerSource.ts` bakes this exact function
+ * import project modules, so the embedding worker source bakes this exact function
  * into the worker source via `.toString()`. Keeping it here (not inlined in the
  * worker) is what keeps the executed copy unit-tested.
  */

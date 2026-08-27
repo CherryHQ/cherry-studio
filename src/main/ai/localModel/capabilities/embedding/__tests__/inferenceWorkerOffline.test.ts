@@ -5,9 +5,10 @@ import { Worker } from 'node:worker_threads'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { CPU_LOCAL_INFERENCE_PROFILE } from '../inferenceAcceleration'
-import type { InferenceResponse } from '../protocol/envelope'
-import { inferenceWorkerSource } from '../workerSource/buildWorkerSource'
+import { CPU_LOCAL_INFERENCE_PROFILE } from '../../../runtime/inferenceAcceleration'
+import type { InferenceResponse } from '../../../runtime/protocol'
+import { buildInferenceWorkerSource } from '../../../runtime/worker/buildWorkerSource'
+import { embeddingWorkerSource } from '../worker'
 
 /**
  * These run the production worker source against the REAL `@huggingface/transformers`,
@@ -35,6 +36,8 @@ let appPath: string
 let cacheDir: string
 let worker: Worker
 let workerMessages: InferenceResponse[]
+
+const inferenceWorkerSource = buildInferenceWorkerSource(embeddingWorkerSource)
 
 /** Minimal but structurally valid tokenizer — the real 11MB one cannot live in the repo. */
 const TOKENIZER_JSON = JSON.stringify({
@@ -85,10 +88,10 @@ async function seedModelScopeCache(): Promise<string> {
 }
 
 async function request(message: Record<string, unknown>): Promise<InferenceResponse> {
-  const id = String(message.id)
+  const requestId = String(message.requestId)
   return await new Promise((resolve, reject) => {
     const onMessage = (response: InferenceResponse) => {
-      if ('id' in response && response.id === id) {
+      if ('requestId' in response && response.requestId === requestId) {
         worker.off('error', reject)
         worker.off('message', onMessage)
         resolve(response)
@@ -123,9 +126,10 @@ function startWorker(): Worker {
   workerMessages = []
   spawned.on('message', (message: InferenceResponse) => workerMessages.push(message))
   spawned.postMessage({
-    type: 'init',
+    kind: 'init',
+    capability: 'embedding',
     appPath,
-    onnxRuntimeBindingPath: '',
+    artifactPaths: {},
     runtimeProfile: CPU_LOCAL_INFERENCE_PROFILE,
     proxyRouting: { version: 0, mode: 'direct' }
   })
@@ -134,7 +138,7 @@ function startWorker(): Worker {
 
 function workerLog(): string {
   return workerMessages
-    .filter((message) => message.type === 'log')
+    .filter((message) => message.kind === 'log')
     .map((message) => (message as { message: string }).message)
     .join('\n')
 }
@@ -157,41 +161,47 @@ describe('inference worker offline embedding', () => {
     const modelDir = await seedModelScopeCache()
 
     const response = await request({
-      type: 'embedding.embed',
-      id: 'embed',
-      modelDir,
-      dtype: 'q8',
-      texts: ['hello world']
+      kind: 'request',
+      capability: 'embedding',
+      type: 'embed',
+      requestId: 'embed',
+      payload: { modelDir, dtype: 'q8', texts: ['hello world'] }
     })
 
     // The stub weights cannot produce vectors, so this fails inside onnxruntime — the
     // point is WHERE it fails. Reaching the ONNX session means discovery found
     // config.json, tokenizer.json and tokenizer_config.json under `master/` without a
     // single request, which is what the old repo-id + revision path could not do.
-    expect(response.type).toBe('error')
+    expect(response.kind).toBe('error')
     expect(JSON.stringify(response)).not.toContain(NETWORK_TRIPWIRE)
     expect(workerLog()).not.toContain(NETWORK_TRIPWIRE)
   })
 
   it('fails without touching the network when the cache is missing entirely', async () => {
     const response = await request({
-      type: 'embedding.embed',
-      id: 'missing',
-      modelDir: path.join(cacheDir, 'never', 'downloaded'),
-      dtype: 'q8',
-      texts: ['hello world']
+      kind: 'request',
+      capability: 'embedding',
+      type: 'embed',
+      requestId: 'missing',
+      payload: { modelDir: path.join(cacheDir, 'never', 'downloaded'), dtype: 'q8', texts: ['hello world'] }
     })
 
     // An absolute model id makes transformers.js reject the id before any request, so a
     // missing cache surfaces as a local-file error rather than a connection timeout —
     // which is what an unreachable proxy would otherwise turn this into.
-    expect(response.type).toBe('error')
+    expect(response.kind).toBe('error')
     expect(JSON.stringify(response)).not.toContain(NETWORK_TRIPWIRE)
   })
 
   it('reloads from disk after the worker is recycled', async () => {
     const modelDir = await seedModelScopeCache()
-    await request({ type: 'embedding.embed', id: 'first', modelDir, dtype: 'q8', texts: ['hello'] })
+    await request({
+      kind: 'request',
+      capability: 'embedding',
+      type: 'embed',
+      requestId: 'first',
+      payload: { modelDir, dtype: 'q8', texts: ['hello'] }
+    })
 
     // Idle release / a proxy change terminates the worker, dropping the in-memory
     // pipeline. The rebuilt worker must still resolve everything locally — relying on
@@ -200,14 +210,14 @@ describe('inference worker offline embedding', () => {
     worker = startWorker()
 
     const response = await request({
-      type: 'embedding.countTokens',
-      id: 'after-restart',
-      modelDir,
-      dtype: 'q8',
-      texts: ['hello']
+      kind: 'request',
+      capability: 'embedding',
+      type: 'countTokens',
+      requestId: 'after-restart',
+      payload: { modelDir, dtype: 'q8', texts: ['hello'] }
     })
 
-    expect(response.type).toBe('error')
+    expect(response.kind).toBe('error')
     expect(JSON.stringify(response)).not.toContain(NETWORK_TRIPWIRE)
     expect(workerLog()).not.toContain(NETWORK_TRIPWIRE)
   })

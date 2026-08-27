@@ -2,14 +2,13 @@ import fs from 'node:fs'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDarwinX64 } from '@main/core/platform'
 import type { LocalModelDownloadResult, LocalModelErrorCode, LocalModelStatus } from '@shared/data/presets/localModel'
 
 import { downloadBundleFiles } from '../acquisition/bundleDownload'
-import { localModelRegistry } from './LocalModelRegistry'
-import type { ModelBundle } from './types'
+import type { ModelBundle } from '../catalog/types'
+import { localModelStorageService } from './LocalModelStorageService'
 
-const logger = loggerService.withContext('BundleInstallManager')
+const logger = loggerService.withContext('BundleInstaller')
 
 /** Progress / terminal-state payload broadcast to the renderer download cards. */
 interface LocalModelDownloadProgress {
@@ -20,7 +19,7 @@ interface LocalModelDownloadProgress {
 
 /**
  * What a capability contributes to installing and removing its own bundle. Everything
- * here is a question only the capability can answer — the manager owns the rest.
+ * here is a question only the capability can answer — the installer owns the rest.
  */
 export interface CapabilityHooks {
   /**
@@ -48,7 +47,7 @@ export interface CapabilityHooks {
  * Stateless across restarts: only the latest failure is held in memory so the UI can
  * recover during this run. Afterwards the files on disk are the whole truth.
  */
-export class BundleInstallManager {
+export class BundleInstaller {
   private downloading = false
   private abortController: AbortController | null = null
   /** The single active download; concurrent callers await the same terminal result. */
@@ -67,13 +66,11 @@ export class BundleInstallManager {
 
   /** {@link getStatus} plus why an `error` status arose, for the cards' notice text. */
   getStatusInfo(): { status: LocalModelStatus; errorCode?: LocalModelErrorCode } {
-    // Unconditional on Intel Mac — the cards hide instead of offering a download that
-    // would fail once it reaches the inference worker.
-    if (isDarwinX64) return { status: 'unsupported' }
+    if (!localModelStorageService.isBundleSupported(this.bundle)) return { status: 'unsupported' }
     if (this.downloading) return { status: 'downloading' }
     if (this.lastDownloadFailed) return { status: 'error', errorCode: 'download_failed' }
 
-    const state = localModelRegistry.scanBundleFiles(this.bundle)
+    const state = localModelStorageService.scanBundleFiles(this.bundle)
     switch (state.status) {
       case 'installed':
         // Complete files without the shared runtime read as not-downloaded, not as an
@@ -94,14 +91,12 @@ export class BundleInstallManager {
   }
 
   private artifactsReady(): boolean {
-    return this.bundle.requires.every((id) => localModelRegistry.isArtifactReady(id))
+    return this.bundle.requires.every((id) => localModelStorageService.isArtifactReady(id))
   }
 
   async download(): Promise<LocalModelDownloadResult> {
-    // Guarded here too, not just in getStatusInfo: the cards hide on Intel Mac, but a
-    // caller reaching download() directly would otherwise write unusable files to disk.
-    if (isDarwinX64) {
-      throw new Error(`Local ${this.bundle.capability} model download is not supported on Intel Mac (darwin x64).`)
+    if (!localModelStorageService.isBundleSupported(this.bundle)) {
+      throw new Error(`Local ${this.bundle.capability} model download is not supported on this platform.`)
     }
     // Coalesce concurrent callers — the settings card and the KB download entry hit the
     // same singleton. Both await the SAME download, so neither resolves (and runs its
@@ -148,9 +143,9 @@ export class BundleInstallManager {
    * into the loss of a complete ~614MB model.
    */
   private async performDownload(signal: AbortSignal): Promise<void> {
-    const pending = localModelRegistry.pendingBundleFiles(this.bundle)
+    const pending = localModelStorageService.pendingBundleFiles(this.bundle)
     const artifactWeight = this.bundle.requires.reduce(
-      (sum, id) => sum + (localModelRegistry.isArtifactReady(id) ? 0 : SHARED_ARTIFACT_WEIGHT),
+      (sum, id) => sum + (localModelStorageService.isArtifactReady(id) ? 0 : SHARED_ARTIFACT_WEIGHT),
       0
     )
     const filesWeight = pending.reduce((sum, file) => sum + file.weight, 0)
@@ -162,9 +157,9 @@ export class BundleInstallManager {
     }
 
     for (const id of this.bundle.requires) {
-      if (localModelRegistry.isArtifactReady(id)) continue
+      if (localModelStorageService.isArtifactReady(id)) continue
       const base = doneWeight
-      await localModelRegistry.ensureArtifact(id, signal, (fraction) =>
+      await localModelStorageService.ensureArtifact(id, signal, (fraction) =>
         report(base + SHARED_ARTIFACT_WEIGHT * fraction)
       )
       doneWeight += SHARED_ARTIFACT_WEIGHT
@@ -175,7 +170,7 @@ export class BundleInstallManager {
       const base = doneWeight
       await downloadBundleFiles(this.bundle, pending, {
         signal,
-        installDir: localModelRegistry.bundleInstallDir(this.bundle),
+        installDir: localModelStorageService.bundleInstallDir(this.bundle),
         onProgress: (fraction) => report(base + filesWeight * fraction)
       })
     }
@@ -202,7 +197,7 @@ export class BundleInstallManager {
       // Reset dependent settings before the files go: a preference still pointing at this
       // model would break every consumer of it, with no self-heal.
       await this.hooks.afterRemove?.()
-      const root = localModelRegistry.bundleRootDir(this.bundle)
+      const root = localModelStorageService.bundleRootDir(this.bundle)
       await this.hooks.terminateRuntimeThen(() => fs.promises.rm(root, { recursive: true, force: true }))
       return { removed: true }
     } finally {

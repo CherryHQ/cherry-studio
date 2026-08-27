@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ModelBundle } from '../types'
+import type { ModelBundle } from '../../catalog/types'
 
 let installDir: string
 
@@ -19,7 +19,7 @@ vi.mock('@application', async () => {
   return result
 })
 
-const { localModelRegistry } = await import('../LocalModelRegistry')
+const { localModelStorageService } = await import('../LocalModelStorageService')
 
 const BUNDLE: ModelBundle = {
   id: 'pp-ocrv6-medium',
@@ -42,27 +42,27 @@ function writeBundleFile(relPath: string, size: number): void {
 }
 
 beforeEach(() => {
-  installDir = mkdtempSync(path.join(tmpdir(), 'local-model-registry-test-'))
+  installDir = mkdtempSync(path.join(tmpdir(), 'local-model-storage-test-'))
 })
 
 afterEach(() => rmSync(installDir, { recursive: true, force: true }))
 
 describe('scanBundleFiles', () => {
   it('reports not_installed when nothing is on disk', () => {
-    expect(localModelRegistry.scanBundleFiles(BUNDLE)).toEqual({ status: 'not_installed' })
+    expect(localModelStorageService.scanBundleFiles(BUNDLE)).toEqual({ status: 'not_installed' })
   })
 
   it('reports installed once every file is present and large enough', () => {
     writeBundleFile('a.onnx', 20)
     writeBundleFile('nested/b.onnx', 20)
 
-    expect(localModelRegistry.scanBundleFiles(BUNDLE)).toEqual({ status: 'installed' })
+    expect(localModelStorageService.scanBundleFiles(BUNDLE)).toEqual({ status: 'installed' })
   })
 
   it('reports which files are missing when only some arrived', () => {
     writeBundleFile('a.onnx', 20)
 
-    expect(localModelRegistry.scanBundleFiles(BUNDLE)).toEqual({
+    expect(localModelStorageService.scanBundleFiles(BUNDLE)).toEqual({
       status: 'incomplete',
       missingFiles: ['nested/b.onnx']
     })
@@ -74,7 +74,7 @@ describe('scanBundleFiles', () => {
     // as installed would surface as an unreadable model at inference time instead.
     writeBundleFile('nested/b.onnx', 1)
 
-    expect(localModelRegistry.scanBundleFiles(BUNDLE)).toEqual({
+    expect(localModelStorageService.scanBundleFiles(BUNDLE)).toEqual({
       status: 'incomplete',
       missingFiles: ['nested/b.onnx']
     })
@@ -84,7 +84,7 @@ describe('scanBundleFiles', () => {
     writeBundleFile('a.onnx', 20)
     mkdirSync(path.join(installDir, 'nested', 'b.onnx'), { recursive: true })
 
-    expect(localModelRegistry.scanBundleFiles(BUNDLE).status).toBe('incomplete')
+    expect(localModelStorageService.scanBundleFiles(BUNDLE).status).toBe('incomplete')
   })
 })
 
@@ -94,7 +94,7 @@ describe('resolveInstalledDir', () => {
     writeBundleFile('model/nested/b.onnx', 20)
     writeBundleFile('model/master/a.onnx', 20)
 
-    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model'))
+    expect(localModelStorageService.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model'))
     expect(existsSync(path.join(installDir, 'model/master/a.onnx'))).toBe(true)
   })
 
@@ -102,7 +102,7 @@ describe('resolveInstalledDir', () => {
     writeBundleFile('model/master/a.onnx', 20)
     writeBundleFile('model/master/nested/b.onnx', 20)
 
-    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model'))
+    expect(localModelStorageService.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model'))
     expect(existsSync(path.join(installDir, 'model/nested/b.onnx'))).toBe(true)
     expect(existsSync(path.join(installDir, 'model/master'))).toBe(false)
   })
@@ -111,7 +111,7 @@ describe('resolveInstalledDir', () => {
     writeBundleFile('model/master/a.onnx', 20)
     writeBundleFile('model/master/nested/b.onnx', 20)
 
-    expect(localModelRegistry.scanBundleFiles(LEGACY_BUNDLE)).toEqual({ status: 'installed' })
+    expect(localModelStorageService.scanBundleFiles(LEGACY_BUNDLE)).toEqual({ status: 'installed' })
   })
 
   it('serves the legacy install in place when the lift cannot complete', () => {
@@ -122,13 +122,13 @@ describe('resolveInstalledDir', () => {
     writeBundleFile('model/master/nested/b.onnx', 20)
     mkdirSync(path.join(installDir, 'model', 'a.onnx', 'blocker'), { recursive: true })
 
-    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model/master'))
+    expect(localModelStorageService.resolveInstalledDir(LEGACY_BUNDLE)).toBe(path.join(installDir, 'model/master'))
     expect(existsSync(path.join(installDir, 'model/master/a.onnx'))).toBe(true)
   })
 
   it('returns null when neither layout holds a complete install', () => {
     writeBundleFile('model/master/a.onnx', 20)
 
-    expect(localModelRegistry.resolveInstalledDir(LEGACY_BUNDLE)).toBeNull()
+    expect(localModelStorageService.resolveInstalledDir(LEGACY_BUNDLE)).toBeNull()
   })
 })

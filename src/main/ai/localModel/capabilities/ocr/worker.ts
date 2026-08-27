@@ -1,10 +1,21 @@
 /**
  * The OCR capability inside the worker: ppu-paddle-ocr, its service cache, and the one
- * request it answers. Registers itself into the core's `CAPABILITIES` table — see
- * `./workerCore.ts` for what a capability may contribute.
+ * request it answers. Registers itself into the runtime core's `REQUEST_HANDLERS` table.
  */
-export const ocrWorkerModuleSource = `
+export const ocrWorkerSource = `
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
+let ppu = null
+
+async function getPpu() {
+  if (!ppu) {
+    const { createRequire } = require('node:module')
+    const { pathToFileURL } = require('node:url')
+    const projectRequire = createRequire((appPath || process.cwd()) + '/')
+    const entry = projectRequire.resolve('ppu-paddle-ocr')
+    ppu = await import(pathToFileURL(entry).href)
+  }
+  return ppu
+}
 
 function getPaddleService(modelPaths) {
   const key = modelPaths.detection + '|' + modelPaths.recognition + '|' + modelPaths.charactersDictionary
@@ -40,23 +51,21 @@ function getPaddleService(modelPaths) {
   })
 }
 
-CAPABILITIES['ocr.recognize'] = {
+REQUEST_HANDLERS.recognize = {
   dispose: () => disposeCached(paddleServices),
   // Reading the image is request setup, not inference: a missing file must fail once
   // rather than be blamed on the hardware provider and retried on CPU.
   prepare: (msg) =>
-    msg.source.kind === 'bytes' ? msg.source.imageBytes : require('node:fs').readFileSync(msg.source.imagePath),
+    msg.payload.source.kind === 'bytes'
+      ? msg.payload.source.imageBytes
+      : require('node:fs').readFileSync(msg.payload.source.imagePath),
   handle: async (msg, buffer) => {
-    const service = await getPaddleService(msg.modelPaths)
+    const service = await getPaddleService(msg.payload.modelPaths)
     const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
     const result = await service.recognize(arrayBuffer)
     // Normalized here so callers never branch on null: the engine reports no runs as
     // absent fields, and the protocol promises both.
-    parentPort.postMessage({
-      type: 'result',
-      id: msg.id,
-      payload: { text: result.text || '', lines: result.lines || [] }
-    })
+    postResult(msg, { text: result.text || '', lines: result.lines || [] })
   }
 }
 `

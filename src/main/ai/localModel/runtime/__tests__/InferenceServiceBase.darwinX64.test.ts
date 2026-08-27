@@ -14,16 +14,21 @@ vi.mock('node:worker_threads', () => ({
   Worker: WorkerCtor
 }))
 
-// Intel Mac: onnxruntime-node ships no darwin-x64 binding — the single worker
-// spawn point must refuse before it ever constructs a Worker.
-vi.mock('@main/core/platform', () => ({ isDarwinX64: true }))
+// Intel Mac is represented by the catalog artifact matrix: onnxruntime-node has no
+// darwin-x64 leaf, so the shared spawn point refuses before constructing a Worker.
+vi.mock('../../installation/LocalModelStorageService', () => ({
+  localModelStorageService: {
+    resolveInstalledDir: () => '/models/local',
+    isArtifactReady: () => true,
+    isArtifactSupported: () => false,
+    artifactPath: () => '/missing'
+  }
+}))
 
-const { EmbeddingInferenceService } = await import('../../EmbeddingInferenceService')
-const { OcrInferenceService } = await import('../../OcrInferenceService')
+const { EmbeddingInferenceService } = await import('../../capabilities/embedding/EmbeddingInferenceService')
+const { OcrInferenceService } = await import('../../capabilities/ocr/OcrInferenceService')
 const embeddingInferenceService = new EmbeddingInferenceService()
 const ocrInferenceService = new OcrInferenceService()
-
-const MODEL_DIR = '/models/qwen3-embedding/org/model'
 
 describe('InferenceService on darwin-x64', () => {
   beforeEach(() => {
@@ -31,22 +36,19 @@ describe('InferenceService on darwin-x64', () => {
   })
 
   it('rejects embed without spawning a worker', async () => {
-    await expect(embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceService.embed(['hi'])).rejects.toThrow(/not supported.*onnxruntime-node/i)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 
   it('rejects countTokens without spawning a worker', async () => {
-    await expect(embeddingInferenceService.countTokens(['hi'], MODEL_DIR, 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceService.countTokens(['hi'])).rejects.toThrow(/not supported.*onnxruntime-node/i)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 
   it('rejects recognize (OCR) without spawning a worker', async () => {
-    await expect(
-      ocrInferenceService.recognize(
-        { detection: '/a', recognition: '/b', charactersDictionary: '/c' },
-        { kind: 'path', imagePath: '/img.png' }
-      )
-    ).rejects.toThrow(/darwin x64/)
+    await expect(ocrInferenceService.recognize({ kind: 'path', imagePath: '/img.png' })).rejects.toThrow(
+      /not supported.*onnxruntime-node/i
+    )
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 })

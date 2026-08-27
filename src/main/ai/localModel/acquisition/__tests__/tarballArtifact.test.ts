@@ -5,7 +5,7 @@ import path from 'node:path'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as CatalogModule from '../../registry/catalog'
+import type * as CatalogModule from '../../catalog/catalog'
 
 const FAKE_PLATFORM = 'linux'
 const FAKE_ARCH = 'x64'
@@ -54,12 +54,12 @@ vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } })
 // what a real extraction would produce: the platform's files under `cwd`.
 vi.mock('tar', () => ({ extract: extractMock }))
 
-vi.mock('../../registry/catalog', async (importOriginal) => {
+vi.mock('../../catalog/catalog', async (importOriginal) => {
   const actual = await importOriginal<typeof CatalogModule>()
   return { ...actual, getSharedArtifact: () => FIXTURE_ARTIFACT }
 })
 
-const { localModelRegistry } = await import('../../registry/LocalModelRegistry')
+const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
 const { artifactEntryPath, isArtifactSupported } = await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
@@ -76,8 +76,9 @@ function tarballResponse(content: Buffer) {
   }
 }
 
-const ensure = (signal = new AbortController().signal) => localModelRegistry.ensureArtifact('onnxruntime-node', signal)
-const isReady = () => localModelRegistry.isArtifactReady('onnxruntime-node')
+const ensure = (signal = new AbortController().signal) =>
+  localModelStorageService.ensureArtifact('onnxruntime-node', signal)
+const isReady = () => localModelStorageService.isArtifactReady('onnxruntime-node')
 
 describe('shared artifact acquisition', () => {
   const originalPlatform = process.platform
@@ -212,13 +213,13 @@ describe('shared artifact acquisition', () => {
     it('deletes the installed binary', async () => {
       await ensure()
 
-      await localModelRegistry.removeArtifact('onnxruntime-node')
+      await localModelStorageService.removeArtifact('onnxruntime-node')
 
       expect(isReady()).toBe(false)
     })
 
     it('is a no-op when the binary was never downloaded', async () => {
-      await expect(localModelRegistry.removeArtifact('onnxruntime-node')).resolves.toBeUndefined()
+      await expect(localModelStorageService.removeArtifact('onnxruntime-node')).resolves.toBeUndefined()
     })
   })
 })

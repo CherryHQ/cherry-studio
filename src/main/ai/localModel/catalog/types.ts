@@ -2,9 +2,9 @@ import type { PathKey } from '@main/core/paths/pathRegistry'
 import type { LocalModelBundleId, LocalModelCapability } from '@shared/data/presets/localModel'
 
 /**
- * Vocabulary of the local-model registry: *what* can be installed, *where* its
+ * Vocabulary of the local-model catalog: *what* can be installed, *where* its
  * bytes come from, and *whether* they are on disk right now. Data shapes only —
- * fetching lives in `../acquisition`, state in `./LocalModelRegistry`.
+ * fetching lives in `../acquisition`, state in `../installation/LocalModelStorageService`.
  */
 
 /** `${process.platform}-${process.arch}`, e.g. `darwin-arm64`. */
@@ -81,7 +81,7 @@ export interface BundleFile {
 }
 
 /**
- * The unit users install, and the registry's first-class citizen: one capability's
+ * The unit users install, and the catalog's first-class citizen: one capability's
  * files fetched, verified, reported and removed together. A capability rarely maps to
  * a single file — OCR already needs detection + recognition + dictionary.
  */

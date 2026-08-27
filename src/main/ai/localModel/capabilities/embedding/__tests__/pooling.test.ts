@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildInferenceWorkerSource } from '../../../runtime/worker/buildWorkerSource'
 import { l2normalize } from '../pooling'
-import { inferenceWorkerSource } from '../workerSource/buildWorkerSource'
+import { embeddingWorkerSource } from '../worker'
 
 describe('pooling', () => {
   it('l2normalize returns a unit vector', () => {
@@ -20,7 +21,8 @@ describe('pooling', () => {
     // The worker runs as an eval'd string and cannot import project modules, so this
     // function is injected via `.toString()`. Pin that the executed copy IS this tested
     // one — if someone re-inlines a divergent copy, this fails.
-    expect(inferenceWorkerSource).toContain(l2normalize.toString())
-    expect(inferenceWorkerSource).toContain('const l2normalize =')
+    const workerSource = buildInferenceWorkerSource(embeddingWorkerSource)
+    expect(workerSource).toContain(l2normalize.toString())
+    expect(workerSource).toContain('const l2normalize =')
   })
 })

@@ -84,8 +84,7 @@ src/main/ai/
 │   └── servers/                  ← in-memory MCP server implementations (browser, filesystem)
 ├── skills/                       ← SkillService, SkillInstaller
 ├── contextBuild/                 ← context-window policy, compression, persisted tool output
-├── inference/                    ← local embedding/OCR inference workers
-├── localModel/                   ← local model catalog, install registry, verified acquisition
+├── localModel/                   ← local model catalog, acquisition, installation, capability workers
 ├── tokens/                       ← token estimation and modality profiles
 ├── tools/                        ← unified tool registry
 │   └── adapters/
