@@ -343,6 +343,35 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   })
 
+  it('preserves managed CLI paths from the login-shell environment', async () => {
+    mocks.getShellEnv.mockResolvedValue({
+      PATH: '/managed/shims:/usr/bin',
+      MISE_DATA_DIR: '/managed',
+      MISE_CONFIG_DIR: '/managed/config',
+      MISE_CACHE_DIR: '/managed/cache',
+      MISE_STATE_DIR: '/managed/state',
+      MISE_SHIMS_DIR: '/managed/shims'
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      PATH: '/managed/shims:/usr/bin',
+      MISE_DATA_DIR: '/managed',
+      MISE_CONFIG_DIR: '/managed/config',
+      MISE_CACHE_DIR: '/managed/cache',
+      MISE_STATE_DIR: '/managed/state',
+      MISE_SHIMS_DIR: '/managed/shims'
+    })
+  })
+
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
     'captures %s duration through the live Agent runtime owner',
     async (hookEventName) => {
