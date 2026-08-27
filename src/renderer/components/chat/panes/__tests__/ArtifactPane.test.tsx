@@ -134,6 +134,9 @@ const mocks = vi.hoisted(() => ({
     tags: string[]
     path: string
   }>,
+  openTargetsError: null as Error | null,
+  openTargetsGate: null as (() => Promise<void>) | null,
+  openTargetListCalls: [] as Array<{ pathKind: string; targetPath: string }>,
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
   filePreviewProps: [] as Array<{
@@ -567,31 +570,64 @@ vi.mock('@renderer/components/OpenTarget', () => ({
       onClick={() => (pathKind === 'file' ? mocks.showInFolder(targetPath) : mocks.openPath(targetPath))}
     />
   ),
-  loadOpenTargetMenuItems: async ({ targetPath, pathKind }: { targetPath: string; pathKind: 'file' | 'directory' }) => [
-    ...(pathKind === 'file'
-      ? [
-          {
-            type: 'item' as const,
-            id: 'system-default',
-            label: 'agent.preview_pane.default_app',
-            onSelect: () => mocks.openPath(targetPath)
-          }
-        ]
-      : []),
-    {
-      type: 'item' as const,
-      id: 'file-manager',
-      label: 'Finder',
-      icon: <svg aria-hidden="true" data-testid="finder-icon" />,
-      onSelect: () => (pathKind === 'file' ? mocks.showInFolder(targetPath) : mocks.openPath(targetPath))
-    },
-    ...mocks.externalApps.map((app) => ({
-      type: 'item' as const,
-      id: `app-${app.id}`,
-      label: app.name,
-      onSelect: () => mocks.windowOpen(`editor://${app.id}${targetPath}`)
-    }))
-  ]
+  loadOpenTargetMenuItems: async ({ targetPath, pathKind }: { targetPath: string; pathKind: 'file' | 'directory' }) => {
+    mocks.openTargetListCalls.push({ pathKind, targetPath })
+    if (mocks.openTargetsError) throw mocks.openTargetsError
+    if (mocks.openTargetsGate) await mocks.openTargetsGate()
+    return [
+      ...(pathKind === 'file'
+        ? [
+            {
+              type: 'item' as const,
+              id: 'system-default',
+              label: 'agent.preview_pane.default_app',
+              onSelect: () => mocks.openPath(targetPath)
+            }
+          ]
+        : []),
+      {
+        type: 'item' as const,
+        id: 'file-manager',
+        label: 'Finder',
+        icon: <svg aria-hidden="true" data-testid="finder-icon" />,
+        onSelect: () => (pathKind === 'file' ? mocks.showInFolder(targetPath) : mocks.openPath(targetPath))
+      },
+      ...mocks.externalApps.map((app) => ({
+        type: 'item' as const,
+        id: `app-${app.id}`,
+        label: app.name,
+        onSelect: () => mocks.windowOpen(`editor://${app.id}${targetPath}`)
+      }))
+    ]
+  }
+}))
+
+const commandMenuMocks = vi.hoisted(() => ({
+  calls: [] as Array<{
+    disabled?: boolean
+    location?: string
+    pendingExtraItems?: readonly CommandContextMenuExtraItem[]
+    getExtraItems?: (event: unknown) => MaybePromise<readonly CommandContextMenuExtraItem[]>
+  }>
+}))
+
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({
+    children,
+    disabled,
+    location,
+    pendingExtraItems,
+    getExtraItems
+  }: {
+    children?: React.ReactNode
+    disabled?: boolean
+    location?: string
+    pendingExtraItems?: readonly CommandContextMenuExtraItem[]
+    getExtraItems?: (event: unknown) => MaybePromise<readonly CommandContextMenuExtraItem[]>
+  }) => {
+    commandMenuMocks.calls.push({ disabled, location, pendingExtraItems, getExtraItems })
+    return <>{children}</>
+  }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -613,6 +649,7 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'en' },
     t: (key: string, options?: { count?: number; extension?: string; name?: string }) => {
       if (key === 'agent.preview_pane.items') return `${options?.count ?? 0} localized items`
       if (key === 'agent.preview_pane.office.title') return `unsupported ${options?.extension ?? ''}`
@@ -650,6 +687,10 @@ describe('ArtifactPane', () => {
     mocks.openPath.mockResolvedValue(undefined)
     mocks.showInFolder.mockResolvedValue(undefined)
     mocks.externalApps = []
+    mocks.openTargetsError = null
+    mocks.openTargetsGate = null
+    mocks.openTargetListCalls = []
+    commandMenuMocks.calls = []
     mocks.isDirectory.mockResolvedValue(false)
     // Default: tiny text files. `getMetadata().type` drives text detection
     // (via useIsTextFile) and `.size` drives the size gate — override per-test
@@ -1136,6 +1177,127 @@ describe('ArtifactPane', () => {
     expect(
       within(await screen.findByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')
     ).toBeInTheDocument()
+  })
+
+  it('configures the opened file header context menu with tab actions and open targets', async () => {
+    mocks.externalApps = [
+      {
+        id: 'vscode',
+        name: 'VS Code',
+        protocol: 'vscode://',
+        tags: ['code-editor'],
+        path: '/Applications/Visual Studio Code.app'
+      }
+    ]
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await screen.findByTestId('artifact-file-preview-overlay')
+
+    const headerMenuCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    expect(headerMenuCall).toBeDefined()
+    expect(
+      headerMenuCall?.pendingExtraItems?.some((i) => i.type === 'item' && i.label === 'agent.preview_pane.refresh')
+    ).toBe(true)
+    expect(
+      headerMenuCall?.pendingExtraItems?.some((i) => i.type === 'item' && i.label === 'agent.preview_pane.close')
+    ).toBe(true)
+
+    const extraItems = await headerMenuCall?.getExtraItems?.(null)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'system-default')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'file-manager')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'app-vscode')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.refresh')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.close')).toBe(true)
+
+    // Triggering refresh bumps the preview key
+    const refreshItem = extraItems?.find((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.refresh')
+    if (refreshItem?.type === 'item') refreshItem.onSelect?.()
+    await waitFor(() => expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1'))
+
+    // Triggering close closes the preview
+    const closeItem = extraItems?.find((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.close')
+    if (closeItem?.type === 'item') closeItem.onSelect?.()
+    await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())
+  })
+
+  it('keeps the tab actions when resolving open targets fails', async () => {
+    mocks.openTargetsError = new Error('unresolvable path')
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await screen.findByTestId('artifact-file-preview-overlay')
+
+    const headerMenuCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    expect(headerMenuCall).toBeDefined()
+
+    const extraItems = await headerMenuCall?.getExtraItems?.(null)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.refresh')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.close')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'file-manager')).toBe(false)
+  })
+
+  it('offers the tab context menu from the pane header title and stays disabled without an opened file', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    // No active file -> menu is disabled
+    const disabledCall = commandMenuMocks.calls.find((c) => c.disabled === true)
+    expect(disabledCall).toBeDefined()
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md'))
+
+    const enabledCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    expect(enabledCall).toBeDefined()
+  })
+
+  it('includes the edit/preview toggle in the header context menu for editable files', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    expect(await within(overlay).findByTestId('code-editor')).toBeInTheDocument()
+
+    const headerMenuCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    const extraItems = await headerMenuCall?.getExtraItems?.(null)
+    const toggleItem = extraItems?.find((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.toggle-edit-mode')
+    expect(toggleItem).toBeDefined()
+    expect(toggleItem?.type === 'item' && toggleItem.label).toBe('common.preview')
+  })
+
+  it('shows the full-path tooltip on the overlay header title', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(within(overlay).getByText('README.md')).toHaveAttribute('title', '/tmp/workspace/README.md')
   })
 
   it('keeps the selected lazy file while expanded directories are refreshing', async () => {
