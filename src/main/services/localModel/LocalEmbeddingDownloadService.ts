@@ -5,25 +5,31 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import type { InferenceProgress } from '@main/ai/inference/InferenceServiceBase'
-import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import {
   ALL_MODEL_SOURCE_IDS,
+  bundleDtype,
+  bundleFile,
+  bundleForCapability,
   getModelSource,
+  localModelRegistry,
   type ModelSourceId,
   modelSourceOrder
-} from '@main/ai/inference/modelSource'
+} from '@main/ai/localModel'
 import { regionService } from '@main/services/RegionService'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 
 import { LocalModelDownloadService, type LocalModelFilesState } from './LocalModelDownloadService'
-import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'
 
 const logger = loggerService.withContext('LocalEmbeddingDownloadService')
 
-/** Repo / quantization / ready-probe files for the local embedding model. */
-const { repo: MODEL_REPO, dtype: MODEL_DTYPE, readyFile: MODEL_FILE } = LOCAL_MODELS.embedding
-const REQUIRED_MODEL_FILES = ['config.json', 'tokenizer_config.json', 'tokenizer.json', path.join('onnx', MODEL_FILE)]
+/** Repo / quantization / required files for the local embedding model, from the catalog.
+ * The files land in transformers.js's own cache layout for now, so their relative paths
+ * are read from the bundle rather than the bundle's install dir being used directly. */
+const EMBEDDING_BUNDLE = bundleForCapability('embedding')
+const MODEL_REPO = bundleFile(EMBEDDING_BUNDLE, 'weights').repo
+const MODEL_DTYPE = bundleDtype(EMBEDDING_BUNDLE)
+const REQUIRED_MODEL_FILES = EMBEDDING_BUNDLE.files.map((file) => file.relPath)
 
 interface LocalEmbeddingCacheProbe {
   state: LocalModelFilesState
@@ -106,7 +112,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
       // Complete weights without the shared onnxruntime binary read as 'absent', not an
       // error: Download re-fetches only the binary (transformers.js finds the cached
       // weights), so the card must offer Download rather than a false failure.
-      return probe.state === 'ready' && !onnxRuntimeBinaryService.isReady() ? 'absent' : probe.state
+      return probe.state === 'ready' && !localModelRegistry.isArtifactReady('onnxruntime-node') ? 'absent' : probe.state
     }
     if (!this.incompleteCacheLogged) {
       logger.warn('local embedding model cache is incomplete', { missingFiles: probe.missingFiles })
@@ -116,7 +122,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
-    await onnxRuntimeBinaryService.ensure(signal, (fraction) => {
+    await localModelRegistry.ensureArtifact('onnxruntime-node', signal, (fraction) => {
       this.broadcast({ status: 'downloading', percent: Math.round(fraction * ONNXRUNTIME_PERCENT) })
     })
     await this.loadFromFirstReachableMirror(signal)

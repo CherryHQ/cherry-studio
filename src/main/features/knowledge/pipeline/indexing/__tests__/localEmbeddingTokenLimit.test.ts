@@ -16,7 +16,7 @@ vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => (
 }))
 
 const { refineLocalEmbeddingChunks } = await import('../localEmbeddingTokenLimit')
-const { LOCAL_MODELS } = await import('@main/ai/inference/localModelCatalog')
+const { bundleDtype, bundleForCapability } = await import('@main/ai/localModel')
 
 /** The ModelScope cache layout: transformers.js nests the non-`main` revision. */
 const MODEL_DIR = '/models/qwen3-embedding/onnx-community/Qwen3-Embedding-0.6B-ONNX/master'
@@ -60,7 +60,7 @@ describe('refineLocalEmbeddingChunks', () => {
     expect(mocks.countTokensMock).toHaveBeenCalledWith(
       expect.any(Array),
       MODEL_DIR,
-      LOCAL_MODELS.embedding.dtype,
+      bundleDtype(bundleForCapability('embedding')),
       undefined
     )
     expect(refined.chunks.length).toBeGreaterThan(1)

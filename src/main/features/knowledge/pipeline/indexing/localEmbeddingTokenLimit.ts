@@ -3,7 +3,7 @@ import {
   LOCAL_EMBEDDING_MAX_INPUT_TOKENS,
   LOCAL_EMBEDDING_MAX_OVERLAP_TOKENS
 } from '@main/ai/inference/localEmbeddingLimits'
-import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
+import { bundleDtype, bundleForCapability } from '@main/ai/localModel'
 import { currentModelDir } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
@@ -39,7 +39,7 @@ async function getLocalEmbeddingTokenCounter(signal?: AbortSignal): Promise<Coun
   return async (text: string) => {
     const [count] = await application
       .get('EmbeddingInferenceService')
-      .countTokens([text], modelDir, LOCAL_MODELS.embedding.dtype, signal)
+      .countTokens([text], modelDir, bundleDtype(bundleForCapability('embedding')), signal)
     return count
   }
 }

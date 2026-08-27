@@ -1,6 +1,7 @@
 import type * as NodeFs from 'node:fs'
 import { Writable } from 'node:stream'
 
+import type * as LocalModelRegistryModule from '@main/ai/localModel/registry/LocalModelRegistry'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,15 +18,22 @@ const { createWriteStream, mkdir, rename, writeFile, rm, ensureOnnxRuntime, onnx
   onnxRuntimeIsReady: vi.fn()
 }))
 
-// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
+// onnxruntime binary presence is a separate concern (see tarballArtifact.test.ts) —
 // stub it as already-ready so these tests only exercise the OCR weight/dictionary lifecycle,
 // while letting the failure-cleanup regressions model a runtime fetch that rejects.
-vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
-  onnxRuntimeBinaryService: {
-    isReady: onnxRuntimeIsReady,
-    ensure: ensureOnnxRuntime
+vi.mock('@main/ai/localModel/registry/LocalModelRegistry', async (importOriginal) => {
+  const { localModelRegistry: real } = await importOriginal<typeof LocalModelRegistryModule>()
+  return {
+    localModelRegistry: {
+      // Path/scan helpers stay real — they are what resolves the OCR model dir.
+      bundleInstallDir: real.bundleInstallDir.bind(real),
+      scanBundleFiles: real.scanBundleFiles.bind(real),
+      isArtifactReady: onnxRuntimeIsReady,
+      ensureArtifact: (_id: string, signal: AbortSignal, onProgress?: (fraction: number) => void) =>
+        ensureOnnxRuntime(signal, onProgress)
+    }
   }
-}))
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')

@@ -5,16 +5,34 @@ import path from 'node:path'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CatalogModule from '../../registry/catalog'
+
 const FAKE_PLATFORM = 'linux'
 const FAKE_ARCH = 'x64'
-const FAKE_TARBALL_CONTENT = Buffer.from('fake-onnxruntime-node-tarball-fixture')
-// sha256 of FAKE_TARBALL_CONTENT — precomputed with:
+// sha256 of FAKE_TARBALL_CONTENT (see FIXTURE_ARTIFACT below) — precomputed with:
 // printf 'fake-onnxruntime-node-tarball-fixture' | shasum -a 256
-const FAKE_TARBALL_SHA256 = '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392'
+const FAKE_TARBALL_CONTENT = Buffer.from('fake-onnxruntime-node-tarball-fixture')
 
-const { extractMock, isInChina } = vi.hoisted(() => ({
+/** A fixture artifact pinned to the fake platform, so the suite is independent of the real
+ * catalog's checksum and of the machine it runs on. */
+const { extractMock, isInChina, FIXTURE_ARTIFACT } = vi.hoisted(() => ({
   extractMock: vi.fn(),
-  isInChina: vi.fn()
+  isInChina: vi.fn(),
+  FIXTURE_ARTIFACT: {
+    id: 'onnxruntime-node' as const,
+    packageName: 'onnxruntime-node',
+    version: '1.25.1',
+    tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
+    installDirKey: 'feature.onnxruntime.binary' as const,
+    platforms: {
+      'linux-x64': {
+        tarballPrefix: 'package/bin/napi-v6/linux/x64/',
+        installSubdir: 'napi-v6/linux/x64',
+        entryFile: 'onnxruntime_binding.node',
+        supportFiles: ['libonnxruntime.so.1']
+      }
+    }
+  }
 }))
 
 let toolchainDir: string
@@ -30,23 +48,19 @@ vi.mock('@application', async () => {
   return result
 })
 
-vi.mock('@main/ai/inference/localModelCatalog', () => ({
-  ONNXRUNTIME_NODE_VERSION: '1.25.1',
-  ONNXRUNTIME_TARBALL_SHA256: FAKE_TARBALL_SHA256,
-  ONNXRUNTIME_LEAVES: {
-    [FAKE_PLATFORM]: {
-      [FAKE_ARCH]: { binding: 'onnxruntime_binding.node', sharedLibs: ['libonnxruntime.so.1'] }
-    }
-  }
-}))
-
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } }))
 
 // Not testing tar's own parsing (verified separately against the real package) — simulate
-// what a real extraction would produce: the leaf's binding + shared libs under `cwd`.
+// what a real extraction would produce: the platform's files under `cwd`.
 vi.mock('tar', () => ({ extract: extractMock }))
 
-const { onnxRuntimeBinaryService } = await import('../OnnxRuntimeBinaryService')
+vi.mock('../../registry/catalog', async (importOriginal) => {
+  const actual = await importOriginal<typeof CatalogModule>()
+  return { ...actual, getSharedArtifact: () => FIXTURE_ARTIFACT }
+})
+
+const { localModelRegistry } = await import('../../registry/LocalModelRegistry')
+const { artifactEntryPath, isArtifactSupported } = await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
 function tarballResponse(content: Buffer) {
@@ -62,7 +76,10 @@ function tarballResponse(content: Buffer) {
   }
 }
 
-describe('OnnxRuntimeBinaryService', () => {
+const ensure = (signal = new AbortController().signal) => localModelRegistry.ensureArtifact('onnxruntime-node', signal)
+const isReady = () => localModelRegistry.isArtifactReady('onnxruntime-node')
+
+describe('shared artifact acquisition', () => {
   const originalPlatform = process.platform
   const originalArch = process.arch
 
@@ -74,7 +91,7 @@ describe('OnnxRuntimeBinaryService', () => {
     isInChina.mockResolvedValue(false)
     vi.mocked(net.fetch).mockImplementation((async () =>
       tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
-    // Simulate a successful extraction: write the leaf files a real `tar.extract` would.
+    // Simulate a successful extraction: write the files a real `tar.extract` would.
     extractMock.mockImplementation(async ({ cwd }: { cwd: string }) => {
       const fs = await import('node:fs/promises')
       await fs.mkdir(cwd, { recursive: true })
@@ -90,51 +107,46 @@ describe('OnnxRuntimeBinaryService', () => {
   })
 
   it('reports not ready before anything is downloaded', () => {
-    expect(onnxRuntimeBinaryService.isReady()).toBe(false)
+    expect(isReady()).toBe(false)
   })
 
-  it('reports ready on an unsupported platform/arch (no catalog leaf)', () => {
+  it('reports ready on a platform the artifact ships nothing for', () => {
     Object.defineProperty(process, 'platform', { value: 'darwin' })
-    Object.defineProperty(process, 'arch', { value: 'x64' }) // absent from the mocked catalog
+    Object.defineProperty(process, 'arch', { value: 'x64' }) // absent from the fixture matrix
 
-    expect(onnxRuntimeBinaryService.isReady()).toBe(true)
+    expect(isArtifactSupported(FIXTURE_ARTIFACT)).toBe(false)
+    expect(isReady()).toBe(true)
   })
 
-  it('bindingPath() resolves under the leaf directory for the current platform/arch', () => {
-    expect(onnxRuntimeBinaryService.bindingPath()).toBe(
+  it('resolves the entry file under the platform install dir', () => {
+    expect(artifactEntryPath(FIXTURE_ARTIFACT)).toBe(
       path.join(toolchainDir, 'napi-v6', FAKE_PLATFORM, FAKE_ARCH, 'onnxruntime_binding.node')
     )
   })
 
-  it('downloads, verifies, extracts, and installs the binary; isReady() becomes true', async () => {
-    const controller = new AbortController()
-
-    await onnxRuntimeBinaryService.ensure(controller.signal)
+  it('downloads, verifies, extracts, and installs the binary; it becomes ready', async () => {
+    await ensure()
 
     expect(net.fetch).toHaveBeenCalledTimes(1)
     expect(extractMock).toHaveBeenCalledTimes(1)
-    expect(onnxRuntimeBinaryService.isReady()).toBe(true)
+    expect(isReady()).toBe(true)
     // The staging dir must not survive the download — not even as an empty shell.
     expect(existsSync(path.join(toolchainDir, '.tmp'))).toBe(false)
   })
 
   it('does not download again once already ready', async () => {
-    const controller = new AbortController()
-    await onnxRuntimeBinaryService.ensure(controller.signal)
+    await ensure()
     vi.mocked(net.fetch).mockClear()
 
-    await onnxRuntimeBinaryService.ensure(controller.signal)
+    await ensure()
 
     expect(net.fetch).not.toHaveBeenCalled()
   })
 
   it('coalesces concurrent callers into a single download', async () => {
-    const controller = new AbortController()
+    const { signal } = new AbortController()
 
-    await Promise.all([
-      onnxRuntimeBinaryService.ensure(controller.signal),
-      onnxRuntimeBinaryService.ensure(controller.signal)
-    ])
+    await Promise.all([ensure(signal), ensure(signal)])
 
     expect(net.fetch).toHaveBeenCalledTimes(1)
     expect(extractMock).toHaveBeenCalledTimes(1)
@@ -143,7 +155,7 @@ describe('OnnxRuntimeBinaryService', () => {
   it('tries the region-default mirror first: npmjs when not in China', async () => {
     isInChina.mockResolvedValue(false)
 
-    await onnxRuntimeBinaryService.ensure(new AbortController().signal)
+    await ensure()
 
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toContain('registry.npmjs.org')
   })
@@ -151,27 +163,25 @@ describe('OnnxRuntimeBinaryService', () => {
   it('tries npmmirror.com first when the region signal reports China', async () => {
     isInChina.mockResolvedValue(true)
 
-    await onnxRuntimeBinaryService.ensure(new AbortController().signal)
+    await ensure()
 
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toContain('registry.npmmirror.com')
   })
 
   it('falls back to the second mirror when the first fails', async () => {
-    isInChina.mockResolvedValue(false)
     vi.mocked(net.fetch)
       .mockImplementationOnce((async () => {
         throw new Error('network down')
       }) as unknown as typeof net.fetch)
       .mockImplementationOnce((async () => tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
 
-    await onnxRuntimeBinaryService.ensure(new AbortController().signal)
+    await ensure()
 
     expect(net.fetch).toHaveBeenCalledTimes(2)
-    expect(onnxRuntimeBinaryService.isReady()).toBe(true)
+    expect(isReady()).toBe(true)
   })
 
   it('falls back to the second mirror when the first serves a tarball that fails the checksum', async () => {
-    isInChina.mockResolvedValue(false)
     // A reachable-but-wrong mirror (stale cache, error page, interception) must not be
     // terminal — the checksum is part of the attempt, so the next mirror still gets its turn.
     vi.mocked(net.fetch)
@@ -179,44 +189,36 @@ describe('OnnxRuntimeBinaryService', () => {
         tarballResponse(Buffer.from('tampered content'))) as unknown as typeof net.fetch)
       .mockImplementationOnce((async () => tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
 
-    await onnxRuntimeBinaryService.ensure(new AbortController().signal)
+    await ensure()
 
     expect(net.fetch).toHaveBeenCalledTimes(2)
     expect(vi.mocked(net.fetch).mock.calls[1][0]).toContain('registry.npmmirror.com')
-    expect(onnxRuntimeBinaryService.isReady()).toBe(true)
+    expect(isReady()).toBe(true)
   })
 
-  it('rejects and leaves the binary not installed when the tarball sha256 does not match', async () => {
+  it('rejects and installs nothing when every mirror fails the checksum', async () => {
     vi.mocked(net.fetch).mockImplementation((async () =>
       tarballResponse(Buffer.from('tampered content'))) as unknown as typeof net.fetch)
 
-    await expect(onnxRuntimeBinaryService.ensure(new AbortController().signal)).rejects.toThrow('sha256 mismatch')
+    await expect(ensure()).rejects.toThrow('sha256 mismatch')
 
     expect(extractMock).not.toHaveBeenCalled()
-    expect(onnxRuntimeBinaryService.isReady()).toBe(false)
+    expect(isReady()).toBe(false)
     // A failed download must not leave the staging dir behind either.
     expect(existsSync(path.join(toolchainDir, '.tmp'))).toBe(false)
   })
 
-  describe('removeIfUnused', () => {
-    it('keeps the binary when the sibling feature still needs it', async () => {
-      await onnxRuntimeBinaryService.ensure(new AbortController().signal)
+  describe('removeArtifact', () => {
+    it('deletes the installed binary', async () => {
+      await ensure()
 
-      await onnxRuntimeBinaryService.removeIfUnused(true)
+      await localModelRegistry.removeArtifact('onnxruntime-node')
 
-      expect(onnxRuntimeBinaryService.isReady()).toBe(true)
-    })
-
-    it('deletes the binary once no feature needs it anymore', async () => {
-      await onnxRuntimeBinaryService.ensure(new AbortController().signal)
-
-      await onnxRuntimeBinaryService.removeIfUnused(false)
-
-      expect(onnxRuntimeBinaryService.isReady()).toBe(false)
+      expect(isReady()).toBe(false)
     })
 
     it('is a no-op when the binary was never downloaded', async () => {
-      await expect(onnxRuntimeBinaryService.removeIfUnused(false)).resolves.toBeUndefined()
+      await expect(localModelRegistry.removeArtifact('onnxruntime-node')).resolves.toBeUndefined()
     })
   })
 })

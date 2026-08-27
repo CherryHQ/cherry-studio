@@ -2,9 +2,9 @@ import { Worker } from 'node:worker_threads'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { localModelRegistry } from '@main/ai/localModel'
 import { BaseService } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
-import { onnxRuntimeBinaryService } from '@main/services/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
@@ -165,7 +165,7 @@ export abstract class InferenceServiceBase extends BaseService {
     const init: InferenceInitMessage = {
       type: 'init',
       appPath: application.getPath('app.root'),
-      onnxRuntimeBindingPath: onnxRuntimeBinaryService.bindingPath(),
+      onnxRuntimeBindingPath: localModelRegistry.artifactPath('onnxruntime-node'),
       runtimeProfile,
       proxyRouting
     }

@@ -1,6 +1,6 @@
 import { application } from '@application'
 import type { EmbeddingModelDir } from '@main/ai/inference/inferenceProtocol'
-import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
+import { bundleDtype, bundleForCapability } from '@main/ai/localModel'
 import { localEmbeddingDownloadService } from '@main/services/localModel'
 
 /**
@@ -26,5 +26,5 @@ export async function embedTexts(texts: string[], signal?: AbortSignal): Promise
   if (texts.length === 0) return []
   return application
     .get('EmbeddingInferenceService')
-    .embed(texts, currentModelDir(), LOCAL_MODELS.embedding.dtype, signal)
+    .embed(texts, currentModelDir(), bundleDtype(bundleForCapability('embedding')), signal)
 }

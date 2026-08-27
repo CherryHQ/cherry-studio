@@ -62,13 +62,14 @@ vi.mock('node:fs', async () => {
 // mirror-order assertions below don't depend on where the test machine runs.
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } }))
 
-// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts).
+// onnxruntime binary presence is a separate concern (see tarballArtifact.test.ts).
 // Keep it ready/no-op by default, while allowing the runtime-repair regression to model
 // the missing-binary state that triggers the cache-aware mirror path.
-vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
-  onnxRuntimeBinaryService: {
-    isReady: onnxRuntimeIsReady,
-    ensure: ensureOnnxRuntime
+vi.mock('@main/ai/localModel/registry/LocalModelRegistry', () => ({
+  localModelRegistry: {
+    isArtifactReady: onnxRuntimeIsReady,
+    ensureArtifact: (_id: string, signal: AbortSignal, onProgress?: (fraction: number) => void) =>
+      ensureOnnxRuntime(signal, onProgress)
   }
 }))
 

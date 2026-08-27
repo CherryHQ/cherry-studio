@@ -5,16 +5,21 @@ import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localModelCatalog'
-import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
 import { isLocalPaddleocrModelDownloaded, ocrModelDir, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
+import {
+  type BundleFile,
+  bundleFile,
+  bundleForCapability,
+  localModelRegistry,
+  modelSourceOrder,
+  resolveModelFileUrl
+} from '@main/ai/localModel'
 import { regionService } from '@main/services/RegionService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { net } from 'electron'
 import { parse } from 'yaml'
 
 import { LocalModelDownloadService, type LocalModelFilesState } from './LocalModelDownloadService'
-import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
 
@@ -48,12 +53,18 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
   protected readonly kind: LocalModelKind = 'ocr'
 
   protected modelFilesState(): LocalModelFilesState {
-    return onnxRuntimeBinaryService.isReady() && isLocalPaddleocrModelDownloaded() ? 'ready' : 'absent'
+    return localModelRegistry.isArtifactReady('onnxruntime-node') && isLocalPaddleocrModelDownloaded()
+      ? 'ready'
+      : 'absent'
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
     const paths = ocrModelPaths()
-    const weights = LOCAL_MODELS.ocr.weights
+    const bundle = bundleForCapability('ocr')
+    const weights = {
+      detection: bundleFile(bundle, 'detection'),
+      recognition: bundleFile(bundle, 'recognition')
+    }
     // The dictionary is a tiny fetch-and-parse step; weight it lightly so the
     // bar doesn't sit at 100% while it finishes. onnxruntime is weighted roughly
     // proportional to its ~20-60MB against the ~130MB of OCR weights.
@@ -62,7 +73,7 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     const totalWeight =
       Object.values(weights).reduce((sum, file) => sum + file.weight, 0) + DICTIONARY_WEIGHT + ONNXRUNTIME_WEIGHT
     let doneWeight = 0
-    await onnxRuntimeBinaryService.ensure(signal, (fraction) => {
+    await localModelRegistry.ensureArtifact('onnxruntime-node', signal, (fraction) => {
       const percent = Math.round((100 * ONNXRUNTIME_WEIGHT * fraction) / totalWeight)
       this.broadcast({ status: 'downloading', percent })
     })
@@ -108,7 +119,7 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
 
   /** Try each mirror (region default first) in order; the first valid file wins. */
   private async downloadFile(
-    file: RemoteModelFile,
+    file: BundleFile,
     dest: string,
     signal: AbortSignal,
     onProgress: (fraction: number) => void
@@ -123,15 +134,15 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
       } catch (error) {
         if (signal.aborted) throw error
         lastError = error
-        logger.warn(`mirror failed for ${file.fileName}, trying next`, { url, error: String(error) })
+        logger.warn(`mirror failed for ${file.relPath}, trying next`, { url, error: String(error) })
       }
     }
-    throw lastError instanceof Error ? lastError : new Error(`failed to download ${file.fileName}`)
+    throw lastError instanceof Error ? lastError : new Error(`failed to download ${file.relPath}`)
   }
 
   /** Fetch the recognition model's inference.yml (mirror fallback) and write the parsed dict. */
   private async downloadDictionary(dest: string, signal: AbortSignal): Promise<void> {
-    const { repo, sourceFile, minBytes } = LOCAL_MODELS.ocr.dictionary
+    const { repo, remoteFile: sourceFile, minBytes } = bundleFile(bundleForCapability('ocr'), 'dictionary')
     const inChina = await regionService.isInChina().catch(() => false)
     const urls = modelSourceOrder(inChina).map((id) => resolveModelFileUrl(id, repo, sourceFile))
     let lastError: unknown

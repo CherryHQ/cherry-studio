@@ -1,5 +1,3 @@
-import type { InferenceModelSource } from './inferenceProtocol'
-
 /**
  * Download mirrors for local models (embedding + OCR). HuggingFace and its
  * ModelScope mirror both expose the HF-compatible `/<repo>/resolve/<revision>/<file>`
@@ -15,7 +13,18 @@ import type { InferenceModelSource } from './inferenceProtocol'
  */
 export type ModelSourceId = 'huggingface' | 'modelscope'
 
-const SOURCES: Record<ModelSourceId, InferenceModelSource> = {
+/** One mirror's addressing scheme. Matches the triple transformers.js takes as env
+ * values, which is why it can be handed to the worker as-is. */
+export interface ModelSource {
+  /** e.g. `https://huggingface.co`. */
+  remoteHost: string
+  /** e.g. `{model}/resolve/{revision}`. */
+  remotePathTemplate: string
+  /** Branch/tag — `main` on HuggingFace, `master` on ModelScope. */
+  revision: string
+}
+
+const SOURCES: Record<ModelSourceId, ModelSource> = {
   huggingface: {
     remoteHost: 'https://huggingface.co',
     remotePathTemplate: '{model}/resolve/{revision}',
@@ -36,7 +45,7 @@ const SOURCES: Record<ModelSourceId, InferenceModelSource> = {
  */
 export const ALL_MODEL_SOURCE_IDS = Object.keys(SOURCES) as readonly ModelSourceId[]
 
-export function getModelSource(id: ModelSourceId): InferenceModelSource {
+export function getModelSource(id: ModelSourceId): ModelSource {
   return SOURCES[id]
 }
 

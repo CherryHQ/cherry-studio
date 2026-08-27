@@ -1,10 +1,7 @@
 import { loggerService } from '@logger'
 import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/inference/inferenceAcceleration'
-import {
-  localEmbeddingDownloadService,
-  localOcrDownloadService,
-  onnxRuntimeBinaryService
-} from '@main/services/localModel'
+import { localModelRegistry } from '@main/ai/localModel'
+import { localEmbeddingDownloadService, localOcrDownloadService } from '@main/services/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import type { localModelRequestSchemas } from '@shared/ipc/schemas/localModel'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -22,12 +19,19 @@ function siblingFor(model: LocalModelKind) {
   return model === 'embedding' ? localOcrDownloadService : localEmbeddingDownloadService
 }
 
+/** Drop the shared runtime unless the sibling model still needs it. The caller checks
+ * that *before* the binary is gone, so the sibling's status is still an accurate signal. */
+async function removeSharedRuntimeIfUnused(stillNeeded: boolean): Promise<void> {
+  if (stillNeeded) return
+  await localModelRegistry.removeArtifact('onnxruntime-node')
+}
+
 async function cleanupSharedRuntimeAfterInterruptedDownload(model: LocalModelKind): Promise<void> {
   // 'downloading' counts as still needed — the sibling may be awaiting the same
   // coalesced binary download.
   const siblingStatus = siblingFor(model).getStatus()
   try {
-    await onnxRuntimeBinaryService.removeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
+    await removeSharedRuntimeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
   } catch (cleanupError) {
     // Best-effort: a locked file must not turn a cancellation into a failure or
     // mask the original download error.
@@ -68,7 +72,7 @@ export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas>
     // Only the removed feature's own weights are gone here — the shared onnxruntime
     // binary is a separate concern, cleaned up only once the sibling feature is gone too.
     if (result.removed) {
-      await onnxRuntimeBinaryService.removeIfUnused(siblingFor(model).getStatus() === 'ready')
+      await removeSharedRuntimeIfUnused(siblingFor(model).getStatus() === 'ready')
     }
     return result
   }
