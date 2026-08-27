@@ -20,10 +20,11 @@ export async function selectAgent(page: Page, name: string): Promise<void> {
 export async function startNewAgentTask(page: Page, name: string): Promise<void> {
   await selectAgent(page, name)
   const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  await agentView.getByText(name, { exact: true }).first().hover()
-  const newTask = agentView.getByRole('button', { name: 'New task', exact: true }).first()
+  const agentHeader = agentView.getByRole('button', { name, exact: true }).first()
+  await agentHeader.hover()
+  const newTask = agentHeader.locator('..').getByRole('button', { name: 'New task', exact: true })
   await expect(newTask).toBeVisible()
-  await newTask.press('Enter')
+  await newTask.click()
   await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
 }
 
