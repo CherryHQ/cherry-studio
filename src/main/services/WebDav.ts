@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { WebDavConfig } from '@shared/types/backup'
+import { redactSecretText } from '@shared/utils/redaction'
 import https from 'https'
 import path from 'path'
 import type Stream from 'stream'
@@ -14,6 +15,44 @@ import type {
 import { createClient } from 'webdav'
 
 const logger = loggerService.withContext('WebDav')
+
+/** Body-snippet cap for error logs; the body never enters the thrown message. */
+const REMOTE_ERROR_BODY_SNIPPET_LIMIT = 500
+
+/** A WebDAV failure prepared for rethrow, plus its log-only response body. */
+interface DescribedWebDavError {
+  error: unknown
+  bodySnippet?: string
+}
+
+/**
+ * Wrap WebDAV failures that carry an HTTP status with the stable
+ * renderer-matchable token (`HTTP <code>`), the operation stage, and the
+ * remote path. Every other failure — TLS certificate text, idle-timeout
+ * aborts, network errors — passes through untouched: the renderer classifies
+ * those on their raw message text. The response body never enters the thrown
+ * message; it is returned for the caller to redact into the error log.
+ */
+async function describeWebDavError(error: unknown, stage: string, remotePath: string): Promise<DescribedWebDavError> {
+  const status = (error as { status?: unknown }).status
+  if (!(error instanceof Error) || typeof status !== 'number') {
+    return { error }
+  }
+  const response = (error as { response?: { statusText?: string; text?: () => Promise<string> } }).response
+  let bodySnippet: string | undefined
+  try {
+    if (typeof response?.text === 'function') {
+      bodySnippet = (await response.text()).slice(0, REMOTE_ERROR_BODY_SNIPPET_LIMIT)
+    }
+  } catch {
+    // Best-effort diagnostics: a failed body read must not alter the error flow.
+  }
+  const statusText = response?.statusText || error.message
+  return {
+    error: new Error(`${stage} ${remotePath} failed: HTTP ${status} (${statusText})`, { cause: error }),
+    bodySnippet
+  }
+}
 
 export default class WebDav {
   public instance: WebDAVClient | undefined
@@ -56,8 +95,13 @@ export default class WebDav {
         })
       }
     } catch (error) {
-      logger.error('Error creating directory on WebDAV:', error as Error)
-      throw error
+      const described = await describeWebDavError(error, 'WebDAV ensure directory', this.webdavPath)
+      logger.error(
+        'Error creating directory on WebDAV:',
+        error as Error,
+        described.bodySnippet ? { bodySnippet: redactSecretText(described.bodySnippet) } : {}
+      )
+      throw described.error
     }
 
     const remoteFilePath = path.posix.join(this.webdavPath, filename)
@@ -73,8 +117,13 @@ export default class WebDav {
     try {
       return await this.instance.putFileContents(remoteFilePath, data, requestOptions)
     } catch (error) {
-      logger.error('Error putting file contents on WebDAV:', error as Error)
-      throw error
+      const described = await describeWebDavError(error, 'WebDAV PUT', remoteFilePath)
+      logger.error(
+        'Error putting file contents on WebDAV:',
+        error as Error,
+        described.bodySnippet ? { bodySnippet: redactSecretText(described.bodySnippet) } : {}
+      )
+      throw described.error
     }
   }
 
@@ -120,7 +169,9 @@ export default class WebDav {
     }
 
     try {
-      return await this.instance.exists('/')
+      // Probe the configured backup path, not the server root: a green
+      // result must mean the backup target is reachable (issue #10512).
+      return await this.instance.exists(this.webdavPath)
     } catch (error) {
       logger.error('Error checking connection:', error as Error)
       throw error
