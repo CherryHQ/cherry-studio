@@ -52,7 +52,7 @@ async function invokeQuickAssistant(
   await input.fill(markerPrompt)
   await input.press('Enter')
   await expect(quick.getByText('QUICK_ASSISTANT_PASS', { exact: true }).last()).toBeVisible({ timeout: 2 * 60_000 })
-  await quick.keyboard.press('Escape')
+  await quick.getByRole('button', { name: 'ESC to return', exact: true }).click()
   await expect(quick.getByText('Answer this question', { exact: true })).toBeVisible()
 }
 
@@ -104,8 +104,21 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   const readLabel = selection.getByRole('button', { name: 'Read validation label', exact: true })
   await expect(readLabel).toBeVisible()
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 'k'])
-  await expect.poll(() => selection.evaluate(() => document.visibilityState)).toBe('visible')
+  await expect
+    .poll(
+      async () => {
+        sendSystemHotkey(app.record.platform, [
+          app.record.platform === 'macos' ? 'Meta' : 'Control',
+          'Alt',
+          'Shift',
+          'k'
+        ])
+        await selection.waitForTimeout(1_000)
+        return selection.evaluate(() => document.visibilityState)
+      },
+      { timeout: 15_000 }
+    )
+    .toBe('visible')
   await readLabel.click()
   const action = await app.window('/windows/selection/action/')
   await expect(action.locator('body')).toContainText('SELECTION_ASSISTANT_PASS', { timeout: 2 * 60_000 })

@@ -40,8 +40,13 @@ async function generateAndSaveImage(
   }
   await page.locator('[contenteditable="true"]').fill(IMAGE_PROMPT)
   await page.getByRole('button', { name: 'Send', exact: true }).click()
+  const generation = page.getByRole('status', {
+    name: /Drawing in progress\. Please do not leave this page\.|Revealing generated image/
+  })
   const image = page.getByTestId('artboard-image-transform').last()
-  await expect(image).toBeVisible({ timeout: 3 * 60_000 })
+  await expect(generation).toBeVisible()
+  await expect(generation).toBeHidden({ timeout: 3 * 60_000 })
+  await expect(image).toBeVisible()
 
   await image.click({ button: 'right' })
   await page.getByText('Save As', { exact: true }).click()
