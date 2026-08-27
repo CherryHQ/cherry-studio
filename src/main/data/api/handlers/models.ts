@@ -21,11 +21,21 @@ import {
   ResolveProviderModelsQuerySchema,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { HandlersFor } from '@shared/data/api/types'
 import { SuccessStatus } from '@shared/data/api/types'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')
+
+function assertModelMutationAllowed(providerId: string, operation: string): void {
+  if (isManagedCherryCloudModel(providerId)) {
+    throw DataApiErrorFactory.invalidOperation(
+      operation,
+      'managed Cherry Cloud models cannot be modified through DataApi'
+    )
+  }
+}
 
 /**
  * Parse a UniqueModelId from the transport layer, raising a 422 validation
@@ -95,6 +105,9 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       // normalized before they reach the service so the service can expose one
       // collection-oriented create path with consistent transaction semantics.
       const parsed = CreateModelsSchema.parse(body)
+      for (const dto of parsed) {
+        assertModelMutationAllowed(dto.providerId, `create model ${dto.providerId}::${dto.modelId}`)
+      }
       const items = await enrichCreateItems(parsed)
       return modelService.create(items)
     },
@@ -108,12 +121,18 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
         ...parseOrValidationError(item.uniqueModelId),
         patch: item.patch
       }))
+      for (const item of items) {
+        assertModelMutationAllowed(item.providerId, `update model ${item.providerId}::${item.modelId}`)
+      }
       return modelService.bulkUpdate(items)
     },
 
     DELETE: async ({ query }) => {
       const parsed = DeleteModelsQuerySchema.parse(query)
       const items = parsed.ids.map((uniqueModelId) => parseOrValidationError(uniqueModelId))
+      for (const item of items) {
+        assertModelMutationAllowed(item.providerId, `delete model ${item.providerId}::${item.modelId}`)
+      }
       modelService.bulkDelete(items)
       return undefined
     }
@@ -128,11 +147,13 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       const parsed = UpdateModelSchema.parse(body)
+      assertModelMutationAllowed(providerId, `update model ${providerId}::${modelId}`)
       return modelService.update(providerId, modelId, parsed)
     },
 
     DELETE: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
+      assertModelMutationAllowed(providerId, `delete model ${providerId}::${modelId}`)
       modelService.delete(providerId, modelId)
       return undefined
     }
@@ -141,6 +162,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/providers/:providerId/models:reconcile': {
     POST: async ({ params, body }) => {
       const parsed = ReconcileProviderModelsSchema.parse(body)
+      assertModelMutationAllowed(params.providerId, `reconcile models for provider ${params.providerId}`)
 
       for (const dto of parsed.toAdd) {
         if (dto.providerId !== params.providerId) {
