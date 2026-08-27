@@ -13,7 +13,6 @@
   "agent.builtin.cherry_assistant.description": "Assistente integrado do Cherry Studio. Diagnostique problemas, guie operações, recolha FAQs, envie bugs/pedidos de recursos e pesquise/crie Competências",
   "agent.builtin.cherry_support.description": "Agente de suporte oficial do Cherry Studio para configuração, diagnóstico, perguntas frequentes e feedback",
   "agent.builtin.cherry_support.diagnostics.prepared": "O suporte da Cherry preparou uma descrição editável. Reveja-a antes de escolher os dados de diagnóstico e enviar o relatório.",
-  "agent.builtin.cherry_support.diagnostics.report_problem": "Comunicar um problema",
   "agent.builtin.cherry_support.diagnostics.review": "Rever relatório de diagnóstico",
   "agent.channels.add": "Adicionar",
   "agent.channels.bindAgent": "Associar agente",

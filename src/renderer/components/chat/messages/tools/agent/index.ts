@@ -7,7 +7,6 @@ export { CreateAgentToolInline } from './CreateAgentTool'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
 export {
-  findLatestPrepareDiagnosticReportResult,
   getPrepareDiagnosticReportResult,
   isPrepareDiagnosticReportResultPart
 } from './prepareDiagnosticReportResult'

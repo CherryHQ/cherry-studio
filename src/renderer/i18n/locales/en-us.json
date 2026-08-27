@@ -13,7 +13,6 @@
   "agent.builtin.cherry_assistant.description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills",
   "agent.builtin.cherry_support.description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback",
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support prepared an editable description. Review it before choosing diagnostic data and submitting.",
-  "agent.builtin.cherry_support.diagnostics.report_problem": "Report a problem",
   "agent.builtin.cherry_support.diagnostics.review": "Review diagnostic report",
   "agent.channels.add": "Add",
   "agent.channels.bindAgent": "Bind Agent",

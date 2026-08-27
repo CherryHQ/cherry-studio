@@ -1,11 +1,7 @@
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import {
-  findLatestPrepareDiagnosticReportResult,
-  getPrepareDiagnosticReportResult,
-  parsePrepareDiagnosticReportResult
-} from '../prepareDiagnosticReportResult'
+import { getPrepareDiagnosticReportResult, parsePrepareDiagnosticReportResult } from '../prepareDiagnosticReportResult'
 
 const result = (description: string) => ({ ok: true as const, description })
 
@@ -23,10 +19,6 @@ function reportPart(
     input: { description: 'input draft' },
     ...(state === 'output-error' ? { errorText: 'failed' } : { output })
   } as CherryMessagePart
-}
-
-function message(id: string, parts: CherryMessagePart[]): CherryUIMessage {
-  return { id, role: 'assistant', parts } as CherryUIMessage
 }
 
 describe('prepareDiagnosticReportResult', () => {
@@ -65,26 +57,5 @@ describe('prepareDiagnosticReportResult', () => {
     expect(
       getPrepareDiagnosticReportResult(reportPart('failed', result('Failed draft'), 'output-error'))
     ).toBeUndefined()
-  })
-
-  it('selects the last complete success by message and part order without letting later failures replace it', () => {
-    const first = reportPart('first', {
-      content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
-      metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' },
-      structuredContent: result('First draft')
-    })
-    const second = reportPart('second', { content: [{ type: 'text', text: JSON.stringify(result('Second draft')) }] })
-    const partial = reportPart('partial', undefined, 'input-streaming')
-    const failed = reportPart('failed', result('Failed draft'), 'output-error')
-
-    expect(
-      findLatestPrepareDiagnosticReportResult(
-        [message('message-1', [first, second]), message('message-2', [partial, failed])],
-        {
-          'message-1': [first, second],
-          'message-2': [partial, failed]
-        }
-      )
-    ).toEqual(result('Second draft'))
   })
 })

@@ -1,6 +1,6 @@
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 
 import { buildToolResponseFromPart } from '../toolResponse'
@@ -92,16 +92,4 @@ export function isPrepareDiagnosticReportResultPart(part: CherryMessagePart): bo
   const toolResponse = buildToolResponseFromPart(part)
   if (!toolResponse || !isPrepareDiagnosticReportToolResponse(toolResponse)) return false
   return isDeferredToolOutput(toolResponse.response) || resultFromToolResponse(toolResponse) !== undefined
-}
-
-export function findLatestPrepareDiagnosticReportResult(
-  messages: readonly CherryUIMessage[],
-  partsByMessageId: Readonly<Record<string, CherryMessagePart[]>>
-): PrepareDiagnosticReportResult | undefined {
-  let latest: PrepareDiagnosticReportResult | undefined
-  for (const message of messages) {
-    const parts = partsByMessageId[message.id] ?? message.parts
-    for (const part of parts) latest = getPrepareDiagnosticReportResult(part) ?? latest
-  }
-  return latest
 }

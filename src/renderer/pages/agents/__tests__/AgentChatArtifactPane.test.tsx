@@ -1,6 +1,5 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as MotionReact from 'motion/react'
@@ -563,7 +562,6 @@ vi.mock('@renderer/utils/agentSession', () => ({
 vi.mock('react-i18next', async (importOriginal) => {
   const translations: Record<string, string> = {
     'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
-    'agent.builtin.cherry_support.diagnostics.report_problem': 'Report a problem',
     'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report'
   }
   return {
@@ -676,34 +674,6 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 describe('AgentChat artifact pane', () => {
-  const reportPart = (
-    toolCallId: string,
-    state: 'input-streaming' | 'output-available' | 'output-error',
-    description: string
-  ): CherryMessagePart =>
-    ({
-      type: 'dynamic-tool',
-      toolName: 'mcp__assistant__prepare_diagnostic_report',
-      toolCallId,
-      state,
-      input: { description },
-      ...(state === 'output-error'
-        ? { errorText: 'draft failed' }
-        : { output: { structuredContent: { ok: true, description } } })
-    }) as CherryMessagePart
-
-  const setRuntimeMessages = (messages: CherryUIMessage[]) => {
-    agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
-      messages,
-      isLoading: false,
-      hasOlder: false,
-      loadOlder: vi.fn(),
-      refresh: vi.fn(),
-      seedReservedMessages: vi.fn(),
-      deleteMessage: vi.fn()
-    })
-  }
-
   const createConversationBootstrap = (
     session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = activeSessionMocks.result
       .session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
@@ -789,15 +759,8 @@ describe('AgentChat artifact pane', () => {
     })
   })
 
-  it('keeps the Support report launcher available and opens only on explicit user actions', async () => {
+  it('opens Support diagnostic drafts only from inline result actions', async () => {
     const user = userEvent.setup()
-    const first = reportPart('complete', 'output-available', 'Last complete draft')
-    const partial = reportPart('partial', 'input-streaming', 'Partial draft')
-    const failed = reportPart('failed', 'output-error', 'Failed draft')
-    setRuntimeMessages([
-      { id: 'message-1', role: 'assistant', parts: [first] } as CherryUIMessage,
-      { id: 'message-2', role: 'assistant', parts: [partial, failed] } as CherryUIMessage
-    ])
     const supportBootstrap = createConversationBootstrap()
     supportBootstrap.resources.agent = {
       id: 'agent-1',
@@ -808,35 +771,13 @@ describe('AgentChat artifact pane', () => {
 
     renderAgentChat({ conversationBootstrap: supportBootstrap })
 
-    expect(screen.getByRole('button', { name: 'Report a problem' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
     expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
 
-    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Last complete draft')
-
-    await user.click(screen.getByRole('button', { name: 'Cancel diagnostic report' }))
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open inline diagnostic draft' }))
     expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Inline draft from this message')
     expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
-  })
-
-  it('passes an empty draft from the Support navbar and hides the launcher for other agents', async () => {
-    const user = userEvent.setup()
-    const supportBootstrap = createConversationBootstrap()
-    supportBootstrap.resources.agent = {
-      id: 'agent-1',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof supportBootstrap.resources.agent
-
-    const { rerender } = renderAgentChat({ conversationBootstrap: supportBootstrap })
-    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('')
-
-    rerenderAgentChat(rerender)
-    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
   })
 
   it('opens and closes the artifact pane without replacing the existing chat shell pane', () => {

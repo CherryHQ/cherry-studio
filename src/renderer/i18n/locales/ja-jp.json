@@ -13,7 +13,6 @@
   "agent.builtin.cherry_assistant.description": "内蔵のCherry Studioアドバイザー。問題の診断、操作ガイド、FAQの収集、バグ/機能リクエストの提出、およびスキルの検索/作成を行います。",
   "agent.builtin.cherry_support.description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent",
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support が編集可能な説明を用意しました。診断データを選択して送信する前に確認してください。",
-  "agent.builtin.cherry_support.diagnostics.report_problem": "問題を報告",
   "agent.builtin.cherry_support.diagnostics.review": "診断レポートを確認",
   "agent.channels.add": "追加",
   "agent.channels.bindAgent": "エージェントを関連付け",
