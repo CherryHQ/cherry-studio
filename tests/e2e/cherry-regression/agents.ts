@@ -20,9 +20,8 @@ export async function selectAgent(page: Page, name: string): Promise<void> {
 export async function startNewAgentTask(page: Page, name: string): Promise<void> {
   await selectAgent(page, name)
   const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  const agentRow = agentView.getByRole('option').filter({ hasText: name }).first()
-  await agentRow.hover()
-  const newTask = agentRow.getByRole('button', { name: 'New task', exact: true })
+  await agentView.getByText(name, { exact: true }).first().hover()
+  const newTask = agentView.getByRole('button', { name: 'New task', exact: true }).first()
   await expect(newTask).toBeVisible()
   await newTask.click()
   await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
@@ -87,7 +86,7 @@ export async function runAgentFileTask(
   const output = join(app.paths.workspace, fileName)
   const prompt = `Create ${fileName} directly in the current working directory with the exact text AGENT_FILE_TASK_PASS.`
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first().fill(prompt)
+    await page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first().fill(prompt)
     await page.getByRole('button', { name: 'Send', exact: true }).click()
     if (approve) {
       const allow = page.getByRole('button', { name: /Allow/ }).first()

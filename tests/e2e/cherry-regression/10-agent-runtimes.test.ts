@@ -56,7 +56,7 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
   await selectAgentWorkspace(app, page)
 
   await page
-    .locator('[data-ui="chat.composer"] [contenteditable="true"]')
+    .locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]')
     .first()
     .fill(
       'Use a real web search about Cherry Studio, then create cherry-regression-31415.pptx in the current working directory. Its exact title must be Cherry Regression 31415 and it must contain exactly three slides. Open the generated deck after creating it.'

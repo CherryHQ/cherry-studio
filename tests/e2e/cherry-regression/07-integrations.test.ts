@@ -8,7 +8,7 @@ import { closeSettings, ensureCustomChatProvider, openSettingsSection, selectVis
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Promise<void> {
-  const direct = page.locator('[data-ui="chat.composer"]').getByRole('button', { name: 'Skills', exact: true })
+  const direct = page.locator('[data-ui~="chat.composer"]:visible').getByRole('button', { name: 'Skills', exact: true })
   await expect(direct).toBeVisible({ timeout: 30_000 })
   const manageSkills = page.getByText('Manage skills', { exact: true })
   await expect
@@ -113,7 +113,7 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
   if ((await skillSwitch.getAttribute('aria-checked')) !== 'true') await skillSwitch.click()
   await page.getByRole('button', { name: 'Close', exact: true }).click()
 
-  const composer = page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first()
+  const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
   await composer.fill('What is the Cherry regression marker? Reply exactly as the selected local skill requires.')
   await openSkillsPanel(page)
   await page.getByText('cherry-regression-fixture', { exact: true }).click()
