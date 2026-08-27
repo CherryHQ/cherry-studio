@@ -14,7 +14,7 @@ const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
 
 vi.mock('swr', () => ({
-  default: () => ({ data: { modelCount: 0, quotaExhaustedModelIds: [] } })
+  default: () => ({ data: { entitledModelIds: [], quotaExhaustedModelIds: [] } })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({

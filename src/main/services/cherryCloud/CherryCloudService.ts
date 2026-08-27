@@ -56,7 +56,6 @@ type CherryCloudState = {
   session: ProductSession | null
 }
 type CloudModelSyncResult = {
-  modelCount: number
   entitledModelIds: UniqueModelId[]
   quotaExhaustedModelIds: UniqueModelId[]
 }
@@ -524,7 +523,7 @@ export class CherryCloudService extends BaseService {
   private async syncEntitledModelsOnce(sessionGeneration: number, signal: AbortSignal): Promise<CloudModelSyncResult> {
     if (!this.cloudState.session) {
       this.reconcileEntitledModels([])
-      return { modelCount: 0, entitledModelIds: [], quotaExhaustedModelIds: [] }
+      return { entitledModelIds: [], quotaExhaustedModelIds: [] }
     }
 
     const [account, catalog] = await Promise.all([
@@ -561,7 +560,6 @@ export class CherryCloudService extends BaseService {
     ]
     this.reconcileEntitledModels(models)
     return {
-      modelCount: models.length,
       entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
       quotaExhaustedModelIds
     }

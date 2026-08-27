@@ -7,7 +7,6 @@ import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../u
 
 const mocks = vi.hoisted(() => ({
   cloudAvailability: {
-    modelCount: 0,
     entitledModelIds: [] as Model['id'][],
     quotaExhaustedModelIds: [] as Model['id'][]
   }
@@ -42,7 +41,7 @@ const providers = {
 
 describe('useAgentModelFilter', () => {
   beforeEach(() => {
-    mocks.cloudAvailability = { modelCount: 0, entitledModelIds: [], quotaExhaustedModelIds: [] }
+    mocks.cloudAvailability = { entitledModelIds: [], quotaExhaustedModelIds: [] }
   })
 
   it('allows Gemini provider models for Claude Code agents', () => {
@@ -79,7 +78,6 @@ describe('useAgentModelFilter', () => {
       providerId: 'cherry-cloud'
     } as Model
     mocks.cloudAvailability = {
-      modelCount: 2,
       entitledModelIds: [exhaustedModel.id, availableModel.id],
       quotaExhaustedModelIds: [exhaustedModel.id]
     }

@@ -18,7 +18,6 @@ export const cherryCloudRequestSchemas = {
   'cherry_cloud.models.sync': defineRoute({
     input: z.void(),
     output: z.strictObject({
-      modelCount: z.number().int().nonnegative(),
       entitledModelIds: z.array(UniqueModelIdSchema),
       quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
     })

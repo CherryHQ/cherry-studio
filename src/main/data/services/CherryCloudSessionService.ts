@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 
 const CURRENT_SESSION_ID = 'current'
 
-export type CherryCloudSession = Omit<CherryCloudSessionRow, 'id'>
+export type CherryCloudSession = Omit<CherryCloudSessionRow, 'createdAt' | 'id' | 'updatedAt'>
 
 export class CherryCloudSessionService {
   get(): CherryCloudSession | null {

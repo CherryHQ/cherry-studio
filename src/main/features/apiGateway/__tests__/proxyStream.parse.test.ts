@@ -75,6 +75,7 @@ vi.mock('../adapters', () => ({
   }
 }))
 
+import { ApiGatewayService } from '../ApiGatewayService'
 import { processMessage } from '../proxyStream'
 
 beforeEach(() => {
@@ -252,9 +253,10 @@ describe('processMessage model-id parsing', () => {
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
-  it('routes internal Cherry Cloud messages through AiStreamManager', async () => {
+  it('routes Cherry Cloud messages authorized by the production usage-token gate', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-    mockIsInternalAgentRequest.mockReturnValue(true)
+    const gatewayService = new ApiGatewayService()
+    mockIsInternalAgentRequest.mockImplementation((headers) => gatewayService.isInternalAgentRequest(headers))
     const responsePromise = processMessage({
       params: {
         model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
@@ -263,7 +265,7 @@ describe('processMessage model-id parsing', () => {
       },
       inputFormat: 'anthropic',
       outputFormat: 'anthropic',
-      requestHeaders: new Headers({ 'x-cherry-internal-request-token': 'internal-token' })
+      requestHeaders: new Headers(gatewayService.getAgentSessionUsageHeaders('session-1'))
     })
 
     await vi.waitFor(() => expect(captured.opts).toBeDefined())

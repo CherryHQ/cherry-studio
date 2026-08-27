@@ -681,7 +681,6 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
-      modelCount: 2,
       entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
       quotaExhaustedModelIds: ['cherry-cloud::deepseek-free']
     })
@@ -755,7 +754,6 @@ describe('CherryCloudService', () => {
         .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
       await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
-        modelCount: 2,
         entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
         quotaExhaustedModelIds: ['cherry-cloud::deepseek-free']
       })
@@ -819,7 +817,6 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
-      modelCount: 2,
       entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
       quotaExhaustedModelIds: []
     })

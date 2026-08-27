@@ -64,13 +64,11 @@ describe('cherryCloudHandlers', () => {
 
   it('syncs the signed-in entitled model catalog', async () => {
     service.syncEntitledModelsIfStale.mockResolvedValue({
-      modelCount: 2,
       entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
       quotaExhaustedModelIds: ['cherry-cloud::deepseek-free']
     })
 
     await expect(cherryCloudHandlers['cherry_cloud.models.sync'](undefined, { senderId: 'w1' })).resolves.toEqual({
-      modelCount: 2,
       entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
       quotaExhaustedModelIds: ['cherry-cloud::deepseek-free']
     })
