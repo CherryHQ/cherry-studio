@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
@@ -192,7 +194,7 @@ describe('CodeCliService', () => {
     expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(12)
     expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
       'code-mate-codex',
-      '/mock/binary-data/code-mate-codex',
+      path.join('/mock/binary-data', 'code-mate-codex'),
       '2.0.9',
       'code-cli:openai-codex'
     )
@@ -221,7 +223,7 @@ describe('CodeCliService', () => {
       expect(binaryManagerMock.installByName).toHaveBeenCalledWith({ name: 'codex' })
       expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
         'code-mate-codex',
-        '/mock/binary-data/code-mate-codex',
+        path.join('/mock/binary-data', 'code-mate-codex'),
         '2.0.9',
         'code-cli:openai-codex'
       )
