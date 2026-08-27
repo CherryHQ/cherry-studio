@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "Neue Version {{version}} gefunden",
   "settings.about.updateError": "Aktualisierungsfehler",
   "settings.about.updateNotAvailable": "Ihre Software ist bereits auf dem neuesten Stand",
+  "settings.about.updateNotPublished": "Es ist noch keine veröffentlichte Aktualisierung verfügbar. Bitte versuchen Sie es später erneut.",
   "settings.about.website.button": "Anzeigen",
   "settings.about.website.title": "Offizielle Website",
   "settings.agent.position.label": "Sitzungsposition",

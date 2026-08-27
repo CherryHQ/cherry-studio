@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "Đã tìm thấy phiên bản mới {{version}}",
   "settings.about.updateError": "Lỗi cập nhật",
   "settings.about.updateNotAvailable": "Bạn đang sử dụng phiên bản mới nhất",
+  "settings.about.updateNotPublished": "Chưa có bản cập nhật được phát hành. Vui lòng thử lại sau.",
   "settings.about.website.button": "Trang web",
   "settings.about.website.title": "Trang web chính thức",
   "settings.agent.position.label": "Vị trí phiên",

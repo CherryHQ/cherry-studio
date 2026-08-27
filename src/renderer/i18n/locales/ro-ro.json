@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "S-a găsit o nouă versiune {{version}}",
   "settings.about.updateError": "Eroare actualizare",
   "settings.about.updateNotAvailable": "Utilizezi cea mai recentă versiune",
+  "settings.about.updateNotPublished": "Nu există încă o actualizare publicată. Încercați din nou mai târziu.",
   "settings.about.website.button": "Site web",
   "settings.about.website.title": "Site oficial",
   "settings.agent.position.label": "Poziția sesiunii",

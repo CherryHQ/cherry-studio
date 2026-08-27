@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "發現新版本 {{version}}",
   "settings.about.updateError": "更新錯誤",
   "settings.about.updateNotAvailable": "您正在使用最新版本",
+  "settings.about.updateNotPublished": "目前沒有已發布的更新，請稍後再試。",
   "settings.about.website.button": "網站",
   "settings.about.website.title": "官方網站",
   "settings.agent.position.label": "工作階段位置",

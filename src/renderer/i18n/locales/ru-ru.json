@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "Найдено новое обновление {{version}}",
   "settings.about.updateError": "Ошибка обновления",
   "settings.about.updateNotAvailable": "Вы используете последнюю версию",
+  "settings.about.updateNotPublished": "Опубликованное обновление пока недоступно. Повторите попытку позже.",
   "settings.about.website.button": "Сайт",
   "settings.about.website.title": "Официальный сайт",
   "settings.agent.position.label": "Позиция сессии",

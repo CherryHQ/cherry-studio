@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "Νέα έκδοση {{version}} εντοπίστηκε",
   "settings.about.updateError": "Σφάλμα κατά την ενημέρωση",
   "settings.about.updateNotAvailable": "Το λογισμικό σας είναι ήδη στην πιο πρόσφατη έκδοση",
+  "settings.about.updateNotPublished": "Δεν υπάρχει ακόμα δημοσιευμένη ενημέρωση. Δοκιμάστε ξανά αργότερα.",
   "settings.about.website.button": "Προβολή",
   "settings.about.website.title": "Ιστοσελίδα",
   "settings.agent.position.label": "Θέση συνεδρίας",

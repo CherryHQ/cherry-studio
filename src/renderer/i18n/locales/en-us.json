@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "Found new version {{version}}",
   "settings.about.updateError": "Update error",
   "settings.about.updateNotAvailable": "You are using the latest version",
+  "settings.about.updateNotPublished": "No published update is available yet. Please try again later.",
   "settings.about.website.button": "Website",
   "settings.about.website.title": "Official Website",
   "settings.agent.position.label": "Session position",

@@ -3273,6 +3273,7 @@
   "settings.about.updateAvailable": "新しいバージョン {{version}} が見つかりました",
   "settings.about.updateError": "更新エラー",
   "settings.about.updateNotAvailable": "最新バージョンを使用しています",
+  "settings.about.updateNotPublished": "公開済みの更新はまだありません。しばらくしてから再試行してください。",
   "settings.about.website.button": "ウェブサイト",
   "settings.about.website.title": "公式ウェブサイト",
   "settings.agent.position.label": "セッション位置",
