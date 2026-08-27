@@ -431,8 +431,9 @@ describe('ProviderApiSetupDialog', () => {
     await screen.findByRole('alert')
     expect(screen.queryByText(/sk-existing/)).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('••••')
+    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.edit_key' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.edit_key' }))
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
     const apiKeyInput = screen.getByLabelText('settings.provider.api_key.label')
     expect(apiKeyInput).toHaveValue('sk-existing')
 
@@ -469,8 +470,7 @@ describe('ProviderApiSetupDialog', () => {
     expect(alert).not.toHaveTextContent('401 rejected')
   })
 
-  it('lets a custom provider add a model manually when remote model loading fails', async () => {
-    provider = { ...provider, presetProviderId: undefined }
+  it('lets a preset provider add a model manually when remote model loading fails', async () => {
     fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('models endpoint unsupported'))
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)

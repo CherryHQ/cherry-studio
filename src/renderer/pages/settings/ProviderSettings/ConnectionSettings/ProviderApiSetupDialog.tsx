@@ -111,7 +111,6 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const runtimeApiKey = provider?.apiKeys.find((entry) => entry.isEnabled) ?? provider?.apiKeys[0]
   const editableApiKeyId = savedKeyId ?? storedApiKey?.id ?? runtimeApiKey?.id ?? null
   const verificationApiKey = apiKey.trim() || storedApiKey?.key || ''
-  const canAddModelManually = provider != null && provider.presetProviderId == null
   const activeVerificationStep: VerificationStep | null =
     busyState === 'checking' ? 'check' : busyState === 'enabling' ? 'enable' : null
   const failedVerificationStep: VerificationStep | null =
@@ -447,7 +446,13 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           disabled: isBusy,
           onClick: returnToModels
         }
-      : null
+      : step === 'models' && editableApiKeyId
+        ? {
+            label: t('common.back'),
+            disabled: isBusy,
+            onClick: editSavedKey
+          }
+        : null
 
   return (
     <>
@@ -518,7 +523,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                   }}
                 />
                 {providerMeta.apiKeyWebsite && !providerMeta.isDmxapi ? (
-                  <div className="flex pl-3">
+                  <div className="flex">
                     <ProviderHelpLink
                       target="_blank"
                       rel="noreferrer"
@@ -535,17 +540,15 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
             <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
               {error?.kind === 'models' ? (
                 <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 px-1">
-                  {canAddModelManually ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      className="w-full shrink-0"
-                      disabled={isBusy}
-                      onClick={openManualModelDialog}>
-                      {t('settings.provider.api_setup.add_model_manually')}
-                    </Button>
-                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="w-full shrink-0"
+                    disabled={isBusy}
+                    onClick={openManualModelDialog}>
+                    {t('settings.provider.api_setup.add_model_manually')}
+                  </Button>
                   <SetupErrorMessage message={error.message} />
                 </div>
               ) : (

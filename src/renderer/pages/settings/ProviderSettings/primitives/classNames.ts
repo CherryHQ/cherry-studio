@@ -225,7 +225,7 @@ export const modelListClasses = {
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-md border-border-subtle border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-md border-border-subtle bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   fetchGuideWrap: 'relative flex shrink-0',
   fetchGuideArrow:
     'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-muted-foreground motion-reduce:animate-none',
