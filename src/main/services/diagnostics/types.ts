@@ -4,6 +4,7 @@ export type DiagnosticFileSourceKind = 'logs' | 'traces'
 export type DiagnosticSourceKind = DiagnosticFileSourceKind | 'chatRecords'
 export type DiagnosticWarning =
   | 'malformed_lines'
+  | 'scan_failed'
   | 'size_limit_reached'
   | 'source_changed'
   | 'source_unreadable'

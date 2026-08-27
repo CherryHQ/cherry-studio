@@ -34,6 +34,13 @@ import {
 } from './chatRecordCollector'
 import { feishuAnonymousFormClient } from './FeishuAnonymousFormClient'
 import {
+  buildScanReport,
+  collectErrorLogRecords,
+  diagnose,
+  SCAN_REPORT_ARCHIVE_NAME,
+  serializeScanReport
+} from './scan'
+import {
   collectCrashDumpInventory,
   collectDiagnosticSources,
   SourceChangedError,
@@ -235,12 +242,18 @@ function assertSafeArchiveName(name: string): void {
   }
 }
 
+interface InlineArchiveEntry {
+  readonly name: string
+  readonly content: string
+}
+
 async function writeBundleZip(
   destination: AbsoluteFilePath,
   expectedDestinationIdentity: DestinationIdentity,
-  manifest: string,
+  entries: readonly InlineArchiveEntry[],
   sources: readonly StagedSource[]
 ): Promise<void> {
+  for (const entry of entries) assertSafeArchiveName(entry.name)
   for (const source of sources) assertSafeArchiveName(source.archiveName)
 
   const { ZipArchive } = await import('archiver')
@@ -258,7 +271,7 @@ async function writeBundleZip(
 
   try {
     archive.pipe(output)
-    archive.append(manifest, { name: 'diagnostics.json' })
+    for (const entry of entries) archive.append(entry.content, { name: entry.name })
     for (const source of sources) archive.file(source.path, { name: source.archiveName })
     await Promise.all([archive.finalize(), completion])
     const currentDestinationIdentity = await probeDestination(destination)
@@ -647,6 +660,43 @@ export class DiagnosticBundleService {
       }
     }
 
+    // Mechanical error scan over the raw error logs. Gated on includeLogs so the
+    // report cannot leak log contents the user opted out of; failure never blocks export.
+    let scanReportJson: string | undefined
+    let scan:
+      | { status: 'included'; findingCount: number; truncated: boolean; skippedFileCount: number }
+      | { status: 'skipped' }
+      | { status: 'failed' } = { status: 'skipped' }
+    if (input.includeLogs) {
+      try {
+        const scanned = await collectErrorLogRecords(application.getPath('app.logs'), range)
+        const findings = diagnose(scanned.records)
+        scanReportJson = serializeScanReport(
+          buildScanReport(findings, {
+            range,
+            scannedRecordCount: scanned.records.length,
+            unparsedLineCount: scanned.unparsedLineCount,
+            skippedFileCount: scanned.skippedFileCount,
+            truncated: scanned.truncated
+          })
+        )
+        // an incomplete scan must be visible in the manifest: triage should not have to open
+        // scan/findings.json to learn that most of the logs were never read
+        scan = {
+          status: 'included',
+          findingCount: findings.length,
+          truncated: scanned.truncated,
+          skippedFileCount: scanned.skippedFileCount
+        }
+      } catch (error) {
+        collection.warnings.add('scan_failed')
+        scan = { status: 'failed' }
+        logger.warn('Failed to build the diagnostic scan report', {
+          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        })
+      }
+    }
+
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
     const system = await collectDiagnosticSystemInfo(collection.warnings)
     const included = {
@@ -686,6 +736,7 @@ export class DiagnosticBundleService {
         mode: 'inventory_only',
         totalBytes: crashDumps.totalBytes
       },
+      scan,
       sources: {
         chatRecords: { included: included.chatRecords, omitted: omitted.chatRecords },
         logs: { included: included.logs, omitted: omitted.logs },
@@ -694,7 +745,11 @@ export class DiagnosticBundleService {
       warnings
     }
 
-    await writeBundleZip(destination, destinationIdentity, `${JSON.stringify(manifest, null, 2)}\n`, staged)
+    const entries = [
+      { name: 'diagnostics.json', content: `${JSON.stringify(manifest, null, 2)}\n` },
+      ...(scanReportJson !== undefined ? [{ name: SCAN_REPORT_ARCHIVE_NAME, content: scanReportJson }] : [])
+    ]
+    await writeBundleZip(destination, destinationIdentity, entries, staged)
 
     const archiveBytes = (await stat(destination)).size
     const stagedChatArchiveNames = new Set(

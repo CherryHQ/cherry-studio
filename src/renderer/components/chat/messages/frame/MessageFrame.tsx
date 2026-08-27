@@ -206,7 +206,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       <Scrollbar
         data-ui="part:message-content"
         className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
-        tabIndex={0}
+        tabIndex={isHorizontalMultiModelLayout ? 0 : undefined}
         style={{
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize,
@@ -365,7 +365,6 @@ const UserBubbleMessage = ({
           <Scrollbar
             data-ui="part:message-content"
             className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
-            tabIndex={0}
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize,
