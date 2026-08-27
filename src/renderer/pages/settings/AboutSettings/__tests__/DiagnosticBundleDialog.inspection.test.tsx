@@ -40,6 +40,9 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   }
 }
 
+const chatRecordsSwitchName = /^settings\.about\.diagnostics\.sources\.chat_records\.title /
+const logsSwitchName = /^settings\.about\.diagnostics\.sources\.logs\.title /
+
 function renderDialog() {
   render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={vi.fn()} />)
 }
@@ -108,12 +111,10 @@ describe('DiagnosticBundleDialog inspection state', () => {
       }
     }
     await act(async () => resolve3d(empty3dResult))
-    await waitFor(() =>
-      expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeDisabled()
-    )
+    await waitFor(() => expect(screen.getByRole('switch', { name: logsSwitchName })).toBeDisabled())
 
     await act(async () => resolve24h(inspectResult))
-    expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: logsSwitchName })).toBeDisabled()
   })
 
   it('resets the range and chat history selection after the close animation before reopening', async () => {
@@ -124,8 +125,8 @@ describe('DiagnosticBundleDialog inspection state', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
-    await user.click(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' }))
-    expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' })).toBeChecked()
+    await user.click(screen.getByRole('switch', { name: chatRecordsSwitchName }))
+    expect(screen.getByRole('switch', { name: chatRecordsSwitchName })).toBeChecked()
 
     rerender(<DiagnosticBundleDialog appVersion="2.0.0" open={false} onOpenChange={onOpenChange} />)
     await act(() => new Promise((resolve) => window.setTimeout(resolve, DIALOG_CLOSE_DURATION_MS)))
@@ -136,9 +137,7 @@ describe('DiagnosticBundleDialog inspection state', () => {
       const inspectCalls = mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.inspect')
       expect(inspectCalls).toEqual([['diagnostics.bundle.inspect', { range: '24h' }]])
     })
-    expect(
-      screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' })
-    ).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: chatRecordsSwitchName })).not.toBeChecked()
   })
 
   it('shows a warning when source inspection is incomplete', async () => {

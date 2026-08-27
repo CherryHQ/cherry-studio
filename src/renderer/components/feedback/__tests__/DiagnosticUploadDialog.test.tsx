@@ -55,6 +55,7 @@ const uploadedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 
 }
 
 const fallbackPath = AbsoluteFilePathSchema.parse('/tmp/cherry-studio-diagnostics.zip')
+const chatRecordsSwitchName = /^settings\.about\.diagnostics\.sources\.chat_records\.title /
 
 describe('DiagnosticUploadDialog', () => {
   beforeEach(() => {
@@ -74,9 +75,7 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('settings.about.diagnostics.upload.privacy.title')
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(
-      screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' })
-    ).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: chatRecordsSwitchName })).not.toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.upload.actions.consent_upload' }))
 
@@ -101,7 +100,7 @@ describe('DiagnosticUploadDialog', () => {
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
     const chatRecords = await screen.findByRole('switch', {
-      name: 'settings.about.diagnostics.sources.chat_records.title'
+      name: chatRecordsSwitchName
     })
     await user.click(chatRecords)
     expect(chatRecords).toBeChecked()
@@ -138,7 +137,7 @@ describe('DiagnosticUploadDialog', () => {
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
     const chatRecords = await screen.findByRole('switch', {
-      name: 'settings.about.diagnostics.sources.chat_records.title'
+      name: chatRecordsSwitchName
     })
     await user.click(chatRecords)
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))

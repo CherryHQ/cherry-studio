@@ -70,6 +70,10 @@ const savedResult: Extract<OutputFor<'diagnostics.bundle.export'>, { status: 'sa
   status: 'saved'
 }
 
+const chatRecordsSwitchName = /^settings\.about\.diagnostics\.sources\.chat_records\.title /
+const logsSwitchName = /^settings\.about\.diagnostics\.sources\.logs\.title /
+const tracesSwitchName = /^settings\.about\.diagnostics\.sources\.traces\.title /
+
 function renderDialog() {
   render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={vi.fn()} />)
 }
@@ -101,11 +105,9 @@ describe('DiagnosticBundleDialog', () => {
     renderDialog()
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
-    expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeChecked()
-    expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.traces.title' })).toBeChecked()
-    expect(
-      screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' })
-    ).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: logsSwitchName })).toBeChecked()
+    expect(screen.getByRole('switch', { name: tracesSwitchName })).toBeChecked()
+    expect(screen.getByRole('switch', { name: chatRecordsSwitchName })).not.toBeChecked()
     expect(screen.getByText('4 messages, about 4.0 KB')).toBeInTheDocument()
     expect(screen.queryByText('settings.about.diagnostics.privacy.title')).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
@@ -145,9 +147,9 @@ describe('DiagnosticBundleDialog', () => {
     renderDialog()
 
     await screen.findByText('settings.about.diagnostics.sources.chat_records.title')
-    await user.click(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' }))
-    await user.click(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.traces.title' }))
-    await user.click(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.chat_records.title' }))
+    await user.click(screen.getByRole('switch', { name: logsSwitchName }))
+    await user.click(screen.getByRole('switch', { name: tracesSwitchName }))
+    await user.click(screen.getByRole('switch', { name: chatRecordsSwitchName }))
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
     const confirmation = screen.getAllByRole('dialog').at(-1)!
@@ -216,9 +218,7 @@ describe('DiagnosticBundleDialog', () => {
     })
     renderDialog()
 
-    await waitFor(() =>
-      expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeDisabled()
-    )
+    await waitFor(() => expect(screen.getByRole('switch', { name: logsSwitchName })).toBeDisabled())
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     const exportButton = screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })
     expect(exportButton).toBeEnabled()

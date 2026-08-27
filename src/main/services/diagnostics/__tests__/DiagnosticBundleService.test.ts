@@ -119,6 +119,10 @@ describe('DiagnosticBundleService', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    vi.mocked(agentSessionMessageService.getSessionMessage).mockReset()
+    vi.mocked(agentSessionService.getById).mockReset()
+    vi.mocked(messageService.getById).mockReset()
+    vi.mocked(topicService.getById).mockReset()
     workDir = await mkdtemp(path.join(tmpdir(), 'diagnostic-service-'))
     logsDir = path.join(workDir, 'logs')
     tracesDir = path.join(workDir, 'traces')
