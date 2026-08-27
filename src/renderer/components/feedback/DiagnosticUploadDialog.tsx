@@ -25,7 +25,7 @@ import type { DiagnosticRange, DiagnosticUploadFallbackReason } from '@shared/ip
 import type { OutputFor } from '@shared/ipc/types'
 import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import { CircleAlert, CircleCheck, LoaderCircle } from 'lucide-react'
+import { CircleAlert, CircleCheck } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -238,10 +238,9 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
               </section>
 
               {isInspectionPending ? (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm" role="status">
-                  <LoaderCircle className="size-4 animate-spin" />
+                <span className="sr-only" role="status" aria-live="polite">
                   {t('settings.about.diagnostics.inspecting')}
-                </div>
+                </span>
               ) : null}
               {inspectError ? (
                 <p className="text-error text-sm" role="alert">

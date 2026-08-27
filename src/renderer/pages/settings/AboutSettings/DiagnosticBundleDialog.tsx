@@ -26,7 +26,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import { createFilePathHandle } from '@shared/utils/file'
-import { CircleCheck, LoaderCircle } from 'lucide-react'
+import { CircleCheck } from 'lucide-react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -315,6 +315,11 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
           </DialogHeader>
 
           <Scrollbar className="min-h-0 px-6 py-2">
+            {isInspectionPending && (
+              <span className="sr-only" role="status" aria-live="polite">
+                {t('settings.about.diagnostics.inspecting')}
+              </span>
+            )}
             {status === 'saved' && savedResult ? (
               <div className="space-y-4">
                 <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">
@@ -395,12 +400,6 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
                   </div>
                 </section>
 
-                {isInspectionPending && (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm" role="status">
-                    <LoaderCircle className="size-4 animate-spin" />
-                    {t('settings.about.diagnostics.inspecting')}
-                  </div>
-                )}
                 {inspectError && (
                   <p className="text-error text-sm" role="alert">
                     {t('settings.about.diagnostics.errors.inspect_failed')}

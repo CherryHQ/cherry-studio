@@ -155,6 +155,33 @@ describe('DiagnosticUploadDialog', () => {
     )
   })
 
+  it('keeps range inspection feedback out of the dialog layout', async () => {
+    let resolveRangeInspection: (result: typeof inspectResult) => void = () => undefined
+    mocks.request.mockImplementation((route: string, input?: { range?: string }) => {
+      if (route === 'diagnostics.bundle.inspect' && input?.range === '3d') {
+        return new Promise((resolve) => {
+          resolveRangeInspection = resolve
+        })
+      }
+      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
+      if (route === 'diagnostics.bundle.upload') return Promise.resolve(uploadedResult)
+      return Promise.resolve(undefined)
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    await screen.findByText('settings.about.diagnostics.sources.message_summary')
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
+    expect(screen.getAllByText('settings.about.diagnostics.sources.inspecting')).toHaveLength(3)
+    // The live announcement must not add a normal-flow row that changes the centered dialog height.
+    expect(screen.getByRole('status')).toHaveClass('sr-only')
+
+    resolveRangeInspection(inspectResult)
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+  })
+
   it('locks the dialog while upload is in progress', async () => {
     let resolveUpload: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {

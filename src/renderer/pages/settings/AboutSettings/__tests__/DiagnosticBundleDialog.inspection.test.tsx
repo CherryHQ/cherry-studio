@@ -54,7 +54,7 @@ describe('DiagnosticBundleDialog inspection state', () => {
     })
   })
 
-  it('describes sources as pending instead of unavailable while inspection is running', async () => {
+  it('keeps inspection feedback in source descriptions without adding a layout row', async () => {
     let resolveInspection: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
       if (route !== 'diagnostics.bundle.inspect') return Promise.resolve(undefined)
@@ -68,6 +68,10 @@ describe('DiagnosticBundleDialog inspection state', () => {
 
     expect(screen.getAllByText('settings.about.diagnostics.sources.inspecting')).toHaveLength(3)
     expect(screen.queryByText('settings.about.diagnostics.sources.unavailable')).not.toBeInTheDocument()
+    // The live announcement must not add a normal-flow row that changes the centered dialog height.
+    const inspectionStatus = screen.getByRole('status')
+    expect(inspectionStatus).toHaveClass('sr-only')
+    expect(inspectionStatus.parentElement).not.toHaveClass('space-y-4')
 
     await act(async () => resolveInspection(inspectResult))
     await waitFor(() =>
