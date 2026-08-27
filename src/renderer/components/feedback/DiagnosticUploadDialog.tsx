@@ -44,6 +44,7 @@ type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'b
 type SubmissionStatus = 'idle' | 'submitting' | 'submission_unknown_fallback_save_failed'
 
 interface DiagnosticUploadDialogProps {
+  readonly initialDescription?: string
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }
@@ -56,13 +57,13 @@ function formatBytes(bytes: number): string {
   return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
-export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadDialogProps) {
+export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open }: DiagnosticUploadDialogProps) {
   const { t } = useTranslation()
   const uploadFormId = useId()
   const [range, setRange] = useState<DiagnosticRange>('24h')
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
-  const [description, setDescription] = useState('')
+  const [description, setDescription] = useState(initialDescription ?? '')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)

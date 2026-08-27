@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,10 +73,9 @@ describe('FeedbackDialog', () => {
   })
 
   it('creates an isolated feedback session before opening the Agent route', async () => {
-    const user = userEvent.setup()
     render(<ControlledFeedbackDialog />)
 
-    await user.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
 
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
     await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
@@ -85,10 +83,9 @@ describe('FeedbackDialog', () => {
   })
 
   it('opens the one-step diagnostic upload dialog', async () => {
-    const user = userEvent.setup()
     render(<ControlledFeedbackDialog />)
 
-    await user.click(screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ }))
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ }))
 
     await waitFor(() => expect(screen.getByText('diagnostic-upload-dialog')).toBeInTheDocument())
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('diagnostics.bundle.upload', expect.anything())
@@ -96,20 +93,18 @@ describe('FeedbackDialog', () => {
 
   it('reports feedback-session creation failures without opening an empty Agent route', async () => {
     mocks.ipcRequest.mockRejectedValue(new Error('restore failed'))
-    const user = userEvent.setup()
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('settings.about.feedback.agent_error'))
     expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('opens the GitHub issue chooser', async () => {
-    const user = userEvent.setup()
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
 
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_website', FEEDBACK_GITHUB_URL))
   })
@@ -122,10 +117,9 @@ describe('FeedbackDialog', () => {
       }
       return Promise.resolve({ sessionId: 'feedback-session' })
     })
-    const user = userEvent.setup()
     render(<ControlledFeedbackDialog />)
 
-    await user.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
 
     await waitFor(() =>
       expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open GitHub issue chooser', expect.any(Error))
