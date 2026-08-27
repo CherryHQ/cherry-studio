@@ -92,7 +92,18 @@ async function* collectNormalChatRecords(
       for (const message of page.items) {
         let topicReference = topics.get(message.topicId)
         if (!topicReference) {
-          const topic = topicService.getById(message.topicId)
+          let topic
+          try {
+            topic = topicService.getById(message.topicId)
+          } catch (error) {
+            if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
+            warnings.add('source_changed')
+            logger.warn('Skipped diagnostic chat record with deleted topic', {
+              source: 'normal-chat',
+              topicId: message.topicId
+            })
+            continue
+          }
           topicReference = contextRecord('chats/topics.jsonl', `topic:${message.topicId}`, topic)
           topics.set(message.topicId, topicReference)
         }
@@ -132,7 +143,18 @@ async function* collectAgentChatRecords(
       for (const message of page.items) {
         let sessionReference = sessions.get(message.sessionId)
         if (!sessionReference) {
-          const session = agentSessionService.getById(message.sessionId)
+          let session
+          try {
+            session = agentSessionService.getById(message.sessionId)
+          } catch (error) {
+            if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
+            warnings.add('source_changed')
+            logger.warn('Skipped diagnostic chat record with deleted agent session', {
+              sessionId: message.sessionId,
+              source: 'agent-session'
+            })
+            continue
+          }
           sessionReference = contextRecord('chats/agent-sessions.jsonl', `agent-session:${message.sessionId}`, session)
           sessions.set(message.sessionId, sessionReference)
         }

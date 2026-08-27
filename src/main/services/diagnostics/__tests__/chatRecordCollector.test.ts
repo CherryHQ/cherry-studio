@@ -6,6 +6,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -247,6 +248,70 @@ describe('chat record collection', () => {
       messageCount: 1,
       recordCount: 2
     })
+  })
+
+  it('continues collecting normal chat candidates after a topic is deleted', async () => {
+    const readableTopic = { ...normalTopic, id: 'topic-readable' }
+    const messages = [
+      { ...normalMessages[0], id: 'message-missing-topic', topicId: 'topic-missing' },
+      { ...normalMessages[1], id: 'message-readable-topic', topicId: readableTopic.id }
+    ]
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
+      items: messages.map(({ createdAt, id, topicId, ...entity }) => ({
+        createdAt,
+        entityJsonBytes: Buffer.byteLength(JSON.stringify({ id, topicId, ...entity, createdAt }), 'utf8'),
+        id,
+        topicId
+      })),
+      nextCursor: undefined
+    } as never)
+    vi.mocked(topicService.getById).mockImplementation((id) => {
+      if (id === 'topic-missing') throw DataApiErrorFactory.notFound('Topic', id)
+      return readableTopic as never
+    })
+    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+      items: [],
+      nextCursor: undefined
+    } as never)
+
+    const collection = collectChatRecords({ fromMs: 1_000, toMs: 2_000 })
+    const candidates = await collectCandidates(collection)
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(['message:message-readable-topic'])
+    expect(collection.warnings).toEqual(new Set(['source_changed']))
+  })
+
+  it('continues collecting agent session candidates after a session is deleted', async () => {
+    const readableSession = { ...agentSession, id: 'session-readable' }
+    const messages = [
+      { ...agentMessage, id: 'agent-message-missing-session', sessionId: 'session-missing' },
+      { ...agentMessage, id: 'agent-message-readable-session', sessionId: readableSession.id }
+    ]
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
+      items: [],
+      nextCursor: undefined
+    } as never)
+    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+      items: messages.map((message) => ({
+        createdAt: message.createdAt,
+        entityJsonBytes: Buffer.byteLength(JSON.stringify(message), 'utf8'),
+        id: message.id,
+        sessionId: message.sessionId
+      })),
+      nextCursor: undefined
+    } as never)
+    vi.mocked(agentSessionService.getById).mockImplementation((id) => {
+      if (id === 'session-missing') throw DataApiErrorFactory.notFound('AgentSession', id)
+      return readableSession as never
+    })
+
+    const collection = collectChatRecords({ fromMs: 1_000, toMs: 2_000 })
+    const candidates = await collectCandidates(collection)
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual([
+      'agent-session-message:agent-message-readable-session'
+    ])
+    expect(collection.warnings).toEqual(new Set(['source_changed']))
   })
 
   it('rechecks actual bytes and omits a changed candidate that exceeds the staging budget', async () => {

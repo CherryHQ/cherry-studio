@@ -19,6 +19,8 @@ import type {
   ChatRecordReference
 } from '../chatRecordCollector'
 import * as chatRecordCollector from '../chatRecordCollector'
+import * as sourceCollector from '../sourceCollector'
+import * as sourceSelection from '../sourceSelection'
 
 const electronMocks = vi.hoisted(() => ({
   getLocale: vi.fn(),
@@ -357,6 +359,116 @@ describe('DiagnosticBundleService', () => {
       expect(manifest.warnings).toContain('source_changed')
     } finally {
       collectSpy.mockRestore()
+    }
+  })
+
+  it('keeps one representative from logs, traces, and chat records before spending the remaining source budget', async () => {
+    const now = Date.now()
+    const logFileName = `app.${formatLogDate(now)}.log`
+    const olderLogFileName = `app-error.${formatLogDate(now)}.log`
+    const newerLog = `${JSON.stringify({
+      details: 'l'.repeat(100),
+      message: 'newer-log',
+      timestamp: new Date(now - 1_000).toISOString()
+    })}\n`
+    const olderLog = `${JSON.stringify({
+      details: 'l'.repeat(100),
+      message: 'older-log',
+      timestamp: new Date(now - 2_000).toISOString()
+    })}\n`
+    const trace = `${JSON.stringify({ payload: 't'.repeat(200), startTime: now - 3_000 })}\n`
+    await Promise.all([
+      writeFile(path.join(logsDir, logFileName), newerLog),
+      writeFile(path.join(logsDir, olderLogFileName), olderLog),
+      mkdir(path.join(tracesDir, 'topic-private'))
+    ])
+    await writeFile(path.join(tracesDir, 'topic-private', 'trace-one'), trace)
+
+    const message = { id: 'chat-1', text: 'message' }
+    const topic = { id: 'topic-1', name: 'Topic' }
+    const candidate = chatCandidate('message:chat-1', now - 4_000, [
+      chatRecordReference('chats/messages.jsonl', 'message:chat-1', message),
+      chatRecordReference('chats/topics.jsonl', 'topic:topic-1', topic)
+    ])
+    const budgetBytes =
+      Buffer.byteLength(newerLog, 'utf8') +
+      Buffer.byteLength(trace, 'utf8') +
+      chatRecordCollector.chatRecordStats([candidate]).bytes
+    vi.mocked(messageService.getById).mockReturnValue(message as never)
+    vi.mocked(topicService.getById).mockReturnValue(topic as never)
+    const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(chatCollection([candidate]))
+    const createSelector = sourceSelection.createDiagnosticBudgetSelector
+    const selectorSpy = vi
+      .spyOn(sourceSelection, 'createDiagnosticBudgetSelector')
+      .mockImplementation(() => createSelector(budgetBytes))
+    const service = new DiagnosticBundleService()
+
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: true, includeLogs: true, includeTraces: true, range: '24h' },
+        'main-window'
+      )
+
+      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 4, omittedFileCount: 1 })
+      const zip = await readZip(destination)
+      expect(zip.entries).toContain(`logs/${logFileName}`)
+      expect(zip.entries).not.toContain(`logs/${olderLogFileName}`)
+      expect(zip.entries.some((entry) => entry.startsWith('traces/'))).toBe(true)
+      expect(zip.entries).toContain('chats/messages.jsonl')
+      expect(zip.entries).toContain('chats/topics.jsonl')
+      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      expect(manifest.sources.logs).toMatchObject({ included: { fileCount: 1 }, omitted: { fileCount: 1 } })
+      expect(manifest.sources.traces).toMatchObject({ included: { fileCount: 1 }, omitted: { fileCount: 0 } })
+      expect(manifest.sources.chatRecords).toMatchObject({
+        included: { messageCount: 1, recordCount: 2 },
+        omitted: { messageCount: 0, recordCount: 0 }
+      })
+      expect(manifest.warnings).toContain('size_limit_reached')
+    } finally {
+      selectorSpy.mockRestore()
+      collectSpy.mockRestore()
+    }
+  })
+
+  it('uses the lexicographically earlier archive key when equal log candidates compete for the final budget', async () => {
+    const now = Date.now()
+    const logFileNames = [`app-error.${formatLogDate(now)}.log`, `app.${formatLogDate(now)}.log`]
+    const logLine = `${JSON.stringify({ message: 'same-size', timestamp: new Date(now - 1_000).toISOString() })}\n`
+    await Promise.all(logFileNames.map((fileName) => writeFile(path.join(logsDir, fileName), logLine)))
+
+    const archiveNames = logFileNames.map((fileName) => `logs/${fileName}`).sort()
+    const collectSources = sourceCollector.collectDiagnosticSources
+    const collectionSpy = vi.spyOn(sourceCollector, 'collectDiagnosticSources').mockImplementation(async (...args) => {
+      const collection = await collectSources(...args)
+      return {
+        ...collection,
+        logs: [...collection.logs].sort((a, b) =>
+          a.archiveName < b.archiveName ? 1 : a.archiveName > b.archiveName ? -1 : 0
+        )
+      }
+    })
+    const createSelector = sourceSelection.createDiagnosticBudgetSelector
+    const selectorSpy = vi
+      .spyOn(sourceSelection, 'createDiagnosticBudgetSelector')
+      .mockImplementation(() => createSelector(Buffer.byteLength(logLine, 'utf8')))
+    const service = new DiagnosticBundleService()
+
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
+        'main-window'
+      )
+
+      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 1, omittedFileCount: 1 })
+      const zip = await readZip(destination)
+      expect(zip.entries).toContain(archiveNames[0])
+      expect(zip.entries).not.toContain(archiveNames[1])
+      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      expect(manifest.sources.logs).toMatchObject({ included: { fileCount: 1 }, omitted: { fileCount: 1 } })
+      expect(manifest.warnings).toContain('size_limit_reached')
+    } finally {
+      collectionSpy.mockRestore()
+      selectorSpy.mockRestore()
     }
   })
 
