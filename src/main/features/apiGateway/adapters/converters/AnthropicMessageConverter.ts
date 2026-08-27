@@ -35,7 +35,17 @@ function isResponsesCompatibleToolName(name: string): boolean {
 }
 
 function sanitizeDescription(value: string): string {
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+  let out = ''
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+    if (code === 0x09 || code === 0x0a || code === 0x0d) {
+      out += value[i]
+      continue
+    }
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
+    out += value[i]
+  }
+  return out
 }
 
 function buildResponsesToolName(name: string, attempt: number): string {

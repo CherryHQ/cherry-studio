@@ -14,11 +14,21 @@ import {
 } from '@shared/ai/claudecode/toolRules'
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 function sanitizeDescription(value: string): string {
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+  let out = ''
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+    if (code === 0x09 || code === 0x0a || code === 0x0d) {
+      out += value[i]
+      continue
+    }
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
+    out += value[i]
+  }
+  return out
 }
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('ClaudeCodeAgentTools')
 
