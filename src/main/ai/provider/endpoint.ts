@@ -7,7 +7,7 @@ import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
-import { getModelPreferredEndpoint, isModelEndpointTypeAvailable } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isAzureOpenAIProvider, isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -78,15 +78,23 @@ export function resolveEffectiveEndpoint(
       : undefined
   const selectedEndpoint = requiredEndpoint ?? userPreferredEndpoint ?? suggestedEndpoint
   const endpointType = selectedEndpoint ?? getModelPreferredEndpoint(model, provider)
+  const endpointRequiresOwnHost =
+    endpointType !== undefined &&
+    (selectedEndpoint !== undefined || !isModelEndpointTypeAvailable(model, provider, endpointType))
+  const endpointCanShareDefaultHost =
+    provider.sharedEndpointHost ||
+    (isAzureOpenAIProvider(provider) &&
+      endpointType !== undefined &&
+      provider.endpointConfigs != null &&
+      Object.hasOwn(provider.endpointConfigs, endpointType))
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return {
     endpointType,
     baseUrl: getBaseUrl(provider, endpointType, {
-      // A shared-host provider exposes every protocol through one user-configured host; its
-      // secondary route configs intentionally carry only an adapter family and inherit the default
-      // endpoint's URL, so pinning the selected endpoint there would resolve to no host at all.
-      selectedEndpointOnly: selectedEndpoint !== undefined && !provider.sharedEndpointHost
+      // Shared-host gateways and Azure intentionally reuse one user-configured host; every other
+      // route must resolve its own URL so an unserved protocol fails closed.
+      selectedEndpointOnly: endpointRequiresOwnHost && !endpointCanShareDefaultHost
     }),
     providerOptionsKey
   }

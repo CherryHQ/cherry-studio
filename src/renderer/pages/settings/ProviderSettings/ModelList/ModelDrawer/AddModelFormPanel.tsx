@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProvider, useProviderPreset } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -16,6 +16,7 @@ import {
   buildModelInputModalities,
   getInitialAddModelFormState,
   getInitialModelClassification,
+  getModelApiId,
   splitModelIds
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
@@ -39,6 +40,8 @@ import type {
   ModelInputModality,
   ModelPrimaryType
 } from './types'
+
+const PROVIDER_PRESET_MODEL_FIELDS = ['models'] as const
 
 function getInitialPurposeFields(
   prefill: AddModelDrawerPrefill | null,
@@ -103,13 +106,28 @@ export default function AddModelFormPanel({
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
   const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const { data: providerPreset } = useProviderPreset(
+    provider && mode === 'legacy' ? providerId : null,
+    PROVIDER_PRESET_MODEL_FIELDS
+  )
+  const enteredPresetEndpointTypes = splitModelIds(formState.modelId.trim().replaceAll('，', ',')).reduce<
+    EndpointType[] | undefined
+  >((commonEndpointTypes, modelId) => {
+    const endpointTypes = providerPreset?.models?.find((model) => getModelApiId(model) === modelId)?.endpointTypes
+    if (!endpointTypes?.length) return commonEndpointTypes
+    if (commonEndpointTypes === undefined) return [...endpointTypes]
+    return commonEndpointTypes.filter((endpointType) => endpointTypes.includes(endpointType))
+  }, undefined)
   // An aggregator's multi-select IS the declaration; elsewhere the form seeds `endpointTypes` with the
   // provider default, which says nothing about the model, so it is not passed as one.
-  const preferredEndpointOptions = resolvePreferredEndpointOptions(
-    provider,
-    mode,
-    mode === 'endpoint-types' ? formState.endpointTypes : undefined
-  )
+  const preferredEndpointOptions =
+    mode === 'legacy' && enteredPresetEndpointTypes?.length === 0
+      ? []
+      : resolvePreferredEndpointOptions(
+          provider,
+          mode,
+          mode === 'endpoint-types' ? formState.endpointTypes : enteredPresetEndpointTypes
+        )
   const pinnedPreferredEndpoint = preferredEndpointOptions.find((candidate) => candidate === preferredEndpointType)
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
@@ -193,7 +211,7 @@ export default function AddModelFormPanel({
             : mode === 'endpoint-types' && values.endpointTypes?.length
               ? [...values.endpointTypes]
               : undefined,
-        ...(preferredEndpointType ? { preferredEndpointType } : {}),
+        ...(pinnedPreferredEndpoint ? { preferredEndpointType: pinnedPreferredEndpoint } : {}),
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
         outputModalities: submittedPurposeFields?.outputModalities,
@@ -211,7 +229,7 @@ export default function AddModelFormPanel({
       mode,
       modelPurpose,
       models,
-      preferredEndpointType,
+      pinnedPreferredEndpoint,
       inputModalitiesTouched,
       prefill?.model,
       provider,

@@ -28,7 +28,7 @@ export function getBaseUrl(
   if (preferredEndpoint && configs[preferredEndpoint]?.baseUrl) {
     return configs[preferredEndpoint].baseUrl
   }
-  if (preferredEndpoint && options?.selectedEndpointOnly && Object.hasOwn(configs, preferredEndpoint)) {
+  if (preferredEndpoint && options?.selectedEndpointOnly) {
     return ''
   }
 
