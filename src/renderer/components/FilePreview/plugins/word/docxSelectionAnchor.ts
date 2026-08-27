@@ -40,6 +40,9 @@ export function selectionToDocxAnchor(selection: Selection): { anchor: DocumentA
 
   return {
     anchor: { format: 'docx', paragraph, ...(paraId ? { paraId } : {}) },
-    excerpt: range.toString()
+    // Read the excerpt off the selection rather than the range, matching the pptx anchor:
+    // `Range.toString()` also collects text the selection merely spans over, `user-select: none`
+    // chrome outside the preview included, while `Selection.toString()` returns what is selectable.
+    excerpt: selection.toString()
   }
 }
