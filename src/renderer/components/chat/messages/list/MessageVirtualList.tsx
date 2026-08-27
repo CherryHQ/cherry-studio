@@ -305,10 +305,7 @@ export function MessageVirtualList<T>({
         tabIndex={0}
         role="region"
         aria-label={t('globalSearch.groups.message')}
-        className={cn(
-          'min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
-          className
-        )}>
+        className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none]', className)}>
         <div ref={runtime.contentRef}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
