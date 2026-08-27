@@ -165,7 +165,7 @@ describe('builtin mini apps', () => {
 
   it('marks the row as official once the staged tree is committed', async () => {
     const staged = await stageBuiltinMiniApp(APP_ID, await makeBuiltinPackage(APP_ID))
-    // Exactly what `install_confirmed` does with a registered snapshot (Task 26).
+    // Exactly what `install_confirmed` does with a registered snapshot.
     await installExtracted(staged.manifest, staged.stagingDir, { source: 'builtin' })
 
     const [row] = dbh.db.select().from(miniAppTable).all()

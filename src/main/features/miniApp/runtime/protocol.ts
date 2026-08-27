@@ -157,7 +157,15 @@ export function createMiniAppProtocolHandler(
   return async (request) => {
     const { host, pathname } = new URL(request.url)
     if (host !== ownAppId) return notFound()
-    const rel = decodeURIComponent(pathname).replace(/^\/+/, '')
+    // `decodeURIComponent` THROWS on a malformed escape (`fetch('%')` reaches here as `/%`),
+    // and a throw out of this handler surfaces to the guest as `TypeError: Failed to fetch`
+    // with no headers — the one thing sandbox.md promises never happens for a bad path.
+    let rel: string
+    try {
+      rel = decodeURIComponent(pathname).replace(/^\/+/, '')
+    } catch {
+      return notFound()
+    }
 
     // The reserved prefix never touches disk — resolved first, so a package that
     // smuggles in a `__cherry/` directory can never have it served.
@@ -192,8 +200,10 @@ export function createMiniAppProtocolHandler(
       return forbidden()
     }
 
-    const stat = await fs.promises.stat(real)
-    if (!stat.isFile()) return notFound()
+    // Same reason as the decode above: the file can vanish between `realpath` and here, and
+    // an ENOENT thrown out of the handler is a `TypeError` at the guest instead of a 404.
+    const stat = await fs.promises.stat(real).catch(() => null)
+    if (!stat?.isFile()) return notFound()
 
     // Streamed, never `readFile`: the guest controls fetch frequency and concurrency,
     // so buffering lets it hold N copies of a 100 MB file in MAIN process memory.

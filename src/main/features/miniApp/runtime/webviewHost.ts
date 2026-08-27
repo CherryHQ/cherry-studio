@@ -23,9 +23,19 @@ export function applyMiniAppWebviewPolicy(
     event.preventDefault()
     return
   }
-  // A renderer-supplied preload is REFUSED, not compared. The renderer has no
-  // legitimate reason to name one, so any value here is a bug or an attempt.
-  if (params.preload) {
+  // REFUSED, not compared: the renderer names none of these (`WebviewContainer` renders
+  // only `partition`, `useragent`, `style`, `data-*`, and `allowpopups` for `kind: 'site'`),
+  // so any value is a bug or an attempt.
+  //
+  // `webpreferences` has to be here rather than answered pref-by-pref below: Electron parses
+  // it with `parseCommaSeparatedKeyValue` — NO allowlist — and spreads the result LAST over
+  // the preferences it derives from the other attributes. Only the six in its inheritance
+  // clamp (`contextIsolation` / `javascript` / `nodeIntegration` / `sandbox` /
+  // `nodeIntegrationInSubFrames` / `enableWebSQL`) are safe from it, and `webviewTag` is not
+  // among them — a guest granted it attaches a NESTED webview that this gate never sees, on
+  // any partition and any URL, walking out of the deny-all PAC, the webRequest allowlist and
+  // the CSP. Denylisting individual prefs instead would need an edit every time Electron adds one.
+  if (params.preload || params.webpreferences || params.blinkfeatures || params.disableblinkfeatures) {
     event.preventDefault()
     return
   }
@@ -70,6 +80,9 @@ export function installMiniAppWebviewHost(hostContents: Electron.WebContents): v
     // Imposed here, never accepted from the renderer.
     applyMiniAppWebviewPolicy(event, webPreferences, params, runtime.bridgePreloadPath)
   })
+
+  // The pane-visibility keys this host mints are scoped to its id and nothing else drops them.
+  hostContents.once('destroyed', () => application.get('MiniAppRuntimeService').forgetHost(hostContents.id))
 
   hostContents.on('did-attach-webview', (_event, contents) => {
     const runtime = application.get('MiniAppRuntimeService')

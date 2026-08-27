@@ -286,7 +286,7 @@ export const persistentFileRefTablesBySourceType = {
   ...singleFileRefTablesBySourceType,
   [miniAppFileRef.sourceType]: miniAppFileRefTable
 } as const satisfies Record<
-  PersistentFileRefSourceType | typeof miniAppFileRef.sourceType,
+  PersistentFileRefSourceType,
   | typeof chatMessageFileRefTable
   | typeof agentSessionMessageFileRefTable
   | typeof paintingFileRefTable

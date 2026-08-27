@@ -890,7 +890,7 @@ export class AiStreamManager extends BaseService {
     /** Trusted in-process classification for remote token analytics. */
     tokenUsageSource?: TokenUsageSource
     source?: SourceSnapshot | null
-    /** `0` disables same-model retry AND cross-model fallback (see Task 21). */
+    /** `0` disables same-model retry AND cross-model fallback. */
     maxRetries?: 0
   }): SendResult {
     const messages: CherryUIMessage[] =

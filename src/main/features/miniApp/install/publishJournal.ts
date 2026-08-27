@@ -41,6 +41,17 @@ const logger = loggerService.withContext('miniAppPublishJournal')
 const PublishEntrySchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('install'), appId: MiniAppIdSchema, contentHash: z.string().min(1) }),
   z.strictObject({ kind: z.literal('update'), appId: MiniAppIdSchema, contentHash: z.string().min(1) }),
+  /**
+   * Its OWN kind, not an `update`: a reinstall retains no snapshot, and — because
+   * `hashTree` sees only content — re-extracting the SAME version reproduces the hash the
+   * row already holds. `previousContentHash` is what makes that case recognisable.
+   */
+  z.strictObject({
+    kind: z.literal('reinstall'),
+    appId: MiniAppIdSchema,
+    contentHash: z.string().min(1),
+    previousContentHash: z.string().min(1)
+  }),
   z.strictObject({ kind: z.literal('rollback'), appId: MiniAppIdSchema, contentHash: z.string().min(1) }),
   z.strictObject({ kind: z.literal('uninstall'), appId: MiniAppIdSchema })
 ])
@@ -146,6 +157,12 @@ function isCommitted(entry: PublishEntry): boolean {
   const hash = installedRow(entry.appId)?.contentHash
   // An uninstall commits by REMOVING the row, so its witness is absence.
   if (entry.kind === 'uninstall') return hash === undefined
+  // A same-version reinstall writes back the hash the row ALREADY held, so the row answers
+  // "committed" from the moment the journal is written — and nothing else the transaction
+  // touches is guaranteed to differ either. Treated as uncommitted, which repairs correctly
+  // on BOTH sides: the two trees are byte-identical when their hashes agree, so restoring
+  // the parked one puts back the same bytes the committed rows describe.
+  if (entry.kind === 'reinstall' && entry.contentHash === entry.previousContentHash) return false
   return hash === entry.contentHash
 }
 
@@ -170,10 +187,9 @@ async function rollForward(entry: PublishEntry): Promise<void> {
     // The save data too, as the in-process path does: a reinstall must not read it back.
     await rm(miniAppDataPath(entry.appId))
   }
-  // A reinstall journals as `update` yet records no previous version, so its parked tree
-  // is one nothing can roll back to — the in-process path removes it right after the
-  // commit, and a crash in that window is the only way it survives.
-  if (entry.kind === 'update' && !installedRow(entry.appId)?.previousContentHash) return rm(t.backup)
+  // A reinstall retains nothing, so its parked tree is one nothing can roll back to —
+  // dropped here exactly as the in-process path drops it right after its own commit.
+  if (entry.kind === 'reinstall') return rm(t.backup)
   // install / update: the files already are what the committed rows describe, and
   // `update` deliberately keeps `.backup` — it is the user-facing rollback entry.
 }
@@ -184,6 +200,7 @@ async function rollBack(entry: PublishEntry): Promise<void> {
     case 'install':
       return rm(t.install)
     case 'update':
+    case 'reinstall':
       // Rows still describe the previous version, so the previous tree goes back
       // under them. The new tree may or may not have landed.
       return restore(t.backup, t.install)
@@ -211,7 +228,15 @@ export async function recoverInterruptedPublishes(): Promise<PublishRecovery[]> 
   const recovered: PublishRecovery[] = []
   for (const entry of pending) {
     const committed = isCommitted(entry)
-    await (committed ? rollForward(entry) : rollBack(entry))
+    try {
+      await (committed ? rollForward(entry) : rollBack(entry))
+    } catch (error) {
+      // Isolated per entry: an EBUSY rename would otherwise take every LATER app's repair
+      // down with it, and the staging sweep this call is awaited before. The journal is
+      // deliberately left armed — the next launch retries exactly this one.
+      logger.error('Failed to recover an interrupted mini app publish', { appId: entry.appId, error })
+      continue
+    }
     // Cleared as each one finishes, not in one sweep at the end: a crash midway through
     // recovery must not re-run the repairs that already succeeded.
     clearPublishJournal(entry.appId)

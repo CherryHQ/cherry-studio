@@ -138,7 +138,7 @@ export const miniAppInstallationTable = sqliteTable(
      * the current grants alone cannot distinguish the two, and getting it wrong means
      * either nagging forever or silently re-granting something the user removed.
      */
-    consentedDeclaredJson: text('consented_declared_json', { mode: 'json' }).$type<string[]>(),
+    consentedDeclaredJson: text('consented_declared_json', { mode: 'json' }).$type<string[]>().notNull().default([]),
     /**
      * DELIBERATE EXCEPTION to this table's "every column is a property of
      * installing" rule: the user's model choices for this mini app (null = the

@@ -50,13 +50,18 @@ export async function miniAppDetail(appId: string): Promise<MiniAppDetail> {
     // Straight off the manifest — hosts are the network permission's scope, not grants,
     // so there is nothing in the grant table to read them from (design §7).
     network: manifest.network,
-    pendingAdditions: pendingDeclaredAdditions(appId, manifest, row.consentedDeclaredJson ?? []),
+    pendingAdditions: pendingDeclaredAdditions(appId, manifest, row.consentedDeclaredJson),
     updateVersion: runtime.updateVersionOf(appId),
     aiModelId: row.aiModelId,
     aiQuickModelId: row.aiQuickModelId,
     // Derived here rather than shipping the column: the panel decides whether to show
     // a rollback button, and `previousContentHash` means nothing to the renderer.
-    canRollback: row.previousContentHash !== null,
+    //
+    // BOTH halves, because `rollbackUpdate` gates on both. The record and the snapshot are
+    // written at different moments — a publish that fails or crashes after dropping the old
+    // snapshot but before committing leaves the columns describing a tree that is gone — and
+    // a button offered off the record alone would then throw on every click.
+    canRollback: row.previousContentHash !== null && fs.existsSync(miniAppBackupPath(appId)),
     source: row.source,
     sourceUrl: row.sourceUrl,
     // `storageCapability.usage` is synchronous and `fileCapability.usage` is not (Tasks 19/20).
@@ -102,7 +107,7 @@ export async function grantMiniAppPermission(appId: string, permission: string):
 export async function grantPendingAdditions(appId: string): Promise<void> {
   const row = installationOf(appId)
   const manifest = MiniAppManifestSchema.parse(row.manifestJson)
-  const pending = pendingDeclaredAdditions(appId, manifest, row.consentedDeclaredJson ?? [])
+  const pending = pendingDeclaredAdditions(appId, manifest, row.consentedDeclaredJson)
   if (pending.length === 0) return
 
   application.get('DbService').withWriteTx((tx) => {

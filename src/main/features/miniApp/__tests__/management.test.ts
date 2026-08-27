@@ -80,7 +80,7 @@ vi.mock('@application', async () => {
             pendingPermissions: pendingDeclaredAdditions(
               r.appId,
               MiniAppManifestSchema.parse(r.manifestJson),
-              r.consentedDeclaredJson ?? []
+              r.consentedDeclaredJson
             )
           }))
           .filter((entry) => entry.pendingPermissions.length > 0)

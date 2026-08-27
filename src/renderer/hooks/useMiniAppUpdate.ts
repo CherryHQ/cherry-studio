@@ -1,13 +1,16 @@
 import { loggerService } from '@logger'
-import type { UpdateOffer } from '@renderer/components/MiniApp/UpdateReviewCard'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import type { OutputFor } from '@shared/ipc/types'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useMiniAppUpdate')
 
 const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
+/** An update that carries a token — the two shapes the review surfaces can render. */
+export type UpdateOffer = Exclude<OutputFor<'mini_app.update.check'>, { status: 'current' }>
 
 /** The review dialog's answer: the added required leaves and hosts accepted, the offered optional leaves left ticked. */
 export interface UpdateDecision {
@@ -55,8 +58,9 @@ export function useMiniAppUpdate(
   const apply = async (decision: UpdateDecision) => {
     if (!offer) return
     const { updateToken, addedOptional, version } = offer
-    // Consumed either way: main deletes the review on `consume`, so a retry re-checks.
-    setOffer(null)
+    // Busy FIRST: the hosts render the dialog behind `offer &&`, so clearing the offer here
+    // would unmount it before it ever saw `busy`, and the download and publish would run
+    // with the dialog already gone and nothing on screen saying so.
     setBusy(true)
     try {
       await ipcApi.request('mini_app.update.apply', {
@@ -71,6 +75,10 @@ export function useMiniAppUpdate(
       logger.error('Mini app update failed', e as Error)
       toast.error(t('miniApp.detail.action_error', { message: errorMessage(e) }))
     } finally {
+      // Consumed either way: main deletes the review on `consume`, so the token is spent
+      // even when the publish failed and a retry has to re-check. Dropped HERE rather than
+      // up front, so the dialog stays mounted — and busy — for the whole request.
+      setOffer(null)
       setBusy(false)
     }
   }

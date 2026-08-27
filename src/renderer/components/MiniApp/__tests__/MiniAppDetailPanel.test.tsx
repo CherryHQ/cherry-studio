@@ -343,11 +343,11 @@ describe('MiniAppDetailPanel', () => {
     // revoke, nothing changes, and nothing says why.
     await open()
     request.mockRejectedValueOnce(new Error('disk full'))
-    await userEvent.click(screen.getByRole('checkbox', { name: 'storage.set' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Sandbox data · Write' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/action failed: disk full/i)
     expect(screen.getByRole('heading', { name: 'My Game' })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'storage.set' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: 'Sandbox data · Write' })).toBeEnabled()
   })
 
   it('shows how much disk the app itself takes', async () => {
@@ -373,7 +373,7 @@ describe('MiniAppDetailPanel', () => {
     // Deliberately not `ai.chat`: that one is `optional: false`, gets no toggle, and the
     // service refuses it — a case clicking a forbidden control only passes against a bug.
     await open()
-    await userEvent.click(screen.getByRole('checkbox', { name: 'storage.set' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Sandbox data · Write' }))
     expect(request).toHaveBeenCalledWith('mini_app.grant.revoke', { appId: detail.appId, permission: 'storage.set' })
   })
 
@@ -381,7 +381,7 @@ describe('MiniAppDetailPanel', () => {
     // The negative control for the case above. A live box that always fails is worse than
     // a fixed one, and only this assertion tells the two designs apart.
     await open()
-    const box = screen.getByRole('checkbox', { name: 'ai.chat' })
+    const box = screen.getByRole('checkbox', { name: 'AI capabilities · Chat' })
     expect(box).toBeChecked()
     expect(box).toBeDisabled()
   })
@@ -414,7 +414,7 @@ describe('MiniAppDetailPanel', () => {
     const card = await screen.findByTestId('update-consent')
     expect(card).toHaveTextContent('My Game')
     expect(card).toHaveTextContent('Cherry Studio')
-    expect(within(card).getByRole('checkbox', { name: 'notification.show' })).toBeDisabled()
+    expect(within(card).getByRole('checkbox', { name: 'Notifications · Show' })).toBeDisabled()
   })
 
   it('shows an icon swap too', async () => {
@@ -611,7 +611,7 @@ describe('MiniAppDetailPanel', () => {
     })
     await userEvent.click(screen.getByRole('button', { name: /check for update/i }))
 
-    expect(await screen.findByRole('checkbox', { name: 'notification.show' })).toBeChecked()
+    expect(await screen.findByRole('checkbox', { name: 'Notifications · Show' })).toBeChecked()
     await userEvent.click(await screen.findByRole('button', { name: /update to 1\.1\.0/i }))
 
     // NO `consented` — an optional addition never blocks. It rides along ticked instead:

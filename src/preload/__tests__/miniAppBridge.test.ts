@@ -48,6 +48,29 @@ describe('the guest bridge', () => {
     expect(invoke).not.toHaveBeenCalled()
   })
 
+  it('never lets a non-string payload cross as itself', async () => {
+    // The parameter types are not a gate — the guest is untrusted JS. An `ArrayBuffer` has
+    // `length === undefined` and `undefined > cap` is `false`, so measuring `.length` alone
+    // passes the buffer through to be structured-cloned into the main process: exactly the
+    // allocation this gate exists to avoid. Coercing first bounds it whatever came in.
+    invoke.mockResolvedValueOnce({ ok: true, value: undefined })
+    const buffer = new ArrayBuffer(64 << 20)
+
+    await cherry.storage.set('k', buffer as never)
+
+    const { params } = invoke.mock.calls[0][1] as { params: { key: string; value: unknown } }
+    expect(typeof params.value).toBe('string')
+    expect(params.value).not.toBe(buffer)
+  })
+
+  it('forwards the string it measured, not the object it was handed', async () => {
+    invoke.mockResolvedValueOnce({ ok: true, value: undefined })
+
+    await cherry.storage.set('k', { toString: () => 'coerced' } as never)
+
+    expect(invoke.mock.calls[0][1]).toMatchObject({ params: { key: 'k', value: 'coerced' } })
+  })
+
   it('stops an over-long clipboard write before it crosses the bridge', async () => {
     const text = 'x'.repeat(MINI_APP_GUEST_LIMITS.clipboardTextChars + 1)
 

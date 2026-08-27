@@ -36,7 +36,7 @@ CREATE TABLE `mini_app_installation` (
 	`previous_content_hash` text,
 	`previous_grants_json` text,
 	`previous_consented_declared_json` text,
-	`consented_declared_json` text,
+	`consented_declared_json` text DEFAULT '[]' NOT NULL,
 	`ai_model_id` text,
 	`ai_quick_model_id` text,
 	`created_at` integer NOT NULL,
@@ -218,6 +218,9 @@ CREATE TABLE `__new_mini_app` (
 	CONSTRAINT "mini_app_kind_check" CHECK("__new_mini_app"."kind" IN ('site', 'app'))
 );
 --> statement-breakpoint
+-- HAND EDIT, REDO IT AFTER EVERY `db:migrations:generate`: the old `mini_app` has no
+-- `kind` column, so drizzle's generated `SELECT "kind"` cannot run. Every pre-existing
+-- row is a website entry, which is what this migration's DEFAULT encodes for new rows.
 INSERT INTO `__new_mini_app`("app_id", "preset_mini_app_id", "kind", "name", "url", "logo_key", "status", "order_key", "bordered", "background", "supported_regions", "configuration", "name_key", "created_at", "updated_at") SELECT "app_id", "preset_mini_app_id", 'site', "name", "url", "logo_key", "status", "order_key", "bordered", "background", "supported_regions", "configuration", "name_key", "created_at", "updated_at" FROM `mini_app`;--> statement-breakpoint
 DROP TABLE `mini_app`;--> statement-breakpoint
 ALTER TABLE `__new_mini_app` RENAME TO `mini_app`;--> statement-breakpoint

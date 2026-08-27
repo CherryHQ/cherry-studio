@@ -186,7 +186,7 @@ export interface StagedMiniApp {
 
 /**
  * STAGE only — the file half of the two-phase flow (preview → consent → confirm).
- * Same shape as `stageBuiltinMiniApp` (Task 28A). The caller owns the returned tree
+ * Same shape as `stageBuiltinMiniApp`. The caller owns the returned tree
  * from this moment on; every failure inside cleans up after itself.
  */
 export async function stageMiniAppFromFile(zipPath: string): Promise<StagedMiniApp> {
@@ -202,7 +202,7 @@ export async function stageMiniAppFromFile(zipPath: string): Promise<StagedMiniA
 
 /**
  * One-call stage+commit. No production caller — the product flow is two-phase through
- * `installFlow.ts` (Task 26) — but it is the composition every install-invariant
+ * `installFlow.ts` — but it is the composition every install-invariant
  * test exercises, and keeping it here keeps stage and commit from drifting apart.
  */
 export async function installMiniAppFromFile(zipPath: string): Promise<LocalMiniApp> {
@@ -227,7 +227,7 @@ export async function copyTreeToStaging(root: string, staging: string): Promise<
   const manifest = MiniAppManifestSchema.parse(
     JSON.parse(await fs.promises.readFile(path.join(staging, 'manifest.json'), 'utf8'))
   )
-  // The archive path's post-extraction validation, same gate (Task 8). Shipping inside
+  // The archive path's post-extraction validation, same gate. Shipping inside
   // Cherry's resources buys no exemption: "full validation at install time" (§10.5).
   await assertExtractedTree(staging, manifest)
   return manifest
@@ -311,7 +311,7 @@ export async function wipeMiniAppData(appId: string): Promise<void> {
   // Collected BEFORE the delete: afterwards there is no ref row left to join through.
   const orphaned = ownedFileEntryIds(appId, application.get('DbService').getDb())
   application.get('DbService').withWriteTx((tx) => {
-    // `sourceId`, not `appId` — that is the column name on this table (Task 7).
+    // `sourceId`, not `appId` — that is the column name on this table.
     tx.delete(miniAppFileRefTable).where(eq(miniAppFileRefTable.sourceId, appId)).run()
   })
   await reclaimEntries(orphaned)
@@ -359,7 +359,14 @@ async function publishReinstall(
   // startup recovery (`publishJournal`) can put it back after a crash. The one
   // difference is at the end — the parked tree is deleted rather than retained.
   await fs.promises.rm(backup, { recursive: true, force: true })
-  writePublishJournal({ kind: 'update', appId: manifest.id, contentHash })
+  // `reinstall`, not `update`: the same version re-extracts to the hash the row already
+  // holds, which would make recovery read "committed" before the transaction below runs.
+  writePublishJournal({
+    kind: 'reinstall',
+    appId: manifest.id,
+    contentHash,
+    previousContentHash: row.contentHash
+  })
   let movedToBackup = false
   let granted: string[] = []
   try {
@@ -399,8 +406,13 @@ async function publishReinstall(
       replaceGrantsTx(tx, manifest.id, granted, manifest.version)
     })
   } catch (error) {
-    await fs.promises.rm(installPath, { recursive: true, force: true })
-    if (movedToBackup) await fs.promises.rename(backup, installPath)
+    // BOTH statements under the guard, as `publishUpdate` has them: if the park itself
+    // threw, the live tree is still at `installPath` and there is no copy to put back —
+    // an unconditional delete here destroys the installed app.
+    if (movedToBackup) {
+      await fs.promises.rm(installPath, { recursive: true, force: true })
+      await fs.promises.rename(backup, installPath)
+    }
     clearPublishJournal(manifest.id)
     throw error
   }

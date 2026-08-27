@@ -43,7 +43,7 @@ zip -r ../mygame.miniapp . -x '.*' -x '__MACOSX/*'
 | A top-level `__cherry` directory | Reserved for host assets |
 | Paths that resolve outside the package | Any |
 
-Every check runs before extraction against the zip's entry table, and again on the extracted tree. A refused package leaves nothing behind.
+Every check above runs before extraction, against the zip's entry table. Three of them run again on the extracted tree — containment, the reserved `__cherry` directory, and `entry` / `icon.path` being regular files — and the byte budget is enforced during extraction, on real bytes rather than declared ones. A refused package leaves nothing behind.
 
 ## Installing from a file
 
@@ -103,7 +103,7 @@ An available update lights a dot on the app's tile; hovering the icon says which
 | Rule | Detail |
 |---|---|
 | Version | Only a strictly greater semver is an update. Same version with different content is "already up to date" — bump the version |
-| Origins | An update cannot add, remove or change `update.url` / `update.urlCn`. Changing hosts, or adding a mirror later, means installing over the app from the new address (see above) |
+| Origins | An update cannot add, remove or change the **origin of** `update.url` / `update.urlCn`; a different path on the same origin is followed. Changing hosts, or adding a mirror later, means installing over the app from the new address (see above) |
 | Manifest consistency | The distribution manifest and the manifest inside the downloaded archive must agree on every shared field, including both `update` URLs |
 | Permission growth | Newly required leaves — including an optional leaf promoted to required — and newly declared hosts are shown and need consent. Newly optional leaves are shown ticked, may be unticked, and never block |
 | `releaseNotes` | Plain text, rendered below the permission diff |

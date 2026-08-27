@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "602de2b8-c12d-43b8-a558-b612ae12de91",
+  "id": "387ab39d-6a16-4878-b584-115751dba28d",
   "prevId": "e3ff492a-485e-4a7b-80cb-7bbbb067d0b5",
   "tables": {
     "agent": {
@@ -3987,8 +3987,9 @@
           "name": "consented_declared_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "ai_model_id": {
           "name": "ai_model_id",

@@ -2,8 +2,8 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { readdirSync, readFileSync } from 'fs'
+import { join, resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 import type { Plugin } from 'vite'
 import { parse } from 'yaml'
@@ -66,6 +66,15 @@ export const isMainExternalModule = (id: string) => {
 // `assets/miniAppTheme.css`. Built in-process: nothing in the app pipeline runs the ui package build.
 const miniAppThemeAssetPlugin = (): Plugin => ({
   name: 'cherry-mini-app-theme-asset',
+  // The sources live outside the main bundle's module graph, so `electron-vite dev` would
+  // serve a stale `miniAppTheme.css` after a token edit. Registered in `buildStart` because
+  // `addWatchFile` is a build-phase call — it is not available from `generateBundle`.
+  buildStart() {
+    const stylesDir = resolve('packages/ui/src/styles')
+    for (const name of readdirSync(stylesDir, { recursive: true, encoding: 'utf8' })) {
+      if (name.endsWith('.css')) this.addWatchFile(join(stylesDir, name))
+    }
+  },
   async generateBundle() {
     let source: string
     try {

@@ -66,6 +66,26 @@ const MiniApp: FC<Props> = ({
   const updating = attention?.updating ?? null
   // The dot means "something to do"; an update in flight is shown by the wedge instead.
   const needsAttention = attention !== undefined && updating === null
+  /**
+   * One list, two consumers: the tooltip a pointer user hovers, and the badge's accessible
+   * name. The dot is the only place "a permission is waiting" is surfaced on this screen, so
+   * leaving its meaning to hover leaves keyboard and screen-reader users without it.
+   */
+  const attentionReasons = attention
+    ? [
+        updating
+          ? t('miniApp.attention.updating', {
+              version: updating.version,
+              percent: updating.fraction === null ? '…' : Math.round(updating.fraction * 100)
+            })
+          : attention.updateVersion
+            ? t('miniApp.attention.update', { version: attention.updateVersion })
+            : null,
+        attention.pendingPermissions.length > 0
+          ? t('miniApp.attention.pending', { count: attention.pendingPermissions.length })
+          : null
+      ].filter((line): line is string => line !== null)
+    : []
   const update = useMiniAppUpdate(app.appId, { name: app.name })
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingBusy, setPendingBusy] = useState(false)
@@ -249,7 +269,7 @@ const MiniApp: FC<Props> = ({
         ] satisfies CommandContextMenuExtraItem[])
       : []),
     // Installed apps also have a null `presetMiniAppId`, but the service refuses to edit
-    // or delete them (Task 4) — offering the items would only produce an error toast.
+    // or delete them — offering the items would only produce an error toast.
     ...(app.kind === 'site' && app.presetMiniAppId == null
       ? ([
           ...(onEditCustom
@@ -289,23 +309,11 @@ const MiniApp: FC<Props> = ({
           <Tooltip
             isDisabled={!attention}
             content={
-              attention && (
+              attentionReasons.length > 0 && (
                 <div className="flex flex-col gap-0.5">
-                  {updating ? (
-                    <span>
-                      {t('miniApp.attention.updating', {
-                        version: updating.version,
-                        percent: updating.fraction === null ? '…' : Math.round(updating.fraction * 100)
-                      })}
-                    </span>
-                  ) : (
-                    attention.updateVersion && (
-                      <span>{t('miniApp.attention.update', { version: attention.updateVersion })}</span>
-                    )
-                  )}
-                  {attention.pendingPermissions.length > 0 && (
-                    <span>{t('miniApp.attention.pending', { count: attention.pendingPermissions.length })}</span>
-                  )}
+                  {attentionReasons.map((reason) => (
+                    <span key={reason}>{reason}</span>
+                  ))}
                 </div>
               )
             }>
@@ -340,6 +348,11 @@ const MiniApp: FC<Props> = ({
               )}
               {needsAttention && (
                 <span
+                  // `role="img"` + a name, because the dot carries state no other element on
+                  // the tile does: the tile's own accessible name is the app's name, and in
+                  // the non-launchpad variant it has no role at all.
+                  role="img"
+                  aria-label={attentionReasons.join('. ')}
                   data-testid="attention-badge"
                   className={cn(
                     'absolute size-2 rounded-full bg-warning ring-2 ring-background',

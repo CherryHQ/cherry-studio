@@ -11,7 +11,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { MINI_APP_BRIDGE_CHANNEL, MINI_APP_STREAM_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
@@ -92,14 +92,20 @@ export class MiniAppRuntimeService extends BaseService {
   private readonly preparing = new Map<string, Promise<void>>()
   /** `webContentsId -> appId`. Membership doubles as the guest's liveness flag. */
   private readonly guestAppIds = new Map<number, string>()
-  /** AI streams this guest started, so they can be aborted when it dies (Task 21). */
+  /** AI streams this guest started, so they can be aborted when it dies. */
   private readonly guestStreams = new Map<number, Set<string>>()
   /** `hostWebContentsId:appId` → what the pool last reported; a guest attaching later inherits it. */
   private readonly paneVisibility = new Map<string, boolean>()
   /** Per guest, the last state it was told, so a repeated report emits nothing. */
   private readonly guestVisible = new Map<number, boolean>()
   /** The activity log's clock, running only while some app runs — see `registerGuest`. */
-  private flushTimer: Disposable | undefined
+  /**
+   * A RAW handle, not a `registerInterval` disposable: this timer is started and stopped once
+   * per "first guest arrives / last guest leaves" cycle, and `registerDisposable` only ever
+   * appends — every stop would leave a spent entry on the service's list for the process
+   * lifetime. One disposable registered in `onReady` covers whatever handle is current.
+   */
+  private flushTimer: NodeJS.Timeout | undefined
   private readonly quiescingAppIds = new Set<string>()
   /** Bumped every time the app is taken offline — see `CallLease`. */
   private readonly appGeneration = new Map<string, number>()
@@ -113,7 +119,7 @@ export class MiniAppRuntimeService extends BaseService {
    * service, so it is up by the time this runs).
    */
   protected async onReady(): Promise<void> {
-    // 1. Capability bridge (Task 23).
+    // 1. Capability bridge.
     this.ipcHandle(MINI_APP_BRIDGE_CHANNEL, async (event, payload) => {
       const requestId = (payload as { requestId?: string })?.requestId
       const emit = (chunk: string) => {
@@ -122,7 +128,7 @@ export class MiniAppRuntimeService extends BaseService {
       return handleBridgeRequest(event.sender.id, payload, emit)
     })
 
-    // 2. Host-pushed locale changes (Task 24) — `languagechange` does not fire for
+    // 2. Host-pushed locale changes — `languagechange` does not fire for
     //    an `acceptLanguages` change, measured on Electron 41.
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('app.language', () => {
@@ -137,10 +143,19 @@ export class MiniAppRuntimeService extends BaseService {
     //    wildcard. Reconcile at startup; the answer is DERIVED, not stored.
     this.broadcastAttentionState()
 
-    // 4. Repair anything a crash left mid-publish, then drop staging trees — in a
+    // 4. One registration for a timer that starts and stops many times over — see `flushTimer`.
+    this.registerDisposable(() => this.stopFlushTimer())
+
+    // 5. Repair anything a crash left mid-publish, then drop staging trees — in a
     //    freshly started process every `.staging-*` is by definition abandoned.
     await recoverInterruptedPublishes()
     await sweepAbandonedStaging()
+  }
+
+  private stopFlushTimer(): void {
+    if (this.flushTimer === undefined) return
+    clearInterval(this.flushTimer)
+    this.flushTimer = undefined
   }
 
   /**
@@ -228,7 +243,8 @@ export class MiniAppRuntimeService extends BaseService {
     // The activity log has no clock of its own, and an idle host should not tick for it:
     // the first guest starts the minute flush, the last one leaving stops it.
     if (this.guestAppIds.size === 0) {
-      this.flushTimer = this.registerInterval(() => miniAppActivityLog.flush(), ACTIVITY_COUNT_FLUSH_MS)
+      this.flushTimer = setInterval(() => void miniAppActivityLog.flush(), ACTIVITY_COUNT_FLUSH_MS)
+      this.flushTimer.unref()
     }
     this.guestAppIds.set(webContentsId, appId)
     this.guestStreams.set(webContentsId, new Set())
@@ -254,6 +270,17 @@ export class MiniAppRuntimeService extends BaseService {
       if (this.guestVisible.get(guestId) === visible) continue
       this.guestVisible.set(guestId, visible)
       emitToGuest(guestId, 'app.visibilityChange', { visible })
+    }
+  }
+
+  /**
+   * A host window is gone for good: drop the pane states keyed to it. Nothing else reclaims
+   * them — every open of a detached window mints keys the map would otherwise keep forever.
+   */
+  forgetHost(hostWebContentsId: number): void {
+    const prefix = `${hostWebContentsId}:`
+    for (const key of this.paneVisibility.keys()) {
+      if (key.startsWith(prefix)) this.paneVisibility.delete(key)
     }
   }
 
@@ -285,8 +312,7 @@ export class MiniAppRuntimeService extends BaseService {
     // The app's last instance is gone: its counts land now, not at the next minute.
     if (appId !== undefined && this.guestsOf(appId).length === 0) void miniAppActivityLog.flush(appId)
     if (this.guestAppIds.size === 0) {
-      this.flushTimer?.dispose()
-      this.flushTimer = undefined
+      this.stopFlushTimer()
     }
   }
 
@@ -451,8 +477,8 @@ export class MiniAppRuntimeService extends BaseService {
   /**
    * The app's display name, resolved against the HOST's language.
    *
-   * Lives here rather than in either consumer: the AI usage attribution (Task 21) and
-   * the notification prefix (Task 22) both need it, and a second copy of "read the
+   * Lives here rather than in either consumer: the AI usage attribution and
+   * the notification prefix both need it, and a second copy of "read the
    * manifest, resolve the locale" is a second thing to get wrong.
    */
   displayNameOf(appId: string): string {
@@ -501,7 +527,7 @@ export class MiniAppRuntimeService extends BaseService {
           : pendingDeclaredAdditions(
               row.appId,
               MiniAppManifestSchema.parse(row.manifestJson),
-              row.consentedDeclaredJson ?? []
+              row.consentedDeclaredJson
             )
       }))
       .filter((entry) => entry.updateVersion !== null || entry.pendingPermissions.length > 0 || entry.updating !== null)

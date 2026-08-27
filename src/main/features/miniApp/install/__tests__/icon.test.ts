@@ -105,7 +105,12 @@ describe('applyPackagedIcon', () => {
   it('binds the packaged icon bytes into the installed app row', async () => {
     // The bug this guards: `update()` rejecting `logo` on a `kind='app'` row, so the
     // installer's own write is refused and every local app ships with no icon.
-    const bytes = Buffer.from('fake-png-bytes')
+    // A REAL 1x1 PNG: the icon path checks magic bytes before a decoder sees them, so a
+    // stand-in string is refused — which is the point of the check.
+    const bytes = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWP4z8AAAAMBAQCc479ZAAAAAElFTkSuQmCC',
+      'base64'
+    )
     fs.writeFileSync(path.join(root, 'icon.png'), bytes)
 
     await applyPackagedIcon(APP_ID, root, { ...manifest, icon: { path: 'icon.png', sha256: ICON_SHA } })

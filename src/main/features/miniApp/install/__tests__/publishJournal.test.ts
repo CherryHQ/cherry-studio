@@ -157,16 +157,42 @@ describe('publish journal', () => {
   })
 
   it('reclaims the parked tree of a reinstall that crashed before removing it', async () => {
-    // A reinstall journals as `update` but records NO previous version, so nothing can
-    // roll back to the parked tree. Kept, it is a directory no code path will ever read
-    // and one the panel still reports as a rollback snapshot under "Space".
+    // A reinstall retains NO snapshot, so nothing can ever roll back to the parked tree.
+    // Kept, it is a directory no code path will read and one the panel still reports as a
+    // rollback snapshot under "Space".
     makeDir(A, 'new')
     makeDir(`${A}.backup`, 'parked')
     seedCommitted(A, 'sha256:new')
-    writePublishJournal({ kind: 'update', appId: A, contentHash: 'sha256:new' })
+    writePublishJournal({
+      kind: 'reinstall',
+      appId: A,
+      contentHash: 'sha256:new',
+      previousContentHash: 'sha256:old'
+    })
 
     expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
     expect(fs.existsSync(path.join(root, `${A}.backup`))).toBe(false)
+  })
+
+  it('restores the parked tree when a same-version reinstall cannot witness its own commit', async () => {
+    // `hashTree` reads content only, so re-extracting the SAME version reproduces the hash
+    // the row already holds. A hash-only witness therefore answers "committed" from the
+    // moment the journal is written, and a crash between the two renames would be rolled
+    // FORWARD — leaving `installPath` missing for good with the only copy parked in
+    // `.backup`, which nothing repairs afterwards. `previousContentHash` is what makes the
+    // degenerate case recognisable; restoring is right on both sides, because two trees
+    // with the same hash are the same bytes.
+    makeDir(`${A}.backup`, 'parked')
+    seedCommitted(A, 'sha256:same')
+    writePublishJournal({
+      kind: 'reinstall',
+      appId: A,
+      contentHash: 'sha256:same',
+      previousContentHash: 'sha256:same'
+    })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(markerIn(A)).toBe('parked')
   })
 
   it('keeps the previous version retrievable when a rollback did not commit', async () => {

@@ -30,7 +30,14 @@ vi.mock('@application', async () => {
   })
 })
 
-function run(params: { partition: string; src: string; preload?: string }) {
+function run(params: {
+  partition: string
+  src: string
+  preload?: string
+  webpreferences?: string
+  blinkfeatures?: string
+  disableblinkfeatures?: string
+}) {
   const event = { preventDefault: vi.fn() }
   const webPreferences: Record<string, unknown> = { preload: params.preload, nodeIntegration: true, sandbox: false }
   applyMiniAppWebviewPolicy(event as never, webPreferences as never, params as never, PRELOAD)
@@ -91,12 +98,29 @@ describe('applyMiniAppWebviewPolicy', () => {
       ).toHaveBeenCalled()
     }
   })
+
+  it('blocks the attributes that would override the preferences imposed below them', () => {
+    // Electron parses `webpreferences` with no allowlist and spreads it LAST over what it
+    // derives from the other attributes, and its inheritance clamp covers only six keys —
+    // `webviewTag` is not one. Answering these pref-by-pref would need an edit every time
+    // Electron adds a preference; refusing the attribute outright does not.
+    for (const attr of ['webpreferences', 'blinkfeatures', 'disableblinkfeatures'] as const) {
+      expect(
+        run({
+          partition: 'persist:miniapp:com.example.a',
+          src: 'cherry-miniapp://com.example.a/index.html',
+          [attr]: 'webviewTag'
+        }).event.preventDefault
+      ).toHaveBeenCalled()
+    }
+  })
 })
 
 /** A host window: captures both hooks so a case can fire them like Electron would. */
 function installOnHost() {
   const hooks = new Map<string, (...args: never[]) => void>()
-  installMiniAppWebviewHost({ on: (name: string, fn: (...args: never[]) => void) => hooks.set(name, fn) } as never)
+  const set = (name: string, fn: (...args: never[]) => void) => hooks.set(name, fn)
+  installMiniAppWebviewHost({ id: 1, on: set, once: set } as never)
   const willAttach = (params: { partition: string; src: string; preload?: string }) => {
     const event = { preventDefault: vi.fn() }
     const webPreferences: Record<string, unknown> = { nodeIntegration: true, sandbox: false }

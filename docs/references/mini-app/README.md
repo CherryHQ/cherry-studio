@@ -66,7 +66,7 @@ mygame.miniapp (zip)
 | Rule | Consequence |
 |---|---|
 | The page is sandboxed with an opaque origin and no network | Web Storage, IndexedDB, cookies and every outbound request are blocked. Persist through `cherry.storage` / `cherry.file`; reach the network through `cherry.network.fetch` |
-| Every capability is gated by a manifest declaration | Undeclared methods reject with `PermissionDenied`. Optional permissions can be revoked by the user at any time |
+| Every capability that reaches your data, the network or the user is gated by a manifest declaration | Undeclared methods reject with `PermissionDenied`, and optional permissions can be revoked at any time. Environment reads (`app.*`) and `ai.cancel` are ungated and cannot be declared; `*.usage` and `ai.getCapabilities` ride on their namespace's grant. See [capabilities.md](./capabilities.md) |
 | The host never warns before destroying the app | Write state as soon as it changes. `cherry.storage.set` and `cherry.file.save` are committed when they resolve |
 
 ## Where the truth lives

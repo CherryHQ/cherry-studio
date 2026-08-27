@@ -163,8 +163,8 @@ interface DayBudget {
 export class MiniAppActivityLog {
   /** Per-app write serialization: appends and the sweep must not interleave. */
   private readonly chains = new Map<string, Promise<unknown>>()
-  /** Apps whose directory was swept this session — once per app is enough. */
-  private readonly swept = new Set<string>()
+  /** appId → the day its directory was last swept. Re-swept when the day rolls over. */
+  private readonly swept = new Map<string, string>()
   private readonly counters = new Map<string, Map<string, Counter>>()
   private readonly budgets = new Map<string, DayBudget>()
 
@@ -213,14 +213,22 @@ export class MiniAppActivityLog {
     const entries: MiniAppActivityEntry[] = []
     let bytes = 0
     for (const name of files) {
+      const file = path.join(dir, name)
+      // The footprint comes from the file SIZE, and no file is read once the page is full:
+      // the panel calls this on every open, and the retention window can hold 35 MB.
+      const size = await fs.promises.stat(file).then(
+        (stat) => stat.size,
+        () => null
+      )
+      if (size === null) continue
+      bytes += size
+      if (entries.length >= options.limit) continue
       let text: string
       try {
-        text = await fs.promises.readFile(path.join(dir, name), 'utf8')
+        text = await fs.promises.readFile(file, 'utf8')
       } catch {
         continue
       }
-      bytes += Buffer.byteLength(text)
-      if (entries.length >= options.limit) continue
       const lines = text.split('\n')
       for (let i = lines.length - 1; i >= 0 && entries.length < options.limit; i--) {
         // A crash can leave a torn last line; it is skipped, not fatal.
@@ -266,8 +274,10 @@ export class MiniAppActivityLog {
       const day = localDay(entry.ts)
       const file = path.join(dir, `activity.${day}.log`)
       await fs.promises.mkdir(dir, { recursive: true })
-      if (!this.swept.has(appId)) {
-        this.swept.add(appId)
+      // Keyed by DAY, not just by app: a host left running past the retention window would
+      // otherwise keep one file per activity day until the next restart.
+      if (this.swept.get(appId) !== day) {
+        this.swept.set(appId, day)
         await this.sweep(dir, day)
       }
       const budget = await this.budgetFor(appId, day, file)

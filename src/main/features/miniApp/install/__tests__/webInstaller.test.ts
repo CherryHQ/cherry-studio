@@ -108,14 +108,22 @@ const MANIFEST_URL_CN = `${ORIGIN_CN}/mygame/manifest.json`
 /** What the mocked extractor materializes — set by each test's `remote(...)`. */
 let packagedManifest: Record<string, unknown>
 /** Icon bytes the package actually ships, or null for a package with no icon. */
-let packagedIconBytes: string | null = null
+let packagedIconBytes: string | Uint8Array | null = null
 /** The package's entry bytes. Mutable so one case can swap the FILE without touching
  *  the manifest — the only thing the tree hash can catch and the manifest check cannot. */
 let packagedEntryHtml = '<h1>hi</h1>'
 
-const sha256Of = (bytes: string) => crypto.createHash('sha256').update(bytes).digest('hex')
-const ICON_V1 = 'PNG-bytes-v1'
-const ICON_V2 = 'PNG-bytes-v2'
+const sha256Of = (bytes: string | Uint8Array) => crypto.createHash('sha256').update(bytes).digest('hex')
+// REAL 1x1 PNGs, not stand-in strings: the icon path checks magic bytes before any decoder
+// sees them, so a package can no longer name `icon.png` and ship SVG or HEIF.
+const ICON_V1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWP4z8AAAAMBAQCc479ZAAAAAElFTkSuQmCC',
+  'base64'
+)
+const ICON_V2 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWNgYPgPAAEDAQBdlO9aAAAAAElFTkSuQmCC',
+  'base64'
+)
 
 const remote = (over: Record<string, unknown> = {}) => {
   packagedManifest = {
@@ -157,7 +165,7 @@ describe('web install and update', () => {
    * is a recursive delete pointed at the system temp root.
    */
   const cleanups: Array<() => Promise<void>> = []
-  const downloadedFixture = ({ iconBytes = null }: { iconBytes?: string | null } = {}) => {
+  const downloadedFixture = ({ iconBytes = null }: { iconBytes?: string | Uint8Array | null } = {}) => {
     // The extractor mock reads this — the "package contents" live there, not here.
     packagedIconBytes = iconBytes
     const dir = fs.mkdtempSync(path.join(root, 'dl-'))
@@ -884,7 +892,7 @@ describe('web install and update', () => {
     const [row] = dbh.db.select().from(miniAppInstallationTable).where(eq(miniAppInstallationTable.appId, APP_ID)).all()
     expect(row.consentedDeclaredJson).toEqual(['storage.get', 'storage.set'])
     // The host-added leaves are still PENDING — the prompt the baseline exists to keep alive.
-    expect(pendingDeclaredAdditions(APP_ID, row.manifestJson, row.consentedDeclaredJson ?? [])).toEqual([
+    expect(pendingDeclaredAdditions(APP_ID, row.manifestJson, row.consentedDeclaredJson)).toEqual([
       'storage.delete',
       'storage.keys'
     ])

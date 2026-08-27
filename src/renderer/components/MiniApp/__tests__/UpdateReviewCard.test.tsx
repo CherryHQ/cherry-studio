@@ -1,10 +1,11 @@
 import '@testing-library/jest-dom/vitest'
 
+import type { UpdateOffer } from '@renderer/hooks/useMiniAppUpdate'
 import i18n from '@renderer/i18n/resolver'
 import { render, screen } from '@testing-library/react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { type UpdateOffer, UpdateReviewCard } from '../UpdateReviewCard'
+import { UpdateReviewCard } from '../UpdateReviewCard'
 
 const ready = (over: Partial<UpdateOffer>): UpdateOffer =>
   ({ status: 'ready', version: '1.1.0', addedOptional: [], removed: [], updateToken: 't', ...over }) as UpdateOffer

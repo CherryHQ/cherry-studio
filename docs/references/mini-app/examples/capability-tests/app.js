@@ -365,7 +365,7 @@ async function fileExport() {
     return
   }
   await expect('export(unknown name)', g === 'ok' ? 'InvalidArgument' : g, () => cherry.file.export(`${PREFIX}missing`))
-  await expect('export(name with a separator) — guest gate', 'InvalidArgument', () => cherry.file.export('a/b'))
+  await expect('export(name with a separator)', g === 'ok' ? 'InvalidArgument' : g, () => cherry.file.export('a/b'))
   await expect('export → save dialog (save or cancel, both are fine)', g, async () => {
     const { saved } = await cherry.file.export(`${PREFIX}export.txt`, { suggestedName: 'capability-tests-export.txt' })
     return `saved: ${saved}`

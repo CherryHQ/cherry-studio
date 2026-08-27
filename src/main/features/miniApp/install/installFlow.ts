@@ -225,7 +225,7 @@ class MiniAppInstallConsentService {
     return entry
   }
 
-  /** Idempotent: the late-response compensation (Task 28A #9) may race TTL expiry. */
+  /** Idempotent: the late-response compensation may race TTL expiry. */
   cancel(installToken: string, ownerId: WindowId | null): void {
     const entry = this.pending.get(installToken)
     if (entry && entry.ownerId === ownerId) this.pending.delete(installToken)
@@ -234,7 +234,7 @@ class MiniAppInstallConsentService {
 
 export const miniAppInstallConsentService = new MiniAppInstallConsentService()
 
-/** Function-shaped API for the flows and the later kinds (Task 27 / 28A). */
+/** Function-shaped API for the flows and the later kinds. */
 export const registerPending = (input: Omit<PendingInstall, 'installToken' | 'expiresAt'>, claim: string): string =>
   miniAppInstallConsentService.register(input, claim)
 export const cancelPending = (installToken: string, ownerId: WindowId | null): void =>

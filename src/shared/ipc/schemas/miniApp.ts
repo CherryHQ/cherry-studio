@@ -210,7 +210,7 @@ export const miniAppRequestSchemas = {
 
   // Per-app settings that are not plain columns (`aiModelId` goes through `PATCH /mini-apps/:appId`).
   'mini_app.settings.set_logo': defineRoute({
-    input: z.strictObject({ appId: z.string().min(1), image: LogoImageIntentSchema }),
+    input: z.strictObject({ appId: MiniAppIdSchema, image: LogoImageIntentSchema }),
     output: z.void()
   }),
 
@@ -244,6 +244,6 @@ export const miniAppRequestSchemas = {
 export type MiniAppEventSchemas = {
   /** Apps that want the user's attention, and why (a host-added permission, or an update). */
   'mini_app.runtime.attention': { apps: CacheMiniAppAttention[] }
-  /** Host is about to change this app underneath it; drop it from every pool (Task 24B). */
+  /** Host is about to change this app underneath it; drop it from every pool. */
   'mini_app.runtime.evicted': { appId: string }
 }

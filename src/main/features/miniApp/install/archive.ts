@@ -26,6 +26,7 @@ import {
 import StreamZip from 'node-stream-zip'
 
 import { bestEffortCleanup } from './cleanup'
+import { assertSupportedIconBytes } from './icon'
 
 const logger = loggerService.withContext('miniAppArchive')
 
@@ -231,7 +232,11 @@ export async function previewMiniAppArchive(zipPath: string): Promise<MiniAppArc
     // The SAME pipeline the install uses (`transcodeToEntityWebp`, 128x128, bomb-guarded):
     // the `image/webp` label is then true, and the data URL is bounded whatever came in.
     const iconDataUrl = manifest.icon
-      ? `data:image/webp;base64,${(await transcodeToEntityWebp(await zip.entryData(`${prefix}${manifest.icon.path}`))).toString('base64')}`
+      ? `data:image/webp;base64,${(
+          await transcodeToEntityWebp(
+            await assertSupportedIconBytes(await zip.entryData(`${prefix}${manifest.icon.path}`))
+          )
+        ).toString('base64')}`
       : null
     return { manifest, iconDataUrl, sha256: await sha256File(zipPath) }
   } finally {

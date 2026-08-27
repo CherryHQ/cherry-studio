@@ -42,7 +42,7 @@ const { handle, sessions, fromPartition } = vi.hoisted(() => {
   return { handle, sessions, fromPartition }
 })
 vi.mock('electron', () => ({ session: { fromPartition }, webContents: { fromId: () => undefined } }))
-// The network policy has its own suite (Task 14); here it only has to resolve on a
+// The network policy has its own suite; here it only has to resolve on a
 // later tick, so the concurrency case below actually overlaps.
 vi.mock('../network', () => ({
   installNetworkPolicy: vi.fn(() => new Promise<void>((r) => setImmediate(r)))

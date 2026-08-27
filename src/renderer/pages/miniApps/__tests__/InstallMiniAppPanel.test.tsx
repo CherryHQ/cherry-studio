@@ -1,7 +1,8 @@
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import InstallMiniAppPanel, { InstallMiniAppPicker } from '../InstallMiniAppPanel'
 
@@ -37,6 +38,17 @@ const preview = {
   optional: ['notification.show']
 }
 
+// The accessible names below are English; the mock preference default is zh-CN, so pin
+// the locale (frontend-testing.md §4) and hand it back afterwards.
+let previousLanguage: string
+beforeAll(async () => {
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('en-US')
+})
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
+
 describe('InstallMiniAppPanel', () => {
   it('treats a canceled file dialog as a non-event', async () => {
     // Closing the native dialog is normal use — no card, no alert, and nothing to
@@ -59,12 +71,12 @@ describe('InstallMiniAppPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
 
-    const required = await screen.findByRole('checkbox', { name: 'ai.chat' })
+    const required = await screen.findByRole('checkbox', { name: 'AI capabilities · Chat' })
     expect(required).toBeChecked()
     expect(required).toBeDisabled()
-    expect(screen.getByRole('checkbox', { name: 'notification.show' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'notification.show' })).toBeEnabled()
-    await userEvent.click(screen.getByRole('checkbox', { name: 'notification.show' }))
+    expect(screen.getByRole('checkbox', { name: 'Notifications · Show' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Notifications · Show' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Notifications · Show' }))
     await userEvent.click(screen.getByRole('button', { name: /install|安装/i }))
     expect(request).toHaveBeenCalledWith('mini_app.install.confirm', {
       installToken: preview.installToken,
@@ -81,7 +93,7 @@ describe('InstallMiniAppPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
 
     await screen.findByTestId('install-preview')
-    expect(screen.queryByRole('checkbox', { name: 'network.fetch' })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Network · Fetch' })).toBeNull()
     expect(screen.queryByText(/allowed hosts|允许的域名/i)).toBeNull()
   })
 
@@ -97,7 +109,7 @@ describe('InstallMiniAppPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
 
-    expect(await screen.findByRole('checkbox', { name: 'network.fetch' })).toBeDisabled()
+    expect(await screen.findByRole('checkbox', { name: 'Network · Fetch' })).toBeDisabled()
     expect(screen.getByText(/allowed hosts|允许的域名/i)).toBeInTheDocument()
     expect(screen.getByText(/api\.mygame\.com/)).toBeInTheDocument()
   })
@@ -222,7 +234,7 @@ describe('InstallMiniAppPanel', () => {
   })
 
   it('cancels a late url preview after the panel closed', async () => {
-    // The shared settle handler (Task 28A #9) on the SLOWEST source. No successor claim
+    // The shared settle handler on the SLOWEST source. No successor claim
     // superseded this one, so the late token DID register — only this cancel returns it.
     let resolvePreview!: (value: typeof preview) => void
     request.mockImplementationOnce(
@@ -327,7 +339,7 @@ describe('InstallMiniAppPanel', () => {
         updateToken: 'tok-up'
       }
     }
-    const clearDataBox = () => screen.getByRole('checkbox', { name: /delete the app|删除该小程序/i })
+    const clearDataBox = () => screen.getByRole('checkbox', { name: /delete this mini app/i })
 
     it('asks before reinstalling the same version and sends the answer with the token', async () => {
       // The card must SAY it is installed, and the confirm must carry the reinstall answer —
@@ -382,7 +394,7 @@ describe('InstallMiniAppPanel', () => {
       const notice = await screen.findByTestId('installed-notice')
       expect(notice).toHaveTextContent('1.0.0')
       expect(notice).toHaveTextContent(/source changes|来源将由/i)
-      expect(screen.getByRole('checkbox', { name: 'ai.chat' })).toBeDisabled()
+      expect(screen.getByRole('checkbox', { name: 'AI capabilities · Chat' })).toBeDisabled()
       await userEvent.click(screen.getByRole('button', { name: /accept|同意/i }))
 
       expect(request).toHaveBeenCalledWith('mini_app.update.apply', {

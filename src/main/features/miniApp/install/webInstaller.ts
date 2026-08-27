@@ -45,7 +45,7 @@ import { miniAppBackupPath, miniAppBuiltinPath, miniAppInstallPath, miniAppRolli
 import { extractMiniAppArchive } from './archive'
 import { bestEffortCleanup } from './cleanup'
 import { assertHttps, fetchIcon, fetchManifest, fetchPackage, mirrorOrder } from './httpSource'
-import { applyPackagedIcon } from './icon'
+import { applyPackagedIcon, assertSupportedIconBytes } from './icon'
 import {
   assertIconMatchesDigest,
   copyTreeToStaging,
@@ -586,7 +586,7 @@ async function publishUpdate(
   const backup = miniAppBackupPath(appId)
   // Snapshot BEFORE mutating: rollback has to restore what the user actually held.
   const previousGrants = listGrants(appId)
-  const previousConsented = row.consentedDeclaredJson ?? []
+  const previousConsented = row.consentedDeclaredJson
   // Until this flips, `.backup` is the RETAINED previous version, not this update's.
   let movedToBackup = false
   let granted: string[] = []
@@ -776,7 +776,7 @@ function commitRollback(
           previous,
           currentManifest,
           row.previousConsentedDeclaredJson ?? [],
-          row.consentedDeclaredJson ?? []
+          row.consentedDeclaredJson
         ),
         previousManifestJson: null,
         previousContentHash: null,
@@ -824,10 +824,13 @@ export async function rollbackUpdate(appId: string): Promise<void> {
       const previous = MiniAppManifestSchema.parse(row.previousManifestJson)
       const previousGrants = row.previousGrantsJson ?? []
 
+      // The stale tree goes FIRST. A rollback whose post-commit sweep failed leaves
+      // `.rolling` behind, and a later update never touches it — arming the journal over
+      // that survivor would let recovery rename an arbitrary older tree over `installPath`.
+      await fs.promises.rm(rolling, { recursive: true, force: true })
       // Its OWN journal state: `.backup` is already consumed, so an update-shaped
       // repair restores nothing. `.rolling` is what gives recovery something to use.
       writePublishJournal({ kind: 'rollback', appId, contentHash: row.previousContentHash })
-      await fs.promises.rm(rolling, { recursive: true, force: true })
 
       try {
         await fs.promises.rename(installPath, rolling)
@@ -924,7 +927,9 @@ async function fetchManifestAt(manifestUrl: string): Promise<{ url: string; mani
 async function previewIcon(manifest: MiniAppDistributionManifest, origins: readonly string[]): Promise<string | null> {
   if (!manifest.package.iconUrl || !manifest.icon) return null
   try {
-    const bytes = await fetchIcon(manifest.package.iconUrl, { sha256: manifest.icon.sha256, origins })
+    const bytes = await assertSupportedIconBytes(
+      await fetchIcon(manifest.package.iconUrl, { sha256: manifest.icon.sha256, origins })
+    )
     // The SAME pipeline the file preview uses (128x128 webp, bomb-guarded).
     return `data:image/webp;base64,${(await transcodeToEntityWebp(bytes)).toString('base64')}`
   } catch (error) {

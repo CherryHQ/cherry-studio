@@ -206,7 +206,7 @@ export const aiCapability = {
           // `off` asks for no thinking where the wire profile can switch it off; `on`
           // sends nothing and leaves the model to its own default.
           ...(parsed.reasoning === 'off' ? { reasoningEffort: 'none' as const } : {}),
-          // Attribution for the shared usage ledger (Task 4A). Without it the row lands
+          // Attribution for the shared usage ledger. Without it the row lands
           // anonymous and Settings > Usage cannot tell which app spent the money.
           source: { type: 'mini-app', id: appId, name: runtime.displayNameOf(appId), icon: null },
           listener: {

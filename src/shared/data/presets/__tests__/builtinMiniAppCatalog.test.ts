@@ -6,7 +6,8 @@ import { BUILTIN_MINI_APPS } from '@shared/data/presets/miniApps'
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 import { describe, expect, it } from 'vitest'
 
-const ROOT = path.join(process.cwd(), 'resources', 'builtin-mini-apps')
+// Anchored on this file, not `process.cwd()`: the gate must hold wherever vitest is invoked from.
+const ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..', 'resources', 'builtin-mini-apps')
 
 describe('builtin mini app catalog', () => {
   it.each(BUILTIN_MINI_APPS)('$appId matches its shipped package', (entry) => {

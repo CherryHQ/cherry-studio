@@ -52,7 +52,9 @@ function fakeSession(setProxy = vi.fn().mockResolvedValue(undefined)) {
     displayMedia: undefined as ((req: unknown, cb: (streams: object) => void) => void) | undefined,
     willDownload: undefined as
       | ((event: { preventDefault: () => void }, item: { getURL: () => string }) => void)
-      | undefined
+      | undefined,
+    /** Electron STACKS `on` listeners — the count is what tells "replaced" from "added again" apart. */
+    willDownloadCount: 0
   }
   const session = {
     webRequest: {
@@ -65,7 +67,12 @@ function fakeSession(setProxy = vi.fn().mockResolvedValue(undefined)) {
     setDevicePermissionHandler: vi.fn((h: () => boolean) => (captured.devicePermission = h)),
     setBluetoothPairingHandler: vi.fn(),
     on: vi.fn((event: string, listener: typeof captured.willDownload) => {
-      if (event === 'will-download') captured.willDownload = listener
+      if (event !== 'will-download') return
+      captured.willDownload = listener
+      captured.willDownloadCount += 1
+    }),
+    removeAllListeners: vi.fn((event: string) => {
+      if (event === 'will-download') captured.willDownloadCount = 0
     }),
     setProxy
   }
@@ -83,6 +90,17 @@ describe('installNetworkPolicy', () => {
     captured.willDownload!({ preventDefault }, { getURL: () => 'blob:cherry-miniapp://com.example.a/uuid' })
 
     expect(preventDefault).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds one download listener however many times a partition is prepared', async () => {
+    // Every OTHER handler here replaces on re-invocation; `session.on` appends. A prepare
+    // that fails after this line leaves the listener installed, and the documented retry
+    // ("leave the session clean so the retry starts from nothing") would stack another.
+    const { session, captured } = fakeSession()
+    await installNetworkPolicy(session, APP)
+    await installNetworkPolicy(session, APP)
+
+    expect(captured.willDownloadCount).toBe(1)
   })
 
   it('injects the exact CSP the protocol handler sends', async () => {

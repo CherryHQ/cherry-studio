@@ -664,7 +664,8 @@ export const allSourceTypes = [
   jobSourceType,
   translateHistorySourceType,
   providerLogoRef.sourceType,
-  miniAppLogoRef.sourceType
+  miniAppLogoRef.sourceType,
+  miniAppFileRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -691,6 +692,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   jobFileRefSchema,
   translateHistoryFileRefSchema,
   providerLogoRef.schema,
-  miniAppLogoRef.schema
+  miniAppLogoRef.schema,
+  miniAppFileRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>

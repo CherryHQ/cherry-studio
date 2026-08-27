@@ -37,7 +37,7 @@ import { isNonChatModel } from '@shared/utils/model'
 import type { TFunction } from 'i18next'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type DestructiveAction = 'clear_data' | 'uninstall'
@@ -175,14 +175,21 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   useEffect(() => {
     void loadActivity()
   }, [loadActivity])
-  const timeOf = (ts: number) =>
-    new Intl.DateTimeFormat(i18n.language, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }).format(ts)
+  // Built once per language, not once per row: constructing a formatter with an options
+  // object misses V8's default-format cache, and the activity list renders up to 100 of them
+  // on every `busy` flip, filter toggle and attention broadcast.
+  const timeFormat = useMemo(
+    () =>
+      new Intl.DateTimeFormat(i18n.language, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }),
+    [i18n.language]
+  )
+  const timeOf = (ts: number) => timeFormat.format(ts)
 
   const reload = useCallback(async () => {
     try {
@@ -216,14 +223,18 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
 
   // Live, from the same broadcast the tile draws its wedge from — not the one-shot detail read.
   const updating = useMiniAppAttentionFor(appId)?.updating ?? null
-  /** Nothing that changes the package may run while an update is landing. */
-  const locked = busy || updating !== null
   // Check → review dialog → apply: the same three steps the tile's menu runs.
   const update = useMiniAppUpdate(appId, {
     name: detail?.name ?? appId,
     onApplied: () => void reload(),
     onChecked: () => void reload()
   })
+  /**
+   * Nothing that changes the package may run while an update is landing — `update.busy`
+   * included: a check is the one package operation on this screen that does NOT go through
+   * `run()`, so it never raises `busy` of its own and would leave its own button live.
+   */
+  const locked = busy || updating !== null || update.busy
 
   // "Replace package" is the install entry pinned to THIS app: main decides by version
   // whether the file is an upgrade or a reinstall, and the same card asks the questions.
@@ -315,9 +326,9 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                       // Says what the dot means and goes straight to the review — a fresh check, for a fresh token.
                       <button
                         type="button"
-                        disabled={busy || update.busy}
+                        disabled={locked}
                         onClick={() => void update.check()}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-warning-subtle px-2 py-0.5 text-warning-subtle-foreground hover:underline disabled:cursor-default">
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-warning-subtle px-2 py-0.5 text-warning-subtle-foreground hover:underline focus-visible:underline disabled:cursor-default">
                         <span className="size-1.5 rounded-full bg-warning" />
                         {t('miniApp.attention.update', { version: detail.updateVersion })}
                       </button>
@@ -574,7 +585,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                   </Button>
                 ) : (
                   detail.updateVersion && (
-                    <Button disabled={busy || update.busy} onClick={() => void update.check()}>
+                    <Button disabled={locked} onClick={() => void update.check()}>
                       {t('miniApp.menu.update', { version: detail.updateVersion })}
                     </Button>
                   )

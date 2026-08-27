@@ -43,20 +43,24 @@ ipcRenderer.on(MINI_APP_EVENT_CHANNEL, (_e, { event, payload }) => {
  * it there still pays the memory cost the limit exists to avoid. Refusing here keeps
  * the allocation inside the guest's own (sandboxed, disposable) renderer.
  */
-const assertPayloadSize = (value: string, cap: number, what: string) => {
+const assertPayloadSize = (value: unknown, cap: number, what: string): string => {
+  // COERCED before it is measured, and the coerced string is what the caller forwards.
+  // The parameter types are not a gate — the guest is untrusted JS — and an `ArrayBuffer`
+  // or any plain object has `length === undefined`, so `undefined > cap` is `false` and a
+  // raw length check waves through the very allocation this exists to keep out of main.
+  const text = String(value ?? '')
   // `guestRefusal`, not a bare Error: an author writing `catch (e) { e.name }` must see the
   // same seven names whether the refusal came from here or from main.
-  if (value.length > cap) throw guestRefusal(`Mini app ${what} exceeds the ${cap} character limit`)
+  if (text.length > cap) throw guestRefusal(`Mini app ${what} exceeds the ${cap} character limit`)
+  return text
 }
 
 // One gate per variable-length input — design §6.0 froze the list, and a param missing
 // from here is the one param that reaches the main process unchecked.
-const gateKey = (key: string) => (assertPayloadSize(key, MINI_APP_GUEST_LIMITS.storageKeyChars, 'storage key'), key)
-const gateName = (name: string) => (assertPayloadSize(name, MINI_APP_GUEST_LIMITS.fileNameChars, 'file name'), name)
-const gateCallId = (id?: string) => {
-  if (id !== undefined) assertPayloadSize(id, MINI_APP_GUEST_LIMITS.callIdChars, 'callId')
-  return id
-}
+const gateKey = (key: string) => assertPayloadSize(key, MINI_APP_GUEST_LIMITS.storageKeyChars, 'storage key')
+const gateName = (name: string) => assertPayloadSize(name, MINI_APP_GUEST_LIMITS.fileNameChars, 'file name')
+const gateCallId = (id?: string) =>
+  id === undefined ? undefined : assertPayloadSize(id, MINI_APP_GUEST_LIMITS.callIdChars, 'callId')
 /*
  * Every gate RETURNS the object that crosses the bridge, rebuilt from the fields it
  * measured. Forwarding the guest's own object would structured-clone whatever else it
@@ -172,8 +176,8 @@ contextBridge.exposeInMainWorld('cherry', {
   storage: {
     get: async (key: string) => call('storage.get', { key: gateKey(key) }),
     set: async (key: string, value: string) => {
-      assertPayloadSize(value, MINI_APP_GUEST_LIMITS.storageValueChars, 'storage value')
-      return call('storage.set', { key: gateKey(key), value })
+      const gated = assertPayloadSize(value, MINI_APP_GUEST_LIMITS.storageValueChars, 'storage value')
+      return call('storage.set', { key: gateKey(key), value: gated })
     },
     delete: async (key: string) => call('storage.delete', { key: gateKey(key) }),
     keys: async () => call('storage.keys'),
@@ -181,8 +185,8 @@ contextBridge.exposeInMainWorld('cherry', {
   },
   file: {
     save: async (name: string, data: string) => {
-      assertPayloadSize(data, MINI_APP_GUEST_LIMITS.fileDataChars, 'file payload')
-      return call('file.save', { name: gateName(name), data })
+      const gated = assertPayloadSize(data, MINI_APP_GUEST_LIMITS.fileDataChars, 'file payload')
+      return call('file.save', { name: gateName(name), data: gated })
     },
     load: async (name: string) => call('file.load', { name: gateName(name) }),
     list: async () => call('file.list'),

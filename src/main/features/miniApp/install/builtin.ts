@@ -24,11 +24,11 @@ import { copyTreeToStaging, createStagingDir, hashTree } from './installer'
  *
  * A one-call `installBuiltinMiniApp` would grant everything the manifest declares without
  * the user having seen the list — the hole the preview/confirm split exists to
- * close (Task 26). Shipping with Cherry buys trust in the AUTHOR, not consent for the
+ * close. Shipping with Cherry buys trust in the AUTHOR, not consent for the
  * permissions, and a builtin app asks for `file` and `ai` like any other.
  *
  * Returns the staged tree rather than installing it: builtin shares the ONE install
- * protocol and ledger (Task 26) — `confirmPendingInstall` dispatches on payload kind,
+ * protocol and ledger — `confirmPendingInstall` dispatches on payload kind,
  * and its `builtin` case is where this function is consumed, at confirm time.
  */
 export async function stageBuiltinMiniApp(

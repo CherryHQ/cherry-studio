@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { type UpdateOffer, UpdateReviewCard } from '@renderer/components/MiniApp/UpdateReviewCard'
-import type { UpdateDecision } from '@renderer/hooks/useMiniAppUpdate'
+import { UpdateReviewCard } from '@renderer/components/MiniApp/UpdateReviewCard'
+import type { UpdateDecision, UpdateOffer } from '@renderer/hooks/useMiniAppUpdate'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'

@@ -1,6 +1,7 @@
 import { Checkbox, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import {
   groupPermissionsByNamespace,
+  permissionLabel,
   permissionLeafLabel,
   permissionNamespaceDescription,
   permissionNamespaceTitle
@@ -73,7 +74,11 @@ export const PermissionChecklist: FC<{
                         size="sm"
                         checked={item.checked}
                         disabled={disabled || item.fixed}
-                        aria-label={leaf}
+                        // The technical id would OVERRIDE the visible label for screen-reader
+                        // and voice-control users (WCAG 2.5.3), and the visible label alone is
+                        // ambiguous — "Read", "Write" and "Delete" each name two leaves in
+                        // different namespaces. The qualified form contains the visible word.
+                        aria-label={permissionLabel(t, leaf)}
                         onCheckedChange={(checked) => onToggle(leaf, checked === true)}
                       />
                       <span>{permissionLeafLabel(t, leaf)}</span>

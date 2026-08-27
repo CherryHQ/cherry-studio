@@ -75,6 +75,11 @@ export async function installNetworkPolicy(session: Electron.Session, appId: str
   // Chromium's default for an unhandled download is the system save dialog — a guest
   // writing to the user's disk through `<a download>` or a blob URL, past every quota
   // and every rate limit here. `cherry.file.export` is the one way out, and it runs in main.
+  // REPLACED, not appended, like every other handler in this function: `session` is
+  // process-global per partition and `on` stacks, so a prepare that fails after this line
+  // (the awaited `setProxy` below, or `protocol.handle`) leaves the listener behind and the
+  // documented retry adds a second one.
+  session.removeAllListeners('will-download')
   session.on('will-download', (event, item) => {
     event.preventDefault()
     logger.debug('Blocked mini app download', { appId, url: item.getURL() })
@@ -107,7 +112,7 @@ const DEAD_PROXY = '127.0.0.1:1'
  * because neither CSP nor `webRequest` ever observes one.
  *
  * There is no host list to interpolate: outbound traffic goes through
- * `cherry.network.fetch` in the main process (Task 22A), which does not use this
+ * `cherry.network.fetch` in the main process, which does not use this
  * session. An allowlisted PAC was measured and is NOT enough — a host-only rule turns
  * "https on 443" into "any port on a declared host", a bidirectional channel
  * `webRequest` cannot see (design §8). Denying everything has no such edge.

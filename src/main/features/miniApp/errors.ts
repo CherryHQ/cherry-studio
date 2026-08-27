@@ -3,7 +3,7 @@
  *
  * The other three live where their subject does — `PermissionDeniedError` with grants,
  * `QuotaExceededError` with quotas, `MiniAppQuiescingError` with the runtime. "The
- * caller passed something wrong" belongs to the bridge, but the bridge (Task 23) comes
+ * caller passed something wrong" belongs to the bridge, but the bridge comes
  * AFTER the capabilities that throw it, so it cannot be the home. Hence one small file,
  * early enough for every thrower to import.
  */
