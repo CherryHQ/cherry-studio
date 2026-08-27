@@ -1,6 +1,7 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, render } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,12 @@ import AgentChat from '../AgentChat'
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
 const stopLiveTurnMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
+
+function lastInvalidateCache(): ReturnType<typeof mockUseInvalidateCache> {
+  const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+  if (!invalidate) throw new Error('Expected AgentChat to call useInvalidateCache')
+  return invalidate
+}
 
 const session = {
   id: 'session-1',
@@ -154,6 +161,17 @@ describe('AgentChat clear messages command', () => {
     expect(stopLiveTurnMock).toHaveBeenCalledTimes(1)
   })
 
+  it('invalidates every SWR variant of the session message collection after a successful clear', async () => {
+    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    const invalidateCache = lastInvalidateCache()
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(invalidateCache).toHaveBeenCalledExactlyOnceWith(['/agent-sessions/session-1/messages'])
+  })
+
   it('requests drain and DELETE in one abort so a post-drain delivery cannot be admitted then erased', async () => {
     render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
 
@@ -168,24 +186,28 @@ describe('AgentChat clear messages command', () => {
     stopLiveTurnMock.mockRejectedValueOnce(new Error('abort failed'))
 
     render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    const invalidateCache = lastInvalidateCache()
 
     await act(async () => {
       await commandHandlers.get('topic.clear_messages')?.()
     })
 
     expect(toast.error).toHaveBeenCalledWith('message.error.unknown: Error: abort failed')
+    expect(invalidateCache).not.toHaveBeenCalled()
   })
 
   it('leaves Agent messages untouched when the confirmation is dismissed', async () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
 
     render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    const invalidateCache = lastInvalidateCache()
 
     await act(async () => {
       await commandHandlers.get('topic.clear_messages')?.()
     })
 
     expect(stopLiveTurnMock).not.toHaveBeenCalled()
+    expect(invalidateCache).not.toHaveBeenCalled()
   })
 
   it('toasts the existing localized error when clearing the Agent session fails', async () => {

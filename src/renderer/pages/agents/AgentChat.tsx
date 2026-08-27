@@ -1,4 +1,5 @@
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -203,6 +204,7 @@ const AgentChat = ({
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
+  const invalidateCache = useInvalidateCache()
   const isActiveTab = useIsActiveTab()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
@@ -261,6 +263,8 @@ const AgentChat = ({
       try {
         // One abort IPC: drain + DELETE stay under the same per-topic dispatch lock.
         await runtime.stop({ clearSessionMessages: true })
+        // Exact path: every SWR query variant + infinite key, including Global Search.
+        await invalidateCache([`/agent-sessions/${sessionSnapshot.id}/messages`])
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
       }
