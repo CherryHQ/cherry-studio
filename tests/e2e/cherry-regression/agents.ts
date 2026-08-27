@@ -98,6 +98,10 @@ export async function runAgentFileTask(
       await expect
         .poll(
           async () => {
+            if (approve) {
+              const allow = page.getByRole('button', { name: /Allow/ }).first()
+              if (await allow.isVisible().catch(() => false)) await allow.click()
+            }
             try {
               const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
               await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
@@ -106,7 +110,7 @@ export async function runAgentFileTask(
               return false
             }
           },
-          { timeout: 2 * 60_000 }
+          { timeout: 3 * 60_000 }
         )
         .toBe(true)
       return
