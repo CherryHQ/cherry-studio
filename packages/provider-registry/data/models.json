@@ -7652,25 +7652,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1310720,
-      "id": "deepseek-v4-flash-latest",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "DeepSeek V4 Flash Latest",
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "high", "max"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "high", "max"]
-      }
-    },
-    {
       "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
@@ -21696,5 +21677,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "5096f938dd512776"
+  "version": "acf8223fb645bb72"
 }

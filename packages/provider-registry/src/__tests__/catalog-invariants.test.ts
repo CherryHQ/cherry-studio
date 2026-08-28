@@ -59,6 +59,7 @@ const overrides = providerModelsRaw.overrides as Array<{
   modelId: string
   apiModelId?: string
   name?: string
+  pricing?: unknown
 }>
 const providers = ProviderListSchema.parse(providersRaw).providers
 const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).overrides
@@ -171,6 +172,21 @@ describe('catalog invariants (data/*.json)', () => {
       ...ids.filter(isBatch),
       ...overrides.filter((o) => isBatch(o.apiModelId ?? o.modelId)).map((o) => `${o.providerId}/${o.apiModelId}`)
     ]).toEqual([])
+  })
+
+  it('keeps the OpenRouter-only DeepSeek router alias out of the creator catalog', () => {
+    const aliases = overrides.filter(
+      (override) => override.providerId === 'openrouter' && override.apiModelId?.startsWith('~')
+    )
+
+    expect(aliases.length).toBeGreaterThan(0)
+    const deepseekLatest = aliases.find((override) => override.apiModelId === '~deepseek/deepseek-v4-flash-latest')
+    expect(deepseekLatest).toMatchObject({
+      modelId: 'deepseek-v4-flash-latest',
+      name: 'DeepSeek V4 Flash Latest'
+    })
+    expect(baseIds.has(deepseekLatest!.modelId)).toBe(false)
+    expect(deepseekLatest?.pricing).toBeUndefined()
   })
 
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {

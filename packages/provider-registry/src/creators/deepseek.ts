@@ -35,10 +35,6 @@ export default defineCreator({
       reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     },
-    // This alias currently comes only from OpenRouter. Keep its provider price
-    // on the OpenRouter override instead of leaking that aggregator rate into
-    // the provider-neutral base catalog.
-    { id: 'deepseek-v4-flash-latest', pricing: undefined },
     {
       id: 'deepseek-v4-flash-vision-exp',
       name: 'DeepSeek V4 Flash Vision Exp',
