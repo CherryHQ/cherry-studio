@@ -163,7 +163,9 @@ export function selectExternalText(platform: Platform): void {
     'if (-not $window) { throw "Notepad automation window was not found" }',
     '$documentType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)',
     '$editType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
-    '$textArea = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.OrCondition]::new($documentType, $editType))',
+    '$textAreaTypes = [System.Windows.Automation.Condition[]]@($documentType, $editType)',
+    '$textAreaCondition = [System.Windows.Automation.OrCondition]::new($textAreaTypes)',
+    '$textArea = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $textAreaCondition)',
     'if (-not $textArea) { throw "Notepad text area was not found" }',
     '$rect = $textArea.Current.BoundingRectangle',
     '$startX = [int]($rect.Left + 8)',
@@ -180,7 +182,8 @@ export function selectExternalText(platform: Platform): void {
     'Start-Sleep -Milliseconds 500'
   ].join('\n')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-    stdio: 'ignore',
+    encoding: 'utf8',
+    stdio: ['ignore', 'ignore', 'pipe'],
     timeout: 10_000
   })
 }
