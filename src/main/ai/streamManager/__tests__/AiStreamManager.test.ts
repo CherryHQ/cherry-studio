@@ -33,6 +33,7 @@ class FakeListener implements StreamListener {
   alive = true
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
+  onErrorImpl?: (result: StreamErrorResult) => void | Promise<void>
 
   constructor(id: string, terminalPhase?: 'persistence') {
     this.id = id
@@ -54,8 +55,9 @@ class FakeListener implements StreamListener {
     return this.onPausedImpl?.(result)
   }
 
-  onError(result: StreamErrorResult): void {
+  onError(result: StreamErrorResult): void | Promise<void> {
     this.errorResults.push(result)
+    return this.onErrorImpl?.(result)
   }
 
   isAlive(): boolean {
@@ -130,6 +132,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
+const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -142,7 +145,11 @@ vi.mock('@application', async () => {
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
+    AgentSessionRuntimeService: {
+      willContinueTopic: mockWillContinueTopic,
+      abortPendingTurn: mockAbortPendingTurn,
+      closeSession: mockCloseSession
+    }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -188,6 +195,19 @@ async function flushUntil(predicate: () => boolean, maxTicks = 1000): Promise<vo
     await new Promise((resolve) => setImmediate(resolve))
   }
   throw new Error(`flushUntil: predicate never became true within ${maxTicks} ticks`)
+}
+
+/**
+ * Microtask-only variant of `flushUntil`, for suites on blanket fake timers where
+ * `setImmediate` never fires. Advances no clock, so a test's own timer control is
+ * left untouched.
+ */
+async function flushMicrotasksUntil(predicate: () => boolean, maxTicks = 100): Promise<void> {
+  for (let i = 0; i < maxTicks; i++) {
+    if (predicate()) return
+    await Promise.resolve()
+  }
+  throw new Error(`flushMicrotasksUntil: predicate never became true within ${maxTicks} microtasks`)
 }
 
 function chunk(text: string): UIMessageChunk {
@@ -282,6 +302,7 @@ describe('AiStreamManager', () => {
         messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
         listener: new FakeListener('gateway:request-1'),
         contextOwner: 'caller',
+        tokenUsageSource: 'agent',
         usageContext: {
           agentSessionId: 'session-1',
           assistantMessageId: 'message-1',
@@ -289,7 +310,9 @@ describe('AiStreamManager', () => {
         }
       })
 
-      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'session-1' }))
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: 'session-1', tokenUsageSource: 'agent' })
+      )
     })
   })
 
@@ -1555,6 +1578,87 @@ describe('AiStreamManager', () => {
       // Abort on a finished stream → no-op (status stays 'done')
       mgr.abort('a', 'late')
       expect(mgr.inspect('a')!.status).toBe('done')
+    })
+
+    it('holds same-topic admission until paused persistence and runtime close settle', async () => {
+      vi.useRealTimers()
+      const listener = new FakeListener('persistence:agent')
+      let releasePersistence!: () => void
+      listener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releasePersistence = resolve
+        })
+      let releaseRuntimeClose!: () => void
+      mockCloseSession.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRuntimeClose = resolve
+          })
+      )
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [listener]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      let nextTurnAdmitted = false
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        nextTurnAdmitted = true
+      })
+
+      await flushUntil(() => listener.pausedResults.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releasePersistence()
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releaseRuntimeClose()
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(nextTurnAdmitted).toBe(true)
+    })
+
+    it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let releaseContinuationPersistence!: () => void
+      continuationListener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseContinuationPersistence = resolve
+        })
+      const runtimeListener = new FakeListener('agent-runtime:session-1')
+      runtimeListener.onPausedImpl = () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      }
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      let nextTurnAdmitted = false
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        nextTurnAdmitted = true
+      })
+
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => continuationListener.pausedResults.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releaseContinuationPersistence()
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(nextTurnAdmitted).toBe(true)
     })
   })
 
@@ -2953,6 +3057,135 @@ describe('AiStreamManager', () => {
       sharedCacheStore.clear()
       fakeCacheService.setShared.mockClear()
       fakeCacheService.getShared.mockClear()
+    })
+
+    it.each(['done', 'paused', 'error'] as const)(
+      'keeps a replacement stream authoritative after a stale %s callback resumes',
+      async (terminalKind) => {
+        const topicId = `stale-${terminalKind}`
+        const modelId = 'p::m'
+        const staleListener = new FakeListener(`wc:stale-${terminalKind}`)
+        let releaseTerminal!: () => void
+        const terminalBlocked = new Promise<void>((resolve) => {
+          releaseTerminal = resolve
+        })
+        const blockTerminal = () => terminalBlocked
+
+        if (terminalKind === 'done') staleListener.onDoneImpl = blockTerminal
+        else if (terminalKind === 'paused') staleListener.onPausedImpl = blockTerminal
+        else staleListener.onErrorImpl = blockTerminal
+
+        // Keep the real execution loop parked so the paused case is driven exactly once by the
+        // explicit abort + onExecutionPaused pair below.
+        if (terminalKind === 'paused') {
+          mockStreamText.mockImplementationOnce(() => new Promise<ReadableStream<UIMessageChunk>>(() => {}))
+        }
+
+        startSingle(mgr, {
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [staleListener]
+        })
+        const staleTurnId = statusWritesFor(topicId).at(-1)?.turnId
+
+        let staleTerminalPromise: Promise<void>
+        if (terminalKind === 'done') {
+          staleTerminalPromise = mgr.onExecutionDone(topicId, modelId)
+        } else if (terminalKind === 'paused') {
+          mgr.abort(topicId, 'user-stop')
+          staleTerminalPromise = mgr.onExecutionPaused(topicId, modelId)
+        } else {
+          staleTerminalPromise = mgr.onExecutionError(topicId, modelId, error('stale failure'))
+        }
+
+        const staleTerminalResults =
+          terminalKind === 'done'
+            ? staleListener.doneResults
+            : terminalKind === 'paused'
+              ? staleListener.pausedResults
+              : staleListener.errorResults
+        expect(staleTerminalResults).toHaveLength(1)
+
+        const replacementListener = new FakeListener(`wc:replacement-${terminalKind}`)
+        startSingle(mgr, {
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [replacementListener]
+        })
+        const replacementPending = statusWritesFor(topicId).at(-1)!
+        const replacementTurnId = replacementPending.turnId
+        expect(replacementPending.status).toBe('pending')
+        expect(replacementTurnId).toMatch(/^\d+:\d+$/)
+        expect(replacementTurnId).not.toBe(staleTurnId)
+
+        mgr.enqueuePendingSteer(topicId, `steer-${terminalKind}`)
+        const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+        releaseTerminal()
+        await staleTerminalPromise
+
+        expect(statusWritesFor(topicId).at(-1)).toMatchObject({
+          status: 'pending',
+          turnId: replacementTurnId
+        })
+        expect(mgr.inspect(topicId)).toMatchObject({
+          status: 'pending',
+          listenerIds: [replacementListener.id]
+        })
+        expect(mgr.hasPendingSteer(topicId)).toBe(true)
+
+        vi.advanceTimersByTime(31_000)
+        expect(mgr.inspect(topicId)).toMatchObject({
+          status: 'pending',
+          listenerIds: [replacementListener.id]
+        })
+
+        await mgr.onExecutionDone(topicId, modelId)
+        // `scheduleNextChatTurn` launches the continuation detached (`queueMicrotask` + `void`),
+        // so the terminal resolving says nothing about the dispatch having run yet.
+        await flushMicrotasksUntil(() => dispatchSpy.mock.calls.length > 0)
+        expect(dispatchSpy).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            trigger: 'steer-continuation',
+            topicId,
+            userMessageId: `steer-${terminalKind}`
+          })
+        )
+      }
+    )
+
+    it('runs the terminal lifecycle when the stream remains current after listener dispatch', async () => {
+      const topicId = 'current-terminal'
+      const listener = new FakeListener('wc:current-terminal')
+      let releaseTerminal!: () => void
+      const terminalBlocked = new Promise<void>((resolve) => {
+        releaseTerminal = resolve
+      })
+      listener.onDoneImpl = () => terminalBlocked
+
+      startSingle(mgr, {
+        topicId,
+        modelId: 'p::m',
+        request: req(topicId),
+        listeners: [listener]
+      })
+      const turnId = statusWritesFor(topicId).at(-1)?.turnId
+      const terminalPromise = mgr.onExecutionDone(topicId, 'p::m')
+
+      expect(listener.doneResults).toHaveLength(1)
+      expect(statusWritesFor(topicId).at(-1)).toMatchObject({ status: 'pending', turnId })
+
+      releaseTerminal()
+      await terminalPromise
+
+      expect(statusWritesFor(topicId).at(-1)).toMatchObject({ status: 'done', turnId })
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+
+      vi.advanceTimersByTime(31_000)
+      expect(mgr.inspect(topicId)).toBeUndefined()
     })
 
     it('records pending on send, streaming on first chunk, done on terminal; grace-period cleanup is silent', async () => {

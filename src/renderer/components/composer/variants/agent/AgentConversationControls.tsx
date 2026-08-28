@@ -4,6 +4,8 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -160,7 +162,9 @@ function ModelControl({
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const modelLabel = model ? model.name : selectModelLabel
+  const loadedProviderName = useProviderDisplayName(model?.providerId)
+  const providerName = model ? loadedProviderName || getProviderDisplayNameById(model.providerId) : undefined
+  const modelLabel = model ? `${model.name} | ${providerName}` : selectModelLabel
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
@@ -169,6 +173,7 @@ function ModelControl({
         <Sparkles size={20} aria-hidden className="text-muted-foreground" />
       )}
       <span
+        title={modelLabel}
         className={cn(
           'max-w-40 text-xs',
           canChangeModel ? (model ? 'text-foreground' : 'text-muted-foreground') : undefined,

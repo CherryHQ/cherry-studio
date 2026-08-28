@@ -1,14 +1,15 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { invalidateMessages, streamOpen } = vi.hoisted(() => ({
+const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
   invalidateMessages: vi.fn(),
+  loggerError: vi.fn(),
   streamOpen: vi.fn()
 }))
 
 vi.mock('@data/DataApiService', () => ({ dataApiService: { get: vi.fn(), patch: vi.fn() } }))
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
+  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: loggerError }) }
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => streamOpen(input) }
@@ -57,10 +58,11 @@ function renderActions(
   uiMessages: ReturnType<typeof uiMsg>[],
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
-  startNewContextBlocked = false
+  startNewContextBlocked = false,
+  stop: () => Promise<void> = vi.fn(async () => {})
 ) {
   const scrollToBottom = vi.fn()
-  const regenerate = vi.fn(async () => {})
+  const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
   const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
   const { result } = renderHook(() =>
@@ -70,7 +72,7 @@ function renderActions(
       activeNodeId,
       regenerate,
       setMessages,
-      stop: vi.fn(async () => {}),
+      stop,
       refresh: vi.fn(async () => []),
       cache,
       seedReservedMessages,
@@ -87,6 +89,24 @@ function renderActions(
     seedReservedMessages
   }
 }
+
+describe('useChatWriteActions — pause', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('logs a failed stream stop instead of exposing a rejected pause callback', async () => {
+    const stopError = new Error('abort failed')
+    const stop = vi.fn<() => Promise<void>>().mockRejectedValueOnce(stopError)
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', false, stop)
+
+    const pauseResult = actions.pause() as unknown
+    if (pauseResult instanceof Promise) await expect(pauseResult).rejects.toBe(stopError)
+
+    expect(pauseResult).toBeUndefined()
+    await vi.waitFor(() =>
+      expect(loggerError).toHaveBeenCalledWith('Failed to pause chat stream', { topicId: 't1', error: stopError })
+    )
+  })
+})
 
 function clearMessage() {
   return {
@@ -506,7 +526,7 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it('keeps successful non-text assistants on the ordinary regenerate path', async () => {
+  it('lets Main resolve the current model when regenerating a successful assistant response', async () => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
     nonTextAssistant.metadata.modelId = 'provider::model-a'
     nonTextAssistant.parts = [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
@@ -517,8 +537,9 @@ describe('useChatWriteActions — regenerate', () => {
     expect(streamOpen).not.toHaveBeenCalled()
     expect(regenerate).toHaveBeenCalledWith({
       messageId: 'a1',
-      body: expect.objectContaining({ parentAnchorId: 'u1', mentionedModels: ['provider::model-a'] })
+      body: expect.objectContaining({ parentAnchorId: 'u1' })
     })
+    expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
   })
 
   it('routes an explicit @ model through Main so a live reply group can append without moving the branch', async () => {
@@ -582,6 +603,7 @@ describe('useChatWriteActions — regenerate', () => {
         fastMode: false
       })
     )
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('mentionedModelIds')
   })
 })
 

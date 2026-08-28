@@ -46,6 +46,24 @@ import { isRetiredProvider } from '../retiredProviders'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
+function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
+  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) return patch
+
+  const result: Record<string, unknown> =
+    target !== null && typeof target === 'object' && !Array.isArray(target)
+      ? { ...(target as Record<string, unknown>) }
+      : {}
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (value == null) {
+      delete result[key]
+    } else {
+      result[key] = applyJsonMergePatch(result[key], value)
+    }
+  }
+  return result
+}
+
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
@@ -453,10 +471,10 @@ class ProviderService {
           dto.defaultChatEndpoint === presetMetadata?.defaultChatEndpoint ? null : dto.defaultChatEndpoint
       }
       if (dto.providerSettings !== undefined) {
-        updates.providerSettings = {
-          ...(current.providerSettings as Partial<ProviderSettings> | null),
-          ...dto.providerSettings
-        }
+        updates.providerSettings = applyJsonMergePatch(
+          current.providerSettings,
+          dto.providerSettings
+        ) as Partial<ProviderSettings>
       }
 
       if (dto.isEnabled === true && !current.isEnabled) {
