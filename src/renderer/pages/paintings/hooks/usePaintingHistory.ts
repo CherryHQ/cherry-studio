@@ -16,7 +16,13 @@ type PaintingHistoryCacheEntry = {
   item: PaintingStripEntry
 }
 
-function getPaintingHydrationFingerprint(record: Painting, item: PaintingStripEntry): string {
+type PaintingHistoryHydrationPlanEntry = {
+  record: Painting
+  fingerprint: string
+  cached?: PaintingHistoryCacheEntry
+}
+
+function getPaintingHydrationFingerprint(record: Painting): string {
   return JSON.stringify([
     record.providerId,
     record.modelId,
@@ -24,8 +30,7 @@ function getPaintingHydrationFingerprint(record: Painting, item: PaintingStripEn
     record.createdAt,
     record.files.input,
     record.files.output,
-    item.files,
-    item.inputFiles
+    record.fileDataFingerprint
   ])
 }
 
@@ -52,18 +57,33 @@ export function usePaintingHistory(): {
 
   useEffect(() => {
     let cancelled = false
-    void recordsToPaintingDataList(records)
+    const hydrationPlan: PaintingHistoryHydrationPlanEntry[] = records.map((record) => ({
+      record,
+      fingerprint: getPaintingHydrationFingerprint(record),
+      cached: hydrationCacheRef.current.get(record.id)
+    }))
+    const missingEntries = hydrationPlan.filter((entry) => entry.cached?.fingerprint !== entry.fingerprint)
+    const missingHydration = missingEntries.length
+      ? recordsToPaintingDataList(missingEntries.map((entry) => entry.record))
+      : Promise.resolve([])
+
+    void missingHydration
       .then((mapped) => {
         if (cancelled) return
 
-        const nextCache = new Map<string, PaintingHistoryCacheEntry>()
-        const items = records.map((record, index) => {
+        const freshEntries = new Map<PaintingHistoryHydrationPlanEntry, PaintingHistoryCacheEntry>()
+        for (const [index, entry] of missingEntries.entries()) {
           const item = mapped[index]
           if (!item) throw new Error(`Missing hydrated painting history entry at index ${index}`)
-          const fingerprint = getPaintingHydrationFingerprint(record, item)
-          const cached = hydrationCacheRef.current.get(record.id)
-          const result = cached?.fingerprint === fingerprint ? cached : { fingerprint, item }
-          nextCache.set(record.id, result)
+          freshEntries.set(entry, { fingerprint: entry.fingerprint, item })
+        }
+
+        const nextCache = new Map<string, PaintingHistoryCacheEntry>()
+        const items = hydrationPlan.map((entry) => {
+          const cached = entry.cached?.fingerprint === entry.fingerprint ? entry.cached : undefined
+          const result = freshEntries.get(entry) ?? cached
+          if (!result) throw new Error(`Missing painting history cache entry for ${entry.record.id}`)
+          nextCache.set(entry.record.id, result)
           return result.item
         })
 

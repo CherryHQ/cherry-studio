@@ -261,6 +261,22 @@ describe('PaintingService', () => {
       })
     })
 
+    it('changes the history hydration fingerprint when referenced FileEntry data changes', async () => {
+      const outputId = '019606a0-0000-7000-8000-00000000c111'
+      await seedFileEntry(outputId)
+      const painting = paintingService.create(
+        p({ providerId: 'aihubmix', prompt: 'fingerprint', files: { output: [outputId], input: [] } })
+      )
+
+      const before = paintingService.getById(painting.id).fileDataFingerprint
+      await dbh.db.update(fileEntryTable).set({ name: 'renamed' }).where(eq(fileEntryTable.id, outputId))
+      const after = paintingService.getById(painting.id).fileDataFingerprint
+
+      expect(before).toBeTruthy()
+      expect(after).toBeTruthy()
+      expect(after).not.toBe(before)
+    })
+
     it('replaces painting_file_ref rows wholesale on update', async () => {
       const oldOutputId = '019606a0-0000-7000-8000-00000000c201'
       const oldInputId = '019606a0-0000-7000-8000-00000000c202'

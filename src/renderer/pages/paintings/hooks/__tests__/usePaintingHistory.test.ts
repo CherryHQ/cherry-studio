@@ -19,6 +19,7 @@ function createRecord(id: string): Painting {
     modelId: 'silicon:model-1',
     prompt: 'draw a cat',
     files: { output: [], input: [] },
+    fileDataFingerprint: 'files-v1',
     orderKey: id,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
@@ -122,7 +123,7 @@ describe('usePaintingHistory', () => {
     rerender()
 
     await waitFor(() => expect(result.current.isLoading).toBe(false))
-    expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2)
+    expect(mockRecordsToPaintingDataList).toHaveBeenCalledOnce()
     expect(result.current.items).toEqual(initialItems)
     expect(result.current.items[0]).toBe(initialItems[0])
     expect(result.current.items[1]).toBe(initialItems[1])
@@ -147,7 +148,7 @@ describe('usePaintingHistory', () => {
     rerender()
 
     await waitFor(() => expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2))
-    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith(refreshedRecords)
+    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith([refreshedRecords[0]])
     await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['painting-1', 'painting-2']))
   })
 
@@ -170,7 +171,13 @@ describe('usePaintingHistory', () => {
 
     await waitFor(() => expect(result.current.items).toEqual([initialItem]))
 
-    mockQueryRecords([{ ...record, files: { input: ['input-1'], output: ['output-1'] } }])
+    mockQueryRecords([
+      {
+        ...record,
+        files: { input: ['input-1'], output: ['output-1'] },
+        fileDataFingerprint: 'files-v2'
+      }
+    ])
     rerender()
 
     await waitFor(() => expect(result.current.items).toEqual([updatedItem]))
@@ -193,14 +200,14 @@ describe('usePaintingHistory', () => {
     rerender()
 
     await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['painting-3', 'painting-1']))
-    expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2)
+    expect(mockRecordsToPaintingDataList).toHaveBeenCalledOnce()
 
     const restoredRecords = [reducedRecords[0], { ...initialRecords[1] }, reducedRecords[1]]
     mockQueryRecords(restoredRecords)
     rerender()
 
-    await waitFor(() => expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(3))
-    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith(restoredRecords)
+    await waitFor(() => expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2))
+    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith([restoredRecords[1]])
     await waitFor(() =>
       expect(result.current.items.map((item) => item.id)).toEqual(['painting-3', 'painting-2', 'painting-1'])
     )
