@@ -428,8 +428,12 @@ describe('PiRuntimeConnection', () => {
   it('appends the login-shell PATH without replacing pi runtime prefixes', async () => {
     await new PiRuntimeConnection(input).start()
 
-    expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
-    expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin")).toBe(
+    if (process.platform === 'win32') {
+      expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+    } else {
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
+    }
+    expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin", 'darwin')).toBe(
       "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
     )
     expect(buildPiLoginPathPrefix('C:\\Users\\tester\\bin', 'win32')).toBeUndefined()
@@ -531,7 +535,7 @@ describe('PiRuntimeConnection', () => {
     expect(result.env).toMatchObject({
       PI_ONLY: 'preserved',
       MISE_DATA_DIR: '/cherry/Toolchain/mise',
-      MISE_SHIMS_DIR: '/cherry/Toolchain/mise/shims'
+      MISE_SHIMS_DIR: path.join('/cherry/Toolchain/mise', 'shims')
     })
   })
 
@@ -721,7 +725,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
-      `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_sess-1.jsonl`,
+      path.join(PI_SESSIONS, '2026-07-06T00-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )
@@ -736,7 +740,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
-      `${PI_SESSIONS}/2026-07-06T01-00-00-000Z_sess-1.jsonl`,
+      path.join(PI_SESSIONS, '2026-07-06T01-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )
