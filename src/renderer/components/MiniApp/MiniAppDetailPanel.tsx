@@ -373,7 +373,11 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                 />
               )}
 
-              <Tabs defaultValue="permissions" className="gap-3">
+              {/* Grows into whatever the dialog's own `min-h`/`max-h` leaves, so the activity list
+                  below ends where the dialog does instead of at a fixed 14rem. The floor is not
+                  `min-h-0`: this sits in a scrolling flex column, and a zero floor lets an update
+                  card above squash the panel instead of making that column scroll. */}
+              <Tabs defaultValue="permissions" className="min-h-56 flex-1 gap-3">
                 <TabsList className="w-full">
                   <TabsTrigger value="permissions" className="flex-1">
                     {t('miniApp.detail.permissions_title')}
@@ -426,7 +430,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                     </Button>
                   </div>
                 </TabsContent>
-                <TabsContent value="activity" className="flex flex-col gap-3 px-3">
+                <TabsContent value="activity" className="flex min-h-0 flex-col gap-3 px-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
                       {activity.days > 0 && (
@@ -479,7 +483,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                     <p className="text-muted-foreground text-xs">{t('miniApp.activity.empty')}</p>
                   ) : (
                     <ul
-                      className="flex max-h-56 flex-col gap-1 overflow-y-auto font-mono text-xs"
+                      className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto font-mono text-xs"
                       data-testid="activity-list">
                       {activity.entries.map((entry, index) => (
                         <li
@@ -490,7 +494,9 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                               : 'flex gap-2'
                           }>
                           <span className="shrink-0 text-muted-foreground">{timeOf(entry.ts)}</span>
-                          <span className="truncate">{describeActivity(t, entry)}</span>
+                          {/* `min-w-0` as well as `break-words`: a flex item will not shrink past its
+                              longest word, and `overflow-wrap` alone does not lower that floor. */}
+                          <span className="min-w-0 break-words">{describeActivity(t, entry)}</span>
                         </li>
                       ))}
                     </ul>
