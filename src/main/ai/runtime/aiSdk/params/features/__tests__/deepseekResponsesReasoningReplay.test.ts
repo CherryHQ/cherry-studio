@@ -212,21 +212,35 @@ describe('deepseekResponsesReasoningReplay', () => {
       )
     })
 
-    it('does not invent a reasoning item when thinking is disabled', async () => {
+    it('keeps tagged replay content while filtering an untagged reasoning item', async () => {
       const prompt: LanguageModelV3Prompt = [
-        { role: 'user', content: [{ type: 'text', text: 'Answer directly.' }] },
-        { role: 'assistant', content: [{ type: 'text', text: 'Direct answer.' }] }
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'reasoning',
+              text: 'Replay this reasoning.',
+              providerOptions: { openai: { rawReasoningContent: true } }
+            },
+            { type: 'reasoning', text: 'Do not replay this untagged reasoning.' },
+            { type: 'text', text: 'Answer.' }
+          ]
+        }
       ]
 
-      const { input } = await captureResponsesRequest(await transform(prompt))
+      const { input, result } = await captureResponsesRequest(prompt)
+      const replayedReasoning = input.filter((item) => item.type === 'reasoning')
 
-      expect(input.some((item) => item.type === 'reasoning')).toBe(false)
-      expect(input).toEqual(
+      expect(replayedReasoning).toEqual([
+        {
+          type: 'reasoning',
+          summary: [],
+          content: [{ type: 'reasoning_text', text: 'Replay this reasoning.' }]
+        }
+      ])
+      expect(result.warnings).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({
-            role: 'assistant',
-            content: [{ type: 'output_text', text: 'Direct answer.' }]
-          })
+          expect.objectContaining({ message: expect.stringContaining('without encrypted content') })
         ])
       )
     })
