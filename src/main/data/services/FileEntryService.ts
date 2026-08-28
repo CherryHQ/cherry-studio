@@ -48,6 +48,7 @@ import * as z from 'zod'
 import { ZodError } from 'zod'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+import { isFileEntryTransientlyRetained, transientlyRetainedFileEntryCount } from './utils/transientFileRetention'
 
 const logger = loggerService.withContext('FileEntryService')
 
@@ -711,9 +712,14 @@ class FileEntryServiceImpl implements FileEntryService {
       .from(fileEntryTable)
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
-      .limit(opts.limit)
+      // In-memory owners cannot participate in the SQL anti-join. Fetch one
+      // extra row per retained id so held candidates cannot starve the batch.
+      .limit(opts.limit + transientlyRetainedFileEntryCount())
       .all()
-    return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
+    return rows
+      .map((r) => rowToFileEntrySafe(r.entry))
+      .filter((entry): entry is FileEntry => entry !== null && !isFileEntryTransientlyRetained(entry.id))
+      .slice(0, opts.limit)
   }
 
   listAllIds(): Set<FileEntryId> {
