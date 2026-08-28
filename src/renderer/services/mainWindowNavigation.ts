@@ -32,7 +32,5 @@ export function openRoute(path: string, query?: Record<string, string>): void {
 }
 
 export function openSettingsTab(path: SettingsPath = DEFAULT_SETTINGS_PATH): void {
-  void ipcApi.request('navigation.open_route_in_main', { path: normalizeSettingsPath(path) }).catch((error) => {
-    logger.error('Failed to request settings navigation', error as Error)
-  })
+  openRoute(normalizeSettingsPath(path))
 }
