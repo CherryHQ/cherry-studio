@@ -55,6 +55,7 @@ export {
   type AtomicWriteStream,
   compressImage,
   copy,
+  copyNew,
   createAtomicWriteStream,
   createPreparedAtomicWriteStream,
   download,

@@ -1,11 +1,20 @@
-import { atomicWriteIfUnchanged, read as fsRead, readChunk as fsReadChunk, stat as fsStat } from '@main/utils/file'
+import {
+  atomicWriteIfUnchanged,
+  hashContent,
+  read as fsRead,
+  readChunk as fsReadChunk,
+  stat as fsStat
+} from '@main/utils/file'
 import type { ContentHash } from '@shared/data/types/file'
 import type { AbsoluteFilePath, FileVersion, ReadResult } from '@shared/types/file'
 import mime from 'mime'
 
 export type TextReadOptions = { encoding?: 'text'; detectEncoding?: boolean }
 export type Base64ReadOptions = { encoding: 'base64' }
-export type BinaryReadOptions = { encoding: 'binary' }
+export type BinaryReadOptions = { encoding: 'binary'; withContentHash?: boolean }
+
+/** Path-read result: the legacy shared `ReadResult` plus the optionally bound hash. */
+export type ReadByPathResult<T> = ReadResult<T> & { contentHash?: ContentHash }
 
 const CONSISTENT_READ_MAX_ATTEMPTS = 2
 
@@ -20,15 +29,18 @@ function isSameVersion(a: FileVersion, b: FileVersion): boolean {
  */
 export async function readByPath(target: AbsoluteFilePath, options?: TextReadOptions): Promise<ReadResult<string>>
 export async function readByPath(target: AbsoluteFilePath, options: Base64ReadOptions): Promise<ReadResult<string>>
-export async function readByPath(target: AbsoluteFilePath, options: BinaryReadOptions): Promise<ReadResult<Uint8Array>>
+export async function readByPath(
+  target: AbsoluteFilePath,
+  options: BinaryReadOptions
+): Promise<ReadByPathResult<Uint8Array>>
 export async function readByPath(
   target: AbsoluteFilePath,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
-): Promise<ReadResult<string | Uint8Array>>
+): Promise<ReadByPathResult<string | Uint8Array>>
 export async function readByPath(
   target: AbsoluteFilePath,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
-): Promise<ReadResult<string | Uint8Array>> {
+): Promise<ReadByPathResult<string | Uint8Array>> {
   for (let attempt = 0; attempt < CONSISTENT_READ_MAX_ATTEMPTS; attempt += 1) {
     const beforeStat = await fsStat(target)
     const before: FileVersion = { mtime: beforeStat.modifiedAt, size: beforeStat.size }
@@ -53,6 +65,9 @@ export async function readByPath(
     const after: FileVersion = { mtime: afterStat.modifiedAt, size: afterStat.size }
 
     if (isSameVersion(before, after) && (readByteLength === undefined || after.size === readByteLength)) {
+      if (encoding === 'binary' && (options as BinaryReadOptions).withContentHash) {
+        return { content, mime: contentMime, version: after, contentHash: hashContent(content as Uint8Array) }
+      }
       return { content, mime: contentMime, version: after }
     }
   }
