@@ -1,3 +1,4 @@
+import type { ProviderReasoningFormatSelector } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
@@ -281,10 +282,57 @@ export function useProviderEndpointActions({
     }
   }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
 
+  const commitReasoningFormat = useCallback(
+    async (reasoningFormat: ProviderReasoningFormatSelector | undefined): Promise<boolean> => {
+      if (!provider) {
+        return false
+      }
+
+      // Cancel any pending debounced host save so the two whole-snapshot patches don't race.
+      // If a host draft is pending, coalesce it into the same patch so neither change is lost.
+      debouncedPersistApiHost.cancel()
+      const trimmedDraft = trim(apiHost)
+      const hasPendingHost =
+        validateApiHost(trimmedDraft) &&
+        trimmedDraft !== lastPersistedApiHostRef.current &&
+        trimmedDraft !== trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+      const effectiveBaseUrl = hasPendingHost ? trimmedDraft : undefined
+
+      const baseEndpoint = provider.endpointConfigs?.[primaryEndpoint]
+      const nextEndpoint: Record<string, unknown> = {
+        ...baseEndpoint,
+        reasoningFormat
+      }
+      if (effectiveBaseUrl !== undefined) {
+        nextEndpoint.baseUrl = effectiveBaseUrl
+      }
+
+      const nextEndpointConfigs = {
+        ...provider.endpointConfigs,
+        [primaryEndpoint]: nextEndpoint
+      }
+
+      try {
+        await patchProvider({ endpointConfigs: nextEndpointConfigs as typeof provider.endpointConfigs })
+        if (hasPendingHost) {
+          lastPersistedApiHostRef.current = trimmedDraft
+          setApiHost(trimmedDraft)
+        }
+        return true
+      } catch (error) {
+        logger.error('Failed to commit provider reasoning format', { providerId: provider.id, error })
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        return false
+      }
+    },
+    [apiHost, debouncedPersistApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t]
+  )
+
   return {
     commitApiHost,
     commitAnthropicApiHost,
     commitApiVersion,
-    resetApiHost
+    resetApiHost,
+    commitReasoningFormat
   }
 }
