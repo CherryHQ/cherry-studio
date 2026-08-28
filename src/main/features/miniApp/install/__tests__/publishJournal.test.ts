@@ -1,3 +1,4 @@
+import type * as NodeFsModule from 'node:fs'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -15,6 +16,44 @@ import { clearPublishJournal, recoverInterruptedPublishes, writePublishJournal }
 import { withPublishLock } from '../publishLock'
 
 const A = 'com.example.a'
+
+/**
+ * Directory-fsync fault injection. `fsyncJournalDir` opens the directory with
+ * `openSync(dir, 'r')` before fsyncing, so failing that open models the filesystems that
+ * reject directory fsync outright — and unlike `fsyncSync` the open carries the PATH, so
+ * the predicate can name the journal directory. A pass-through mock, because an ESM
+ * namespace cannot be spied on; inert while the predicate is null.
+ */
+const fsyncDir = vi.hoisted(() => ({
+  shouldFail: null as ((dir: string) => boolean) | null,
+  /** Every directory a flush was attempted on — the only seam that observes the fsync at all. */
+  attempted: [] as string[],
+  /** Paths whose OWN descriptor was fsynced, so "flushed the bytes" is distinguishable. */
+  flushedFiles: [] as string[]
+}))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFsModule>()
+  const pathOfFd = new Map<number, string>()
+  const openSync = (...args: Parameters<typeof actual.openSync>) => {
+    const [target, flags] = args
+    if (typeof target === 'string' && flags === 'r') {
+      fsyncDir.attempted.push(target)
+      if (fsyncDir.shouldFail?.(target)) {
+        throw Object.assign(new Error('ENOTSUP: injected directory fsync-open failure'), { code: 'ENOTSUP' })
+      }
+    }
+    const fd = actual.openSync(...args)
+    if (typeof target === 'string' && flags === 'w') pathOfFd.set(fd, target)
+    return fd
+  }
+  const fsyncSync = (fd: number) => {
+    const target = pathOfFd.get(fd)
+    if (target) fsyncDir.flushedFiles.push(target)
+    return actual.fsyncSync(fd)
+  }
+  return { ...actual, default: { ...actual, openSync, fsyncSync }, openSync, fsyncSync }
+})
 
 /** `manifest_json` is `$type<MiniAppManifest>()`, so a partial object does not typecheck. */
 const manifestOf = (appId: string): MiniAppManifest => ({
@@ -92,6 +131,9 @@ describe('publish journal', () => {
   const markerIn = (name: string) => fs.readFileSync(path.join(root, name, 'marker'), 'utf8')
 
   afterEach(() => {
+    fsyncDir.shouldFail = null
+    fsyncDir.attempted.length = 0
+    fsyncDir.flushedFiles.length = 0
     fs.rmSync(root, { recursive: true, force: true })
   })
 
@@ -407,6 +449,39 @@ describe('publish journal', () => {
     } finally {
       fs.chmodSync(journalDir, 0o755)
     }
+  })
+
+  it('discards a journal whose payload names a different app than its file', async () => {
+    // `clearPublishJournal` deletes by the PAYLOAD's appId, so a mismatched pair can never
+    // retire itself — it would repair the other app's trees on every launch, for ever.
+    const B = 'com.example.b'
+    makeDir(B)
+    writeRawJournal(A, JSON.stringify({ kind: 'install', appId: B, contentHash: 'sha256:b' }))
+
+    await expect(recoverInterruptedPublishes()).resolves.toEqual([])
+    expect(fs.existsSync(path.join(root, B))).toBe(true)
+  })
+
+  it('flushes the journal directory, and publishes anyway when the filesystem refuses', async () => {
+    // Arming the marker is what a power cut may not lose — it is written BEFORE the files
+    // move. But userData can be relocated onto a network mount or FUSE backend that rejects
+    // directory fsync outright, and failing the publish there is the worse bug of the two.
+    const journalDir = path.join(root, '.publish-journal')
+    fsyncDir.shouldFail = (dir) => dir === journalDir
+    makeDir(A)
+
+    expect(() => writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:a' })).not.toThrow()
+    // The bytes first: a durable directory entry pointing at an empty file witnesses
+    // nothing, and `readOne` discards what it cannot parse.
+    expect(fsyncDir.flushedFiles.some((f) => f.startsWith(path.join(journalDir, `${A}.json`)))).toBe(true)
+    expect(fsyncDir.attempted).toContain(journalDir)
+
+    // Retiring it is flushed too, and recovery still gets through: an intolerant version
+    // would throw here instead, which now also marks the app unrepaired.
+    fsyncDir.attempted.length = 0
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(fsyncDir.attempted).toContain(journalDir)
+    expect(fs.existsSync(path.join(journalDir, `${A}.json`))).toBe(false)
   })
 
   it('survives a corrupt journal file instead of blocking startup', async () => {

@@ -23,6 +23,8 @@ import { application } from '@application'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
+import { shouldSilenceFsyncDirError } from '@main/utils/file'
 import { MiniAppIdSchema } from '@shared/types/miniAppManifest'
 import { eq } from 'drizzle-orm'
 import * as z from 'zod'
@@ -132,8 +134,43 @@ function readAll(): PublishEntry[] {
     const appId = MiniAppIdSchema.safeParse(name.slice(0, -'.json'.length))
     if (!appId.success) return []
     const entry = readOne(appId.data)
-    return entry ? [entry] : []
+    if (!entry) return []
+    // And the payload must name the file it was found in. `clearPublishJournal` deletes by
+    // the PAYLOAD's appId, so a mismatched pair never clears itself: it would repair the
+    // other app's trees on every launch, for ever, off a file nothing can retire.
+    if (entry.appId !== appId.data) {
+      logger.warn('Discarded a publish journal filed under another app', { file: appId.data, entry: entry.appId })
+      return []
+    }
+    return [entry]
   })
+}
+
+/**
+ * Make the journal directory's own entry durable, as `restoreJournal.ts` does for the
+ * restore marker. A rename that is only in the page cache is lost to a power cut, and this
+ * marker is written BEFORE the files move — losing it leaves a moved tree with no witness.
+ *
+ * Best-effort, with `atomicWriteFile`'s errno policy rather than a throw: a filesystem that
+ * rejects directory fsync outright (network mount, FUSE) is somewhere userData can legally
+ * be relocated to, and failing every publish there would be the worse bug.
+ */
+function fsyncJournalDir(target: string): void {
+  // Windows moves are write-through and directory handles cannot be fsynced there.
+  if (isWin) return
+  try {
+    const dirFd = fs.openSync(path.dirname(target), 'r')
+    try {
+      fs.fsyncSync(dirFd)
+    } finally {
+      fs.closeSync(dirFd)
+    }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    // ENOENT as well: no directory means no entry left to make durable.
+    if (code === 'ENOENT' || shouldSilenceFsyncDirError(code)) return
+    logger.warn('fsync(dir) failed for a publish journal; durability not confirmed', { target, code })
+  }
 }
 
 export function writePublishJournal(entry: PublishEntry): void {
@@ -142,12 +179,25 @@ export function writePublishJournal(entry: PublishEntry): void {
   // Atomic replace, and the tmp name carries the appId: two apps publishing at once
   // must not race for one temporary file.
   const tmp = `${target}.${process.pid}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify(entry), 'utf8')
+  const fd = fs.openSync(tmp, 'w')
+  try {
+    fs.writeSync(fd, JSON.stringify(entry))
+    // The bytes before the rename: a durable directory entry pointing at an empty file
+    // witnesses nothing, and `readOne` discards what it cannot parse.
+    fs.fsyncSync(fd)
+  } finally {
+    fs.closeSync(fd)
+  }
   fs.renameSync(tmp, target)
+  fsyncJournalDir(target)
 }
 
 export function clearPublishJournal(appId: string): void {
-  fs.rmSync(journalPath(appId), { force: true })
+  const target = journalPath(appId)
+  fs.rmSync(target, { force: true })
+  // Durable too: a lost unlink replays a repair that already ran, and a replay that throws
+  // now keeps the app out on the launch after that.
+  fsyncJournalDir(target)
 }
 
 function installedRow(appId: string) {
