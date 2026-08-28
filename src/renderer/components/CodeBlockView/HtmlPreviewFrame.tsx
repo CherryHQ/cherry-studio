@@ -3,13 +3,13 @@ import { Parser } from 'htmlparser2'
 import { memo, type Ref } from 'react'
 
 export const HTML_PREVIEW_DEFAULT_BASE_URL = 'about:srcdoc'
-// `allow-same-origin` is required so the parent can read the iframe's `contentDocument`
-// for HTML-artifact screenshot capture (save / copy PNG). Without it the sandbox is an
-// opaque origin, `contentDocument` is null, and capture silently no-ops.
 
+// Interactive artifact sandbox — scripts run same-origin with the app. Only for surfaces
+// where running scripts is explicitly consented; pass it explicitly, never rely on defaults.
+// `allow-same-origin` keeps screenshot capture able to read the iframe's `contentDocument`.
 export const HTML_PREVIEW_IFRAME_SANDBOX = 'allow-scripts allow-same-origin allow-forms'
 
-// Fully-restricted sandbox for previewing untrusted on-disk files. An empty `sandbox`
+// Fully-restricted sandbox, and the component default. An empty `sandbox`
 // applies every restriction — no scripts, no forms, opaque origin — while still rendering
 // static HTML/CSS. Running NO scripts is the deliberate choice: the main window sets
 // `webSecurity: false` (windowRegistry.ts), which disables the same-origin policy, so
@@ -17,7 +17,8 @@ export const HTML_PREVIEW_IFRAME_SANDBOX = 'allow-scripts allow-same-origin allo
 // opaque-origin iframe could still reach `parent.api` and the legacy `fs.read*` bridge to
 // read/exfiltrate arbitrary local files. Removing `allow-scripts` closes that hole
 // regardless of `webSecurity`. Pair with {@link HTML_PREVIEW_RESTRICTED_CSP}. Use this —
-// never the artifact sandbox above — for any file whose contents we don't control.
+// never the interactive artifact sandbox above — for any content whose scripts the user
+// has not consented to.
 export const HTML_PREVIEW_RESTRICTED_SANDBOX = ''
 
 // Strict CSP for untrusted local-file previews, injected as a `<meta http-equiv>` tag.
@@ -32,12 +33,17 @@ interface HtmlPreviewFrameProps {
   title: string
   baseUrl?: string
   emptyText?: string
-  /** iframe `sandbox` value. Defaults to the artifact sandbox (same-origin, for
-   *  screenshot capture); pass {@link HTML_PREVIEW_RESTRICTED_SANDBOX} for untrusted files. */
+  /** iframe `sandbox` value. Defaults to {@link HTML_PREVIEW_RESTRICTED_SANDBOX} — fail
+   *  closed: unconsented scripts never run. Pass {@link HTML_PREVIEW_IFRAME_SANDBOX} only
+   *  for surfaces where running scripts is explicitly consented. */
   sandbox?: string
-  /** Content-Security-Policy injected as a `<meta http-equiv>` tag. Pass
-   *  {@link HTML_PREVIEW_RESTRICTED_CSP} for untrusted files; omit for trusted artifacts. */
+  /** Content-Security-Policy injected as a `<meta http-equiv>` tag. Defaults to
+   *  {@link HTML_PREVIEW_RESTRICTED_CSP} when the (effective) sandbox is the restricted
+   *  one; not injected for other sandboxes (e.g. interactive artifacts need full network
+   *  access). Pass an explicit value (or `''` to disable) to override. */
   csp?: string
+  /** Reserve native scrollbar width for surfaces whose height tracks their content. */
+  stableScrollbarGutter?: boolean
   iframeRef?: Ref<HTMLIFrameElement>
 }
 
@@ -86,17 +92,33 @@ export function injectHtmlPreviewCsp(html: string, csp: string): string {
   )
 }
 
-// Classic scrollbars steal ~15px at the overflow threshold, reflow the preview, and
-// oscillate. `overflow-y:auto` makes `html` a scroll container so `stable` is reserved.
 export const HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER = 'data-cherry-html-preview-scrollbar'
 export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER}>html{overflow-y:auto;scrollbar-gutter:stable}</style>`
 
+function hasHtmlPreviewScrollbarGutter(html: string): boolean {
+  let found = false
+  const parser = new Parser(
+    {
+      onopentag(name, attributes) {
+        if (name === 'style' && HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes) found = true
+      }
+    },
+    { lowerCaseTags: true }
+  )
+  parser.end(html)
+  return found
+}
+
 export function injectHtmlPreviewScrollbarGutter(html: string): string {
-  if (!html.trim() || html.includes(HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER)) return html
+  if (!html.trim() || hasHtmlPreviewScrollbarGutter(html)) return html
   return injectHtmlPreviewHeadElement(html, HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE)
 }
 
-export function applyHtmlPreviewScrollbarGutter(style: CSSStyleDeclaration): void {
+export function applyHtmlPreviewScrollbarGutter(frameDocument: Document | null): void {
+  const scrollRoot = frameDocument?.scrollingElement ?? frameDocument?.documentElement
+  if (!scrollRoot || !('style' in scrollRoot)) return
+
+  const style = (scrollRoot as HTMLElement).style
   style.overflowY = 'auto'
   style.scrollbarGutter = 'stable'
 }
@@ -107,13 +129,17 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     title,
     baseUrl = HTML_PREVIEW_DEFAULT_BASE_URL,
     emptyText,
-    sandbox = HTML_PREVIEW_IFRAME_SANDBOX,
+    sandbox = HTML_PREVIEW_RESTRICTED_SANDBOX,
     csp,
+    stableScrollbarGutter = false,
     iframeRef
   }) => {
+    // CSP follows the sandbox tier: restricted frames get the strict CSP, interactive
+    // sandboxes keep full network access unless the caller overrides.
+    const effectiveCsp = csp ?? (sandbox === HTML_PREVIEW_RESTRICTED_SANDBOX ? HTML_PREVIEW_RESTRICTED_CSP : undefined)
     const withBase = injectHtmlPreviewBase(html, baseUrl)
-    const withScrollbar = injectHtmlPreviewScrollbarGutter(withBase)
-    const srcDoc = csp ? injectHtmlPreviewCsp(withScrollbar, csp) : withScrollbar
+    const withScrollbar = stableScrollbarGutter ? injectHtmlPreviewScrollbarGutter(withBase) : withBase
+    const srcDoc = effectiveCsp ? injectHtmlPreviewCsp(withScrollbar, effectiveCsp) : withScrollbar
     return (
       <div className="h-full w-full overflow-hidden bg-white">
         {html.trim() ? (
@@ -123,6 +149,11 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
             title={title}
             sandbox={sandbox}
             className="h-full w-full border-0 bg-white"
+            onLoad={
+              stableScrollbarGutter
+                ? (event) => applyHtmlPreviewScrollbarGutter(event.currentTarget.contentDocument)
+                : undefined
+            }
           />
         ) : emptyText ? (
           <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground text-sm">

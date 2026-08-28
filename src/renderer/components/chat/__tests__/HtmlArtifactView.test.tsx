@@ -262,6 +262,33 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
   })
 
+  it('maximizes an interactive fragment into the webview popup regardless of kind', async () => {
+    // Regression lock for the content-only outlet tier: a kind-based guard would route an
+    // active fragment back to the script-less frame in the maximize popup (pre-R2 behavior).
+    const html = '<div><script>fragmentWidget()</script></div>'
+
+    render(<HtmlArtifactView html={html} title="Preview" kind="fragment" />)
+
+    // Inline (non-consented) surface stays script-less for a fragment...
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    // ...but the maximize popup (the explicit viewing action) opens the webview tier.
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
+    )
+  })
+
   it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
     const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
     const onSave = vi.fn()
@@ -416,6 +443,7 @@ describe('HtmlArtifactView', () => {
     expect(instrumentedHtml).toContain("style.overscrollBehaviorY === 'contain'")
     expect(instrumentedHtml).toContain('element.scrollHeight - 1')
     expect(instrumentedHtml).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(instrumentedHtml).toContain("document.documentElement.style.scrollbarGutter = 'stable'")
   })
 
   it('routes webview boundary wheels through the scroll runtime', () => {
@@ -497,33 +525,6 @@ describe('HtmlArtifactView', () => {
       }),
       undefined
     )
-  })
-
-  it('keeps a stable scrollbar gutter when preview height crosses the overflow threshold', () => {
-    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
-
-    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
-    fireEvent.load(iframe)
-    const scrollRoot = iframe.contentDocument?.documentElement
-    if (!scrollRoot) throw new Error('Expected iframe document')
-
-    expect(scrollRoot.style.overflowY).toBe('auto')
-    expect(scrollRoot.style.scrollbarGutter).toBe('stable')
-
-    const setPreviewContentHeight = createPreviewContentHeightController()
-    setPreviewContentHeight(240)
-    expect(scrollRoot.style.overflowY).toBe('auto')
-    expect(scrollRoot.style.scrollbarGutter).toBe('stable')
-
-    setPreviewContentHeight(241)
-    expect(scrollRoot.style.overflowY).toBe('auto')
-    expect(scrollRoot.style.scrollbarGutter).toBe('stable')
-
-    for (const callback of mocks.resizeObserverCallbacks) {
-      act(() => callback([], {} as ResizeObserver))
-      expect(scrollRoot.style.overflowY).toBe('auto')
-      expect(scrollRoot.style.scrollbarGutter).toBe('stable')
-    }
   })
 
   it('stabilizes at the natural height when a nested bottom margin collapses through its wrapper', () => {

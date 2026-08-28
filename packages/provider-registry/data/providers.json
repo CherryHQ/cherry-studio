@@ -2251,6 +2251,10 @@
       "defaultChatEndpoint": "openai-responses",
       "description": "Hugging Face - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://router.huggingface.co/v1/"
+        },
         "openai-responses": {
           "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"

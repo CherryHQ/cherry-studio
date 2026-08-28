@@ -1,7 +1,9 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyHtmlPreviewScrollbarGutter,
+  HTML_PREVIEW_IFRAME_SANDBOX,
   HTML_PREVIEW_RESTRICTED_CSP,
   HTML_PREVIEW_RESTRICTED_SANDBOX,
   HtmlPreviewFrame,
@@ -11,18 +13,33 @@ import {
 } from '../HtmlPreviewFrame'
 
 describe('HtmlPreviewFrame', () => {
-  it('renders non-empty HTML in an iframe with the shared sandbox and default srcdoc base', () => {
+  it('fails closed by default: script-less sandbox and strict CSP with no explicit props', () => {
     const html = '<html><head><title>Preview</title></head><body><a href="#">Home</a></body></html>'
 
     render(<HtmlPreviewFrame html={html} title="common.html_preview" />)
     const iframe = screen.getByTitle('common.html_preview')
 
     expect(iframe).not.toBeNull()
-    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
-    expect(iframe).toHaveAttribute('title', 'common.html_preview')
+    // Unconsented scripts must never run by default — the caller has to opt into the
+    // interactive sandbox explicitly.
+    expect(iframe).toHaveAttribute('sandbox', '')
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
-    expect(iframe?.getAttribute('srcdoc')).toContain('scrollbar-gutter:stable')
-    expect(iframe?.getAttribute('srcdoc')).toContain('overflow-y:auto')
+    expect(iframe?.getAttribute('srcdoc')).toContain("default-src 'none'")
+  })
+
+  it('keeps the interactive artifact sandbox an explicit opt-in without a CSP', () => {
+    render(
+      <HtmlPreviewFrame
+        html="<html><body><script>window.x = 1</script></body></html>"
+        title="common.html_preview"
+        sandbox={HTML_PREVIEW_IFRAME_SANDBOX}
+      />
+    )
+    const iframe = screen.getByTitle('common.html_preview')
+
+    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
+    // Interactive artifacts need full network access; no CSP meta is injected for that tier.
+    expect(iframe?.getAttribute('srcdoc')).not.toContain('Content-Security-Policy')
   })
 
   it('uses a white browser canvas when HTML does not declare a background', () => {
@@ -53,6 +70,7 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe?.getAttribute('sandbox')).not.toContain('allow-forms')
     // Strict CSP blocks any residual network connection so a preview cannot phone home.
     expect(iframe?.getAttribute('srcdoc')).toContain("default-src 'none'")
+    expect(iframe?.getAttribute('srcdoc')).not.toContain('data-cherry-html-preview-scrollbar')
   })
 
   it('injects a Content-Security-Policy meta into the head for untrusted previews', () => {
@@ -101,30 +119,41 @@ describe('HtmlPreviewFrame', () => {
     expect(result).toContain('<base href="https://example.com/posts/">')
   })
 
-  it('reserves a stable scrollbar gutter so overflow does not change preview width', () => {
-    const html = '<html><head><title>Preview</title></head><body><p>Tall content</p></body></html>'
-    const result = injectHtmlPreviewScrollbarGutter(html)
-
-    expect(result).toContain('data-cherry-html-preview-scrollbar')
-    expect(result).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
-    expect(result.indexOf('<style')).toBeGreaterThan(result.indexOf('<head>'))
-    expect(result.indexOf('<style')).toBeLessThan(result.indexOf('<body>'))
-    expect(injectHtmlPreviewScrollbarGutter(result)).toBe(result)
-  })
-
-  it('keeps the scrollbar gutter after CSP injection so restricted previews do not jump', () => {
+  it('reserves scrollbar width only when the preview surface opts in', () => {
     render(
       <HtmlPreviewFrame
-        html="<p>hi</p>"
+        html="<main>Preview</main>"
         title="common.html_preview"
-        sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX}
-        csp={HTML_PREVIEW_RESTRICTED_CSP}
+        sandbox="allow-same-origin"
+        stableScrollbarGutter
       />
     )
-    const srcdoc = screen.getByTitle('common.html_preview').getAttribute('srcdoc') ?? ''
+    const iframe = screen.getByTitle<HTMLIFrameElement>('common.html_preview')
 
-    expect(srcdoc).toContain('scrollbar-gutter:stable')
-    expect(srcdoc.indexOf('Content-Security-Policy')).toBeLessThan(srcdoc.indexOf('data-cherry-html-preview-scrollbar'))
+    expect(iframe.getAttribute('srcdoc')).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    fireEvent.load(iframe)
+    const scrollRoot = iframe.contentDocument?.scrollingElement ?? iframe.contentDocument?.documentElement
+    expect((scrollRoot as HTMLElement | null)?.style.overflowY).toBe('auto')
+    expect((scrollRoot as HTMLElement | null)?.style.scrollbarGutter).toBe('stable')
+  })
+
+  it('recognizes only the owned style marker and remains idempotent', () => {
+    const authorHtml = '<p data-cherry-html-preview-scrollbar>Author content</p>'
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+
+    expect(injected).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(injectHtmlPreviewScrollbarGutter(injected)).toBe(injected)
+  })
+
+  it('applies the gutter to the actual scrolling element for doctype-less documents', () => {
+    const frameDocument = document.implementation.createHTMLDocument()
+    Object.defineProperty(frameDocument, 'scrollingElement', { configurable: true, value: frameDocument.body })
+
+    applyHtmlPreviewScrollbarGutter(frameDocument)
+
+    expect(frameDocument.body.style.overflowY).toBe('auto')
+    expect(frameDocument.body.style.scrollbarGutter).toBe('stable')
+    expect(frameDocument.documentElement.style.scrollbarGutter).toBe('')
   })
 
   it('renders empty preview text when provided', () => {
