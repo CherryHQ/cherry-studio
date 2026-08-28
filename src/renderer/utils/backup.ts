@@ -6,6 +6,7 @@ type BackupErrorFallbackKey =
   | 'message.backup.failed'
   | 'message.restore.failed'
   | 'settings.data.local.backup.manager.restore.error'
+  | 'settings.data.nutstore.checkConnection.fail'
   | 'settings.data.webdav.backup.manager.restore.error'
 
 // Closed set: every key this mapper can select, so a typo cannot compile.

@@ -31,10 +31,9 @@ interface DescribedWebDavError {
  * untouched (the renderer matches TLS/timeout errors on raw message text).
  */
 async function describeWebDavError(error: unknown, stage: string, remotePath: string): Promise<DescribedWebDavError> {
-  const status = (error as { status?: unknown }).status
-  if (!(error instanceof Error) || typeof status !== 'number') {
-    return { error }
-  }
+  if (!(error instanceof Error)) return { error }
+  const { status } = error as { status?: unknown }
+  if (typeof status !== 'number') return { error }
   const response = (error as { response?: { statusText?: string; text?: () => Promise<string> } }).response
   let bodySnippet: string | undefined
   try {
