@@ -198,10 +198,14 @@ Two traps make the naive loop wrong:
 - `paragraph.runs` does **not** include runs inside a `w:hyperlink`, while `paragraph.text`
   does. Offsets computed against `.text` will not line up with `.runs`. Walk
   `iter_inner_content()` instead.
-- `Run.text`'s setter keeps that run's `rPr`, but collapses `w:br` / `w:tab` inside the run
-  into a single `w:t`.
+- `Run.text`'s setter keeps that run's `rPr`, but rewrites the run's content from the
+  characters you give it. It can only spell back what a character stands for: a bare `w:br`
+  or `w:tab` survives, while `w:br w:type="page"` and `w:noBreakHyphen` vanish and `w:ptab`
+  returns as a plain `w:tab`. A touched run is checked for those before it is written.
 
 ```python
+from docx.oxml.ns import qn
+
 def inline_runs(paragraph):
     """Runs in document order, including those inside hyperlinks, so the concatenation of
     their text equals paragraph.text and character offsets line up."""
@@ -209,6 +213,19 @@ def inline_runs(paragraph):
     for item in paragraph.iter_inner_content():   # python-docx >= 1.1
         runs.extend(item.runs) if hasattr(item, "runs") else runs.append(item)
     return runs
+
+def rebuildable(run):
+    """Whether Run.text's setter can put this run back. It rewrites the run from characters,
+    so it restores only what a character spells: a bare w:br or w:tab. A page break, a column
+    break, a w:ptab or a w:noBreakHyphen comes back as the plain kind or not at all, which
+    changes the layout without changing the text — refuse instead."""
+    for child in run._r:
+        if child.tag in (qn("w:rPr"), qn("w:t")):
+            continue
+        if child.tag in (qn("w:br"), qn("w:tab")) and not child.attrib:
+            continue
+        return False
+    return True
 
 def replace_char_range(paragraph, start, end, new_text):
     """Replace paragraph.text[start:end] by editing run text only."""
@@ -218,6 +235,8 @@ def replace_char_range(paragraph, start, end, new_text):
         position = run_end
         if run_end <= start or run_start >= end:
             continue
+        if not rebuildable(run):
+            raise ValueError("run holds inline content the text setter cannot rebuild")
         head = run.text[: max(0, start - run_start)]
         tail = run.text[max(0, end - run_start) :] if end < run_end else ""
         run.text = head + ("" if written else new_text) + tail
