@@ -198,10 +198,15 @@ export function useLaunchDialogController({
           gateway: { provider: apiGatewayProvider.provider, apiKey }
         })
       }
+      // The gateway addresses models as `providerId:apiModelId` — the same id the config write
+      // persists — so a model whose apiModelId differs from its internal id must launch under it.
+      const launchModel = isGatewayProvider
+        ? (gatewayModelsById.get(cliConfigContext.modelId)?.apiModelId ?? cliConfigContext.rawModelId)
+        : cliConfigContext.rawModelId
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
         cliTool: selectedCliTool,
-        model: cliConfigContext.rawModelId,
+        model: launchModel,
         providerId: cliConfigContext.providerId,
         gateway: isGatewayProvider,
         directory,

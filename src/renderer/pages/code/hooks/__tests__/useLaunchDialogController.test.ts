@@ -366,6 +366,38 @@ describe('useLaunchDialogController', () => {
       )
     })
 
+    // The gateway matches an address against each model's apiModelId, so launching a renamed
+    // model under its internal id makes the request unroutable.
+    it('launches a gateway model under its apiModelId, not its internal id', async () => {
+      const renamedModel = {
+        id: 'deepseek::my-deepseek',
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-chat'
+      } as unknown as Model
+      mocks.resolveCliConfigApplyContext.mockReturnValue({
+        modelId: 'deepseek::my-deepseek',
+        providerId: 'deepseek',
+        rawModelId: 'my-deepseek',
+        writePrimaryModel: true
+      })
+      const { result } = renderGatewayLaunch(
+        vi.fn().mockResolvedValue('cs-sk-current'),
+        new Map<UniqueModelId, Model>([[renamedModel.id, renamedModel]]),
+        vi.fn().mockResolvedValue(undefined),
+        CodeCli.ANTIGRAVITY_CLI
+      )
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(mocks.requestMock).toHaveBeenCalledWith(
+        'code_cli.run',
+        expect.objectContaining({ mode: 'normal', gateway: true, model: 'deepseek-chat' })
+      )
+    })
+
     it('does not run the CLI when the gateway fails to start', async () => {
       const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
       const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
