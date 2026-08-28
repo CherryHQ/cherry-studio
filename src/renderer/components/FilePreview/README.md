@@ -124,7 +124,7 @@ Descriptor rules:
 - `load` must resolve to a module with a default React component export. Keep large rendering libraries inside the lazy module rather than the descriptor.
 - The registry is static configuration. There is no runtime registration, priority, or caller override API.
 
-The plugin component receives the normalized path, extracted filename, preflighted file metadata, and a required refresh key:
+The plugin component receives the normalized path, extracted filename, preflighted file metadata, a required refresh key, and an optional callback for reporting the user's selection (see [Selection references](#selection-references)):
 
 ```ts
 interface FilePreviewPluginProps {
@@ -133,6 +133,7 @@ interface FilePreviewPluginProps {
   metadata: FilePreviewFileMetadata
   refreshKey: number
   type?: 'artifact' | 'file'
+  onSelectionReference?: (reference: SelectionReference | null) => void
 }
 ```
 

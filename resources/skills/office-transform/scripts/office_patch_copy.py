@@ -3,8 +3,9 @@
 the XML parts the requested edits touch.
 
 OOXML files are ZIP packages of XML parts. This script copies every part of
-the original byte-for-byte and re-serializes ONLY the affected part (one
-worksheet, or word/document.xml), so fidelity risk is confined to that part.
+the original byte-for-byte and re-serializes only what an edit reaches: the
+targeted part (one worksheet, or word/document.xml) and, for xlsx, the workbook
+bookkeeping named below. Fidelity risk is confined to those.
 The touched part is manipulated with xml.dom.minidom, which round-trips
 namespace prefixes and declarations verbatim (unlike ElementTree, which
 rewrites unknown prefixes and breaks mc:Ignorable references). The source
