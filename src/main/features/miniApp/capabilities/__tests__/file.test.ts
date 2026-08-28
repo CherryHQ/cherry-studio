@@ -282,6 +282,35 @@ describe('cherry.file', () => {
     expect(dbh.db.select().from(miniAppFileRefTable).all()).toHaveLength(0)
   })
 
+  it('refuses a queued delete once the app was reinstalled under it', async () => {
+    // Queueing `delete` is what created this window. Off the chain it ran immediately; on
+    // it, behind a save awaiting `createInternalEntry`, it waits long enough for an update
+    // or reinstall to commit — and the name it resolves afterwards belongs to the NEW
+    // installation. `save` guards the same wait with a lease; the delete had none, so the
+    // fix for one bug had widened another.
+    insertApp(A)
+    await fileCapability.save(A, { name: 'slot1', data: 'eA==' })
+    let release: () => void = () => {}
+    createInternalEntry.mockImplementationOnce(
+      (args: Parameters<typeof mintEntry>[0]) =>
+        new Promise((resolve) => {
+          release = () => resolve(mintEntry(args))
+        })
+    )
+
+    const saving = fileCapability.save(A, { name: 'other', data: 'eA==' })
+    await vi.waitFor(() => expect(createInternalEntry).toHaveBeenCalled())
+    const deleting = fileCapability.delete(A, { name: 'slot1' })
+    // The reinstall commits while the delete sits in the queue behind that save.
+    generation.value += 1
+    release()
+    await saving.catch(() => undefined)
+
+    await expect(deleting).rejects.toThrow(MiniAppQuiescingError)
+    // The file the PREVIOUS generation named is still the new generation's file.
+    expect(await fileCapability.list(A)).toMatchObject({ names: ['slot1'] })
+  })
+
   it('refuses a concurrent load once the decode budget is spent', async () => {
     // The bug this guards: a per-call cap with no total. Ten concurrent 10 MB loads
     // are 100 MB resident no matter how small each one is allowed to be.

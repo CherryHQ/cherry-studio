@@ -297,11 +297,21 @@ export const fileCapability = {
     // Counted BEFORE the early return: `delete` of a missing name is still a call, and
     // a loop over misses would otherwise be free.
     limiter.check(appId)
+    // Lease taken BEFORE the queue, exactly as `save` does — and for a reason queueing
+    // CREATED: off the chain this ran immediately, but behind a `save` awaiting
+    // `createInternalEntry` it can now wait long enough for an update or reinstall to
+    // commit, and the name it then resolves belongs to a newer installation.
+    const lease = application.get('MiniAppRuntimeService').leaseFor(appId)
     // On the SAME chain as `save`, for the reason `saveSerialized` already states about
     // uninstall: its `createInternalEntry` is a real `await` between resolving the ref and
     // inserting one. A delete running beside that gap finds nothing, reports success, and
     // the save then commits the row — the file the guest was told was gone is back.
     return serializePerApp(appId, async () => {
+      // ONE check, unlike `saveSerialized`'s in-transaction one: everything from here to
+      // the commit is synchronous (`findRef`, then `withWriteTx`), so there is no await for
+      // a generation to change in. It also answers the miss correctly — a caller from a
+      // dead generation must not be told `{ ok: true }` for a name it never owned.
+      application.get('MiniAppRuntimeService').assertLeaseValid(lease)
       const ref = findRef(appId, name)
       if (!ref) return { ok: true }
       application
