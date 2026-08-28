@@ -66,6 +66,7 @@ const {
   cancelPending,
   confirmPendingInstall,
   miniAppInstallConsentService,
+  previewBuiltinForInstall,
   previewFileForInstall: previewFileRaw
 } = await import('../installFlow')
 const { applyUpdate } = await import('../webInstaller')
@@ -101,7 +102,9 @@ describe('installFlow', () => {
           ? path.join(work, '.publish-journal')
           : key === 'feature.mini_app.data'
             ? path.join(work, 'data')
-            : path.join(work, 'packages')
+            : key === 'feature.mini_app.builtin'
+              ? path.join(work, 'builtin')
+              : path.join(work, 'packages')
       return filename ? path.join(dir, filename) : dir
     })
   })
@@ -128,6 +131,30 @@ describe('installFlow', () => {
   it('refuses a null owner before reading the package', async () => {
     // A nonexistent path: had the flow touched the file first, this would be ENOENT.
     await expect(previewFileForInstall(path.join(work, 'no-such.miniapp'), null)).rejects.toThrow(/managed window/i)
+  })
+
+  it('hands the BUILTIN card a real webp too, whatever the shipped tree contains', async () => {
+    // The url and file previews both transcode; this one base64ed the raw file under an
+    // `image/webp` label, so a builtin shipping a PNG produced a data URL whose declared
+    // type was simply wrong. Bytes arriving inside the signed release are trusted, which
+    // makes them safe — it does not make a wrong MIME type right.
+    const sharp = (await import('sharp')).default
+    const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#0f0' } })
+      .png()
+      .toBuffer()
+    const root = path.join(work, 'builtin', MANIFEST.id)
+    fs.mkdirSync(root, { recursive: true })
+    fs.writeFileSync(
+      path.join(root, 'manifest.json'),
+      JSON.stringify({ ...MANIFEST, icon: { path: 'icon.png', sha256: 'a'.repeat(64) } })
+    )
+    fs.writeFileSync(path.join(root, 'index.html'), '<h1>hi</h1>')
+    fs.writeFileSync(path.join(root, 'icon.png'), png)
+
+    const preview = asInstall(await previewBuiltinForInstall(MANIFEST.id, 'win-builtin'))
+
+    const bytes = Buffer.from(preview.iconDataUrl!.split(',')[1], 'base64')
+    expect(await sharp(bytes).metadata()).toMatchObject({ format: 'webp' })
   })
 
   it('keeps one pending consent per window', async () => {

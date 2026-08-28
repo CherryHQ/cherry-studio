@@ -93,6 +93,28 @@ describe('mini app storage file', () => {
     expect(readStorage(APP)).toEqual({})
   })
 
+  // Real permissions, because ESM refuses `vi.spyOn(fs, 'statSync')`. Skipped where a
+  // mode-000 directory does not actually deny: Windows ignores the bits, root bypasses them.
+  const deniesByMode = process.platform !== 'win32' && process.getuid?.() !== 0
+  it.skipIf(!deniesByMode)('still answers when even the file’s SIZE cannot be read', async () => {
+    // The fallback read the size with `statSync(..., { throwIfNoEntry: false })`, and that
+    // option suppresses "no entry" ALONE — measured: it swallows ENOENT and ENOTDIR but
+    // rethrows EACCES, which is exactly the failure that lands execution in this branch. So
+    // the fallback threw back out in the one case it exists for, taking down the only screen
+    // that can clear the data.
+    const { storageUsage } = await import('../storageFile')
+    const dir = path.dirname(miniAppStorageFile(APP))
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(miniAppStorageFile(APP), '{"a":"b"}', 'utf8')
+    fs.chmodSync(dir, 0o000)
+
+    try {
+      expect(storageUsage(APP)).toMatchObject({ bytes: 0, count: 0 })
+    } finally {
+      fs.chmodSync(dir, 0o755)
+    }
+  })
+
   it('counts keys as well as values', async () => {
     const { writeStorage, storageUsage } = await import('../storageFile')
     writeStorage(APP, { 'a-long-key-name': 'v' })

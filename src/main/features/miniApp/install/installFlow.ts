@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { miniAppTable } from '@data/db/schemas/miniApp'
+import { transcodeToEntityWebp } from '@main/utils/image'
 import type { LocalMiniApp } from '@shared/data/types/miniApp'
 import type { WindowId } from '@shared/ipc/types'
 import type { MiniAppDistributionManifest } from '@shared/types/miniAppManifest'
@@ -15,6 +16,7 @@ import { miniAppBuiltinPath } from '../paths'
 import { previewMiniAppArchive, sha256File } from './archive'
 import { stageBuiltinMiniApp } from './builtin'
 import { bestEffortCleanup } from './cleanup'
+import { assertSupportedIconBytes } from './icon'
 import {
   assertOfficialNamespace,
   installationOf,
@@ -322,8 +324,16 @@ export async function previewBuiltinForInstall(
       JSON.parse(await fs.promises.readFile(path.join(root, 'manifest.json'), 'utf8'))
     )
     if (manifest.id !== appId) throw new Error(`Builtin tree for ${appId} declares id ${manifest.id}`)
+    // The SAME pipeline the other two preview sources use. Base64ing the raw file under an
+    // `image/webp` label is a lie whenever the tree ships a PNG, and this was the one of the
+    // three that skipped it. Trusted bytes do not make a wrong MIME type right, and
+    // `transcodeToEntityWebp` is what bounds the decode.
     const iconDataUrl = manifest.icon
-      ? `data:image/webp;base64,${(await fs.promises.readFile(path.join(root, manifest.icon.path))).toString('base64')}`
+      ? `data:image/webp;base64,${(
+          await transcodeToEntityWebp(
+            await assertSupportedIconBytes(await fs.promises.readFile(path.join(root, manifest.icon.path)))
+          )
+        ).toString('base64')}`
       : null
     return await summarize(
       {

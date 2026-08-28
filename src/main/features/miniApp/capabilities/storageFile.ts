@@ -69,6 +69,15 @@ export function writeStorage(appId: string, map: Record<string, string>): void {
  * fix it will not open". Nothing enforces a limit from this: `writeStorage` weighs the map
  * it is handed, so reporting a fallback here cannot widen what an app may write.
  */
+/** Never throws, for any reason: see the call site. */
+function sizeOnDisk(file: string): number {
+  try {
+    return fs.statSync(file, { throwIfNoEntry: false })?.size ?? 0
+  } catch {
+    return 0
+  }
+}
+
 export function storageUsage(appId: string) {
   let map: Record<string, string> = {}
   let bytes = 0
@@ -78,7 +87,13 @@ export function storageUsage(appId: string) {
   } catch {
     // The file's size on disk rather than 0: "0 bytes" next to a Clear-data button reads as
     // "there is nothing here", which is the one thing we know to be untrue.
-    bytes = fs.statSync(miniAppStorageFile(appId), { throwIfNoEntry: false })?.size ?? 0
+    //
+    // Wrapped, because `throwIfNoEntry` covers ENOENT ALONE — and an EACCES on the file or
+    // its directory is the very thing that lands execution here, so the unwrapped call threw
+    // straight back out in exactly the case this fallback exists for. Zero is a poorer answer
+    // than the size, but this function must not be able to take down the one screen that can
+    // clear the data.
+    bytes = sizeOnDisk(miniAppStorageFile(appId))
   }
   return {
     bytes,
