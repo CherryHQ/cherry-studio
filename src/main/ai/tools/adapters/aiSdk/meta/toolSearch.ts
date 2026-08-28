@@ -29,6 +29,7 @@ const ToolSearchOutputSchema = z.object({
     })
   )
 })
+type ToolSearchOutput = z.infer<typeof ToolSearchOutputSchema>
 
 const NO_MATCHING_TOOLS_MESSAGE = 'No tools matched. Broaden `query`, or omit it to browse all namespaces.'
 const INVALID_SEARCH_OUTPUT_MESSAGE =
@@ -59,10 +60,7 @@ export function createToolSearchTool(
     inputExamples: [{ input: { query: 'gmail', verbose: false } }, { input: { namespace: 'web', verbose: true } }],
     execute: async ({ query, namespace, verbose }) => {
       const grouped = registry.getByNamespace({ query, namespace })
-      const matchedNamespaces: Array<{
-        namespace: string
-        tools: Array<{ name: string; description: string; inputSchema?: unknown }>
-      }> = []
+      const matchedNamespaces: ToolSearchOutput['matchedNamespaces'] = []
 
       for (const [ns, entries] of grouped) {
         const filtered = entries.filter((e) => deferredNames.has(e.name))
