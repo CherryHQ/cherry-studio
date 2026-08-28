@@ -16,7 +16,7 @@ settings, hitting which URL. Three pieces of state determine that:
 | Field | Lives on | Example |
 |---|---|---|
 | `provider.id` | `Provider` row | `minimax`, `silicon`, `my-relay` |
-| `endpointType` | `model.endpointTypes[0]` or `provider.defaultChatEndpoint` | `openai-chat-completions`, `anthropic-messages` |
+| `endpointType` | supported `provider.defaultChatEndpoint`, then the model route and resolver fallbacks | `openai-chat-completions`, `anthropic-messages` |
 | `adapterFamily` | `provider.endpointConfigs[endpointType].adapterFamily` | `openai-compatible`, `anthropic`, `azure-responses` |
 
 `adapterFamily` is the actual SDK selector. `provider.id` is the user-facing
@@ -46,6 +46,12 @@ variant suffix if the endpoint type has one, falls back to
 `providerOptions` namespace used by that gateway's concrete model. The result is
 carried through `SdkConfig`; reasoning encoders consume the resolved namespace
 and never inspect provider or model ids themselves.
+
+For a normal chat request, endpoint priority is an explicit caller preference,
+then a provider default that the selected model supports, then the model's first
+declared endpoint, a registered gateway route, and finally the provider default.
+This makes changing the provider-level default effective without mutating every
+model row while still preventing unsupported endpoint selections.
 
 ```ts
 // Full resolver — 6 lines

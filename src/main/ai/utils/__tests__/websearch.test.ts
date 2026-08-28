@@ -1,4 +1,4 @@
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -83,6 +83,27 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
       model({ id: 'openai::gpt-5.5', providerId: 'openai', apiModelId: 'gpt-5.5' }),
       preset('openai')
     )
+    expect(config).toEqual({ openai: { searchContextSize: 'medium' } })
+  })
+
+  it('uses the supported provider default for CherryIN instead of the registry endpoint order', () => {
+    const cherryin = {
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+    } as Provider
+    const config = buildProviderBuiltinWebSearchConfig(
+      'cherryin',
+      webSearchConfig,
+      model({
+        id: 'cherryin::gpt-5',
+        providerId: 'cherryin',
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      }),
+      cherryin
+    )
+
     expect(config).toEqual({ openai: { searchContextSize: 'medium' } })
   })
 })

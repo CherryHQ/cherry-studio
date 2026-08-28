@@ -14,8 +14,8 @@ for (const extension of extensions) {
 
 /**
  * Resolve the `@ai-sdk` provider id (adapter family) for the model's **active** endpoint
- * (`model.endpointTypes[0]`, falling back to `provider.defaultChatEndpoint`, then
- * `OPENAI_CHAT_COMPLETIONS`), so per-model routing matches the endpoint the request uses.
+ * (supported provider default, then the model's first endpoint, then the remaining
+ * resolver fallbacks), so per-model routing matches the endpoint the request uses.
  */
 export function getAiSdkProviderId(provider: Provider, model: Model): AppProviderId {
   const endpointType = resolveEffectiveEndpoint(provider, model).endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS

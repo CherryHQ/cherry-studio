@@ -28,6 +28,7 @@ import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { getSupportedProviderDefaultEndpoint } from '@shared/utils/endpoint'
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
@@ -1063,11 +1064,11 @@ export class OpenClawService extends BaseService {
             (model) =>
               !model.isHidden && !isNonChatModel(model) && this.getModelEndpointType(model, provider) === endpointType
           )
-          .map((model) => this.toOpenClawModel(model)),
+          .map((model) => this.toOpenClawModel(model, endpointType)),
         presetProviderId: provider.presetProviderId,
         headers: provider.settings?.extraHeaders
       },
-      primaryModel: this.toOpenClawModel(primaryModel)
+      primaryModel: this.toOpenClawModel(primaryModel, endpointType)
     }
   }
 
@@ -1085,7 +1086,12 @@ export class OpenClawService extends BaseService {
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
-    return model.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    return (
+      getSupportedProviderDefaultEndpoint(provider, model) ??
+      model.endpointTypes?.[0] ??
+      provider.defaultChatEndpoint ??
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
   }
 
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {
@@ -1117,7 +1123,7 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private toOpenClawModel(model: DataModel): OpenClawSyncModel {
+  private toOpenClawModel(model: DataModel, endpointType = model.endpointTypes?.[0]): OpenClawSyncModel {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
@@ -1126,7 +1132,7 @@ export class OpenClawService extends BaseService {
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
-      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
+      endpoint_type: this.toOpenClawEndpointType(endpointType),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
