@@ -761,7 +761,12 @@ listener composition:
 | Channel bot reply | `ChannelAdapterListener` + agent-session persistence listener | IM send + agents DB |
 | Channel + user both watching | above + `WebContentsListener(B)` | parallel fan-out |
 | API server SSE | `SseListener` + `PersistenceListener` | SSE push + persist |
-| Translate | `WebContentsListener` | streams translated text to the requesting renderer |
+| Translate | `WebContentsListener` | streams text to the renderer; the caller owns the result and Home persists through `ChatWrite` |
+
+`translate.open` deliberately carries no `PersistenceListener`: it is a
+chunks-only prompt stream with no message target. See
+[Text Translation](./translation.md) for the renderer/Main boundary and Home's
+`data-translation` write path.
 
 ## IPC contract
 
