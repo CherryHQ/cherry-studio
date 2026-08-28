@@ -10768,43 +10768,24 @@
       }
     },
     {
-      "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
-      "modelId": "glm-5-1",
-      "providerId": "fireworks",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        },
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        },
-        "openai-responses": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
+      "apiModelId": "accounts/fireworks/routers/glm-5p1-fast",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "glm-5-1-fast",
       "name": "GLM 5.1 Fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.52
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.8
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11011,8 +10992,23 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/models/gpt-oss-20b",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "gpt-oss-20b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.035
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11353,8 +11349,23 @@
       "providerId": "fireworks"
     },
     {
+      "apiModelId": "accounts/fireworks/models/minimax-m2p7",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "minimax-m2-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.059
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -37901,5 +37912,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "87b257e7a19813f5"
+  "version": "7496984a75f7524a"
 }
