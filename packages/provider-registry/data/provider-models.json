@@ -20476,6 +20476,7 @@
     },
     {
       "apiModelId": "hy4-preview",
+      "endpointTypes": ["openai-chat-completions"],
       "modelId": "hy4-preview",
       "pricing": {
         "cacheRead": {
@@ -20491,7 +20492,14 @@
           "perMillionTokens": 2.501
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
+          }
+        }
+      }
     },
     {
       "apiModelId": "kimi-k2.5",
@@ -36761,7 +36769,7 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "hy4",
+      "apiModelId": "hy4-preview",
       "modelId": "hy4-preview",
       "providerId": "tokenhub"
     },
@@ -37979,5 +37987,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "03cded53236b20e3"
+  "version": "f94362dfbc16c6ff"
 }

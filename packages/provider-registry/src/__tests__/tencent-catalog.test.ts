@@ -14,8 +14,8 @@ const loader = new RegistryLoader({
 
 describe('Tencent TokenHub catalog', () => {
   it('serves Hy4 Preview with its documented wire id, capabilities, and token limits', () => {
-    expect(loader.findOverride('tokenhub', 'hy4')).toMatchObject({
-      apiModelId: 'hy4',
+    expect(loader.findOverride('tokenhub', 'hy4-preview')).toMatchObject({
+      apiModelId: 'hy4-preview',
       modelId: 'hy4-preview'
     })
     expect(loader.findModel('hy4-preview')).toMatchObject({
