@@ -134,17 +134,19 @@ uv run python scripts/office_patch_copy.py \
 ```
 
 OOXML packages are ZIPs of XML parts. Patch-copy copies every part byte-for-byte and
-re-serializes only the part the edits touch (one worksheet, or `word/document.xml`), so
-styles, charts, images, and macros in untouched parts survive exactly. Edit shapes:
+re-serializes only what an edit reaches — the target worksheet or `word/document.xml`, plus
+the workbook bookkeeping noted below for xlsx — so styles, charts, images, and macros in
+untouched parts survive exactly. Edit shapes:
 
 - `{"format":"xlsx","sheet":"S","cells":{"B2":42,"C3":"text","D4":true}}` — numbers,
   strings, and booleans; an existing formula in an edited cell is replaced by the value.
   Patch-copy does not recalculate, so a formula reading an edited cell keeps the value it
   last cached; every write sets `fullCalcOnLoad` in `xl/workbook.xml` so Excel recomputes
   those on open.
-  Replacing a formula also drops `xl/calcChain.xml` (a recalculation cache Excel rebuilds);
-  keeping a chain entry for a cell that no longer has a formula makes Excel report the
-  derived file as damaged. Cells in a **shared, array, or data-table formula group are refused** — the
+  Replacing a formula also drops `xl/calcChain.xml` (a recalculation cache Excel rebuilds),
+  along with the content-type and relationship entries that would otherwise point at a part
+  no longer there; keeping a chain entry for a cell that no longer has a formula makes Excel
+  report the derived file as damaged. Cells in a **shared, array, or data-table formula group are refused** — the
   expression lives in one member and the others only reference it, so overwriting a member
   would strip the formula from cells you never named. Rewrite such a range with `openpyxl`.
   Coordinates outside the worksheet grid (past XFD or row 1048576) are refused too.
