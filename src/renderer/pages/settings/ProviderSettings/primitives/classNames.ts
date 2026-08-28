@@ -425,14 +425,14 @@ export const modelSyncClasses = {
 
 export const apiKeyListClasses = {
   summaryMeta: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
-  listWrap: 'overflow-hidden rounded-lg border border-border-subtle',
+  listWrap: 'overflow-hidden rounded-lg border border-border',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
-  keyRow: 'flex flex-col gap-2 border-b border-border-subtle px-4 py-3 last:border-b-0',
+  keyRow: 'flex flex-col gap-2 border-b border-border px-4 py-3 last:border-b-0',
   keyDisplayRow: 'flex min-w-0 items-center gap-3',
   keyTextBlock: 'min-w-0 flex-1',
   keyRowActions: 'flex shrink-0 items-center gap-1.5',
   keyLabel: 'min-w-0 truncate text-[13px] leading-tight text-foreground',
-  keyValue: 'min-w-0 flex-1 truncate font-mono text-xs leading-tight text-foreground-tertiary',
+  keyValue: 'min-w-0 flex-1 truncate font-mono text-foreground text-xs leading-tight',
   keyDraftRow: 'flex min-w-0 items-center gap-2',
   keyDraftInputs: 'grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(4.5rem,6rem)_minmax(0,1fr)]',
   keyDraftInput: 'h-8 rounded-md bg-background px-2.5 text-sm leading-5',
@@ -441,7 +441,7 @@ export const apiKeyListClasses = {
   keySaveIconButton:
     'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success-subtle hover:text-success-subtle-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
   keyDestructiveIconButton:
-    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3'
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3 hover:[&_svg]:text-destructive-foreground'
 } as const
 
 export const oauthCardClasses = {

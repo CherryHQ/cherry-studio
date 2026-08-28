@@ -5,7 +5,7 @@ import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/usePro
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
+import { Check, Copy, Edit3, Plus, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
@@ -345,7 +345,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
             aria-label={t('common.delete')}
             disabled={saving}
             onClick={onRemove}>
-            <Minus />
+            <Trash2 />
           </button>
         </Tooltip>
         <Switch size="xs" checked={entry.isEnabled} disabled={saving} onCheckedChange={onToggleEnabled} />
