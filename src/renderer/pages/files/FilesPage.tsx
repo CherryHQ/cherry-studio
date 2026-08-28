@@ -326,6 +326,7 @@ function FilesPage() {
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectionAnchorIdRef = useRef<string | null>(null)
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -339,7 +340,15 @@ function FilesPage() {
   // renders a friendly format label derived from `ext` (e.g. `md` → Markdown).
   // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
-  const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
+  const activeFileType = filter.kind === 'type' ? filter.value : undefined
+  const activeFilesQuery = useMemo(
+    () => ({
+      sortBy: serverSortKey,
+      sortOrder: sortDir,
+      ...(activeFileType && { fileType: activeFileType })
+    }),
+    [activeFileType, serverSortKey, sortDir]
+  )
   const trashedFilesQuery = useMemo(
     () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
     [serverSortKey, sortDir]
@@ -526,31 +535,6 @@ function FilesPage() {
     requestLoadMore
   ])
 
-  const maybeFillClientFilteredViewport = useCallback(() => {
-    // Type filters are applied client-side over the loaded active pages.
-    // If the filtered rows do not make the container scrollable, scroll-load
-    // cannot fire, so proactively fetch another active page until scrolling can engage.
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el || !hasMoreActiveFiles || isLoadingMoreActiveFiles || pendingLoadMoreRef.current) return
-    if (el.scrollHeight > el.clientHeight) return
-
-    requestLoadMore(loadMoreActiveFiles)
-  }, [filter.kind, hasMoreActiveFiles, isLoadingMoreActiveFiles, loadMoreActiveFiles, requestLoadMore])
-
-  useEffect(() => {
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el) return
-
-    maybeFillClientFilteredViewport()
-    if (typeof ResizeObserver === 'undefined') return
-
-    const resizeObserver = new ResizeObserver(() => maybeFillClientFilteredViewport())
-    resizeObserver.observe(el)
-    return () => resizeObserver.disconnect()
-  }, [filter.kind, maybeFillClientFilteredViewport])
-
   const handleOpen = useCallback(
     (file: FileItem) => {
       const requestToken = ++openRequestTokenRef.current
@@ -637,10 +621,6 @@ function FilesPage() {
     return result
   }, [files, filter])
 
-  useEffect(() => {
-    maybeFillClientFilteredViewport()
-  }, [maybeFillClientFilteredViewport, filteredFiles.length, files.length])
-
   const fileCounts = useMemo(() => {
     const counts: Record<string, number> = {
       all: fileStats?.activeTotal ?? activeFilesTotal,
@@ -669,13 +649,35 @@ function FilesPage() {
     return t('files.delete.label')
   }, [isTrash, selectedFiles, t])
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
+  const handleSelect = useCallback(
+    (id: string, isChecked: boolean, shouldSelectRange: boolean) => {
+      const anchorIndex = selectionAnchorIdRef.current
+        ? filteredFiles.findIndex((file) => file.id === selectionAnchorIdRef.current)
+        : -1
+      const targetIndex = filteredFiles.findIndex((file) => file.id === id)
+      const isRangeSelection = shouldSelectRange && anchorIndex >= 0
+      const selectionIds = isRangeSelection
+        ? filteredFiles
+            .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+            .map((file) => file.id)
+        : [id]
+
+      if (!isRangeSelection) selectionAnchorIdRef.current = id
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const selectionId of selectionIds) {
+          if (isChecked) next.add(selectionId)
+          else next.delete(selectionId)
+        }
+        return next
+      })
+    },
+    [filteredFiles]
+  )
+
+  useEffect(() => {
+    if (selectedIds.size === 0) selectionAnchorIdRef.current = null
+  }, [selectedIds])
 
   const handleSelectAllVisible = useCallback(
     (checked: boolean) => {
@@ -1020,7 +1022,6 @@ function FilesPage() {
                   <FileGrid
                     files={filteredFiles}
                     scrollRef={contentScrollRef}
-                    onLayoutChange={maybeFillClientFilteredViewport}
                     onOpen={handleOpen}
                     onDelete={(id) => handleDelete(new Set([id]))}
                     isTrash={isTrash}
