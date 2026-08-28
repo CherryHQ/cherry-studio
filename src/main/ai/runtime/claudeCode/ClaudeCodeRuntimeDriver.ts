@@ -1135,6 +1135,11 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
   return content.trim() ? wrapSteerReminder(content) : content
 }
 
+// The strictest PDF-capable target caps the whole request at 20MB (Gemini inline
+// data); a bigger inline document block would be a guaranteed provider reject, so
+// oversized PDFs take the path/text-extraction fallback instead.
+const MAX_NATIVE_PDF_BASE64_CHARS = 18 * 1024 * 1024
+
 /**
  * Build SDK user content from a message entity. Non-image attachments are sent as
  * current local paths so the Agent decides how to inspect them with its tools —
@@ -1254,12 +1259,18 @@ async function materializeUserContent(
   for (const part of firstPartyPdfParts) {
     const materialized = await materializeNativeFilePart(part)
     const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
-    if (parsed?.isBase64 && parsed.data.length > 0) {
+    if (parsed?.isBase64 && parsed.data.length > 0 && parsed.data.length <= MAX_NATIVE_PDF_BASE64_CHARS) {
       documents.push({
         type: 'document',
         source: { type: 'base64', media_type: 'application/pdf', data: parsed.data }
       })
     } else {
+      if (parsed && parsed.data.length > MAX_NATIVE_PDF_BASE64_CHARS) {
+        logger.warn('PDF attachment exceeds the native inline cap; falling back to text extraction', {
+          filename: part.filename,
+          base64Length: parsed.data.length
+        })
+      }
       fallbackParts.push(part)
     }
   }
