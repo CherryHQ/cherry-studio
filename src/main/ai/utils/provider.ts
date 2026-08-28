@@ -46,6 +46,11 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
 
   if (provider.id === 'aimlapi' || provider.presetProviderId === 'aimlapi') {
+    for (const name of Object.keys(headers)) {
+      if (name.toLowerCase() === 'x-aimlapi-source' || name.toLowerCase() === 'x-aimlapi-partner-id') {
+        delete headers[name]
+      }
+    }
     return {
       ...headers,
       'X-AIMLAPI-Source': 'agent/cherry-studio',

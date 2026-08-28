@@ -159,4 +159,23 @@ describe('getExtraHeaders', () => {
 
     expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
   })
+
+  it('replaces case-insensitive user AIMLAPI header overrides with the stable values', () => {
+    const provider = makeProvider({
+      id: 'aimlapi',
+      settings: {
+        extraHeaders: {
+          'x-aimlapi-source': 'other-client',
+          'X-Aimlapi-Partner-Id': 'other-partner',
+          'X-Custom': 'keep'
+        }
+      }
+    })
+
+    expect(getExtraHeaders(provider)).toEqual({
+      'X-Custom': 'keep',
+      'X-AIMLAPI-Source': 'agent/cherry-studio',
+      'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
+    })
+  })
 })
