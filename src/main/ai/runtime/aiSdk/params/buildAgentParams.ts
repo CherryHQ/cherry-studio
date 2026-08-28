@@ -134,16 +134,15 @@ export interface BuiltAgentParams {
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model: configuredModel, assistant, extraFeatures, compactionSink } = input
-  const model = await resolveRuntimeModel(provider, configuredModel, signal, request.apiKeyOverride)
-
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, configuredModel)
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
     provider,
-    model,
+    configuredModel,
     resolvedEndpoint,
     request.apiKeyOverride,
     request.chatId
   )
+  const model = await resolveRuntimeModel(provider, configuredModel, signal, getSdkApiKey(sdkConfig))
   applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
@@ -328,14 +327,14 @@ async function resolveRuntimeModel(
   provider: Provider,
   model: Model,
   signal: AbortSignal | undefined,
-  apiKeyOverride: string | undefined
+  apiKey: string | undefined
 ): Promise<Model> {
   if (!isOllamaProvider(provider) || model.contextWindow || !model.apiModelId) return model
 
   try {
     const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId, {
       signal,
-      apiKeyOverride
+      apiKey
     })
     return contextWindow ? { ...model, contextWindow } : model
   } catch (error) {
@@ -347,6 +346,11 @@ async function resolveRuntimeModel(
     })
     return model
   }
+}
+
+function getSdkApiKey(sdkConfig: SdkConfig): string | undefined {
+  const apiKey = (sdkConfig.providerSettings as { apiKey?: unknown }).apiKey
+  return typeof apiKey === 'string' ? apiKey : undefined
 }
 
 /**

@@ -4,17 +4,13 @@ import {
   postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
-import { providerService } from '@main/data/services/ProviderService'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
 import { formatOllamaApiHost } from '@shared/utils/api'
 import * as z from 'zod'
 
 import { getBaseUrl, getExtraHeaders } from '../../../utils/provider'
-
-const OllamaShowResponseSchema = z.looseObject({
-  model_info: z.record(z.string(), z.unknown()).optional()
-})
+import { OllamaShowResponseSchema } from '../../listModelsSchemas'
 
 const OllamaErrorSchema = z.looseObject({
   error: z.string().optional(),
@@ -23,6 +19,12 @@ const OllamaErrorSchema = z.looseObject({
 
 const OLLAMA_MODEL_INFO_CACHE_TTL_MS = 5 * 60 * 1000
 const contextWindowCache = new Map<string, { value: number; expiresAt: number }>()
+
+function pruneExpiredContextWindows(now: number): void {
+  for (const [key, entry] of contextWindowCache) {
+    if (entry.expiresAt <= now) contextWindowCache.delete(key)
+  }
+}
 
 /** Ollama namespaces this key by architecture (for example `gemma3.context_length`). */
 export function extractOllamaContextWindow(modelInfo: Record<string, unknown> | undefined): number | undefined {
@@ -49,13 +51,13 @@ export function extractOllamaContextWindow(modelInfo: Record<string, unknown> | 
 export async function resolveOllamaModelContextWindow(
   provider: Provider,
   modelApiId: string,
-  options?: { signal?: AbortSignal; apiKeyOverride?: string }
+  options?: { signal?: AbortSignal; apiKey?: string }
 ): Promise<number | undefined> {
   const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
   const cacheKey = `${baseUrl}\n${modelApiId}`
+  pruneExpiredContextWindows(Date.now())
   const cached = contextWindowCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.value
-  contextWindowCache.delete(cacheKey)
 
   const contextWindow = await fetchOllamaModelContextWindow(provider, modelApiId, baseUrl, options)
   if (contextWindow !== undefined) {
@@ -71,12 +73,9 @@ async function fetchOllamaModelContextWindow(
   provider: Provider,
   modelApiId: string,
   baseUrl: string,
-  options?: { signal?: AbortSignal; apiKeyOverride?: string }
+  options?: { signal?: AbortSignal; apiKey?: string }
 ): Promise<number | undefined> {
-  const apiKey =
-    options?.apiKeyOverride !== undefined
-      ? providerService.resolveApiKey(provider.id, options.apiKeyOverride).value
-      : providerService.getRotatedApiKey(provider.id)
+  const apiKey = options?.apiKey
   const headers = {
     ...defaultAppHeaders(),
     ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),

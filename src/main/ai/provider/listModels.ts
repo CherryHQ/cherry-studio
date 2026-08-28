@@ -176,12 +176,17 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
 const ollamaFetcher: ModelFetcher = {
   match: (p) => isOllamaProvider(p),
   fetch: async (provider, signal) => {
+    const apiKey = providerService.getRotatedApiKey(provider.id)
     const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
       .replace(/\/v1$/, '')
       .replace(/\/api$/, '')
     const response = await getFromApi({
       url: `${baseUrl}/api/tags`,
-      headers: defaultHeaders(provider),
+      headers: {
+        ...defaultAppHeaders(),
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
+        ...getExtraHeaders(provider)
+      },
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
@@ -195,7 +200,10 @@ const ollamaFetcher: ModelFetcher = {
     return Promise.all(
       models.map(async (model) => {
         try {
-          const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId ?? '', { signal })
+          const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId ?? '', {
+            signal,
+            apiKey
+          })
           return contextWindow ? { ...model, contextWindow } : model
         } catch (error) {
           if (signal?.aborted) throw error

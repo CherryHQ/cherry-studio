@@ -112,7 +112,7 @@ describe('buildAgentParams provider resolution', () => {
   it('discovers a missing Ollama context window before building the agent request', async () => {
     resolveOllamaModelContextWindowMock.mockResolvedValue(131_072)
     resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'ollama', providerSettings: {} },
+      config: { providerId: 'ollama', providerSettings: { apiKey: 'selected-secret-key' } },
       credentialReceipt: { attribution: 'explicit', id: 'key', masked: 'sk-****' }
     })
     const provider = makeProvider({
@@ -139,7 +139,7 @@ describe('buildAgentParams provider resolution', () => {
 
     expect(resolveOllamaModelContextWindowMock).toHaveBeenCalledWith(provider, 'custom-gemma:12b', {
       signal: undefined,
-      apiKeyOverride: 'selected-key'
+      apiKey: 'selected-secret-key'
     })
     expect(result.options.providerOptions).toMatchObject({
       ollama: { options: { num_ctx: 131_072 } }

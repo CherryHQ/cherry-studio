@@ -188,9 +188,14 @@ describe('listModels — Ollama capabilities', () => {
     expect(postJsonToApiMock).toHaveBeenCalledWith(
       expect.objectContaining({
         url: 'http://ollama.test:11434/api/show',
-        body: { model: 'qwen3:32b', verbose: false }
+        body: { model: 'qwen3:32b', verbose: false },
+        headers: expect.objectContaining({
+          Authorization: 'Bearer AIza-secret-key',
+          'X-Api-Key': 'AIza-secret-key'
+        })
       })
     )
+    expect(getRotatedApiKeyMock).toHaveBeenCalledTimes(1)
   })
 
   it('keeps listed models when optional show metadata is unavailable', async () => {
@@ -217,17 +222,17 @@ describe('listModels — Ollama capabilities', () => {
     expect(models[0].contextWindow).toBeUndefined()
   })
 
-  it('uses the request-selected credential when resolving runtime model metadata', async () => {
+  it('uses the already-selected credential when resolving runtime model metadata', async () => {
     postJsonToApiMock.mockResolvedValueOnce({
       value: { model_info: { 'llama.context_length': 32_768 } }
     })
     const provider = makeOllamaProvider()
 
     await resolveOllamaModelContextWindow(provider, 'runtime-only:latest', {
-      apiKeyOverride: 'selected-key'
+      apiKey: 'selected-secret-key'
     })
 
-    expect(resolveApiKeyMock).toHaveBeenCalledWith('ollama', 'selected-key')
+    expect(resolveApiKeyMock).not.toHaveBeenCalled()
     expect(postJsonToApiMock).toHaveBeenCalledWith(
       expect.objectContaining({
         headers: expect.objectContaining({
