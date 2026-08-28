@@ -28,8 +28,9 @@ const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
-const { generateSignatureMock } = vi.hoisted(() => ({
-  generateSignatureMock: vi.fn()
+const { generateSignatureMock, getCopilotTokenMock } = vi.hoisted(() => ({
+  generateSignatureMock: vi.fn(),
+  getCopilotTokenMock: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -44,6 +45,12 @@ vi.mock('@main/ai/provider/cherryai', () => ({
   generateSignature: generateSignatureMock
 }))
 
+vi.mock('@main/services/CopilotService', () => ({
+  copilotService: {
+    getToken: getCopilotTokenMock
+  }
+}))
+
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
 
@@ -56,6 +63,7 @@ beforeEach(() => {
       : { attribution: 'explicit', id: 'test-key', masked: 'sk-t****-key' }
   }))
   getAuthConfigMock.mockReturnValue(null)
+  getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
 })
 
 afterEach(() => {
@@ -141,6 +149,37 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
     expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+  })
+
+  it('merges Copilot extra headers over defaults case-insensitively', async () => {
+    const provider = makeProvider({
+      id: 'copilot',
+      authType: 'oauth',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.githubcopilot.com',
+          adapterFamily: 'github-copilot-openai-compatible'
+        }
+      },
+      settings: {
+        extraHeaders: { 'User-Agent': 'CustomAgent/1.0', 'X-Custom': 'on' }
+      } as never
+    })
+    const model = makeModel({
+      id: 'copilot::gpt-4o',
+      apiModelId: 'gpt-4o',
+      providerId: 'copilot',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const headers = (config.providerSettings as { headers: Record<string, string> }).headers
+    const normalizedHeaders = new Headers(headers)
+
+    expect(normalizedHeaders.get('user-agent')).toBe('CustomAgent/1.0')
+    expect(normalizedHeaders.get('x-custom')).toBe('on')
+    expect(Object.keys(headers).filter((name) => name.toLowerCase() === 'user-agent')).toHaveLength(1)
   })
 
   describe('OpenCode Go session header', () => {
