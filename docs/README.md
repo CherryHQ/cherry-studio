@@ -59,6 +59,7 @@
 | [Naming Conventions](./references/architecture/naming-conventions.md) | Authoritative naming rules for files, directories, and identifiers, including singular/plural and barrel policies |
 | [Renderer Architecture](./references/architecture/renderer.md) | Canonical reference for the src/renderer type-by-domain layout and its strictly downward dependency layering |
 | [Shared Layer Architecture (`src/shared` / `@shared`)](./references/architecture/shared-layer.md) | Defines what belongs in the @shared cross-process primitive layer, its closed top-level set, and import rules |
+| [RFC: `core/utilityProcess` V1 — generic utility-process layer](./references/architecture/utility-process-rfc.md) | Design RFC for the core/utilityProcess V1 generic layer (#19621) — interface, protocol, failure policy, build mechanism, and experiment evidence |
 
 ### Binary Manager
 
