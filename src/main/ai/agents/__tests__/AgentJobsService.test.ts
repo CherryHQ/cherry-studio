@@ -23,6 +23,7 @@ import type { AgentTaskForm } from '@shared/ipc/schemas/ai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Registering a second schedule type exercises the type guard; the dummy
@@ -611,6 +612,27 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${own.id}`)).toBe(false)
       expect(scheduler.has(`schedule:${second.id}`)).toBe(false)
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
+    })
+
+    it('reconciles schedules left behind for archived agents', async () => {
+      seedAgent(OTHER_AGENT_ID)
+      const orphaned = service.createTask(AGENT_ID, form)
+      const foreign = service.createTask(OTHER_AGENT_ID, { ...form, name: 'foreign-task' })
+      dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(await service.deleteOrphanedSchedules()).toBe(1)
+
+      expect(jobScheduleService.getById(orphaned.id)).toBeNull()
+      expect(jobScheduleService.getById(foreign.id)).not.toBeNull()
+      expect(scheduler.has(`schedule:${orphaned.id}`)).toBe(false)
+      expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [orphaned.id] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [orphaned.id] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [orphaned.id] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [orphaned.id] }
+      ])
     })
 
     it('agent deletion fires the cleanup through onAgentDeleted', async () => {

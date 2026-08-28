@@ -12,6 +12,9 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { asc, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
 import { fileRefService } from '../FileRefService'
 import { paintingService } from '../PaintingService'
 
@@ -32,6 +35,7 @@ describe('PaintingService', () => {
 
   beforeEach(() => {
     mockMainLoggerService.warn.mockClear()
+    notifyDataApiDataChangeMock.mockClear()
   })
 
   async function insertModel(providerId = 'aihubmix', modelId = 'gpt-image-1') {
@@ -362,8 +366,14 @@ describe('PaintingService', () => {
         p({ providerId: 'aihubmix', prompt: 'archived', files: { output: [fileEntryId], input: [] } })
       )
       const kept = paintingService.create(p({ providerId: 'aihubmix', prompt: 'kept' }))
+      notifyDataApiDataChangeMock.mockClear()
 
       paintingService.delete(archived.id)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/paintings', kind: 'membership', entityIds: [archived.id] },
+        { endpoint: '/paintings/:id', entityIds: [archived.id] }
+      ])
 
       const active = paintingService.list({ limit: 20 })
       expect(active.items.map((item) => item.id)).toEqual([kept.id])
@@ -438,12 +448,17 @@ describe('PaintingService', () => {
         p({ providerId: 'aihubmix', prompt: 'round trip', files: { output: [outputId], input: [inputId] } })
       )
       paintingService.delete(painting.id)
+      notifyDataApiDataChangeMock.mockClear()
 
       const restored = paintingService.restore(painting.id)
 
       expect(restored.id).toBe(painting.id)
       expect(restored.deletedAt).toBeUndefined()
       expect(restored.files).toEqual({ output: [outputId], input: [inputId] })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/paintings', kind: 'membership', entityIds: [painting.id] },
+        { endpoint: '/paintings/:id', entityIds: [painting.id] }
+      ])
       expect(paintingService.getById(painting.id).files).toEqual({ output: [outputId], input: [inputId] })
       expect(paintingService.list({ limit: 20 }).items.map((item) => item.id)).toEqual([painting.id])
       expect(paintingService.list({ inTrash: true, limit: 20 }).items).toEqual([])

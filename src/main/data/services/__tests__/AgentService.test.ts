@@ -1092,11 +1092,21 @@ describe('AgentService', () => {
         .update(agentSessionTable)
         .set({ deletedAt: Date.now() - 86_400_000 })
         .where(eq(agentSessionTable.id, 'session-trashed-earlier'))
+      notifyDataApiDataChangeMock.mockClear()
 
       expect(agentService.deleteAgent(id, { deleteSessions: true })).toMatchObject({ deleted: true })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', entityIds: [id] }
+      ])
       expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(1)
 
+      notifyDataApiDataChangeMock.mockClear()
       agentService.restoreAgent(id)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', entityIds: [id] }
+      ])
 
       const sessions = await dbh.db
         .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })

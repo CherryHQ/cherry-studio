@@ -241,17 +241,37 @@ export class AgentJobsService extends BaseService {
       return template?.agentId === agentId
     })
 
-    let deleted = 0
+    const deletedIds: string[] = []
     for (const schedule of schedules) {
       if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-        deleted += 1
+        deletedIds.push(schedule.id)
       }
     }
-    if (deleted > 0) {
-      logger.info('Deleted task schedules for removed agent', { agentId, deleted })
-      agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
+    if (deletedIds.length > 0) {
+      logger.info('Deleted task schedules for removed agent', { agentId, deleted: deletedIds.length })
+      agentTaskService.notifyReadModelChange(deletedIds)
     }
-    return deleted
+    return deletedIds.length
+  }
+
+  /** Reconcile schedules whose owning agent was archived or removed before event cleanup completed. */
+  async deleteOrphanedSchedules(): Promise<number> {
+    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
+      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+      return template !== null && !agentService.agentExists(template.agentId)
+    })
+
+    const deletedIds: string[] = []
+    for (const schedule of schedules) {
+      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+        deletedIds.push(schedule.id)
+      }
+    }
+    if (deletedIds.length > 0) {
+      logger.info('Deleted orphaned agent task schedules', { deleted: deletedIds.length })
+      agentTaskService.notifyReadModelChange(deletedIds)
+    }
+    return deletedIds.length
   }
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */

@@ -19,10 +19,16 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fileManagerMock, sweepAgentOrphansMock } = vi.hoisted(() => ({
-  fileManagerMock: { runSweep: vi.fn(async () => ({ outcome: 'completed' })) },
-  sweepAgentOrphansMock: vi.fn(async () => ({ removed: [], failedDrivers: [] }))
-}))
+const { agentJobsServiceMock, fileManagerMock, notifyDataApiDataChangeMock, sweepAgentOrphansMock } = vi.hoisted(
+  () => ({
+    agentJobsServiceMock: { deleteOrphanedSchedules: vi.fn(async () => 0) },
+    fileManagerMock: { runSweep: vi.fn(async () => ({ outcome: 'completed' })) },
+    notifyDataApiDataChangeMock: vi.fn(),
+    sweepAgentOrphansMock: vi.fn(async () => ({ removed: [], failedDrivers: [] }))
+  })
+)
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 // Mock the agent-dir sweep so its post-commit failure path can be exercised
 // without touching the real filesystem; the default resolves (clean run) so
@@ -36,7 +42,11 @@ vi.mock('@application', async () => {
   const { createMockApplication } = await import('@test-mocks/main/application')
   const application = createMockApplication()
   const container = application.getContainer()
-  application.get.mockImplementation((name: string) => (name === 'FileManager' ? fileManagerMock : container.get(name)))
+  application.get.mockImplementation((name: string) => {
+    if (name === 'AgentJobsService') return agentJobsServiceMock
+    if (name === 'FileManager') return fileManagerMock
+    return container.get(name)
+  })
   return { application, serviceList: [] }
 })
 
@@ -66,10 +76,13 @@ describe('trashPurgeJobHandler', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
+    agentJobsServiceMock.deleteOrphanedSchedules.mockClear()
+    agentJobsServiceMock.deleteOrphanedSchedules.mockImplementation(async () => 0)
     fileManagerMock.runSweep.mockClear()
     fileManagerMock.runSweep.mockImplementation(async () => ({ outcome: 'completed' }))
     sweepAgentOrphansMock.mockClear()
     sweepAgentOrphansMock.mockImplementation(async () => ({ removed: [], failedDrivers: [] }))
+    notifyDataApiDataChangeMock.mockClear()
     MockMainPreferenceServiceUtils.resetMocks()
   })
 
@@ -224,6 +237,15 @@ describe('trashPurgeJobHandler', () => {
     await seedWorld()
 
     let expiredTopicRowsAtSweepTime = -1
+    let expiredAgentRowsAtScheduleSweepTime = -1
+    agentJobsServiceMock.deleteOrphanedSchedules.mockImplementation(async () => {
+      expiredAgentRowsAtScheduleSweepTime = dbh.db
+        .select({ id: agentTable.id })
+        .from(agentTable)
+        .where(eq(agentTable.id, 'agent-expired'))
+        .all().length
+      return 0
+    })
     fileManagerMock.runSweep.mockImplementation(async () => {
       // Captures ordering: by the time the file sweep runs, the DB purge of
       // every domain must already be committed.
@@ -289,9 +311,20 @@ describe('trashPurgeJobHandler', () => {
     expect(fileIds).toContain('019606a0-0000-7000-8000-00000000cc03')
 
     // disk sweep ran after all DB purge transactions committed
+    expect(agentJobsServiceMock.deleteOrphanedSchedules).toHaveBeenCalledTimes(1)
+    expect(expiredAgentRowsAtScheduleSweepTime).toBe(0)
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
     expect(expiredTopicRowsAtSweepTime).toBe(0)
     expect(ctx.reportProgress).toHaveBeenLastCalledWith(100)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/topics/:topicId/messages', kind: 'membership' },
+      { endpoint: '/topics/:topicId/tree' },
+      { endpoint: '/messages/:id' }
+    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
+      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
+    ])
   })
 
   it('purges domains in RFC §6 order: topic → session → agent → assistant → painting → file entry', async () => {
@@ -378,6 +411,7 @@ describe('trashPurgeJobHandler', () => {
     // state, and it would otherwise never be reclaimed.
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
     expect(sweepAgentOrphansMock).toHaveBeenCalledTimes(1)
+    expect(agentJobsServiceMock.deleteOrphanedSchedules).toHaveBeenCalledTimes(1)
   })
 
   it('emptyAll purges every trashed row regardless of retention, sparing active rows', async () => {

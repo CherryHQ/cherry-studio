@@ -117,6 +117,10 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
   return or(nameMatch, descriptionMatch)
 }
 
+function activeSessionOwnerPredicate(): SQL {
+  return or(isNull(sessionsTable.agentId), isNotNull(agentsTable.id))!
+}
+
 export function agentSessionReadModelEffects(
   sessionIds: readonly string[],
   kind: 'membership' | 'projection'
@@ -135,6 +139,15 @@ export class AgentSessionService {
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length > 0) notifyDataApiDataChange(effects)
+  }
+
+  notifyPurged(sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return
+    this.notifyReadModelChange(sessionIds, 'membership')
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
+      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
+    ])
   }
 
   listAddressableByCursor(query: {
@@ -179,7 +192,7 @@ export class AgentSessionService {
   }): SessionMetadataSearchResult[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
-    const filters: SQL[] = [isNull(sessionsTable.deletedAt)]
+    const filters: SQL[] = [isNull(sessionsTable.deletedAt), activeSessionOwnerPredicate()]
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
@@ -321,7 +334,8 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt), activeSessionOwnerPredicate()))
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -338,6 +352,7 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(and(eq(sessionsTable.taskScheduleId, taskScheduleId), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
@@ -354,6 +369,7 @@ export class AgentSessionService {
     const rows = tx
       .select({ taskScheduleId: sessionsTable.taskScheduleId, sessionId: sessionsTable.id })
       .from(sessionsTable)
+      .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(and(inArray(sessionsTable.taskScheduleId, [...new Set(taskScheduleIds)]), isNull(sessionsTable.deletedAt)))
       .all()
     return new Map(rows.flatMap((row) => (row.taskScheduleId ? [[row.taskScheduleId, row.sessionId] as const] : [])))
@@ -471,10 +487,10 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const ownerFilter =
       query.agentId === 'unlinked'
-        ? isNull(agentsTable.id)
+        ? isNull(sessionsTable.agentId)
         : query.agentId
           ? eq(agentsTable.id, query.agentId)
-          : undefined
+          : activeSessionOwnerPredicate()
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -652,8 +668,9 @@ export class AgentSessionService {
         .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, isNull(sessionsTable.deletedAt), pinAfter))
+        .where(and(agentFilter, isNull(sessionsTable.deletedAt), activeSessionOwnerPredicate(), pinAfter))
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
         .all()
@@ -700,10 +717,12 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(
         and(
           agentFilter,
           inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
+          inTrash ? undefined : activeSessionOwnerPredicate(),
           notInArray(sessionsTable.id, pinnedSubquery),
           sessionAfter
         )
@@ -758,7 +777,7 @@ export class AgentSessionService {
     const [current] = tx
       .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskScheduleId })
       .from(sessionsTable)
-      .where(eq(sessionsTable.id, id))
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }

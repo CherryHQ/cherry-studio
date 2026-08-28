@@ -254,6 +254,15 @@ export class AgentService {
   private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
+  notifyReadModelChange(agentIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (agentIds.length === 0) return
+    const entityIds = [...new Set(agentIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agents', kind, entityIds },
+      { endpoint: '/agents/:agentId', entityIds }
+    ])
+  }
+
   /**
    * Create primitive for main-process command orchestration. The caller owns
    * non-data side effects and supplies the already-reserved id.
@@ -851,6 +860,7 @@ export class AgentService {
       agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
     }
     if (deleted) {
+      this.notifyReadModelChange([id], 'membership')
       promptService.notifyTargetBindingsChanged()
       this._onAgentDeleted.fire({ agentId: id })
     }
@@ -889,6 +899,7 @@ export class AgentService {
       }
     })
     if (restoredSessionIds.length > 0) agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+    this.notifyReadModelChange([id], 'membership')
 
     const database = application.get('DbService').getDb()
     const modelName = row.model

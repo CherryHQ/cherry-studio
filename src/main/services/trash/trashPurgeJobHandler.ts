@@ -47,12 +47,12 @@ const PURGE_DOMAINS: ReadonlyArray<{
   {
     name: 'topic',
     purgeExpiredTx: (tx, cutoffMs, limit) => topicService.purgeExpiredTx(tx, cutoffMs, limit),
-    notifyPurged: (ids) => topicService.notifyReadModelChange(ids, 'membership')
+    notifyPurged: (ids) => topicService.notifyPurged(ids)
   },
   {
     name: 'session',
     purgeExpiredTx: (tx, cutoffMs, limit) => agentSessionService.purgeExpiredTx(tx, cutoffMs, limit),
-    notifyPurged: (ids) => agentSessionService.notifyReadModelChange(ids, 'membership')
+    notifyPurged: (ids) => agentSessionService.notifyPurged(ids)
   },
   {
     name: 'agent',
@@ -60,10 +60,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
     // Retention is the first and only moment an archived agent's prompt bindings are
     // dropped — they deliberately survive the archive — so this is the only chance to say so.
     notifyPurged: (ids) => {
-      notifyDataApiDataChange([
-        { endpoint: '/agents', kind: 'membership', entityIds: ids },
-        { endpoint: '/agents/:agentId', entityIds: ids }
-      ])
+      agentService.notifyReadModelChange(ids, 'membership')
       promptService.notifyTargetBindingsChanged()
     }
   },
@@ -71,21 +68,14 @@ const PURGE_DOMAINS: ReadonlyArray<{
     name: 'assistant',
     purgeExpiredTx: (tx, cutoffMs, limit) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit),
     notifyPurged: (ids) => {
-      notifyDataApiDataChange([
-        { endpoint: '/assistants', kind: 'membership', entityIds: ids },
-        { endpoint: '/assistants/:id', entityIds: ids }
-      ])
+      assistantDataService.notifyReadModelChange(ids, 'membership')
       promptService.notifyTargetBindingsChanged()
     }
   },
   {
     name: 'painting',
     purgeExpiredTx: (tx, cutoffMs, limit) => paintingService.purgeExpiredTx(tx, cutoffMs, limit),
-    notifyPurged: (ids) =>
-      notifyDataApiDataChange([
-        { endpoint: '/paintings', kind: 'membership', entityIds: ids },
-        { endpoint: '/paintings/:id', entityIds: ids }
-      ])
+    notifyPurged: (ids) => paintingService.notifyReadModelChange(ids, 'membership')
   },
   {
     name: 'fileEntry',
@@ -120,7 +110,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows archived "now".
     const cutoffMs = emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS
     const dbService = application.get('DbService')
-    const totalSteps = PURGE_DOMAINS.length + 2 // + file orphan sweep + agent dir sweep
+    const totalSteps = PURGE_DOMAINS.length + 3 // + task schedule, file, and agent-dir sweeps
     const purged: Record<string, number> = {}
 
     for (const [index, domain] of retentionDisabled ? [] : PURGE_DOMAINS.entries()) {
@@ -142,6 +132,12 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
 
+    // Schedule reconciliation strictly AFTER all transactions committed. It runs even
+    // when retention is disabled so an interrupted event cleanup heals on the next pass.
+    ctx.signal.throwIfAborted()
+    await application.get('AgentJobsService').deleteOrphanedSchedules()
+    ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 1) / totalSteps) * 100))
+
     // Filesystem reclamation strictly AFTER all transactions committed.
     // Failures are logged, never thrown — the DB rows are already gone and any
     // disk residue is picked up by the next purge run's sweeps.
@@ -162,7 +158,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       reclaimed = false
       logger.warn('File orphan sweep failed — residue retried next purge run', { error })
     }
-    ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 1) / totalSteps) * 100))
+    ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 2) / totalSteps) * 100))
 
     ctx.signal.throwIfAborted()
     try {

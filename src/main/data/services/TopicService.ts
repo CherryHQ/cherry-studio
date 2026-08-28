@@ -131,6 +131,16 @@ export class TopicService {
     ])
   }
 
+  notifyPurged(topicIds: readonly string[]): void {
+    if (topicIds.length === 0) return
+    this.notifyReadModelChange(topicIds, 'membership')
+    notifyDataApiDataChange([
+      { endpoint: '/topics/:topicId/messages', kind: 'membership' },
+      { endpoint: '/topics/:topicId/tree' },
+      { endpoint: '/messages/:id' }
+    ])
+  }
+
   getById(id: string): Topic {
     const db = application.get('DbService').getDb()
 

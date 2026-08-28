@@ -14,6 +14,7 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertPaintingRow, type PaintingRow, paintingTable } from '@data/db/schemas/painting'
@@ -102,6 +103,15 @@ function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, Pain
 }
 
 class PaintingService {
+  notifyReadModelChange(paintingIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (paintingIds.length === 0) return
+    const entityIds = [...new Set(paintingIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/paintings', kind, entityIds },
+      { endpoint: '/paintings/:id', entityIds }
+    ])
+  }
+
   list(query: ListPaintingsQuery): PaintingListResponse {
     const db = application.get('DbService').getDb()
     const conditions: SQL[] = []
@@ -310,6 +320,7 @@ class PaintingService {
       if (result.changes === 0) {
         throw DataApiErrorFactory.notFound('Painting', id)
       }
+      this.notifyReadModelChange([id], 'membership')
       logger.info('Permanently deleted painting', { id })
       return
     }
@@ -322,6 +333,7 @@ class PaintingService {
     if (result.changes === 0) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
+    this.notifyReadModelChange([id], 'membership')
     logger.info('Archived painting', { id })
   }
 
@@ -343,6 +355,7 @@ class PaintingService {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
 
+    this.notifyReadModelChange([id], 'membership')
     logger.info('Restored painting', { id })
     const filesByPainting = loadFilesForPaintings([row.id])
     return rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)

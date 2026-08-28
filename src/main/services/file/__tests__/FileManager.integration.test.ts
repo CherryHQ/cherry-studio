@@ -25,7 +25,10 @@ const electronMocks = vi.hoisted(() => ({
   }
 }))
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+
 vi.mock('electron', () => electronMocks)
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -69,6 +72,7 @@ describe('FileManager (integration)', () => {
     BaseService.resetInstances()
     danglingCache.clear()
     hasPendingRestoreMock.mockReturnValue(false)
+    notifyDataApiDataChangeMock.mockClear()
     const jobManager = application.get('JobManager')
     vi.mocked(jobManager.registerHandler).mockReset()
     vi.mocked(jobManager.enqueue)
@@ -368,19 +372,74 @@ describe('FileManager (integration)', () => {
     const read = await fm.read(created.id, { encoding: 'binary' })
     expect(Array.from(read.content)).toEqual([0xaa, 0xbb, 0xcc])
 
+    notifyDataApiDataChangeMock.mockClear()
     await fm.trash(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     const trashed = await fm.getById(created.id)
     if (trashed.origin === 'internal') {
       expect(typeof trashed.deletedAt).toBe('number')
     }
 
+    notifyDataApiDataChangeMock.mockClear()
     const restored = await fm.restore(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     if (restored.origin === 'internal') {
       expect(restored.deletedAt).toBeUndefined()
     }
 
+    notifyDataApiDataChangeMock.mockClear()
     await fm.permanentDelete(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     await expect(fm.getById(created.id)).rejects.toThrow(/not found/i)
+  })
+
+  it('publishes batch lifecycle changes only for successful entries', async () => {
+    const first = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'first',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    const second = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x02]),
+      name: 'second',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    const missing = '019606a0-0000-7000-8000-00000000ffff' as FileEntryId
+    const ids = [first.id, missing, second.id]
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchTrash(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchRestore(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchPermanentDelete(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
   })
 
   it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_delete', async () => {

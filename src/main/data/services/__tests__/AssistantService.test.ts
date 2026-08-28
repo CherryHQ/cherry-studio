@@ -1342,12 +1342,17 @@ describe('AssistantDataService', () => {
   describe('delete', () => {
     it('should soft-delete by setting deletedAt timestamp', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      notifyDataApiDataChangeMock.mockClear()
 
       assistantDataService.delete('ast-1')
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.deletedAt).toBeTruthy()
       expect(typeof row.deletedAt).toBe('number')
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/assistants', kind: 'membership', entityIds: ['ast-1'] },
+        { endpoint: '/assistants/:id', entityIds: ['ast-1'] }
+      ])
     })
 
     it('should not physically remove the row', async () => {
@@ -1580,6 +1585,7 @@ describe('AssistantDataService', () => {
       expect(await dbh.db.select().from(assistantTable)).toHaveLength(1)
       expect(await dbh.db.select().from(assistantMcpServerTable)).toHaveLength(1)
 
+      notifyDataApiDataChangeMock.mockClear()
       const restored = assistantDataService.restore('ast-1')
 
       expect(restored.id).toBe('ast-1')
@@ -1588,6 +1594,10 @@ describe('AssistantDataService', () => {
       expect(restored.mcpServerIds).toEqual(['srv-1'])
       expect(restored.knowledgeBaseIds).toEqual(['kb-1'])
       expect(restored.modelName).toBe('GPT-4')
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/assistants', kind: 'membership', entityIds: ['ast-1'] },
+        { endpoint: '/assistants/:id', entityIds: ['ast-1'] }
+      ])
 
       const active = assistantDataService.list(listQuery())
       expect(active.items.map((a) => a.id)).toEqual(['ast-1'])

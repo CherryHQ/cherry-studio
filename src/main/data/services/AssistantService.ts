@@ -7,6 +7,7 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
@@ -92,6 +93,15 @@ function rethrowAssistantOrderError(error: unknown): never {
 }
 
 export class AssistantDataService {
+  notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (assistantIds.length === 0) return
+    const entityIds = [...new Set(assistantIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/assistants', kind, entityIds },
+      { endpoint: '/assistants/:id', entityIds }
+    ])
+  }
+
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -625,6 +635,7 @@ export class AssistantDataService {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
     topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership')
+    this.notifyReadModelChange([id], 'membership')
     pinService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Archived assistant', {
@@ -670,6 +681,7 @@ export class AssistantDataService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Assistant', id)
 
+    this.notifyReadModelChange([id], 'membership')
     logger.info('Restored assistant', { id })
     const relations = this.getRelationIdsByAssistantIds([id])
     return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))

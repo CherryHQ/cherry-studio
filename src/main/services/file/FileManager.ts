@@ -126,6 +126,7 @@ import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
@@ -1191,27 +1192,46 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async trash(id: FileEntryId): Promise<void> {
-    return internalTrash(this.deps, id)
+    internalTrash(this.deps, id)
+    this.notifyReadModelChange([id])
   }
 
   async restore(id: FileEntryId): Promise<FileEntry> {
-    return internalRestore(this.deps, id)
+    const entry = await internalRestore(this.deps, id)
+    this.notifyReadModelChange([id])
+    return entry
   }
 
   async permanentDelete(id: FileEntryId): Promise<void> {
-    return internalPermanentDelete(this.deps, id)
+    await internalPermanentDelete(this.deps, id)
+    this.notifyReadModelChange([id])
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchTrash(this.deps, ids)
+    const result = internalBatchTrash(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
   }
 
   async batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchRestore(this.deps, ids)
+    const result = internalBatchRestore(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
   }
 
   async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchPermanentDelete(this.deps, ids)
+    const result = await internalBatchPermanentDelete(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
+  }
+
+  private notifyReadModelChange(ids: readonly FileEntryId[]): void {
+    if (ids.length === 0) return
+    const entityIds = [...new Set(ids)]
+    notifyDataApiDataChange([
+      { endpoint: '/files/entries', kind: 'membership', entityIds },
+      { endpoint: '/files/entries/:id', entityIds }
+    ])
   }
 
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {

@@ -253,6 +253,51 @@ describe('AgentSessionService', () => {
     ).toEqual([])
   })
 
+  it('hides retained sessions while their agent is archived without hiding true orphans', async () => {
+    const workspace = await createWorkspace('archived-owner-visibility')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-archived-owner',
+      type: 'claude-code',
+      name: 'Archived Owner',
+      instructions: '',
+      orderKey: 'archived-owner',
+      deletedAt: 100
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-archived-owner',
+        agentId: 'agent-archived-owner',
+        name: 'Archived owner evidence',
+        workspaceId: workspace.id,
+        orderKey: 'a0',
+        lastActivityAt: 300
+      },
+      {
+        id: 'session-true-orphan',
+        agentId: null,
+        name: 'True orphan evidence',
+        workspaceId: workspace.id,
+        orderKey: 'a1',
+        lastActivityAt: 200
+      }
+    ])
+
+    expect(agentSessionService.search({ q: 'owner evidence', limit: 5 })).toEqual([])
+    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual(['session-true-orphan'])
+    expect(agentSessionService.getLatestActive()?.id).toBe('session-true-orphan')
+    expect(captureError(() => agentSessionService.getById('session-archived-owner'))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    expect(agentSessionService.getById('session-true-orphan').id).toBe('session-true-orphan')
+
+    await dbh.db.update(agentTable).set({ deletedAt: null }).where(eq(agentTable.id, 'agent-archived-owner'))
+
+    expect(agentSessionService.search({ q: 'owner evidence', limit: 5 }).map((item) => item.id)).toEqual([
+      'session-archived-owner'
+    ])
+    expect(agentSessionService.getById('session-archived-owner').id).toBe('session-archived-owner')
+  })
+
   it('pages only Sessions whose active Agent can receive a delivery', async () => {
     const workspace = await createWorkspace('addressable')
     await dbh.db.insert(agentTable).values({
@@ -393,7 +438,7 @@ describe('AgentSessionService', () => {
       ])
 
       expect(agentSessionService.getLatestActive({ agentId: 'agent-session-test' })?.id).toBe('session-scoped')
-      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-deleted-owner')
+      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-unassigned')
     })
 
     it('does not treat task relation changes as session activity', async () => {
@@ -1179,6 +1224,32 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
+  })
+
+  it('does not clear a task relation when updating an archived session fails', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-reassigned',
+      type: 'claude-code',
+      name: 'Reassigned Agent',
+      instructions: '',
+      orderKey: 'z0'
+    })
+    const task = createTaskSchedule()
+    const session = await createSession('Archived bound session')
+    bindTaskSession(session.id, task.id)
+    await dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, session.id))
+    notifyDataApiDataChangeMock.mockClear()
+
+    expect(
+      captureError(() => agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' }))
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    const [row] = await dbh.db
+      .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+    expect(row.taskScheduleId).toBe(task.id)
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
   it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
