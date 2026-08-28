@@ -36352,6 +36352,61 @@
       }
     },
     {
+      "apiModelId": "deepseek-v4-flash-202605",
+      "modelId": "deepseek-v4-flash",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "deepseek-v4-pro-202606",
+      "modelId": "deepseek-v4-pro",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "glm-5",
+      "modelId": "glm-5",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "glm-5.1",
+      "modelId": "glm-5-1",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "glm-5.2",
+      "modelId": "glm-5-2",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "hy3",
+      "modelId": "hy3",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "hy3-preview",
+      "modelId": "hy3-preview",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "hy4-preview",
+      "modelId": "hy4-preview",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "kimi-k2.5",
+      "modelId": "kimi-k2-5",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "minimax-m2.7",
+      "modelId": "minimax-m2-7",
+      "providerId": "token-plan"
+    },
+    {
+      "apiModelId": "tc-code-latest",
+      "modelId": "tc-code",
+      "providerId": "token-plan"
+    },
+    {
       "apiModelId": "deepseek-v3.2",
       "modelId": "deepseek-v3-2",
       "providerId": "tokenhub"
@@ -36495,8 +36550,18 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "hy3",
+      "modelId": "hy3",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "hy3-preview",
       "modelId": "hy3-preview",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "hy4-preview",
+      "modelId": "hy4-preview",
       "providerId": "tokenhub"
     },
     {
@@ -37713,5 +37778,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0f6b3a627de2d8e0"
+  "version": "742c96cfc30db1a2"
 }

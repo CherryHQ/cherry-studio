@@ -18770,12 +18770,13 @@
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
       "family": "Hy",
+      "group": "hy",
       "id": "hy3",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "Hunyuan 3",
+      "name": "Hy3",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
@@ -18797,21 +18798,23 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "low", "high"]
+            "values": ["none", "high"]
           }
         ],
-        "supportedEfforts": ["none", "low", "high"]
+        "supportedEfforts": ["none", "high"]
       }
     },
     {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
+      "family": "Hy",
+      "group": "hy",
       "id": "hy3-preview",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "Hunyuan 3 Preview",
+      "name": "Hy3 preview",
       "outputModalities": ["text"],
       "ownedBy": "tencent",
       "pricing": {
@@ -18823,6 +18826,50 @@
           "currency": "USD",
           "perMillionTokens": 0.6
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "high"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 1048576,
+      "family": "Hy",
+      "group": "hy",
+      "id": "hy4-preview",
+      "maxInputTokens": 983040,
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Hy4 preview",
+      "ownedBy": "tencent",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.042
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "high"]
       }
     },
     {
@@ -21715,5 +21762,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "9735d06648aee6dd"
+  "version": "2f61227e30a0a9de"
 }
