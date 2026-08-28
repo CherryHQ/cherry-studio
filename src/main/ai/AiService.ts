@@ -1172,14 +1172,7 @@ export class AiService extends BaseService {
     } else {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
-      // 'low' rather than 'none': the generic openai-chat reasoning wire
-      // (packages/provider-registry reasoningProfiles.ts genericEffort) encodes
-      // 'off' as the literal string reasoning_effort: "none", which real OpenAI
-      // accepts but at least one OpenAI-compatible gateway (AI/ML API) rejects
-      // outright as an invalid enum value (only low/medium/high) — a health
-      // check must not hard-fail on that. 'low' is in every such gateway's
-      // accepted enum and still minimizes reasoning-token latency.
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'low' })
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
     }
 
     try {
