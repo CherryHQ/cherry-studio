@@ -9,7 +9,7 @@ import type {
   SDKResultMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import type { DocumentBlockParam, ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
@@ -340,6 +340,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
+  private supportsPdf = false
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
@@ -385,6 +386,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
+    this.supportsPdf = request.supportsPdf
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -410,7 +412,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,
       knowledgeBaseIds: request.knowledgeBaseIds,
-      notificationContext: request.notificationContext
+      notificationContext: request.notificationContext,
+      guardSupportsPdf: request.guardSupportsPdf
     })
 
     // A matching warm process may have selected a different rotated key when
@@ -475,7 +478,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
+      supportsImages: resolveModelImageSupport(this.input.modelId),
+      supportsPdf: this.supportsPdf
     })
     this.lastSdkUserMessage = sdkMessage
     this.sdkInputQueue.push(sdkMessage)
@@ -1096,10 +1100,11 @@ async function toSdkUserMessage(
   systemReminder = false,
   {
     supportsAttachmentReads = false,
-    supportsImages = true
-  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
+    supportsImages = true,
+    supportsPdf = false
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean; supportsPdf?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads, supportsPdf)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -1130,27 +1135,38 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
   return content.trim() ? wrapSteerReminder(content) : content
 }
 
+// The strictest PDF-capable target caps the whole request at 20MB (Gemini inline
+// data); a bigger inline document block would be a guaranteed provider reject, so
+// oversized PDFs take the path/text-extraction fallback instead.
+const MAX_NATIVE_PDF_BASE64_CHARS = 18 * 1024 * 1024
+
 /**
  * Build SDK user content from a message entity. Non-image attachments are sent as
- * current local paths so the Agent decides how to inspect them with its tools. Images
- * keep the capability-aware path: supported formats become native Anthropic image
- * blocks, while first-party images use shared OCR/native-fallback routing when vision
- * is unavailable. Assistant attachment handles remain an additional compatibility
- * interface; external files and images that cannot be materialized fall back to paths.
+ * current local paths so the Agent decides how to inspect them with its tools —
+ * except PDFs on PDF-capable connections, which become native `document` blocks
+ * (text extraction cannot read scanned PDFs; native input can). Images keep the
+ * capability-aware path: supported formats become native Anthropic image blocks,
+ * while first-party images use shared OCR/native-fallback routing when vision is
+ * unavailable. Assistant attachment handles remain an additional compatibility
+ * interface; external files and attachments that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
   supportsImages: boolean,
-  supportsAttachmentReads: boolean
+  supportsAttachmentReads: boolean,
+  supportsPdf: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
   const firstPartyImageParts = firstPartyFileParts.filter(isImageFilePart)
-  const firstPartyPathParts = firstPartyFileParts.filter((part) => !isImageFilePart(part))
+  const firstPartyPdfParts = supportsPdf ? firstPartyFileParts.filter(isPdfFilePart) : []
+  const firstPartyPathParts = firstPartyFileParts.filter(
+    (part) => !isImageFilePart(part) && !firstPartyPdfParts.includes(part)
+  )
   const routedParts = parts.filter(
     (part) =>
       part.type === 'text' ||
@@ -1167,9 +1183,12 @@ async function materializeUserContent(
 
   let preparedParts = routedParts
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
-  if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
+  // Natively-sent PDFs stay out of the handle manifest — a handle read only re-runs the text
+  // extraction the native block exists to bypass.
+  const manifestFileParts = firstPartyFileParts.filter((part) => !firstPartyPdfParts.includes(part))
+  if (supportsAttachmentReads && manifestFileParts.length > 0) {
     turnAttachments = collectAssistantFileAttachments([
-      { id: message.id, role: 'user', parts: firstPartyFileParts } as CherryUIMessage
+      { id: message.id, role: 'user', parts: manifestFileParts } as CherryUIMessage
     ])
   }
   if (firstPartyImageParts.length > 0) {
@@ -1236,6 +1255,26 @@ async function materializeUserContent(
     }
   }
 
+  const documents: DocumentBlockParam[] = []
+  for (const part of firstPartyPdfParts) {
+    const materialized = await materializeNativeFilePart(part)
+    const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
+    if (parsed?.isBase64 && parsed.data.length > 0 && parsed.data.length <= MAX_NATIVE_PDF_BASE64_CHARS) {
+      documents.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: parsed.data }
+      })
+    } else {
+      if (parsed && parsed.data.length > MAX_NATIVE_PDF_BASE64_CHARS) {
+        logger.warn('PDF attachment exceeds the native inline cap; falling back to text extraction', {
+          filename: part.filename,
+          base64Length: parsed.data.length
+        })
+      }
+      fallbackParts.push(part)
+    }
+  }
+
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
   unavailableParts.push(...resolvedPaths.unavailable)
   let textContent = appendAttachmentPaths(text, resolvedPaths.files)
@@ -1248,8 +1287,9 @@ async function materializeUserContent(
     textContent = textContent.trim() ? `${textContent}\n\n${note}` : note
   }
   textContent = wrapAgentSessionDeliveryContent(message, textContent)
-  if (images.length === 0) return textContent
-  return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+  const blocks = [...images, ...documents]
+  if (blocks.length === 0) return textContent
+  return textContent.trim() ? [{ type: 'text', text: textContent }, ...blocks] : blocks
 }
 
 function appendAttachmentManifest(
@@ -1323,6 +1363,13 @@ function isImageFilePart(part: FileUIPart): boolean {
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
+}
+
+function isPdfFilePart(part: FileUIPart): boolean {
+  if (part.mediaType?.toLowerCase() === 'application/pdf') return true
+  const filename = part.filename?.toLowerCase()
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return Boolean(filename?.endsWith('.pdf') || url?.endsWith('.pdf'))
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {

@@ -103,7 +103,10 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
 }))
 
 vi.mock('../../../provider/endpoint', () => ({
-  resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint
+  resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint,
+  // Faithful reduction of the real resolver: adapterFamily names the AI SDK converter family.
+  resolveAiSdkProviderId: (provider: Provider, endpointType?: EndpointType) =>
+    (endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined) ?? 'openai-compatible'
 }))
 
 vi.mock('../settingsBuilder', () => ({
@@ -263,6 +266,120 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.objectContaining({ supportsImages: false }),
       expect.anything()
     )
+  })
+
+  it('gates native PDF support on the model being a Claude model, not on vision', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'kimi-latest',
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsImages: true, supportsPdf: false }),
+      expect.anything()
+    )
+
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', capabilities: [] })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsImages: false, supportsPdf: true }),
+      expect.anything()
+    )
+  })
+
+  it('denies native PDF support on gateway routes whose target takes no file parts, even for Claude models', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', capabilities: [] })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsPdf: false }),
+      expect.anything()
+    )
+    expect(request?.supportsPdf).toBe(false)
+  })
+
+  it('denies native PDF support on Azure Chat Completions gateway targets', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://azure.example.com', adapterFamily: 'azure' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-4o',
+      endpointTypes: ['openai-chat-completions']
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.supportsPdf).toBe(false)
+    expect(request?.guardSupportsPdf).toBe(false)
+  })
+
+  it('grants native PDF support on gateway routes whose target takes native file parts', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'openai-responses': { baseUrl: 'https://openai.example.com', adapterFamily: 'openai' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'gpt-5', endpointTypes: ['openai-responses'] })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsPdf: true }),
+      expect.anything()
+    )
+    expect(request?.supportsPdf).toBe(true)
+  })
+
+  it('splits attachment vs guard PDF capability when a sub-model cannot take documents', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1', smallModel: 'provider-2::small-1' })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) =>
+      providerId === 'provider-1'
+        ? {
+            id: 'provider-1',
+            endpointConfigs: { 'openai-responses': { baseUrl: 'https://openai.example.com', adapterFamily: 'openai' } }
+          }
+        : {
+            id: providerId,
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation((providerId: string, modelId: string) =>
+      providerId === 'provider-1'
+        ? { id: modelId, apiModelId: 'gpt-5', endpointTypes: ['openai-responses'] }
+        : { id: modelId, apiModelId: 'doubao-lite' }
+    )
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsPdf: false }),
+      expect.anything()
+    )
+    expect(request?.supportsPdf).toBe(true)
+    expect(request?.guardSupportsPdf).toBe(false)
   })
 
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {

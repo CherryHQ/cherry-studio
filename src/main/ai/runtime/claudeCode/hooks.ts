@@ -61,6 +61,7 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
+  supportsPdf: boolean
   agentsMdLoader: AgentsMdLoader
 }
 
@@ -89,6 +90,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       cwd,
       agentDataPath,
       supportsImages: ctx.supportsImages,
+      supportsPdf: ctx.supportsPdf,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false
     })

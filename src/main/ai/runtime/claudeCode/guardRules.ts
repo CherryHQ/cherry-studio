@@ -83,6 +83,13 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
   return { evidence: requestedPath }
 }
 
+const unsupportedDocumentRead = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.supportsPdf !== false) return null
+  const requestedPath = ctx.input?.file_path
+  if (typeof requestedPath !== 'string' || path.extname(requestedPath).toLowerCase() !== '.pdf') return null
+  return { evidence: requestedPath }
+}
+
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
   if (!pathField) return null
@@ -121,6 +128,16 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `The selected model does not support image input, so Read cannot open ${hit.evidence}. Use a vision-capable model or inspect the file through a text-only alternative.`
+  },
+  {
+    // A PDF Read persists an Anthropic `document` block in the transcript; endpoints that reject the
+    // block — vision-capable ones included — then 400 on every later request of the session.
+    id: 'unsupported-document-read',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: unsupportedDocumentRead },
+    effect: 'deny',
+    reason: (hit) =>
+      `The selected model does not support PDF document input, so Read cannot open ${hit.evidence}. Use a PDF-capable model or read a text extraction of the document instead.`
   },
   {
     // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this

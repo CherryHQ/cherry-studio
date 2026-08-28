@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
+  DocumentBlockParam,
   ImageBlockParam,
   MessageCreateParams,
   MessageParam,
@@ -84,43 +85,80 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   return undefined
 }
 
+/**
+ * Note the model can act on when a transcript's PDF document cannot ride to the
+ * routed target: stale/pre-guard history replays through connections whose
+ * target takes no file parts, and a hard provider 400 would poison the session.
+ */
+const PDF_OMITTED_NOTE = '[PDF document omitted: the routed model cannot accept PDF input on this connection]'
+
+/** An Anthropic document block (the Agent SDK's PDF Read) as a `file`/`text` UI part (undefined for content sources). */
+function documentBlockToPart(
+  source: DocumentBlockParam['source'],
+  supportsPdfFileParts: boolean
+): FileUIPart | TextUIPart | undefined {
+  if (source.type === 'base64') {
+    if (!supportsPdfFileParts) return { type: 'text', text: PDF_OMITTED_NOTE }
+    return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
+  }
+  if (source.type === 'url') {
+    if (!supportsPdfFileParts) return { type: 'text', text: PDF_OMITTED_NOTE }
+    return { type: 'file', mediaType: 'application/pdf', url: source.url }
+  }
+  if (source.type === 'text') {
+    return { type: 'text', text: source.data }
+  }
+  return undefined
+}
+
 /** A tool_result split into the model-visible string output and relocated user parts. */
 interface ToolResultConversion {
   output: string
   relocatedParts: Array<TextUIPart | FileUIPart>
 }
 
-function toolResultImageAnchor(toolCallId: string, index: number): string {
-  return `[tool-result attachment call_id=${JSON.stringify(toolCallId)} image=${index}]`
+function toolResultAttachmentAnchor(toolCallId: string, kind: 'image' | 'document', index: number): string {
+  return `[tool-result attachment call_id=${JSON.stringify(toolCallId)} ${kind}=${index}]`
 }
 
 /**
  * Convert Anthropic tool_result content for the `dynamic-tool` UI part.
  *
- * Image blocks cannot ride inside the tool output: `convertToModelMessages`
- * only supports string/JSON tool outputs there, and OpenAI-style protocols have
- * no image tool content at all — inlining base64 blows up the prompt (#17078).
- * Instead each image becomes a `file` part relocated into the user message that
- * carried the tool_result (every protocol accepts user images), and the output
- * keeps a placeholder pointing at it.
+ * Image and document blocks cannot ride inside the tool output:
+ * `convertToModelMessages` only supports string/JSON tool outputs there, and
+ * OpenAI-style protocols have no media tool content at all — inlining base64
+ * blows up the prompt (#17078). Instead each becomes a `file` part relocated
+ * into the user message that carried the tool_result (every capable protocol
+ * accepts user files), and the output keeps a placeholder pointing at it.
  */
 function toolResultToOutput(
   toolCallId: string,
-  content: NonNullable<ToolResultBlockParam['content']>
+  content: NonNullable<ToolResultBlockParam['content']>,
+  supportsPdfFileParts: boolean
 ): ToolResultConversion {
   if (typeof content === 'string') return { output: content, relocatedParts: [] }
   const lines: string[] = []
   const relocatedParts: Array<TextUIPart | FileUIPart> = []
   let imageIndex = 0
+  let documentIndex = 0
   for (const block of content) {
     if (block.type === 'text') {
       lines.push(block.text)
     } else if (block.type === 'image') {
       const file = imageBlockToFilePart(block.source)
       if (file) {
-        const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
+        const anchor = toolResultAttachmentAnchor(toolCallId, 'image', ++imageIndex)
         lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
         relocatedParts.push({ type: 'text', text: anchor }, file)
+      }
+    } else if (block.type === 'document') {
+      const part = documentBlockToPart(block.source, supportsPdfFileParts)
+      if (part?.type === 'file') {
+        const anchor = toolResultAttachmentAnchor(toolCallId, 'document', ++documentIndex)
+        lines.push(`${anchor} (${part.mediaType}): attached in the following user message`)
+        relocatedParts.push({ type: 'text', text: anchor }, part)
+      } else if (part) {
+        lines.push(part.text)
       }
     }
   }
@@ -159,10 +197,22 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   private mappedTools?: MessageCreateParams['tools']
   private readonly providerToolNames = new Map<string, string>()
   private readonly clientToolNames = new Map<string, string>()
+  private readonly supportsPdfFileParts: boolean
 
-  constructor(options?: { googleReasoningCache?: ReasoningCache; openRouterReasoningCache?: ReasoningCache }) {
+  constructor(options?: {
+    googleReasoningCache?: ReasoningCache
+    openRouterReasoningCache?: ReasoningCache
+    /**
+     * Whether the routed target takes PDF `file` parts natively. When false,
+     * transcript `document` blocks downgrade to an explicit omission note
+     * instead of file parts the target would reject. Defaults to true so
+     * token estimators keep pricing the request as the client sent it.
+     */
+    supportsPdfFileParts?: boolean
+  }) {
     this.googleReasoningCache = options?.googleReasoningCache
     this.openRouterReasoningCache = options?.openRouterReasoningCache
+    this.supportsPdfFileParts = options?.supportsPdfFileParts ?? true
   }
 
   /**
@@ -203,7 +253,9 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         } else if (block.type === 'tool_result') {
           toolResults.set(
             block.tool_use_id,
-            block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }
+            block.content
+              ? toolResultToOutput(block.tool_use_id, block.content, this.supportsPdfFileParts)
+              : { output: '', relocatedParts: [] }
           )
         }
       }
@@ -251,6 +303,11 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           parts.push(part)
         } else if (block.type === 'image') {
           const part = imageBlockToFilePart(block.source)
+          if (part) {
+            parts.push(part)
+          }
+        } else if (block.type === 'document') {
+          const part = documentBlockToPart(block.source, this.supportsPdfFileParts)
           if (part) {
             parts.push(part)
           }

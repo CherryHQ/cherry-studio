@@ -30,6 +30,112 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\nB' }] })
   })
 
+  it('converts a base64 document block (SDK PDF Read) into a native file part', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'read the spec' },
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERi0=' } }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs[0]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: 'read the spec' },
+        { type: 'file', mediaType: 'application/pdf', url: 'data:application/pdf;base64,JVBERi0=' }
+      ]
+    })
+  })
+
+  it('renders url and plain-text document sources as file and text parts', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'url', url: 'https://example.com/spec.pdf' } },
+              { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'extracted text' } }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs[0]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'file', mediaType: 'application/pdf', url: 'https://example.com/spec.pdf' },
+        { type: 'text', text: 'extracted text' }
+      ]
+    })
+  })
+
+  // Stale pre-guard transcripts can replay document blocks through a connection whose
+  // target rejects file parts; the omission note keeps the session alive instead of a 400.
+  it('downgrades document blocks to an omission note when the target takes no PDF file parts', () => {
+    const gated = new AnthropicMessageConverter({ supportsPdfFileParts: false })
+    const msgs = gated.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERi0=' } },
+              { type: 'document', source: { type: 'url', url: 'https://example.com/spec.pdf' } },
+              { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'extracted text' } }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs[0].parts.map((part) => part.type)).toEqual(['text', 'text', 'text'])
+    expect(msgs[0].parts[0]).toMatchObject({ type: 'text', text: expect.stringContaining('PDF document omitted') })
+    expect(msgs[0].parts[2]).toMatchObject({ type: 'text', text: 'extracted text' })
+    expect(JSON.stringify(msgs)).not.toContain('JVBERi0=')
+  })
+
+  it('keeps tool_result document omissions inline in the output instead of relocating a file part', () => {
+    const gated = new AnthropicMessageConverter({ supportsPdfFileParts: false })
+    const msgs = gated.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'call_pdf', name: 'Read', input: { file_path: '/ws/spec.pdf' } }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_pdf',
+                content: [
+                  { type: 'text', text: 'read 1 page' },
+                  { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERi0=' } }
+                ]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('read 1 page')
+    expect(output).toContain('PDF document omitted')
+    expect(msgs).toHaveLength(1)
+    expect(JSON.stringify(msgs)).not.toContain('JVBERi0=')
+  })
+
   // The Claude Agent SDK ships its harness context (agent/skill catalogs, deferred-tool
   // notices) as `system` messages inside `messages`. Mapping them by position turns them
   // into words the model believes it said.
@@ -227,6 +333,44 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
         { type: 'text', text: expect.stringContaining('call_id="call_img"') },
         { type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }
+      ]
+    })
+  })
+
+  it('relocates tool_result document blocks (SDK PDF Reads) into user file parts', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'call_pdf', name: 'Read', input: { file_path: '/ws/spec.pdf' } }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_pdf',
+                content: [
+                  { type: 'text', text: 'read 1 page' },
+                  { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERi0=' } }
+                ]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('read 1 page')
+    expect(output).toContain('[tool-result attachment call_id="call_pdf" document=1] (application/pdf)')
+    expect(output).not.toContain('JVBERi0=')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: expect.stringContaining('call_id="call_pdf"') },
+        { type: 'file', mediaType: 'application/pdf', url: 'data:application/pdf;base64,JVBERi0=' }
       ]
     })
   })

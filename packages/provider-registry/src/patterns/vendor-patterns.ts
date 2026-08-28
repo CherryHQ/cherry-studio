@@ -33,8 +33,11 @@
  * by insertion order.
  */
 export const VENDOR_PATTERNS = {
-  /** Anthropic / Claude family. Also matches the AWS Bedrock `anthropic.claude-*` prefix. */
-  anthropic: /^(?:anthropic\.)?claude/i,
+  /**
+   * Anthropic / Claude family. Also matches AWS Bedrock ids: bare `anthropic.claude-*` and the
+   * region/global inference-profile forms (`us.anthropic.claude-*`, `global.anthropic.claude-*`).
+   */
+  anthropic: /^(?:(?:[\w-]+\.)*anthropic\.)?claude/i,
 
   /** Google Gemini family. */
   gemini: /^(?:gemini|palm|veo|imagen|learnlm|lyria)/i,

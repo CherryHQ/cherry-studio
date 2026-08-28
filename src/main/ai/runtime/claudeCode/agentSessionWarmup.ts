@@ -32,7 +32,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isAnthropicModel, isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -40,9 +40,10 @@ import {
   OLLAMA_PLACEHOLDER_AUTH_TOKEN
 } from '@shared/utils/provider'
 
-import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
 import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { supportsNativePdf } from '../aiSdk'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -67,6 +68,8 @@ export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   settings: ClaudeCodeSettings
   sdkModelId: string
   usageCapture: AgentSessionUsageCapture
+  /** Whether the primary model takes native PDFs; drives composer-attachment materialization only (the Read guard uses the all-routed-models value in settings). */
+  supportsPdf: boolean
 }
 
 interface RuntimeModelRef {
@@ -360,11 +363,11 @@ async function deriveConnectionConfigFromSnapshot(
   const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
   const maxOutputTokens = materialized ? materialized.maxOutputTokens : (model.maxOutputTokens ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
+  // Same pinning semantics as the query-request builder (see its comment).
+  const pinSubModelsToPrimary = uniqueModelId !== agent.model
   let routeFacts = materialized?.route
   if (!routeFacts) {
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-    // Same pinning semantics as the query-request builder (see its comment).
-    const pinSubModelsToPrimary = uniqueModelId !== agent.model
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -378,6 +381,14 @@ async function deriveConnectionConfigFromSnapshot(
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+  const pdfCapabilities = deriveClaudeCodePdfCapabilities(
+    routeFacts.branch,
+    provider,
+    model,
+    modelId,
+    pinSubModelsToPrimary ? undefined : agent.planModel,
+    pinSubModelsToPrimary ? undefined : agent.smallModel
+  )
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
@@ -402,7 +413,10 @@ async function deriveConnectionConfigFromSnapshot(
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
-    notificationContext
+    notificationContext,
+    // Derives from provider endpoint config too (adapterFamily/endpointType), which no other fact
+    // covers — an endpoint flip can change capability while baseUrl and modelId stay identical.
+    supportsPdf: [pdfCapabilities.attachments, pdfCapabilities.guard]
   }
   const rebuildFactFingerprints = Object.fromEntries(
     Object.entries(rebuildFacts).map(([name, value]) => [
@@ -515,6 +529,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  // Gateway routes relay `document` blocks as native file parts, so PDF capability follows each routed
+  // (provider, model); direct routes keep the vendor estimate — non-Claude compat endpoints 400.
+  const pdfCapabilities = deriveClaudeCodePdfCapabilities(route.branch, provider, model, modelId, planModel, smallModel)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -528,6 +545,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
+        supportsPdf: pdfCapabilities.guard,
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code'
       },
@@ -579,7 +597,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
     sdkModelId,
-    usageCapture: route.usageCapture
+    usageCapture: route.usageCapture,
+    supportsPdf: pdfCapabilities.attachments,
+    guardSupportsPdf: pdfCapabilities.guard
   }
 }
 
@@ -877,6 +897,38 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   )
 }
 
+// Attachments follow the primary model; the guard needs every routed model — plan/small serve
+// subagent turns through the same PreToolUse hooks, which cannot attribute a call to its model.
+function deriveClaudeCodePdfCapabilities(
+  branch: ClaudeCodeRouteFacts['branch'],
+  provider: Provider,
+  model: Model,
+  modelId: string,
+  planModel: UniqueModelId | null | undefined,
+  smallModel: UniqueModelId | null | undefined
+): { attachments: boolean; guard: boolean } {
+  const primaryRef: RuntimeModelRef = {
+    providerId: provider.id,
+    modelId,
+    apiModelId: model.apiModelId ?? modelId,
+    provider,
+    model
+  }
+  const supports = (ref: RuntimeModelRef): boolean => {
+    if (!ref.provider || !ref.model) return false
+    if (branch !== 'gateway') return isAnthropicModel(ref.model)
+    const { endpointType } = resolveEffectiveEndpoint(ref.provider, ref.model)
+    return supportsNativePdf(ref.provider, ref.model, resolveAiSdkProviderId(ref.provider, endpointType))
+  }
+  const attachments = supports(primaryRef)
+  // external-cli pins cross-provider sub-models to the primary (see deriveRouteFacts).
+  const subRefs =
+    branch === 'external-cli'
+      ? []
+      : [resolveRuntimeModelRef(planModel, primaryRef), resolveRuntimeModelRef(smallModel, primaryRef)]
+  return { attachments, guard: attachments && subRefs.every(supports) }
+}
+
 function toGatewayModelId(ref: RuntimeModelRef): string {
   return formatGatewayModelId(ref.providerId, ref.apiModelId)
 }
@@ -941,6 +993,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
     knowledgeBaseIds: request.knowledgeBaseIds,
+    guardSupportsPdf: request.guardSupportsPdf,
     notificationContext: request.notificationContext
   }
 }
