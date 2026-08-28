@@ -142,6 +142,49 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
   return filePath
 }
 
+export function selectExternalText(platform: Platform): void {
+  if (platform === 'macos') {
+    runMacHotkey(['Meta', 'a'])
+    return
+  }
+  if (!activeWindowsExternalTextPid) throw new Error('No external text window is active')
+
+  const script = [
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeMouse { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra); }'`,
+    `$notepad = Get-Process -Id ${activeWindowsExternalTextPid} -ErrorAction Stop`,
+    '$shell = New-Object -ComObject WScript.Shell',
+    'if (-not $shell.AppActivate($notepad.Id)) { throw "Notepad window could not be activated" }',
+    'Start-Sleep -Milliseconds 200',
+    '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+    `$process = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${activeWindowsExternalTextPid})`,
+    '$window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $process)',
+    'if (-not $window) { throw "Notepad automation window was not found" }',
+    '$documentType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)',
+    '$editType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
+    '$textArea = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.OrCondition]::new($documentType, $editType))',
+    'if (-not $textArea) { throw "Notepad text area was not found" }',
+    '$rect = $textArea.Current.BoundingRectangle',
+    '$startX = [int]($rect.Left + 8)',
+    '$endX = [int]($rect.Right - 8)',
+    '$y = [int]($rect.Top + 18)',
+    '$null = [NativeMouse]::SetCursorPos($startX, $y)',
+    '[NativeMouse]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)',
+    'for ($step = 1; $step -le 12; $step += 1) {',
+    '  $x = [int]($startX + (($endX - $startX) * $step / 12))',
+    '  $null = [NativeMouse]::SetCursorPos($x, $y)',
+    '  Start-Sleep -Milliseconds 25',
+    '}',
+    '[NativeMouse]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)',
+    'Start-Sleep -Milliseconds 500'
+  ].join('; ')
+  execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+    stdio: 'ignore',
+    timeout: 10_000
+  })
+}
+
 export function chooseNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)

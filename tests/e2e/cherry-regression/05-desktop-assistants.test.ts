@@ -3,7 +3,11 @@ import { join } from 'node:path'
 import { expect, test } from './fixture'
 import { dismissOnboarding } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
-import { openExternalText, sendSystemHotkey } from '../../../scripts/cherry-regression-test/system-automation'
+import {
+  openExternalText,
+  selectExternalText,
+  sendSystemHotkey
+} from '../../../scripts/cherry-regression-test/system-automation'
 
 async function configureQuickAssistant(
   page: Parameters<typeof dismissOnboarding>[0],
@@ -127,10 +131,8 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await expect
     .poll(
       async () => {
-        sendSystemHotkey(
-          app.record.platform,
-          app.record.platform === 'macos' ? ['Meta', 'Shift', 'k'] : ['Control', 'a']
-        )
+        if (app.record.platform === 'macos') sendSystemHotkey(app.record.platform, ['Meta', 'Shift', 'k'])
+        else selectExternalText(app.record.platform)
         await selection.waitForTimeout(1_000)
         return selection.locator('body').getAttribute('data-selected-text')
       },
