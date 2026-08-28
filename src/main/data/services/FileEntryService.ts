@@ -48,7 +48,7 @@ import * as z from 'zod'
 import { ZodError } from 'zod'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
-import { isFileEntryTransientlyRetained, transientlyRetainedFileEntryCount } from './utils/transientFileRetention'
+import { isFileEntryTransientlyRetained } from './utils/transientFileRetention'
 
 const logger = loggerService.withContext('FileEntryService')
 
@@ -243,6 +243,9 @@ export interface FileEntryService {
 
   /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
   findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
+
+  /** Recheck process-local ownership immediately before cleanup commits a deletion. */
+  isTransientlyRetained(id: FileEntryId): boolean
 
   /**
    * All entry ids regardless of trashed state — backs the FS orphan sweep,
@@ -712,14 +715,16 @@ class FileEntryServiceImpl implements FileEntryService {
       .from(fileEntryTable)
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
-      // In-memory owners cannot participate in the SQL anti-join. Fetch one
-      // extra row per retained id so held candidates cannot starve the batch.
-      .limit(opts.limit + transientlyRetainedFileEntryCount())
+      .limit(opts.limit)
       .all()
     return rows
       .map((r) => rowToFileEntrySafe(r.entry))
       .filter((entry): entry is FileEntry => entry !== null && !isFileEntryTransientlyRetained(entry.id))
       .slice(0, opts.limit)
+  }
+
+  isTransientlyRetained(id: FileEntryId): boolean {
+    return isFileEntryTransientlyRetained(id)
   }
 
   listAllIds(): Set<FileEntryId> {

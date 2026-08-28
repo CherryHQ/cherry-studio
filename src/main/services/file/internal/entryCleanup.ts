@@ -12,7 +12,6 @@
  * see spec §5.3 for why reclaiming a large legitimate candidate set is correct.
  */
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
-import { isFileEntryTransientlyRetained } from '@data/services/utils/transientFileRetention'
 import { loggerService } from '@logger'
 import type { FileEntry } from '@shared/data/types/file'
 import type { EntryCleanupSummary } from '@shared/types/file'
@@ -103,7 +102,7 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
           if (row === null || row.cleanupPolicy !== 'delete_when_unreferenced') {
             return { kind: 'gone-or-pinned' }
           }
-          if (isFileEntryTransientlyRetained(candidate.id)) {
+          if (deps.fileEntryService.isTransientlyRetained(candidate.id)) {
             return { kind: 'refs-reappeared' }
           }
           if (deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0) {

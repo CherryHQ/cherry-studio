@@ -37,7 +37,3 @@ export function releaseTransientFileRetention(sourceId: string): void {
 export function isFileEntryTransientlyRetained(fileEntryId: string): boolean {
   return retainCounts.has(fileEntryId)
 }
-
-export function transientlyRetainedFileEntryCount(): number {
-  return retainCounts.size
-}

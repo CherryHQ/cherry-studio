@@ -361,12 +361,15 @@ describe('entryCleanup', () => {
       return candidates
     })
 
-    const report = await runEntryCleanup(deps)
+    try {
+      const report = await runEntryCleanup(deps)
 
-    expect(report.skippedRefsReappeared).toBe(1)
-    expect(report.deleted).toBe(0)
-    expect(fileEntryService.findById(id)).not.toBeNull()
-    releaseTransientFileRetention('temporary-message')
+      expect(report.skippedRefsReappeared).toBe(1)
+      expect(report.deleted).toBe(0)
+      expect(fileEntryService.findById(id)).not.toBeNull()
+    } finally {
+      releaseTransientFileRetention('temporary-message')
+    }
   })
 
   it('counts failed and preserves the entry when a candidate throws (retried next pass)', async () => {
