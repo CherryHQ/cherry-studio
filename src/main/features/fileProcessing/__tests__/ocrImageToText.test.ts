@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   assertFileTypeSupported: vi.fn(),
   execute: vi.fn(),
-  get: vi.fn(() => ({})),
   getCapabilityHandler: vi.fn(),
-  getPath: vi.fn(() => '/tmp/cherry-ocr-test.png'),
   prepare: vi.fn(),
   resolveFileInfo: vi.fn(),
   resolveProcessor: vi.fn(),
@@ -13,9 +11,10 @@ const mocks = vi.hoisted(() => ({
   writeFile: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: { get: mocks.get, getPath: mocks.getPath }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
 vi.mock('node:fs/promises', () => ({
   rm: mocks.rm,
@@ -35,6 +34,8 @@ vi.mock('../tasks/jobExecution', () => ({
 const { ocrImageBytes } = await import('../ocrImageToText')
 
 describe('ocrImageBytes', () => {
+  const transientPath = () => mocks.writeFile.mock.calls[0]?.[0]
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.rm.mockResolvedValue(undefined)
@@ -53,11 +54,15 @@ describe('ocrImageBytes', () => {
 
     await expect(ocrImageBytes(new Uint8Array([1, 2, 3]), signal)).rejects.toThrow('OCR failed')
 
-    expect(mocks.writeFile).toHaveBeenCalledWith('/tmp/cherry-ocr-test.png', new Uint8Array([1, 2, 3]), {
-      signal,
-      mode: 0o600
-    })
-    expect(mocks.rm).toHaveBeenCalledWith('/tmp/cherry-ocr-test.png', { force: true })
+    expect(mocks.writeFile).toHaveBeenCalledWith(
+      expect.stringMatching(/cherry-ocr-.+\.png$/),
+      new Uint8Array([1, 2, 3]),
+      {
+        signal,
+        mode: 0o600
+      }
+    )
+    expect(mocks.rm).toHaveBeenCalledWith(transientPath(), { force: true })
   })
 
   it('attempts cleanup when writing the transient screenshot fails', async () => {
@@ -65,7 +70,7 @@ describe('ocrImageBytes', () => {
 
     await expect(ocrImageBytes(new Uint8Array([1]))).rejects.toThrow('partial write')
 
-    expect(mocks.rm).toHaveBeenCalledWith('/tmp/cherry-ocr-test.png', { force: true })
+    expect(mocks.rm).toHaveBeenCalledWith(transientPath(), { force: true })
     expect(mocks.resolveProcessor).not.toHaveBeenCalled()
   })
 
@@ -77,7 +82,7 @@ describe('ocrImageBytes', () => {
 
     expect(mocks.resolveProcessor).toHaveBeenCalledWith('image_to_text')
     expect(mocks.getCapabilityHandler).toHaveBeenCalledWith('system', 'image_to_text')
-    expect(mocks.resolveFileInfo).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/cherry-ocr-test.png' })
+    expect(mocks.resolveFileInfo).toHaveBeenCalledWith({ kind: 'path', path: transientPath() })
     expect(mocks.assertFileTypeSupported).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/tmp/cherry-ocr-test.png', type: 'image' }),
       'image_to_text',
@@ -88,6 +93,6 @@ describe('ocrImageBytes', () => {
       signal: expect.any(AbortSignal),
       reportProgress: expect.any(Function)
     })
-    expect(mocks.rm).toHaveBeenCalledWith('/tmp/cherry-ocr-test.png', { force: true })
+    expect(mocks.rm).toHaveBeenCalledWith(transientPath(), { force: true })
   })
 })

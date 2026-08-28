@@ -8,7 +8,11 @@ import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 import { net } from 'electron'
 
-import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
+import {
+  getFileProcessorConfigById,
+  resolveProcessorConfigByFeature,
+  resolveProcessorIdByFeature
+} from './config/resolveProcessorConfig'
 import { ocrImageBytes, ocrImageToText } from './ocrImageToText'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
@@ -118,7 +122,7 @@ export class FileProcessingService extends BaseService {
 
   /** Resolve the active processor without leaking file-processing configuration internals. */
   getConfiguredProcessorId(feature: FileProcessorFeature): FileProcessorId {
-    return resolveProcessorConfigByFeature(feature).id
+    return resolveProcessorIdByFeature(feature)
   }
 
   /**

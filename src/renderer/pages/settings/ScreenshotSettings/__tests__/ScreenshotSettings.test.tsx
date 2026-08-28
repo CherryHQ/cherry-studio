@@ -11,6 +11,8 @@ type ScreenCaptureStatus = 'authorized' | 'not-determined' | 'denied'
 
 type ConflictListener = (payload: { key: string; hasConflict: boolean }) => void
 let conflictListener: ConflictListener | null = null
+type LocalModelProgressListener = (payload: { model: 'ocr'; status: 'downloading' | 'ready'; percent: number }) => void
+let localModelProgressListener: LocalModelProgressListener | null = null
 
 const { mockRequest, platform } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
@@ -19,7 +21,9 @@ const { mockRequest, platform } = vi.hoisted(() => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => mockRequest(...args) },
-  useIpcOn: () => {}
+  useIpcOn: (event: string, listener: LocalModelProgressListener) => {
+    if (event === 'local_model.download_progress') localModelProgressListener = listener
+  }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -107,6 +111,7 @@ describe('ScreenshotSettings', () => {
 
     // The row subscribes on mount; tests that need a conflict call the captured listener.
     conflictListener = null
+    localModelProgressListener = null
     window.api = {
       shortcut: {
         onRegistrationConflict: (callback: ConflictListener) => {
@@ -130,6 +135,19 @@ describe('ScreenshotSettings', () => {
 
     stubIpc({ ocrStatus: 'ready' })
     render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
+    expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+  })
+
+  it('recovers when the selected local OCR model becomes ready without a preference change', async () => {
+    stubIpc({ ocrStatus: 'downloading' })
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
+    expect(screen.getByText('settings.screenshot.ocr.model.downloading')).toBeInTheDocument()
+
+    act(() => localModelProgressListener?.({ model: 'ocr', status: 'ready', percent: 100 }))
 
     await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
     expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()

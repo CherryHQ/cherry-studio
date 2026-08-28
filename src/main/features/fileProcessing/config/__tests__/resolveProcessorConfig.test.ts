@@ -41,7 +41,11 @@ vi.mock('../defaultImageToTextProcessor', () => ({
 import { MB } from '@shared/utils/constants'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
-import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
+import {
+  getFileProcessorConfigById,
+  resolveProcessorConfigByFeature,
+  resolveProcessorIdByFeature
+} from '../resolveProcessorConfig'
 
 describe('resolveProcessorConfig', () => {
   beforeEach(() => {
@@ -189,6 +193,20 @@ describe('resolveProcessorConfig', () => {
       'File processor local-document needs the local ocr model to be downloaded first'
     )
     expect(isLocalModelReadyMock).toHaveBeenCalledWith('ocr')
+  })
+
+  it('retains the selected local processor identity while its model is unavailable', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.file_processing.default_image_to_text',
+      'local-paddleocr'
+    )
+    isLocalModelReadyMock.mockReturnValue(false)
+
+    expect(resolveProcessorIdByFeature('image_to_text')).toBe('local-paddleocr')
+    expect(isLocalModelReadyMock).not.toHaveBeenCalled()
+    expect(() => resolveProcessorConfigByFeature('image_to_text')).toThrowError(
+      'File processor local-paddleocr needs the local ocr model to be downloaded first'
+    )
   })
 
   it('accepts a local model processor once its model is ready', () => {

@@ -46,7 +46,7 @@ export function getFileProcessorConfigById(processorId: FileProcessorId): FilePr
   }
 }
 
-function assertProcessorUsable(config: FileProcessorMerged, feature: FileProcessorFeature): void {
+function assertProcessorSelectable(config: FileProcessorMerged, feature: FileProcessorFeature): void {
   if (!config.capabilities.some((capability) => capability.feature === feature)) {
     throw new Error(`File processor ${config.id} does not support ${feature}`)
   }
@@ -54,6 +54,10 @@ function assertProcessorUsable(config: FileProcessorMerged, feature: FileProcess
   if (!processorRegistry[config.id].isSupported()) {
     throw new Error(`File processor ${config.id} is not available on this platform`)
   }
+}
+
+function assertProcessorUsable(config: FileProcessorMerged, feature: FileProcessorFeature): void {
+  assertProcessorSelectable(config, feature)
 
   // Distinct message on purpose: this one reaches the user verbatim (a failed
   // knowledge-base item, a translation toast), and "not available on this
@@ -65,15 +69,11 @@ function assertProcessorUsable(config: FileProcessorMerged, feature: FileProcess
   }
 }
 
-export function resolveProcessorConfigByFeature(
+function resolveSelectedProcessorConfig(
   feature: FileProcessorFeature,
   processorId?: FileProcessorId
 ): FileProcessorMerged {
-  if (processorId) {
-    const config = getFileProcessorConfigById(processorId)
-    assertProcessorUsable(config, feature)
-    return config
-  }
+  if (processorId) return getFileProcessorConfigById(processorId)
 
   // `image_to_text` has a self-healing platform default (system OCR on macOS/Windows,
   // tesseract on Linux) resolved here instead of persisted on startup, so a profile
@@ -82,11 +82,26 @@ export function resolveProcessorConfigByFeature(
     application.get('PreferenceService').get(DEFAULT_PROCESSOR_KEY_BY_FEATURE[feature]) ??
     (feature === 'image_to_text' ? resolveDefaultImageToTextProcessor() : null)
 
-  if (defaultProcessorId) {
-    const config = getFileProcessorConfigById(defaultProcessorId)
-    assertProcessorUsable(config, feature)
-    return config
-  }
+  if (defaultProcessorId) return getFileProcessorConfigById(defaultProcessorId)
 
   throw new Error(`Default file processor for ${feature} is not configured`)
+}
+
+/** Resolve the selected processor identity without requiring its downloadable model to be ready. */
+export function resolveProcessorIdByFeature(
+  feature: FileProcessorFeature,
+  processorId?: FileProcessorId
+): FileProcessorId {
+  const config = resolveSelectedProcessorConfig(feature, processorId)
+  assertProcessorSelectable(config, feature)
+  return config.id
+}
+
+export function resolveProcessorConfigByFeature(
+  feature: FileProcessorFeature,
+  processorId?: FileProcessorId
+): FileProcessorMerged {
+  const config = resolveSelectedProcessorConfig(feature, processorId)
+  assertProcessorUsable(config, feature)
+  return config
 }
