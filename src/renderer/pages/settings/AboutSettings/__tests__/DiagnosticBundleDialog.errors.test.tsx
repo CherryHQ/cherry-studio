@@ -35,6 +35,7 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
   sourceLimitBytes: 50 * 1024 * 1024,
   sources: {
+    chatRecords: { available: true, estimatedBytes: 1_024, messageCount: 1 },
     crashDumps: { fileCount: 0 },
     logs: { available: true, estimatedBytes: 1_024, fileCount: 1 },
     traces: { available: false, estimatedBytes: 0, fileCount: 0 }

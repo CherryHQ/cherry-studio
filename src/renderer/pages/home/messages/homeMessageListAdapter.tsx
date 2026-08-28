@@ -222,6 +222,10 @@ export function useHomeMessageListProviderValue({
 
     await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
   }, [])
+  const diagnosticReport = useMemo(
+    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.home') } : undefined),
+    [normalInteractionsEnabled, t]
+  )
 
   const {
     errorActions,
@@ -241,6 +245,7 @@ export function useHomeMessageListProviderValue({
     partsByMessageId,
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
+    diagnosticReport,
     persistDiagnosis
   })
 

@@ -1,4 +1,4 @@
-import { Button, SearchInput } from '@cherrystudio/ui'
+import { Alert, Button, SearchInput } from '@cherrystudio/ui'
 import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -56,6 +56,7 @@ function getAddProviderHintKey(cliTool: CodeCli): string {
     case CodeCli.OPENAI_CODEX:
       return 'code.add_provider_hint_openai_responses'
     case CodeCli.GEMINI_CLI:
+    case CodeCli.ANTIGRAVITY_CLI:
       return 'code.add_provider_hint_gemini'
     default:
       return 'code.add_provider_hint'
@@ -100,6 +101,10 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   return (
     <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto max-w-2xl space-y-5">
+        {selectedCliTool === CodeCli.GEMINI_CLI && (
+          <Alert type="warning" showIcon description={t('code.gemini_cli_discontinued')} className="shadow-none" />
+        )}
+
         {versionCard.visible && (
           <VersionStatusCard
             toolId={selectedCliTool}
