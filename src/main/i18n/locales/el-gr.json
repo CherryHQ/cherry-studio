@@ -80,6 +80,7 @@
   "dialog.diagnostic_bundle.title": "Αποθήκευση πακέτου διαγνωστικών",
   "dialog.diagnostic_bundle.zip_filter": "Αρχείο ZIP",
   "dialog.html_files": "Αρχεία HTML",
+  "dialog.mini_app_export": "Εξαγωγή από {{name}}",
   "dialog.open_file": "Άνοιγμα Αρχείου",
   "dialog.pdf_files": "Αρχεία PDF",
   "dialog.png_image": "Εικόνα PNG",

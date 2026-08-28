@@ -33,7 +33,6 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
-import NotesSettings from './NotesSettings'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
@@ -157,13 +156,19 @@ const HeaderNavbar = ({
 
   useCommandHandler('app.print', handlePrint, { enabled: isActiveTab && activeNode?.type === 'file' })
 
-  const handleShowSettings = useCallback(() => {
-    void ContentPopup.show({
-      title: t('notes.settings.title'),
-      content: <NotesSettings />,
-      width: 600,
-      styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
-    })
+  const handleShowSettings = useCallback(async () => {
+    try {
+      const { default: NotesSettings } = await import('./NotesSettings')
+      void ContentPopup.show({
+        title: t('notes.settings.title'),
+        content: <NotesSettings />,
+        width: 600,
+        styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
+      })
+    } catch (error) {
+      logger.error('Failed to load notes settings:', error as Error)
+      toast.error(t('common.error'))
+    }
   }, [])
 
   const handleBreadcrumbClick = useCallback(
@@ -252,7 +257,7 @@ const HeaderNavbar = ({
           } else if (item.printAction) {
             void handlePrint()
           } else if (item.showSettingsPopup) {
-            handleShowSettings()
+            void handleShowSettings()
           } else if (item.action) {
             item.action(settings, updateSettings)
           }
