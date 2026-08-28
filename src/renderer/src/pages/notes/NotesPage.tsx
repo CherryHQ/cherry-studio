@@ -83,6 +83,7 @@ const NotesPage: FC = () => {
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
+  const pendingDeletePathRef = useRef<string | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
@@ -178,6 +179,15 @@ const NotesPage: FC = () => {
     async (content: string, filePath?: string) => {
       const targetPath = filePath || activeFilePath
       if (!targetPath || content.trim() === currentContent.trim()) return
+
+      // 若目标路径正处于删除流程中（或为其子路径），跳过写入，避免已删除文件被“复活”
+      const pendingDelete = pendingDeletePathRef.current
+      if (pendingDelete) {
+        const normalizedTarget = normalizePathValue(targetPath)
+        if (normalizedTarget === pendingDelete || normalizedTarget.startsWith(`${pendingDelete}/`)) {
+          return
+        }
+      }
 
       try {
         await window.api.file.write(targetPath, content)
@@ -591,26 +601,44 @@ const NotesPage: FC = () => {
           nodeToDelete.type === 'folder' &&
           normalizedActivePath &&
           normalizedActivePath.startsWith(`${normalizedDeletePath}/`)
+        const isActiveRelated = isActiveNode || isActiveDescendant
 
-        // 删除正在编辑的笔记（或其所在的文件夹）时，先取消防抖保存。
-        // 否则删除成功后 setActiveFilePath(undefined) 会触发「切换文件时的清理」
-        // 中的紧急保存，把刚删除的文件重新写回磁盘，导致笔记“复活”并改变排序位置。
-        if (isActiveNode || isActiveDescendant) {
+        // 删除正在编辑的笔记（或其所在文件夹）时，先标记为“待删除”并取消防抖，
+        // 使已触发但尚未落盘的 autosave 在 saveCurrentNote 中被丢弃，避免文件被“复活”。
+        // 失败时需撤销标记并重建防抖，否则已取消的保存不会自动恢复，编辑内容将丢失。
+        if (isActiveRelated) {
+          pendingDeletePathRef.current = normalizedDeletePath
           debouncedSaveRef.current?.cancel()
         }
 
-        await delNode(nodeToDelete)
+        try {
+          await delNode(nodeToDelete)
+        } catch (error) {
+          if (isActiveRelated) {
+            pendingDeletePathRef.current = null
+            if (lastContentRef.current && lastFilePathRef.current) {
+              debouncedSaveRef.current?.(lastContentRef.current, lastFilePathRef.current)
+            }
+          }
+          throw error
+        }
 
         updateStarredPaths((prev) => removePathEntries(prev, nodeToDelete.externalPath, nodeToDelete.type === 'folder'))
         updateExpandedPaths((prev) =>
           removePathEntries(prev, nodeToDelete.externalPath, nodeToDelete.type === 'folder')
         )
 
-        if (isActiveNode || isActiveDescendant) {
+        if (isActiveRelated) {
           lastContentRef.current = ''
           lastFilePathRef.current = undefined
           dispatch(setActiveFilePath(undefined))
           editorRef.current?.clear()
+          // 保持删除标记一小段时间，拦截删除后紧接着的 emergency save / 尾随写入
+          setTimeout(() => {
+            if (pendingDeletePathRef.current === normalizedDeletePath) {
+              pendingDeletePathRef.current = null
+            }
+          }, 2000)
         }
 
         await refreshTree()
