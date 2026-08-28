@@ -56,35 +56,34 @@ export function useConversationSuggestions({
           persona?.description ?? ''
         ]
       : null
-  const { data, isLoading } = useSWRImmutable(
-    key,
-    async () => {
-      const systemLocale = navigator.language
-      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-      const now = new Date()
+  const fetchSuggestions = generationModel
+    ? async () => {
+        const systemLocale = navigator.language
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+        const now = new Date()
 
-      return generateConversationSuggestions(
-        {
-          focus,
-          outputLanguage,
-          systemLocale,
-          localDateTime: now.toLocaleString(systemLocale, {
-            dateStyle: 'full',
-            timeStyle: 'short',
-            timeZone
-          }),
-          timeZone,
-          randomSeed: `${now.getTime()}-${Math.random().toString(36).slice(2)}`,
-          persona
-        },
-        generationModel
-      )
-    },
-    {
-      onError: (error) => logger.warn('Failed to generate conversation suggestions', { focus, conversationId, error }),
-      shouldRetryOnError: false
-    }
-  )
+        return generateConversationSuggestions(
+          {
+            focus,
+            outputLanguage,
+            systemLocale,
+            localDateTime: now.toLocaleString(systemLocale, {
+              dateStyle: 'full',
+              timeStyle: 'short',
+              timeZone
+            }),
+            timeZone,
+            randomSeed: `${now.getTime()}-${Math.random().toString(36).slice(2)}`,
+            persona
+          },
+          generationModel
+        )
+      }
+    : null
+  const { data, isLoading } = useSWRImmutable(key, fetchSuggestions, {
+    onError: (error) => logger.warn('Failed to generate conversation suggestions', { focus, conversationId, error }),
+    shouldRetryOnError: false
+  })
 
   return {
     suggestions: active ? (data ?? (!isLoading && !modelPending ? fallback : undefined)) : undefined,

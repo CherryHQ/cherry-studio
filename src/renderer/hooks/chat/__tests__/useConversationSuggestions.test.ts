@@ -2,10 +2,10 @@ import type { ConversationSuggestionPersona, ConversationSuggestions } from '@re
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { SWRConfig } from 'swr'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConversationSuggestions } from '../useConversationSuggestions'
 
@@ -110,10 +110,6 @@ describe('useConversationSuggestions', () => {
     stubResolvedModels()
     enableSuggestions()
     mocks.generateConversationSuggestions.mockResolvedValue(generated)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
   })
 
   it('builds generation context from only locale, local time, seed, focus, language, and persona', async () => {
@@ -285,186 +281,5 @@ describe('useConversationSuggestions', () => {
     unreadable.rerender()
     await waitFor(() => expect(unreadable.result.current.suggestions).toEqual(generatedFromDefault))
     expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2)
-  })
-
-  it('invalidates cached suggestions when a dedicated model becomes non-chat', async () => {
-    const wrapper = createWrapper()
-    const options = {
-      focus: chatFocus,
-      conversationId: 'topic-model-record-change',
-      outputLanguage: 'en-US',
-      fallback
-    }
-
-    stubModelQueries({
-      [modelPath(suggestionsModel.id)]: suggestionsModel,
-      [modelPath(defaultModel.id)]: defaultModel
-    })
-    enableSuggestions(suggestionsModel.id, defaultModel.id)
-    const { rerender, result } = renderHook(() => useConversationSuggestions(options), { wrapper })
-    await waitFor(() => expect(result.current.suggestions).toEqual(generated))
-    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
-
-    stubModelQueries({
-      [modelPath(suggestionsModel.id)]: { ...suggestionsModel, capabilities: [MODEL_CAPABILITY.EMBEDDING] },
-      [modelPath(defaultModel.id)]: defaultModel
-    })
-    mocks.generateConversationSuggestions.mockResolvedValue(generatedFromDefault)
-    rerender()
-    await waitFor(() => expect(result.current.suggestions).toEqual(generatedFromDefault))
-    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not generate against the default model while the dedicated model is still resolving', async () => {
-    stubModelQueries({ [modelPath(defaultModel.id)]: defaultModel }, { loading: [modelPath(suggestionsModel.id)] })
-    enableSuggestions(suggestionsModel.id, defaultModel.id)
-
-    const { result } = renderHook(
-      () =>
-        useConversationSuggestions({
-          focus: chatFocus,
-          conversationId: 'topic-pending-dedicated',
-          outputLanguage: 'en-US',
-          fallback
-        }),
-      { wrapper: createWrapper() }
-    )
-
-    expect(result.current).toEqual({ suggestions: undefined, isLoading: true, suggestionsEnabled: true })
-    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
-  })
-
-  it('does not look up models or generate until Conversation Suggestions is enabled', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.suggestions.enabled', false)
-    MockUsePreferenceUtils.setPreferenceValue('chat.suggestions.model_id', suggestionsModel.id)
-    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', defaultModel.id)
-    const { result } = renderHook(
-      () =>
-        useConversationSuggestions({
-          focus: chatFocus,
-          conversationId: 'topic-1',
-          outputLanguage: 'en-US',
-          fallback
-        }),
-      { wrapper: createWrapper() }
-    )
-
-    expect(result.current).toEqual({ suggestions: undefined, isLoading: true, suggestionsEnabled: false })
-    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', expect.objectContaining({ enabled: false }))
-    expect(mockUseQuery.mock.calls.filter(([, options]) => options?.enabled !== false)).toEqual([])
-  })
-
-  it('waits to expose fallback suggestions until generation is enabled', async () => {
-    mocks.generateConversationSuggestions.mockRejectedValue(new Error('No default model'))
-    const { rerender, result } = renderHook(
-      ({ enabled }) =>
-        useConversationSuggestions({
-          focus: chatFocus,
-          conversationId: 'topic-with-loading-persona',
-          outputLanguage: 'en-US',
-          fallback,
-          enabled
-        }),
-      { initialProps: { enabled: false }, wrapper: createWrapper() }
-    )
-
-    expect(result.current).toEqual({ suggestions: undefined, isLoading: true, suggestionsEnabled: true })
-    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', expect.objectContaining({ enabled: false }))
-    expect(mockUseQuery.mock.calls.filter(([, options]) => options?.enabled !== false)).toEqual([])
-
-    rerender({ enabled: true })
-    await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
-    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not automatically retry a failed generation', async () => {
-    vi.useFakeTimers()
-    mocks.generateConversationSuggestions.mockRejectedValue(new Error('No default model'))
-    const { result } = renderHook(
-      () =>
-        useConversationSuggestions({
-          focus: chatFocus,
-          conversationId: 'topic-without-retry',
-          outputLanguage: 'en-US',
-          fallback
-        }),
-      { wrapper: createWrapper() }
-    )
-
-    await act(async () => {
-      await vi.runOnlyPendingTimersAsync()
-    })
-    expect(result.current.suggestions).toEqual(fallback)
-    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000)
-    })
-    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not cache a local fallback as generated suggestions', async () => {
-    mocks.generateConversationSuggestions
-      .mockRejectedValueOnce(new Error('No default model'))
-      .mockResolvedValueOnce(generated)
-    const cache = new Map()
-    const wrapper = createWrapper(cache)
-    const options = {
-      focus: chatFocus,
-      conversationId: 'topic-without-model',
-      outputLanguage: 'en-US',
-      fallback
-    }
-    const first = renderHook(() => useConversationSuggestions(options), { wrapper })
-
-    await waitFor(() => expect(first.result.current.suggestions).toEqual(fallback))
-    first.unmount()
-
-    const second = renderHook(() => useConversationSuggestions(options), { wrapper })
-    await waitFor(() => expect(second.result.current.suggestions).toEqual(generated))
-    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not generate against a non-chat default model', async () => {
-    stubModelQueries({ [modelPath(embeddingModel.id)]: embeddingModel })
-    enableSuggestions(null, embeddingModel.id)
-
-    const { result } = renderHook(
-      () =>
-        useConversationSuggestions({
-          focus: chatFocus,
-          conversationId: 'topic-non-chat-default',
-          outputLanguage: 'en-US',
-          fallback
-        }),
-      { wrapper: createWrapper() }
-    )
-
-    await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
-    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
-  })
-
-  it('does not fall back to a non-chat default when the dedicated model is also non-chat', async () => {
-    stubModelQueries({
-      [modelPath(embeddingModel.id)]: embeddingModel,
-      [modelPath(embeddingModel2.id)]: embeddingModel2
-    })
-    enableSuggestions(embeddingModel.id, embeddingModel2.id)
-
-    const { result } = renderHook(
-      () =>
-        useConversationSuggestions({
-          focus: chatFocus,
-          conversationId: 'topic-non-chat-both',
-          outputLanguage: 'en-US',
-          fallback
-        }),
-      { wrapper: createWrapper() }
-    )
-
-    await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
-    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
   })
 })

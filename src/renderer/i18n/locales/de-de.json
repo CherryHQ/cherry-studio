@@ -103,7 +103,7 @@
   "agent.edit.title": "Agent bearbeiten",
   "agent.home.suggestions.inspect": "Prüfe diesen Arbeitsbereich und ermittle das Problem mit der höchsten Priorität",
   "agent.home.suggestions.plan": "Formuliere das aktuelle Projektziel als konkreten Umsetzungsplan mit nächsten Schritten",
-  "agent.home.suggestions.review": "Prüfe die aktuellen Änderungen auf Risiken und ergänze fehlende Tests",
+  "agent.home.suggestions.review": "Prüfe die aktuellen Änderungen auf Risiken und ergänze die fehlende Verifizierung",
   "agent.home.welcome_title": "Wovon sollen wir heute sprechen?",
   "agent.icon.type": "Agent-Symbol",
   "agent.input.placeholder": "Geben Sie eine Nachricht ein. Senden Sie sie mit {{key}}. Geben Sie / ein, um Pfade oder Befehle zu suchen, oder @ für Dateien und Sitzungen.",

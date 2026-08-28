@@ -3537,9 +3537,20 @@ describe('AgentComposer', () => {
 
   it('fills an empty parked draft while input history is previewed', async () => {
     seedInputHistory(['previous agent prompt'])
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: knowledgePrompt,
+      tokens: [{ ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt }],
+      files: [file],
+      knowledgeBaseIds: [knowledgeBaseOne.id],
+      workspaceKey: 'workspace-1\0/workspace',
+      agentId: 'agent-1'
+    })
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
-      tokens: []
+      tokens: mocks.surfaceProps?.tokens.map((token, index) => ({ ...token, index, textOffset: 0 })) ?? []
     }))
     render(
       <AgentComposer
@@ -3550,6 +3561,15 @@ describe('AgentComposer', () => {
         isStreaming={false}
       />
     )
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: `file:${file.fileTokenSourceId}` }),
+          expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}` })
+        ])
+      )
+    })
 
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
@@ -3567,10 +3587,15 @@ describe('AgentComposer', () => {
     })
 
     expect(mocks.replaceDraft).toHaveBeenCalledWith({
-      text: 'Review the current changes',
-      tokens: []
+      text: `${knowledgePrompt} Review the current changes`,
+      tokens: expect.arrayContaining([
+        expect.objectContaining({ id: `file:${file.fileTokenSourceId}` }),
+        expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}` })
+      ])
     })
-    expect(mocks.surfaceProps?.text).toBe('Review the current changes')
+    expect(mocks.surfaceProps?.text).toBe(`${knowledgePrompt} Review the current changes`)
+    expect(mocks.files).toEqual([file])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
     expect(mocks.sendMessage).not.toHaveBeenCalled()
   })
 

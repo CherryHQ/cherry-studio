@@ -17,7 +17,7 @@ import {
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdownLight'
 import { getNamingTextContent } from '@renderer/utils/message/find'
-import { readConversationSuggestionsModel, readDefaultModel, readQuickModel } from '@renderer/utils/model'
+import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model } from '@shared/data/types/model'
@@ -140,14 +140,11 @@ export async function fetchGenerate({
   }
 }
 
-export async function generateConversationSuggestions(context: ConversationSuggestionRequestContext, model?: Model) {
-  const resolved = model ?? (await readConversationSuggestionsModel())
-  if (!resolved) throw new Error('No model available for conversation suggestions')
-
+export async function generateConversationSuggestions(context: ConversationSuggestionRequestContext, model: Model) {
   const response = await fetchGenerate({
     prompt: CONVERSATION_SUGGESTIONS_PROMPT,
     content: JSON.stringify(context),
-    model: resolved,
+    model,
     throwOnError: true
   })
   return parseConversationSuggestions(response)

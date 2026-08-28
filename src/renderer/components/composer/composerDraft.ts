@@ -224,8 +224,11 @@ export function hasComposerDraftUserText(draft: ComposerSerializedDraft): boolea
 export function withComposerDraftUserText(draft: ComposerSerializedDraft, userText: string): ComposerSerializedDraft {
   if (!userText) return draft
   const separator = draft.text.length > 0 && !/\s$/.test(draft.text) ? ' ' : ''
+  const availableLength = COMPOSER_INPUT_MAX_LENGTH - draft.text.length - separator.length
+  if (availableLength <= 0) return draft
+
   return {
-    text: draft.text + separator + userText,
+    text: draft.text + separator + userText.slice(0, availableLength),
     tokens: draft.tokens
   }
 }

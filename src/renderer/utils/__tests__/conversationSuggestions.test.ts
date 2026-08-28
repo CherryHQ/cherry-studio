@@ -4,13 +4,11 @@ import {
   type ConversationSuggestionRequestContext,
   parseConversationSuggestions
 } from '@renderer/utils/conversationSuggestions'
-import { readConversationSuggestionsModel } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 vi.mock('@renderer/utils/model', () => ({
-  readConversationSuggestionsModel: vi.fn(),
   readDefaultModel: vi.fn(),
   readQuickModel: vi.fn()
 }))
@@ -38,26 +36,18 @@ const context: ConversationSuggestionRequestContext = {
 describe('conversation suggestion generation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(readConversationSuggestionsModel).mockResolvedValue(model)
   })
 
   it('uses the configured suggestions model and returns a strict three-item response', async () => {
     vi.mocked(ipcApi.request).mockResolvedValue({ text: '{"suggestions":["检查改动","制定计划","补充验证"]}' })
 
-    await expect(generateConversationSuggestions(context)).resolves.toEqual(['检查改动', '制定计划', '补充验证'])
+    await expect(generateConversationSuggestions(context, model)).resolves.toEqual(['检查改动', '制定计划', '补充验证'])
     expect(ipcApi.request).toHaveBeenCalledWith('ai.text.generate', {
       uniqueModelId: model.id,
       reasoningEffort: 'none',
       system: expect.stringContaining('requested focus'),
       prompt: JSON.stringify(context)
     })
-  })
-
-  it('fails before requesting generation when no configured or default model exists', async () => {
-    vi.mocked(readConversationSuggestionsModel).mockResolvedValue(undefined)
-
-    await expect(generateConversationSuggestions(context)).rejects.toThrow('No model available')
-    expect(ipcApi.request).not.toHaveBeenCalled()
   })
 
   it.each([

@@ -2,6 +2,7 @@ import type { JSONContent } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 
 import {
+  COMPOSER_INPUT_MAX_LENGTH,
   createComposerDocumentContent,
   createComposerDraftContent,
   createComposerMessageSnapshot,
@@ -839,5 +840,20 @@ describe('composer draft user text', () => {
       expect.objectContaining({ id: 'skill:review-fast', kind: 'skill', promptText: skillPrompt })
     ])
     expect(excludeComposerDraftTokens(restoredSkill, () => true).text.trim()).toBe('Review the current changes')
+  })
+
+  it('keeps suggestion-filled drafts within the composer input limit', () => {
+    const existingText = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - 3)
+    const draft = withComposerDraftUserText(
+      {
+        text: existingText,
+        tokens: [{ id: 'file:notes', kind: 'file', label: 'notes.md', index: 0, textOffset: 0 }]
+      },
+      'ABCDE'
+    )
+
+    expect(draft.text).toBe(`${existingText} AB`)
+    expect(draft.text).toHaveLength(COMPOSER_INPUT_MAX_LENGTH)
+    expect(draft.tokens).toEqual([{ id: 'file:notes', kind: 'file', label: 'notes.md', index: 0, textOffset: 0 }])
   })
 })
