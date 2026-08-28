@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  Scrollbar,
   Select,
   SelectContent,
   SelectItem,
@@ -407,8 +408,8 @@ export default function OnboardingPage() {
                   onBack={() => setStep('provider')}
                   padded
                 />
-                <div className="flex min-h-0 flex-1 justify-center overflow-y-auto border-border border-t px-6 py-8">
-                  <div className="flex w-full max-w-[440px] items-center">
+                <Scrollbar className="flex min-h-0 flex-1 justify-center border-border border-t px-6 py-8">
+                  <div className="my-auto w-full max-w-[440px]">
                     <div className="w-full">
                       <ModelSettings
                         autoFillEmptyModels
@@ -438,7 +439,7 @@ export default function OnboardingPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </Scrollbar>
               </div>
             )}
           </div>
