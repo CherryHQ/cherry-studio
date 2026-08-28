@@ -926,6 +926,7 @@ vi.mock('@cherrystudio/ui', () => {
       secondaryLabel,
       onSecondary,
       preset,
+      compact: _compact,
       ...props
     }) =>
       React.createElement(

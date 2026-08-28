@@ -73,10 +73,14 @@ export function getInitialAddModelFormState(
 }
 
 export function splitModelIds(rawModelId: string): string[] {
-  return rawModelId
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
+  return [
+    ...new Set(
+      rawModelId
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  ]
 }
 
 export function capsToToggleSet(capabilities: string[]): Set<ModelCapabilityToggle> {
