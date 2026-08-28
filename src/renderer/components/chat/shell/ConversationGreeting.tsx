@@ -25,9 +25,11 @@ export function ConversationGreeting({ avatar, title, footer }: ConversationGree
   return (
     <div
       data-testid="conversation-greeting"
-      className="flex h-full w-full flex-col px-6 text-center"
+      className="flex h-full min-h-0 w-full flex-col overflow-y-auto px-6 text-center"
       style={{ paddingBottom: inset?.contentBottomPadding ?? 0 }}>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden">
+      <div
+        data-testid="conversation-greeting-content"
+        className="flex flex-auto shrink-0 flex-col items-center justify-center gap-4">
         {avatar &&
           (isEmoji(avatar) ? (
             <EmojiIcon emoji={avatar} className="mr-0" size={48} fontSize={28} />
