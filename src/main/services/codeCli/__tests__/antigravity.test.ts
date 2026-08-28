@@ -106,6 +106,23 @@ describe('prepareAntigravityLaunch', () => {
     expect(mocks.getByProviderId).not.toHaveBeenCalled()
   })
 
+  it('rejects a gateway launch whose provider id carries the path separator', async () => {
+    // The route splits on the FIRST separator, so "team/models/west" would address provider
+    // "team". Only this path form is ambiguous, which is why the guard lives here.
+    mocks.getMultiple.mockReturnValue({ host: '127.0.0.1', port: 24444, apiKey: 'gateway-secret' })
+
+    await expect(
+      prepareAntigravityLaunch({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'team/models/west',
+        model: 'gemini-2.5-pro',
+        gateway: true,
+        directory: '/tmp/project'
+      })
+    ).rejects.toThrow(/cannot be addressed by antigravity-cli/)
+  })
+
   it('rejects an unsafe model id without touching the isolated settings', async () => {
     const settingsPath = path.join(mocks.root, 'antigravity-cli', 'settings.json')
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)

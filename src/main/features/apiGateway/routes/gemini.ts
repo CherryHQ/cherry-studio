@@ -28,14 +28,7 @@ const GENERATE_METHODS = new Set(['generateContent', 'streamGenerateContent'])
 function parseModelMethod(raw: string): { model: string; method: string } | null {
   const lastColon = raw.lastIndexOf(':')
   if (lastColon <= 0 || lastColon >= raw.length - 1) return null
-  const model = raw.slice(0, lastColon)
-  // Antigravity addresses models by path and never appends the sentinel, so stripping one
-  // there would silently retarget an apiModelId that genuinely ends in it.
-  const carriesSentinel = !model.includes(ANTIGRAVITY_MODEL_PATH_SEPARATOR)
-  return {
-    model: carriesSentinel ? stripGeminiGatewayModelSuffix(model) : model,
-    method: raw.slice(lastColon + 1)
-  }
+  return { model: stripGeminiGatewayModelSuffix(raw.slice(0, lastColon)), method: raw.slice(lastColon + 1) }
 }
 
 /** Convert Antigravity's custom-model path back to the gateway's `providerId:apiModelId` address. */

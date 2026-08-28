@@ -453,15 +453,21 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
-    it('does not strip the gemini-cli sentinel off an Antigravity path model', async () => {
-      // Antigravity builds its address with formatGatewayModelId, which never appends the
-      // sentinel, so an apiModelId genuinely ending in `@cherry` must not be silently
-      // retargeted to the suffix-less model. It stays reserved, so the route rejects it.
-      const { status } = await read(
-        await post(app, '/v1beta/models/provider-a/models/gemini-flash@cherry:streamGenerateContent', geminiBody)
+    it('routes a sentinel-suffixed model whose apiModelId itself contains "/models/"', async () => {
+      // Fireworks ids are `accounts/fireworks/models/<name>` (16 of them in the registry), so
+      // deciding the address protocol by looking for "/models/" misreads them as Antigravity
+      // paths and rejects a perfectly valid gemini-cli request.
+      await read(
+        await post(
+          app,
+          '/v1beta/models/fireworks:accounts/fireworks/models/deepseek-v4-flash@cherry:streamGenerateContent',
+          geminiBody
+        )
       )
-      expect(status).toBe(400)
-      expect(mockProcessMessage).not.toHaveBeenCalled()
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'fireworks:accounts/fireworks/models/deepseek-v4-flash',
+        streaming: true
+      })
     })
 
     it('rejects a model still ending in the reserved @cherry suffix after one strip → 400', async () => {

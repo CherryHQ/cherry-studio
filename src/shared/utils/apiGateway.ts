@@ -32,13 +32,6 @@ export function formatGatewayModelId(providerId: string, apiModelId: string): st
   if (providerId.includes(':')) {
     throw new Error(`Provider id "${providerId}" contains ":" and cannot be addressed through the API gateway`)
   }
-  // Same hazard one layer up: the Antigravity path form splits on the first separator,
-  // so "team/models/west" would route as provider "team" (see ANTIGRAVITY_MODEL_PATH_SEPARATOR).
-  if (providerId.includes(ANTIGRAVITY_MODEL_PATH_SEPARATOR)) {
-    throw new Error(
-      `Provider id "${providerId}" contains "${ANTIGRAVITY_MODEL_PATH_SEPARATOR}" and cannot be addressed through the API gateway`
-    )
-  }
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
     throw new Error('CherryAI managed default model is not available through the API gateway')
   }

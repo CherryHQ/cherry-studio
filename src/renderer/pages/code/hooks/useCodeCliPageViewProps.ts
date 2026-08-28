@@ -260,6 +260,7 @@ export function useCodeCliPageViewProps(
     apiGatewayProvider: apiGatewayBundle,
     gatewayModelsById,
     modelById,
+    isModelsLoading: isGatewayModelsLoading,
     upsertProviderConfig,
     setCurrentProvider,
     setTerminal,

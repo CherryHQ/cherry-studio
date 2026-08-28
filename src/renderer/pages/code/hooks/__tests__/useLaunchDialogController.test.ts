@@ -85,7 +85,10 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: undefined,
         gatewayModelsById: new Map(),
-        modelById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -116,7 +119,10 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: 'iterm2',
         gatewayModelsById: new Map(),
-        modelById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -158,7 +164,10 @@ describe('useLaunchDialogController', () => {
         gatewayModelsById: new Map<UniqueModelId, Model>([
           [`${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat`, { apiModelId: 'deepseek:deepseek-chat' } as Model]
         ]),
-        modelById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -198,6 +207,7 @@ describe('useLaunchDialogController', () => {
         modelById: new Map<UniqueModelId, Model>([
           ['anthropic::my-alias', { apiModelId: 'claude-sonnet-4-5' } as Model]
         ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -215,6 +225,82 @@ describe('useLaunchDialogController', () => {
     )
   })
 
+  // Reviewer: falling back to the raw id on a miss is only safe when the record exists and
+  // simply has no apiModelId. A miss because the query is cold, or because the saved model was
+  // later disabled, would hand the provider an internal id it has never heard of.
+  it.each([
+    ['the model query has not settled yet', true, new Map<UniqueModelId, Model>()],
+    ['the saved model is no longer enabled', false, new Map<UniqueModelId, Model>()]
+  ])('does not launch a direct model when %s', async (_label, isModelsLoading, modelById) => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: 'anthropic::my-alias',
+      providerId: 'anthropic',
+      rawModelId: 'my-alias',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
+        toolName: 'Antigravity CLI',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::my-alias' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById,
+        isModelsLoading,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).not.toHaveBeenCalled()
+  })
+
+  // A record that exists but carries no apiModelId is a genuine raw-id case, not a stale selection.
+  it('falls back to the raw id when the record exists without an apiModelId', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: 'anthropic::my-alias',
+      providerId: 'anthropic',
+      rawModelId: 'my-alias',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
+        toolName: 'Antigravity CLI',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::my-alias' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([['anthropic::my-alias', {} as Model]]),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', model: 'my-alias' })
+    )
+  })
+
   it('sends gateway: false for a regular (non-gateway) provider', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
@@ -226,7 +312,10 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: 'terminal',
         gatewayModelsById: new Map(),
-        modelById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -259,7 +348,10 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig,
         selectedTerminal: 'terminal',
         gatewayModelsById: new Map(),
-        modelById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig,
         setCurrentProvider,
         setTerminal: vi.fn(),
@@ -292,7 +384,10 @@ describe('useLaunchDialogController', () => {
         isOwnLoginSelected: false,
         selectedTerminal: undefined,
         gatewayModelsById: new Map(),
-        modelById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -342,6 +437,7 @@ describe('useLaunchDialogController', () => {
           apiGatewayProvider: { provider: gatewayProvider, apiKey: 'cs-sk-old', ensureRunning, getApiKey },
           gatewayModelsById: availableModels,
           modelById: new Map<UniqueModelId, Model>(),
+          isModelsLoading: false,
           upsertProviderConfig,
           setCurrentProvider,
           setTerminal: vi.fn(),
@@ -602,7 +698,11 @@ describe('useLaunchDialogController', () => {
             getApiKey
           },
           gatewayModelsById: new Map(),
-          modelById: new Map(),
+          // This block's beforeEach resolves the context to deepseek::deepseek-chat.
+          modelById: new Map<UniqueModelId, Model>([
+            ['deepseek::deepseek-chat', { apiModelId: 'deepseek-chat' } as Model]
+          ]),
+          isModelsLoading: false,
           upsertProviderConfig: vi.fn(),
           setCurrentProvider: vi.fn(),
           setTerminal: vi.fn(),

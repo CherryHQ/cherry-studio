@@ -58,6 +58,13 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
     })
     apiKey = gatewayApiKey
     baseUrl = gatewayClientOrigin(host, port)
+    // Only this path form is ambiguous about the separator: the route splits on the first
+    // one, so a provider id carrying it would address the wrong provider.
+    if (input.providerId.includes(ANTIGRAVITY_MODEL_PATH_SEPARATOR)) {
+      throw new Error(
+        `Provider id "${input.providerId}" contains "${ANTIGRAVITY_MODEL_PATH_SEPARATOR}" and cannot be addressed by antigravity-cli`
+      )
+    }
     const gatewayModel = formatGatewayModelId(input.providerId, input.model)
     model = `gemini-api://${gatewayModel.replace(':', ANTIGRAVITY_MODEL_PATH_SEPARATOR)}`
   } else {

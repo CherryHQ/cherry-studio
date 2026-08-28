@@ -39,10 +39,11 @@ describe('formatGatewayModelId', () => {
     expect(() => formatGatewayModelId(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID)).toThrow(/CherryAI/)
   })
 
-  it('rejects a provider id containing the Antigravity separator — it would route to the wrong provider', () => {
-    // A deep-linked provider (useProviderDeepLinkImport) may carry any id, and
-    // "team/models/west" + "gemini-2.5-pro" would parse back as provider "team".
-    expect(() => formatGatewayModelId('team/models/west', 'gemini-2.5-pro')).toThrow(/cannot be addressed/)
+  it('formats a colon address for a provider id containing the Antigravity separator', () => {
+    // That separator only makes an address ambiguous in Antigravity's path form, so the
+    // constraint belongs to that producer — the colon address here round-trips fine.
+    const id = formatGatewayModelId('team/models/west', 'gemini-2.5-pro')
+    expect(parseByFirstColon(id)).toEqual({ providerId: 'team/models/west', modelId: 'gemini-2.5-pro' })
   })
 
   it('round-trips an apiModelId that itself contains the Antigravity separator', () => {
