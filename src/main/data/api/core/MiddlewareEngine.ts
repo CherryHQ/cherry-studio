@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { toDataApiError } from '@shared/data/api/errors'
 import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/types'
-import { redactDeep } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('DataApi:MiddlewareEngine')
 
@@ -94,8 +93,8 @@ export class MiddlewareEngine {
       execute: async (req: DataRequest, res: DataResponse, next: () => Promise<void>) => {
         logger.debug(`Incoming request: ${req.method} ${req.path}`, {
           id: req.id,
-          params: redactDeep(req.params),
-          body: redactDeep(req.body)
+          params: req.params,
+          body: req.body
         })
 
         await next()
