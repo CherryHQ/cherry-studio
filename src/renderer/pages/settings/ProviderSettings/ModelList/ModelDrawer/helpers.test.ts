@@ -6,7 +6,8 @@ import {
   buildModelCapabilities,
   buildModelInputModalities,
   getInitialModelClassification,
-  MODEL_ENDPOINT_OPTIONS
+  MODEL_ENDPOINT_OPTIONS,
+  splitModelIds
 } from './helpers'
 
 function makeModel(overrides: Partial<Model> = {}): Model {
@@ -18,6 +19,10 @@ function makeModel(overrides: Partial<Model> = {}): Model {
 }
 
 describe('model drawer classification helpers', () => {
+  it('normalizes comma-separated model IDs without creating duplicates', () => {
+    expect(splitModelIds(' alpha, beta, alpha, ,beta ')).toEqual(['alpha', 'beta'])
+  })
+
   it('offers an endpoint for every editable non-text model consumer', () => {
     expect(MODEL_ENDPOINT_OPTIONS.map((option) => option.id)).toEqual(
       expect.arrayContaining([

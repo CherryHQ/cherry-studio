@@ -80,6 +80,7 @@
   "dialog.diagnostic_bundle.title": "Сохранение диагностического пакета",
   "dialog.diagnostic_bundle.zip_filter": "ZIP-архив",
   "dialog.html_files": "Файлы HTML",
+  "dialog.mini_app_export": "Экспорт из {{name}}",
   "dialog.open_file": "Открыть файл",
   "dialog.pdf_files": "Файлы PDF",
   "dialog.png_image": "PNG-изображение",

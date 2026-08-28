@@ -120,7 +120,10 @@ describe('DiagnosticBundleService scan report', () => {
     await writeFile(path.join(logsDir, errorLogFileName(now)), line)
     const service = new DiagnosticBundleService()
 
-    const result = await service.exportBundle({ includeLogs: true, includeTraces: false, range: '24h' }, 'main-window')
+    const result = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
+      'main-window'
+    )
 
     expect(result.status).toBe('saved')
     const zip = await readZip(destination)
@@ -143,7 +146,10 @@ describe('DiagnosticBundleService scan report', () => {
   it('omits the report entirely when logs are excluded', async () => {
     const service = new DiagnosticBundleService()
 
-    const result = await service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+    const result = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+      'main-window'
+    )
 
     expect(result.status).toBe('saved')
     const zip = await readZip(destination)
@@ -158,7 +164,10 @@ describe('DiagnosticBundleService scan report', () => {
     await rm(logsDir, { recursive: true, force: true })
     const service = new DiagnosticBundleService()
 
-    const result = await service.exportBundle({ includeLogs: true, includeTraces: false, range: '24h' }, 'main-window')
+    const result = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
+      'main-window'
+    )
 
     expect(result.status).toBe('saved')
     const zip = await readZip(destination)
@@ -172,7 +181,10 @@ describe('DiagnosticBundleService scan report', () => {
     scanMocks.collectFails = true
     const service = new DiagnosticBundleService()
 
-    const result = await service.exportBundle({ includeLogs: true, includeTraces: false, range: '24h' }, 'main-window')
+    const result = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
+      'main-window'
+    )
 
     expect(result.status).toBe('saved')
     if (result.status !== 'saved') throw new Error('Expected saved result')
