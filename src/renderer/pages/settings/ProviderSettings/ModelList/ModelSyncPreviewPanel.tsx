@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Badge, Button, EmptyState, Spinner, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Badge, Button, Checkbox, EmptyState, Spinner, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -15,19 +15,32 @@ import { modelListClasses, modelSyncClasses } from '../primitives/ProviderSettin
 import { getModelGroupLabel } from './grouping'
 import type { ModelGroups } from './modelListDerivedState'
 
-interface ModelSyncPreviewPanelProps {
+interface ModelSyncPreviewPanelCommonProps {
   provider?: Provider
   modelGroups: ModelGroups
   localModelIds: Set<UniqueModelId>
-  removableModelIds: Set<UniqueModelId>
-  defaultModelIds: Set<UniqueModelId>
-  staleModelIds: Set<UniqueModelId>
   isLoading: boolean
   isApplying: boolean
   searchActive?: boolean
+  flattenSingleGroup?: boolean
+}
+
+interface ModelSyncPreviewPanelManageProps extends ModelSyncPreviewPanelCommonProps {
+  mode: 'manage'
+  removableModelIds: Set<UniqueModelId>
+  defaultModelIds: Set<UniqueModelId>
+  staleModelIds: Set<UniqueModelId>
   onAddModels: (models: Model[]) => void | Promise<void>
   onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
 }
+
+interface ModelSyncPreviewPanelSelectProps extends ModelSyncPreviewPanelCommonProps {
+  mode: 'select'
+  selectedModelIds: Set<UniqueModelId>
+  onSelectModels: (modelIds: UniqueModelId[], selected: boolean) => void
+}
+
+type ModelSyncPreviewPanelProps = ModelSyncPreviewPanelManageProps | ModelSyncPreviewPanelSelectProps
 
 type ManageVirtualRow =
   | {
@@ -65,43 +78,25 @@ const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
   )
 })
 
-const ManageModelRow = memo(function ManageModelRow({
+const ModelRowIdentity = memo(function ModelRowIdentity({
   model,
   provider,
-  isAdded,
-  isRemovable,
-  isDefaultModel,
-  isStale,
-  isApplying,
-  onAddModels,
-  onRemoveModels
+  isStale = false
 }: {
   model: Model
   provider?: Provider
-  isAdded: boolean
-  isRemovable: boolean
-  isDefaultModel: boolean
-  isStale: boolean
-  isApplying: boolean
-  onAddModels: (models: Model[]) => void | Promise<void>
-  onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
+  isStale?: boolean
 }) {
   const { t } = useTranslation()
   const apiModelId = modelIdLine(model)
   const apiModelIdId = `${model.id}-api-model-id`
-  const actionTooltip = isAdded
-    ? isDefaultModel
-      ? t('settings.models.manage.default_model_cannot_remove')
-      : t('settings.models.manage.remove_model')
-    : t('button.add')
 
   return (
-    <div className={modelSyncClasses.manageRow} data-added={isAdded}>
+    <>
       <ModelGlyph model={model} />
       <div className="min-w-0 flex-1">
         <div className={modelSyncClasses.manageRowTitleLine}>
-          {/* Friendly names can collide, so the raw id must stay reachable without a mouse: the title
-              is focusable (opening the tooltip on focus) and described by an off-screen copy of it. */}
+          {/* Friendly names can collide, so the raw id must remain keyboard- and screen-reader-accessible. */}
           <Tooltip content={apiModelId} placement="top" classNames={{ placeholder: 'min-w-0' }}>
             <p tabIndex={0} aria-describedby={apiModelIdId} className={modelSyncClasses.manageRowTitle}>
               {model.name || apiModelId}
@@ -132,6 +127,41 @@ const ManageModelRow = memo(function ManageModelRow({
           style={{ flexWrap: 'nowrap' }}
         />
       </div>
+    </>
+  )
+})
+
+const ManageModelRow = memo(function ManageModelRow({
+  model,
+  provider,
+  isAdded,
+  isRemovable,
+  isDefaultModel,
+  isStale,
+  isApplying,
+  onAddModels,
+  onRemoveModels
+}: {
+  model: Model
+  provider?: Provider
+  isAdded: boolean
+  isRemovable: boolean
+  isDefaultModel: boolean
+  isStale: boolean
+  isApplying: boolean
+  onAddModels: (models: Model[]) => void | Promise<void>
+  onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
+}) {
+  const { t } = useTranslation()
+  const actionTooltip = isAdded
+    ? isDefaultModel
+      ? t('settings.models.manage.default_model_cannot_remove')
+      : t('settings.models.manage.remove_model')
+    : t('button.add')
+
+  return (
+    <div className={modelSyncClasses.manageRow} data-added={isAdded}>
+      <ModelRowIdentity model={model} provider={provider} isStale={isStale} />
       <Tooltip content={actionTooltip} placement="top">
         <Button
           type="button"
@@ -156,23 +186,63 @@ const ManageModelRow = memo(function ManageModelRow({
   )
 })
 
-export default function ModelSyncPreviewPanel({
+const SelectModelRow = memo(function SelectModelRow({
+  model,
   provider,
-  modelGroups,
-  localModelIds,
-  removableModelIds,
-  defaultModelIds,
-  staleModelIds,
-  isLoading,
+  isSelected,
   isApplying,
-  searchActive = false,
-  onAddModels,
-  onRemoveModels
-}: ModelSyncPreviewPanelProps) {
+  onSelectModels
+}: {
+  model: Model
+  provider?: Provider
+  isSelected: boolean
+  isApplying: boolean
+  onSelectModels: (modelIds: UniqueModelId[], selected: boolean) => void
+}) {
   const { t } = useTranslation()
+  const label = model.name || modelIdLine(model)
+  const checkboxId = `provider-api-setup-model-${encodeURIComponent(model.id)}`
+
+  return (
+    <label
+      htmlFor={checkboxId}
+      className={cn(modelSyncClasses.manageRow, 'cursor-pointer', isApplying && 'cursor-default opacity-60')}>
+      <ModelRowIdentity model={model} provider={provider} />
+      <Checkbox
+        id={checkboxId}
+        checked={isSelected}
+        disabled={isApplying}
+        aria-label={t('settings.provider.api_setup.select_model', { model: label })}
+        onCheckedChange={(checked) => onSelectModels([model.id], checked === true)}
+      />
+    </label>
+  )
+})
+
+export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps) {
+  const { t } = useTranslation()
+  const {
+    provider,
+    modelGroups,
+    localModelIds,
+    isLoading,
+    isApplying,
+    searchActive = false,
+    flattenSingleGroup = false
+  } = props
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const entries = useMemo(() => Object.entries(modelGroups).filter(([, models]) => models.length > 0), [modelGroups])
   const virtualRows = useMemo<ManageVirtualRow[]>(() => {
+    if (flattenSingleGroup && entries.length === 1) {
+      return entries[0][1].map(
+        (model): ManageVirtualRow => ({
+          key: `model:${model.id}`,
+          type: 'model',
+          model
+        })
+      )
+    }
+
     return entries.flatMap(([groupName, models]) => {
       const collapsed = !searchActive && collapsedGroups.has(groupName)
       const groupLabel = getModelGroupLabel(groupName, t)
@@ -200,7 +270,7 @@ export default function ModelSyncPreviewPanel({
         )
       ]
     })
-  }, [collapsedGroups, entries, searchActive, t])
+  }, [collapsedGroups, entries, flattenSingleGroup, searchActive, t])
 
   const toggleGroup = useCallback((groupName: string) => {
     setCollapsedGroups((current) => {
@@ -214,40 +284,57 @@ export default function ModelSyncPreviewPanel({
     })
   }, [])
 
-  const renderGroupAction = useCallback(
-    (models: Model[]) => {
-      const isAllInProvider = models.every((model) => localModelIds.has(model.id))
-      const removableGroupModelIds = models
-        .filter((model) => localModelIds.has(model.id) && removableModelIds.has(model.id))
-        .map((model) => model.id)
-      const title = isAllInProvider
-        ? t('settings.models.manage.remove_whole_group')
-        : t('settings.models.manage.add_whole_group')
+  const renderGroupAction = (models: Model[], groupLabel: string) => {
+    if (props.mode === 'select') {
+      const selectedCount = models.filter((model) => props.selectedModelIds.has(model.id)).length
+      const checked = selectedCount === models.length ? true : selectedCount > 0 ? 'indeterminate' : false
+      const shouldSelect = checked !== true
 
       return (
-        <Tooltip content={title} placement="top">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={title}
-            disabled={isApplying || (isAllInProvider && removableGroupModelIds.length === 0)}
-            className={modelSyncClasses.manageRowAction}
-            onClick={(event) => {
-              event.stopPropagation()
-              if (isAllInProvider) {
-                void onRemoveModels(removableGroupModelIds)
-                return
-              }
-              void onAddModels(models.filter((model) => !localModelIds.has(model.id)))
-            }}>
-            {isAllInProvider ? <Minus className="size-4" /> : <Plus className="size-4" />}
-          </Button>
-        </Tooltip>
+        <Checkbox
+          checked={checked}
+          disabled={isApplying}
+          aria-label={`${t('common.select_all')}: ${groupLabel}`}
+          onCheckedChange={() =>
+            props.onSelectModels(
+              models.map((model) => model.id),
+              shouldSelect
+            )
+          }
+        />
       )
-    },
-    [isApplying, localModelIds, onAddModels, onRemoveModels, removableModelIds, t]
-  )
+    }
+
+    const isAllInProvider = models.every((model) => localModelIds.has(model.id))
+    const removableGroupModelIds = models
+      .filter((model) => localModelIds.has(model.id) && props.removableModelIds.has(model.id))
+      .map((model) => model.id)
+    const title = isAllInProvider
+      ? t('settings.models.manage.remove_whole_group')
+      : t('settings.models.manage.add_whole_group')
+
+    return (
+      <Tooltip content={title} placement="top">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={title}
+          disabled={isApplying || (isAllInProvider && removableGroupModelIds.length === 0)}
+          className={modelSyncClasses.manageRowAction}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (isAllInProvider) {
+              void props.onRemoveModels(removableGroupModelIds)
+              return
+            }
+            void props.onAddModels(models.filter((model) => !localModelIds.has(model.id)))
+          }}>
+          {isAllInProvider ? <Minus className="size-4" /> : <Plus className="size-4" />}
+        </Button>
+      </Tooltip>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -301,7 +388,7 @@ export default function ModelSyncPreviewPanel({
                     {row.models.length}
                   </Badge>
                 </button>
-                <span className="ml-auto pr-2">{renderGroupAction(row.models)}</span>
+                <span className="ml-auto pr-2">{renderGroupAction(row.models, row.groupLabel)}</span>
               </div>
             </div>
           )
@@ -309,17 +396,27 @@ export default function ModelSyncPreviewPanel({
 
         return (
           <div className={modelSyncClasses.manageVirtualModelRow}>
-            <ManageModelRow
-              provider={provider}
-              model={row.model}
-              isAdded={localModelIds.has(row.model.id)}
-              isRemovable={removableModelIds.has(row.model.id)}
-              isDefaultModel={defaultModelIds.has(row.model.id)}
-              isStale={staleModelIds.has(row.model.id)}
-              isApplying={isApplying}
-              onAddModels={onAddModels}
-              onRemoveModels={onRemoveModels}
-            />
+            {props.mode === 'manage' ? (
+              <ManageModelRow
+                provider={provider}
+                model={row.model}
+                isAdded={localModelIds.has(row.model.id)}
+                isRemovable={props.removableModelIds.has(row.model.id)}
+                isDefaultModel={props.defaultModelIds.has(row.model.id)}
+                isStale={props.staleModelIds.has(row.model.id)}
+                isApplying={isApplying}
+                onAddModels={props.onAddModels}
+                onRemoveModels={props.onRemoveModels}
+              />
+            ) : (
+              <SelectModelRow
+                provider={provider}
+                model={row.model}
+                isSelected={props.selectedModelIds.has(row.model.id)}
+                isApplying={isApplying}
+                onSelectModels={props.onSelectModels}
+              />
+            )}
           </div>
         )
       }}

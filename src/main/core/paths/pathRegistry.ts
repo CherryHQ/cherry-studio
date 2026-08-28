@@ -244,14 +244,17 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
-    'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
-    'external.deepseek_harness.config': path.join(os.homedir(), '.dsh'),
+    'external.openclaw.config': path.join(sysHome, '.openclaw'),
+    'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.hermes.default_home': isWin
+      ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
+      : path.join(sysHome, '.hermes'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
       : isMac
-        ? path.join(os.homedir(), 'Library', 'Application Support', 'obsidian', 'obsidian.json')
-        : path.join(os.homedir(), '.config', 'obsidian', 'obsidian.json')
+        ? path.join(sysHome, 'Library', 'Application Support', 'obsidian', 'obsidian.json')
+        : path.join(sysHome, '.config', 'obsidian', 'obsidian.json')
   } as const)
 }
 

@@ -557,7 +557,6 @@ export class AiStreamManager extends BaseService {
     for (const [topicId, stream] of this.activeStreams) {
       // Only streams that persist are waited on. That's listener-derived, not lifecycle-derived:
       // a chunks-only prompt stream (API gateway, orphan translate) is excluded, while a
-      // translate-with-persist carries a TranslationBackend PersistenceListener and IS drained.
       const persistent = [...stream.listeners.keys()].some((id) => id.startsWith('persistence:'))
       if (!persistent) continue
       for (const exec of stream.executions.values()) entries.push([exec.loopPromise, topicId])

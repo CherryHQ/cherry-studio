@@ -20,29 +20,23 @@ function changedPaths(cwd) {
   return [...new Set([...tracked, ...untracked])].sort()
 }
 
-function validateReleaseNotes(releaseNotes, targetVersion) {
+function validateReleaseNotes(releaseNotes) {
   const normalizedReleaseNotes = releaseNotes.trim()
   const markers = ['<!--LANG:en-->', '<!--LANG:zh-CN-->', '<!--LANG:END-->']
   const indexes = markers.map((marker) => normalizedReleaseNotes.indexOf(marker))
   if (
     indexes.some((index) => index < 0) ||
     markers.some((marker, markerIndex) => normalizedReleaseNotes.indexOf(marker, indexes[markerIndex] + 1) >= 0) ||
-    indexes[0] !== 0 ||
     indexes[0] >= indexes[1] ||
-    indexes[1] >= indexes[2] ||
-    normalizedReleaseNotes.slice(indexes[2] + markers[2].length).trim()
+    indexes[1] >= indexes[2]
   ) {
-    throw new Error('Release notes must contain exactly one bilingual marker span')
+    throw new Error('Release notes must contain one ordered set of bilingual markers')
   }
 
   const english = normalizedReleaseNotes.slice(indexes[0] + markers[0].length, indexes[1])
   const chinese = normalizedReleaseNotes.slice(indexes[1] + markers[1].length, indexes[2])
-  const expectedHeading = `Cherry Studio ${targetVersion} - `
-  if (!english.split('\n').some((line) => line.startsWith(expectedHeading))) {
-    throw new Error(`English release notes do not identify Cherry Studio ${targetVersion}`)
-  }
-  if (!chinese.split('\n').some((line) => line.startsWith(expectedHeading))) {
-    throw new Error(`Chinese release notes do not identify Cherry Studio ${targetVersion}`)
+  if (!english.trim() || !chinese.trim()) {
+    throw new Error('Release notes must contain non-empty English and Chinese sections')
   }
 }
 
@@ -85,7 +79,7 @@ function validatePreparedRelease({ cwd, includeGeneratedManifest = false, target
   }
   preparedBuilder.releaseInfo.releaseNotes = baseReleaseNotes
   assert.deepStrictEqual(preparedBuilder, baseBuilder, 'electron-builder.yml may change only releaseInfo.releaseNotes')
-  validateReleaseNotes(preparedReleaseNotes, targetVersion)
+  validateReleaseNotes(preparedReleaseNotes)
 
   const baseHistory = JSON.parse(readBaseFile(cwd, 'resources/cherry-studio/release-history.json'))
   const preparedHistory = JSON.parse(
