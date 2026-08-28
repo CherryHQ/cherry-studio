@@ -1740,14 +1740,9 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
-    expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('/api/show'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-Api-Key': 'sk-selected'
-        })
-      })
-    )
+    const [url, init] = fetchSpy.mock.calls.at(-1) as [string, RequestInit]
+    expect(url).toContain('/api/show')
+    expect(new Headers(init.headers).get('x-api-key')).toBe('sk-selected')
   })
 
   it('surfaces Ollama string error from /api/show', async () => {

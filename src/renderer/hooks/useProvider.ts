@@ -51,7 +51,7 @@ export function useProviders(
         }
       : undefined
 
-  const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
+  const { data, isLoading, error, refetch } = useQuery('/providers', queryOptions)
 
   const {
     trigger: createTrigger,
@@ -77,7 +77,9 @@ export function useProviders(
 
   return {
     providers,
+    hasLoaded: data !== undefined,
     isLoading,
+    error,
     createProvider,
     isCreating,
     createError,

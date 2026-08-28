@@ -20,11 +20,10 @@ v2 broke that piggy-back deliberately:
   template(text, lang)` branch is structural — translate isn't one
   shape but two — and chat-side composition has no clean way to express
   that.
-- **Persistence target is the per-message `data-translation` part, not
-  the chat `data.parts` content.** v2 surfaces translations as a sticky
-  part on the source message (the MessageMenubar "translate this reply"
-  flow); orphan callers (TranslatePage, ActionTranslate) get the
-  streamed chunks without any persistence.
+- **Persistence belongs to the caller.** Home chat projects streamed
+  translations into `data-translation` parts through its chat write
+  adapter, while TranslatePage and ActionTranslate keep the accumulated
+  text locally.
 
 So translate-on-Main is its own request type with its own service,
 sharing nothing with chat beyond the underlying `AiStreamManager`
@@ -38,8 +37,7 @@ src/main/
 │   ├── AiService.ts                                       ← lifecycle owner; registers Ai_Translate_Open in onInit
 │   └── stream-manager/
 │       ├── AiStreamManager.ts                             ← streamPrompt() entry consumed by translate
-│       ├── listeners/{WebContentsListener,PersistenceListener}.ts
-│       └── persistence/backends/TranslationBackend.ts     ← writes data-translation part on the source message
+│       └── listeners/WebContentsListener.ts               ← streams chunks to the requesting renderer
 └── services/
     └── translate/
         ├── translateService.ts                            ← named-export singleton (NOT lifecycle)
@@ -51,7 +49,7 @@ Per CLAUDE.md's lifecycle-decision guide, lifecycle is reserved for
 services that own long-lived resources or register persistent side
 effects. Translate is stateless orchestration: each call resolves a
 model, builds a prompt, hands the prompt to `AiStreamManager.streamPrompt`
-with the right listeners, and returns the synthetic streamId. No pool,
+with a `WebContentsListener`, and returns the synthetic streamId. No pool,
 no watcher, no on-disk handle.
 
 The one persistent side effect — the `Ai_Translate_Open` IPC handler —
@@ -71,19 +69,6 @@ export interface TranslateOpenRequest {
   text: string
   /** Target language code; resolved to a DTO via translateLanguageService. */
   targetLangCode: TranslateLangCode
-  /**
-   * When present, attach a `PersistenceListener + TranslationBackend`
-   * so the final translation is written as a `data-translation` part on
-   * that message. Used by the MessageMenubar "translate this reply"
-   * flow; omit for orphans (ActionTranslate, TranslatePage).
-   */
-  messageId?: string
-  /**
-   * Optional pre-detected source language; recorded on the
-   * `data-translation` part when persistence runs. Main does not detect
-   * by itself.
-   */
-  sourceLangCode?: TranslateLangCode
 }
 
 export interface TranslateOpenResult {
@@ -107,21 +92,10 @@ class TranslateService {
     const targetLanguage = await translateLanguageService.getByLangCode(req.targetLangCode)
     const { uniqueModelId, content } = await this.resolveTranslatePayload(req.text, targetLanguage)
 
-    const listeners: StreamListener[] = []
-    if (req.messageId) {
-      listeners.push(new PersistenceListener({
-        topicId: req.streamId,
-        backend: new TranslationBackend({
-          messageId: req.messageId,
-          targetLanguage: req.targetLangCode,
-          sourceLanguage: req.sourceLangCode
-        })
-      }))
-    }
-    listeners.push(new WebContentsListener(sender, req.streamId))
+    const listener = new WebContentsListener(sender, req.streamId)
 
     application.get('AiStreamManager')
-      .streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener: listeners })
+      .streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener })
 
     return { streamId: req.streamId }
   }
@@ -175,21 +149,10 @@ async resolveTranslatePayload(text, targetLanguage) {
 
 ## Persistence
 
-When `req.messageId` is provided, a `PersistenceListener` carrying a
-`TranslationBackend` runs on stream success. The backend:
-
-1. Reads the target message.
-2. Strips any prior `data-translation` part (replace, not append).
-3. Appends a fresh `data-translation` part with `{ content,
-   targetLanguage, sourceLanguage? }`.
-
-Paused / errored terminals are no-ops — discard-on-cancel. The DB write
-completes before `Ai_StreamDone` because `dispatchToListeners` awaits
-serially, so renderer revalidation on `done` always sees the new part.
-
-No `translate_history` table is written. That table type exists in
-`packages/shared/data/types/translate.ts` but is not currently
-populated by this flow — see Open questions.
+`translate.open` is a chunks-only stream and does not write message data.
+Home chat persists its `data-translation` projection through
+`homeMessageListAdapter.translateMessage`; callers without a message target
+keep the accumulated result locally. No `translate_history` row is written.
 
 ## Streaming
 
@@ -207,7 +170,7 @@ synthetic topicId, `translate:${uuid}`) shipped instead of the dedicated
   from colliding with a real chat topic, and lets log filtering tell
   the two apart.
 
-Concrete renderer surface (`src/renderer/src/services/TranslateService.ts`):
+Concrete renderer surface (`src/renderer/utils/translate/translateText.ts`):
 
 ```ts
 translateText(
@@ -242,15 +205,10 @@ plumbing be the only thing it borrows from chat.
   is the right local injection point (it won't leak back into chat
   scope).
 - **Source-lang auto-detect.** Renderer-side `useDetectLang` does the
-  detection (and rejects Qwen-MT for detection); detected language is
-  passed in as `sourceLangCode` on the request. Whether to move
+  detection (and rejects Qwen-MT for detection). Whether to move
   detection to Main remains open.
 - **`translate_history` writes.** The renderer-side opt-in
   `history-enabled` knob from v1 has no current Main-side equivalent.
-  When/if this lands, a `TranslateHistoryBackend` parallel to
-  `TranslationBackend` would be the place — both implement
-  `PersistenceBackend`, so a translate call could carry zero, one, or
-  both backends through the same listener.
 - **Per-call temperature override.** Translate quality is sensitive to
   temperature (low for literal, higher for fluent). No UI surface today;
   defer until product asks.

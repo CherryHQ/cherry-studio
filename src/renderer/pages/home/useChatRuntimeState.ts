@@ -6,11 +6,6 @@ import {
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import {
-  createTranslationOverlayStore,
-  type TranslationOverlaySetter,
-  type TranslationOverlayStore
-} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
 } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
@@ -146,14 +141,6 @@ export function useChatRuntimeState({
   // anchor resolution — that snapshot now happens synchronously at the call
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
-  const translationOverlayStore = useMemo<TranslationOverlayStore>(() => createTranslationOverlayStore(), [])
-  const [translationOverlayVersion, setTranslationOverlayVersion] = useState(0)
-  const translationOverlay = useMemo(
-    () => translationOverlayStore.getMapSnapshot(),
-    // Version bump drives the derived parts layer without exposing the store's mutable map.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [translationOverlayStore, translationOverlayVersion]
-  )
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const [branchLiveActiveNodeOverride, setBranchLiveActiveNodeOverride] = useState<{
@@ -171,24 +158,15 @@ export function useChatRuntimeState({
     branchLiveResetTopicIdRef.current = topic.id
     finishedBranchExecutionKeysRef.current.clear()
     runtimeBranchLiveStatePublishedRef.current = false
-    translationOverlayStore.reset()
     setBranchLiveMessages([])
     setBranchLiveExecutions([])
     setBranchLiveActiveNodeOverride(null)
-  }, [topic.id, translationOverlayStore])
+  }, [topic.id])
   useEffect(() => {
     setBranchLiveActiveNodeOverride((current) =>
       current && current.previousActiveNodeId !== activeNodeId ? null : current
     )
   }, [activeNodeId])
-  useEffect(() => {
-    return translationOverlayStore.subscribeMap(() => setTranslationOverlayVersion((value) => value + 1))
-  }, [translationOverlayStore])
-  const setTranslationOverlay = useCallback<TranslationOverlaySetter>(
-    (messageId, entry) => translationOverlayStore.set(messageId, entry),
-    [translationOverlayStore]
-  )
-
   const branchActiveExecutions = useMemo(
     () => mergeActiveExecutions([...activeExecutions], branchLiveExecutions),
     [activeExecutions, branchLiveExecutions]
@@ -222,8 +200,7 @@ export function useChatRuntimeState({
     messages,
     overlay,
     executions: branchActiveExecutions,
-    liveAssistants,
-    translationOverlay
+    liveAssistants
   })
   const activeAwaitingInputMessageId = useMemo(
     () =>
@@ -499,9 +476,6 @@ export function useChatRuntimeState({
     locateMessage,
     sendMessage,
     composerChatTarget,
-    composerContext,
-    translationOverlayStore,
-    translationOverlay,
-    setTranslationOverlay
+    composerContext
   }
 }

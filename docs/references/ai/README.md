@@ -71,7 +71,7 @@ src/main/ai/
 │   ├── context/                  ← ChatContextProvider implementations + dispatch
 │   ├── lifecycle/                ← chat / prompt-only stream lifecycles
 │   ├── listeners/                ← WebContents / Persistence / SSE / channel-adapter
-│   ├── persistence/              ← MessageService / TemporaryChat / Translation backends
+│   ├── persistence/              ← MessageService / TemporaryChat backends
 │   └── pipeStreamLoop.ts         ← shared chunk-pipe primitive
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 │   ├── custom/                   ← provider-specific adapters, transports, and wire profiles
