@@ -240,7 +240,9 @@ describe('deepseekResponsesReasoningReplay', () => {
       ])
       expect(result.warnings).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ message: expect.stringContaining('without encrypted content') })
+          expect.objectContaining({
+            message: expect.stringContaining('Do not replay this untagged reasoning.')
+          })
         ])
       )
     })
