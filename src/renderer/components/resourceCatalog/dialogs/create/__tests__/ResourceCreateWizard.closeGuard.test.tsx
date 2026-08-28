@@ -28,6 +28,11 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: undefined })
 }))
 
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+  useAgentModelFilter: () => () => true,
+  useAgentModelDisabled: () => () => false
+}))
+
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipc.request }
 }))
