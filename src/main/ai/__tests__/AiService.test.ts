@@ -1549,7 +1549,14 @@ describe('AiService tool approval', () => {
     )
   })
 
-  it('disables reasoning on the text-generation probe', async () => {
+  it('minimizes reasoning on the text-generation probe without requesting "none"', async () => {
+    // Regression: the probe used to force reasoningEffort: 'none', which the
+    // generic openai-chat reasoning wire encodes as the literal string
+    // reasoning_effort: "none" — a value real OpenAI accepts but at least one
+    // OpenAI-compatible gateway (AI/ML API) rejects outright as an invalid
+    // enum (only low/medium/high), hard-failing "Verify and enable" for every
+    // reasoning-capable model on that gateway. 'low' stays in every such
+    // gateway's accepted enum while still minimizing reasoning-token latency.
     const service = createService()
     const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
     mockModelGetByKey.mockReturnValue({
@@ -1569,7 +1576,7 @@ describe('AiService tool approval', () => {
       expect.objectContaining({
         system: 'test',
         prompt: 'hi',
-        reasoningEffort: 'none'
+        reasoningEffort: 'low'
       })
     )
   })
