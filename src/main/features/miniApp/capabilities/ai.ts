@@ -171,11 +171,24 @@ function resolveModelFor(appId: string, slot: ModelSlot): UniqueModelId {
  * upstream failure, the `Cancelled` that `capabilities.md` promises for an abort included,
  * and logs each one as an unexpected internal failure. Rehydrated here, at the boundary
  * the serialization happens on, so `publicErrorOf` keeps taking exactly one shape.
+ *
+ * Everything that is not an abort is the model host failing, which `capabilities.md` lists
+ * under `Unavailable` — "a remote request timed out or failed" — not under `Internal`,
+ * whose row reads "anything else". Getting that wrong told the app a provider hiccup was a
+ * bug in Cherry, and warn-logged each one as an unexpected internal failure.
+ *
+ * The upstream MESSAGE is dropped rather than forwarded. A provider's error body names the
+ * model, the endpoint and sometimes the account, and this module withholds all of that on
+ * purpose — see `getCapabilities`, which exists so an app can degrade without ever learning
+ * which model it is on. The name travels as `cause`, which only the user's own log reads.
  */
 function rehydrate(error: SerializedError): Error {
-  const out = new Error(error.message ?? 'The model stream failed')
-  if (error.name) out.name = error.name
-  return out
+  if (error.name === 'AbortError') {
+    const aborted = new Error(error.message ?? 'The model stream failed')
+    aborted.name = 'AbortError'
+    return aborted
+  }
+  return new MiniAppUnavailableError('The model could not complete the request', { cause: error.name })
 }
 
 export const aiCapability = {

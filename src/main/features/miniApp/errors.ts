@@ -21,8 +21,13 @@ export class InvalidArgumentError extends Error {
  * being taken offline) and whose branch would start lying.
  */
 export class MiniAppUnavailableError extends Error {
-  constructor(message: string) {
-    super(message)
+  /**
+   * `options.cause` carries what actually failed, for the USER's activity log. It never
+   * reaches the guest: `publicErrorOf` builds the guest's answer from the class and this
+   * `message` alone, and both are written to disclose nothing about the host's setup.
+   */
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
     this.name = 'MiniAppUnavailableError'
   }
 }

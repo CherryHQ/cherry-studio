@@ -306,13 +306,31 @@ describe('cherry.ai.chat — streaming', () => {
     expect(chunks).toEqual(['ok'])
   })
 
-  it('rejects when the stream errors', async () => {
+  it('reports an upstream failure as Unavailable, and tells the app nothing about the host', async () => {
+    // `capabilities.md` files "a remote request timed out or failed" under `Unavailable`;
+    // `Internal` is "anything else". Reporting a provider outage as `Internal` told the app
+    // its host was broken and warn-logged every hiccup as an unexpected internal failure.
     const call = chat()
-    drive.error({ name: 'Error', message: 'provider exploded', stack: null })
-    await expect(call).rejects.toThrow(/provider exploded/)
-    // The control for the case below: rehydrating must not promote EVERY stream failure
-    // into a named public error — an upstream blow-up is still `Internal` to the guest.
-    expect(publicErrorOf(await call.catch((e: unknown) => e))).toMatchObject({ name: 'Internal' })
+    drive.error({ name: 'AI_APICallError', message: 'silicon::Qwen/Qwen2.5-7B 401 at api.example', stack: null })
+
+    // The message is FIXED: a provider's error body names the model, the endpoint and
+    // sometimes the account, and this module withholds all three from the guest by design.
+    expect(publicErrorOf(await call.catch((e: unknown) => e))).toEqual({
+      name: 'Unavailable',
+      message: 'The model could not complete the request'
+    })
+  })
+
+  it('carries what failed to the user’s log without putting it in the app’s error', async () => {
+    // The user's own panel has to separate "the provider is down" from "the app was
+    // cleared" — both are `Unavailable`, and the seven public names cannot say which.
+    const call = chat()
+    drive.error({ name: 'AI_APICallError', message: 'silicon 401', stack: null })
+    const error = await call.catch((e: unknown) => e)
+
+    expect((error as Error).cause).toBe('AI_APICallError')
+    // And it stays out of what crosses the boundary.
+    expect(JSON.stringify(publicErrorOf(error))).not.toContain('AI_APICallError')
   })
 
   it('surfaces an aborted stream as Cancelled, not the frozen Internal', async () => {

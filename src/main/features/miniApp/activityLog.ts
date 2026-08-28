@@ -184,7 +184,9 @@ export class MiniAppActivityLog {
     outcome: string,
     durationMs: number,
     params: unknown,
-    result: unknown
+    result: unknown,
+    /** What failed underneath the public outcome — a class name, never a message. */
+    reason?: string
   ): void {
     // Gated HERE as well as in `append`: the count tier returns before ever reaching it,
     // and a stale call would leave a counter for the next `flush` to write out.
@@ -199,7 +201,10 @@ export class MiniAppActivityLog {
       this.counters.set(appId, perApp)
       return
     }
-    const facet = facetOf(method, p, result)
+    // Merged rather than passed to `facetOf`: the reason belongs to the FAILURE, and
+    // `facetOf` describes the call — it has no error to look at and should not grow one.
+    const called = facetOf(method, p, result)
+    const facet = reason ? { ...called, reason } : called
     this.append(appId, {
       v: 1,
       ts: Date.now(),

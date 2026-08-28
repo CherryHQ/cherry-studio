@@ -192,8 +192,21 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<un
       publicErrorOf(error).name,
       Date.now() - started,
       params,
-      undefined
+      undefined,
+      reasonOf(error)
     )
     throw error
   }
+}
+
+/**
+ * What actually failed, for the USER's log — the seven public names cannot say whether an
+ * `Unavailable` was a dead provider or a cleared app, and the panel is where that is asked.
+ *
+ * A class name only, never a message: the log's own contract is names, outcomes, sizes and
+ * addresses. Bounded because it is written to a file that is capped by size, not by line.
+ */
+function reasonOf(error: unknown): string | undefined {
+  const cause = error instanceof Error ? error.cause : undefined
+  return typeof cause === 'string' && cause.length > 0 ? cause.slice(0, 64) : undefined
 }

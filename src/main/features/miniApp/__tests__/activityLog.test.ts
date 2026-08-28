@@ -95,6 +95,20 @@ describe('miniAppActivityLog', () => {
     ])
   })
 
+  it('keeps the reason a refusal came with, beside the facet the call already had', async () => {
+    // `Unavailable` covers a dead provider AND a cleared app; the panel is where the user
+    // separates them. Merged, not substituted — losing the call's own facet to carry it
+    // would trade one blind spot for another.
+    svc.recordCall(A, 'ai.chat', 'Unavailable', 4, { messages: [{ content: 'hi' }] }, undefined, 'AI_APICallError')
+    await settle()
+
+    const [line] = linesOf(A)
+    expect(line).toMatchObject({
+      outcome: 'Unavailable',
+      facet: { reason: 'AI_APICallError', messages: 1, model: 'default' }
+    })
+  })
+
   it('records a permission decision', async () => {
     svc.recordGrant(A, { name: 'revoke', permissions: ['clipboard.read'] })
     await settle()

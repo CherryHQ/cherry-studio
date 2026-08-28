@@ -76,6 +76,22 @@ describe('handleBridgeRequest', () => {
     expect(recordCall).not.toHaveBeenCalled()
   })
 
+  it('logs what failed underneath an Unavailable, and only to the user', async () => {
+    // Both a dead provider and a cleared app reject `Unavailable`, and the seven public
+    // names cannot separate them — the user's own panel is where that question is asked.
+    recordCall.mockClear()
+    resolveAppIdBySender.mockReturnValue('com.example.a')
+    assertMethodAllowed.mockImplementationOnce(() => {
+      throw new MiniAppUnavailableError('The model could not complete the request', { cause: 'AI_APICallError' })
+    })
+
+    const result = await handleBridgeRequest(1, { method: 'ai.chat', params: {} }, noopEmit)
+
+    expect(recordCall.mock.calls[0]?.[6]).toBe('AI_APICallError')
+    // And nowhere near the envelope the guest reads.
+    expect(JSON.stringify(result)).not.toContain('AI_APICallError')
+  })
+
   it('rejects a sender that is not a registered guest', async () => {
     resolveAppIdBySender.mockReturnValue(undefined)
 
