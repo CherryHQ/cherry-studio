@@ -1,76 +1,214 @@
+import { BaseService } from '@main/core/lifecycle'
+import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  isDev: false,
-  isLinux: false,
-  isMac: false,
-  isPortable: true,
-  isWin: true,
-  setLoginItemSettings: vi.fn()
+const { setLoginItemSettingsMock, platform, accessMock, mkdirMock, writeFileMock, unlinkMock } = vi.hoisted(() => ({
+  setLoginItemSettingsMock: vi.fn(),
+  platform: { isDev: false, isLinux: false, isMac: false, isPortable: false, isWin: true },
+  accessMock: vi.fn(),
+  mkdirMock: vi.fn(),
+  writeFileMock: vi.fn(),
+  unlinkMock: vi.fn()
 }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
 vi.mock('@main/core/platform', () => ({
   get isDev() {
-    return mocks.isDev
+    return platform.isDev
   },
   get isLinux() {
-    return mocks.isLinux
+    return platform.isLinux
   },
   get isMac() {
-    return mocks.isMac
+    return platform.isMac
   },
   get isPortable() {
-    return mocks.isPortable
+    return platform.isPortable
   },
   get isWin() {
-    return mocks.isWin
+    return platform.isWin
   }
 }))
-vi.mock('electron', () => ({
-  app: { setLoginItemSettings: mocks.setLoginItemSettings }
+
+vi.mock('fs', () => ({
+  default: {
+    promises: {
+      access: accessMock,
+      mkdir: mkdirMock,
+      writeFile: writeFileMock,
+      unlink: unlinkMock
+    }
+  }
 }))
 
-import { AppService } from '../AppService'
+vi.mock('electron', () => ({
+  app: { setLoginItemSettings: setLoginItemSettingsMock }
+}))
 
-describe('AppService.setAppLaunchOnBoot', () => {
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
+const { AppService } = await import('../AppService')
+
+const autostartDir = '/mock/sys.appdata.autostart'
+const desktopFile = path.join(autostartDir, 'cherry-studio.desktop')
+const linuxFiles = new Set<string>()
+let autostartDirExists = false
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
+describe('AppService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.stubEnv('PORTABLE_EXECUTABLE_FILE', 'D:\\Apps\\Cherry Studio Portable.exe')
-    mocks.isLinux = false
-    mocks.isMac = false
-    mocks.isPortable = true
-    mocks.isWin = true
+    BaseService.resetInstances()
+    platform.isDev = false
+    platform.isLinux = false
+    platform.isMac = false
+    platform.isPortable = false
+    platform.isWin = true
+    autostartDirExists = false
+    linuxFiles.clear()
+    setLoginItemSettingsMock.mockReset()
+    accessMock.mockReset()
+    mkdirMock.mockReset()
+    writeFileMock.mockReset()
+    unlinkMock.mockReset()
+    accessMock.mockImplementation(async (target: string) => {
+      if ((target === autostartDir && autostartDirExists) || (target === desktopFile && linuxFiles.has(target))) return
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    })
+    mkdirMock.mockImplementation(async () => {
+      autostartDirExists = true
+    })
+    writeFileMock.mockImplementation(async (target: string) => {
+      linuxFiles.add(target)
+    })
+    unlinkMock.mockImplementation(async (target: string) => {
+      linuxFiles.delete(target)
+    })
+    MockMainPreferenceServiceUtils.resetMocks()
+  })
+
+  it('reconciles the persisted launch-on-boot preference during startup', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
+    const service = new AppService()
+
+    await service._doInit()
+
+    expect(setLoginItemSettingsMock).toHaveBeenCalledOnce()
+    expect(setLoginItemSettingsMock).toHaveBeenCalledWith({ openAtLogin: true })
+  })
+
+  it('applies launch-on-boot preference changes to the system', async () => {
+    const service = new AppService()
+    await service._doInit()
+    setLoginItemSettingsMock.mockClear()
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
+    await vi.waitFor(() => expect(setLoginItemSettingsMock).toHaveBeenCalledOnce())
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', false)
+    await vi.waitFor(() => expect(setLoginItemSettingsMock).toHaveBeenCalledTimes(2))
+    expect(setLoginItemSettingsMock).toHaveBeenNthCalledWith(1, { openAtLogin: true })
+    expect(setLoginItemSettingsMock).toHaveBeenNthCalledWith(2, { openAtLogin: false })
   })
 
   it('registers the stable launcher for Windows portable builds', async () => {
-    await new AppService().setAppLaunchOnBoot(true)
+    platform.isPortable = true
+    vi.stubEnv('PORTABLE_EXECUTABLE_FILE', 'D:\\Apps\\Cherry Studio Portable.exe')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
 
-    expect(mocks.setLoginItemSettings).toHaveBeenCalledWith({
+    await new AppService()._doInit()
+
+    expect(setLoginItemSettingsMock).toHaveBeenCalledWith({
       openAtLogin: true,
       path: 'D:\\Apps\\Cherry Studio Portable.exe',
       args: []
     })
   })
 
-  it('uses Electron defaults for installed Windows builds', async () => {
-    mocks.isPortable = false
-
-    await new AppService().setAppLaunchOnBoot(false)
-
-    expect(mocks.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false })
-  })
-
   it('uses Electron defaults on macOS', async () => {
-    mocks.isMac = true
-    mocks.isPortable = false
-    mocks.isWin = false
+    platform.isMac = true
+    platform.isWin = false
 
     await new AppService().setAppLaunchOnBoot(true)
 
-    expect(mocks.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true })
+    expect(setLoginItemSettingsMock).toHaveBeenCalledWith({ openAtLogin: true })
+  })
+
+  it('serializes Linux updates and converges to the latest preference', async () => {
+    platform.isLinux = true
+    platform.isWin = false
+    const service = new AppService()
+    await service._doInit()
+
+    const writeGate = deferred()
+    let writeStarted!: () => void
+    const writeStartedPromise = new Promise<void>((resolve) => {
+      writeStarted = resolve
+    })
+    writeFileMock.mockImplementation(async (target: string) => {
+      writeStarted()
+      await writeGate.promise
+      linuxFiles.add(target)
+    })
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
+    await writeStartedPromise
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', false)
+    writeGate.resolve()
+
+    await vi.waitFor(() => expect(unlinkMock).toHaveBeenCalledOnce())
+    expect(linuxFiles.has(desktopFile)).toBe(false)
+  })
+
+  it('waits for in-flight Linux updates before stopping and resubscribes on restart', async () => {
+    platform.isLinux = true
+    platform.isWin = false
+    const service = new AppService()
+    await service._doInit()
+
+    const writeGate = deferred()
+    let writeStarted!: () => void
+    const writeStartedPromise = new Promise<void>((resolve) => {
+      writeStarted = resolve
+    })
+    writeFileMock.mockImplementation(async (target: string) => {
+      writeStarted()
+      await writeGate.promise
+      linuxFiles.add(target)
+    })
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
+    await writeStartedPromise
+    let stopped = false
+    const stopPromise = service._doStop().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+
+    writeGate.resolve()
+    await stopPromise
+    expect(linuxFiles.has(desktopFile)).toBe(true)
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', false)
+    expect(unlinkMock).not.toHaveBeenCalled()
+
+    await service._doInit()
+    await vi.waitFor(() => expect(unlinkMock).toHaveBeenCalledOnce())
+    expect(linuxFiles.has(desktopFile)).toBe(false)
   })
 })
