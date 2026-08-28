@@ -1,4 +1,8 @@
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Button,
   CircularProgress,
   ConfirmDialog,
@@ -11,6 +15,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { TerminalOutput } from '@renderer/components/chat/messages/tools/agent'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -41,6 +46,7 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
+import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
@@ -55,18 +61,21 @@ import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
+import { createDurationFormatter } from '@renderer/utils/time'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { isTerminalAgentSessionTaskStatus } from '@shared/ai/agentSessionBackgroundTasks'
+import type { AgentWorkflowAgentProgress } from '@shared/ai/agentWorkflowProgress'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
-  ArrowLeft,
-  Bot,
   CheckCircle,
   Circle,
   CircleStop,
@@ -75,9 +84,7 @@ import {
   GitBranch,
   Loader2,
   Package,
-  Terminal,
-  Waypoints,
-  Workflow
+  Waypoints
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
@@ -104,7 +111,8 @@ import {
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection
+  buildAgentToolFlowProjection,
+  getBashOutputText
 } from './agentRightPaneProjection'
 
 const logger = loggerService.withContext('AgentRightPane')
@@ -114,6 +122,22 @@ const logger = loggerService.withContext('AgentRightPane')
 const FLOW_TAB_PREFIX = 'flow:'
 const STATUS_PANE_ID = 'status'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+type DurationFormatter = ReturnType<typeof createDurationFormatter>
+
+function createWholeSecondDurationFormatter(language?: string): DurationFormatter {
+  const formatDuration = createDurationFormatter(language)
+  const zeroSeconds = new Intl.NumberFormat(language, {
+    style: 'unit',
+    unit: 'second',
+    unitDisplay: 'narrow',
+    maximumFractionDigits: 0
+  }).format(0)
+
+  return (durationMs) => {
+    const roundedMs = Math.max(0, Math.round(durationMs / 1000)) * 1000
+    return roundedMs === 0 ? zeroSeconds : formatDuration(roundedMs)
+  }
+}
 
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
@@ -163,6 +187,7 @@ interface AgentFlowTab {
   toolCallId: string
   toolName?: string
   title: string
+  agentName?: string
 }
 
 interface AgentRightPaneMeta {
@@ -173,6 +198,8 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
+  backgroundTaskFlows: boolean
+  runTaskUsageMetrics: boolean
   conversationState: AgentConversationState
   workspaceId?: string
   workspacePath?: string
@@ -224,7 +251,9 @@ interface AgentRightPanelScope {
 
 type AgentConversationState = 'pending' | 'ready' | 'unavailable'
 
-interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversationState'> {
+interface AgentRightPaneScopeProps
+  extends Omit<AgentRightPaneMeta, 'backgroundTaskFlows' | 'runTaskUsageMetrics' | 'conversationState'> {
+  agentType?: AgentType
   children: ReactNode
   conversationState?: AgentConversationState
   /** Controls effective presentation without clearing panel intent. */
@@ -274,6 +303,7 @@ export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | n
 }
 
 interface AgentRightPaneActionsProviderProps {
+  backgroundTaskFlows: boolean
   children: ReactNode
   conversationState: AgentConversationState
   sessionId?: string
@@ -289,6 +319,7 @@ interface AgentRightPaneActionsProviderProps {
 }
 
 function AgentRightPaneActionsProvider({
+  backgroundTaskFlows,
   children,
   conversationState,
   sessionId,
@@ -312,13 +343,13 @@ function AgentRightPaneActionsProvider({
       artifactOpenRequestRef.current += 1
     }
   }, [sessionId, workspacePath])
-  const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
+  const canOpenAgentToolFlow = backgroundTaskFlows && conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
       replaceFlowTab(input)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
+      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true, transition: 'forward' })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
@@ -390,6 +421,7 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
+  agentType,
   model,
   conversationState = 'ready',
   present = true,
@@ -412,6 +444,9 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const runtimeCapabilities = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
+  const backgroundTaskFlows = runtimeCapabilities?.backgroundTaskFlows ?? false
+  const runTaskUsageMetrics = runtimeCapabilities?.runTaskUsageMetrics ?? false
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
@@ -504,7 +539,8 @@ function AgentRightPaneStateProvider({
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
-        title: getFlowTabTitle(input)
+        title: getFlowTabTitle(input),
+        agentName: input.agentName
       }
       setFlowTabState({ sessionId, tab: nextTab })
     },
@@ -567,6 +603,8 @@ function AgentRightPaneStateProvider({
       agentId,
       agentName,
       agentAvatar,
+      backgroundTaskFlows,
+      runTaskUsageMetrics,
       conversationState,
       workspaceId,
       workspacePath,
@@ -577,6 +615,8 @@ function AgentRightPaneStateProvider({
       agentAvatar,
       agentId,
       agentName,
+      backgroundTaskFlows,
+      runTaskUsageMetrics,
       conversationState,
       model,
       sessionId,
@@ -616,6 +656,7 @@ function AgentRightPaneStateProvider({
               present={present}>
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
+                backgroundTaskFlows={backgroundTaskFlows}
                 conversationState={conversationState}
                 sessionId={sessionId}
                 workspacePath={workspacePath}
@@ -776,6 +817,49 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   )
 })
 
+function AgentFlowHeaderTitle({ tab }: { tab: AgentFlowTab }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span title={tab.title} className="min-w-0 truncate">
+        {tab.title}
+      </span>
+      {tab.agentName ? (
+        <>
+          <span title={tab.agentName} className="max-w-32 shrink truncate text-muted-foreground text-xs">
+            {tab.agentName}
+          </span>
+          <CopyButton
+            textToCopy={tab.agentName}
+            successFeedback="icon"
+            size={13}
+            aria-label={t('agent.right_pane.status.copy_agent_name', { name: tab.agentName })}
+            className="shrink-0 rounded-sm p-0.5 focus-visible:bg-accent focus-visible:outline-none"
+          />
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+function AgentFlowReceipt({ content, label }: { content: string; label: string }) {
+  return (
+    <Accordion type="single" collapsible className="shrink-0 border-border-subtle border-t px-3 py-2">
+      <AccordionItem value="receipt" className="border-0 first:border-t-0 last:border-b-0">
+        <AccordionTrigger
+          aria-label={label}
+          className="py-1 font-normal text-muted-foreground text-xs hover:no-underline [&>svg]:rotate-180! [&[data-state=open]>svg]:rotate-0!">
+          {label}
+        </AccordionTrigger>
+        <AccordionContent className="pt-2 pb-0">
+          <TerminalOutput content={content} maxHeight="10rem" />
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  )
+}
+
 function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
   const { t } = useTranslation()
@@ -799,41 +883,25 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
 
   if (!tab) return null
 
-  if (!flow.messages.length) {
-    return (
-      <EmptyState
-        icon={GitBranch}
-        title={tab.title || t('agent.right_pane.flow.no_messages.title')}
-        description={t('agent.right_pane.flow.no_messages.description')}
-      />
-    )
-  }
-
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
-    </div>
-  )
-}
-
-function AgentFlowPanelTitle({ title }: { title: string }) {
-  const panelActions = useRightPanelActions()
-  const { t } = useTranslation()
-
-  return (
-    <div className="flex min-w-0 items-center gap-0.5">
-      <Tooltip content={t('common.back')} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={t('common.back')}
-          onClick={() => panelActions.tryOpen(STATUS_PANE_ID)}>
-          <ArrowLeft size={16} />
-        </Button>
-      </Tooltip>
-      <span className="min-w-0 flex-1 truncate px-1">{title}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {flow.messages.length ? (
+          <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
+        ) : (
+          <EmptyState
+            icon={GitBranch}
+            title={tab.title || t('agent.right_pane.flow.no_messages.title')}
+            description={t('agent.right_pane.flow.no_messages.description')}
+          />
+        )}
+      </div>
+      {flow.launchReceipt ? (
+        <AgentFlowReceipt content={flow.launchReceipt} label={t('agent.right_pane.flow.launch_receipt')} />
+      ) : null}
+      {flow.completionReceipt ? (
+        <AgentFlowReceipt content={flow.completionReceipt} label={t('agent.right_pane.flow.completion_receipt')} />
+      ) : null}
     </div>
   )
 }
@@ -879,7 +947,6 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
   )
 }
 
-/** A shell run is a command, not an agent — the two read differently, so they get separate sections. */
 function isShellRunTask(task: AgentRunTask): boolean {
   const type = task.taskType ?? ''
   return type.includes('bash') || type.includes('shell')
@@ -893,103 +960,701 @@ function isLocalWorkflowRunTask(task: AgentRunTask): boolean {
   return task.taskType === 'local_workflow'
 }
 
-function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
-  const actions = useAgentRightPaneActions()
-
-  return (
-    <div className="space-y-1.5">
-      {tasks.map((task) => {
-        const toolCallId = actions.canOpenAgentToolFlow && isSubagentRunTask(task) ? task.toolUseId : undefined
-        const content = (
-          <>
-            <TaskStatusIcon status={task.status} />
-            <div className="min-w-0 flex-1">
-              {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
-                {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
-              </div>
-              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </div>
-            </div>
-          </>
-        )
-
-        return (
-          <div
-            key={task.id}
-            className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-            {toolCallId ? (
-              <button
-                type="button"
-                className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title })}>
-                {content}
-              </button>
-            ) : (
-              content
-            )}
-            {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
-          </div>
-        )
-      })}
-    </div>
-  )
+function isRunTaskTerminal(task: AgentRunTask): boolean {
+  return isTerminalAgentSessionTaskStatus(task.status)
 }
 
-function WorkflowRunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
-  const { t } = useTranslation()
-
-  return (
-    <div className="space-y-1.5">
-      {tasks.map((task) => {
-        const activity = task.status === 'in_progress' ? task.activeText : undefined
-        const usage = formatRunTaskUsage(task.usage, (count) => t('agent.right_pane.status.tool_uses', { count }))
-        const metadata = [task.lastToolName, usage].filter(Boolean).join(' · ')
-
-        return (
-          <div
-            key={task.id}
-            className="flex min-w-0 items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-            <TaskStatusIcon status={task.status} />
-            <div className="min-w-0 flex-1">
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
-                {task.workflowName ?? task.title}
-              </div>
-              {task.summary && task.summary !== task.workflowName && task.summary !== task.title ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
-                  {task.summary}
-                </div>
-              ) : null}
-              {activity && activity !== task.title && activity !== task.summary ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
-                  {activity}
-                </div>
-              ) : null}
-              {metadata ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{metadata}</div> : null}
-            </div>
-            {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
-          </div>
-        )
-      })}
-    </div>
-  )
+function compareRunTaskTimestamps(left: string | undefined, right: string | undefined, newestFirst = false): number {
+  const leftTime = left ? Date.parse(left) : Number.NaN
+  const rightTime = right ? Date.parse(right) : Number.NaN
+  const leftIsValid = Number.isFinite(leftTime)
+  const rightIsValid = Number.isFinite(rightTime)
+  if (!leftIsValid && !rightIsValid) return 0
+  if (!leftIsValid) return 1
+  if (!rightIsValid) return -1
+  return newestFirst ? rightTime - leftTime : leftTime - rightTime
 }
 
-function formatRunTaskUsage(
-  usage: AgentRunTask['usage'],
-  formatToolUses?: (count: number) => string
-): string | undefined {
-  if (!usage) return undefined
-  const parts: string[] = []
-  if (typeof usage.totalTokens === 'number') {
-    parts.push(usage.totalTokens >= 1000 ? `${(usage.totalTokens / 1000).toFixed(1)}k` : String(usage.totalTokens))
+function getRunningRunTasks(tasks: AgentRunTask[]): AgentRunTask[] {
+  return tasks
+    .filter((task) => !isRunTaskTerminal(task))
+    .toSorted((left, right) => {
+      const workflowPriority = Number(isLocalWorkflowRunTask(right)) - Number(isLocalWorkflowRunTask(left))
+      return workflowPriority || compareRunTaskTimestamps(left.createdAt, right.createdAt)
+    })
+}
+
+function getCompletedRunTasks(tasks: AgentRunTask[]): AgentRunTask[] {
+  return tasks
+    .filter(isRunTaskTerminal)
+    .toSorted((left, right) => compareRunTaskTimestamps(left.completedAt, right.completedAt, true))
+}
+
+type WorkflowAgentVisualState = 'running' | 'error' | 'unknown' | 'completed' | 'pending'
+
+function getWorkflowAgentVisualState(state: string): WorkflowAgentVisualState {
+  switch (state.trim().toLowerCase()) {
+    case 'running':
+    case 'in_progress':
+    case 'active':
+      return 'running'
+    case 'error':
+    case 'failed':
+    case 'interrupted':
+    case 'aborted':
+      return 'error'
+    case 'done':
+    case 'completed':
+    case 'success':
+      return 'completed'
+    case 'pending':
+    case 'queued':
+    case 'waiting':
+    case 'not_started':
+      return 'pending'
+    default:
+      return 'unknown'
   }
-  if (typeof usage.toolUses === 'number' && formatToolUses) parts.push(formatToolUses(usage.toolUses))
-  if (typeof usage.durationMs === 'number') parts.push(`${Math.round(usage.durationMs / 1000)}s`)
-  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+interface WorkflowPhaseView {
+  index: number
+  title: string
+  agents: AgentWorkflowAgentProgress[]
+}
+
+function buildWorkflowPhaseViews(task: AgentRunTask): WorkflowPhaseView[] {
+  const snapshot = task.workflow
+  if (!snapshot) return []
+
+  const phases = new Map<number, WorkflowPhaseView>()
+  const ensurePhase = (index: number, title: string) => {
+    const existing = phases.get(index)
+    if (existing) return existing
+    const phase = { index, title, agents: [] }
+    phases.set(index, phase)
+    return phase
+  }
+
+  for (const progress of snapshot.workflowProgress) {
+    if (progress.type === 'workflow_phase') ensurePhase(progress.index, progress.title)
+  }
+  for (const progress of snapshot.workflowProgress) {
+    if (progress.type !== 'workflow_agent') continue
+    ensurePhase(progress.phaseIndex, progress.phaseTitle).agents.push(progress)
+  }
+
+  const zeroBased = phases.has(0)
+  snapshot.phases.forEach((phase, offset) => {
+    ensurePhase(offset + (zeroBased ? 0 : 1), phase.title)
+  })
+
+  return Array.from(phases.values())
+    .map((phase) => ({ ...phase, agents: phase.agents.toSorted((left, right) => left.index - right.index) }))
+    .toSorted((left, right) => left.index - right.index)
+}
+
+function WorkflowAgentStatusSquare({
+  agent,
+  withLabel = false
+}: {
+  agent: AgentWorkflowAgentProgress
+  withLabel?: boolean
+}) {
+  const { t } = useTranslation()
+  const visualState = getWorkflowAgentVisualState(agent.state)
+  const statusLabel = {
+    running: t('agent.right_pane.status.workflow_state.running'),
+    error: t('agent.right_pane.status.workflow_state.error'),
+    unknown: t('agent.right_pane.status.workflow_state.unknown'),
+    completed: t('agent.right_pane.status.workflow_state.completed'),
+    pending: t('agent.right_pane.status.workflow_state.pending')
+  }[visualState]
+  const label = `${agent.label} · ${statusLabel}`
+  const stateClassName = {
+    running: 'bg-info',
+    error: 'bg-error',
+    unknown: 'bg-warning',
+    completed: 'bg-muted-foreground',
+    pending: 'border border-border bg-background'
+  }[visualState]
+
+  return (
+    <>
+      <span aria-hidden title={label} className={cn('size-2.5 shrink-0 rounded-xs', stateClassName)} />
+      {withLabel ? (
+        <>
+          <span className="min-w-0 flex-1 truncate">{agent.label}</span>
+          <span className="sr-only">{` · ${statusLabel}`}</span>
+        </>
+      ) : (
+        <span className="sr-only">{label}</span>
+      )}
+    </>
+  )
+}
+
+function WorkflowPhaseAccordion({
+  phases,
+  durationFormatter
+}: {
+  phases: WorkflowPhaseView[]
+  durationFormatter: DurationFormatter
+}) {
+  const { t } = useTranslation()
+  const copyAgentName = useCallback(
+    (name: string) => {
+      void navigator.clipboard.writeText(name).then(
+        () => toast.success(t('message.copy.success')),
+        () => toast.error(t('message.copy.failed'))
+      )
+    },
+    [t]
+  )
+
+  return (
+    <Accordion type="multiple" className="mt-2 space-y-1.5">
+      {phases.map((phase) => (
+        <AccordionItem
+          key={`${phase.index}-${phase.title}`}
+          value={String(phase.index)}
+          className="overflow-hidden rounded-md border border-border-subtle bg-background-subtle first:border-t last:border-b">
+          <AccordionTrigger className="min-w-0 px-2.5 py-2 font-normal hover:no-underline">
+            <div className="min-w-0 flex-1">
+              <div title={phase.title} className="truncate text-foreground text-xs leading-5">
+                {phase.title}
+              </div>
+              <div className="mt-1 flex w-3/4 flex-wrap gap-0.5">
+                {phase.agents.map((agent) => (
+                  <WorkflowAgentStatusSquare key={`${agent.index}-${agent.label}`} agent={agent} />
+                ))}
+              </div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-2.5 pt-1 pb-2">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[340px] table-fixed border-collapse text-[11px] leading-5">
+                <thead className="text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="w-[36%] px-1 text-left font-normal">
+                      {t('agent.right_pane.status.agent')}
+                    </th>
+                    <th scope="col" className="w-[17%] px-1 text-right font-normal">
+                      {t('agent.right_pane.status.total')}
+                    </th>
+                    <th scope="col" className="w-[17%] px-1 text-right font-normal">
+                      {t('agent.right_pane.status.context_size')}
+                    </th>
+                    <th scope="col" className="w-[12%] px-1 text-right font-normal">
+                      {t('agent.right_pane.status.tools')}
+                    </th>
+                    <th scope="col" className="w-[18%] whitespace-nowrap px-1 text-right font-normal">
+                      {t('agent.right_pane.status.time')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="text-foreground">
+                  {phase.agents.map((agent) => (
+                    <tr key={`${agent.index}-${agent.label}`}>
+                      <td className="min-w-0 px-1 align-top">
+                        <button
+                          type="button"
+                          title={agent.label}
+                          aria-label={t('agent.right_pane.status.copy_agent_name', { name: agent.label })}
+                          className="inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                          onClick={() => copyAgentName(agent.label)}>
+                          <WorkflowAgentStatusSquare agent={agent} withLabel />
+                        </button>
+                      </td>
+                      <td className="px-1 text-right tabular-nums">
+                        {agent.cumulativeTokens === undefined ? '-' : formatCompactNumber(agent.cumulativeTokens)}
+                      </td>
+                      <td className="px-1 text-right tabular-nums">
+                        {agent.tokens === undefined ? '-' : formatCompactNumber(agent.tokens)}
+                      </td>
+                      <td className="px-1 text-right tabular-nums">{agent.toolCalls ?? '-'}</td>
+                      <td className="whitespace-nowrap px-1 text-right tabular-nums">
+                        {getWorkflowAgentVisualState(agent.state) === 'running' && agent.startedAt !== undefined ? (
+                          <LiveDuration
+                            startedAtMs={agent.startedAt}
+                            reportedDurationMs={agent.durationMs}
+                            durationFormatter={durationFormatter}
+                          />
+                        ) : agent.durationMs === undefined ? (
+                          '-'
+                        ) : (
+                          durationFormatter(agent.durationMs)
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  )
+}
+
+function LiveDuration({
+  startedAtMs,
+  reportedDurationMs,
+  durationFormatter,
+  className
+}: {
+  startedAtMs: number
+  reportedDurationMs?: number
+  durationFormatter: DurationFormatter
+  className?: string
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(intervalId)
+  }, [])
+
+  const durationMs = Math.floor(Math.max(reportedDurationMs ?? 0, nowMs - startedAtMs) / 1000) * 1000
+  return <span className={className}>{durationFormatter(durationMs)}</span>
+}
+
+function getRunTaskDurationMs(task: AgentRunTask, reportedDurationMs: number | undefined): number | undefined {
+  const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
+  if (reportedDurationMs !== undefined) return reportedDurationMs
+
+  const completedAtMs = task.completedAt ? Date.parse(task.completedAt) : Number.NaN
+  if (Number.isFinite(createdAtMs) && Number.isFinite(completedAtMs)) {
+    return Math.max(0, completedAtMs - createdAtMs)
+  }
+  return undefined
+}
+
+function hasRunTaskDuration(task: AgentRunTask, reportedDurationMs: number | undefined): boolean {
+  if (reportedDurationMs !== undefined) return true
+  const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
+  if (!Number.isFinite(createdAtMs)) return false
+  if (task.status === 'in_progress') return true
+  return Number.isFinite(task.completedAt ? Date.parse(task.completedAt) : Number.NaN)
+}
+
+function RunTaskDuration({
+  task,
+  reportedDurationMs,
+  durationFormatter,
+  className
+}: {
+  task: AgentRunTask
+  reportedDurationMs?: number
+  durationFormatter: DurationFormatter
+  className?: string
+}) {
+  const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
+  if (task.status === 'in_progress' && Number.isFinite(createdAtMs)) {
+    return (
+      <LiveDuration
+        startedAtMs={createdAtMs}
+        reportedDurationMs={reportedDurationMs}
+        durationFormatter={durationFormatter}
+        className={className}
+      />
+    )
+  }
+
+  const durationMs = getRunTaskDurationMs(task, reportedDurationMs)
+  return durationMs === undefined ? null : <span className={className}>{durationFormatter(durationMs)}</span>
+}
+
+function RunTaskSummary({
+  status,
+  title,
+  kind,
+  description,
+  executionLabel,
+  duration,
+  totalTokens,
+  contextTokens,
+  toolUses
+}: {
+  status: AgentRunTask['status']
+  title: string
+  kind: string
+  description?: string
+  executionLabel?: string
+  duration?: ReactNode
+  totalTokens?: number
+  contextTokens?: number
+  toolUses?: number
+}) {
+  const { t } = useTranslation()
+  const { runTaskUsageMetrics } = useAgentRightPaneMeta()
+  const statusLabel = {
+    pending: t('agent.right_pane.status.workflow_state.pending'),
+    in_progress: t('agent.right_pane.status.workflow_state.running'),
+    completed: t('agent.right_pane.status.workflow_state.completed'),
+    stopped: t('agent.right_pane.status.stopped'),
+    error: t('agent.right_pane.status.workflow_state.error')
+  }[status]
+
+  return (
+    <div className="min-w-0 flex-1 text-left">
+      <div className="flex min-w-0 items-start gap-2">
+        <TaskStatusIcon status={status} />
+        <div className="min-w-0 flex-1">
+          <div data-testid="agent-run-task-title" title={title} className="truncate text-foreground text-xs leading-5">
+            {title}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] text-muted-foreground leading-4">
+            <span>{kind}</span>
+            <span>{statusLabel}</span>
+          </div>
+        </div>
+        {executionLabel || duration ? (
+          <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
+            {executionLabel ? <span>{executionLabel}</span> : null}
+            {duration}
+          </div>
+        ) : null}
+      </div>
+      {description ? (
+        <div className="wrap-break-word mt-1 line-clamp-2 pl-7 text-[11px] text-foreground-tertiary leading-4">
+          {description}
+        </div>
+      ) : null}
+      {runTaskUsageMetrics ? (
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 pl-7 text-[11px] text-muted-foreground">
+          <span className="whitespace-nowrap">
+            {t('agent.right_pane.status.total')}·{totalTokens === undefined ? '-' : formatCompactNumber(totalTokens)}
+          </span>
+          <span className="whitespace-nowrap">
+            {t('agent.right_pane.status.context_size')}·
+            {contextTokens === undefined ? '-' : formatCompactNumber(contextTokens)}
+          </span>
+          <span className="whitespace-nowrap">
+            {t('agent.right_pane.status.tools')}·{toolUses ?? '-'}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function GenericRunTaskCard({
+  task,
+  sessionId,
+  durationFormatter
+}: {
+  task: AgentRunTask
+  sessionId?: string
+  durationFormatter: DurationFormatter
+}) {
+  const actions = useAgentRightPaneActions()
+  const { t } = useTranslation()
+  const toolCallId = actions.canOpenAgentToolFlow && isSubagentRunTask(task) ? task.toolUseId : undefined
+  const agentName = task.subagentType ?? task.taskType ?? t('agent.right_pane.status.agent')
+  const description =
+    task.description && task.description !== task.title
+      ? task.description
+      : task.activeText && task.activeText !== task.title
+        ? task.activeText
+        : undefined
+  const summary = (
+    <RunTaskSummary
+      status={task.status}
+      title={task.title}
+      kind={agentName}
+      description={description}
+      executionLabel={
+        task.isBackgrounded ? t('agent.right_pane.status.execution_async') : t('agent.right_pane.status.execution_sync')
+      }
+      duration={
+        <RunTaskDuration
+          task={task}
+          reportedDurationMs={task.usage?.durationMs}
+          durationFormatter={durationFormatter}
+          className="tabular-nums"
+        />
+      }
+      totalTokens={task.usage?.totalTokens}
+      contextTokens={task.usage?.contextTokens}
+      toolUses={task.usage?.toolUses}
+    />
+  )
+
+  return (
+    <div className="overflow-hidden rounded-md border border-border-subtle bg-background">
+      <div className={cn('grid items-start', task.status === 'in_progress' && 'grid-cols-[minmax(0,1fr)_auto]')}>
+        {toolCallId ? (
+          <button
+            type="button"
+            title={t('agent.right_pane.status.view_details')}
+            className="flex min-w-0 items-start px-2.5 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent focus-visible:outline-none"
+            onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title, agentName })}>
+            {summary}
+          </button>
+        ) : (
+          <div className="flex min-w-0 items-start px-2.5 py-2">{summary}</div>
+        )}
+        {task.status === 'in_progress' ? (
+          <div className="py-2 pr-2.5">
+            <RunTaskStopButton sessionId={sessionId} taskId={task.id} />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function ShellRunTaskCard({
+  task,
+  sessionId,
+  durationFormatter
+}: {
+  task: AgentRunTask
+  sessionId?: string
+  durationFormatter: DurationFormatter
+}) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const deferredResultRef = task.deferredOutput?.$deferredToolResult
+  const shouldResolveDeferredOutput = expanded && Boolean(deferredResultRef)
+  const excerpt = task.deferredOutput?.excerpt
+  const deferredResultVersion = `${task.status}:${excerpt?.totalChars ?? 0}:${excerpt?.totalLines ?? 0}`
+  const { output: resolvedOutput } = useToolResult(shouldResolveDeferredOutput ? deferredResultRef : undefined, {
+    refreshToken: deferredResultVersion
+  })
+  const resolvedOutputText = getBashOutputText(resolvedOutput)
+  const excerptText = excerpt ? [excerpt.head, '…', excerpt.tail].filter(Boolean).join('\n') : undefined
+  const output = resolvedOutputText ?? task.output ?? excerptText
+  const title = task.description?.trim() || task.title
+  const command = `> ${task.command ?? task.title}`
+  const terminalContent = output ? `${command}\n\n${output}` : command
+
+  return (
+    <Accordion
+      type="single"
+      collapsible
+      value={expanded ? 'output' : ''}
+      onValueChange={(value) => setExpanded(value === 'output')}>
+      <AccordionItem value="output" className="border-0 first:border-t-0 last:border-b-0">
+        <div className="overflow-hidden rounded-md border border-border-subtle bg-background">
+          <div className={cn('grid items-start', task.status === 'in_progress' && 'grid-cols-[minmax(0,1fr)_auto]')}>
+            <AccordionTrigger className="min-w-0 items-start gap-2 rounded-none px-2.5 py-2 font-normal hover:bg-accent/50 hover:no-underline">
+              <TaskStatusIcon status={task.status} />
+              <span className="shrink-0">
+                <span className="block text-muted-foreground text-xs leading-5">
+                  {t('agent.right_pane.status.background_command')}
+                </span>
+                {task.taskType ? (
+                  <span className="block text-[11px] text-muted-foreground leading-4">{task.taskType}</span>
+                ) : null}
+              </span>
+              <span
+                data-testid="agent-run-task-title"
+                title={title}
+                className="min-w-0 flex-1 truncate text-foreground text-xs leading-5">
+                {title}
+              </span>
+              {hasRunTaskDuration(task, task.usage?.durationMs) ? (
+                <RunTaskDuration
+                  task={task}
+                  reportedDurationMs={task.usage?.durationMs}
+                  durationFormatter={durationFormatter}
+                  className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums"
+                />
+              ) : null}
+              <span className="sr-only">
+                {expanded ? t('agent.right_pane.status.hide_output') : t('agent.right_pane.status.show_output')}
+              </span>
+            </AccordionTrigger>
+            {task.status === 'in_progress' ? (
+              <div className="py-2 pr-2.5">
+                <RunTaskStopButton sessionId={sessionId} taskId={task.id} />
+              </div>
+            ) : null}
+          </div>
+          <AccordionContent className="px-2.5 pt-0 pb-2">
+            <div className="dark relative">
+              <TerminalOutput command={command} content={output ?? ''} forceDark maxHeight="16rem" />
+              <CopyButton
+                textToCopy={terminalContent}
+                tooltip={t('agent.right_pane.status.copy_all')}
+                successFeedback="icon"
+                size={13}
+                aria-label={t('agent.right_pane.status.copy_all')}
+                className="absolute top-2 right-2 rounded-sm bg-background/80 p-1 outline-none focus-visible:bg-accent"
+              />
+            </div>
+          </AccordionContent>
+        </div>
+      </AccordionItem>
+    </Accordion>
+  )
+}
+
+function WorkflowRunTaskCard({
+  task,
+  sessionId,
+  durationFormatter
+}: {
+  task: AgentRunTask
+  sessionId?: string
+  durationFormatter: DurationFormatter
+}) {
+  const { t } = useTranslation()
+  const phases = buildWorkflowPhaseViews(task)
+  const snapshot = task.workflow
+  const reportedDurationMs = snapshot?.durationMs ?? task.usage?.durationMs
+  const totalCumulativeTokens = snapshot?.totalCumulativeTokens
+  const totalContextTokens = snapshot?.totalTokens ?? task.usage?.contextTokens
+  const totalToolCalls = snapshot?.totalToolCalls ?? task.usage?.toolUses
+  const agentCount = phases.reduce((count, phase) => count + phase.agents.length, 0)
+  const title = task.workflowName ?? task.title
+  const description = task.description && task.description !== title ? task.description : undefined
+  const summary = (
+    <RunTaskSummary
+      status={task.status}
+      title={title}
+      kind={`${t('agent.right_pane.status.agent_count', { count: agentCount })}·${t('agent.right_pane.status.workflow')}`}
+      description={description}
+      duration={
+        hasRunTaskDuration(task, reportedDurationMs) ? (
+          <RunTaskDuration
+            task={task}
+            reportedDurationMs={reportedDurationMs}
+            durationFormatter={durationFormatter}
+            className="tabular-nums"
+          />
+        ) : undefined
+      }
+      totalTokens={totalCumulativeTokens}
+      contextTokens={totalContextTokens}
+      toolUses={totalToolCalls}
+    />
+  )
+
+  return (
+    <Accordion type="single" collapsible defaultValue="phases">
+      <AccordionItem value="phases" className="border-0 first:border-t-0 last:border-b-0">
+        <div className="overflow-hidden rounded-md border border-border-subtle bg-background">
+          <div className={cn('grid items-start', task.status === 'in_progress' && 'grid-cols-[minmax(0,1fr)_auto]')}>
+            {phases.length > 0 ? (
+              <AccordionTrigger className="min-w-0 items-start gap-2 rounded-none px-2.5 py-2 font-normal hover:bg-accent/50 hover:no-underline">
+                {summary}
+              </AccordionTrigger>
+            ) : (
+              <div className="flex min-w-0 items-start px-2.5 py-2">{summary}</div>
+            )}
+            {task.status === 'in_progress' ? (
+              <div className="py-2 pr-2.5">
+                <RunTaskStopButton sessionId={sessionId} taskId={task.id} />
+              </div>
+            ) : null}
+          </div>
+          {phases.length > 0 ? (
+            <AccordionContent className="px-2.5 pt-0 pb-2">
+              <WorkflowPhaseAccordion phases={phases} durationFormatter={durationFormatter} />
+            </AccordionContent>
+          ) : null}
+        </div>
+      </AccordionItem>
+    </Accordion>
+  )
+}
+
+type AgentRunActivitySectionValue = 'running' | 'completed'
+
+const DEFAULT_OPEN_AGENT_RUN_ACTIVITY_SECTIONS: AgentRunActivitySectionValue[] = ['running', 'completed']
+
+const AgentRunTaskCard = memo(function AgentRunTaskCard({
+  task,
+  sessionId,
+  durationFormatter,
+  workflowDurationFormatter
+}: {
+  task: AgentRunTask
+  sessionId?: string
+  durationFormatter: DurationFormatter
+  workflowDurationFormatter: DurationFormatter
+}) {
+  if (isLocalWorkflowRunTask(task)) {
+    return <WorkflowRunTaskCard task={task} sessionId={sessionId} durationFormatter={workflowDurationFormatter} />
+  }
+  if (isShellRunTask(task)) {
+    return <ShellRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} />
+  }
+  return <GenericRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} />
+})
+
+const AgentRunActivitySection = memo(function AgentRunActivitySection({
+  value,
+  label,
+  tasks,
+  sessionId,
+  durationFormatter,
+  workflowDurationFormatter
+}: {
+  value: AgentRunActivitySectionValue
+  label: string
+  tasks: AgentRunTask[]
+  sessionId?: string
+  durationFormatter: DurationFormatter
+  workflowDurationFormatter: DurationFormatter
+}) {
+  return (
+    <AccordionItem value={value} role="region" aria-label={label} className="border-0 first:border-t-0 last:border-b-0">
+      <AccordionTrigger className="gap-2 rounded-sm py-0 font-medium text-xs hover:no-underline">
+        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        <span className="text-[11px] text-muted-foreground tabular-nums">{tasks.length}</span>
+      </AccordionTrigger>
+      <AccordionContent className="space-y-1.5 pt-2 pb-0">
+        {tasks.map((task) => (
+          <AgentRunTaskCard
+            key={task.id}
+            task={task}
+            sessionId={sessionId}
+            durationFormatter={durationFormatter}
+            workflowDurationFormatter={workflowDurationFormatter}
+          />
+        ))}
+      </AccordionContent>
+    </AccordionItem>
+  )
+})
+
+function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
+  const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage ?? i18n.language
+  const durationFormatter = useMemo(() => createDurationFormatter(language), [language])
+  const workflowDurationFormatter = useMemo(() => createWholeSecondDurationFormatter(language), [language])
+  const runningTasks = useMemo(() => getRunningRunTasks(tasks), [tasks])
+  const completedTasks = useMemo(() => getCompletedRunTasks(tasks), [tasks])
+  if (runningTasks.length === 0 && completedTasks.length === 0) return null
+
+  return (
+    <Accordion type="multiple" defaultValue={DEFAULT_OPEN_AGENT_RUN_ACTIVITY_SECTIONS} className="space-y-3">
+      {runningTasks.length > 0 ? (
+        <AgentRunActivitySection
+          value="running"
+          label={t('agent.right_pane.status.running')}
+          tasks={runningTasks}
+          sessionId={sessionId}
+          durationFormatter={durationFormatter}
+          workflowDurationFormatter={workflowDurationFormatter}
+        />
+      ) : null}
+      {completedTasks.length > 0 ? (
+        <AgentRunActivitySection
+          value="completed"
+          label={t('agent.right_pane.status.completed')}
+          tasks={completedTasks}
+          sessionId={sessionId}
+          durationFormatter={durationFormatter}
+          workflowDurationFormatter={workflowDurationFormatter}
+        />
+      ) : null}
+    </Accordion>
+  )
 }
 
 function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentRunTask['status'] }) {
@@ -1000,7 +1665,7 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
       icon = <CheckCircle size={14} className="text-success" />
       break
     case 'in_progress':
-      icon = <Loader2 size={14} className="animate-spin text-info" />
+      icon = <Loader2 size={14} className="text-info motion-safe:animate-spin" />
       break
     case 'error':
       icon = <Circle size={14} className="text-destructive" />
@@ -1016,36 +1681,39 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
   return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
-/** Foreground runs belong to one assistant row; detached runs use the runtime's current membership snapshot. */
-function useAgentRunLiveness(
-  messages: CherryUIMessage[],
-  backgroundTasks: AgentSessionBackgroundTasks
-): AgentRunLiveness {
+/** Foreground runs belong to one assistant row; detached runs use authoritative runtime membership. */
+function useAgentRunLiveness(messages: CherryUIMessage[]): AgentRunLiveness {
   return useMemo(() => {
     const activeMessageIds = new Set(
       messages
         .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
         .map((message) => message.id)
     )
-    const liveBackgroundTaskIds = new Set(backgroundTasks.map((task) => task.id))
-    return { activeMessageIds, liveBackgroundTaskIds }
-  }, [backgroundTasks, messages])
+    return { activeMessageIds }
+  }, [messages])
 }
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
-  const backgroundTasks = useAgentSessionBackgroundTasks(meta.sessionId)
+  const backgroundTaskSessionId = meta.backgroundTaskFlows ? meta.sessionId : undefined
   // Current-process per-task lifecycle edges.
-  const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
-  const liveness = useAgentRunLiveness(runtime.messages, backgroundTasks)
+  const lateTaskEvents = useAgentSessionTaskEvents(backgroundTaskSessionId)
+  const backgroundTasks = useAgentSessionBackgroundTasks(backgroundTaskSessionId)
+  const liveness = useAgentRunLiveness(runtime.messages)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>
       !active && retainedStatusRef.current
         ? retainedStatusRef.current
-        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness),
-    [active, runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness]
+        : buildAgentRightPaneStatus(
+            runtime.messages,
+            runtime.partsByMessageId,
+            lateTaskEvents,
+            backgroundTasks,
+            liveness
+          ),
+    [active, runtime.messages, runtime.partsByMessageId, lateTaskEvents, backgroundTasks, liveness]
   )
   useLayoutEffect(() => {
     if (active) retainedStatusRef.current = status
@@ -1235,8 +1903,9 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
-        title: <AgentFlowPanelTitle title={tab.title} />,
-        readiness: scope.meta.conversationState
+        title: <AgentFlowHeaderTitle tab={tab} />,
+        readiness: scope.meta.conversationState,
+        backPanelId: STATUS_PANE_ID
       }
     }
   }
@@ -1311,11 +1980,7 @@ function AgentRightPaneHighlights({
   includeArtifacts?: boolean
 }) {
   const actions = useAgentRightPaneActions()
-  const { t } = useTranslation()
   const meta = useAgentRightPaneMeta()
-  const shellRunTasks = status.runTasks.filter(isShellRunTask)
-  const workflowRunTasks = status.runTasks.filter(isLocalWorkflowRunTask)
-  const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task) && !isLocalWorkflowRunTask(task))
   const artifacts = includeArtifacts && actions.canOpenArtifactFile ? status.artifacts : []
   const hasHighlights = status.runTasks.length > 0 || artifacts.length > 0
 
@@ -1325,32 +1990,7 @@ function AgentRightPaneHighlights({
     <div className={cn('space-y-2.5', compact ? 'text-xs' : 'text-sm')}>
       {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={compact} />}
 
-      {workflowRunTasks.length > 0 && (
-        <AgentRightPaneHighlightSection
-          title={t('agent.right_pane.info.workflows')}
-          icon={<Workflow size={14} className="text-muted-foreground" />}
-          compact={compact}>
-          <WorkflowRunTaskList tasks={workflowRunTasks} sessionId={meta.sessionId} />
-        </AgentRightPaneHighlightSection>
-      )}
-
-      {agentRunTasks.length > 0 && (
-        <AgentRightPaneHighlightSection
-          title={t('agent.right_pane.info.subagents')}
-          icon={<Bot size={14} className="text-muted-foreground" />}
-          compact={compact}>
-          <RunTaskList tasks={agentRunTasks} sessionId={meta.sessionId} />
-        </AgentRightPaneHighlightSection>
-      )}
-
-      {shellRunTasks.length > 0 && (
-        <AgentRightPaneHighlightSection
-          title={t('agent.right_pane.info.shell_tasks')}
-          icon={<Terminal size={14} className="text-muted-foreground" />}
-          compact={compact}>
-          <RunTaskList tasks={shellRunTasks} sessionId={meta.sessionId} />
-        </AgentRightPaneHighlightSection>
-      )}
+      <AgentRunActivitySections tasks={status.runTasks} sessionId={meta.sessionId} />
     </div>
   )
 }

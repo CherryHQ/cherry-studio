@@ -1,4 +1,5 @@
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import type { AgentWorkflowSnapshot } from '@shared/ai/agentWorkflowProgress'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
@@ -198,6 +199,72 @@ describe('agent right pane projections', () => {
       expect(JSON.stringify(assistantParts)).not.toContain('internal-agent-id')
     }
   )
+
+  it('separates an async launch receipt from the visible agent reply', () => {
+    const launchReceipt =
+      'Async agent launched successfully. (This tool result is internal metadata — never quote it.) agentId: internal-1 output_file: C:\\temp\\agent.output'
+    const parts = [
+      toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Inspect the renderer' }, launchReceipt),
+      textPart('Child agent is inspecting the renderer.', 'root')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
+
+    expect(projection.launchReceipt).toBe(launchReceipt)
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ type: 'text', text: 'Child agent is inspecting the renderer.' })
+    ])
+  })
+
+  it('keeps a normal final agent summary in the visible reply', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Inspect the renderer' },
+        'Inspection complete'
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
+
+    expect(projection.launchReceipt).toBeUndefined()
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toContainEqual({
+      type: 'text',
+      text: 'Inspection complete'
+    })
+  })
+
+  it('separates a foreground completion receipt from the visible agent reply', () => {
+    const agentReceipt =
+      "agentId: af624763698eaaff3 (use SendMessage with to: 'af624763698eaaff3', summary: '<5-10 word recap>' to continue this agent)"
+    const usageReceipt = 'subagent_tokens: 27371\ntool_uses: 16\nduration_ms: 56581'
+    const completionReceipt = `${agentReceipt}\n${usageReceipt}`
+    const parts = [
+      toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Inspect the renderer' },
+        `Inspection complete\n\n${agentReceipt}\n<usage>${usageReceipt}</usage>`
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
+
+    expect(projection.completionReceipt).toBe(completionReceipt)
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toContainEqual({
+      type: 'text',
+      text: 'Inspection complete'
+    })
+    expect(JSON.stringify(projection.partsByMessageId['root:agent-flow-assistant'])).not.toContain('<usage>')
+  })
 
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [
@@ -535,7 +602,6 @@ describe('agent right pane projections', () => {
           title: 'Inspecting task state',
           activeText: 'Reading renderer state',
           summary: 'Reviewing renderer files',
-          lastToolName: 'Read',
           usage: { totalTokens: 800, toolUses: 3, durationMs: 6000 }
         }
       },
@@ -546,7 +612,6 @@ describe('agent right pane projections', () => {
           taskId: 'task-1',
           status: 'completed',
           summary: 'Inspect task state',
-          outputFile: '/tmp/task-1.md',
           usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
         }
       }
@@ -557,9 +622,8 @@ describe('agent right pane projections', () => {
 
     expect(status.tasks).toEqual([])
     expect(status.totalTaskCount).toBe(0)
-    // Fields the old shared shape could not carry now survive the projection.
     expect(status.runTasks).toEqual([
-      {
+      expect.objectContaining({
         id: 'task-1',
         toolUseId: 'tool-use-1',
         title: 'Inspect task state',
@@ -567,12 +631,95 @@ describe('agent right pane projections', () => {
         status: 'completed',
         taskType: 'subagent',
         subagentType: 'code-reviewer',
-        workflowName: undefined,
-        summary: 'Inspect task state',
-        lastToolName: 'Read',
-        outputFile: '/tmp/task-1.md',
         usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
+      })
+    ])
+  })
+
+  it('projects aggregate-only background tasks as running placeholders', () => {
+    const status = buildAgentRightPaneStatus(
+      [],
+      {},
+      {},
+      [
+        {
+          id: 'aggregate-only',
+          type: 'local_bash',
+          description: 'pnpm dev',
+          toolCallId: 'bash-1'
+        }
+      ],
+      { activeMessageIds: new Set() }
+    )
+
+    expect(status.runTasks).toEqual([
+      {
+        id: 'aggregate-only',
+        toolUseId: 'bash-1',
+        title: 'pnpm dev',
+        status: 'in_progress',
+        taskType: 'local_bash',
+        isBackgrounded: true
       }
+    ])
+  })
+
+  it('lets a terminal lifecycle edge settle an aggregate-only placeholder', () => {
+    const status = buildAgentRightPaneStatus(
+      [],
+      {},
+      {
+        'aggregate-only': {
+          event: 'notification',
+          taskId: 'aggregate-only',
+          status: 'completed',
+          completedAt: '2026-08-12T01:05:00.000Z'
+        }
+      },
+      [{ id: 'aggregate-only', type: 'local_bash', description: 'pnpm dev', toolCallId: 'bash-1' }]
+    )
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'aggregate-only',
+        toolUseId: 'bash-1',
+        title: 'pnpm dev',
+        status: 'completed',
+        completedAt: '2026-08-12T01:05:00.000Z',
+        taskType: 'local_bash'
+      })
+    ])
+  })
+
+  it('uses aggregate membership as the only liveness authority for detached tasks', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'detached-1',
+          status: 'in_progress',
+          title: 'Detached task',
+          taskType: 'subagent',
+          isBackgrounded: true
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+    const liveness = { activeMessageIds: new Set(['m1']) }
+
+    const live = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {},
+      [{ id: 'detached-1', type: 'subagent', description: 'Detached task' }],
+      liveness
+    )
+    expect(live.runTasks).toEqual([expect.objectContaining({ id: 'detached-1', status: 'in_progress' })])
+
+    const removed = buildAgentRightPaneStatus(messages, { m1: parts }, {}, [], liveness)
+    expect(removed.runTasks).toEqual([
+      expect.objectContaining({ id: 'detached-1', status: 'error', activeText: undefined })
     ])
   })
 
@@ -616,11 +763,36 @@ describe('agent right pane projections', () => {
     const parts = [
       {
         type: 'data-agent-task-event',
-        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest', taskType: 'local_bash' }
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          title: 'Fetch latest',
+          activeText: 'Starting fetch',
+          taskType: 'local_bash'
+        }
       },
       {
         type: 'data-agent-task-event',
-        data: { event: 'notification', taskId: 'bg-1', status: 'completed', summary: 'done' }
+        data: {
+          event: 'progress',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          activeText: 'Fetching final page',
+          summary: 'Almost done',
+          usage: { totalTokens: 180, toolUses: 2, durationMs: 4000 }
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          completedAt: '2026-08-12T01:05:00.000Z',
+          summary: 'Fetched every page',
+          usage: { totalTokens: 200, toolUses: 3, durationMs: 5000 }
+        }
       }
     ] as unknown as CherryMessagePart[]
     const messages = [message('m1', parts)]
@@ -629,11 +801,26 @@ describe('agent right pane projections', () => {
       messages,
       { m1: parts },
       {
-        'bg-1': { event: 'progress', taskId: 'bg-1', status: 'in_progress', description: 'Fetch latest' }
+        'bg-1': {
+          event: 'progress',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          activeText: 'Stale page fetch',
+          summary: 'Stale summary',
+          usage: { totalTokens: 120, toolUses: 1, durationMs: 3000 }
+        }
       }
     )
 
-    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'completed' })])
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'bg-1',
+        status: 'completed',
+        completedAt: '2026-08-12T01:05:00.000Z',
+        activeText: 'Fetching final page',
+        usage: { totalTokens: 200, toolUses: 3, durationMs: 5000 }
+      })
+    ])
   })
 
   it('keeps a stopped task terminal when liveness no longer reports it', () => {
@@ -648,12 +835,9 @@ describe('agent right pane projections', () => {
       }
     ] as unknown as CherryMessagePart[]
 
-    const status = buildAgentRightPaneStatus(
-      [message('m1', parts)],
-      { m1: parts },
-      {},
-      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }
-    )
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts }, {}, [], {
+      activeMessageIds: new Set()
+    })
 
     expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'stopped' })])
   })
@@ -680,8 +864,7 @@ describe('agent right pane projections', () => {
           event: 'notification',
           taskId: 'bg-1',
           status: 'completed',
-          summary: 'slept',
-          outputFile: '/tmp/bg-1.md'
+          summary: 'slept'
         }
       }
     )
@@ -691,51 +874,348 @@ describe('agent right pane projections', () => {
       expect.objectContaining({
         id: 'bg-1',
         status: 'completed',
-        taskType: 'local_bash',
-        outputFile: '/tmp/bg-1.md'
+        taskType: 'local_bash'
       })
     ])
   })
 
-  // An interrupted turn kills its subagents without a completion event, so the persisted parts end
-  // at in_progress forever. Liveness — not the events — decides whether a row still spins.
-  it('stops a run task the session is no longer running', () => {
+  it('uses aggregate launch identity when a background Bash lifecycle edge omits its tool use id', () => {
     const parts = [
       {
-        type: 'data-agent-task-event',
-        data: { event: 'started', taskId: 'agent-1', status: 'in_progress', title: 'Review', taskType: 'local_agent' }
+        type: 'dynamic-tool',
+        toolCallId: 'bash-other',
+        toolName: 'Bash',
+        state: 'output-available',
+        input: { command: 'echo other' },
+        output: 'other output'
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'bash-background',
+        toolName: 'Bash',
+        state: 'output-available',
+        input: { command: 'pnpm dev' },
+        output: {
+          stdout: 'ready on http://localhost:5173',
+          stderr: 'warning: fixture',
+          interrupted: false,
+          backgroundTaskId: 'bg-1'
+        }
       },
       {
         type: 'data-agent-task-event',
-        data: { event: 'progress', taskId: 'agent-1', status: 'in_progress', description: 'Reading files' }
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          title: 'Start dev server',
+          createdAt: '2026-08-12T01:00:00.000Z'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts }, {}, [
+      { id: 'bg-1', type: 'local_bash', description: 'Start dev server', toolCallId: 'bash-background' }
+    ])
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'bg-1',
+        toolUseId: 'bash-background',
+        taskType: 'local_bash',
+        command: 'pnpm dev',
+        output: 'ready on http://localhost:5173\nwarning: fixture',
+        createdAt: '2026-08-12T01:00:00.000Z'
+      })
+    ])
+    expect(status.runTasks[0].output).not.toContain('backgroundTaskId')
+    expect(status.runTasks[0].output).not.toContain('interrupted')
+  })
+
+  it('keeps failed background Bash logs from an output-error tool part', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'bash-failed',
+        toolName: 'Bash',
+        state: 'output-error',
+        input: { command: 'pnpm test' },
+        errorText: 'Command failed\nlast command output'
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'bg-failed',
+          toolUseId: 'bash-failed',
+          status: 'error',
+          title: 'Run tests',
+          taskType: 'local_bash'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'bg-failed',
+        command: 'pnpm test',
+        output: 'Command failed\nlast command output'
+      })
+    ])
+  })
+
+  it('keeps oversized background Bash output as a resolvable deferred value', () => {
+    const deferredOutput = {
+      $deferredToolResult: { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'bash-background' }
+    }
+    const parts = [
+      toolPart('bash-background', 'Bash', undefined, 'output-available', { command: 'pnpm dev' }, deferredOutput),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          toolUseId: 'bash-background',
+          status: 'in_progress',
+          title: 'Start dev server',
+          taskType: 'local_bash'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'bg-1',
+        command: 'pnpm dev',
+        deferredOutput
+      })
+    ])
+    expect(status.runTasks[0].output).toBeUndefined()
+  })
+
+  it('keeps the complete workflow snapshot and lifecycle timestamps on the projected run', () => {
+    const workflow = {
+      runId: 'run-1',
+      taskId: 'workflow-1',
+      workflowName: 'review-pr',
+      phases: [{ title: 'Inspect' }],
+      workflowProgress: [
+        { type: 'workflow_phase', index: 1, title: 'Inspect' },
+        {
+          type: 'workflow_agent',
+          index: 1,
+          label: 'Inspect:renderer',
+          phaseIndex: 1,
+          phaseTitle: 'Inspect',
+          state: 'done',
+          tokens: 1200,
+          toolCalls: 4,
+          durationMs: 9000
+        }
+      ]
+    } satisfies AgentWorkflowSnapshot
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'workflow-1',
+          status: 'in_progress',
+          title: 'Review pull request',
+          taskType: 'local_workflow',
+          createdAt: '2026-08-12T01:00:00.000Z',
+          workflow
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus(
+      [message('m1', parts)],
+      { m1: parts },
+      {
+        'workflow-1': {
+          event: 'notification',
+          taskId: 'workflow-1',
+          status: 'completed',
+          completedAt: '2026-08-12T01:01:00.000Z',
+          workflow: { ...workflow, durationMs: 60_000 }
+        }
+      }
+    )
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'workflow-1',
+        createdAt: '2026-08-12T01:00:00.000Z',
+        completedAt: '2026-08-12T01:01:00.000Z',
+        workflow: expect.objectContaining({
+          durationMs: 60_000,
+          workflowProgress: expect.arrayContaining([
+            expect.objectContaining({ type: 'workflow_agent', label: 'Inspect:renderer', tokens: 1200 })
+          ])
+        })
+      })
+    ])
+  })
+
+  it.each([
+    ['completed', 'completed'],
+    ['stopped', 'interrupted'],
+    ['error', 'interrupted']
+  ] as const)('settles active workflow agents when the run becomes %s without a new snapshot', (status, state) => {
+    const workflow = {
+      runId: 'run-1',
+      taskId: 'workflow-1',
+      phases: [{ title: 'Review' }],
+      workflowProgress: [
+        { type: 'workflow_phase', index: 1, title: 'Review' },
+        {
+          type: 'workflow_agent',
+          index: 1,
+          label: 'active-agent',
+          phaseIndex: 1,
+          phaseTitle: 'Review',
+          state: 'running'
+        },
+        {
+          type: 'workflow_agent',
+          index: 2,
+          label: 'queued-agent',
+          phaseIndex: 1,
+          phaseTitle: 'Review',
+          state: 'queued'
+        }
+      ]
+    } satisfies AgentWorkflowSnapshot
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'workflow-1',
+          status: 'in_progress',
+          title: 'Review',
+          taskType: 'local_workflow',
+          workflow
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const projected = buildAgentRightPaneStatus(
+      [message('m1', parts)],
+      { m1: parts },
+      {
+        'workflow-1': {
+          event: 'notification',
+          taskId: 'workflow-1',
+          status
+        }
+      }
+    )
+
+    expect(projected.runTasks[0].workflow?.workflowProgress).toEqual([
+      expect.objectContaining({ type: 'workflow_phase', title: 'Review' }),
+      expect.objectContaining({ label: 'active-agent', state }),
+      expect.objectContaining({ label: 'queued-agent', state: 'queued' })
+    ])
+  })
+
+  // Turn completion and detached membership are separate SDK messages. Until the task declares
+  // detachment, the gap between them must remain neutral rather than flashing a false failure.
+  it('keeps an unknown foreground-to-background handoff pending', () => {
+    const workflow = {
+      runId: 'run-1',
+      taskId: 'workflow-1',
+      workflowName: 'review-pr',
+      phases: [{ title: 'Review' }],
+      workflowProgress: [
+        { type: 'workflow_phase', index: 1, title: 'Review' },
+        {
+          type: 'workflow_agent',
+          index: 1,
+          label: 'running-agent',
+          phaseIndex: 1,
+          phaseTitle: 'Review',
+          state: 'running'
+        },
+        {
+          type: 'workflow_agent',
+          index: 2,
+          label: 'queued-agent',
+          phaseIndex: 1,
+          phaseTitle: 'Review',
+          state: 'queued'
+        },
+        {
+          type: 'workflow_agent',
+          index: 3,
+          label: 'done-agent',
+          phaseIndex: 1,
+          phaseTitle: 'Review',
+          state: 'done'
+        }
+      ]
+    } satisfies AgentWorkflowSnapshot
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'workflow-1',
+          status: 'in_progress',
+          title: 'Review',
+          taskType: 'local_workflow',
+          workflow
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'progress', taskId: 'workflow-1', status: 'in_progress', description: 'Reading files' }
       }
     ] as unknown as CherryMessagePart[]
     const messages = [message('m1', parts)]
 
-    const live = buildAgentRightPaneStatus(
-      messages,
-      { m1: parts },
-      {},
-      { activeMessageIds: new Set(['m1']), liveBackgroundTaskIds: new Set() }
-    )
-    expect(live.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
+    const live = buildAgentRightPaneStatus(messages, { m1: parts }, {}, [], {
+      activeMessageIds: new Set(['m1'])
+    })
+    expect(live.runTasks).toEqual([expect.objectContaining({ id: 'workflow-1', status: 'in_progress' })])
 
     const backgrounded = buildAgentRightPaneStatus(
       messages,
       { m1: parts },
       {},
-      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set(['agent-1']) }
+      [{ id: 'workflow-1', type: 'local_workflow', description: 'Review' }],
+      { activeMessageIds: new Set() }
     )
-    expect(backgrounded.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
+    expect(backgrounded.runTasks).toEqual([expect.objectContaining({ id: 'workflow-1', status: 'in_progress' })])
 
-    const stale = buildAgentRightPaneStatus(
-      messages,
-      { m1: parts },
-      {},
-      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }
-    )
-    expect(stale.runTasks).toEqual([
-      expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
+    const handoff = buildAgentRightPaneStatus(messages, { m1: parts }, {}, [], {
+      activeMessageIds: new Set()
+    })
+    expect(handoff.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'workflow-1',
+        status: 'pending',
+        activeText: undefined,
+        workflow: expect.objectContaining({
+          workflowProgress: [
+            expect.objectContaining({ type: 'workflow_phase', title: 'Review' }),
+            expect.objectContaining({ label: 'running-agent', state: 'running' }),
+            expect.objectContaining({ label: 'queued-agent', state: 'queued' }),
+            expect.objectContaining({ label: 'done-agent', state: 'done' })
+          ]
+        })
+      })
+    ])
+    expect(workflow.workflowProgress).toEqual([
+      expect.objectContaining({ type: 'workflow_phase', title: 'Review' }),
+      expect.objectContaining({ label: 'running-agent', state: 'running' }),
+      expect.objectContaining({ label: 'queued-agent', state: 'queued' }),
+      expect.objectContaining({ label: 'done-agent', state: 'done' })
     ])
   })
 
@@ -755,15 +1235,12 @@ describe('agent right pane projections', () => {
     const currentParts = [textPart('new turn')]
     const messages = [message('historical', historicalParts), message('current', currentParts)]
 
-    const status = buildAgentRightPaneStatus(
-      messages,
-      { historical: historicalParts, current: currentParts },
-      {},
-      { activeMessageIds: new Set(['current']), liveBackgroundTaskIds: new Set() }
-    )
+    const status = buildAgentRightPaneStatus(messages, { historical: historicalParts, current: currentParts }, {}, [], {
+      activeMessageIds: new Set(['current'])
+    })
 
     expect(status.runTasks).toEqual([
-      expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
+      expect.objectContaining({ id: 'agent-1', status: 'error', activeText: undefined })
     ])
   })
 })

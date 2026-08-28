@@ -10,6 +10,7 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useEffect, useMemo } from 'react'
 
@@ -64,6 +65,9 @@ const AgentSessionMessages = ({
   const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
   const sessionLastActivityAt = session?.lastActivityAt ?? sessionCreatedAt
   const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
+  const backgroundTaskFlows = activeAgent?.type
+    ? AGENT_RUNTIME_CAPABILITIES[activeAgent.type].backgroundTaskFlows
+    : false
   const assistantProfile = useMemo(
     () =>
       activeAgent
@@ -75,6 +79,7 @@ const AgentSessionMessages = ({
     [activeAgent]
   )
   const backgroundTaskAnchorMessageId = useMemo(() => {
+    if (!backgroundTaskFlows) return undefined
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
       if (message?.role !== 'assistant') continue
@@ -82,7 +87,7 @@ const AgentSessionMessages = ({
       if (parts.length > 0) return message.id
     }
     return undefined
-  }, [messages, partsByMessageId])
+  }, [backgroundTaskFlows, messages, partsByMessageId])
   const messageTail = useMemo(
     () =>
       backgroundTaskAnchorMessageId

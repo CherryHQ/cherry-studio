@@ -24,6 +24,7 @@ import {
   toFtsLikePattern,
   toFtsMatchQuery
 } from '@main/utils/trigramFtsQuery'
+import { isTerminalAgentSessionTaskStatus } from '@shared/ai/agentSessionBackgroundTasks'
 import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
   type AgentSessionDeliveryEnvelope,
@@ -54,8 +55,8 @@ import {
   coerceSearchRole,
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
-import { isToolUIPart } from 'ai'
+import { type AgentTaskEventPartData, readCherryMeta } from '@shared/data/types/uiParts'
+import { isDataUIPart, isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -1721,6 +1722,60 @@ export class AgentSessionMessageService {
       }
     ])
     return saved
+  }
+
+  checkpointWorkflowTaskEvent(sessionId: string, messageId: string, event: AgentTaskEventPartData): void {
+    const updated = application.get('DbService').withWriteTx((tx) => {
+      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existingRow) return false
+
+      const parts = existingRow.data.parts ?? []
+      let fallbackIndex = -1
+      let index = -1
+      for (let candidateIndex = parts.length - 1; candidateIndex >= 0; candidateIndex -= 1) {
+        const part = parts[candidateIndex]
+        if (
+          !isDataUIPart(part) ||
+          part.type !== 'data-agent-task-event' ||
+          part.data.taskId !== event.taskId ||
+          part.data.workflow === undefined
+        ) {
+          continue
+        }
+        if (fallbackIndex < 0) fallbackIndex = candidateIndex
+        if (isTerminalAgentSessionTaskStatus(part.data.status)) {
+          index = candidateIndex
+          break
+        }
+      }
+      if (index < 0) index = fallbackIndex
+      const existingCheckpoint = index < 0 ? undefined : parts[index]
+      const checkpoint = {
+        type: 'data-agent-task-event',
+        id:
+          existingCheckpoint?.type === 'data-agent-task-event'
+            ? existingCheckpoint.id
+            : `task-${event.taskId}-workflow-checkpoint`,
+        data: event
+      } as CherryMessagePart
+      const nextParts = index < 0 ? [...parts, checkpoint] : parts.with(index, checkpoint)
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...existingRow.data, parts: nextParts } })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+      return true
+    })
+
+    if (updated && isTerminalAgentSessionTaskStatus(event.status)) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds: [messageId]
+        }
+      ])
+    }
   }
 
   /**

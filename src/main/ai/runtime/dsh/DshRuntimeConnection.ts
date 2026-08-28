@@ -556,14 +556,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /** Interrupt one continuable child's current turn (user authority); absent child = accepted no-op. */
+  /** Interrupt the continuable child behind one live task run; absent child = accepted no-op. */
   async stopTask(taskId: string): Promise<boolean> {
     const bridge = this.bridge
     if (!bridge || this.closed) return false
+    const childSessionId = this.subagents.resolveActiveChildSessionId(taskId) ?? taskId
     try {
       await bridge.request(
         'subagent/interrupt',
-        { sessionId: this.input.sessionId, childSessionId: taskId },
+        { sessionId: this.input.sessionId, childSessionId },
         { timeoutMs: 5_000 }
       )
       return true

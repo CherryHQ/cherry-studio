@@ -1,3 +1,4 @@
+import type * as CherryUi from '@cherrystudio/ui'
 import {
   HoverCard as RealHoverCard,
   HoverCardContent as RealHoverCardContent,
@@ -6,7 +7,6 @@ import {
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
-import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
@@ -21,14 +21,13 @@ import type {
   ReactNode
 } from 'react'
 import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
-  backgroundTasksState,
   buildAgentToolFlowProjectionMock,
-  getToolResultMock,
   fileSessionDiscardMock,
   fileSessionFlushMock,
   fileSessionState,
@@ -42,11 +41,13 @@ const {
   useDirectoryTreeMock,
   ipcRequestMock,
   toastErrorMock,
-  uiMockState
+  uiMockState,
+  backgroundTasksState,
+  taskEventsState,
+  stableI18n,
+  toolResultState
 } = vi.hoisted(() => ({
-  backgroundTasksState: { value: [] as AgentSessionBackgroundTask[] },
   buildAgentToolFlowProjectionMock: vi.fn(),
-  getToolResultMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
   fileSessionFlushMock: vi.fn().mockResolvedValue(undefined),
   fileSessionState: {
@@ -74,7 +75,15 @@ const {
   useDirectoryTreeMock: vi.fn(),
   ipcRequestMock: vi.fn(),
   toastErrorMock: vi.fn(),
-  uiMockState: { useRealHoverCard: false }
+  uiMockState: { useRealHoverCard: false },
+  backgroundTasksState: {
+    tasks: [] as Array<{ id: string; type: string; description: string; toolCallId?: string }>
+  },
+  taskEventsState: {
+    events: {} as Record<string, Record<string, unknown>>
+  },
+  stableI18n: { language: 'en-US', resolvedLanguage: 'en-US' },
+  toolResultState: { output: 'Loaded flow result' as unknown }
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -88,76 +97,93 @@ vi.mock('../agentRightPaneProjection', async (importActual) => {
   }
 })
 
-vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
-  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  CircularProgress: ({ value }: { value: number }) => (
-    <span data-testid="circular-progress" data-value={String(value)} />
-  ),
-  ConfirmDialog: ({
-    cancelText,
-    confirmLoading,
-    confirmText,
-    description,
-    onConfirm,
-    onOpenChange,
-    open,
-    title
-  }: {
-    cancelText: string
-    confirmLoading?: boolean
-    confirmText: string
-    description: string
-    onConfirm: () => void
-    onOpenChange: (open: boolean) => void
-    open: boolean
-    title: string
-  }) =>
-    open ? (
-      <div role="dialog">
-        <div>{title}</div>
-        <div>{description}</div>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          {cancelText}
-        </button>
-        <button type="button" disabled={confirmLoading} onClick={onConfirm}>
-          {confirmText}
-        </button>
-      </div>
-    ) : null,
-  HoverCard: (props: ComponentProps<typeof RealHoverCard>) =>
-    uiMockState.useRealHoverCard ? <RealHoverCard {...props} /> : <div>{props.children}</div>,
-  HoverCardContent: (props: ComponentProps<typeof RealHoverCardContent>) =>
-    uiMockState.useRealHoverCard ? (
-      <RealHoverCardContent {...props} />
-    ) : (
-      <div className={props.className} data-testid="status-shortcut-preview">
-        {props.children}
-      </div>
+vi.mock('@cherrystudio/ui', async (importActual) => {
+  const actual = await importActual<typeof CherryUi>()
+  return {
+    Accordion: actual.Accordion,
+    AccordionContent: actual.AccordionContent,
+    AccordionItem: actual.AccordionItem,
+    AccordionTrigger: actual.AccordionTrigger,
+    Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
     ),
-  HoverCardTrigger: (props: ComponentProps<typeof RealHoverCardTrigger>) => {
-    if (uiMockState.useRealHoverCard) return <RealHoverCardTrigger {...props} />
-    return isValidElement(props.children) ? (
-      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
-      cloneElement(props.children as ReactElement<Record<string, unknown>>, { 'data-hover-card-trigger': 'true' })
-    ) : (
-      <>{props.children}</>
-    )
-  },
-  HorizontalScrollContainer: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  TabsTrigger: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+    CircularProgress: ({ value }: { value: number }) => (
+      <span data-testid="circular-progress" data-value={String(value)} />
+    ),
+    ConfirmDialog: ({
+      cancelText,
+      confirmLoading,
+      confirmText,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
+    }: {
+      cancelText: string
+      confirmLoading?: boolean
+      confirmText: string
+      description: string
+      onConfirm: () => void
+      onOpenChange: (open: boolean) => void
+      open: boolean
+      title: string
+    }) =>
+      open ? (
+        <div role="dialog">
+          <div>{title}</div>
+          <div>{description}</div>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            {cancelText}
+          </button>
+          <button type="button" disabled={confirmLoading} onClick={onConfirm}>
+            {confirmText}
+          </button>
+        </div>
+      ) : null,
+    HoverCard: (props: ComponentProps<typeof RealHoverCard>) =>
+      uiMockState.useRealHoverCard ? <RealHoverCard {...props} /> : <div>{props.children}</div>,
+    HoverCardContent: (props: ComponentProps<typeof RealHoverCardContent>) =>
+      uiMockState.useRealHoverCard ? (
+        <RealHoverCardContent {...props} />
+      ) : (
+        <div className={props.className} data-testid="status-shortcut-preview">
+          {props.children}
+        </div>
+      ),
+    HoverCardTrigger: (props: ComponentProps<typeof RealHoverCardTrigger>) => {
+      if (uiMockState.useRealHoverCard) return <RealHoverCardTrigger {...props} />
+      return isValidElement(props.children) ? (
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+        cloneElement(props.children as ReactElement<Record<string, unknown>>, { 'data-hover-card-trigger': 'true' })
+      ) : (
+        <>{props.children}</>
+      )
+    },
+    HorizontalScrollContainer: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    TabsTrigger: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  }
+})
+
+vi.mock('@renderer/components/chat/messages/tools/agent', async (importActual) => ({
+  ...(await importActual<Record<string, unknown>>()),
+  TerminalOutput: ({ command, content }: { command?: string; content: string }) => (
+    <pre>
+      {command ? <span>{command}</span> : null}
+      {command && content ? '\n\n' : null}
+      {content ? <span>{content}</span> : null}
+    </pre>
+  )
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -218,16 +244,12 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/useToolResult', () => ({
-  useToolResult: (ref: unknown) => ({ output: ref ? getToolResultMock(ref) : undefined })
-}))
-
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipcRequestMock }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: toastErrorMock }
+  toast: { error: toastErrorMock, success: vi.fn() }
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
@@ -373,7 +395,11 @@ vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionBackgroundTasks', () => ({
-  useAgentSessionBackgroundTasks: () => backgroundTasksState.value
+  useAgentSessionBackgroundTasks: () => backgroundTasksState.tasks
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentSessionTaskEvents', () => ({
+  useAgentSessionTaskEvents: () => taskEventsState.events
 }))
 
 // A live turn: run-task rows render the status their events report. Staleness is covered where the
@@ -423,13 +449,15 @@ vi.mock('motion/react', () => ({
 // would invalidate the provider's scope memo and break render-isolation assertions.
 const stableT = (key: string, values?: Record<string, unknown>) =>
   key === 'agent.right_pane.status.task_progress_compact' ? `Step ${values?.current}/${values?.total}` : key
+vi.mock('@renderer/i18n/resolver', () => ({ default: stableI18n }))
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: stableT })
+  useTranslation: () => ({ i18n: stableI18n, t: stableT })
 }))
 
 import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
 
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
+const TEST_SWR_CONFIG = { provider: () => new Map() }
 
 function createTaskPart(sequence: number, subject: string, activeForm?: string): CherryMessagePart {
   return {
@@ -468,29 +496,34 @@ function TestAgentRightPane({
   ...scopeProps
 }: TestAgentRightPaneProps) {
   return (
-    <AgentRightPane.Scope
-      {...scopeProps}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}
-      resourcePane={resourcePane}>
-      {children}
-    </AgentRightPane.Scope>
+    <SWRConfig value={TEST_SWR_CONFIG}>
+      <AgentRightPane.Scope
+        {...scopeProps}
+        agentType={scopeProps.agentType ?? 'claude-code'}
+        defaultOpen={defaultOpen}
+        onOpenChange={onOpenChange}
+        resourcePane={resourcePane}>
+        {children}
+      </AgentRightPane.Scope>
+    </SWRConfig>
   )
 }
 
 function OpenFlowButton({
   label = 'open flow',
   title = 'Inspect flow',
-  toolCallId = 'flow-1'
+  toolCallId = 'flow-1',
+  agentName
 }: {
   label?: string
   title?: string
   toolCallId?: string
+  agentName?: string
 }) {
   const { openAgentToolFlow } = useAgentRightPaneActions()
 
   return (
-    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title })}>
+    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title, agentName })}>
       {label}
     </button>
   )
@@ -520,10 +553,23 @@ type StatusTaskFixture = {
   status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title: string
   taskType?: string
+  subagentType?: string
   toolUseId?: string
+  description?: string
+  workflowName?: string
+  isBackgrounded?: boolean
+  createdAt?: string
+  completedAt?: string
+  usage?: { totalTokens?: number; contextTokens?: number; toolUses?: number; durationMs?: number }
 }
 
-function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
+function renderStatusTasks(
+  tasks: StatusTaskFixture[],
+  {
+    openPanel = true,
+    agentType = 'claude-code'
+  }: { openPanel?: boolean; agentType?: TestAgentRightPaneProps['agentType'] } = {}
+) {
   const parts = tasks.map(
     (task) =>
       ({
@@ -534,14 +580,25 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
           status: task.status,
           title: task.title,
           taskType: task.taskType,
-          toolUseId: task.toolUseId
+          subagentType: task.subagentType,
+          toolUseId: task.toolUseId,
+          description: task.description,
+          workflowName: task.workflowName,
+          isBackgrounded: task.isBackgrounded,
+          createdAt: task.createdAt,
+          completedAt: task.completedAt,
+          usage: task.usage
         }
       }) as unknown as CherryMessagePart
   )
   const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
 
   render(
-    <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+    <TestAgentRightPane
+      agentType={agentType}
+      sessionId="session-a"
+      messages={messages}
+      partsByMessageId={{ m1: parts }}>
       <AgentRightPane.Shortcuts />
       <AgentRightPane.Viewport />
     </TestAgentRightPane>
@@ -565,13 +622,23 @@ describe('AgentRightPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     uiMockState.useRealHoverCard = false
-    ipcRequestMock.mockResolvedValue({
-      kind: 'file',
-      type: 'text',
-      size: 1,
-      createdAt: 1,
-      modifiedAt: 1,
-      mime: 'text/plain'
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+    toolResultState.output = 'Loaded flow result'
+    ipcRequestMock.mockImplementation((channel: string) => {
+      if (channel === 'ai.tool.get_result') {
+        return Promise.resolve({ found: true, output: toolResultState.output })
+      }
+      return Promise.resolve({
+        kind: 'file',
+        type: 'text',
+        size: 1,
+        createdAt: 1,
+        modifiedAt: 1,
+        mime: 'text/plain'
+      })
     })
     fileSessionState.isDirty = false
     fileSessionState.isSaving = false
@@ -582,14 +649,14 @@ describe('AgentRightPane', () => {
     fileTreeModelStore.revision = 0
     resolveArtifactPaneFileSelectionMock.mockReturnValue(null)
     systemFileTreeState.root = new TreeDirRoot('/system-workspace')
+    backgroundTasksState.tasks = []
+    taskEventsState.events = {}
     systemFileTreeState.version = 0
-    backgroundTasksState.value = []
     useDirectoryTreeMock.mockImplementation(() => systemFileTreeState)
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
-    getToolResultMock.mockReturnValue('Loaded flow result')
   })
 
   it('opens the current task plan from hover and keyboard focus, then hides it after completion', async () => {
@@ -962,7 +1029,6 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
-    await waitFor(() => expect(getToolResultMock).toHaveBeenCalledWith(deferredToolResult))
     await waitFor(() =>
       expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(
         messages,
@@ -1177,28 +1243,224 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
-  it('opens a subagent flow from the shortcut environment context', () => {
+  it('opens a subagent flow from the shortcut environment context', async () => {
+    const user = userEvent.setup()
     renderStatusTasks(
       [
         {
           id: 'subagent-1',
-          status: 'in_progress',
+          status: 'completed',
           title: 'Inspect task state',
+          description: 'Inspect the task projection and event merge path',
           taskType: 'local_agent',
-          toolUseId: 'tool-use-1'
+          subagentType: 'general-purpose',
+          toolUseId: 'tool-use-1',
+          usage: { totalTokens: 2400, contextTokens: 800, toolUses: 7, durationMs: 5000 }
         }
       ],
       { openPanel: false }
     )
 
     const preview = screen.getByTestId('status-shortcut-preview')
-    const taskButton = within(preview).getByRole('button', { name: /Inspect task state/ })
+    const contextUsage = within(preview).getByTestId('context-usage')
+    const taskButton = within(preview).getByRole('button', {
+      name: /Inspect task state.*agent\.right_pane\.status\.total.*2\.4K.*agent\.right_pane\.status\.context_size.*800.*agent\.right_pane\.status\.tools.*7/
+    })
+    expect(taskButton).not.toHaveAttribute('aria-label')
+    expect(contextUsage.compareDocumentPosition(taskButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(taskButton).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
     expect(taskButton).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring')
-    fireEvent.click(taskButton)
+    expect(within(taskButton).getByText('general-purpose')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.total·2.4K')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.context_size·800')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.tools·7')).toBeInTheDocument()
+    const syncLabel = within(taskButton).getByText('agent.right_pane.status.execution_sync')
+    const duration = within(taskButton).getByText('5s')
+    expect(syncLabel.compareDocumentPosition(duration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(within(taskButton).getByText('agent.right_pane.status.total·2.4K'))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+    const flowHeader = screen.getByTestId('shell-tab-title')
+    expect(flowHeader).toHaveTextContent('Inspect task state')
+    expect(flowHeader).toHaveTextContent('general-purpose')
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    await user.click(within(flowHeader).getByRole('button', { name: 'agent.right_pane.status.copy_agent_name' }))
+    expect(clipboardWriteText).toHaveBeenCalledExactlyOnceWith('general-purpose')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    clipboardWriteText.mockRestore()
+  })
+
+  it('labels a detached single Agent as asynchronous before its duration', () => {
+    renderStatusTasks([
+      {
+        id: 'subagent-async',
+        status: 'in_progress',
+        title: 'Inspect asynchronously',
+        taskType: 'local_agent',
+        subagentType: 'general-purpose',
+        toolUseId: 'tool-use-async',
+        isBackgrounded: true,
+        usage: { durationMs: 5000 }
+      }
+    ])
+
+    const taskButton = screen.getByTitle('agent.right_pane.status.view_details')
+    const asyncLabel = within(taskButton).getByText('agent.right_pane.status.execution_async')
+    const duration = within(taskButton).getByText('5s')
+    expect(asyncLabel.compareDocumentPosition(duration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows ASCII hyphens when single-Agent statistics are unavailable', () => {
+    renderStatusTasks([
+      {
+        id: 'subagent-empty-stats',
+        status: 'in_progress',
+        title: 'Inspect without statistics',
+        taskType: 'local_agent',
+        subagentType: 'general-purpose',
+        toolUseId: 'tool-use-empty-stats'
+      }
+    ])
+
+    const taskButton = screen.getByTitle('agent.right_pane.status.view_details')
+    expect(within(taskButton).getByText('agent.right_pane.status.total·-')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.context_size·-')).toBeInTheDocument()
+    expect(within(taskButton).getByText('agent.right_pane.status.tools·-')).toBeInTheDocument()
+  })
+
+  it('shows DSH scheduling mode and local duration without unavailable usage metrics', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime('2026-08-17T01:00:05.000Z')
+      backgroundTasksState.tasks = [
+        {
+          id: 'dsh-background',
+          type: 'subagent',
+          description: 'Async DSH task',
+          toolCallId: 'dsh-tool-background'
+        }
+      ]
+      renderStatusTasks(
+        [
+          {
+            id: 'dsh-background',
+            status: 'in_progress',
+            title: 'Async DSH task',
+            taskType: 'subagent',
+            toolUseId: 'dsh-tool-background',
+            isBackgrounded: true,
+            createdAt: '2026-08-17T01:00:00.000Z'
+          },
+          {
+            id: 'dsh-foreground',
+            status: 'completed',
+            title: 'Sync DSH task',
+            taskType: 'subagent',
+            toolUseId: 'dsh-tool-foreground',
+            isBackgrounded: false,
+            createdAt: '2026-08-17T01:00:00.000Z',
+            completedAt: '2026-08-17T01:00:03.000Z'
+          }
+        ],
+        { agentType: 'dsh' }
+      )
+
+      const asyncTask = screen.getByRole('button', { name: /Async DSH task/ })
+      expect(within(asyncTask).getByText('agent.right_pane.status.execution_async')).toBeInTheDocument()
+      expect(within(asyncTask).getByText('5s')).toBeInTheDocument()
+
+      const syncTask = screen.getByRole('button', { name: /Sync DSH task/ })
+      expect(within(syncTask).getByText('agent.right_pane.status.execution_sync')).toBeInTheDocument()
+      expect(within(syncTask).getByText('3s')).toBeInTheDocument()
+
+      expect(screen.queryByText(/agent\.right_pane\.status\.(total|context_size|tools)·/)).not.toBeInTheDocument()
+
+      await act(() => vi.advanceTimersByTime(1000))
+      expect(within(asyncTask).getByText('6s')).toBeInTheDocument()
+      expect(within(syncTask).getByText('3s')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not open a Claude-only agent flow for a pi runtime', async () => {
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane agentType="pi" sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps the internal launch receipt collapsed below the child message flow', async () => {
+    const user = userEvent.setup()
+    const launchReceipt =
+      'Async agent launched successfully. (This tool result is internal metadata — never quote it.) agentId: internal-1 output_file: C:\\temp\\agent.output'
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'flow-1',
+        toolName: 'Agent',
+        state: 'output-available',
+        input: { prompt: 'Inspect the renderer' },
+        output: launchReceipt
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <OpenFlowButton agentName="general-purpose" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+    const receiptTrigger = screen.getByRole('button', { name: 'agent.right_pane.flow.launch_receipt' })
+    expect(receiptTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(launchReceipt)).not.toBeInTheDocument()
+
+    await user.click(receiptTrigger)
+    expect(screen.getByText(launchReceipt)).toBeInTheDocument()
+  })
+
+  it('keeps the foreground completion receipt collapsed below the child message flow', async () => {
+    const user = userEvent.setup()
+    const completionReceipt =
+      "agentId: af624763698eaaff3 (use SendMessage with to: 'af624763698eaaff3', summary: '<5-10 word recap>' to continue this agent) subagent_tokens: 27371 tool_uses: 16 duration_ms: 56581"
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'flow-1',
+        toolName: 'Agent',
+        state: 'output-available',
+        input: { prompt: 'Inspect the renderer' },
+        output: `Inspection complete\n\n${completionReceipt}`
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <OpenFlowButton agentName="general-purpose" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+    const receiptTrigger = screen.getByRole('button', { name: 'agent.right_pane.flow.completion_receipt' })
+    expect(receiptTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(completionReceipt)).not.toBeInTheDocument()
+
+    await user.click(receiptTrigger)
+    expect(screen.getByText(completionReceipt)).toBeInTheDocument()
   })
 
   it('keeps a detached subagent spinning while it remains in the background task snapshot', () => {
@@ -1214,7 +1476,7 @@ describe('AgentRightPane', () => {
     const messages = [
       { id: 'm1', role: 'assistant', parts: [taskPart], metadata: { status: 'success' } }
     ] as CherryUIMessage[]
-    backgroundTasksState.value = [
+    backgroundTasksState.tasks = [
       { id: 'subagent-1', type: 'subagent', description: 'Run a detached subagent', toolCallId: 'tool-use-1' }
     ]
     render(
@@ -1227,7 +1489,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
     const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
-    expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
+    expect(taskButton.querySelector('svg')).toHaveClass('motion-safe:animate-spin')
   })
 
   it('returns from a subagent flow to the status panel', async () => {
@@ -1251,7 +1513,7 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
-    expect(screen.getByText('agent.right_pane.info.subagents')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.running')).toBeInTheDocument()
   })
 
   it('shows a dsh todo_write snapshot in the floating task capsule', () => {
@@ -1285,7 +1547,29 @@ describe('AgentRightPane', () => {
     expect(within(details).getByText('Verify the right pane')).toBeInTheDocument()
   })
 
-  it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
+  it('uses the Workflow summary layout before phases are reported', () => {
+    renderStatusTasks([
+      {
+        id: 'workflow-starting',
+        status: 'in_progress',
+        title: 'Starting workflow',
+        description: 'Coordinate specialist agents',
+        taskType: 'local_workflow',
+        workflowName: 'start-review'
+      }
+    ])
+
+    expect(screen.getByText('start-review')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.agent_count·agent.right_pane.status.workflow')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.workflow_state.running')).toBeInTheDocument()
+    expect(screen.getByText('Coordinate specialist agents')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.total·-')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.context_size·-')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.tools·-')).toBeInTheDocument()
+  })
+
+  it('renders every Workflow phase separately without a root FlowTab fallback and keeps details after completion', async () => {
+    const user = userEvent.setup()
     const parts = [
       {
         type: 'data-agent-task-event',
@@ -1295,22 +1579,278 @@ describe('AgentRightPane', () => {
           toolUseId: 'workflow-tool',
           status: 'in_progress',
           title: 'Review PR',
+          description: 'Review the pull request with specialist agents',
           taskType: 'local_workflow',
-          workflowName: 'review-pr'
+          workflowName: 'review-pr',
+          createdAt: '2026-08-12T01:00:00.000Z',
+          usage: { totalTokens: 2400, toolUses: 7, durationMs: 15_000 },
+          workflow: {
+            runId: 'run-1',
+            taskId: 'workflow-1',
+            workflowName: 'review-pr',
+            totalTokens: 2000,
+            totalCumulativeTokens: 5600,
+            phases: [{ title: 'Inspect renderer files with a deliberately long phase name' }],
+            workflowProgress: [
+              {
+                type: 'workflow_phase',
+                index: 1,
+                title: 'Inspect renderer files with a deliberately long phase name'
+              },
+              {
+                type: 'workflow_agent',
+                index: 1,
+                label: 'Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap',
+                phaseIndex: 1,
+                phaseTitle: 'Inspect renderer files with a deliberately long phase name',
+                state: 'running',
+                tokens: 1200,
+                cumulativeTokens: 3200,
+                toolCalls: 4,
+                durationMs: 80_000
+              },
+              {
+                type: 'workflow_agent',
+                index: 2,
+                label: 'Inspect:tests',
+                phaseIndex: 1,
+                phaseTitle: 'Inspect renderer files with a deliberately long phase name',
+                state: 'done',
+                tokens: 800,
+                cumulativeTokens: 2400,
+                toolCalls: 2,
+                durationMs: 5000
+              }
+            ]
+          }
         }
-      },
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    const view = render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.getByRole('region', { name: 'agent.right_pane.status.running' })).toBeInTheDocument()
+    expect(screen.getByText('review-pr')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.total·5.6K')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.context_size·2K')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.tools·7')).toBeInTheDocument()
+    const workflowButton = screen.getByRole('button', {
+      name: /review-pr.*agent\.right_pane\.status\.workflow_state\.running/
+    })
+    expect(workflowButton).not.toHaveAttribute('aria-label')
+    expect(workflowButton).toHaveAttribute('aria-expanded', 'true')
+    expect(within(workflowButton).getByText('review-pr')).toBeInTheDocument()
+    expect(
+      within(workflowButton).getByText('agent.right_pane.status.agent_count·agent.right_pane.status.workflow')
+    ).toBeInTheDocument()
+    expect(within(workflowButton).getByText('agent.right_pane.status.workflow_state.running')).toBeInTheDocument()
+    const workflowDescription = within(workflowButton).getByText('Review the pull request with specialist agents')
+    expect(workflowDescription).toBeInTheDocument()
+    const phaseTitle = 'Inspect renderer files with a deliberately long phase name'
+    const phaseButtonName = new RegExp(phaseTitle)
+    expect(screen.getByRole('button', { name: phaseButtonName })).toBeInTheDocument()
+
+    await user.click(workflowDescription)
+    expect(workflowButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: phaseButtonName })).not.toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.total·5.6K')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.context_size·2K')).toBeInTheDocument()
+
+    await user.click(workflowButton)
+    const phaseButton = screen.getByRole('button', {
+      name: /Inspect renderer files.*Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap.*agent\.right_pane\.status\.workflow_state\.running.*Inspect:tests.*agent\.right_pane\.status\.workflow_state\.completed/
+    })
+    expect(phaseButton).toBeInTheDocument()
+    expect(phaseButton).not.toHaveAttribute('aria-label')
+    expect(phaseButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTitle(phaseTitle)).toBeInTheDocument()
+    const summarySquares = [
+      within(phaseButton).getByTitle(
+        'Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap · agent.right_pane.status.workflow_state.running'
+      ),
+      within(phaseButton).getByTitle('Inspect:tests · agent.right_pane.status.workflow_state.completed')
+    ]
+    expect(summarySquares[0]).toHaveAttribute('aria-hidden', 'true')
+    expect(summarySquares[1]).toHaveAttribute('aria-hidden', 'true')
+    // The user explicitly requires solid status-square colors to match each workflow state.
+    expect(summarySquares[0]).toHaveClass('size-2.5', 'rounded-xs', 'bg-info')
+    expect(summarySquares[1]).toHaveClass('size-2.5', 'rounded-xs', 'bg-muted-foreground')
+    expect(
+      within(phaseButton).getByText(
+        'Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap · agent.right_pane.status.workflow_state.running'
+      )
+    ).toHaveClass('sr-only')
+    expect(
+      within(phaseButton).getByText('Inspect:tests · agent.right_pane.status.workflow_state.completed')
+    ).toHaveClass('sr-only')
+    expect(screen.queryByText('agent.right_pane.status.agent')).not.toBeInTheDocument()
+
+    await user.click(phaseButton)
+
+    expect(phaseButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('agent.right_pane.status.agent')).toBeInTheDocument()
+    expect(screen.getAllByText('agent.right_pane.status.total')).toHaveLength(1)
+    expect(screen.getByText('agent.right_pane.status.context_size')).toBeInTheDocument()
+    expect(screen.getByText('agent.right_pane.status.tools')).toBeInTheDocument()
+    // This class is the contract for the observed long-duration wrapping regression.
+    expect(screen.getByRole('columnheader', { name: 'agent.right_pane.status.time' })).toHaveClass('whitespace-nowrap')
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '1m 20s' })).toHaveClass('whitespace-nowrap')
+    const tableRows = within(screen.getByRole('table')).getAllByRole('row').slice(1)
+    expect(within(tableRows[0]).getByText('3.2K')).toBeInTheDocument()
+    expect(within(tableRows[0]).getByText('1.2K')).toBeInTheDocument()
+    expect(within(tableRows[1]).getByText('2.4K')).toBeInTheDocument()
+    expect(within(tableRows[1]).getByText('800')).toBeInTheDocument()
+    const agentName = 'Inspect:renderer-with-a-deliberately-long-agent-name-that-must-wrap'
+    const agentNameButton = within(tableRows[0]).getByRole('button', {
+      name: 'agent.right_pane.status.copy_agent_name'
+    })
+    expect(
+      within(tableRows[1]).getByRole('button', {
+        name: 'agent.right_pane.status.copy_agent_name'
+      })
+    ).toBeInTheDocument()
+    expect(agentNameButton).toHaveAttribute('title', agentName)
+    expect(within(agentNameButton).getByText(agentName)).toBeInTheDocument()
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    await user.click(agentNameButton)
+    expect(clipboardWriteText).toHaveBeenCalledExactlyOnceWith(agentName)
+    clipboardWriteText.mockRestore()
+
+    await user.click(phaseButton)
+    expect(phaseButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('agent.right_pane.status.agent')).not.toBeInTheDocument()
+
+    taskEventsState.events = {
+      'workflow-1': {
+        event: 'notification',
+        taskId: 'workflow-1',
+        status: 'completed',
+        title: 'Review PR',
+        completedAt: '2026-08-12T01:01:00.000Z'
+      }
+    }
+    view.rerender(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.queryByRole('region', { name: 'agent.right_pane.status.running' })).not.toBeInTheDocument()
+    const completed = screen.getByRole('region', { name: 'agent.right_pane.status.completed' })
+    const completedPhaseButton = within(completed).getByRole('button', { name: phaseButtonName })
+    expect(completedPhaseButton).toHaveAttribute('aria-expanded', 'false')
+    await user.click(completedPhaseButton)
+    expect(within(completed).getByRole('table')).toBeInTheDocument()
+  })
+
+  it('keeps running Workflow and Agent durations moving between SDK progress events', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime('2026-08-12T01:00:10.000Z')
+      const parts = [
+        {
+          type: 'data-agent-task-event',
+          data: {
+            event: 'started',
+            taskId: 'workflow-live-time',
+            status: 'in_progress',
+            title: 'Live workflow time',
+            taskType: 'local_workflow',
+            createdAt: '2026-08-12T01:00:00.000Z',
+            workflow: {
+              runId: 'run-live-time',
+              taskId: 'workflow-live-time',
+              phases: [{ title: 'Inspect' }],
+              workflowProgress: [
+                { type: 'workflow_phase', index: 1, title: 'Inspect' },
+                {
+                  type: 'workflow_agent',
+                  index: 1,
+                  label: 'Inspect:runtime',
+                  phaseIndex: 1,
+                  phaseTitle: 'Inspect',
+                  state: 'running',
+                  startedAt: Date.parse('2026-08-12T01:00:09.000Z')
+                }
+              ]
+            }
+          }
+        }
+      ] as unknown as CherryMessagePart[]
+      const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+      render(
+        <TestAgentRightPane
+          sessionId="session-a"
+          workspacePath="/workspace"
+          messages={messages}
+          partsByMessageId={{ m1: parts }}>
+          <AgentRightPane.Shortcuts />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+      const workflowButton = screen.getByRole('button', {
+        name: /Live workflow time.*agent\.right_pane\.status\.workflow_state\.running/
+      })
+      expect(within(workflowButton).getByText('10s')).toBeInTheDocument()
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: /Inspect.*Inspect:runtime.*agent\.right_pane\.status\.workflow_state\.running/
+        })
+      )
+      expect(screen.getByText('1s')).toBeInTheDocument()
+
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
+      expect(screen.getByText('12s')).toBeInTheDocument()
+      expect(screen.getByText('3s')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps same-title Workflow phases separate by their declared order', async () => {
+    const user = userEvent.setup()
+    const parts = [
       {
         type: 'data-agent-task-event',
         data: {
-          event: 'progress',
-          taskId: 'workflow-1',
-          toolUseId: 'workflow-tool',
+          event: 'started',
+          taskId: 'workflow-duplicate-phases',
           status: 'in_progress',
-          title: 'Reviewing renderer',
-          activeText: 'Checking citation rendering',
-          summary: 'Reviewing renderer files',
-          lastToolName: 'Read',
-          usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
+          title: 'Review duplicate phases',
+          taskType: 'local_workflow',
+          workflowName: 'duplicate-phases',
+          workflow: {
+            runId: 'run-duplicate-phases',
+            taskId: 'workflow-duplicate-phases',
+            workflowName: 'duplicate-phases',
+            phases: [{ title: 'Review' }, { title: 'Review' }],
+            workflowProgress: [
+              {
+                type: 'workflow_agent',
+                index: 1,
+                label: 'second-phase-agent',
+                phaseIndex: 2,
+                phaseTitle: 'Review',
+                state: 'running'
+              }
+            ]
+          }
         }
       }
     ] as unknown as CherryMessagePart[]
@@ -1322,16 +1862,407 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
-    expect(screen.getByText('agent.right_pane.info.workflows')).toBeInTheDocument()
-    expect(screen.queryByText('agent.right_pane.info.subagents')).toBeNull()
-    expect(screen.getByText('review-pr')).toBeInTheDocument()
-    expect(screen.getByText('Reviewing renderer files')).toBeInTheDocument()
-    expect(screen.getByText('Checking citation rendering')).toBeInTheDocument()
-    expect(screen.getByText(/Read · 1.2k · agent.right_pane.status.tool_uses · 9s/)).toBeInTheDocument()
-    expect(screen.getByText('review-pr').closest('button')).toBeNull()
-    expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
+    const phaseButtons = screen.getAllByRole('button', { name: /^Review(?:\s|$)/ })
+    expect(phaseButtons).toHaveLength(2)
+    expect(
+      within(phaseButtons[0]).queryByText('second-phase-agent · agent.right_pane.status.workflow_state.running')
+    ).not.toBeInTheDocument()
+    expect(
+      within(phaseButtons[1]).getByText('second-phase-agent · agent.right_pane.status.workflow_state.running')
+    ).toHaveClass('sr-only')
+  })
+
+  it('moves a detached task from running to completed when authoritative membership is removed', async () => {
+    const user = userEvent.setup()
+    backgroundTasksState.tasks = [
+      { id: 'shell-1', type: 'local_bash', description: 'Start development server', toolCallId: 'bash-1' }
+    ]
+    taskEventsState.events = {
+      'shell-1': {
+        event: 'updated',
+        taskId: 'shell-1',
+        status: 'in_progress',
+        isBackgrounded: true
+      }
+    }
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'shell-1',
+          status: 'in_progress',
+          title: 'Start development server',
+          taskType: 'local_bash'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } }] as CherryUIMessage[]
+
+    const view = render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(
+      within(screen.getByRole('region', { name: 'agent.right_pane.status.running' })).getByText(
+        /Start development server/
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'agent.right_pane.status.completed' })).not.toBeInTheDocument()
+
+    backgroundTasksState.tasks = []
+    view.rerender(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.queryByRole('region', { name: 'agent.right_pane.status.running' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'agent.right_pane.status.completed' })).getByText(
+        /Start development server/
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('keeps activity sections collapsible and sorts the newest completed work first', async () => {
+    const user = userEvent.setup()
+    backgroundTasksState.tasks = [
+      { id: 'aggregate-shell', type: 'local_bash', description: 'Aggregate-only shell', toolCallId: 'bash-aggregate' }
+    ]
+    const events = [
+      {
+        event: 'started',
+        taskId: 'shell-running',
+        status: 'in_progress',
+        title: 'Later shell',
+        taskType: 'local_bash',
+        createdAt: '2026-08-12T01:02:00.000Z'
+      },
+      {
+        event: 'started',
+        taskId: 'workflow-later',
+        status: 'in_progress',
+        title: 'Later workflow',
+        taskType: 'local_workflow',
+        createdAt: '2026-08-12T01:03:00.000Z'
+      },
+      {
+        event: 'started',
+        taskId: 'shell-legacy',
+        status: 'in_progress',
+        title: 'Legacy shell',
+        taskType: 'local_bash'
+      },
+      {
+        event: 'started',
+        taskId: 'workflow-earlier',
+        status: 'in_progress',
+        title: 'Earlier workflow',
+        taskType: 'local_workflow',
+        createdAt: '2026-08-12T01:01:00.000Z'
+      },
+      {
+        event: 'started',
+        taskId: 'workflow-legacy',
+        status: 'in_progress',
+        title: 'Legacy workflow',
+        taskType: 'local_workflow'
+      },
+      {
+        event: 'notification',
+        taskId: 'agent-completed-later',
+        status: 'completed',
+        title: 'Later completed agent',
+        taskType: 'local_agent',
+        createdAt: '2026-08-12T01:00:00.000Z',
+        completedAt: '2026-08-12T01:05:00.000Z'
+      },
+      {
+        event: 'notification',
+        taskId: 'shell-completed-earlier',
+        status: 'completed',
+        title: 'Earlier completed shell',
+        taskType: 'local_bash',
+        createdAt: '2026-08-12T01:04:00.000Z',
+        completedAt: '2026-08-12T01:04:30.000Z'
+      },
+      {
+        event: 'notification',
+        taskId: 'agent-completed-legacy',
+        status: 'completed',
+        title: 'Legacy completed agent',
+        taskType: 'local_agent'
+      }
+    ]
+    const parts = events.map((data) => ({ type: 'data-agent-task-event', data }) as unknown as CherryMessagePart)
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    const running = screen.getByRole('region', { name: 'agent.right_pane.status.running' })
+    const runningToggle = within(running).getByRole('button', { name: /agent\.right_pane\.status\.running/ })
+    expect(runningToggle).toHaveAttribute('aria-expanded', 'true')
+    const runningTitles = within(running)
+      .getAllByTestId('agent-run-task-title')
+      .map((node) => node.textContent)
+    expect(runningTitles).toEqual([
+      'Earlier workflow',
+      'Later workflow',
+      'Legacy workflow',
+      'Later shell',
+      'Legacy shell',
+      'Aggregate-only shell'
+    ])
+
+    const completed = screen.getByRole('region', { name: 'agent.right_pane.status.completed' })
+    const completedToggle = within(completed).getByRole('button', { name: /agent\.right_pane\.status\.completed/ })
+    expect(completedToggle).toHaveAttribute('aria-expanded', 'true')
+    const completedTitles = within(completed)
+      .getAllByTestId('agent-run-task-title')
+      .map((node) => node.textContent)
+    expect(completedTitles).toEqual(['Later completed agent', 'Earlier completed shell', 'Legacy completed agent'])
+
+    await user.click(runningToggle)
+    expect(runningToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(running).queryByTestId('agent-run-task-title')).not.toBeInTheDocument()
+    expect(within(completed).getAllByTestId('agent-run-task-title')).toHaveLength(3)
+
+    await user.click(completedToggle)
+    expect(completedToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(completed).queryByTestId('agent-run-task-title')).not.toBeInTheDocument()
+  })
+
+  it('shows a live background command duration and copies the command with all output', async () => {
+    vi.useFakeTimers()
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    try {
+      vi.setSystemTime('2026-08-12T01:00:10.000Z')
+      const parts = [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'bash-live',
+          toolName: 'Bash',
+          state: 'output-available',
+          input: { command: 'pnpm dev' },
+          output: 'ready on http://localhost:5173'
+        },
+        {
+          type: 'data-agent-task-event',
+          data: {
+            event: 'started',
+            taskId: 'shell-live',
+            toolUseId: 'bash-live',
+            taskType: 'local_bash',
+            status: 'in_progress',
+            title: 'Start development server',
+            createdAt: '2026-08-12T01:00:00.000Z'
+          }
+        }
+      ] as unknown as CherryMessagePart[]
+      const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+      render(
+        <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+          <AgentRightPane.Shortcuts />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      // userEvent timer advancement loops on the live interval; keep this fake-clock test deterministic.
+      fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+      const commandButton = screen.getByRole('button', {
+        name: /agent\.right_pane\.status\.background_command.*Start development server/
+      })
+      expect(within(commandButton).getByTestId('agent-run-task-title')).toHaveTextContent('Start development server')
+      expect(within(commandButton).getByText('local_bash')).toBeInTheDocument()
+      expect(within(commandButton).queryByText('> pnpm dev')).not.toBeInTheDocument()
+      expect(within(commandButton).getByText('10s')).toBeInTheDocument()
+
+      await act(async () => vi.advanceTimersByTime(2000))
+      expect(within(commandButton).getByText('12s')).toBeInTheDocument()
+
+      fireEvent.click(commandButton)
+      expect(screen.getByText('ready on http://localhost:5173')).toBeInTheDocument()
+
+      const copyAllButton = screen.getByRole('button', { name: 'agent.right_pane.status.copy_all' })
+      // The focus-visible fill is the keyboard focus contract for this icon-only overlay action.
+      expect(copyAllButton).toHaveClass('focus-visible:bg-accent', 'outline-none')
+      await act(async () => {
+        fireEvent.click(copyAllButton)
+        await Promise.resolve()
+      })
+      expect(clipboardWriteText).toHaveBeenCalledExactlyOnceWith('> pnpm dev\n\nready on http://localhost:5173')
+    } finally {
+      clipboardWriteText.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a background command collapsed and refreshes deferred output from Flow part versions', async () => {
+    const user = userEvent.setup()
+    const createParts = (output: unknown, status: 'in_progress' | 'completed' = 'in_progress') =>
+      [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'bash-1',
+          toolName: 'Bash',
+          state: 'output-available',
+          input: { command: 'pnpm dev' },
+          output
+        },
+        {
+          type: 'data-agent-task-event',
+          data: {
+            event: status === 'completed' ? 'notification' : 'started',
+            taskId: 'shell-1',
+            toolUseId: 'bash-1',
+            taskType: 'local_bash',
+            status,
+            title: 'Start development server',
+            createdAt: '2026-08-12T01:00:00.000Z'
+          }
+        }
+      ] as unknown as CherryMessagePart[]
+    const renderPane = (currentParts: CherryMessagePart[]) => {
+      const currentMessages = [
+        { id: 'm1', role: 'assistant', parts: currentParts, metadata: { status: 'pending' } }
+      ] as CherryUIMessage[]
+      return (
+        <TestAgentRightPane sessionId="session-a" messages={currentMessages} partsByMessageId={{ m1: currentParts }}>
+          <AgentRightPane.Shortcuts />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+    }
+    const parts = createParts('ready on http://localhost:5173')
+
+    const view = render(renderPane(parts))
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    const commandButton = screen.getByRole('button', { name: /Start development server/ })
+    expect(commandButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTitle('Start development server')).toHaveClass('truncate')
+    expect(screen.queryByText('> pnpm dev')).not.toBeInTheDocument()
+    expect(screen.queryByText(/ready on http:\/\/localhost:5173/)).not.toBeInTheDocument()
+
+    await user.click(commandButton)
+    expect(commandButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('> pnpm dev')).toBeInTheDocument()
+    expect(screen.getByText(/ready on http:\/\/localhost:5173/)).toBeInTheDocument()
+
+    const updatedParts = createParts('ready on http://localhost:5173\nrebuilt renderer')
+    view.rerender(renderPane(updatedParts))
+    expect(screen.getByText(/rebuilt renderer/)).toBeInTheDocument()
+
+    const deferredRef = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'bash-1' }
+    const initialDeferredOutput = {
+      $deferredToolResult: deferredRef,
+      excerpt: {
+        head: 'ready on http://localhost:5173',
+        tail: 'first deferred snapshot',
+        totalChars: 50_000,
+        totalLines: 2_000
+      }
+    }
+    toolResultState.output = {
+      stdout: 'ready on http://localhost:5173\nrebuilt renderer\nfirst deferred snapshot',
+      stderr: 'warning: fixture',
+      interrupted: false,
+      backgroundTaskId: 'shell-1'
+    }
+    view.rerender(renderPane(createParts(initialDeferredOutput)))
+
+    expect(await screen.findByText(/first deferred snapshot/)).toBeInTheDocument()
+    expect(screen.getByText(/warning: fixture/)).toBeInTheDocument()
+
+    const appendedDeferredOutput = {
+      ...initialDeferredOutput,
+      excerpt: {
+        ...initialDeferredOutput.excerpt,
+        tail: 'output appended after excerpt update',
+        totalChars: 50_040,
+        totalLines: 2_001
+      }
+    }
+    toolResultState.output = { stdout: 'output appended after excerpt update' }
+    view.rerender(renderPane(createParts(appendedDeferredOutput)))
+    expect(await screen.findByText(/output appended after excerpt update/)).toBeInTheDocument()
+
+    toolResultState.output = { stdout: 'final output after completion' }
+    view.rerender(renderPane(createParts(appendedDeferredOutput, 'completed')))
+
+    const completed = screen.getByRole('region', { name: 'agent.right_pane.status.completed' })
+    const completedCommandButton = within(completed).getByRole('button', { name: /Start development server/ })
+    await user.click(completedCommandButton)
+    expect(await screen.findByText(/final output after completion/)).toBeInTheDocument()
+  })
+
+  it('loads a completed shell deferred output only after the user expands it', async () => {
+    const user = userEvent.setup()
+    const deferredRef = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'bash-1' }
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'bash-1',
+        toolName: 'Bash',
+        state: 'output-available',
+        input: { command: 'pnpm build' },
+        output: {
+          $deferredToolResult: deferredRef,
+          excerpt: { head: 'build started', tail: 'build completed', totalChars: 50_000, totalLines: 2_000 }
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'shell-1',
+          toolUseId: 'bash-1',
+          taskType: 'local_bash',
+          status: 'completed',
+          title: 'Build application'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    const commandButton = screen.getByRole('button', { name: /Build application/ })
+    expect(commandButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(/build started/)).not.toBeInTheDocument()
+    expect(ipcRequestMock.mock.calls.filter(([channel]) => channel === 'ai.tool.get_result')).toHaveLength(0)
+
+    toolResultState.output = 'complete build output'
+    await user.click(commandButton)
+
+    expect(commandButton).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByText(/complete build output/)).toBeInTheDocument()
+    expect(ipcRequestMock.mock.calls.filter(([channel]) => channel === 'ai.tool.get_result')).toHaveLength(1)
+
+    await user.click(commandButton)
+    expect(commandButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(/complete build output/)).not.toBeInTheDocument()
   })
 
   it('keeps declared artifacts ahead of run sections', () => {
@@ -1371,7 +2302,7 @@ describe('AgentRightPane', () => {
     const sectionOrder = [
       screen.getByText('agent.right_pane.info.artifacts'),
       screen.getByTestId('context-usage'),
-      screen.getByText('agent.right_pane.info.shell_tasks')
+      screen.getByRole('region', { name: 'agent.right_pane.status.running' })
     ]
 
     for (const [index, node] of sectionOrder.slice(0, -1).entries()) {

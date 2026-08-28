@@ -550,6 +550,195 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
       expect(agentSessionMessageService.getLastRuntimeResumeToken(OTHER_SESSION_ID)).toBe('token-other')
     })
+
+    it('keeps the latest workflow checkpoint when crash reconciliation settles the pending row', () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d023'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: PENDING,
+          role: 'assistant',
+          status: 'pending',
+          data: {
+            parts: [
+              { type: 'text', text: 'partial answer' },
+              {
+                type: 'data-agent-task-event',
+                data: { event: 'started', taskId: 'workflow-1', status: 'in_progress', title: 'Review' }
+              },
+              {
+                type: 'data-agent-task-event',
+                id: 'existing-workflow-checkpoint',
+                data: {
+                  event: 'progress',
+                  taskId: 'workflow-1',
+                  status: 'in_progress',
+                  title: 'Review',
+                  workflow: {
+                    runId: 'run-1',
+                    taskId: 'workflow-1',
+                    phases: [],
+                    workflowProgress: []
+                  }
+                }
+              }
+            ]
+          }
+        }
+      })
+      notifyDataApiDataChangeMock.mockClear()
+      const initialUpdatedAt = agentSessionMessageService.getSessionMessage(SESSION_ID, PENDING).updatedAt
+      const workflow = (tokens: number, cumulativeTokens: number) => ({
+        event: 'progress' as const,
+        taskId: 'workflow-1',
+        status: 'in_progress' as const,
+        title: 'Review',
+        workflow: {
+          runId: 'run-1',
+          taskId: 'workflow-1',
+          totalTokens: tokens,
+          totalCumulativeTokens: cumulativeTokens,
+          totalToolCalls: 3,
+          phases: [{ title: 'Inspect' }],
+          workflowProgress: [
+            {
+              type: 'workflow_agent' as const,
+              index: 0,
+              label: 'reviewer',
+              phaseIndex: 0,
+              phaseTitle: 'Inspect',
+              state: 'active',
+              tokens,
+              cumulativeTokens,
+              toolCalls: 3,
+              durationMs: 4_000
+            }
+          ]
+        }
+      })
+
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, workflow(20, 30))
+      const firstCheckpoint = agentSessionMessageService
+        .findCrashOrphanedAssistantMessages()[0]
+        .data.parts?.find((part) => part.type === 'data-agent-task-event' && part.data.workflow !== undefined)
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, workflow(40, 70))
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, {
+        ...workflow(60, 100),
+        event: 'notification',
+        status: 'completed'
+      })
+
+      const pending = agentSessionMessageService.findCrashOrphanedAssistantMessages()
+      const beforeCrashParts = pending[0].data.parts ?? []
+      expect(beforeCrashParts.filter((part) => part.type === 'data-agent-task-event')).toHaveLength(2)
+      const latestCheckpoint = beforeCrashParts.find(
+        (part) => part.type === 'data-agent-task-event' && part.data.workflow !== undefined
+      )
+      expect(firstCheckpoint).toEqual(expect.objectContaining({ id: 'existing-workflow-checkpoint' }))
+      expect(latestCheckpoint).toEqual(expect.objectContaining({ id: 'existing-workflow-checkpoint' }))
+      expect(beforeCrashParts).toEqual([
+        expect.objectContaining({ type: 'text', text: 'partial answer' }),
+        expect.objectContaining({
+          type: 'data-agent-task-event',
+          data: expect.objectContaining({ event: 'started', taskId: 'workflow-1' })
+        }),
+        expect.objectContaining({
+          type: 'data-agent-task-event',
+          data: expect.objectContaining({
+            taskId: 'workflow-1',
+            workflow: expect.objectContaining({ totalTokens: 60, totalCumulativeTokens: 100, totalToolCalls: 3 })
+          })
+        })
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [PENDING]
+        }
+      ])
+
+      agentSessionMessageService.resolveCrashOrphanedMessages(
+        [{ id: PENDING, data: { ...pending[0].data, parts: beforeCrashParts } }],
+        [SESSION_ID]
+      )
+
+      const recovered = agentSessionMessageService.getSessionMessage(SESSION_ID, PENDING)
+      expect(recovered.status).toBe('error')
+      expect(recovered.data.parts).toEqual(beforeCrashParts)
+      expect(Date.parse(recovered.updatedAt)).toBeGreaterThan(Date.parse(initialUpdatedAt))
+    })
+
+    it('replaces the terminal workflow snapshot instead of an earlier progress snapshot', () => {
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d024'
+      const workflow = (totalTokens: number) => ({
+        runId: 'run-1',
+        taskId: 'workflow-1',
+        totalTokens,
+        phases: [{ title: 'Inspect' }],
+        workflowProgress: []
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: PENDING,
+          role: 'assistant',
+          status: 'pending',
+          data: {
+            parts: [
+              {
+                type: 'data-agent-task-event',
+                id: 'progress-snapshot',
+                data: {
+                  event: 'progress',
+                  taskId: 'workflow-1',
+                  status: 'in_progress',
+                  workflow: workflow(100)
+                }
+              },
+              {
+                type: 'data-agent-task-event',
+                id: 'first-terminal-snapshot',
+                data: {
+                  event: 'updated',
+                  taskId: 'workflow-1',
+                  status: 'completed',
+                  workflow: workflow(200)
+                }
+              }
+            ]
+          }
+        }
+      })
+
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, {
+        event: 'notification',
+        taskId: 'workflow-1',
+        status: 'completed',
+        workflow: workflow(2_400)
+      })
+
+      const restartedProjection = agentSessionMessageService.getSessionMessage(SESSION_ID, PENDING)
+      expect(restartedProjection.data.parts).toEqual([
+        expect.objectContaining({
+          id: 'progress-snapshot',
+          data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 100 }) })
+        }),
+        expect.objectContaining({
+          id: 'first-terminal-snapshot',
+          data: expect.objectContaining({
+            event: 'notification',
+            status: 'completed',
+            workflow: expect.objectContaining({ totalTokens: 2_400 })
+          })
+        })
+      ])
+    })
   })
 
   it('atomically settles a persisted background tool approval with the user-updated input', () => {
