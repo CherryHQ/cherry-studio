@@ -215,7 +215,7 @@ const TranslatePage: FC = () => {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
-  const { add: addHistory, update: updateHistory } = useTranslateHistory({
+  const { add: addHistory } = useTranslateHistory({
     update: { showErrorToast: false, rethrowError: false }
   })
   const { notesPath } = useNotesSettings()
@@ -418,15 +418,7 @@ const TranslatePage: FC = () => {
 
       if (allowBidirectional && !isBidirectional) {
         setDetectedLanguage(null)
-        const history = await translate(rawText, null, targetLanguage)
-        if (history) {
-          void detectLanguageOrUnknown(rawText, detectLanguage, () => undefined)
-            .then((language) => {
-              if (language === UNKNOWN_LANG_CODE) return
-              return updateHistory(history.id, { sourceLanguage: language })
-            })
-            .catch(() => undefined)
-        }
+        await translate(rawText, null, targetLanguage)
         return
       }
 
@@ -475,8 +467,7 @@ const TranslatePage: FC = () => {
       sourceLanguage,
       t,
       targetLanguage,
-      translate,
-      updateHistory
+      translate
     ]
   )
 

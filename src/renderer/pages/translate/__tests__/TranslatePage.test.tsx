@@ -1242,19 +1242,13 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('stores single-direction history before detecting and backfills its source language', async () => {
+  it('keeps single-direction history target-only without detecting a source language', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'auto',
       'feature.translate.page.target_language': 'en-us'
     })
     translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-1' })
-    let resolveDetection!: (language: string) => void
-    translateCoreMock.detectLanguage.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveDetection = resolve
-      })
-    )
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
@@ -1278,58 +1272,8 @@ describe('TranslatePage', () => {
         targetLanguage: 'en-us'
       })
     )
-    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
-    expect(translateCoreMock.addHistory.mock.invocationCallOrder[0]).toBeLessThan(
-      translateCoreMock.detectLanguage.mock.invocationCallOrder[0]
-    )
+    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
     expect(translateCoreMock.updateHistory).not.toHaveBeenCalled()
-
-    await act(async () => resolveDetection('zh-cn'))
-
-    await waitFor(() =>
-      expect(translateCoreMock.updateHistory).toHaveBeenCalledWith('history-1', { sourceLanguage: 'zh-cn' })
-    )
-  })
-
-  it.each([
-    ['unknown detection', () => Promise.resolve('unknown')],
-    ['failed detection', () => Promise.reject(new Error('detect failed'))]
-  ])('leaves single-direction history unchanged after %s', async (_caseName, detectResult) => {
-    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
-    translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-1' })
-    translateCoreMock.detectLanguage.mockImplementationOnce(detectResult)
-
-    const { rerender } = render(<TranslatePage />)
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
-    rerender(<TranslatePage />)
-    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-
-    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(translateCoreMock.updateHistory).not.toHaveBeenCalled()
-    expect(toast.error).not.toHaveBeenCalled()
-  })
-
-  it('ignores a deleted history row during source-language backfill', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
-    translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-deleted' })
-    translateCoreMock.updateHistory.mockRejectedValueOnce(new Error('history not found'))
-
-    const { rerender } = render(<TranslatePage />)
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
-    rerender(<TranslatePage />)
-    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-
-    await waitFor(() =>
-      expect(translateCoreMock.updateHistory).toHaveBeenCalledWith('history-deleted', { sourceLanguage: 'en-us' })
-    )
-    await act(async () => {
-      await Promise.resolve()
-    })
-
     expect(toast.error).not.toHaveBeenCalled()
   })
 
