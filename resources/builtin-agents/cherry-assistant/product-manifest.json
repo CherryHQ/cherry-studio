@@ -448,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "b3b73ceeb452801e",
-    "count": 61,
+    "version": "1593f3d414116a85",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -646,6 +646,10 @@
       {
         "id": "tokenhub",
         "name": "TokenHub"
+      },
+      {
+        "id": "token-plan",
+        "name": "Token Plan"
       },
       {
         "id": "baidu-cloud",
