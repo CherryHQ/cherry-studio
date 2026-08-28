@@ -72,8 +72,11 @@ export default function ModelListSyncDrawer({
 
     return applyModelFilters(searchedModels, '', actualFilter)
   }, [actualFilter, searchedModels, staleModelIdSet])
+  // Same grouping contract as the main model list: a catalog/user `group` wins
+  // over the id-derived one, so a model does not land in a different section
+  // depending on which of the two views is open.
   const filteredGroups = useMemo(
-    () => groupModels(filteredModels, Boolean(searchText.trim())),
+    () => groupModels(filteredModels, Boolean(searchText.trim()), { preferModelGroup: true }),
     [filteredModels, searchText]
   )
   // Per-type counts over the search-filtered set (so the tabs track the search).
