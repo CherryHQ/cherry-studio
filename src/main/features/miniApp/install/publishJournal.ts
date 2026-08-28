@@ -67,7 +67,12 @@ export type PublishEntry = z.infer<typeof PublishEntrySchema>
 
 export interface PublishRecovery {
   appId: string
-  action: 'rolled-forward' | 'rolled-back'
+  /**
+   * `failed` is why the outcome is reported at all: the repair threw, so the tree on disk
+   * is NOT what the committed rows describe and no guest may load it until a later launch
+   * repairs it. The other two mean the tree and the rows agree again.
+   */
+  action: 'rolled-forward' | 'rolled-back' | 'failed'
 }
 
 /**
@@ -264,32 +269,36 @@ async function rollBack(entry: PublishEntry): Promise<void> {
   }
 }
 
-/** Runs at startup from `MiniAppRuntimeService.onReady()`. */
+/**
+ * Runs at startup from `MiniAppRuntimeService.onReady()`.
+ *
+ * @returns one outcome per journal entry, `failed` included — the caller must keep those
+ * apps unloadable, because a repair that threw leaves a tree the committed rows do not
+ * describe. Never rejects for a single entry's sake: one app's EBUSY is not the others'.
+ */
 export async function recoverInterruptedPublishes(): Promise<PublishRecovery[]> {
   const pending = readAll()
   if (pending.length === 0) return []
 
-  const recovered: PublishRecovery[] = []
+  const outcomes: PublishRecovery[] = []
   for (const entry of pending) {
-    const committed = isCommitted(entry)
     try {
+      const committed = isCommitted(entry)
       await (committed ? rollForward(entry) : rollBack(entry))
+      // Cleared as each one finishes, not in one sweep at the end: a crash midway through
+      // recovery must not re-run the repairs that already succeeded.
+      clearPublishJournal(entry.appId)
+      const action = committed ? 'rolled-forward' : 'rolled-back'
+      outcomes.push({ appId: entry.appId, action })
+      logger.warn('Recovered an interrupted mini app publish', { appId: entry.appId, kind: entry.kind, action })
     } catch (error) {
-      // Isolated per entry: an EBUSY rename would otherwise take every LATER app's repair
-      // down with it, and the staging sweep this call is awaited before. The journal is
-      // deliberately left armed — the next launch retries exactly this one.
+      // Isolated per entry, and the WHOLE entry: `isCommitted` reads the database and
+      // `clearPublishJournal` writes the disk, so a throw from either used to abort every
+      // LATER app's repair too. Left armed AND reported — the caller admits no guest for
+      // an app whose tree the rows no longer describe, and the next launch retries it.
       logger.error('Failed to recover an interrupted mini app publish', { appId: entry.appId, error })
-      continue
+      outcomes.push({ appId: entry.appId, action: 'failed' })
     }
-    // Cleared as each one finishes, not in one sweep at the end: a crash midway through
-    // recovery must not re-run the repairs that already succeeded.
-    clearPublishJournal(entry.appId)
-    recovered.push({ appId: entry.appId, action: committed ? 'rolled-forward' : 'rolled-back' })
-    logger.warn('Recovered an interrupted mini app publish', {
-      appId: entry.appId,
-      kind: entry.kind,
-      action: committed ? 'rolled-forward' : 'rolled-back'
-    })
   }
-  return recovered
+  return outcomes
 }

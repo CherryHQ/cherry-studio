@@ -88,7 +88,7 @@ describe('MiniAppRuntimeService', () => {
     const svc = new MiniAppRuntimeService()
     // `onReady` resolves this after startup recovery, and `ensurePartition` waits on it so
     // that no guest can load a tree a crash left mid-publish. Stated, not stubbed away.
-    svc.recovered.resolve()
+    svc.recovered.resolve(new Set())
 
     await svc.ensurePartition('com.example.a')
     await svc.ensurePartition('com.example.a')
@@ -103,7 +103,7 @@ describe('MiniAppRuntimeService', () => {
     const svc = new MiniAppRuntimeService()
     // `onReady` resolves this after startup recovery, and `ensurePartition` waits on it so
     // that no guest can load a tree a crash left mid-publish. Stated, not stubbed away.
-    svc.recovered.resolve()
+    svc.recovered.resolve(new Set())
 
     await Promise.all([svc.ensurePartition('com.example.a'), svc.ensurePartition('com.example.a')])
 
@@ -129,9 +129,24 @@ describe('MiniAppRuntimeService', () => {
     // guest to fetch the mid-publish tree through.
     expect(handle).not.toHaveBeenCalled()
 
-    svc.recovered.resolve()
+    svc.recovered.resolve(new Set())
     await preparing
     expect(admitted).toBe(true)
+    expect(handle).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses the app whose startup repair failed, and only that one', async () => {
+    // Recovery isolates a failure per entry and leaves that journal armed, so "recovery
+    // finished" is not "this app is safe": its tree is whatever the crash left, which the
+    // committed rows no longer describe. Per app — the others recovered and must still open.
+    const svc = new MiniAppRuntimeService()
+    svc.recovered.resolve(new Set(['com.example.broken']))
+
+    await expect(svc.ensurePartition('com.example.broken')).rejects.toThrow(/could not be repaired/)
+    // The load-bearing half: no scheme was registered either, so nothing can fetch the tree.
+    expect(handle).not.toHaveBeenCalled()
+
+    await expect(svc.ensurePartition('com.example.ok')).resolves.toBeUndefined()
     expect(handle).toHaveBeenCalledTimes(1)
   })
 
@@ -141,7 +156,7 @@ describe('MiniAppRuntimeService', () => {
     const svc = new MiniAppRuntimeService()
     // `onReady` resolves this after startup recovery, and `ensurePartition` waits on it so
     // that no guest can load a tree a crash left mid-publish. Stated, not stubbed away.
-    svc.recovered.resolve()
+    svc.recovered.resolve(new Set())
 
     await expect(svc.ensurePartition('com.example.c')).rejects.toThrow('boom')
 

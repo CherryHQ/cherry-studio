@@ -358,6 +358,57 @@ describe('publish journal', () => {
     expect(fs.existsSync(path.join(root, B))).toBe(false)
   })
 
+  // A real EACCES rather than a stubbed `rm`: `force: true` swallows ENOENT and nothing
+  // else, and the mode bits are what make the difference observable. Root ignores them.
+  const deniesByMode = process.platform !== 'win32' && process.getuid?.() !== 0
+
+  it.skipIf(!deniesByMode)('reports the app it could not repair and leaves its journal armed', async () => {
+    // The fail-open this closes: the repair throws, is logged, and is skipped — so a caller
+    // that only learns recovery FINISHED admits a guest to the tree the crash left behind.
+    const B = 'com.example.b'
+    const stuck = makeDir(A)
+    makeDir(B)
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:a' })
+    writePublishJournal({ kind: 'install', appId: B, contentHash: 'sha256:b' })
+    fs.chmodSync(stuck, 0o555)
+
+    try {
+      const outcomes = await recoverInterruptedPublishes()
+
+      expect(outcomes).toContainEqual({ appId: A, action: 'failed' })
+      expect(fs.existsSync(path.join(root, '.publish-journal', `${A}.json`))).toBe(true)
+      // Isolated, in the same run: one app's EACCES is not the other's, and B's journal goes.
+      expect(outcomes).toContainEqual({ appId: B, action: 'rolled-back' })
+      expect(fs.existsSync(path.join(root, B))).toBe(false)
+    } finally {
+      fs.chmodSync(stuck, 0o755)
+    }
+  })
+
+  it.skipIf(!deniesByMode)('keeps going when a repaired entry’s journal will not clear', async () => {
+    // `clearPublishJournal` used to sit outside the per-entry catch, so one unwritable
+    // journal threw past the loop and left every LATER app unrepaired AND unreported.
+    const B = 'com.example.b'
+    makeDir(A)
+    makeDir(B)
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:a' })
+    writePublishJournal({ kind: 'install', appId: B, contentHash: 'sha256:b' })
+    const journalDir = path.join(root, '.publish-journal')
+    fs.chmodSync(journalDir, 0o555)
+
+    try {
+      const outcomes = await recoverInterruptedPublishes()
+
+      // Both entries reached, and both fail closed: the trees went, but an entry that will
+      // replay on the next launch is not one this launch may admit a guest against.
+      expect(outcomes.map((o) => `${o.appId}:${o.action}`).sort()).toEqual([`${A}:failed`, `${B}:failed`])
+      expect(fs.existsSync(path.join(root, A))).toBe(false)
+      expect(fs.existsSync(path.join(root, B))).toBe(false)
+    } finally {
+      fs.chmodSync(journalDir, 0o755)
+    }
+  })
+
   it('survives a corrupt journal file instead of blocking startup', async () => {
     writeRawJournal(A, '{ not json')
     await expect(recoverInterruptedPublishes()).resolves.toEqual([])

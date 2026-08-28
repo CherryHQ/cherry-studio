@@ -42,6 +42,23 @@ describe('MiniAppRuntimeService wiring', () => {
     expect(sweepAbandonedStaging).toHaveBeenCalledTimes(1)
   })
 
+  it('carries the apps recovery could not repair through the barrier', async () => {
+    // The fail-open this closes: recovery reports a per-entry failure and moves on, so a
+    // barrier that resolved with nothing would readmit an app whose tree the rows no
+    // longer describe. The repaired one must NOT be carried — it would never open again.
+    vi.mocked(recoverInterruptedPublishes).mockResolvedValueOnce([
+      { appId: 'com.example.broken', action: 'failed' },
+      { appId: 'com.example.ok', action: 'rolled-back' }
+    ])
+    const svc = new MiniAppRuntimeService()
+    vi.spyOn(svc as never, 'ipcHandle').mockImplementation((() => {}) as never)
+    vi.spyOn(svc as never, 'ipcOn').mockImplementation((() => {}) as never)
+
+    await (svc as unknown as { onReady: () => Promise<void> }).onReady()
+
+    expect(await svc.recovered).toEqual(new Set(['com.example.broken']))
+  })
+
   it('pushes a locale change to every installed app', async () => {
     const svc = new MiniAppRuntimeService()
     vi.spyOn(svc as never, 'ipcHandle').mockImplementation((() => {}) as never)

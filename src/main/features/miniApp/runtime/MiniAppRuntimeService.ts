@@ -104,8 +104,14 @@ export class MiniAppRuntimeService extends BaseService {
    * A barrier rather than a `@DependsOn` on the window service: there is nothing to repair
    * on almost every launch, and making the main window wait for this one would charge every
    * start for a case that is rare.
+   *
+   * It carries the apps recovery could NOT repair, rather than resolving with nothing.
+   * Finishing is not succeeding: `recoverInterruptedPublishes` isolates a failure per entry
+   * and leaves that journal armed, so a barrier that only said "done" would readmit exactly
+   * the pairing above for the failed app. Delivering the verdict THROUGH the barrier is what
+   * makes it impossible to wait for one without reading the other.
    */
-  readonly recovered = new Signal<void>()
+  readonly recovered = new Signal<ReadonlySet<string>>()
 
   /**
    * The service's ONE `onReady` — every mini-app wiring lands here.
@@ -150,13 +156,16 @@ export class MiniAppRuntimeService extends BaseService {
 
     // 6. Repair anything a crash left mid-publish, then drop staging trees — in a
     //    freshly started process every `.staging-*` is by definition abandoned.
+    const unrepaired = new Set<string>()
     try {
-      await recoverInterruptedPublishes()
+      for (const outcome of await recoverInterruptedPublishes()) {
+        if (outcome.action === 'failed') unrepaired.add(outcome.appId)
+      }
     } finally {
       // In a `finally`, and guarded: a recovery that threw must not wedge every future
       // `prepare` behind a promise that will never settle. The staging sweep below is
       // deliberately outside the barrier — it touches no tree a guest can load.
-      if (!this.recovered.isResolved) this.recovered.resolve()
+      if (!this.recovered.isResolved) this.recovered.resolve(unrepaired)
     }
     await sweepAbandonedStaging()
   }
@@ -177,7 +186,13 @@ export class MiniAppRuntimeService extends BaseService {
     // The barrier, before anything else: this is the single choke point every guest passes
     // through, `mini_app.runtime.prepare` included. Already resolved on a launch with
     // nothing to repair, which is almost all of them.
-    await this.recovered
+    const unrepaired = await this.recovered
+    // Fail closed for THIS app only — the others recovered and must still open. Its tree is
+    // whatever the crash left, which the committed rows no longer describe, so admitting it
+    // runs one version's code under another version's manifest and grants.
+    if (unrepaired.has(appId)) {
+      throw new Error(`Mini app ${appId} could not be repaired after an interrupted publish`)
+    }
     const partition = miniAppPartition(appId)
     if (this.readyPartitions.has(partition)) return
 
