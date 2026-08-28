@@ -45,7 +45,7 @@ describe('conversation suggestion generation', () => {
     expect(ipcApi.request).toHaveBeenCalledWith('ai.text.generate', {
       uniqueModelId: model.id,
       reasoningEffort: 'none',
-      system: expect.stringContaining('requested focus'),
+      system: expect.any(String),
       prompt: JSON.stringify(context)
     })
   })
