@@ -11,7 +11,7 @@ import { app } from 'electron'
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
-import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN } from '@main/ai/constants'
+import { COMPACTION_CLAUDE_SAFETY_MARGIN } from '@main/ai/constants'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import {
   type Environment,
@@ -64,8 +64,8 @@ export const AUTO_COMPACT_TRIGGER_PCT = 80
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
 // Third-party models and channels may report a contextWindow larger than the provider's actual
-// limit, causing auto-compaction to trigger too late. Apply a safety margin so compaction fires
-// earlier, leaving headroom for the gap between declared and real limits.
+// limit, causing auto-compaction to trigger too late. Apply a conservative safety margin so
+// compaction fires earlier, leaving headroom for the gap between declared and real limits.
 export function resolveAutoCompactWindow(
   contextWindow: number | undefined,
   requestedOutput: number
@@ -77,7 +77,7 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const effectiveContextWindow = Math.floor(contextWindow * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN)
+  const effectiveContextWindow = Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
   const budget = Math.floor((effectiveContextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
   return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
 }
