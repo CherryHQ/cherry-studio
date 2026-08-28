@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   appIsPackaged: false,
   broadcast: vi.fn(),
+  gatewayStart: vi.fn(),
   loopbackOpen: vi.fn(),
   loopbackReceiver: {
     dispose: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock('@data/services/CherryCloudSessionService', () => ({
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
+      if (name === 'ApiGatewayService') return { start: mocks.gatewayStart }
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
       throw new Error(`Unexpected service: ${name}`)
     }
@@ -212,6 +214,7 @@ describe('CherryCloudService', () => {
     mocks.savedSession = null
     mocks.modelList.mockReturnValue([])
     mocks.modelReconcile.mockReturnValue([])
+    mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
   })
@@ -274,6 +277,22 @@ describe('CherryCloudService', () => {
       'http://127.0.0.1:8084/api/v1/account',
       'http://127.0.0.1:8084/v1/models?limit=1000'
     ])
+  })
+
+  it('starts the API Gateway after a successful login', async () => {
+    const service = await createSignedInService()
+
+    expect(mocks.gatewayStart).toHaveBeenCalledOnce()
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it('keeps the Session when automatic Gateway startup fails', async () => {
+    mocks.gatewayStart.mockRejectedValueOnce(new Error('port is already in use'))
+
+    const service = await createSignedInService()
+
+    expect(mocks.gatewayStart).toHaveBeenCalledOnce()
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
   it('reports that a Product Session is required for authenticated requests', async () => {
