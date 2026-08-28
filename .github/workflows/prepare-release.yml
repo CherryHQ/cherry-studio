@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   prepare:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
@@ -207,6 +208,7 @@ jobs:
   publish:
     name: Create release branch
     needs: prepare
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
