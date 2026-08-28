@@ -7,7 +7,6 @@ import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
@@ -43,10 +42,20 @@ interface NotesEditorProps {
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
+  onCreateNote?: () => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
+  ({
+    activeNodeId,
+    currentContent,
+    contentLoadError,
+    tokenCount,
+    onMarkdownChange,
+    editorRef,
+    codeEditorRef,
+    onCreateNote
+  }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
     const { activeCmTheme } = useCodeStyle()
@@ -77,7 +86,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (!activeNodeId) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState preset="no-note" title={t('notes.empty')} />
+          <EmptyState
+            preset="no-note"
+            title={t('notes.empty')}
+            actionLabel={t('notes.new_note')}
+            onAction={onCreateNote}
+          />
         </div>
       )
     }
@@ -150,13 +164,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   <ActionIconButton
                     active={enableSpellCheck}
                     onClick={() => {
-                      const newValue = !enableSpellCheck
-                      void setEnableSpellCheck(newValue).catch((error) => {
+                      void setEnableSpellCheck(!enableSpellCheck).catch((error) => {
                         logger.error('Failed to update spell check preference', error as Error)
-                        toast.error(t('notes.settings.save_failed'))
-                      })
-                      void ipcApi.request('app.set_spell_check_enabled', newValue).catch((error) => {
-                        logger.error('Failed to update spell check runtime state', error as Error)
                         toast.error(t('notes.settings.save_failed'))
                       })
                     }}

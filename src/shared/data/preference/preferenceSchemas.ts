@@ -598,7 +598,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.default_model_id': null,
     'chat.input.newline_shortcut': null,
     'chat.input.send_message_shortcut': ['Enter'],
-    'chat.input.show_estimated_tokens': false,
+    'chat.input.show_estimated_tokens': true,
     'chat.input.steer_shortcut': null,
     'chat.input.toolbar.pinned_tools': ['composer:new-conversation', 'web-search'],
     'chat.input.translate.auto_translate_with_space': false,
@@ -822,8 +822,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'ui.launchpad.app_order': [],
     'ui.navbar.position': 'top',
     'ui.sidebar.favorites': [
-      { id: 'assistants', type: 'app' },
       { id: 'agents', type: 'app' },
+      { id: 'assistants', type: 'app' },
       { id: 'translate', type: 'app' },
       { id: 'paintings', type: 'app' },
       { id: 'knowledge', type: 'app' }

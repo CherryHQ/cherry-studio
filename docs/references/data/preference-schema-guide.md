@@ -105,9 +105,12 @@ call sites.
 
 ## Migration-only Additions
 
-For a simple migrated value, update the corresponding classified entry in
-`classification.json` with its legacy source and target key. For a value that
-combines or transforms multiple legacy inputs:
+For a simple migrated value, first define the target key in
+`scripts/preference-schema/registry.json`, then update the corresponding
+classified entry in `classification.json` with its legacy source and target
+key. The generator rejects classified Preference targets that are absent from
+the registry, preventing the migrator from writing rows the runtime cache does
+not recognize. For a value that combines or transforms multiple legacy inputs:
 
 1. Define the emitted target key in `scripts/preference-schema/registry.json`.
 2. Add the conversion to

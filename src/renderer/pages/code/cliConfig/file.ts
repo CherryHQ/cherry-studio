@@ -1,30 +1,32 @@
+import { ipcApi } from '@renderer/ipc'
+import type { OutputFor } from '@shared/ipc/types'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { redactSecretText } from '@shared/utils/redaction'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
+import { type Document, isMap, isScalar, parse as parseYaml, parseDocument } from 'yaml'
 
-/** Resolve `~`/relative paths to absolute (renderer cannot call application.getPath). */
-export async function resolveAbs(p: string): Promise<string> {
-  return window.api.resolvePath(p)
+/** One CLI config file as read through `code_cli.read_config`: content === null ⇔ the file does not exist. */
+export type CliConfigReadFile = Pick<OutputFor<'code_cli.read_config'>['files'][number], 'path' | 'content'>
+
+/** On-disk view of a batch read, keyed by target. */
+export type CliConfigReadFiles = Map<CliConfigTarget, CliConfigReadFile>
+
+/**
+ * Batch-read CLI config files through the target-enum IPC route (one round trip
+ * per batch; main resolves each target's absolute path).
+ */
+export async function readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFiles> {
+  if (!targets.length) return new Map()
+  const { files } = await ipcApi.request('code_cli.read_config', { targets: [...targets] })
+  return new Map(files.map((file) => [file.target, file]))
 }
 
-function isMissingFileError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.includes('File does not exist') || message.includes('ENOENT')
-}
-
-/** Read an external file as text; returns null (not '') when the file is missing, throws on other read errors. */
-export async function readExternalOrNull(absPath: string): Promise<string | null> {
-  try {
-    return await window.api.file.readExternal(absPath)
-  } catch (error) {
-    if (isMissingFileError(error)) return null
-    throw error
-  }
-}
-
-/** Read an external file as text; returns '' when missing, throws on other read errors. */
-export async function readExternal(absPath: string): Promise<string> {
-  return (await readExternalOrNull(absPath)) ?? ''
+/** The read entry for `target`; a missing entry is a caller bug (readConfigFiles returns every requested target). */
+export function requireReadFile(target: CliConfigTarget, files: CliConfigReadFiles): CliConfigReadFile {
+  const file = files.get(target)
+  if (!file) throw new Error(`No read result for config target: ${target}`)
+  return file
 }
 
 function parseOrThrow<T>(content: string, label: string, absPath: string, parseFn: (content: string) => T): T {
@@ -39,26 +41,24 @@ function parseOrThrow<T>(content: string, label: string, absPath: string, parseF
   }
 }
 
-/** Read + parse JSONC, throwing a contextual error on a malformed file. */
-export async function readValidatedJson(absPath: string, label: string): Promise<Record<string, any>> {
-  return parseOrThrow(await readExternal(absPath), label, absPath, parseJsonOrThrow)
+/** Parse JSONC from a batch read; returns null (not {}) when the file doesn't exist. */
+export function readValidatedJsonOrNull(
+  target: CliConfigTarget,
+  files: CliConfigReadFiles,
+  label: string
+): Record<string, any> | null {
+  const { path, content } = requireReadFile(target, files)
+  return content === null ? null : parseOrThrow(content, label, path, parseJsonOrThrow)
 }
 
-/** Read + parse TOML, throwing a contextual error on a malformed file. */
-export async function readValidatedToml(absPath: string, label: string): Promise<Record<string, any>> {
-  return parseOrThrow(await readExternal(absPath), label, absPath, parseTomlOrThrow)
-}
-
-/** Like readValidatedJson, but returns null (instead of {}) when the file doesn't exist. */
-export async function readValidatedJsonOrNull(absPath: string, label: string): Promise<Record<string, any> | null> {
-  const content = await readExternalOrNull(absPath)
-  return content === null ? null : parseOrThrow(content, label, absPath, parseJsonOrThrow)
-}
-
-/** Like readValidatedToml, but returns null (instead of {}) when the file doesn't exist. */
-export async function readValidatedTomlOrNull(absPath: string, label: string): Promise<Record<string, any> | null> {
-  const content = await readExternalOrNull(absPath)
-  return content === null ? null : parseOrThrow(content, label, absPath, parseTomlOrThrow)
+/** Parse TOML from a batch read; returns null (not {}) when the file doesn't exist. */
+export function readValidatedTomlOrNull(
+  target: CliConfigTarget,
+  files: CliConfigReadFiles,
+  label: string
+): Record<string, any> | null {
+  const { path, content } = requireReadFile(target, files)
+  return content === null ? null : parseOrThrow(content, label, path, parseTomlOrThrow)
 }
 
 export function parseTomlOrThrow(content: string): Record<string, any> {
@@ -68,6 +68,43 @@ export function parseTomlOrThrow(content: string): Record<string, any> {
   } catch (err) {
     // smol-toml embeds a source codeblock (the offending line +/- 1) straight into its own message,
     // so this must be redacted right here — every call site (direct or through parseOrThrow) inherits it.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(redactSecretText(rawMessage))
+  }
+}
+
+export function parseYamlOrThrow(content: string): Record<string, any> {
+  if (!content) return {}
+  try {
+    const parsed = parseYaml(content)
+    if (parsed == null) return {}
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('invalid YAML root: expected an object')
+    }
+    return parsed as Record<string, any>
+  } catch (err) {
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(redactSecretText(rawMessage))
+  }
+}
+
+/** Parse a user-owned YAML mapping without discarding its comments or presentation. */
+export function parseYamlDocumentOrThrow(content: string): Document {
+  try {
+    const document = parseDocument(content)
+    if (document.errors.length > 0) throw document.errors[0]
+    const root = document.contents
+    if (root === null || (isScalar(root) && root.value === null)) {
+      const mapping = document.createNode({})
+      if (root && isScalar(root)) {
+        mapping.comment = root.comment
+        mapping.commentBefore = root.commentBefore
+      }
+      document.contents = mapping as unknown as typeof document.contents
+    }
+    if (!isMap(document.contents)) throw new Error('invalid YAML root: expected an object')
+    return document
+  } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(redactSecretText(rawMessage))
   }

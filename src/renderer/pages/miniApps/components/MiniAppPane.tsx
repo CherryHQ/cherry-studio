@@ -5,6 +5,7 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import MinimalToolbar, { type SplitMode } from './MinimalToolbar'
@@ -40,6 +41,8 @@ const MiniAppPane: FC<Props> = ({
   onActivate,
   className
 }) => {
+  const { t } = useTranslation()
+  const displayName = app.nameKey ? t(app.nameKey) : app.name
   const webviewRef = useRef<WebviewTag | null>(null)
   // Read through a ref so attaching the webview listener does not depend on a
   // callback identity that changes every render.
@@ -149,7 +152,7 @@ const MiniAppPane: FC<Props> = ({
       />
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />
+          <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} alt={displayName} />
           <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} style={{ marginTop: 12 }} />
         </div>
       )}

@@ -2,13 +2,16 @@
 
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
+const require = createRequire(import.meta.url)
 const repositoryRoot = path.resolve(scriptDir, '../..')
 const registryPath = path.join(scriptDir, 'registry.json')
 const outputPath = path.join(repositoryRoot, 'src/shared/data/preference/preferenceSchemas.ts')
+const classificationPath = path.join(repositoryRoot, 'v2-refactor-temp/tools/data-classify/data/classification.json')
 const keyPattern = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
 
 function loadRegistry() {
@@ -29,6 +32,37 @@ function loadRegistry() {
     seen.add(entry.key)
   }
   return registry.entries.toSorted((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+}
+
+function validateMigrationTargets(entries) {
+  const registryKeys = new Set(entries.map((entry) => entry.key))
+  const missingTargets = new Set()
+  const classification = JSON.parse(fs.readFileSync(classificationPath, 'utf8'))
+
+  function visit(value) {
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    if (value === null || typeof value !== 'object') return
+
+    if (
+      value.status === 'classified' &&
+      value.category === 'preferences' &&
+      typeof value.targetKey === 'string' &&
+      !registryKeys.has(value.targetKey)
+    ) {
+      missingTargets.add(value.targetKey)
+    }
+    Object.values(value).forEach(visit)
+  }
+
+  visit(classification)
+  if (missingTargets.size > 0) {
+    throw new Error(
+      `Migration target keys are missing from the Preference registry: ${[...missingTargets].toSorted().join(', ')}`
+    )
+  }
 }
 
 function formatDefaultValue(value) {
@@ -92,16 +126,20 @@ ${defaults}
 
 // === AUTO-GENERATED CONTENT END ===
 `
-  const biomePath = path.join(repositoryRoot, 'node_modules/.bin/biome')
-  const formatted = spawnSync(biomePath, ['format', '--stdin-file-path', outputPath], {
+  const biomeCli = require.resolve('@biomejs/biome/bin/biome')
+  const formatted = spawnSync(process.execPath, [biomeCli, 'format', '--stdin-file-path', outputPath], {
+    cwd: repositoryRoot,
     input: source,
     encoding: 'utf8'
   })
+  if (formatted.error) throw formatted.error
   if (formatted.status !== 0) throw new Error(formatted.stderr || 'Biome could not format the generated schema')
   return formatted.stdout
 }
 
-const expected = generate(loadRegistry())
+const entries = loadRegistry()
+validateMigrationTargets(entries)
+const expected = generate(entries)
 if (process.argv.includes('--check')) {
   const current = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : ''
   if (current !== expected) {

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -70,7 +71,10 @@ import type {
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
-type ManagedAiStreamRequest = AiStreamRequest & { usageContext?: InProcessUsageContext }
+type ManagedAiStreamRequest = AiStreamRequest & {
+  usageContext?: InProcessUsageContext
+  tokenUsageSource?: TokenUsageSource
+}
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
 // router against `aiRequestSchemas` (src/shared/ipc/schemas/ai.ts) before reaching the
@@ -882,6 +886,8 @@ export class AiStreamManager extends BaseService {
     idleTimeoutMs?: number
     /** In-process agent correlation for gateway-owned provider-request records. */
     usageContext?: InProcessUsageContext
+    /** Trusted in-process classification for remote token analytics. */
+    tokenUsageSource?: TokenUsageSource
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -898,6 +904,7 @@ export class AiStreamManager extends BaseService {
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
+      ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
     }
     return this.send({
@@ -1176,6 +1183,43 @@ export class AiStreamManager extends BaseService {
     // only runs after the loop settles asynchronously. A steer enqueue landing in that window reads
     // this 'aborted' off the in-grace stream and drops, instead of draining after Stop.
     stream.status = 'aborted'
+  }
+
+  /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
+  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+    await this.withDispatchLock(topicId, async () => {
+      const stream = this.activeStreams.get(topicId)
+      const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
+      const drainedLoops = new Set(loopPromises)
+
+      this.abort(topicId, reason)
+      await Promise.allSettled(loopPromises)
+
+      if (isAgentSessionTopic(topicId)) {
+        const runtimeClosing = application
+          .get('AgentSessionRuntimeService')
+          .closeSession(extractAgentSessionId(topicId))
+        const drainReplacementLoops = async (): Promise<void> => {
+          for (;;) {
+            const replacement = this.activeStreams.get(topicId)
+            const replacementLoops = replacement
+              ? [...replacement.executions.values()]
+                  .map((execution) => execution.loopPromise)
+                  .filter((loopPromise) => !drainedLoops.has(loopPromise))
+              : []
+            if (replacementLoops.length === 0) return
+
+            replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
+            this.abort(topicId, reason)
+            await Promise.allSettled(replacementLoops)
+          }
+        }
+
+        await drainReplacementLoops()
+        await runtimeClosing
+        await drainReplacementLoops()
+      }
+    })
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────

@@ -50,10 +50,11 @@ v2-refactor-temp/tools/data-classify/
 ## 快速开始
 
 ```bash
-# 进入工具目录
-cd v2-refactor-temp/tools/data-classify
+# 先在仓库根目录安装主项目依赖（Preference 生成器使用根目录的 Biome）
+pnpm install
 
-# 安装依赖
+# 再进入工具目录并安装迁移生成器依赖
+cd v2-refactor-temp/tools/data-classify
 npm install
 
 # 生成所有代码（当前唯一仍受支持的流程）
@@ -688,17 +689,12 @@ Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`）�
 
 ```json
 {
-  "metadata": {
-    "version": "1.0.0",
-    "description": "Target key definitions...",
-    "lastUpdated": "2025-01-18"
-  },
-  "definitions": [
+  "schemaVersion": 1,
+  "entries": [
     {
-      "targetKey": "app.window.position.x",
+      "key": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,
-      "status": "classified",
       "description": "Window X position (from complex mapping)"
     }
   ]
@@ -709,40 +705,37 @@ Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`）�
 
 | 字段           | 必填 | 说明                                                     |
 | -------------- | ---- | -------------------------------------------------------- |
-| `targetKey`    | ✓    | preference key（必须符合命名规范）                       |
+| `key`          | ✓    | preference key（必须符合命名规范）                       |
 | `type`         | ✓    | TypeScript 类型（string, number, boolean, 或自定义类型） |
 | `defaultValue` | ✓    | 默认值（支持 `VALUE: ...` 特殊格式）                     |
-| `status`       | ✓    | `classified` 启用，`pending` 禁用                        |
-| `description`  |      | 可选描述                                                 |
+| `description`  | ✓    | key 的用途或旧配置来源                                   |
 
 #### 纯新增（非迁移）场景
 
-当需要添加一个全新的 preference（不是从旧代码迁移的 v2 新功能）时，直接在 `definitions` 数组中添加即可。
+当需要添加一个全新的 preference（不是从旧代码迁移的 v2 新功能）时，直接在 `entries` 数组中添加即可。
 
 **示例**: 添加 v2 版本新增的功能配置
 
 ```json
 {
-  "definitions": [
+  "entries": [
     {
-      "targetKey": "feature.new_assistant.enabled",
+      "key": "feature.new_assistant.enabled",
       "type": "boolean",
       "defaultValue": false,
-      "status": "classified",
       "description": "启用新助手功能（v2 新增，非迁移）"
     },
     {
-      "targetKey": "feature.new_assistant.default_model",
+      "key": "feature.new_assistant.default_model",
       "type": "string",
       "defaultValue": "gpt-4",
-      "status": "classified",
       "description": "新助手默认模型（v2 新增，非迁移）"
     }
   ]
 }
 ```
 
-运行 `npm run generate:preferences` 后，这些 keys 会出现在生成的 `preferenceSchemas.ts` 中。
+运行 `pnpm preferences:generate`（仓库根目录）或 `npm run generate:preferences`（本工具目录）后，这些 keys 会出现在生成的 `preferenceSchemas.ts` 中。简单迁移的 `classification.json` target key 也必须先存在于这个 registry；生成器会拒绝缺失的目标 key。
 
 **与复杂迁移的区别**:
 - 复杂迁移需要在 `PreferenceTransformers.ts` 和 `ComplexPreferenceMappings.ts` 中实现转换逻辑
@@ -793,7 +786,7 @@ src/main/data/migration/v2/migrators/
 1. 在 `scripts/preference-schema/registry.json` 中定义 target keys
 2. 在 `PreferenceTransformers.ts` 中实现转换函数
 3. 在 `ComplexPreferenceMappings.ts` 中添加映射配置
-4. 运行 `npm run generate:preferences` 重新生成 preferenceSchemas.ts
+4. 运行 `pnpm preferences:generate` 重新生成 preferenceSchemas.ts
 
 ### 冲突处理
 
@@ -807,10 +800,8 @@ src/main/data/migration/v2/migrators/
 
 ### "Module not found" 错误
 
-```bash
-cd v2-refactor-temp/tools/data-classify
-npm install
-```
+先在仓库根目录运行 `pnpm install`。如果使用本目录的完整迁移生成器，再在
+`v2-refactor-temp/tools/data-classify` 运行 `npm install`。
 
 ### 验证错误
 

@@ -1,0 +1,2 @@
+{"level":"error","message":"Error: net::ERR_CONNECTION_REFUSED at SimpleURLLoaderWrapper","module":"AppUpdater","process":"main","timestamp":"2026-08-20 10:00:00"}
+{"level":"error","message":"request to https://api.example.test/v1/models failed","stack":"FetchError: connect ECONNREFUSED 127.0.0.1:443\n    at ClientRequest (node:http:600:5)","timestamp":"2026-08-19 10:00:00"}
