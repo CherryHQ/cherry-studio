@@ -31,7 +31,7 @@ describe('resolveAgentCapabilities', () => {
     const assistant = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })
 
     expect(support.hostTools?.tools).not.toContain('create_agent')
-    // Assistant declares no subset, which means the complete tool set.
+    // Assistant declares no subset, so the server uses the default tool set.
     expect(assistant.hostTools?.tools).toBeUndefined()
   })
 

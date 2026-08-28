@@ -33,7 +33,7 @@ export interface AgentCapabilities {
   allKnowledgeBases: boolean
   /** Tools that act on Cherry Studio itself. Absent for an Agent with no host access. */
   hostTools?: {
-    /** Omit for the complete assistant tool set. */
+    /** Omit for the default assistant tool set. */
     tools?: readonly AssistantToolName[]
     /** Channel-safe subset. Omit to disable host access when the Session is channel-linked. */
     toolsInChannelSessions?: readonly AssistantToolName[]

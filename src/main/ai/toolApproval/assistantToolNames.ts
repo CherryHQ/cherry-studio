@@ -15,6 +15,6 @@ export const DEFAULT_ASSISTANT_TOOL_NAMES = [
   'create_agent'
 ] as const
 
-export const ASSISTANT_TOOL_NAMES = [...DEFAULT_ASSISTANT_TOOL_NAMES, 'prepare_diagnostic_report'] as const
+const ASSISTANT_TOOL_NAMES = [...DEFAULT_ASSISTANT_TOOL_NAMES, 'prepare_diagnostic_report'] as const
 
 export type AssistantToolName = (typeof ASSISTANT_TOOL_NAMES)[number]
