@@ -177,6 +177,8 @@ interface SavedComposerDraft {
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
   mentionedModels: Model[]
+  mentionedModelSelectorValue: Model[]
+  mentionedModelMultiSelectMode: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
 }
@@ -746,7 +748,8 @@ const ChatComposerInner = ({
     handleMentionedModelsSelect: selectMentionedModels,
     handleMentionedModelMultiSelectModeChange: changeMentionedModelMultiSelectMode,
     handleMentionedModelSelectorRestore: restoreMentionedModelSelector,
-    restoreMentionedModelDraft
+    restoreMentionedModelDraft,
+    restoreMentionedModelSelection
   } = useChatMentionedModels({
     enabled: useMentionedModelSelector,
     runtimeModel,
@@ -758,6 +761,8 @@ const ChatComposerInner = ({
     preserveExplicitSelectionOnRuntimeChange: !assistant && !assistantId,
     onModelSelect: handleModelSelect
   })
+  const mentionedModelSelectorValueRef = useLatest(mentionedModelSelectorValue)
+  const mentionedModelMultiSelectModeRef = useLatest(mentionedModelMultiSelectMode)
 
   useEffect(() => {
     if (isMentionedModelDraftHydrated || !useMentionedModelSelector) return
@@ -1095,7 +1100,8 @@ const ChatComposerInner = ({
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
       mentionedModelIds:
         savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
-      modelMultiSelectMode: mentionedModelDraftRef.current.modelMultiSelectMode
+      modelMultiSelectMode:
+        savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
@@ -1112,9 +1118,13 @@ const ChatComposerInner = ({
     setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
-    setMentionedModels(savedDraft.mentionedModels)
+    restoreMentionedModelSelection(
+      savedDraft.mentionedModelSelectorValue,
+      savedDraft.mentionedModels,
+      savedDraft.mentionedModelMultiSelectMode
+    )
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
-  }, [actionsRef, exitInputHistoryPreview, setFiles, setMentionedModels, setSelectedKnowledgeBases])
+  }, [actionsRef, exitInputHistoryPreview, restoreMentionedModelSelection, setFiles, setSelectedKnowledgeBases])
 
   const handleCancelEditing = useCallback(() => {
     restoreSavedDraft()
@@ -1162,6 +1172,8 @@ const ChatComposerInner = ({
         draftTokens: currentDraft.tokens,
         files: currentTools?.files ?? filesRef.current,
         mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
+        mentionedModelSelectorValue: mentionedModelSelectorValueRef.current,
+        mentionedModelMultiSelectMode: mentionedModelMultiSelectModeRef.current,
         selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
         knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
       }

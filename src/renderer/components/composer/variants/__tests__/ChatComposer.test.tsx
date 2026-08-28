@@ -3442,6 +3442,42 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-disabled', 'false')
   })
 
+  it('does not carry models selected during an edit into the next normal send', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited prompt', tokens: [] })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'false')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'next prompt', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith('next prompt', expect.objectContaining({ mentionedModels: [model.id] }))
+  })
+
   it('hydrates Composer from an edited message and restores the previous draft on cancel', async () => {
     const message = {
       id: 'message-1',
