@@ -64,7 +64,6 @@ export const AppShell = () => {
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const {
-    openedKeepAliveMiniApps,
     currentMiniAppId,
     openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
@@ -160,7 +159,17 @@ export const AppShell = () => {
       evictMiniAppsForClosedTabs([id], clearingSplitId)
       closeTab(id)
     },
-    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, splitMiniAppId, splitOpen, tabs, evictMiniAppsForClosedTabs, setSplitMiniAppId, setSplitOpen]
+    [
+      clearSplitWithLastMiniAppTab,
+      closeTab,
+      closeTabs,
+      evictMiniAppsForClosedTabs,
+      setSplitMiniAppId,
+      setSplitOpen,
+      splitMiniAppId,
+      splitOpen,
+      tabs
+    ]
   )
 
   const handleCloseTabs = useCallback(
