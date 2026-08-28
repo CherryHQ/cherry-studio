@@ -871,7 +871,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'inspect these images' },
             {
               type: 'file',
-              url: 'file:///tmp/diagram.bmp',
               mediaType: 'image/bmp',
               filename: 'diagram.bmp',
               providerMetadata: { cherry: { fileEntryId: 'entry-bmp' } }

@@ -1177,6 +1177,10 @@ async function materializeUserContent(
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
+  const routeFallback = (part: FileUIPart, fileEntryId?: string) => {
+    const target = fileEntryId || part.url?.startsWith('file://') ? fallbackParts : unavailableParts
+    target.push(part)
+  }
 
   for (const part of [
     ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
@@ -1186,8 +1190,7 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
-      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
-      target.push(originalPart)
+      routeFallback(originalPart, fileEntryId)
       continue
     }
 
@@ -1196,16 +1199,14 @@ async function materializeUserContent(
     if (!parsed) {
       const materialized = await materializeNativeFilePart(part)
       if (!materialized) {
-        const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
-        target.push(originalPart)
+        routeFallback(originalPart, fileEntryId)
         continue
       }
       parsed = materialized.url ? parseDataUrl(materialized.url) : null
     }
 
     if (!parsed?.isBase64 || parsed.data.length === 0) {
-      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
-      target.push(originalPart)
+      routeFallback(originalPart, fileEntryId)
       continue
     }
 
@@ -1218,11 +1219,7 @@ async function materializeUserContent(
       continue
     }
 
-    if (originalPart.url?.startsWith('file://')) {
-      fallbackParts.push(originalPart)
-    } else {
-      unavailableParts.push(originalPart)
-    }
+    routeFallback(originalPart, fileEntryId)
   }
 
   const fallbackEntryIds = new Set(
