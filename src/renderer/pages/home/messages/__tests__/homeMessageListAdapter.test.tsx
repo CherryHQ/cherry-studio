@@ -50,6 +50,13 @@ const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
 })
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 const openRouteMock = vi.hoisted(() => vi.fn())
+const getMessageActivityStateMock = vi.hoisted(() =>
+  vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false }))
+)
+const messageActivityStoreMock = vi.hoisted(() => ({
+  getSnapshot: vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })),
+  subscribe: vi.fn(() => vi.fn())
+}))
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -118,7 +125,10 @@ vi.mock('@renderer/hooks/translate', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () => ({
-  useMessageActivityState: () => vi.fn(() => undefined)
+  useMessageActivityState: () => ({
+    getMessageActivityState: getMessageActivityStateMock,
+    store: messageActivityStoreMock
+  })
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
@@ -338,6 +348,15 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
 
     expect(value?.meta.assistantProfile).toEqual({ name: 'Assistant', avatar: '🤖' })
+  })
+
+  it('forwards the message activity getter and read-only store', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.state.getMessageActivityState).toBe(getMessageActivityStateMock)
+    expect(value?.state.messageActivityStore).toBe(messageActivityStoreMock)
   })
 
   it('exposes the language load status and retries through the shared refetch', () => {

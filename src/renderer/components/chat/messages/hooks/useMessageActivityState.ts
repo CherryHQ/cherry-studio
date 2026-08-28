@@ -87,9 +87,9 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
   }
 }
 
-export interface MessageActivityCapability {
+interface MessageActivityCapability {
   getMessageActivityState: (message: MessageListItem) => MessageActivityState
-  store: KeyedMessageActivityStore
+  store: MessageActivityStore
 }
 
 export function useMessageActivityState(
