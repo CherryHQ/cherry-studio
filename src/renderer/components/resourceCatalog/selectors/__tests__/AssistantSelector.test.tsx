@@ -1,6 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import { useGroups } from '@renderer/hooks/useGroups'
 import type * as UseModelModule from '@renderer/hooks/useModel'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -87,7 +88,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/hooks/useGroups', () => ({
-  useGroups: () => ({
+  useGroups: vi.fn(() => ({
     groups: [
       {
         id: '33333333-3333-4333-8333-333333333333',
@@ -115,7 +116,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
       }
     ],
     isLoading: false
-  }),
+  })),
   useGroupMutations: () => ({
     createGroup: vi.fn()
   })
@@ -359,6 +360,28 @@ async function openCreateDialog() {
 }
 
 describe('AssistantSelector', () => {
+  it('keeps selector queries disabled until the selector opens', () => {
+    renderSelector()
+
+    expect(useQueryMock).toHaveBeenCalledWith('/assistants', {
+      enabled: false,
+      query: { limit: 500 }
+    })
+    expect(useGroups).toHaveBeenLastCalledWith('assistant', { enabled: false })
+    expect(usePinsMock).toHaveBeenLastCalledWith('assistant', { enabled: false })
+
+    openPopover()
+
+    expect(useQueryMock).toHaveBeenCalledWith('/assistants', {
+      enabled: true,
+      query: { limit: 500 }
+    })
+    expect(useGroups).toHaveBeenLastCalledWith('assistant', { enabled: true })
+    expect(usePinsMock).toHaveBeenLastCalledWith('assistant', { enabled: true })
+    expect(refetchPinsMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('option', { name: /Alpha Assistant/ })).toBeInTheDocument()
+  })
+
   it('renders rows in DataApi order and shows group filters without sort controls', () => {
     renderSelector()
     openPopover()

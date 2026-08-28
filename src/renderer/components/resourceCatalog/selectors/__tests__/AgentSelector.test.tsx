@@ -346,11 +346,31 @@ async function openCreateDialog() {
 }
 
 describe('AgentSelector', () => {
+  it('keeps selector queries disabled until the selector opens', () => {
+    renderSelector()
+
+    expect(useQueryMock).toHaveBeenCalledWith('/agents', {
+      enabled: false,
+      query: { limit: 500 }
+    })
+    expect(usePinsMock).toHaveBeenLastCalledWith('agent', { enabled: false })
+
+    openPopover()
+
+    expect(useQueryMock).toHaveBeenCalledWith('/agents', {
+      enabled: true,
+      query: { limit: 500 }
+    })
+    expect(usePinsMock).toHaveBeenLastCalledWith('agent', { enabled: true })
+    expect(refetchPinsMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
+  })
+
   it('fetches agents from DataApi and renders returned rows', () => {
     renderSelector()
     openPopover()
 
-    expect(useQueryMock).toHaveBeenCalledWith('/agents', { query: { limit: 500 } })
+    expect(useQueryMock).toHaveBeenCalledWith('/agents', { enabled: true, query: { limit: 500 } })
     expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Beta Agent/ })).toBeInTheDocument()
     const options = screen.getAllByRole('option')
@@ -449,7 +469,7 @@ describe('AgentSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(usePinsMock).toHaveBeenCalledWith('agent')
+    expect(usePinsMock).toHaveBeenCalledWith('agent', { enabled: true })
     expect(screen.getByText('Pinned')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
