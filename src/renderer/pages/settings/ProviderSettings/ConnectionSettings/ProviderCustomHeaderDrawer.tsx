@@ -460,7 +460,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
               </InputGroup>
               {REASONING_FORMAT_ENDPOINT_TYPES.has(type) && (
                 <div className="flex items-center gap-2">
-                  <Label className="shrink-0 text-muted-foreground text-xs" htmlFor={`provider-reasoning-format-${type}`}>
+                  <Label
+                    className="shrink-0 text-muted-foreground text-xs"
+                    htmlFor={`provider-reasoning-format-${type}`}>
                     {t('settings.provider.reasoning_format')}
                   </Label>
                   <Select

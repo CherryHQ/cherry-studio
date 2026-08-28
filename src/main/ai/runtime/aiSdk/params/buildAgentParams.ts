@@ -602,7 +602,7 @@ function buildAgentOptions(
     for (const emission of reasoning.emissions) {
       if (emission.target.startsWith('chat_template_kwargs.')) {
         const key = emission.target.slice('chat_template_kwargs.'.length)
-        const bag = ((body.chat_template_kwargs ??= {}) as Record<string, unknown>)
+        const bag = (body.chat_template_kwargs ??= {}) as Record<string, unknown>
         bag[key] = emission.value
       }
     }

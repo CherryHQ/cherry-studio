@@ -22,6 +22,11 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children }: any) => React.createElement('div', null, children),
     PopoverContent: ({ children }: any) => React.createElement('div', null, children),
     PopoverTrigger: ({ children }: any) => children,
+    Select: ({ children }: any) => React.createElement('div', null, children),
+    SelectContent: ({ children }: any) => React.createElement('div', null, children),
+    SelectItem: ({ children }: any) => React.createElement('div', null, children),
+    SelectTrigger: ({ children, ...props }: any) => React.createElement('button', props, children),
+    SelectValue: () => React.createElement('span', null, 'value'),
     Tooltip: ({ children }: any) => children
   }
 })
