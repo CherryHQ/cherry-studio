@@ -188,14 +188,18 @@ async function accumulateBody(
 
 /**
  * Overwrite the span's `inputs` with the body the innermost fetch actually sent,
- * when a provider transform rewrote it via the trace slot. No-op when the slot is
- * absent (no transform in the chain) or carries no string body.
+ * when a provider transform rewrote it via the trace slot. A `null` body clears
+ * stale inputs after redirect handling changed the request to GET.
  */
 function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBodyBytes: number): void {
   const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
   const finalBody = slot?.body
+  if (finalBody === null) {
+    span.setAttribute('inputs', '')
+    return
+  }
   if (typeof finalBody !== 'string') return
   const parsed = readRequestBody(finalBody, maxBodyBytes)
   if (parsed !== undefined) span.setAttribute('inputs', stringifyBody(parsed))
