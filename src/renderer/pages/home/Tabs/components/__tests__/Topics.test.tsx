@@ -454,7 +454,6 @@ import {
   applyOptimisticTopicDisplayMove,
   TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '@renderer/utils/chat/topicsHelpers'
 import type { Pin } from '@shared/data/types/pin'
@@ -3126,7 +3125,6 @@ describe('Topics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
     // Sections stay expanded; expanding Alpha removes it from the collapsed list.
-    expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_PINNED_SECTION_ID)
     expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-1')
     expect(getTopicGroupExpansionCache().assistant).toContain('topic:assistant:assistant-2')

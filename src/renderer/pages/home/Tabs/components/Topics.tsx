@@ -738,8 +738,7 @@ export function Topics({
             unlinked: t('chat.topics.group.unknown_assistant')
           }
         },
-        now: groupNow,
-        pinnedAsSection: false
+        now: groupNow
       }),
     [assistantById, displayMode, groupNow, t]
   )
@@ -1238,8 +1237,9 @@ export function Topics({
   )
 
   const canDropTopicItem = useCallback(
-    ({ targetGroupId }: { targetGroupId: string }) =>
+    ({ overItem, targetGroupId }: { overItem?: Topic; targetGroupId: string }) =>
       isAssistantDisplayMode &&
+      !overItem?.pinned &&
       targetGroupId !== TOPIC_PINNED_GROUP_ID &&
       targetGroupId !== TOPIC_UNLINKED_ASSISTANT_GROUP_ID &&
       resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined,
