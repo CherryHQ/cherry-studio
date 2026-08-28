@@ -138,7 +138,8 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.resolve(runtimeName)).toMatchObject({
       id: runtimeName,
       name: 'delete_file',
-      approval: 'prompt'
+      approval: 'prompt',
+      sourceApproval: 'prompt'
     })
   })
 

@@ -114,4 +114,15 @@ describe('resolveMcpToolIds', () => {
     expect(resolveMcpToolIds([buildMcpWireToolId(SERVER.name, 'read'), 'unknown'])).toEqual(['identity-read'])
     expect(resolveMcpToolIds(['mcp__fs__ls__runtime'])).toEqual(['identity-ls'])
   })
+
+  it('fails closed when a legacy display-name id matches more than one catalog tool', () => {
+    const duplicateServer = { id: 'srv-2', name: SERVER.name, isActive: true }
+    listServersMock.mockReturnValue({ items: [SERVER, duplicateServer] })
+    listToolsMock.mockImplementation((serverId: string) =>
+      serverId === SERVER.id ? TOOLS : [{ id: 'identity-read-2', runtimeName: 'mcp__fs2__read__runtime', name: 'read' }]
+    )
+
+    expect(resolveMcpToolIds([buildMcpWireToolId(SERVER.name, 'read')])).toEqual([])
+    expect(resolveMcpToolIds(['identity-read-2'])).toEqual(['identity-read-2'])
+  })
 })

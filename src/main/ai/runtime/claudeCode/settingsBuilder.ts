@@ -482,12 +482,14 @@ async function buildToolPermissions(
     const approvalHoldsInThisMode =
       policy?.approval === 'required' &&
       !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
-    const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
+    const access = snapshot.resolve(toolName, input)
+    const sourceApprovalRequired = access?.sourceApproval === 'prompt'
+    const requiresInteractiveResponder =
+      claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode || sourceApprovalRequired
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
-    const access = snapshot.resolve(toolName, input)
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.

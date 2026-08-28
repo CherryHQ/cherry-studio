@@ -153,8 +153,10 @@ function injectedRuntimeToolRequiringApproval(runtimeName: string): Tool {
   }
 }
 
+export type ClaudeAgentToolAccess = Tool & Pick<ClaudeToolDescriptor, 'sourceApproval'>
+
 export interface ClaudeAgentToolPolicySnapshot {
-  resolve(runtimeName: string, input?: unknown): Tool | undefined
+  resolve(runtimeName: string, input?: unknown): ClaudeAgentToolAccess | undefined
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
@@ -221,7 +223,10 @@ export async function createClaudeAgentToolPolicySnapshot(
       const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
       if (!descriptor) return undefined
       const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
-      return descriptorToToolWithAccess(descriptor, access)
+      return {
+        ...descriptorToToolWithAccess(descriptor, access),
+        ...(descriptor.sourceApproval ? { sourceApproval: descriptor.sourceApproval } : {})
+      }
     },
 
     isDisabled(runtimeName) {

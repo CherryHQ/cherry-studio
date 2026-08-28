@@ -3021,6 +3021,70 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
+    it.each([
+      ['interactive', undefined, 'prompt', 'stream'],
+      ['interactive', 'subagent-1', 'prompt', 'message'],
+      ['headless', undefined, 'prompt', 'deny'],
+      ['headless', undefined, 'auto', 'allow']
+    ] as const)(
+      'enforces external MCP source approval on a %s turn (agent=%s, source=%s)',
+      async (currentTurn, agentID, sourceApproval, expected) => {
+        const runtimeName = 'mcp__files_123456789abc__delete_file__abcdef123456'
+        mocks.createToolPolicySnapshot.mockResolvedValue({
+          resolve: vi.fn(() => ({
+            id: runtimeName,
+            name: 'delete_file',
+            origin: 'mcp',
+            approval: 'prompt',
+            sourceApproval,
+            sourceId: 'mcp-1',
+            sourceName: 'Files'
+          })),
+          isDisabled: vi.fn(() => false),
+          getPermissionMode: vi.fn(() => undefined),
+          update: vi.fn(),
+          setPermissionMode: vi.fn()
+        })
+        mocks.applicationGet.mockImplementation((name: string) => {
+          if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+          if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+          if (name === 'AgentSessionRuntimeService') {
+            return {
+              getInteractionState: () => ({
+                currentTurn,
+                userResponse: currentTurn === 'headless' ? 'unavailable' : 'stream'
+              })
+            }
+          }
+          throw new Error(`Unexpected application.get(${name})`)
+        })
+        const settings = await buildClaudeCodeSessionSettings(
+          sessionWith(`mcp-source-${currentTurn}-${agentID}-${sourceApproval}`),
+          {} as never
+        )
+        settings.approvalEmitter!.emit = vi.fn()
+        const input = { path: '/workspace/file' }
+        const call = settings.canUseTool!(runtimeName, input, {
+          signal: { aborted: false },
+          toolUseID: 'tu-mcp-source',
+          ...(agentID ? { agentID } : {})
+        } as never)
+
+        if (expected === 'deny') {
+          await expect(call).resolves.toMatchObject({ behavior: 'deny' })
+          expect(mocks.approvalRegister).not.toHaveBeenCalled()
+        } else if (expected === 'allow') {
+          await expect(call).resolves.toEqual({ behavior: 'allow', updatedInput: input })
+          expect(mocks.approvalRegister).not.toHaveBeenCalled()
+        } else {
+          void call
+          expect(mocks.approvalRegister).toHaveBeenCalledWith(
+            expect.objectContaining({ toolName: runtimeName, presentation: expected })
+          )
+        }
+      }
+    )
+
     it.each(['session_create', 'session_send'])(
       'requires live approval when a background agent calls %s',
       async (toolName) => {

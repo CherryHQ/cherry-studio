@@ -91,16 +91,28 @@ export function resolveMcpToolIds(toolIds: readonly string[]): string[] {
 
   const requested = new Set(toolIds)
   const resolved = new Set<string>()
+  const legacyCandidates = new Map<string, Set<string>>()
   const { items: activeServers } = mcpServerService.list({ isActive: true })
   const catalog = application.get('McpCatalogService')
 
   for (const server of activeServers) {
     for (const tool of catalog.listTools(server.id, { includeDisabled: true })) {
-      const legacyId = buildMcpWireToolId(server.name, tool.name)
-      if (requested.has(tool.id) || requested.has(tool.runtimeName) || requested.has(legacyId)) {
+      if (requested.has(tool.id) || requested.has(tool.runtimeName)) {
         resolved.add(tool.id)
       }
+
+      const legacyId = buildMcpWireToolId(server.name, tool.name)
+      if (!requested.has(legacyId)) continue
+      const candidates = legacyCandidates.get(legacyId) ?? new Set<string>()
+      candidates.add(tool.id)
+      legacyCandidates.set(legacyId, candidates)
     }
+  }
+
+  for (const candidates of legacyCandidates.values()) {
+    if (candidates.size !== 1) continue
+    const [candidate] = candidates
+    if (candidate) resolved.add(candidate)
   }
 
   return [...resolved]
