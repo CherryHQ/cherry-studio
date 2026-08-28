@@ -13,6 +13,7 @@ import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
+import { normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
@@ -61,6 +62,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { toSdkPermissionMode } from './permissionMode'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -537,7 +539,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!baseline) return 'rebuild'
 
     const fresh = derived.config
-    const permissionModeChanged = baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode
+    const baselinePermissionMode = normalizeLegacyPermissionMode(baseline.live.toolPolicy.permissionMode)
+    const freshPermissionMode = normalizeLegacyPermissionMode(fresh.live.toolPolicy.permissionMode)
+    const permissionModeChanged = baselinePermissionMode !== freshPermissionMode
     // Claude's set_permission_mode control request can terminate work already in flight. Keep the
     // mode (and the local approval gate that mirrors it) frozen for the active turn; the host pulls
     // reconcile again before admitting the next turn, when the SDK update is safe to apply.
@@ -552,8 +556,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       try {
         const agent = agentService.getAgent(this.input.agentId)
         if (!agent) return 'invalid'
-        if (permissionModeChanged && !deferPermissionMode) {
-          await this.query.setPermissionMode((fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode)
+        if (
+          permissionModeChanged &&
+          !deferPermissionMode &&
+          toSdkPermissionMode(baselinePermissionMode) !== toSdkPermissionMode(freshPermissionMode)
+        ) {
+          await this.query.setPermissionMode(toSdkPermissionMode(freshPermissionMode))
         }
         // Refresh only after the SDK confirms an applicable permission change. If the current turn
         // keeps its old mode, preserve that mode in the snapshot while still applying other policy

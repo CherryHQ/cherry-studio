@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
+import { type AgentPermissionMode, normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -235,7 +236,7 @@ function buildRebuildRouteFacts(routeFacts: ClaudeCodeRouteFacts) {
  * disabled tool must restore it to the subprocess model context, which the SDK cannot do live.
  */
 export interface ToolPolicyFacts {
-  permissionMode: string | null
+  permissionMode: AgentPermissionMode
   disabledTools: string[]
   mcps: string[]
 }
@@ -418,7 +419,7 @@ async function deriveConnectionConfigFromSnapshot(
     rebuildFactFingerprints,
     live: {
       toolPolicy: {
-        permissionMode: agent.configuration?.permission_mode ?? null,
+        permissionMode: normalizeLegacyPermissionMode(agent.configuration?.permission_mode),
         disabledTools: [...(agent.disabledTools ?? [])].sort(),
         mcps: [...(agent.mcps ?? [])].sort()
       }

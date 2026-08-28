@@ -1600,11 +1600,11 @@ describe('deriveConnectionConfig', () => {
 
     expect(policyChanged.rebuildSignature).toBe(base.rebuildSignature)
     expect(policyChanged.live.toolPolicy).toEqual({
-      permissionMode: 'acceptEdits',
+      permissionMode: 'edit',
       disabledTools: [],
       mcps: []
     })
-    expect(base.live.toolPolicy.permissionMode).toBeNull()
+    expect(base.live.toolPolicy.permissionMode).toBe('default')
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

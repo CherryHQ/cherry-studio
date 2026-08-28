@@ -25,6 +25,10 @@ export default defineConfig([
     format: ['esm', 'cjs'],
     clean: true,
     dts: true,
+    alias: {
+      '@cherrystudio/agent-permission/node': path.join(import.meta.dirname, '../agent-permission/src/node.ts'),
+      '@cherrystudio/agent-permission': path.join(import.meta.dirname, '../agent-permission/src/index.ts')
+    },
     tsconfig: 'tsconfig.json'
   },
   {
@@ -42,6 +46,10 @@ export default defineConfig([
       'sharp'
     ],
     noExternal: () => true,
+    alias: {
+      '@cherrystudio/agent-permission/node': path.join(import.meta.dirname, '../agent-permission/src/node.ts'),
+      '@cherrystudio/agent-permission': path.join(import.meta.dirname, '../agent-permission/src/index.ts')
+    },
     plugins: [
       {
         name: 'inline-dsh-llm-version',

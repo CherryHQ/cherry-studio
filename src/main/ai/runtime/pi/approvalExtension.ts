@@ -7,13 +7,10 @@
  * approval round-trip. Steering (the 4th) is deferred (plan D6).
  *
  * Pipeline per `tool_call`:
- *   1. disabledTools  → block (all modes, including bypassPermissions)
- *   2. global-install → block bash that installs into shared/global locations (all modes)
- *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
- *   4. bypass         → skip ordinary approvals; non-bypassable delegation still asks
- *   5. approval       → per permission mode: auto-allow, fail closed without a
- *      responder, or register + emit a runtime-neutral approval request, then
- *      block / allow / apply the edited input.
+ *   1. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
+ *   2. classify facts → extract paths, shell text, and built-in conduct tags
+ *   3. evaluate       → shared disabled/global/mode/conduct policy, then ask/allow/deny
+ *   4. approval       → register + emit a runtime-neutral request, then block / allow / apply edit
  *
  * The gate keys off pi's lowercase built-in tool names; it never assumes Claude
  * casing (plan D8). `tool_execution_start` fires (in the pi agent loop) BEFORE
@@ -21,18 +18,22 @@
  * part by the time the approval request references its `toolCallId`.
  */
 import { randomUUID } from 'node:crypto'
-import { lstat, realpath } from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 
+import {
+  type AgentPermissionMode,
+  detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
+  isLarkFormSubmissionCommand,
+  isPermanentDeletionToolName,
+  normalizeLegacyPermissionMode,
+  type ToolCategory
+} from '@cherrystudio/agent-permission'
+import { evaluatePermission, type PermissionCall } from '@cherrystudio/agent-permission/node'
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
-import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
-import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
-import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval'
 import { rtkRewrite } from '@main/utils/rtk'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import { PI_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import type { AgentRuntimeEvent } from '../types'
@@ -40,12 +41,12 @@ import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
 
-/** pi built-in read-only tools — auto-approved in every permission mode when their `path` resolves
- *  inside the session workspace, current agent data directory, or another trusted read-only root. */
+/** pi built-in read-only tools — allowed by the shared evaluator only when their `path` resolves
+ *  inside the session workspace or current agent data directory. */
 const READ_ONLY_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'read').map((tool) => tool.name)
 )
-/** pi built-in edit-class tools — auto-approved in `acceptEdits` (still gated in `default`), same
+/** pi built-in edit-class tools — auto-approved in `edit` (still gated in `default`), same
  *  allowed-root scoping as the read-only set. */
 const EDIT_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
@@ -56,10 +57,6 @@ const META_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
 )
 
-/** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
- *  containment matches pi's own `resolveToCwd`). */
-const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
-
 export interface PiApprovalContext {
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
   sessionId: string
@@ -68,15 +65,19 @@ export interface PiApprovalContext {
   /** Current agent's persistent identity and memory directory. It is a trusted file-tool root just
    *  like the workspace; paths under another agent or elsewhere still require approval. */
   agentDataPath: string
-  /** Additional app-owned roots that read tools may access without approval. Mutating file tools do
-   *  not inherit these roots. */
-  additionalReadOnlyRoots: readonly string[]
+  /** Built-in role facts used by the shared product-conduct evaluator. */
+  builtinRole?: string
+  /** MCP servers mounted for this session, forwarded as same-process policy context. */
+  mountedServers: ReadonlySet<string>
+  /** Root turn kind. Code Mode nested calls use the same root policy and are not delegated. */
+  turn: 'interactive' | 'headless'
+  delegated: boolean
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (event: AgentRuntimeEvent) => void
   /** Resolve responder availability at tool fire-time so warm connections follow the current turn. */
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Live permission mode; read at fire-time so a warm-connection `reconcile` takes effect. */
-  getPermissionMode: () => AgentPermissionMode | undefined
+  getPermissionMode: () => AgentPermissionMode | string | undefined
   /** Live disabled-tool predicate; read at fire-time for the same reason. */
   isDisabled: (toolName: string) => boolean
   /** Cherry-owned soul/autonomy tools (`cron`/`notify`/`config`/`memory`) auto-approved in every
@@ -119,29 +120,14 @@ export type PiToolAuthorizer = (
 /** Reusable policy boundary for native Pi calls and nested code-mode calls. */
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
   return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
-    // (1) disabledTools — block regardless of permission mode.
-    if (ctx.isDisabled(toolName)) {
-      return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
-    }
+    const interactionState = ctx.getInteractionState()
+    const mode = normalizeLegacyPermissionMode(ctx.getPermissionMode() ?? 'default')
 
-    const mode = ctx.getPermissionMode() ?? 'default'
-    const approvalRequired = ctx.approvalRequiredTools.has(toolName)
-    const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
-
-    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
-    // in every mode: shared/global installs mutate the cross-agent environment, so this is an
-    // explicit safety block rather than an approval that Full Access can lift.
+    // Pi lets this hook rewrite input in place. Rewrite first, then classify/evaluate the final
+    // command so the policy sees exactly what the runtime will execute.
     if (toolName === 'bash') {
       const command = typeof input.command === 'string' ? input.command : ''
       if (command.trim()) {
-        const reason = detectGlobalInstall(command)
-        if (reason) {
-          logger.info('Blocked global install to prevent dependency pollution', { sessionId: ctx.sessionId, reason })
-          return {
-            block: true,
-            reason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\`); for one-off tools use \`bun x <tool>\` / \`uvx <tool>\`.`
-          }
-        }
         const rewritten = await rtkRewrite(command)
         if (rewritten) {
           logger.info('rtk rewrote bash command', { original: command, rewritten })
@@ -150,43 +136,39 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       }
     }
 
-    // (4) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
-    // exception: its one-hop live-approval ceiling must hold in every permission mode.
-    if (bypass) return
-
-    // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
-    // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
-    // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-    if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
-    if (
-      !(await requiresApproval(
-        mode,
+    const decision = await evaluatePermission(
+      {
         toolName,
-        input,
-        ctx.workspacePath,
-        ctx.agentDataPath,
-        ctx.additionalReadOnlyRoots,
-        approvalRequired
-      ))
-    )
-      return
-
-    const interactionState = ctx.getInteractionState()
-    if (interactionState.userResponse === 'unavailable') {
-      return {
-        block: true,
-        reason: approvalRequired
-          ? 'This tool always requires user approval and cannot run unattended. Retry interactively.'
-          : 'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
+        category: categorizeTool(toolName, ctx),
+        paths: extractStructuredPaths(toolName, input),
+        command: extractCommand(toolName, input),
+        allowMissingTarget: EDIT_TOOLS.has(toolName),
+        conductTags: extractConductTags(toolName, input, ctx.builtinRole)
+      },
+      {
+        mode,
+        roots: { workspace: ctx.workspacePath, agentData: ctx.agentDataPath },
+        isDisabled: ctx.isDisabled,
+        responder: interactionState.userResponse,
+        // A missing responder is the runtime's authoritative headless signal until the
+        // turn-scoped authority is threaded through in the persistence/channel phase.
+        turn: interactionState.userResponse === 'unavailable' ? 'headless' : ctx.turn,
+        delegated: ctx.delegated,
+        builtinRole: ctx.builtinRole,
+        guardContext: { input, mountedServers: ctx.mountedServers },
+        log: (event) => logger.error(event.message, event)
       }
-    }
+    )
+
+    if (decision.effect === 'allow') return
+    if (decision.effect === 'deny') return { block: true, reason: decision.reason }
 
     const approvalId = randomUUID()
-    const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
+    const presentation = decision.presentation
     const resumeExecutionTimeout = onApprovalPending?.()
-    let decision: DispatchDecision
+    let registryDecision: DispatchDecision
     try {
-      decision = await new Promise<DispatchDecision>((resolve) => {
+      registryDecision = await new Promise<DispatchDecision>((resolve) => {
         const pending = toolApprovalRegistry.register({
           approvalId,
           sessionId: ctx.sessionId,
@@ -217,156 +199,73 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       resumeExecutionTimeout?.()
     }
 
-    if (!decision.approved) {
-      return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
+    if (!registryDecision.approved) {
+      return { block: true, reason: registryDecision.reason ?? 'User denied permission for this tool.' }
     }
-    if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
+    if (registryDecision.updatedInput) applyInputEdit(input, registryDecision.updatedInput)
     return
   }
 }
 
-/** Whether a tool must surface an approval request under the given mode. */
-async function requiresApproval(
-  mode: AgentPermissionMode,
+function categorizeTool(toolName: string, context: PiApprovalContext): ToolCategory {
+  if (context.nonBypassableApprovalTools.has(toolName)) return 'non-bypassable'
+  if (context.approvalRequiredTools.has(toolName)) return 'sensitive-first-party'
+  if (META_TOOLS.has(toolName)) return 'meta'
+  if (READ_ONLY_TOOLS.has(toolName)) return 'read'
+  if (EDIT_TOOLS.has(toolName)) return 'edit'
+  if (toolName === 'bash' || toolName === PI_TOOL_EXEC_TOOL_NAME) return 'shell'
+  if (context.autoApprovedTools.has(toolName)) return 'safe-first-party'
+  return 'ordinary'
+}
+
+function extractStructuredPaths(toolName: string, input: Record<string, unknown>): readonly string[] | undefined {
+  if (!READ_ONLY_TOOLS.has(toolName) && !EDIT_TOOLS.has(toolName)) return undefined
+  const raw = input.path
+  if (raw === undefined || raw === null || raw === '') return ['.']
+  return typeof raw === 'string' ? [raw] : []
+}
+
+function extractCommand(toolName: string, input: Record<string, unknown>): string | undefined {
+  if (toolName !== 'bash') return undefined
+  return typeof input.command === 'string' ? input.command : undefined
+}
+
+function extractConductTags(
   toolName: string,
   input: Record<string, unknown>,
-  workspacePath: string,
-  agentDataPath: string,
-  additionalReadOnlyRoots: readonly string[],
-  alwaysPrompt: boolean
-): Promise<boolean> {
-  if (alwaysPrompt) return true
-  if (META_TOOLS.has(toolName)) return false
-  // `auto` runs unattended and only stops for the two things a wrong call cannot undo: a file tool
-  // reaching outside the allowed roots, and a shell command that looks destructive. Everything else
-  // — including every MCP tool — goes through.
-  //
-  // The two halves are NOT equally strong. Path containment binds the file tools exactly; bash is
-  // opaque to it, so `cat ../../secret` runs. The mode is convenience, not containment — it must
-  // never be described to the user as a sandbox.
-  if (mode === 'auto') {
-    if (toolName === 'bash') {
-      const command = typeof input.command === 'string' ? input.command : ''
-      return detectDestructiveCommand(command) !== null
-    }
-    if (READ_ONLY_TOOLS.has(toolName)) {
-      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true, additionalReadOnlyRoots))
-    }
-    if (EDIT_TOOLS.has(toolName)) {
-      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
-    }
-    return false
+  builtinRole: string | undefined
+): PermissionCall['conductTags'] {
+  const tags: Array<NonNullable<PermissionCall['conductTags']>[number]> = []
+  const command = typeof input.command === 'string' ? input.command : ''
+  if (
+    builtinRole &&
+    ((toolName === 'bash' && detectDestructiveAssistantCommand(command)) || isPermanentDeletionToolName(toolName))
+  ) {
+    tags.push('permanent-delete')
   }
-  // The read-only / acceptEdits fast-paths only skip approval when the tool's target path stays
-  // inside an allowed root; any other read/write falls through to a normal prompt so a
-  // prompt-injected model can't auto-touch ~/.ssh, Cherry's SQLite, ~/.zshrc, LaunchAgents, etc.
-  if (READ_ONLY_TOOLS.has(toolName)) {
-    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, false, additionalReadOnlyRoots))
+  if (
+    builtinRole === 'assistant' &&
+    toolName === 'bash' &&
+    (isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command))
+  ) {
+    tags.push('feedback-submission')
   }
-  if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) {
-    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
+  const action = typeof input.action === 'string' ? input.action : ''
+  if ((toolName === 'config' || toolName.endsWith('__config')) && HEADLESS_CONFIG_MUTATION_ACTIONS.has(action)) {
+    tags.push('agent-config-mutation')
   }
-  // `default` (and the unsupported-for-pi `plan`) gate everything else.
-  return true
+  return tags.length > 0 ? tags : undefined
 }
 
-/**
- * Conservative containment check for the auto-approve fast-path. Reproduces the SECURITY-relevant
- * parts of pi's `resolveToCwd(path, cwd)` (see @earendil-works/pi-coding-agent path-utils): a
- * missing/empty `path` defaults to the workspace root, `~`/`~/…` expand to the home dir, a leading
- * `@` is stripped, absolute paths pass through, and everything else joins onto the workspace. Any
- * ambiguity (non-string path, `file://` URL, resolution failure) is treated as OUTSIDE so approval
- * is required. Existing targets and the workspace are canonicalized before comparison so a symlink
- * cannot make an outside target look lexically inside. For a new edit/write target, the nearest
- * existing parent is canonicalized and the missing suffix is appended for classification.
- */
-async function isToolPathInsideAllowedRoots(
-  input: Record<string, unknown>,
-  workspacePath: string,
-  agentDataPath: string,
-  allowMissingTarget: boolean,
-  additionalAllowedRoots: readonly string[] = []
-): Promise<boolean> {
-  const raw = input.path
-  // read defaults a missing/empty path to "." → the workspace root, which is inside.
-  if (raw !== undefined && raw !== null && typeof raw !== 'string') return false
-
-  const resolved = resolveToolPath(raw || '.', workspacePath)
-  if (resolved === undefined) return false
-
-  const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
-    canonicalizeExistingPath(workspacePath),
-    canonicalizeExistingPath(agentDataPath),
-    canonicalizeToolTarget(resolved, allowMissingTarget)
-  ])
-  if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
-
-  const canonicalAdditionalRoots = (
-    await Promise.all(additionalAllowedRoots.map((root) => canonicalizeExistingPath(root)))
-  ).filter((root): root is string => root !== undefined)
-
-  return [canonicalWorkspace, canonicalAgentData, ...canonicalAdditionalRoots].some((root) => {
-    const rel = path.relative(root, canonicalTarget)
-    return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
-  })
-}
-
-async function canonicalizeExistingPath(target: string): Promise<string | undefined> {
-  try {
-    return await realpath(target)
-  } catch {
-    return undefined
-  }
-}
-
-async function canonicalizeToolTarget(target: string, allowMissing: boolean): Promise<string | undefined> {
-  try {
-    return await realpath(target)
-  } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    // A dangling symlink exists but cannot be canonicalized; treat it as ambiguous, not as a new file.
-    try {
-      await lstat(target)
-      return undefined
-    } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    }
-  }
-
-  let parent = path.dirname(target)
-  while (true) {
-    try {
-      const canonicalParent = await realpath(parent)
-      return path.resolve(canonicalParent, path.relative(parent, target))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      try {
-        await lstat(parent)
-        return undefined
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      }
-      const next = path.dirname(parent)
-      if (next === parent) return undefined
-      parent = next
-    }
-  }
-}
-
-/** Resolve a raw tool `path` to an absolute path, mirroring pi's `resolveToCwd`; returns undefined
- *  for inputs whose resolution is ambiguous (e.g. `file://` URLs) so the caller requires approval. */
-function resolveToolPath(raw: string, workspacePath: string): string | undefined {
-  let p = raw.replace(UNICODE_SPACES, ' ')
-  if (p.startsWith('@')) p = p.slice(1) // pi's stripAtPrefix
-  if (p === '~') p = os.homedir()
-  else if (p.startsWith('~/') || (process.platform === 'win32' && p.startsWith('~\\'))) {
-    p = path.join(os.homedir(), p.slice(2))
-  } else if (p.startsWith('file://')) {
-    // pi resolves file:// via fileURLToPath; the target can be anywhere, so stay conservative.
-    return undefined
-  }
-  return path.isAbsolute(p) ? path.resolve(p) : path.resolve(workspacePath, p)
-}
+const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
+  'rename',
+  'complete_bootstrap',
+  'reset_bootstrap',
+  'add_channel',
+  'update_channel',
+  'remove_channel',
+  'reconnect_channel'
+])
 
 /** Replace the tool input in place with the renderer's edited copy (pi mutates `event.input`). */
 function applyInputEdit(input: Record<string, unknown>, updated: Record<string, unknown>): void {

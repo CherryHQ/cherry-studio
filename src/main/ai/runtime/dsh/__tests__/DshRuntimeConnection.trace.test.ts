@@ -271,7 +271,32 @@ describe('DshRuntimeConnection tracing', () => {
     await connection.close()
   })
 
-  it('rebuilds after a bypassPermissions downgrade even though live policy can be patched', async () => {
+  it('patches default to auto and rebuilds across the full sandbox boundary', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    runtimeMocks.bridgeRequest.mockClear()
+
+    runtimeMocks.snapshot = {
+      ...baseSnapshot(),
+      agent: { id: 'agent-1', configuration: { permission_mode: 'auto' }, disabledTools: [] }
+    }
+    await expect(connection.reconcile({ modelId: 'deepseek::deepseek-chat' })).resolves.toBe('patched')
+
+    runtimeMocks.snapshot = {
+      ...baseSnapshot(),
+      agent: { id: 'agent-1', configuration: { permission_mode: 'full' }, disabledTools: [] }
+    }
+    await expect(connection.reconcile({ modelId: 'deepseek::deepseek-chat' })).resolves.toBe('rebuild')
+
+    runtimeMocks.snapshot = {
+      ...baseSnapshot(),
+      agent: { id: 'agent-1', configuration: { permission_mode: 'edit' }, disabledTools: [] }
+    }
+    await expect(connection.reconcile({ modelId: 'deepseek::deepseek-chat' })).resolves.toBe('rebuild')
+
+    await connection.close()
+  })
+
+  it('rebuilds after a full downgrade even though live policy can be patched', async () => {
     runtimeMocks.snapshot = {
       ...baseSnapshot(),
       agent: { id: 'agent-1', configuration: { permission_mode: 'bypassPermissions' }, disabledTools: [] }

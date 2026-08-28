@@ -13,6 +13,7 @@
 
 // Wire-safe by design (dsh keeps this subpath free of cordis imports), and pinned to
 // the same rc at both ends — safe to put on the wire, unlike the wider ContentBlock.
+import type { AgentPermissionMode } from '@cherrystudio/agent-permission'
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions/types'
 
 export type {
@@ -24,7 +25,7 @@ export type {
 export const BRIDGE_SOCKET_ENV = 'CHERRY_DSH_BRIDGE_SOCK'
 export const BRIDGE_TOKEN_ENV = 'CHERRY_DSH_BRIDGE_TOKEN'
 
-export type BridgePermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+export type BridgePermissionMode = AgentPermissionMode
 
 /** Wire-owned on purpose — NOT dsh's TextBlock: the socket schema must not drift with an rc dep,
  *  and dsh's wider ContentBlock (image attachment refs are subprocess-local) cannot cross this wire. */
@@ -50,22 +51,27 @@ export interface BridgePolicy {
   disabledTools: string[]
   /** Canonical roots (workspace + agent data dir) inside which read/edit fast-paths apply. */
   allowedRoots: string[]
-  /** dsh builtin tool names classified read-only (auto-approve inside roots, every mode). */
+  /** dsh builtin tool names classified read-only. */
   readTools: string[]
-  /** dsh builtin tool names classified edit (auto-approve inside roots under acceptEdits). */
+  /** dsh builtin tool names classified edit. */
   editTools: string[]
-  /** First-party bridged tools that may run without a per-call approval. */
-  autoApprovedTools: string[]
-  /** Sensitive bridged tools needing per-call approval; Full Access lifts ordinary entries. */
-  approvalRequiredTools: string[]
-  /** Approval-required tools whose live-user ceiling remains under bypassPermissions. */
+  /** dsh builtin shell tools. */
+  shellTools: string[]
+  /** First-party tools that the shared evaluator treats as safe. */
+  safeTools: string[]
+  /** Sensitive tools needing per-call approval; Full Access lifts ordinary entries. */
+  sensitiveTools: string[]
+  /** Approval-required tools whose live-user ceiling remains in Full Access. */
   nonBypassableApprovalTools: string[]
-  /**
-   * The only tools executable while plan mode is active, beyond contained reads.
-   * Host-computed closed list (dsh plan mode enforces nothing itself) — notably it
-   * must exclude the subagent tools, which would delegate around read-only.
-   */
-  planSafeTools: string[]
+  /** Current root responder and turn kind, refreshed before each root dispatch. */
+  responder: 'stream' | 'message' | 'unavailable'
+  turn: 'interactive' | 'headless'
+  /** Whether the independent native dsh plan overlay is active. */
+  planActive: boolean
+  /** Closed allow-list used only by the native plan overlay. */
+  planOverlayTools: string[]
+  /** Built-in role fact used by package-owned conduct policy. */
+  builtinRole?: string
 }
 
 /** One continuable child in the durable catalog (`subagent/list`). */
@@ -108,7 +114,7 @@ export interface BridgeHostRequestMap {
     result: Record<string, never>
   }
   'session/prompt': {
-    params: { sessionId: string; contentBlocks: BridgeTextBlock[] }
+    params: { sessionId: string; contentBlocks: BridgeTextBlock[]; policy: BridgePolicy }
     result: Record<string, never>
   }
   'session/cancel': { params: { sessionId: string }; result: Record<string, never> }

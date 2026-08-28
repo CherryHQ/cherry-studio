@@ -167,29 +167,18 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('global-install', () => {
-    it('denies a global install in every mode, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({ permissionMode: mode, input: { command: 'npm install -g left-pad' } })
-        )
-        expect(decision?.ruleId).toBe('global-install')
-        expect(decision?.reason).toContain('cross-agent dependency pollution')
-      }
+  describe('evaluator-owned containment guards', () => {
+    it('leaves global-install decisions to evaluatePermission', async () => {
+      await expect(
+        evaluate(makeCtx({ permissionMode: 'default', input: { command: 'npm install -g left-pad' } }))
+      ).resolves.toBeUndefined()
     })
 
-    it('ignores project-local installs', async () => {
+    it('leaves project-local installs and overlapping feedback decisions to evaluatePermission', async () => {
       await expect(evaluate(makeCtx({ input: { command: 'npm install left-pad' } }))).resolves.toBeUndefined()
-    })
-
-    it('wins the fold when a feedback command also matches (assistant role)', async () => {
-      const decision = await evaluate(
-        makeCtx({
-          builtinRole: 'assistant',
-          input: { command: 'gh issue create --title x && npm install -g left-pad' }
-        })
-      )
-      expect(decision?.ruleId).toBe('global-install')
+      await expect(
+        evaluate(makeCtx({ builtinRole: 'assistant', input: { command: 'gh issue create --title x' } }))
+      ).resolves.toMatchObject({ ruleId: 'assistant-feedback' })
     })
   })
 
@@ -454,7 +443,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('workspace-escape', () => {
+  describe('evaluator-owned workspace containment', () => {
     let root: string
     let cwd: string
     let agentDataPath: string
@@ -473,13 +462,12 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await rm(root, { recursive: true, force: true })
     })
 
-    it('asks (soft) for a file-tool path outside the allowed roots', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: 'Read', cwd, agentDataPath, input: { file_path: path.join(root, 'outside.txt') } })
-      )
-      expect(decision?.ruleId).toBe('workspace-escape')
-      expect(decision?.effect).toBe('ask')
-      expect(decision?.reason).toContain(cwd)
+    it('leaves outside-root reads to evaluatePermission', async () => {
+      await expect(
+        evaluate(
+          makeCtx({ toolName: 'Read', cwd, agentDataPath, input: { file_path: path.join(root, 'outside.txt') } })
+        )
+      ).resolves.toBeUndefined()
     })
 
     it('stays silent for paths inside the workspace or agent data directory', async () => {
@@ -493,7 +481,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
-    it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
+    it('does not add a duplicate bypass decision', async () => {
       await expect(
         evaluate(
           makeCtx({

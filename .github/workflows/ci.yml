@@ -31,6 +31,8 @@ jobs:
       provider-registry: ${{ steps.filter.outputs.provider-registry }}
       scripts: ${{ steps.filter.outputs.scripts }}
       extension-table-plus: ${{ steps.filter.outputs.extension-table-plus }}
+      agent-permission: ${{ steps.filter.outputs.agent-permission }}
+      dsh-bridge: ${{ steps.filter.outputs.dsh-bridge }}
       test-infra: ${{ steps.filter.outputs.test-infra }}
     steps:
       - name: Check out Git repository
@@ -74,6 +76,10 @@ jobs:
               - '.github/workflows/release.yml'
             extension-table-plus:
               - 'packages/extension-table-plus/**'
+            agent-permission:
+              - 'packages/agent-permission/**'
+            dsh-bridge:
+              - 'packages/dsh-bridge/**'
             test-infra:
               - '.github/workflows/ci.yml'
               - 'package.json'
@@ -228,6 +234,7 @@ jobs:
       needs.changes.outputs.shared == 'true' ||
       needs.changes.outputs.ai-core == 'true' ||
       needs.changes.outputs.provider-registry == 'true' ||
+      needs.changes.outputs.agent-permission == 'true' ||
       needs.changes.outputs.test-infra == 'true' ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch'
@@ -308,6 +315,12 @@ jobs:
           fi
 
           projects=(--project main)
+          if [[ "${{ needs.changes.outputs.agent-permission }}" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project agent-permission)
+          fi
+          if [[ "${{ needs.changes.outputs.dsh-bridge }}" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project dsh-bridge)
+          fi
 
           if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
             projects+=(--project aiCore)
@@ -339,6 +352,8 @@ jobs:
       needs.changes.outputs.ui == 'true' ||
       needs.changes.outputs.provider-registry == 'true' ||
       needs.changes.outputs.scripts == 'true' ||
+      needs.changes.outputs.agent-permission == 'true' ||
+      needs.changes.outputs.dsh-bridge == 'true' ||
       needs.changes.outputs.test-infra == 'true' ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch')
@@ -356,7 +371,9 @@ jobs:
     needs: changes
     if: >-
       (needs.changes.outputs.ui == 'true' ||
-      needs.changes.outputs.scripts == 'true') &&
+      needs.changes.outputs.scripts == 'true' ||
+      needs.changes.outputs.agent-permission == 'true' ||
+      needs.changes.outputs.dsh-bridge == 'true') &&
       needs.changes.outputs.main != 'true' &&
       needs.changes.outputs.shared != 'true' &&
       needs.changes.outputs.ai-core != 'true' &&
@@ -413,6 +430,14 @@ jobs:
       - name: Scripts Test
         if: needs.changes.outputs.scripts == 'true' || needs.changes.outputs.provider-registry == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: pnpm test:scripts
+
+      - name: Agent Permission Package Test
+        if: needs.changes.outputs.agent-permission == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: pnpm test:agent-permission
+
+      - name: DSH Bridge Package Test
+        if: needs.changes.outputs.dsh-bridge == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: pnpm test:dsh-bridge
 
   renderer-test-shard:
     name: renderer-test (${{ matrix.shard }}/5)

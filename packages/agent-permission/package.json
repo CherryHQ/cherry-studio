@@ -1,0 +1,49 @@
+{
+  "name": "@cherrystudio/agent-permission",
+  "version": "0.0.1-alpha.1",
+  "description": "Runtime-neutral permission evaluator for Cherry Studio agents",
+  "private": true,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.cts",
+  "packageManager": "pnpm@10.27.0",
+  "scripts": {
+    "build": "tsdown",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "files": ["dist/**/*"],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "import": {
+        "types": "./dist/node.d.mts",
+        "default": "./dist/node.mjs"
+      },
+      "require": {
+        "types": "./dist/node.d.cts",
+        "default": "./dist/node.cjs"
+      },
+      "default": "./dist/node.mjs"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "tsdown": "^0.16.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.13"
+  }
+}

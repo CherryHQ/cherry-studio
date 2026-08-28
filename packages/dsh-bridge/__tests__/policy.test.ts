@@ -2,9 +2,10 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { detectGlobalInstall } from '@cherrystudio/agent-permission'
 import { describe, expect, it } from 'vitest'
 
-import { decideDelegatedToolCall, decideToolCall, detectGlobalInstall } from '../src/policy'
+import { decideDelegatedToolCall, decideToolCall } from '../src/policy'
 import type { BridgePolicy } from '../src/protocol'
 
 // Module-scope setup: it.each tables are built at collection time, before any beforeAll.
@@ -24,23 +25,65 @@ const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   allowedRoots: [workspace, agentData],
   readTools: ['read', 'read_image'],
   editTools: ['edit', 'write'],
-  autoApprovedTools: [],
-  approvalRequiredTools: [],
+  shellTools: ['bash'],
+  safeTools: [],
+  sensitiveTools: [],
   nonBypassableApprovalTools: [],
-  planSafeTools: [],
+  responder: 'message',
+  turn: 'interactive',
+  planActive: false,
+  planOverlayTools: [],
   ...overrides
 })
 
 /** Plan mode as the host pushes it: safe builtins + Cherry auto-approved bridged tools. */
 const planPolicy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy =>
   policy({
-    permissionMode: 'plan',
-    autoApprovedTools: ['subagent', 'mcp__cherry-tools__web_search'],
-    planSafeTools: ['todo_write', 'exit_plan_mode', 'list_agents', 'mcp__cherry-tools__web_search'],
+    planActive: true,
+    safeTools: ['subagent', 'mcp__cherry-tools__web_search'],
+    planOverlayTools: ['todo_write', 'exit_plan_mode', 'list_agents', 'mcp__cherry-tools__web_search'],
     ...overrides
   })
 
 describe('decideToolCall', () => {
+  it('applies the shared auto shell policy and denies delegated asks', async () => {
+    const auto = policy({ permissionMode: 'auto' })
+    await expect(decideToolCall(auto, 'bash', { command: 'git push --force origin main' })).resolves.toMatchObject({
+      kind: 'ask'
+    })
+    await expect(decideToolCall(auto, 'bash', { command: 'ls' })).resolves.toEqual({ kind: 'allow' })
+    await expect(
+      decideDelegatedToolCall(auto, 'bash', { command: 'git push --force origin main' })
+    ).resolves.toMatchObject({ kind: 'deny' })
+  })
+
+  it('keeps the JSON wire policy serializable and enforces built-in conduct in full mode', async () => {
+    const full = policy({ permissionMode: 'full', builtinRole: 'assistant' })
+    expect(JSON.parse(JSON.stringify(full))).toEqual(full)
+    await expect(decideToolCall(full, 'bash', { command: 'rm -rf ./x' })).resolves.toMatchObject({ kind: 'deny' })
+    await expect(decideToolCall(full, 'bash', { command: 'git reset --hard HEAD~1' })).resolves.toMatchObject({
+      kind: 'deny'
+    })
+    await expect(decideToolCall(full, 'bash', { command: 'dd if=/dev/zero of=/dev/disk2' })).resolves.toMatchObject({
+      kind: 'deny'
+    })
+    await expect(
+      decideToolCall(full, 'bash', { command: '"gh" issue create --title feedback' })
+    ).resolves.toMatchObject({ kind: 'ask' })
+    await expect(
+      decideToolCall(
+        policy({ permissionMode: 'full', responder: 'unavailable', turn: 'headless' }),
+        'mcp__cherry-tools__config',
+        { action: 'rename' }
+      )
+    ).resolves.toMatchObject({ kind: 'deny' })
+    await expect(
+      decideDelegatedToolCall(policy({ permissionMode: 'full', builtinRole: 'assistant' }), 'bash', {
+        command: 'echo hi'
+      })
+    ).resolves.toMatchObject({ kind: 'allow' })
+  })
+
   it.each([
     ['default', 'bash inside workspace asks', policy(), 'bash', { command: 'ls' }, 'ask'],
     ['default', 'read inside workspace allows', policy(), 'read', { file_path: 'inside.txt' }, 'allow'],
@@ -71,7 +114,7 @@ describe('decideToolCall', () => {
     [
       'acceptEdits',
       'edit of an existing inside file allows',
-      policy({ permissionMode: 'acceptEdits' }),
+      policy({ permissionMode: 'edit' }),
       'edit',
       { file_path: 'inside.txt' },
       'allow'
@@ -79,7 +122,7 @@ describe('decideToolCall', () => {
     [
       'acceptEdits',
       'write of a NEW inside file allows (nearest-existing-parent)',
-      policy({ permissionMode: 'acceptEdits' }),
+      policy({ permissionMode: 'edit' }),
       'write',
       { file_path: 'sub/new/deep.txt' },
       'allow'
@@ -87,7 +130,7 @@ describe('decideToolCall', () => {
     [
       'acceptEdits',
       'write outside asks',
-      policy({ permissionMode: 'acceptEdits' }),
+      policy({ permissionMode: 'edit' }),
       'write',
       { file_path: path.join(outside, 'new.txt') },
       'ask'
@@ -95,32 +138,25 @@ describe('decideToolCall', () => {
     [
       'acceptEdits',
       'write to ~ asks',
-      policy({ permissionMode: 'acceptEdits' }),
+      policy({ permissionMode: 'edit' }),
       'write',
       { file_path: '~/pwned.txt' },
       'ask'
     ],
-    ['acceptEdits', 'bash still asks', policy({ permissionMode: 'acceptEdits' }), 'bash', { command: 'ls' }, 'ask'],
+    ['acceptEdits', 'bash still asks', policy({ permissionMode: 'edit' }), 'bash', { command: 'ls' }, 'ask'],
     [
       'bypassPermissions',
       'bash allows',
-      policy({ permissionMode: 'bypassPermissions' }),
+      policy({ permissionMode: 'full' }),
       'bash',
       { command: 'rm -rf /tmp/x' },
       'allow'
     ],
-    [
-      'bypassPermissions',
-      'mcp tool allows',
-      policy({ permissionMode: 'bypassPermissions' }),
-      'mcp__server__tool',
-      {},
-      'allow'
-    ],
+    ['bypassPermissions', 'mcp tool allows', policy({ permissionMode: 'full' }), 'mcp__server__tool', {}, 'allow'],
     [
       'bypassPermissions',
       'disabled tool still denies (disabled beats bypass)',
-      policy({ permissionMode: 'bypassPermissions', disabledTools: ['bash'] }),
+      policy({ permissionMode: 'full', disabledTools: ['bash'] }),
       'bash',
       { command: 'ls' },
       'deny'
@@ -129,9 +165,9 @@ describe('decideToolCall', () => {
       'bypassPermissions',
       'approval-required first-party tool allows (bypass is the explicit opt-out of per-call approval)',
       policy({
-        permissionMode: 'bypassPermissions',
-        autoApprovedTools: ['mcp__cherry-tools__kb_manage'],
-        approvalRequiredTools: ['mcp__cherry-tools__kb_manage']
+        permissionMode: 'full',
+        safeTools: ['mcp__cherry-tools__kb_manage'],
+        sensitiveTools: ['mcp__cherry-tools__kb_manage']
       }),
       'mcp__cherry-tools__kb_manage',
       {},
@@ -141,8 +177,8 @@ describe('decideToolCall', () => {
       'bypassPermissions',
       'non-bypassable delegation still asks',
       policy({
-        permissionMode: 'bypassPermissions',
-        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        permissionMode: 'full',
+        sensitiveTools: ['mcp__cherry-tools__session_send'],
         nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
       }),
       'mcp__cherry-tools__session_send',
@@ -153,8 +189,8 @@ describe('decideToolCall', () => {
       'default',
       'approval-required beats auto-approval outside bypass',
       policy({
-        autoApprovedTools: ['mcp__cherry-tools__kb_manage'],
-        approvalRequiredTools: ['mcp__cherry-tools__kb_manage']
+        safeTools: ['mcp__cherry-tools__kb_manage'],
+        sensitiveTools: ['mcp__cherry-tools__kb_manage']
       }),
       'mcp__cherry-tools__kb_manage',
       {},
@@ -163,7 +199,7 @@ describe('decideToolCall', () => {
     [
       'default',
       'auto-approved first-party tool allows',
-      policy({ autoApprovedTools: ['mcp__cherry-tools__web_search'] }),
+      policy({ safeTools: ['mcp__cherry-tools__web_search'] }),
       'mcp__cherry-tools__web_search',
       {},
       'allow'
@@ -173,7 +209,7 @@ describe('decideToolCall', () => {
       'disabled beats first-party auto approval',
       policy({
         disabledTools: ['mcp__cherry-tools__web_search'],
-        autoApprovedTools: ['mcp__cherry-tools__web_search']
+        safeTools: ['mcp__cherry-tools__web_search']
       }),
       'mcp__cherry-tools__web_search',
       {},
@@ -241,10 +277,10 @@ describe('decideDelegatedToolCall', () => {
 
   it.each([
     ['contained read still allows', policy(), 'read', { file_path: 'inside.txt' }, 'allow'],
-    ['bypass still allows bash', policy({ permissionMode: 'bypassPermissions' }), 'bash', { command: 'ls' }, 'allow'],
+    ['bypass still allows bash', policy({ permissionMode: 'full' }), 'bash', { command: 'ls' }, 'allow'],
     [
       'bypass lifts approval-required for the delegated child too (no dead-end deny)',
-      policy({ permissionMode: 'bypassPermissions', approvalRequiredTools: ['mcp__cherry-tools__kb_manage'] }),
+      policy({ permissionMode: 'full', sensitiveTools: ['mcp__cherry-tools__kb_manage'] }),
       'mcp__cherry-tools__kb_manage',
       {},
       'allow'
@@ -252,8 +288,8 @@ describe('decideDelegatedToolCall', () => {
     [
       'non-bypassable delegation denies in the delegated child under bypass',
       policy({
-        permissionMode: 'bypassPermissions',
-        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        permissionMode: 'full',
+        sensitiveTools: ['mcp__cherry-tools__session_send'],
         nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
       }),
       'mcp__cherry-tools__session_send',
@@ -262,7 +298,7 @@ describe('decideDelegatedToolCall', () => {
     ],
     [
       'acceptEdits contained edit still allows',
-      policy({ permissionMode: 'acceptEdits' }),
+      policy({ permissionMode: 'edit' }),
       'edit',
       { file_path: 'inside.txt' },
       'allow'

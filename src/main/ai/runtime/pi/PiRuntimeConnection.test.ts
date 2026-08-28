@@ -169,7 +169,7 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as n
 const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
-const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
+const { toolApprovalRegistry } = await import('@main/ai/toolApproval')
 
 function appendedSystemPrompt(): string {
   return (mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()[0] ?? ''

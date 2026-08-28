@@ -32,6 +32,7 @@
     "./plugin": "./dist/runtime/cherry-bridge.mjs"
   },
   "dependencies": {
+    "@cherrystudio/agent-permission": "workspace:*",
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/cordis-plugin-group": "1.0.1",
     "@deepseek-ai/cordis-plugin-include": "1.0.6",

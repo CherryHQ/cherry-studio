@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { evaluateToolGuards, type ToolGuardContext, type ToolGuardRule, validateToolGuardRules } from '../toolGuards'
 
@@ -154,7 +154,7 @@ describe('evaluateToolGuards', () => {
     })
   })
 
-  it('treats a throwing condition as a non-match without aborting other rules', async () => {
+  it('reports a throwing condition to the injected log sink without aborting other rules', async () => {
     const throwing: ToolGuardRule = {
       id: 'throws',
       bypassBehavior: 'enforce',
@@ -166,9 +166,17 @@ describe('evaluateToolGuards', () => {
       effect: 'deny',
       reason: 'never'
     }
-    await expect(evaluateToolGuards([throwing, askRule('still-runs')], makeCtx())).resolves.toMatchObject({
+    const log = vi.fn()
+    await expect(evaluateToolGuards([throwing, askRule('still-runs')], makeCtx({ log }))).resolves.toMatchObject({
       ruleId: 'still-runs'
     })
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Guard condition threw — treating as no match',
+        ruleId: 'throws',
+        toolName: 'Bash'
+      })
+    )
   })
 })
 

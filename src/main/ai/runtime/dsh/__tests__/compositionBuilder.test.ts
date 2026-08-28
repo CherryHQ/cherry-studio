@@ -146,8 +146,8 @@ describe('buildDshCompositionYaml', () => {
     expect(route).not.toHaveProperty('apiKey')
   })
 
-  it('always composes user-approval with policy ask, bypass included', () => {
-    for (const permissionMode of ['default', 'acceptEdits', 'bypassPermissions'] as const) {
+  it('always composes user-approval with policy ask, full included', () => {
+    for (const permissionMode of ['default', 'edit', 'full'] as const) {
       const yml = buildDshCompositionYaml(makeInput({ permissionMode }))
       expect(entryById(yml, 'approval').config?.policy).toBe('ask')
     }
@@ -157,8 +157,8 @@ describe('buildDshCompositionYaml', () => {
     const modeFor = (permissionMode: DshCompositionInput['permissionMode']) =>
       entryById(buildDshCompositionYaml(makeInput({ permissionMode })), 'sandbox-policy').config?.mode
     expect(modeFor('default')).toBe('workspace-write')
-    expect(modeFor('acceptEdits')).toBe('workspace-write')
-    expect(modeFor('bypassPermissions')).toBe('danger-full-access')
+    expect(modeFor('edit')).toBe('workspace-write')
+    expect(modeFor('full')).toBe('danger-full-access')
   })
 
   it('uses the official sandboxed pwsh stack on Windows', () => {

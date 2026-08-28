@@ -55,6 +55,39 @@ export default defineConfig({
           }
         }
       },
+      // Runtime-neutral permission package tests
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/agent-permission/node': resolve('packages/agent-permission/src/node.ts'),
+            '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts')
+          }
+        },
+        test: {
+          name: 'agent-permission',
+          environment: 'node',
+          include: [
+            'packages/agent-permission/src/**/*.{test,spec}.{ts,tsx}',
+            'packages/agent-permission/src/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
+      },
+      // DSH bridge subprocess policy tests
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/agent-permission/node': resolve('packages/agent-permission/src/node.ts'),
+            '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts')
+          }
+        },
+        test: {
+          name: 'dsh-bridge',
+          environment: 'node',
+          include: ['packages/dsh-bridge/__tests__/**/*.{test,spec}.{ts,tsx}']
+        }
+      },
       // 渲染进程单元测试配置
       {
         extends: true,
@@ -108,6 +141,7 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/agent-permission': resolve('packages/agent-permission/src/index.ts'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
             '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
           }

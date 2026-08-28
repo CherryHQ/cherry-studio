@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { decisionToPermissionResult } from '../ToolApprovalRegistry'
+import { decisionToPermissionResult } from '../decisionToPermissionResult'
 
 describe('decisionToPermissionResult — DispatchDecision → Claude PermissionResult', () => {
   const original = { cmd: 'ls' }

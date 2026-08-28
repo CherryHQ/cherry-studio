@@ -17,17 +17,17 @@ import path from 'node:path'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import {
   findBuiltinToolPolicy,
+  type GuardHit,
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
-  toMcpRuntimeName
-} from '@main/ai/toolApproval/builtinToolPolicy'
-import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
-import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
+  toMcpRuntimeName,
+  type ToolGuardContext,
+  type ToolGuardRule
+} from '@main/ai/toolApproval'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
-import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
@@ -42,33 +42,12 @@ const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'remove_channel',
   'reconnect_channel'
 ])
-export const WORKSPACE_PATH_FIELDS = {
-  Edit: 'file_path',
-  Glob: 'path',
-  Grep: 'path',
-  NotebookEdit: 'notebook_path',
-  Read: 'file_path',
-  Write: 'file_path'
-} as const
-
 /**
  * Runtime boundary format for the snapshot's auto-allow exceptions. The maintained source is the
  * structured policy registry; an entry counts only while its MCP server is mounted.
  */
 export function approvalRequiredRuntimeNames(mountedServers: ReadonlySet<string>): readonly string[] {
   return listBuiltinToolPolicies({ approval: 'required', mountedServers }).map(toMcpRuntimeName)
-}
-
-function bashCommand(ctx: ToolGuardContext): string | undefined {
-  const command = ctx.input?.command
-  return typeof command === 'string' && command.trim() ? command : undefined
-}
-
-const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
-  const command = bashCommand(ctx)
-  if (!command) return null
-  const reason = detectGlobalInstall(command)
-  return reason ? { evidence: reason } : null
 }
 
 const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
@@ -80,17 +59,6 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
   if (ctx.supportsImages !== false) return null
   const requestedPath = ctx.input?.file_path
   if (typeof requestedPath !== 'string' || !imageExts.includes(path.extname(requestedPath).toLowerCase())) return null
-  return { evidence: requestedPath }
-}
-
-const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
-  const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
-  if (!pathField) return null
-  const requestedPath = ctx.input?.[pathField]
-  // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
-  // malformed required fields for the other tools rather than duplicating their schemas here.
-  if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
-  if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath)) return null
   return { evidence: requestedPath }
 }
 
@@ -121,16 +89,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `The selected model does not support image input, so Read cannot open ${hit.evidence}. Use a vision-capable model or inspect the file through a text-only alternative.`
-  },
-  {
-    // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this
-    // is a safety block, not an approval — bypassPermissions does not lift it.
-    id: 'global-install',
-    bypassBehavior: 'enforce',
-    match: { tool: 'Bash', when: globalInstallCommand },
-    effect: 'deny',
-    reason: (hit) =>
-      `Blocked to avoid cross-agent dependency pollution: ${hit.evidence}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
   },
   {
     // The SDK forks a skill whether or not its declared subagent exists, degrading into unrelated
@@ -202,18 +160,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
       reason: HEADLESS_INTERACTIVE_TOOL_DENIAL,
       skipHeadlessDenyInBypass: true
     }
-  },
-  {
-    // `cwd` establishes the default SDK working directory but does not itself prevent an absolute
-    // path from reaching a built-in file tool. Ask, not deny: forces the call through the permission
-    // pipeline (defeating settings-file allow rules) while the mode's own auto-approval semantics
-    // still apply — out-of-workspace reads stay silent in default mode by decision.
-    id: 'workspace-escape',
-    bypassBehavior: 'skipInteractiveEffect',
-    match: { when: pathOutsideAllowedRoots },
-    effect: 'ask',
-    reason: (hit, ctx) =>
-      `${ctx.toolName} requested a path outside the session workspace (${ctx.cwd}) and agent data directory (${ctx.agentDataPath}): ${hit.evidence}`
   }
 ]
 

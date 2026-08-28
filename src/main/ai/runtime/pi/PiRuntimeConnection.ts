@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { type AgentPermissionMode, normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
@@ -21,8 +22,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { listBuiltinToolPolicies, toolApprovalRegistry } from '@main/ai/toolApproval'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
@@ -43,7 +43,6 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -195,9 +194,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
 
-    // pi has no native permission modes; the approval extension enforces them.
-    // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
-    this.permissionMode = agent.configuration?.permission_mode ?? 'default'
+    // pi has no native permission modes; the approval extension enforces them. Legacy `plan` is
+    // normalized to the canonical `default` mode until the persistence cutover.
+    this.permissionMode = normalizeLegacyPermissionMode(agent.configuration?.permission_mode)
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
     const injection = resolvePiProviderInjectionFromSnapshot(
       initialSnapshot.provider,
@@ -253,6 +252,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
       const linkedChannel = initialSnapshot.linkedChannel
+      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
       const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
       const isToolEnabled = (serverName: string, toolName: string) =>
         !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
@@ -277,7 +277,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         getPermissionMode: () => this.permissionMode,
         isDisabled: (toolName: string) => this.disabledTools.has(toolName),
-        additionalReadOnlyRoots: additionalSkillPaths,
+        builtinRole: agent.configuration?.builtin_role,
+        mountedServers,
+        turn: 'interactive' as const,
+        delegated: false,
         // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
         // disabledTools hard-blocks every class at fire-time.
         autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
@@ -319,7 +322,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,
@@ -510,7 +512,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     const { agent } = snapshot
 
-    const nextPermissionMode = agent.configuration?.permission_mode ?? 'default'
+    const nextPermissionMode = normalizeLegacyPermissionMode(agent.configuration?.permission_mode)
     // Changing the permission mode can alter admission for the current tool loop, so defer it until
     // pi is idle. Disabled tools only tighten policy and still apply immediately below.
     const applicablePermissionMode = this.session?.isStreaming ? this.permissionMode : nextPermissionMode
