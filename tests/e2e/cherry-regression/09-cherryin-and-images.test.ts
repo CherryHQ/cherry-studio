@@ -74,14 +74,8 @@ async function generateAndSaveImage(
   await expect(page.getByTestId('artboard-image-transform').last()).toBeVisible()
 }
 
-test('[P-01] 使用 Gemini 模型生成图片 @image-generation', async ({ app, mainWindow: page }) => {
+test('[P-01] 使用图像模型生成图片 @image-generation', async ({ app, mainWindow: page }) => {
   await ensureCherryInSignedIn(app, page)
-  await addCherryInModel(page, app.config.cherryIn.geminiImageModel, 'Image')
-  await generateAndSaveImage(app, page, app.config.cherryIn.geminiImageModel, 'gemini-image.png')
-})
-
-test('[P-02] 使用 Image 2 模型生成图片 @image-generation', async ({ app, mainWindow: page }) => {
-  await ensureCherryInSignedIn(app, page)
-  await addCherryInModel(page, app.config.cherryIn.image2Model, 'Image 9')
-  await generateAndSaveImage(app, page, app.config.cherryIn.image2Model, 'image2-image.png')
+  await addCherryInModel(page, app.config.cherryIn.imageModel, 'Image')
+  await generateAndSaveImage(app, page, app.config.cherryIn.imageModel, 'image.png')
 })

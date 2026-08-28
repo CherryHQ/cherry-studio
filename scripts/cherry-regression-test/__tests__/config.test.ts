@@ -9,8 +9,7 @@ describe('regression test configuration', () => {
     CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: 'embedding-secret',
     CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: 'text-embedding-test',
     CHERRY_TEST_CHERRYIN_CHAT_MODEL: 'cherry-chat-test',
-    CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL: 'gemini-image-test',
-    CHERRY_TEST_CHERRYIN_IMAGE2_MODEL: 'image-2-test',
+    CHERRY_TEST_CHERRYIN_IMAGE_MODEL: 'image-test',
     CHERRY_TEST_CHERRYIN_ACCOUNT: 'automation@example.test',
     CHERRY_TEST_CHERRYIN_PASSWORD: 'account-secret'
   }
@@ -24,8 +23,7 @@ describe('regression test configuration', () => {
       'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY',
       'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL',
       'CHERRY_TEST_CHERRYIN_CHAT_MODEL',
-      'CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL',
-      'CHERRY_TEST_CHERRYIN_IMAGE2_MODEL',
+      'CHERRY_TEST_CHERRYIN_IMAGE_MODEL',
       'CHERRY_TEST_CHERRYIN_ACCOUNT',
       'CHERRY_TEST_CHERRYIN_PASSWORD'
     ])
@@ -41,7 +39,7 @@ describe('regression test configuration', () => {
       baseUrl: 'https://embedding.example.test/v1',
       model: 'text-embedding-test'
     })
-    expect(config.cherryIn.geminiImageModel).toBe('gemini-image-test')
+    expect(config.cherryIn.imageModel).toBe('image-test')
     expect(config.customProvider.apiKey).toBe('provider-secret')
     expect(config.customEmbeddingProvider.apiKey).toBe('embedding-secret')
     expect(config.cherryIn.password).toBe('account-secret')

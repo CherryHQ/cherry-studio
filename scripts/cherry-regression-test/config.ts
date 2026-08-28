@@ -6,8 +6,7 @@ export const REQUIRED_CONFIG = [
   'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY',
   'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL',
   'CHERRY_TEST_CHERRYIN_CHAT_MODEL',
-  'CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL',
-  'CHERRY_TEST_CHERRYIN_IMAGE2_MODEL',
+  'CHERRY_TEST_CHERRYIN_IMAGE_MODEL',
   'CHERRY_TEST_CHERRYIN_ACCOUNT',
   'CHERRY_TEST_CHERRYIN_PASSWORD'
 ] as const
@@ -27,8 +26,7 @@ export interface RegressionTestConfig {
   }
   cherryIn: {
     chatModel: string
-    geminiImageModel: string
-    image2Model: string
+    imageModel: string
     account: string
     password: string
   }
@@ -66,8 +64,7 @@ export function loadTestConfig(environment: Environment = process.env): Regressi
     },
     cherryIn: {
       chatModel: value('CHERRY_TEST_CHERRYIN_CHAT_MODEL'),
-      geminiImageModel: value('CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL'),
-      image2Model: value('CHERRY_TEST_CHERRYIN_IMAGE2_MODEL'),
+      imageModel: value('CHERRY_TEST_CHERRYIN_IMAGE_MODEL'),
       account: value('CHERRY_TEST_CHERRYIN_ACCOUNT'),
       password: value('CHERRY_TEST_CHERRYIN_PASSWORD')
     }

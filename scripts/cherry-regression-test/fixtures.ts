@@ -30,8 +30,7 @@ export const FIXTURE_MARKERS = {
 
 export interface FixtureManifest {
   agentWorkspace: string
-  geminiImageFile: string
-  image2File: string
+  imageFile: string
   knowledgeDirectory: string
   knowledgeFiles: string[]
   pdfFile: string
@@ -94,8 +93,7 @@ export async function createFixtures(paths: RunPaths): Promise<FixtureManifest> 
 
   const manifest: FixtureManifest = {
     agentWorkspace: paths.workspace,
-    geminiImageFile: join(paths.evidence, 'downloads', 'gemini-image.png'),
-    image2File: join(paths.evidence, 'downloads', 'image2-image.png'),
+    imageFile: join(paths.evidence, 'downloads', 'image.png'),
     knowledgeDirectory,
     knowledgeFiles: [knowledgeText, knowledgeMarkdown, knowledgeHtml],
     pdfFile,

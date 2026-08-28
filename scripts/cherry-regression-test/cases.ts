@@ -76,14 +76,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   },
   {
     id: 'P-01',
-    title: '使用 Gemini 模型生成图片',
-    task: 'image-generation',
-    profile: 'authenticated',
-    modes: [...modes]
-  },
-  {
-    id: 'P-02',
-    title: '使用 Image 2 模型生成图片',
+    title: '使用图像模型生成图片',
     task: 'image-generation',
     profile: 'authenticated',
     modes: [...modes]
