@@ -126,6 +126,30 @@ function findWindowsCommandCandidatesSync(
   }
 }
 
+/** Absolute MCP stdio commands skip the bare-name regex and `command -v`. */
+function resolveExistingAbsoluteCommand(command: string): string | null {
+  const trimmed = command.trim()
+  if (!trimmed || !path.isAbsolute(trimmed)) {
+    return null
+  }
+
+  const resolved = path.resolve(trimmed)
+  if (!path.isAbsolute(resolved)) {
+    return null
+  }
+
+  try {
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+      return null
+    }
+  } catch (error) {
+    logger.debug(`Absolute command path is not readable '${resolved}'`, { error })
+    return null
+  }
+
+  return resolved
+}
+
 /**
  * Check if a command is available in the user's login shell environment
  * @param command - Command name to check (e.g., 'npx', 'uvx')
@@ -136,6 +160,11 @@ export async function findCommandInShellEnv(
   command: string,
   loginShellEnv: Record<string, string>
 ): Promise<string | null> {
+  const absoluteCommand = resolveExistingAbsoluteCommand(command)
+  if (absoluteCommand) {
+    return absoluteCommand
+  }
+
   // Validate command name to prevent command injection
   if (!VALID_COMMAND_NAME_REGEX.test(command)) {
     logger.warn(`Invalid command name '${command}' - must only contain alphanumeric characters, underscore, or hyphen`)

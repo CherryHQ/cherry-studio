@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { SerializedError } from '@renderer/types/error'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { isMcpErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
+import { isMcpErrorMessage, isProxyErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
@@ -120,7 +120,7 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     msg.includes('econnrefused') ||
     msg.includes('timeout') ||
     msg.includes('fetch failed') ||
-    msg.includes('proxy') ||
+    isProxyErrorMessage(msg) ||
     msg.includes('certificate')
   ) {
     return `## Context\nNetwork or proxy error. Cherry Studio supports HTTP/SOCKS proxy configuration in system settings. The user may be behind a firewall or using a custom API endpoint.\n`
@@ -228,9 +228,10 @@ Analyze the error and return a JSON diagnosis in ${language}.
 ${contextHint}
 ## Output
 Return ONLY valid JSON (no markdown, no code blocks):
-{"summary":"one-line","category":"auth|permission|region|quota|rate_limit|model|network|proxy|content|server|context_length|payload|stream|parse|mcp|knowledge|ocr|deprecated|unknown","explanation":"2-3 sentences why this happened","steps":[{"text":"step 1"},{"text":"step 2"}]}
+{"summary":"one-line","category":"short error category","explanation":"2-3 sentences why this happened","steps":[{"text":"step 1"},{"text":"step 2"}]}
 
 ## Rules
+- Write all values for summary, category, explanation, and steps[].text in ${language}, the user's language selected in settings
 - 2-4 concrete steps, reference actual provider/model name from error
 - No URLs, no links, no restart suggestion, plain text only
 - Distinguish rate_limit (too many requests, transient, retry soon) from quota (billing/balance exhausted, not transient, must top up)
@@ -246,7 +247,9 @@ Input: {"name":"APICallError","message":"Rate limit exceeded","status":429,"prov
 Output: {"summary":"OpenAI rate limit hit due to too many requests","category":"rate_limit","explanation":"The OpenAI server is throttling because the request rate exceeded the allowed limit for this model. This is not a billing issue.","steps":[{"text":"Wait a few seconds before sending the next request"},{"text":"Slow down concurrent or repeated requests to gpt-4"},{"text":"Switch to a model with a higher rate limit if this happens often"}]}
 
 Input: {"name":"APICallError","message":"insufficient_quota: You exceeded your current quota","status":429,"provider":"openai"}
-Output: {"summary":"OpenAI account balance is exhausted","category":"quota","explanation":"The OpenAI account has run out of available credit or quota, so further requests are rejected until the balance is topped up.","steps":[{"text":"Check the billing page of your OpenAI account and top up credit"},{"text":"Switch to another provider with available quota in provider settings"}]}`
+Output: {"summary":"OpenAI account balance is exhausted","category":"quota","explanation":"The OpenAI account has run out of available credit or quota, so further requests are rejected until the balance is topped up.","steps":[{"text":"Check the billing page of your OpenAI account and top up credit"},{"text":"Switch to another provider with available quota in provider settings"}]}
+
+The examples above demonstrate structure only. Write all four diagnosis fields in ${language}.`
 
   const content = JSON.stringify(errorInfo)
 

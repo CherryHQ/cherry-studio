@@ -30,6 +30,7 @@ import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/kn
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
+import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BinaryManager } from '@main/services/binaryManager'
@@ -39,6 +40,7 @@ import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
+import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -98,11 +100,13 @@ export const services = {
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
+  AppService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
   DeepSeekHarnessService,
+  HermesDashboardService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,
