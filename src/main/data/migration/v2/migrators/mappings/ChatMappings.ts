@@ -21,7 +21,7 @@
  *    - New: Tree via `parentId` + `siblingsGroupId`
  *
  * 2. **Multi-model Responses**
- *    - Old: Multiple messages share same `askId`, `foldSelected` marks active
+ *    - Old: Multiple messages share the same `askId`; `useful` selects context
  *    - New: Same `parentId` + non-zero `siblingsGroupId` groups siblings
  *
  * 3. **Block → Parts**
@@ -522,15 +522,17 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, 
  * Legacy `type: 'clear'` is converted to a hidden `data-clear` part. Other
  * message type values are dropped.
  *
+ * `useful` is consumed while building the tree but is not stored on the
+ * transformed message. `foldSelected` remains display-only and is dropped.
+ *
  * ## Dropped Fields:
- * - useful (boolean)
  * - enabledMCPs (deprecated)
  * - agentSessionId (session identifier)
  * - traceId (span detail files are outside the v1 chat migration source set)
  * - providerMetadata (raw provider data)
  * - multiModelMessageStyle (UI state)
  * - askId (replaced by parentId)
- * - foldSelected (replaced by siblingsGroupId)
+ * - foldSelected (display-only state)
  */
 export async function transformMessage(
   oldMessage: OldMessage,
@@ -1290,16 +1292,16 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
  *
  * ## Example:
  * ```
- * Input: [u1, a1, u2, a2, a3(askId=u2,foldSelected), a4(askId=u2), u3]
+ * Input: [u1, a1, u2, a2, a3(askId=u2,useful), a4(askId=u2), u3]
  *
  * Output:
  * u1: { parentId: null, siblingsGroupId: 0 }
  * a1: { parentId: 'u1', siblingsGroupId: 0 }
  * u2: { parentId: 'a1', siblingsGroupId: 0 }
  * a2: { parentId: 'u2', siblingsGroupId: 1 }  // Multi-model group
- * a3: { parentId: 'u2', siblingsGroupId: 1 }  // Selected one
+ * a3: { parentId: 'u2', siblingsGroupId: 1 }  // Context response
  * a4: { parentId: 'u2', siblingsGroupId: 1 }
- * u3: { parentId: 'a3', siblingsGroupId: 0 }  // Links to foldSelected
+ * u3: { parentId: 'a3', siblingsGroupId: 0 }  // Links to useful
  * ```
  */
 export function buildMessageTree(
@@ -1309,22 +1311,13 @@ export function buildMessageTree(
 
   if (messages.length === 0) return result
 
-  // Track askId → siblingsGroupId mapping
-  // Each unique askId with multiple responses gets a unique siblingsGroupId
+  // Each unique askId with multiple responses gets a unique siblingsGroupId.
   const askIdToGroupId = new Map<string, number>()
-  const askIdCounts = new Map<string, number>()
+  const responseGroups = indexLegacyResponseGroups(messages)
 
-  // First pass: count messages per askId to identify multi-model responses
-  for (const msg of messages) {
-    if (msg.askId) {
-      askIdCounts.set(msg.askId, (askIdCounts.get(msg.askId) || 0) + 1)
-    }
-  }
-
-  // Assign group IDs to askIds with multiple responses
   let nextGroupId = 1
-  for (const [askId, count] of askIdCounts) {
-    if (count > 1) {
+  for (const [askId, group] of responseGroups) {
+    if (group.count > 1) {
       askIdToGroupId.set(askId, nextGroupId++)
     }
   }
@@ -1341,9 +1334,8 @@ export function buildMessageTree(
 
   // Second pass: build parent/sibling relationships
   let previousMessageId: string | null = null
-  let lastNonGroupMessageId: string | null = null // Last message not in a group, for linking subsequent user messages
-  let lastGroupFallbackId: string | null = null // Last group member as fallback when no foldSelected
-  let groupHasFoldSelected = false // Whether current group has a foldSelected member
+  let pendingGroupAskId: string | null = null
+  let pendingGroupContextId: string | null = null
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
@@ -1352,6 +1344,11 @@ export function buildMessageTree(
 
     if (msg.askId && askIdToGroupId.has(msg.askId)) {
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
+
+      if (pendingGroupAskId !== msg.askId) {
+        pendingGroupAskId = msg.askId
+        pendingGroupContextId = null
+      }
 
       if (seenMessageIds.has(msg.askId)) {
         // Normal multi-model: parent is the user message
@@ -1364,25 +1361,18 @@ export function buildMessageTree(
         parentId = orphanedGroupParent.get(msg.askId) ?? null
       }
 
-      // Track selected response or last group member for linking subsequent user messages
-      if (msg.foldSelected) {
-        lastNonGroupMessageId = msg.id
-        groupHasFoldSelected = true
+      if (responseGroups.get(msg.askId)?.contextId === msg.id) {
+        pendingGroupContextId = msg.id
       }
-      if (!groupHasFoldSelected) {
-        lastGroupFallbackId = msg.id
-      }
-    } else if (msg.role === 'user' && (lastNonGroupMessageId || lastGroupFallbackId)) {
-      // User message after a multi-model group links to the selected (or last) response.
-      // lastGroupFallbackId takes priority: it means the group had no foldSelected,
-      // so the user message should follow the last group member, not the pre-group message.
-      parentId = lastGroupFallbackId ?? lastNonGroupMessageId
-      lastNonGroupMessageId = null
-      lastGroupFallbackId = null
-      groupHasFoldSelected = false
+    } else if (msg.role === 'user' && pendingGroupContextId) {
+      parentId = pendingGroupContextId
+      pendingGroupAskId = null
+      pendingGroupContextId = null
     } else {
       // Normal sequential message - parent is previous message
       parentId = previousMessageId
+      pendingGroupAskId = null
+      pendingGroupContextId = null
     }
 
     result.set(msg.id, { parentId, siblingsGroupId })
@@ -1390,13 +1380,6 @@ export function buildMessageTree(
 
     // Update tracking for next iteration
     previousMessageId = msg.id
-
-    // Update lastNonGroupMessageId for non-group messages
-    if (siblingsGroupId === 0) {
-      lastNonGroupMessageId = msg.id
-      lastGroupFallbackId = null
-      groupHasFoldSelected = false
-    }
   }
 
   return result
@@ -1406,25 +1389,54 @@ export function buildMessageTree(
  * Find the activeNodeId for a topic
  *
  * The activeNodeId should be the last message in the main conversation thread.
- * For multi-model responses, it should be the foldSelected one.
+ * For multi-model responses, v1 uses the first useful response or the first
+ * response when none is marked useful.
  *
  * @param messages - Messages in array order
- * @returns The ID of the last message (or foldSelected if applicable)
+ * @returns The ID of the last message, adjusted to the v1 context response
  */
 export function findActiveNodeId(messages: OldMessage[]): string | null {
   if (messages.length === 0) return null
 
-  // Find the last message
-  // If it's part of a multi-model group, find the foldSelected one
   const lastMsg = messages[messages.length - 1]
 
   if (lastMsg.askId) {
-    // Check if there's a foldSelected message with the same askId
-    const selectedMsg = messages.find((m) => m.askId === lastMsg.askId && m.foldSelected)
-    if (selectedMsg) return selectedMsg.id
+    return indexLegacyResponseGroups(messages).get(lastMsg.askId)?.contextId ?? lastMsg.id
   }
 
   return lastMsg.id
+}
+
+interface LegacyResponseGroup {
+  count: number
+  contextId: string
+  hasUseful: boolean
+}
+
+function indexLegacyResponseGroups(messages: OldMessage[]): Map<string, LegacyResponseGroup> {
+  const groups = new Map<string, LegacyResponseGroup>()
+
+  for (const message of messages) {
+    if (!message.askId) continue
+
+    const group = groups.get(message.askId)
+    if (!group) {
+      groups.set(message.askId, {
+        count: 1,
+        contextId: message.id,
+        hasUseful: message.useful === true
+      })
+      continue
+    }
+
+    group.count++
+    if (message.useful === true && !group.hasUseful) {
+      group.contextId = message.id
+      group.hasUseful = true
+    }
+  }
+
+  return groups
 }
 
 // ============================================================================
