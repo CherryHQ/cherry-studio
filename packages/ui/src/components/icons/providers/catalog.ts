@@ -158,8 +158,6 @@ import { VolcengineIcon } from './volcengine'
 import { VoyageIcon } from './voyage'
 import { WenxinIcon } from './wenxin'
 import { WorkersAiIcon } from './workers-ai'
-import { XfyunIcon } from './xfyun'
-import { XfyunCodingIcon } from './xfyun-coding'
 import { XiaoyiIcon } from './xiaoyi'
 import { XinghuoIcon } from './xinghuo'
 import { XirangIcon } from './xirang'
@@ -320,8 +318,6 @@ export const PROVIDER_ICON_CATALOG = {
   voyage: VoyageIcon,
   wenxin: WenxinIcon,
   'workers-ai': WorkersAiIcon,
-  xfyun: XfyunIcon,
-  'xfyun-coding': XfyunCodingIcon,
   xiaoyi: XiaoyiIcon,
   xinghuo: XinghuoIcon,
   xirang: XirangIcon,

@@ -37280,7 +37280,6 @@
     },
     {
       "apiModelId": "auto",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "auto",
       "name": "Auto",
       "ownedBy": "iflytek",
@@ -37288,109 +37287,91 @@
     },
     {
       "apiModelId": "xopdeepseekv32",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "deepseek-v3-2",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopdeepseekv4flash",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "deepseek-v4-flash",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopdeepseekv4pro",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopglmv47flash",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "glm-4-7-flash",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopglm5",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "glm-5",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopglm51",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "glm-5-1",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopglm52",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "glm-5-2",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopkimik25",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "kimi-k2-5",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopkimik26",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "kimi-k2-6",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopkimi27code",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "kimi-k2-7-code",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xminimaxm25",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "minimax-m2-5",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopqwen35v35b",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "qwen3-5-35b-a3b",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopqwen35397b",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "qwen3-5-397b-a17b",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xopqwen36v35b",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "qwen3-6-35b-a3b",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xop3qwencodernext",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "qwen3-coder-next",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xsparkx2",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "spark-x2",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xsparkx2agent",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "spark-x2-agent",
       "providerId": "xfyun-coding"
     },
     {
       "apiModelId": "xsparkx2flash",
-      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "modelId": "spark-x2-flash",
       "providerId": "xfyun-coding"
     },
@@ -37569,5 +37550,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a5d0e20480c8bf11"
+  "version": "d1e684de20ad907d"
 }

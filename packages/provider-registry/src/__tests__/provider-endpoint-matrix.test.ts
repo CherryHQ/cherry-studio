@@ -28,13 +28,22 @@ const endpointsOf = (providerId: string, modelId: string): string[] | undefined 
 }
 
 describe('xfyun Coding Plan endpoint matrix', () => {
-  it('exposes every served model over all three documented protocols', () => {
-    const expected = ['openai-chat-completions', 'openai-responses', 'anthropic-messages']
-    const overrides = provider('xfyun-coding').overrides ?? []
+  it('exposes the documented tooling alias over all three protocols', () => {
+    expect(endpointsOf('xfyun-coding', 'astron-code-latest')).toEqual([
+      'openai-chat-completions',
+      'openai-responses',
+      'anthropic-messages'
+    ])
+  })
 
-    expect(overrides.length).toBeGreaterThan(0)
-    for (const override of overrides) {
-      expect(override.endpointTypes, override.modelId).toEqual(expected)
+  it('does not claim undocumented protocols for the remaining model ids', () => {
+    const otherOverrides = (provider('xfyun-coding').overrides ?? []).filter(
+      ({ modelId }) => modelId !== 'astron-code-latest'
+    )
+
+    expect(otherOverrides.length).toBeGreaterThan(0)
+    for (const override of otherOverrides) {
+      expect(override.endpointTypes, override.modelId).toBeUndefined()
     }
   })
 })

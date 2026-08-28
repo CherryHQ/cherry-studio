@@ -158,8 +158,6 @@ export const PROVIDER_ICON_LOADERS = {
   voyage: () => import('./voyage').then(({ VoyageIcon }) => VoyageIcon),
   wenxin: () => import('./wenxin').then(({ WenxinIcon }) => WenxinIcon),
   'workers-ai': () => import('./workers-ai').then(({ WorkersAiIcon }) => WorkersAiIcon),
-  xfyun: () => import('./xfyun').then(({ XfyunIcon }) => XfyunIcon),
-  'xfyun-coding': () => import('./xfyun-coding').then(({ XfyunCodingIcon }) => XfyunCodingIcon),
   xiaoyi: () => import('./xiaoyi').then(({ XiaoyiIcon }) => XiaoyiIcon),
   xinghuo: () => import('./xinghuo').then(({ XinghuoIcon }) => XinghuoIcon),
   xirang: () => import('./xirang').then(({ XirangIcon }) => XirangIcon),

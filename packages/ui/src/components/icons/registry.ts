@@ -305,6 +305,8 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   dashscope: 'bailian',
   zai: 'z-ai',
   'minimax-global': 'minimax',
+  xfyun: 'xinghuo',
+  'xfyun-coding': 'xinghuo',
   cherryai: 'cherryin'
 }
 

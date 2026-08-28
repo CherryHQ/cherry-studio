@@ -155,8 +155,6 @@ import { meta as volcengineMeta } from './volcengine/meta'
 import { meta as voyageMeta } from './voyage/meta'
 import { meta as wenxinMeta } from './wenxin/meta'
 import { meta as workersAiMeta } from './workers-ai/meta'
-import { meta as xfyunMeta } from './xfyun/meta'
-import { meta as xfyunCodingMeta } from './xfyun-coding/meta'
 import { meta as xiaoyiMeta } from './xiaoyi/meta'
 import { meta as xinghuoMeta } from './xinghuo/meta'
 import { meta as xirangMeta } from './xirang/meta'
@@ -317,8 +315,6 @@ export const PROVIDER_ICON_META_CATALOG = {
   voyage: voyageMeta,
   wenxin: wenxinMeta,
   'workers-ai': workersAiMeta,
-  xfyun: xfyunMeta,
-  'xfyun-coding': xfyunCodingMeta,
   xiaoyi: xiaoyiMeta,
   xinghuo: xinghuoMeta,
   xirang: xirangMeta,

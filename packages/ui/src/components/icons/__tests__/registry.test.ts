@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { PROVIDER_ICON_META_CATALOG } from '../providers/meta-catalog'
 import { resolveIconRef, resolveModelIconRef, resolveModelToProviderIconRef, resolveProviderIconRef } from '../registry'
 
 describe('resolveProviderIconRef', () => {
@@ -32,6 +33,11 @@ describe('resolveProviderIconRef', () => {
   it('falls back to the model catalog for provider IDs that only exist there', () => {
     // `claude` is a model-catalog key with no provider-catalog entry
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))
+  })
+
+  it.each(['xfyun', 'xfyun-coding'])('reuses the existing Spark brand mark for %s', (providerId) => {
+    expect(PROVIDER_ICON_META_CATALOG).not.toHaveProperty(providerId)
+    expect(resolveProviderIconRef(providerId)).toEqual(expect.objectContaining({ kind: 'provider', key: 'xinghuo' }))
   })
 
   it('returns undefined for unknown provider IDs', () => {
