@@ -276,6 +276,52 @@ describe('agent right pane projections', () => {
     expect(snapshotWins.totalTaskCount).toBe(1)
   })
 
+  it('keeps the plan owned by the main agent when spawned runs write todos or tasks', () => {
+    const parts = [
+      toolPart('todos-main', 'TodoWrite', undefined, 'output-available', {
+        todos: [
+          { content: 'Design pane', activeForm: 'Designing pane', status: 'completed' },
+          { content: 'Wire flow', activeForm: 'Wiring flow', status: 'in_progress' }
+        ]
+      }),
+      // Spawned-run parts arrive parented under their Task tool call and must not own the plan.
+      toolPart('child-todos', 'TodoWrite', 'parent-task-call', 'output-available', {
+        todos: [{ content: 'Subagent todo', status: 'in_progress' }]
+      }),
+      toolPart(
+        'child-task-create',
+        'TaskCreate',
+        'parent-task-call',
+        'output-available',
+        { subject: 'Subagent ledger row' },
+        {
+          task: { id: '1', subject: 'Subagent ledger row' }
+        }
+      ),
+      // The dsh runtime parents spawned-run parts through its own metadata namespace.
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'dsh-child-todos',
+        toolName: 'todo_write',
+        state: 'output-available',
+        input: { todos: [{ content: 'Dsh child todo', status: 'in_progress' }] },
+        callProviderMetadata: {
+          cherry: {
+            transport: 'dsh-agent',
+            parentToolCallId: 'dsh-parent-task-call',
+            tool: { type: 'builtin', name: 'todo_write' }
+          }
+        }
+      } as unknown as CherryMessagePart
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks.map((task) => task.title)).toEqual(['Design pane', 'Wire flow'])
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(2)
+  })
+
   it('projects the latest successful dsh todo_write snapshot into status tasks', () => {
     const parts = [
       dshToolPart('dsh-todos-1', 'todo_write', 'output-available', {
