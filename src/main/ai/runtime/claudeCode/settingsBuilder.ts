@@ -81,7 +81,6 @@ import { buildClaudePermissionContext } from './permissionContext'
 import { toSdkPermissionMode } from './permissionMode'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
-;('./types')
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 
