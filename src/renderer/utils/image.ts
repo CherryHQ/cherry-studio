@@ -631,13 +631,7 @@ const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
     ?.trim()
     .split(/[\s,]+/)
     .map(Number)
-  if (
-    viewBox?.length === 4 &&
-    Number.isFinite(viewBox[2]) &&
-    Number.isFinite(viewBox[3]) &&
-    viewBox[2] > 0 &&
-    viewBox[3] > 0
-  ) {
+  if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
     clone.setAttribute('width', String(viewBox[2]))
     clone.setAttribute('height', String(viewBox[3]))
   }

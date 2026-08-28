@@ -695,6 +695,24 @@ describe('utils/image', () => {
       expect(previewSvg.getAttribute('width')).toBe('800')
       expect(previewSvg.getAttribute('height')).toBe('400')
     })
+
+    it.each(['NaN 0 800 400', '0 Infinity 800 400'])(
+      'does not derive intrinsic dimensions from an invalid viewBox origin: %s',
+      async (viewBox) => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('viewBox', viewBox)
+        svg.setAttribute('width', '100%')
+
+        await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+        const previewSvg = new DOMParser().parseFromString(
+          await readBlob(previewBlob!),
+          'image/svg+xml'
+        ).documentElement
+        expect(previewSvg.hasAttribute('width')).toBe(false)
+        expect(previewSvg.hasAttribute('height')).toBe(false)
+      }
+    )
   })
 
   describe('getImageBlobFromSource', () => {
