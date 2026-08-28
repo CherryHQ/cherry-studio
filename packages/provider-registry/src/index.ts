@@ -72,6 +72,7 @@ export type {
   ProviderConfig,
   ProviderEdition,
   ProviderReasoningFormat,
+  ProviderReasoningFormatSelector,
   ReasoningFormatType,
   RegistryEndpointConfig,
   ServerToolConfig,
@@ -83,6 +84,8 @@ export type {
 export {
   FastModeTransportSchema,
   ProviderEditionSchema,
+  ProviderReasoningFormatSchema,
+  ProviderReasoningFormatSelectorSchema,
   REASONING_FORMAT_TYPES,
   ServerToolConfigSchema,
   ServiceTierDeliverySchema,
