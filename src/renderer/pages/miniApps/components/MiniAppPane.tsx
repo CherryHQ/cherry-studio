@@ -27,6 +27,7 @@ interface Props {
   /** Whether the view is currently split, so the control reads as engaged. */
   splitActive?: boolean
   onSplit: () => void
+  onClose?: () => void
   /** Whether this pane answers the host window's Find shortcut. */
   hostShortcutEnabled?: boolean
   /** Fired when the user interacts with this pane, so the page can track focus. */
@@ -61,6 +62,7 @@ const MiniAppPane: FC<Props> = ({
   splitMode,
   splitActive,
   onSplit,
+  onClose,
   hostShortcutEnabled,
   onActivate,
   className
@@ -135,6 +137,7 @@ const MiniAppPane: FC<Props> = ({
           splitMode={splitMode}
           splitActive={splitActive}
           onSplit={onSplit}
+          onClose={onClose}
         />
       </div>
       <WebviewSearch
