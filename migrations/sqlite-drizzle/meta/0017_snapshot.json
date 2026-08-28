@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "387ab39d-6a16-4878-b584-115751dba28d",
+  "id": "8ff8a4d7-9096-4eb1-ae10-40460dad64a0",
   "prevId": "e3ff492a-485e-4a7b-80cb-7bbbb067d0b5",
   "tables": {
     "agent": {
@@ -836,6 +836,11 @@
           "columns": ["session_id", "created_at", "id"],
           "isUnique": false
         },
+        "agent_session_message_created_at_id_idx": {
+          "name": "agent_session_message_created_at_id_idx",
+          "columns": ["\"created_at\" desc", "\"id\" asc"],
+          "isUnique": false
+        },
         "agent_session_message_status_idx": {
           "name": "agent_session_message_status_idx",
           "columns": ["status"],
@@ -1379,7 +1384,7 @@
         },
         "ai_usage_record_source_type_check": {
           "name": "ai_usage_record_source_type_check",
-          "value": "\"ai_usage_record\".\"source_type\" IN ('assistant', 'agent', 'mini-app')"
+          "value": "\"ai_usage_record\".\"source_type\" IN ('assistant', 'agent')"
         },
         "ai_usage_record_modality_check": {
           "name": "ai_usage_record_modality_check",
@@ -2272,93 +2277,6 @@
           "value": "\"job_file_ref\".\"role\" IN ('input', 'mask')"
         }
       }
-    },
-    "mini_app_file_ref": {
-      "name": "mini_app_file_ref",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_entry_id": {
-          "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "logical_name": {
-          "name": "logical_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "mafr_entry_id_idx": {
-          "name": "mafr_entry_id_idx",
-          "columns": ["file_entry_id"],
-          "isUnique": false
-        },
-        "mafr_source_id_idx": {
-          "name": "mafr_source_id_idx",
-          "columns": ["source_id"],
-          "isUnique": false
-        },
-        "mafr_source_logical_name_unique_idx": {
-          "name": "mafr_source_logical_name_unique_idx",
-          "columns": ["source_id", "logical_name"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "mini_app_file_ref_file_entry_id_file_entry_id_fk": {
-          "name": "mini_app_file_ref_file_entry_id_file_entry_id_fk",
-          "tableFrom": "mini_app_file_ref",
-          "tableTo": "file_entry",
-          "columnsFrom": ["file_entry_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mini_app_file_ref_source_id_mini_app_app_id_fk": {
-          "name": "mini_app_file_ref_source_id_mini_app_app_id_fk",
-          "tableFrom": "mini_app_file_ref",
-          "tableTo": "mini_app",
-          "columnsFrom": ["source_id"],
-          "columnsTo": ["app_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "mini_app_logo_file_ref": {
       "name": "mini_app_logo_file_ref",
@@ -3765,6 +3683,11 @@
           "columns": ["topic_id", "created_at"],
           "isUnique": false
         },
+        "message_created_at_id_idx": {
+          "name": "message_created_at_id_idx",
+          "columns": ["\"created_at\" desc", "\"id\" asc"],
+          "isUnique": false
+        },
         "message_status_idx": {
           "name": "message_status_idx",
           "columns": ["status"],
@@ -3828,227 +3751,6 @@
         }
       }
     },
-    "mini_app_grant": {
-      "name": "mini_app_grant",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "app_id": {
-          "name": "app_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "permission": {
-          "name": "permission",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "granted_version": {
-          "name": "granted_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "mag_app_permission_unique_idx": {
-          "name": "mag_app_permission_unique_idx",
-          "columns": ["app_id", "permission"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "mini_app_grant_app_id_mini_app_app_id_fk": {
-          "name": "mini_app_grant_app_id_mini_app_app_id_fk",
-          "tableFrom": "mini_app_grant",
-          "tableTo": "mini_app",
-          "columnsFrom": ["app_id"],
-          "columnsTo": ["app_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "mini_app_installation": {
-      "name": "mini_app_installation",
-      "columns": {
-        "app_id": {
-          "name": "app_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "version": {
-          "name": "version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "content_hash": {
-          "name": "content_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_url": {
-          "name": "source_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_origin": {
-          "name": "source_origin",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_origin_cn": {
-          "name": "source_origin_cn",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "manifest_json": {
-          "name": "manifest_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "previous_manifest_json": {
-          "name": "previous_manifest_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "previous_content_hash": {
-          "name": "previous_content_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "previous_grants_json": {
-          "name": "previous_grants_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "previous_consented_declared_json": {
-          "name": "previous_consented_declared_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "consented_declared_json": {
-          "name": "consented_declared_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "ai_model_id": {
-          "name": "ai_model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "ai_quick_model_id": {
-          "name": "ai_quick_model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "mini_app_installation_app_id_mini_app_app_id_fk": {
-          "name": "mini_app_installation_app_id_mini_app_app_id_fk",
-          "tableFrom": "mini_app_installation",
-          "tableTo": "mini_app",
-          "columnsFrom": ["app_id"],
-          "columnsTo": ["app_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "mai_source_check": {
-          "name": "mai_source_check",
-          "value": "\"mini_app_installation\".\"source\" IN ('file', 'url', 'builtin')"
-        },
-        "mai_rollback_snapshot_all_or_none": {
-          "name": "mai_rollback_snapshot_all_or_none",
-          "value": "(\"mini_app_installation\".\"previous_content_hash\" IS NULL AND \"mini_app_installation\".\"previous_manifest_json\" IS NULL\n           AND \"mini_app_installation\".\"previous_grants_json\" IS NULL AND \"mini_app_installation\".\"previous_consented_declared_json\" IS NULL)\n          OR (\"mini_app_installation\".\"previous_content_hash\" IS NOT NULL AND \"mini_app_installation\".\"previous_manifest_json\" IS NOT NULL\n              AND \"mini_app_installation\".\"previous_grants_json\" IS NOT NULL AND \"mini_app_installation\".\"previous_consented_declared_json\" IS NOT NULL)"
-        },
-        "mai_source_consistency": {
-          "name": "mai_source_consistency",
-          "value": "(\"mini_app_installation\".\"source\" IN ('file', 'builtin') AND \"mini_app_installation\".\"source_url\" IS NULL AND \"mini_app_installation\".\"source_origin\" IS NULL\n           AND \"mini_app_installation\".\"source_origin_cn\" IS NULL)\n          OR (\"mini_app_installation\".\"source\" = 'url' AND \"mini_app_installation\".\"source_url\" IS NOT NULL AND \"mini_app_installation\".\"source_origin\" IS NOT NULL)"
-        }
-      }
-    },
     "mini_app": {
       "name": "mini_app",
       "columns": {
@@ -4065,14 +3767,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'site'"
         },
         "name": {
           "name": "name",
@@ -4180,10 +3874,6 @@
         "mini_app_status_check": {
           "name": "mini_app_status_check",
           "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
-        },
-        "mini_app_kind_check": {
-          "name": "mini_app_kind_check",
-          "value": "\"mini_app\".\"kind\" IN ('site', 'app')"
         }
       }
     },
@@ -5339,9 +5029,29 @@
   },
   "internal": {
     "indexes": {
+      "agent_session_message_created_at_id_idx": {
+        "columns": {
+          "\"created_at\" desc": {
+            "isExpression": true
+          },
+          "\"id\" asc": {
+            "isExpression": true
+          }
+        }
+      },
       "fe_external_path_lower_unique_idx": {
         "columns": {
           "lower(\"external_path\")": {
+            "isExpression": true
+          }
+        }
+      },
+      "message_created_at_id_idx": {
+        "columns": {
+          "\"created_at\" desc": {
+            "isExpression": true
+          },
+          "\"id\" asc": {
             "isExpression": true
           }
         }
