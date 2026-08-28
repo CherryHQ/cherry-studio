@@ -181,8 +181,9 @@ Generation (a fresh deck, workbook, or document — from scratch or from data yo
 just extracted) has no source file to protect, so there is no fixed script: write a
 short Python program against the matching library (`python-pptx`, `openpyxl`,
 `python-docx`) and run it via `uv run --with <pkg> python`. The two skill
-invariants still apply: write to a new file (never a path the user's original
-occupies), and verify the output by reopening it before reporting success.
+invariants still apply: write to a path nothing occupies yet — open it with `"xb"`
+rather than handing the library a name, since every one of these `save()` methods
+overwrites — and verify the output by reopening it before reporting success.
 
 ### Edit docx — edit runs, never `Paragraph.text`
 
@@ -223,6 +224,11 @@ def replace_char_range(paragraph, start, end, new_text):
         written = True
     if not written:
         raise ValueError("charRange did not intersect any run")
+
+# `save(path)` overwrites whatever is there, and a library edit owes the caller the same
+# no-overwrite guarantee the scripts give. "x" states it without a check that can race.
+with open("/abs/report-updated.docx", "xb") as out:
+    document.save(out)
 ```
 
 Verify by reopening the derived file and checking that the structure you meant to keep is
@@ -263,11 +269,11 @@ def replace_char_range(paragraph, start, end, new_text):
     (bold, size, colour) and its a:hlinkClick. An a:br occupies one position in paragraph.text
     but owns no run, so the cursor must step over it or every later offset shifts by one — and
     one the range covers has to go, or the replacement keeps a line break nobody asked for."""
-    position, written = 0, False
-    for child in list(paragraph._p):                  # list(): the loop removes children
+    position, written, covered = 0, False, []
+    for child in list(paragraph._p):
         if child.tag == qn("a:br"):
             if start <= position < end:
-                paragraph._p.remove(child)
+                covered.append(child)                 # removed below, once the range is known good
             position += 1
             continue
         if child.tag != qn("a:r"):
@@ -281,8 +287,10 @@ def replace_char_range(paragraph, start, end, new_text):
         tail = run.text[max(0, end - run_start) :] if end < run_end else ""
         run.text = head + ("" if written else new_text) + tail
         written = True
-    if not written:
-        raise ValueError("charRange did not intersect any run")
+    if not written:                                   # nothing removed yet, so this leaves the
+        raise ValueError("charRange did not intersect any run")   # paragraph as it was found
+    for child in covered:
+        paragraph._p.remove(child)
 
 p = Presentation("/abs/deck.pptx")
 shape = next(s for s in walk(p.slides[1].shapes) if s.shape_id == 4)
@@ -291,7 +299,10 @@ before = shape.text_frame.paragraphs[0]
 replace_char_range(before, 8, 11, "8%")               # anchor had "paragraph": 0
 # replace_char_range(shape.table.cell(1, 0).text_frame.paragraphs[0], ...)   # "tableCell" anchor
 
-p.save("/abs/deck-updated.pptx")  # never save over the source
+# `save(path)` overwrites whatever is there. The scripts refuse an existing --out; a library
+# edit has to refuse one too, and "x" is how you say that without a check that can race.
+with open("/abs/deck-updated.pptx", "xb") as out:
+    p.save(out)
 ```
 
 Verify that the formatting survived, not just the text — `paragraphs[0].text == "..."` plus a
