@@ -358,9 +358,21 @@ vi.mock('../components/TranslateInputPane', () => ({
 }))
 
 vi.mock('../components/TranslateLanguageBar', () => ({
-  default: (props: { isBidirectional: boolean; showSourceControls: boolean }) => {
+  default: (props: {
+    isBidirectional: boolean
+    showSourceControls: boolean
+    onSourceChange: (language: string) => void
+    onTargetChange: (language: string) => void
+  }) => {
     languageBarMock(props)
-    return null
+    return (
+      <div>
+        {!props.isBidirectional && props.showSourceControls && (
+          <button type="button" aria-label="translate.source_language" onClick={() => props.onSourceChange('zh-cn')} />
+        )}
+        <button type="button" aria-label="translate.target_language" onClick={() => props.onTargetChange('en-us')} />
+      </div>
+    )
   }
 }))
 
@@ -1028,12 +1040,14 @@ describe('TranslatePage', () => {
     fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
 
     render(<TranslatePage />)
+    expect(screen.queryByRole('button', { name: 'translate.source_language' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'translate.target_language' })).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
 
     await waitFor(() => expect(screen.getByTestId('pdf-translation-view')).toBeInTheDocument())
-    expect(languageBarMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ isBidirectional: false, showSourceControls: true })
-    )
+    expect(screen.getByRole('button', { name: 'translate.source_language' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'translate.target_language' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
   })

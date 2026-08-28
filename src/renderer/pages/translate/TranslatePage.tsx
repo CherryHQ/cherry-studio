@@ -215,9 +215,7 @@ const TranslatePage: FC = () => {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
-  const { add: addHistory } = useTranslateHistory({
-    update: { showErrorToast: false, rethrowError: false }
-  })
+  const { add: addHistory } = useTranslateHistory()
   const { notesPath } = useNotesSettings()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
@@ -377,7 +375,7 @@ const TranslatePage: FC = () => {
       rawText: string,
       actualSourceLanguage: TranslateLangCode | null,
       actualTargetLanguage: TranslateLangCode
-    ): Promise<TranslateHistory | undefined> => {
+    ): Promise<void> => {
       if (isTranslating) return
 
       smoothReset('')
@@ -402,7 +400,7 @@ const TranslatePage: FC = () => {
         )
       }
 
-      return addHistory({
+      await addHistory({
         sourceText: rawText,
         targetText: translated,
         sourceLanguage: actualSourceLanguage,
