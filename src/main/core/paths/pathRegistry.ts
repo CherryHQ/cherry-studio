@@ -137,6 +137,17 @@ export function buildPathRegistry() {
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
 
+    // Code CLI session data. `root` is handed to the binary as `--gemini_dir`; the
+    // CLI itself resolves its settings under the fixed `antigravity-cli/` subdir.
+    'feature.cli.antigravity.root': path.join(appUserDataData, 'CodeCli', 'Antigravity'),
+    'feature.cli.antigravity.settings.file': path.join(
+      appUserDataData,
+      'CodeCli',
+      'Antigravity',
+      'antigravity-cli',
+      'settings.json'
+    ),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
@@ -159,6 +170,7 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // Agents
+    'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
@@ -232,14 +244,17 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
-    'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
-    'external.deepseek_harness.config': path.join(os.homedir(), '.dsh'),
+    'external.openclaw.config': path.join(sysHome, '.openclaw'),
+    'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.hermes.default_home': isWin
+      ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
+      : path.join(sysHome, '.hermes'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
       : isMac
-        ? path.join(os.homedir(), 'Library', 'Application Support', 'obsidian', 'obsidian.json')
-        : path.join(os.homedir(), '.config', 'obsidian', 'obsidian.json')
+        ? path.join(sysHome, 'Library', 'Application Support', 'obsidian', 'obsidian.json')
+        : path.join(sysHome, '.config', 'obsidian', 'obsidian.json')
   } as const)
 }
 
@@ -282,6 +297,7 @@ const NO_ENSURE = [
   'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',

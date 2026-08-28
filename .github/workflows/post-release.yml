@@ -1,0 +1,272 @@
+name: Post Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release-state
+  cancel-in-progress: false
+
+env:
+  RELEASE_METADATA_FILES: '["package.json","electron-builder.yml","resources/cherry-studio/release-history.json","resources/builtin-agents/cherry-assistant/product-manifest.json"]'
+
+jobs:
+  sync-release-metadata:
+    name: Sync published release metadata to main
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release tag
+        id: release-ref
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          export LC_ALL=C
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Ignoring non-semver release tag: $TAG"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "sync-branch=release-sync/$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Check for an existing metadata pull request
+        id: existing-pr
+        if: steps.release-ref.outputs.eligible == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+          SYNC_BRANCH: ${{ steps.release-ref.outputs.sync-branch }}
+        run: |
+          PULL_REQUESTS="$(gh pr list --repo "$REPO" --base main --head "$SYNC_BRANCH" --state all --json mergedAt,state,url)"
+          EXISTING_PR="$(jq -r '[.[] | select(.state == "OPEN" or .mergedAt != null)][0].url // empty' <<< "$PULL_REQUESTS")"
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Open or merged release metadata pull request already exists: $EXISTING_PR"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            CLOSED_PR="$(jq -r '[.[] | select(.state == "CLOSED" and .mergedAt == null)][0].url // empty' <<< "$PULL_REQUESTS")"
+            if [ -n "$CLOSED_PR" ]; then
+              echo "Retrying release metadata sync after closed pull request: $CLOSED_PR"
+            fi
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out latest main
+        if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Prepare published metadata changes
+        id: metadata
+        if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+
+          mapfile -t FILES < <(jq -r '.[]' <<< "$RELEASE_METADATA_FILES")
+          for FILE in "${FILES[@]}"; do
+            if ! git cat-file -e "$TAG:$FILE"; then
+              echo "Published tag $TAG does not contain $FILE" >&2
+              exit 1
+            fi
+          done
+
+          echo "main-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          METADATA_BASE="$(git merge-base HEAD "$TAG")"
+          PATCH_FILE="$RUNNER_TEMP/release-metadata.patch"
+          git diff --binary --full-index "$METADATA_BASE" "$TAG" -- "${FILES[@]}" > "$PATCH_FILE"
+
+          if [ ! -s "$PATCH_FILE" ]; then
+            echo "No release metadata changes need to be synchronized"
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git apply --3way --index "$PATCH_FILE" || [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+            git reset --hard HEAD
+            echo "Published metadata conflicts with changes made on main after the release branch was created" >&2
+            exit 1
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No release metadata changes need to be synchronized"
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reset metadata sync branch to prepared main
+        if: steps.metadata.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          MAIN_SHA: ${{ steps.metadata.outputs.main-sha }}
+          REPO: ${{ github.repository }}
+          SYNC_BRANCH: ${{ steps.release-ref.outputs.sync-branch }}
+        run: |
+          if gh api "repos/$REPO/git/ref/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$REPO/git/refs/heads/$SYNC_BRANCH" -f sha="$MAIN_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/$REPO/git/refs" -f ref="refs/heads/$SYNC_BRANCH" -f sha="$MAIN_SHA" >/dev/null
+          fi
+
+      - name: Create signed metadata commit payload
+        if: steps.metadata.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          REPO: ${{ github.repository }}
+          SYNC_BRANCH: ${{ steps.release-ref.outputs.sync-branch }}
+          SYNC_HEAD: ${{ steps.metadata.outputs.main-sha }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          AUTHOR_JSON="$(gh api user)"
+          export SIGNOFF_NAME="$(jq -r '.name // .login' <<< "$AUTHOR_JSON")"
+          export SIGNOFF_EMAIL="$(jq -r '"\(.id)+\(.login)@users.noreply.github.com"' <<< "$AUTHOR_JSON")"
+
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+          const path = require('node:path')
+
+          const changedPaths = execFileSync(
+            'git',
+            ['diff', '--cached', '--name-only', '--no-renames', '-z'],
+            { encoding: 'buffer' }
+          )
+            .toString('utf8')
+            .split('\0')
+            .filter(Boolean)
+          const additions = changedPaths.map((filePath) => ({
+            path: filePath,
+            contents: fs.readFileSync(filePath).toString('base64')
+          }))
+
+          const payload = {
+            query: `mutation($input: CreateCommitOnBranchInput!) {
+              createCommitOnBranch(input: $input) {
+                commit { oid url }
+              }
+            }`,
+            variables: {
+              input: {
+                branch: {
+                  repositoryNameWithOwner: process.env.REPO,
+                  branchName: process.env.SYNC_BRANCH
+                },
+                expectedHeadOid: process.env.SYNC_HEAD,
+                message: {
+                  headline: `chore(release): sync ${process.env.TAG} metadata`,
+                  body: `Sync metadata from the published ${process.env.TAG} release.\n\nRelease: ${process.env.RELEASE_URL}\n\nrelease-metadata-boundary: ${process.env.TAG}\n\nSigned-off-by: ${process.env.SIGNOFF_NAME} <${process.env.SIGNOFF_EMAIL}>`
+                },
+                fileChanges: { additions }
+              }
+            }
+          }
+
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'release-metadata-commit.json'), JSON.stringify(payload))
+          NODE
+
+      - name: Commit release metadata
+        id: commit
+        if: steps.metadata.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+        run: |
+          RESPONSE="$(gh api graphql --input "$RUNNER_TEMP/release-metadata-commit.json")"
+          COMMIT_SHA="$(jq -r '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"
+          VERIFIED="$(gh api "repos/$REPO/commits/$COMMIT_SHA" --jq '.commit.verification.verified')"
+
+          if [ "$VERIFIED" != "true" ]; then
+            echo "Release metadata commit $COMMIT_SHA was not verified" >&2
+            exit 1
+          fi
+
+          echo "sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Create release metadata pull request
+        if: steps.metadata.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          REPO: ${{ github.repository }}
+          SYNC_BRANCH: ${{ steps.release-ref.outputs.sync-branch }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          BODY="$(printf '%s\n' \
+            '> ### Branch strategy' \
+            '>' \
+            '> - Active development targets `main`.' \
+            '' \
+            '### What this PR does' \
+            '' \
+            'Before this PR:' \
+            '' \
+            "The published $TAG version metadata exists only on its release tag." \
+            '' \
+            'After this PR:' \
+            '' \
+            "Only the version, release notes, release history, and generated product manifest from $TAG are synchronized to \`main\`." \
+            '' \
+            'Fixes # N/A' \
+            '' \
+            '### Why we need it and why it was done in this way' \
+            '' \
+            'The following tradeoffs were made:' \
+            '' \
+            'Release code and cherry-picked backport commits remain isolated from this metadata-only synchronization.' \
+            '' \
+            'The following alternatives were considered:' \
+            '' \
+            'Merging the complete release branch was rejected because hotfix code already landed on `main` before being backported.' \
+            '' \
+            "Links to places where the discussion took place: $RELEASE_URL" \
+            '' \
+            '### Breaking changes' \
+            '' \
+            'None.' \
+            '' \
+            '### Special notes for your reviewer' \
+            '' \
+            "This PR was created automatically after $TAG was published. When squash-merging, set the commit title to exactly \`chore(release): sync $TAG metadata\` with only GitHub's optional PR-number suffix, and keep the boundary line below in the squash commit body." \
+            '' \
+            '### Checklist' \
+            '' \
+            '- [x] Branch: This PR targets `main`' \
+            '- [x] PR: The PR description is expressive enough and will help future contributors' \
+            '- [x] Code: This PR contains release metadata only' \
+            '- [ ] Refactor: Not applicable' \
+            '- [x] Upgrade: Impact on upgrade flows was considered' \
+            '- [x] Documentation: No user-guide update is required' \
+            '- [x] Self-review: The tag and release branch were verified to point to the same commit' \
+            '' \
+            '### Release note' \
+            '' \
+            '```release-note' \
+            'NONE' \
+            '```' \
+            '' \
+            "release-metadata-boundary: $TAG")"
+
+          gh pr create \
+            --repo "$REPO" \
+            --base main \
+            --head "$SYNC_BRANCH" \
+            --title "chore(release): sync $TAG metadata" \
+            --body "$BODY"

@@ -36,7 +36,11 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { defaultMessageRenderConfig } from './types'
-import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
+import {
+  getLatestAssistantGroupKey,
+  getMessageGroupKey,
+  getOwningUserMessageIdByAssistantId
+} from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
@@ -304,10 +308,26 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
-    const groupKey =
-      target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
-    messageListRef.current?.scrollToKey(groupKey, 'start')
+    messageListRef.current?.scrollToKey(getMessageGroupKey(target), 'start')
   }, [])
+
+  const getNavigationBaseMessageId = useCallback(() => {
+    const key = messageListRef.current?.getNavigationBaseKey()
+    if (!key) return null
+
+    const groupMessages = groupedMessages.find(([groupKey]) => groupKey === key)?.[1]
+    if (!groupMessages) return null
+
+    const userMessage = groupMessages.find((message) => message.role === 'user')
+    if (userMessage) return userMessage.id
+
+    const owningUserMessageIdByAssistantId = getOwningUserMessageIdByAssistantId(messages)
+    for (const message of groupMessages) {
+      const ownerId = owningUserMessageIdByAssistantId.get(message.id)
+      if (ownerId) return ownerId
+    }
+    return null
+  }, [groupedMessages, messages])
 
   const scrollToOutlineElement = useCallback((element: HTMLElement) => {
     messageListRef.current?.scrollToElement(element)
@@ -857,6 +877,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         <MessageNavigation
           scrollContainerRef={scrollContainerRef}
           getMessageElement={getMessageElement}
+          getNavigationBaseMessageId={getNavigationBaseMessageId}
           messages={messages}
           scrollToMessageId={scrollToMessageById}
           scrollToTop={navigateToTop}

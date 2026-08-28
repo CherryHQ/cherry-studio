@@ -521,9 +521,7 @@ function buildProviderModels(
     seen.add(k)
     rows.push(o)
   }
-  // md-derived rows key on `modelId` only — upstream date snapshots that canonicalize to one id collapse to
-  // a single row. Providers may also declare model-id reasoning templates; the template is expanded into
-  // each matching upstream row while its upstream pricing/apiModelId remain intact.
+  // md-derived rows key on `modelId`; templates expand into matching rows without replacing upstream identity.
   const addModel = (o: any): void => {
     const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
     if (seen.has(k)) return
@@ -533,7 +531,9 @@ function buildProviderModels(
   for (const p of PROVIDERS) {
     const modelTemplates = (p.overrides ?? []).filter(
       (override) =>
-        p.modelsDevProvider && !override.apiModelId && (override.reasoningContracts || override.requestControls)
+        p.modelsDevProvider &&
+        !override.apiModelId &&
+        (override.endpointTypes || override.reasoningContracts || override.requestControls)
     )
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
     for (const override of p.overrides ?? []) {

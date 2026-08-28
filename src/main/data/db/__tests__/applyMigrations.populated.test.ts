@@ -329,7 +329,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills cleanup policy only for referenced files predating its rollout', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0017_file_cleanup_policy_backfill'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0018_file_cleanup_policy_backfill'))
     const cleanupPolicyRollout = 1785514531244
     const legacyReferenced = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     const legacyUnreferenced = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'

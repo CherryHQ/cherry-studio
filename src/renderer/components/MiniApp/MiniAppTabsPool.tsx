@@ -40,8 +40,16 @@ function paneGeometry(isSplit: boolean, isPrimary: boolean, isSecondary: boolean
 }
 
 const MiniAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMiniApps, currentMiniAppId, splitOpen, splitMiniAppId, setOpenedKeepAliveMiniApps } =
-    useMiniApps()
+  const {
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    splitOpen,
+    splitMiniAppId,
+    openedOneOffMiniApp,
+    setOpenedKeepAliveMiniApps,
+    setCurrentMiniAppId,
+    setMiniAppShow
+  } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
   // Read the active tab's URL from the v2 tabs cache. We can't use the
@@ -51,6 +59,15 @@ const MiniAppTabsPool: React.FC = () => {
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
+
+  const tabMiniAppIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const tab of tabs) {
+      const id = miniAppIdFromTabUrl(tab.url)
+      if (id) ids.add(id)
+    }
+    return ids
+  }, [tabs])
 
   // One `<webview>` cannot render in two panes, and switching tabs can make the
   // active app equal the split one, so drop the split instead of blanking a pane.
@@ -113,6 +130,47 @@ const MiniAppTabsPool: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
 
+  // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember
+  // every app the split pane ever showed: orphan cleanup only evicts entries no tab references
+  // and the split never owned.
+  const splitPooledIds = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (splitOpen && splitMiniAppId) splitPooledIds.current.add(splitMiniAppId)
+    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || splitPooledIds.current.has(appId)
+    const orphanedApps = openedKeepAliveMiniApps.filter((app) => !isReferenced(app.appId))
+    if (orphanedApps.length === 0) return
+
+    // The updater filters the latest stored pool, which can hold apps this render never
+    // saw — current/show must not be derived here; the realign effect below owns that.
+    setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => isReferenced(app.appId)))
+    for (const app of orphanedApps) clearWebviewState(app.appId)
+  }, [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps, splitMiniAppId, splitOpen, tabMiniAppIds])
+
+  // Realign a current id that resolves to no shown app. Always-on, not gated behind orphan
+  // cleanup: a stale-snapshot decision then self-heals on the fresh-pool re-run.
+  useEffect(() => {
+    // One-off apps live outside the keep-alive pool but legitimately own the current id.
+    if (currentMiniAppId === openedOneOffMiniApp?.appId) return
+    if (openedKeepAliveMiniApps.some((app) => app.appId === currentMiniAppId)) return
+
+    if (activeMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeMiniAppId)) {
+      setCurrentMiniAppId(activeMiniAppId)
+      setMiniAppShow(true)
+      return
+    }
+
+    setCurrentMiniAppId('')
+    setMiniAppShow(false)
+  }, [
+    activeMiniAppId,
+    currentMiniAppId,
+    openedKeepAliveMiniApps,
+    openedOneOffMiniApp,
+    setCurrentMiniAppId,
+    setMiniAppShow
+  ])
+
   /** 设置 ref 回调 */
   const handleSetRef = useCallback((appid: string, el: WebviewTag | null) => {
     if (el) {
@@ -124,6 +182,8 @@ const MiniAppTabsPool: React.FC = () => {
 
   /** WebView 加载完成回调 */
   const handleLoaded = useCallback((appid: string) => {
+    // A load event can land after the pool evicted the app; don't resurrect its cleared state.
+    if (!webviewRefs.current.has(appid)) return
     setWebviewLoaded(appid, true)
     logger.debug(`TabPool webview loaded: ${appid}`)
   }, [])
