@@ -1,65 +1,71 @@
 {
-  "generated_at": "2026-08-27T16:00:00Z",
-  "total_open_issues": 990,
+  "generated_at": "2026-08-28T18:00:00Z",
+  "total_open_issues": 1004,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Aug 20–27)",
-      "count_estimate": 800,
-      "pct": "~81%",
-      "note": "Top-100 sample is fully active; heavy activity volume continues"
+      "description": "Updated within last 7 days (Aug 21–28)",
+      "count_estimate": 820,
+      "pct": "~82%",
+      "note": "Top-100 sample is fully active; high activity volume continues"
     },
     "aging": {
-      "description": "7–30 days since last update (Jul 28 – Aug 19)",
+      "description": "7–30 days since last update (Jul 29 – Aug 20)",
       "count_estimate": 70,
       "pct": "~7%"
     },
     "stale": {
-      "description": "30–90 days without update (May 29 – Jul 27), many auto-labeled 'inactive'",
-      "count_estimate": 70,
-      "pct": "~7%",
+      "description": "30–90 days without update (May 30 – Jul 28), many auto-labeled 'inactive'",
+      "count_estimate": 64,
+      "pct": "~6%",
       "inactive_label_count": 10
     },
     "zombie": {
-      "description": "90+ days open with no resolution (before May 29)",
+      "description": "90+ days open with no resolution (before May 30)",
       "count_estimate": 50,
       "pct": "~5%",
       "notable_zombies": [
-        {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 329, "labels": ["bug","p1","windows","data"]}
+        {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 330, "labels": ["bug","p1","windows","data"]}
       ]
     }
   },
   "triage_queue": {
-    "needs_triage_count": 8,
-    "needs_repro_count": 2,
-    "needs_more_info_count": 2
+    "needs_triage_count": 10,
+    "needs_repro_count": 3,
+    "needs_more_info_count": 5,
+    "new_today_needing_triage": [19625, 19623]
   },
-  "hot_areas_aug27": {
-    "v2_0_9_regression_cluster": {
-      "count": 8,
-      "p1_count": 8,
-      "issues": [19583, 19582, 19584, 19579, 19578, 19577, 19597, 19572],
-      "description": "CRITICAL — 8 new P1 regressions filed 2026-08-27 all tied to v2.0.9 release. Patterns: WeChat channel delivery, Assistant Management UI, DB migration startup failure, Linux arm64 flickering, SSL cert handling."
+  "hot_areas_aug28": {
+    "v2_0_10_release": {
+      "description": "v2.0.10 released today; expected to fix subset of v2.0.9 regression cluster (8 P1s from Aug 27)",
+      "unresolved_from_cluster": ["verify after v2.0.10 rollout"]
     },
-    "performance_sprint_day3": {
+    "performance_sprint_day4": {
       "count": 5,
-      "issues": [19609, 19608, 19607, 19606, 19605],
-      "description": "DeJeune performance batch day 3: ResourceSelector focus, file type pre-filter, deferred queries, mini app subscription isolation, FilePreview preload"
+      "issues": [19671, 19675, 19672, 19674, 19673],
+      "description": "Internal team performance task batch day 4: lazy-load Knowledge UI, isolate health-check rows, citations panel on first open, lazy ModelSettings panels, defer provider setup"
     },
-    "carried_p1_carryovers": {
-      "count": 5,
-      "issues": [19455, 19454, 19452, 19383, 19376],
-      "description": "5 P1 bugs from Aug 25–26 still open with no fix confirmed"
+    "streaming_model_switch_blocked": {
+      "issues": [19659],
+      "priority": "p1",
+      "description": "New P1 filed today: cannot switch model conversation while a response streams"
     },
-    "kimi_model_regression": {
-      "issues": [19601, 19603],
-      "description": "Kimi sampling omit guard removed in v2 — #19601 (bug) filed, #19603 (fix PR) already open"
+    "agent_runtime_bugs": {
+      "issues": [19383, 19379, 19376, 19321, 18741],
+      "description": "5 agent runtime P1s carried forward: handler not found on agent delete, Pi runtime artifacts, Pi auto-permission prompts, DeepSeek reasoning_text drop, DeepSeek V4 tool loop broken"
+    },
+    "data_backup_cluster": {
+      "issues": [19670, 19669, 19678, 18273, 18272],
+      "description": "Backup/data reliability issues: sync status resets (#19670), downgrade detection missing (#19669), v1→v2 context marker loss (#19678), zip-slip (#18273 - security), filename sanitization (#18272 - security)"
     }
   },
+  "security_flagged": [
+    {"number": 18273, "title": "[Bug]: Backup restore: zip-slip path traversal (no path containment check)", "labels": ["data"], "severity": "HIGH"},
+    {"number": 18272, "title": "[Bug]: Knowledge material filenames not sanitized on native add", "labels": ["data"], "severity": "MEDIUM"}
+  ],
   "summary_deltas_vs_yesterday": {
-    "open_issues_change": "+17",
-    "new_p1_issues": 8,
-    "new_p1_detail": "Eight 2.0.9 regressions: WeChat delivery (#19584), topic delete redirect (#19583), Assistant Management tags (#19582), DB I/O startup (#19579), Linux arm64 flicker (#19578), SSL cert agent (#19577), model prefs JSON (#19597), crash on continuous convo (#19572)",
-    "resolved_p1_issues_approx": 3,
-    "today_theme": "v2.0.9 post-release regression surge — 8 new P1 bugs all tied to the release. Performance sprint continues (day 3). 990 total open issues (+17 vs Aug 26's 973). Hotfix appears urgently needed."
+    "open_issues_change": "+14",
+    "new_p1_count": 2,
+    "resolved_cluster": "v2.0.9 regression cluster being addressed by v2.0.10",
+    "today_theme": "Stabilization after v2.0.9 surge. v2.0.10 released. Performance sprint continues (day 4). 2 new P1s. Agent runtime stability remains top concern."
   }
 }

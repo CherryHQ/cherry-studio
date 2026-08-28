@@ -1,30 +1,31 @@
 {
-  "generated_at": "2026-08-27T16:00:00Z",
+  "generated_at": "2026-08-28T18:00:00Z",
   "discussion_fetch_status": "skipped — gh CLI unavailable in remote environment; use GitHub Actions or local Conductor for GraphQL discussion sync",
   "issue_based_signals": {
     "help_wanted_open": 2,
     "discussion_labeled_open": 2,
     "high_comment_issues": [
-      {"number": 18131, "comments": 10, "title": "MCP server shows connected but no tools mounted — agent sessions"},
-      {"number": 14898, "comments": 7, "title": "Cherry Studio Account System and Cross-Device Sync"},
-      {"number": 18898, "comments": 5, "title": "Unify Agent permission modes across Claude Code, Pi, and DSH"},
-      {"number": 19254, "comments": 7, "title": "Multimodal content block built incorrectly"},
-      {"number": 16172, "comments": 4, "title": "Improve knowledge base retrieval recall"}
+      {"number": 18131, "title": "MCP server shows connected but no tools mounted — agent sessions"},
+      {"number": 14898, "title": "Cherry Studio Account System and Cross-Device Sync"},
+      {"number": 16172, "title": "Improve knowledge base retrieval recall"},
+      {"number": 19630, "title": "MAX_REQUESTED_OUTPUT_TOKENS hardcoded to 128_000"}
     ]
   },
   "top_feature_requests_by_signal": [
     "Cherry Studio Account System and Cross-Device Sync (#14898)",
     "Built-In Browser Pane for Agents (#16124)",
     "Usage Dashboard with token analytics (#16170)",
-    "Recycle Bin for deleted content (#15249, #15240)",
     "Anthropic Computer Use support (#15663)",
     "Sub-Agent calling between agents (#15982)",
-    "Unified Agent permission modes across runtimes (#18898)"
+    "Unified Agent permission modes across runtimes (#18898)",
+    "MAX_REQUESTED_OUTPUT_TOKENS configurable (#19630)"
   ],
-  "community_friction_signals_aug27": [
-    "v2.0.9 regression surge: 8 new P1 bugs in one day — user trust risk if no hotfix",
-    "Cloud backup still broken (10512, 329 days old) — recurring pain point",
-    "ARM/Linux users blocked on uploads and flickering (16863, 19578)",
-    "WeChat integration broken post-upgrade (19584) — affects enterprise users"
+  "community_friction_signals_aug28": [
+    "v2.0.9 regression surge (8 P1s Aug 27) — v2.0.10 released today to address; monitor resolution",
+    "Cloud backup still broken (#10512, 330 days old) — recurring community pain point",
+    "ARM/Linux users blocked: upload/input (#16863), arm64 flickering (#19578)",
+    "Pi runtime: auto-permission mode prompting every call (#19376) — agent UX regression",
+    "Agent stability: DeepSeek V4 tool loop broken (#18741), reasoning_text dropped (#19321)",
+    "Windows updater leaves old version installed (#19625) — new today, triage needed"
   ]
 }

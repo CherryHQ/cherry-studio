@@ -1,23 +1,27 @@
 {
-  "generated_at": "2026-08-27T16:00:00Z",
+  "generated_at": "2026-08-28T18:00:00Z",
   "v2_branch_status": {
     "open_prs_targeting_v2": 0,
-    "note": "No PRs targeting v2 base branch as of 2026-08-27. All active development merges to main."
+    "note": "No PRs targeting v2 base branch as of 2026-08-28. All active development merges to main."
   },
   "main_branch_activity": {
     "open_prs": 100,
-    "draft_prs": 3,
-    "active_contributors_today": ["userInner", "SiinXu", "kennyzheng-builds", "DeJeune", "ActiveSky", "kovsu", "AtomsH4", "GeorgeDong32", "eeee0717", "Shiina18", "vaayne", "bigben446", "404-Page-Found", "hetaoBackend", "xianhongtao", "ump45nose"]
+    "active_contributors_today": ["userInner", "SiinXu", "kennyzheng-builds", "DeJeune", "ActiveSky", "kovsu", "GeorgeDong32", "eeee0717", "404-Page-Found"]
   },
   "v2_labeled_open_issues": [
-    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts for every tool call", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 2}
+    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "labels": ["bug","p1","windows","needs-repro","needs-triage","v2"], "age_days": 0},
+    {"number": 19379, "title": "Pi runtime: report_artifacts deliverables never render", "labels": ["bug","p1","ui-ux","v2","agent"], "age_days": 3},
+    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts for every tool call", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 3},
+    {"number": 17949, "title": "V2 regression: cannot check and manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 23},
+    {"number": 18099, "title": "Restore 'Save only' option for historical message editing (v1→v2 regression)", "labels": ["ui-ux"], "age_days": 21}
   ],
   "release_context": {
-    "latest_release": "v2.0.9",
-    "release_date_approx": "2026-08-27",
-    "regression_issues_post_209": 8,
-    "regression_summary": "v2.0.9 deployed and immediately triggered 8 new P1 regressions: WeChat channel delivery broken, Assistant Management UI hiding tags/assistants, DB migration disk I/O startup failure, Linux arm64 window flickering, agent SSL cert unhandled, model prefs JSON abort, Kimi sampling guard removed, crash on continuous conversation.",
-    "hotfix_urgency": "HIGH — 8 P1 regressions in one day post-release"
+    "latest_release": "v2.0.10",
+    "release_date_approx": "2026-08-28",
+    "prior_release": "v2.0.9",
+    "v209_regression_p1_count": 8,
+    "v210_expected_fixes": "Partial — addresses subset of v2.0.9 cluster; full resolution requires verification post-rollout",
+    "hotfix_urgency": "MEDIUM — v2.0.10 is out; monitor for resolution of Aug 27 P1 cluster"
   },
   "planned_features_open": [
     {"number": 18960, "title": "Agent Stall Detection and User Intervention", "labels": ["planned","feature","assistant","internal-team"]},
@@ -32,29 +36,25 @@
     {"number": 16124, "title": "Built-In Browser Pane (shared with Agent)", "labels": ["feature","ui-ux","agent","prd","internal-team"]},
     {"number": 15663, "title": "Support Anthropic Computer Use", "labels": ["assistant","internal-team"]}
   ],
-  "active_pr_themes_aug27": [
-    {"theme": "v2.0.9 regression fixes (active PRs)", "prs": [19567, 19561, 19559, 19603, 19600], "priority": "P1 — urgent"},
-    {"theme": "Agent session reliability", "prs": [19612, 19611, 19610, 19568], "priority": "high"},
-    {"theme": "Performance: subscription isolation / lazy loading (day 3)", "prs": [19527, 19436, 19435, 19414, 19412, 19380, 19362], "priority": "perf"},
-    {"theme": "Diagnostics and observability", "prs": [19530, 19513, 19514, 19371], "priority": "feature"},
-    {"theme": "Settings searchability", "prs": [19318, 19345, 19346], "priority": "feature"},
-    {"theme": "Electron 43 upgrade", "prs": [19350], "priority": "chore"},
-    {"theme": "DuckDuckGo free web search", "prs": [19389], "priority": "feature"},
-    {"theme": "Mini app sandbox real local apps", "prs": [19475], "priority": "feature"}
+  "active_pr_themes_aug28": [
+    {"theme": "Post-v2.0.10 stabilization / v2.0.9 regression close-out", "priority": "P1 — monitor"},
+    {"theme": "Performance sprint day 4 (lazy loading, subscription isolation)", "issues": [19671,19675,19672,19674,19673], "priority": "high"},
+    {"theme": "Agent session reliability (Pi runtime, DeepSeek tool loop)", "priority": "high"},
+    {"theme": "Internal model/provider tasks (Kimi presets, Gemini policy, API gateway typing)", "issues": [19661,19655,19656], "priority": "medium"},
+    {"theme": "Data / backup reliability", "priority": "medium"}
   ],
   "pr_pipeline_targets_main": {
     "count": 100,
     "top_authors_approx": {
-      "userInner": 40,
-      "SiinXu": 15,
-      "DeJeune": 8,
-      "kennyzheng-builds": 6,
-      "AtomsH4": 3,
+      "userInner": 35,
+      "SiinXu": 19,
+      "kennyzheng-builds": 9,
+      "DeJeune": 7,
+      "GeorgeDong32": 5,
       "ActiveSky": 3,
       "kovsu": 3,
-      "eeee0717": 2
+      "404-Page-Found": 3
     },
-    "draft_count": 3,
-    "needs_review_labeled": 3
+    "needs_review_labeled": 8
   }
 }

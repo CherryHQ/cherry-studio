@@ -1,98 +1,39 @@
 {
-  "generated_at": "2026-08-27T16:00:00Z",
-  "open_issues_total": 990,
-  "open_issues_delta_24h": 17,
+  "generated_at": "2026-08-28T18:00:00Z",
+  "open_issues_total": 1004,
+  "open_issues_delta_24h": 14,
   "open_prs_total": 100,
   "p1_issues": [
     {
-      "number": 19584,
-      "title": "Agent replies generated but not delivered to WeChat after 2.0.9 upgrade",
-      "labels": ["bug","p1","windows","connectivity","agent"],
-      "created_at": "2026-08-27",
+      "number": 19659,
+      "title": "Cannot switch to another model conversation while a response is streaming",
+      "labels": ["bug","p1","ui-ux","models"],
+      "created_at": "2026-08-28",
       "age_days": 0,
-      "status": "Active — 2.0.9 regression"
+      "status": "New — filed today"
     },
     {
-      "number": 19583,
-      "title": "Deleting a topic fails to refresh and redirects to another assistant",
-      "labels": ["bug","p1","windows","assistant","ui-ux"],
-      "created_at": "2026-08-27",
+      "number": 19625,
+      "title": "Windows in-app update exits but leaves the old 1.9.x version installed",
+      "labels": ["bug","p1","windows","needs-repro","needs-triage","v2"],
+      "created_at": "2026-08-28",
       "age_days": 0,
-      "status": "Active — 2.0.9 regression"
-    },
-    {
-      "number": 19582,
-      "title": "Assistant Management hides tags and assistants after upgrading to 2.0.9",
-      "labels": ["bug","p1","windows","assistant","ui-ux"],
-      "created_at": "2026-08-27",
-      "age_days": 0,
-      "status": "Active — 2.0.9 regression"
+      "status": "New — filed today, needs repro"
     },
     {
       "number": 19597,
       "title": "Invalid JSON in model preferences can abort startup after upgrade",
       "labels": ["bug","p1","linux","data","models"],
       "created_at": "2026-08-27",
-      "age_days": 0,
-      "status": "Active — 2.0.9 regression"
-    },
-    {
-      "number": 19579,
-      "title": "Migration database disk I/O failure exits the app on startup",
-      "labels": ["bug","p1","windows","data"],
-      "created_at": "2026-08-27",
-      "age_days": 0,
-      "status": "Active — 2.0.9 regression"
-    },
-    {
-      "number": 19578,
-      "title": "Linux arm64 main window continuously flickers",
-      "labels": ["bug","p1","linux","ui-ux"],
-      "created_at": "2026-08-27",
-      "age_days": 0,
-      "status": "Active — 2.0.9 regression"
-    },
-    {
-      "number": 19577,
-      "title": "Agent requests fail without actionable handling for client SSL certificates",
-      "labels": ["bug","p1","windows","connectivity","agent"],
-      "created_at": "2026-08-27",
-      "age_days": 0,
-      "status": "Active"
-    },
-    {
-      "number": 19572,
-      "title": "Continuous conversation causes crash and exit",
-      "labels": ["bug","p1","windows","needs-repro"],
-      "created_at": "2026-08-27",
-      "age_days": 0,
-      "status": "Active — needs repro"
-    },
-    {
-      "number": 19455,
-      "title": "Message action labels are included in selected and copied reply text",
-      "labels": ["bug","p1","windows","ui-ux","chat"],
-      "created_at": "2026-08-26",
       "age_days": 1,
-      "comments": 2,
-      "status": "Active — carried from Aug 26"
-    },
-    {
-      "number": 19454,
-      "title": "Streaming output flickers and shifts layout during generation",
-      "labels": ["bug","p1","ui-ux","performance","chat"],
-      "created_at": "2026-08-26",
-      "age_days": 1,
-      "comments": 2,
-      "status": "Active — carried from Aug 26"
+      "status": "Carried — v2.0.9 regression; v2.0.10 may address"
     },
     {
       "number": 19452,
       "title": "OneAPI-compatible providers leave knowledge-base search stuck",
       "labels": ["bug","p1","windows","rag","connectivity","models"],
       "created_at": "2026-08-26",
-      "age_days": 1,
-      "comments": 2,
+      "age_days": 2,
       "status": "Active — carried from Aug 26"
     },
     {
@@ -100,48 +41,75 @@
       "title": "Built-in agent shows delete entry but errors with Handler not found",
       "labels": ["bug","p1","ui-ux","agent"],
       "created_at": "2026-08-25",
-      "age_days": 2,
-      "comments": 3,
+      "age_days": 3,
       "status": "Active"
+    },
+    {
+      "number": 19379,
+      "title": "Pi runtime: report_artifacts deliverables never render",
+      "labels": ["bug","p1","ui-ux","v2","agent"],
+      "created_at": "2026-08-25",
+      "age_days": 3,
+      "status": "Active — v2 labeled"
     },
     {
       "number": 19376,
       "title": "Pi runtime: auto permission mode still prompts for every tool call",
       "labels": ["bug","p1","assistant","v2","agent"],
       "created_at": "2026-08-25",
-      "age_days": 2,
-      "comments": 1,
+      "age_days": 3,
       "status": "Active — v2 labeled"
     },
     {
-      "number": 19314,
-      "title": "DeepSeek V4 Pro reasoning can finish without a final answer",
-      "labels": ["bug","p1","models"],
+      "number": 19321,
+      "title": "Local API drops DeepSeek reasoning_text on tool continuations",
+      "labels": ["bug","p1","models","agent"],
       "created_at": "2026-08-24",
-      "age_days": 3,
-      "comments": 1,
+      "age_days": 4,
       "status": "Active"
+    },
+    {
+      "number": 18741,
+      "title": "DeepSeek V4 shows 'No tool output found' after long conversation; HTTP 400",
+      "labels": ["bug","p1","agent","chat"],
+      "created_at": "2026-08-17",
+      "age_days": 11,
+      "status": "Aging"
+    },
+    {
+      "number": 18382,
+      "title": "Sending >8000-char files gets truncated",
+      "labels": ["bug","p1"],
+      "created_at": "2026-08-11",
+      "age_days": 17,
+      "status": "Aging"
+    },
+    {
+      "number": 17949,
+      "title": "V2 regression: cannot check and manage topic prompt",
+      "labels": ["bug","p1","assistant","ui-ux","v2"],
+      "created_at": "2026-08-05",
+      "age_days": 23,
+      "status": "Aging — long-standing v2 regression"
     },
     {
       "number": 16863,
       "title": "(ARM version) Cannot upload documents and switch input methods",
       "labels": ["bug","p1","linux","ui-ux"],
       "created_at": "2026-07-09",
-      "age_days": 49,
-      "comments": 3,
-      "status": "Aging"
+      "age_days": 50,
+      "status": "Stale"
     },
     {
       "number": 10512,
       "title": "Cloud Backup Complete Failure BUG",
       "labels": ["bug","p1","windows","data"],
       "created_at": "2025-10-03",
-      "age_days": 329,
-      "comments": 4,
-      "status": "Zombie — long-standing, 329 days open"
+      "age_days": 330,
+      "status": "Zombie — 330 days open"
     }
   ],
-  "needs_triage_count": 8,
+  "needs_triage_count": 10,
   "inactive_stale_count": 10,
   "label_distribution_sample_top10": {
     "bug": 35,
@@ -155,29 +123,33 @@
     "connectivity": 7,
     "windows": 22
   },
-  "new_issues_today_aug27": [
-    {"number": 19583, "title": "Deleting a topic fails (2.0.9 regression)", "labels": ["bug","p1","windows","assistant","ui-ux"], "severity": "critical"},
-    {"number": 19584, "title": "WeChat agent delivery broken (2.0.9 regression)", "labels": ["bug","p1","windows","connectivity","agent"], "severity": "critical"},
-    {"number": 19582, "title": "Assistant Management hides tags (2.0.9 regression)", "labels": ["bug","p1","windows","assistant","ui-ux"], "severity": "critical"},
-    {"number": 19579, "title": "DB migration disk I/O failure on startup", "labels": ["bug","p1","windows","data"], "severity": "critical"},
-    {"number": 19578, "title": "Linux arm64 main window flickers", "labels": ["bug","p1","linux","ui-ux"], "severity": "critical"},
-    {"number": 19577, "title": "Agent SSL cert handling missing", "labels": ["bug","p1","windows","connectivity","agent"], "severity": "critical"},
-    {"number": 19597, "title": "Invalid JSON model prefs aborts startup", "labels": ["bug","p1","linux","data","models"], "severity": "critical"},
-    {"number": 19572, "title": "Continuous conversation crashes app", "labels": ["bug","p1","windows","needs-repro"], "severity": "critical"},
-    {"number": 19609, "title": "Isolate ResourceSelector focus rendering", "labels": ["performance"], "severity": "medium"},
-    {"number": 19608, "title": "Filter files by type before pagination", "labels": ["performance"], "severity": "medium"},
-    {"number": 19607, "title": "Defer resource selector queries until opened", "labels": ["performance"], "severity": "medium"},
-    {"number": 19606, "title": "Avoid full Mini App subscriptions in every card", "labels": ["performance"], "severity": "medium"},
-    {"number": 19605, "title": "Preload FilePreview plugins alongside metadata", "labels": ["performance"], "severity": "medium"},
-    {"number": 19602, "title": "Launch on boot still broken in v2.0.9 and on main", "labels": [], "severity": "medium"},
-    {"number": 19601, "title": "V2 regression — Kimi sampling omit guard removed, 400 errors", "labels": ["models"], "severity": "high"},
-    {"number": 19598, "title": "Feature: Complete grouped tool access config for Assistants and Agents", "labels": ["assistant"], "severity": "feature"},
-    {"number": 19596, "title": "Long code blocks lose copy action after scrolling", "labels": ["bug","p3","windows","ui-ux"], "severity": "low"}
+  "new_issues_today_aug28": [
+    {"number": 19678, "title": "Context marker lost / thumbs-up icons all lit after v1.9→v2.0 upgrade", "labels": ["data"], "severity": "medium"},
+    {"number": 19676, "title": "Image attachment filenames not delivered to AI agent", "labels": [], "severity": "medium"},
+    {"number": 19675, "title": "[Task]: Isolate model health-check updates to affected rows", "labels": ["Dev Team","performance","internal-team"], "severity": "perf"},
+    {"number": 19674, "title": "[Task]: Lazy-load inactive ModelSettings side panels", "labels": ["Dev Team","internal-team"], "severity": "perf"},
+    {"number": 19673, "title": "[Task]: Defer provider/model setup until active onboarding steps", "labels": ["Dev Team","internal-team"], "severity": "perf"},
+    {"number": 19672, "title": "[Task]: Load citations panel on first open", "labels": ["Dev Team","performance","internal-team"], "severity": "perf"},
+    {"number": 19671, "title": "[Task]: Lazy-load optional Knowledge management UI", "labels": ["Dev Team","performance","internal-team"], "severity": "perf"},
+    {"number": 19670, "title": "Automatic cloud backup status resets to 'Not synced' despite successful uploads", "labels": ["data"], "severity": "medium"},
+    {"number": 19669, "title": "Newer-version backup reported as malformed instead of explaining downgrade", "labels": ["data"], "severity": "medium"},
+    {"number": 19661, "title": "[Task]: Move Kimi sampling constraints into layered provider-model presets", "labels": ["Dev Team","models","internal-team"], "severity": "perf"},
+    {"number": 19659, "title": "Cannot switch model conversation while streaming", "labels": ["bug","p1","ui-ux","models"], "severity": "critical"},
+    {"number": 19658, "title": "Allow screenshot capture window to stay always on top", "labels": ["p3","feature","ui-ux"], "severity": "feature"},
+    {"number": 19656, "title": "[Task]: Consolidate Gemini connection-policy ownership", "labels": ["Dev Team","internal-team"], "severity": "task"},
+    {"number": 19655, "title": "[Task]: Type the API gateway model address instead of inferring from string", "labels": ["Dev Team","models","internal-team"], "severity": "task"},
+    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "labels": ["bug","p1","windows","needs-repro","needs-triage","v2"], "severity": "critical"}
   ],
-  "v2_regression_cluster_aug27": {
-    "note": "v2.0.9 released; immediate regression cluster detected",
-    "new_p1_regressions_today": 8,
-    "issues": [19583, 19582, 19584, 19579, 19578, 19577, 19597, 19572],
-    "common_patterns": ["Windows assistant/UI regressions", "Linux arm64 flickering", "DB migration startup failure", "WeChat channel delivery broken"]
+  "release_event": {
+    "version": "v2.0.10",
+    "released_approx": "2026-08-28",
+    "note": "v2.0.10 synced metadata in main; expected to address some v2.0.9 regressions"
+  },
+  "summary_deltas_vs_yesterday": {
+    "open_issues_change": "+14",
+    "new_p1_issues": 2,
+    "new_p1_detail": "#19659 streaming model switch blocked, #19625 Windows updater leaves old version",
+    "resolved_cluster": "v2.0.9 regression cluster (8 P1s from Aug 27) partially addressed by v2.0.10 release",
+    "today_theme": "v2.0.10 released. New internal performance task batch filed (5 tasks). 2 new P1s. 1,004 total open issues (+14 vs Aug 27's 990). Agent stability and Pi runtime bugs remain open."
   }
 }
