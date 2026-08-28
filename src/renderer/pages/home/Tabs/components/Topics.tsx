@@ -958,10 +958,7 @@ export function Topics({
         await refreshTopics()
         // Same broadcast race as single-topic delete (#19583): a collapsed ('') mirror
         // means the selection was nuked mid-delete — reselect instead of skipping.
-        if (
-          deletedActiveTopicId &&
-          (!activeTopicIdRef.current || activeTopicIdRef.current === deletedActiveTopicId)
-        ) {
+        if (deletedActiveTopicId && (!activeTopicIdRef.current || activeTopicIdRef.current === deletedActiveTopicId)) {
           if (replacement) setActiveTopic(replacement)
           else clearActiveTopic()
         }
