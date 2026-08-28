@@ -453,6 +453,17 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('does not strip the gemini-cli sentinel off an Antigravity path model', async () => {
+      // Antigravity builds its address with formatGatewayModelId, which never appends the
+      // sentinel, so an apiModelId genuinely ending in `@cherry` must not be silently
+      // retargeted to the suffix-less model. It stays reserved, so the route rejects it.
+      const { status } = await read(
+        await post(app, '/v1beta/models/provider-a/models/gemini-flash@cherry:streamGenerateContent', geminiBody)
+      )
+      expect(status).toBe(400)
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
     it('rejects a model still ending in the reserved @cherry suffix after one strip → 400', async () => {
       // The sentinel is reserved: the route strips exactly one trailing `@cherry`, so a model that
       // STILL ends in it (a real id ending in the reserved marker, or a doubled sentinel) is
