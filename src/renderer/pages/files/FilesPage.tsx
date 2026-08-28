@@ -208,6 +208,17 @@ function canStartInlineRename(file: FileItem | undefined): file is FileItem {
   return Boolean(file && !file.trashed && !file.isMissing)
 }
 
+function useStableFileEntries(entries: FileEntry[]): FileEntry[] {
+  const stableRef = useRef(entries)
+  if (
+    stableRef.current.length !== entries.length ||
+    stableRef.current.some((entry, index) => entry !== entries[index])
+  ) {
+    stableRef.current = entries
+  }
+  return stableRef.current
+}
+
 function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
@@ -353,7 +364,9 @@ function FilesPage() {
   const physicalPathHydrationRef = useRef(createFileHydrationTracker())
   const danglingStateHydrationRef = useRef(createFileHydrationTracker())
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
+  const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectionAnchorIdRef = useRef<string | null>(null)
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -385,6 +398,7 @@ function FilesPage() {
   } = useInfiniteQuery('/files/entries', {
     query: activeFilesQuery,
     limit: FILES_PAGE_LIMIT,
+    enabled: !isTrash,
     swrOptions: { keepPreviousData: true }
   })
   const {
@@ -399,6 +413,7 @@ function FilesPage() {
   } = useInfiniteQuery('/files/entries', {
     query: trashedFilesQuery,
     limit: FILES_PAGE_LIMIT,
+    enabled: isTrash,
     swrOptions: { keepPreviousData: true }
   })
   const {
@@ -409,24 +424,31 @@ function FilesPage() {
     swrOptions: { keepPreviousData: true }
   })
 
-  const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
-  const isFilesRefreshing = isActiveFilesRefreshing || isTrashedFilesRefreshing
-  const activeEntries = useInfiniteFlatItems(activeFilePages)
-  const trashedEntries = useInfiniteFlatItems(trashedFilePages)
-  const activeFilesTotal = activeFilePages[0]?.total ?? activeEntries.length
-  const trashedFilesTotal = trashedFilePages[0]?.total ?? trashedEntries.length
-  const entries = useMemo(() => [...activeEntries, ...trashedEntries], [activeEntries, trashedEntries])
-  const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
-  const isFileQueryPending = isFilesLoading || isFilesRefreshing
+  const viewKey = isTrash ? 'trash' : 'active'
+  const currentFilePages = isTrash ? trashedFilePages : activeFilePages
+  const entries = useStableFileEntries(useInfiniteFlatItems(currentFilePages))
+  const activeFilesTotal =
+    activeFilePages[0]?.total ?? activeFilePages.reduce((sum, page) => sum + page.items.length, 0)
+  const trashedFilesTotal =
+    trashedFilePages[0]?.total ?? trashedFilePages.reduce((sum, page) => sum + page.items.length, 0)
+  const isFilesLoading = isTrash ? isTrashedFilesLoading : isActiveFilesLoading
+  const isFilesRefreshing = isTrash ? isTrashedFilesRefreshing : isActiveFilesRefreshing
+  const previousNonEmptyEntriesRef = useRef<{ active: FileEntry[]; trash: FileEntry[] }>({ active: [], trash: [] })
+  const previousEntries = previousNonEmptyEntriesRef.current[viewKey]
   const displayEntryCandidate =
-    entries.length === 0 && isFileQueryPending && previousNonEmptyEntriesRef.current.length > 0
-      ? previousNonEmptyEntriesRef.current
+    entries.length === 0 && (isFilesLoading || isFilesRefreshing) && previousEntries.length > 0
+      ? previousEntries
       : entries
-  const displayEntries = useDeferredValue(displayEntryCandidate)
+  const displayStateCandidate = useMemo(
+    () => ({ viewKey, entries: displayEntryCandidate }),
+    [displayEntryCandidate, viewKey]
+  )
+  const deferredDisplayState = useDeferredValue(displayStateCandidate)
+  const displayEntries = deferredDisplayState.viewKey === viewKey ? deferredDisplayState.entries : displayEntryCandidate
 
   useEffect(() => {
-    if (entries.length > 0) previousNonEmptyEntriesRef.current = entries
-  }, [entries])
+    if (entries.length > 0) previousNonEmptyEntriesRef.current[viewKey] = entries
+  }, [entries, viewKey])
 
   useEffect(() => {
     resetActiveFiles()
@@ -527,7 +549,6 @@ function FilesPage() {
     resetTrashedFiles
   ])
 
-  const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
     filter.kind === 'library'
@@ -727,13 +748,35 @@ function FilesPage() {
     return t('files.delete.label')
   }, [isTrash, selectedFiles, t])
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
+  const handleSelect = useCallback(
+    (id: string, isChecked: boolean, shouldSelectRange: boolean) => {
+      const anchorIndex = selectionAnchorIdRef.current
+        ? filteredFiles.findIndex((file) => file.id === selectionAnchorIdRef.current)
+        : -1
+      const targetIndex = filteredFiles.findIndex((file) => file.id === id)
+      const isRangeSelection = shouldSelectRange && anchorIndex >= 0
+      const selectionIds = isRangeSelection
+        ? filteredFiles
+            .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+            .map((file) => file.id)
+        : [id]
+
+      if (!isRangeSelection) selectionAnchorIdRef.current = id
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const selectionId of selectionIds) {
+          if (isChecked) next.add(selectionId)
+          else next.delete(selectionId)
+        }
+        return next
+      })
+    },
+    [filteredFiles]
+  )
+
+  useEffect(() => {
+    if (selectedIds.size === 0) selectionAnchorIdRef.current = null
+  }, [selectedIds])
 
   const handleSelectAllVisible = useCallback(
     (checked: boolean) => {

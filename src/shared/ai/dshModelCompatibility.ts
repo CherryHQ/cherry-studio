@@ -82,11 +82,6 @@ export function resolveDshApi(provider: Provider, model: Model): DshApi | undefi
   return mapEndpointToDshApi(endpointType, adapterFamily)
 }
 
-/** dsh's route config requires a per-model context window, so an unknown value is not safely drivable. */
-export function hasKnownDshContextWindow(model: Model): model is Model & { contextWindow: number } {
-  return typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0
-}
-
 /** DSH rc.7 always requires text input; undeclared modalities retain the existing chat-model default. */
 export function hasDshTextInput(model: Model): boolean {
   return model.inputModalities === undefined || model.inputModalities.includes(MODALITY.TEXT)
@@ -97,5 +92,5 @@ export function isDshCompatibleModel(provider: Provider, model: Model): boolean 
   // No native wire family → the local API Gateway can still front any gateway-routable
   // model as OpenAI-compatible (claude's picker rule); everything else stays fail-closed.
   if (resolveDshApi(provider, model) === undefined && !isGatewayRoutableModel(model)) return false
-  return hasKnownDshContextWindow(model) && hasDshTextInput(model)
+  return hasDshTextInput(model)
 }

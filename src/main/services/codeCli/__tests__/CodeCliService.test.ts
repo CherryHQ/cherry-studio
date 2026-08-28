@@ -1,17 +1,36 @@
+import path from 'node:path'
+
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
-  removeTool: vi.fn(() => Promise.resolve()),
+  removeTool: vi.fn<(_request: BinaryRemoveRequest) => Promise<BinaryRemoveResult>>(),
   getToolSnapshots: vi.fn()
+}))
+const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
+const skillServiceMock = vi.hoisted(() => ({
+  syncBuiltinSkill: vi.fn(() => Promise.resolve(false)),
+  uninstallBuiltinSkill: vi.fn(() => Promise.resolve(false))
+}))
+
+vi.mock('@main/ai/skills/SkillService', () => ({ skillService: skillServiceMock }))
+
+vi.mock('electron', () => ({
+  app: {
+    getVersion: vi.fn(() => '2.0.9'),
+    getAppPath: vi.fn(() => '/mock/app'),
+    isPackaged: false
+  }
 }))
 
 vi.mock('@application', () => ({
   application: {
     get: vi.fn().mockImplementation((name: string) => {
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'HermesDashboardService') return hermesDashboardMock
       return {}
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
@@ -146,6 +165,10 @@ describe('CodeCliService', () => {
       )
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
+    binaryManagerMock.removeTool.mockResolvedValue({ status: 'removed' })
+    skillServiceMock.syncBuiltinSkill.mockResolvedValue(false)
+    skillServiceMock.uninstallBuiltinSkill.mockResolvedValue(false)
+    hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
@@ -161,6 +184,22 @@ describe('CodeCliService', () => {
     expect(codeCliService.isReady).toBe(true)
   })
 
+  it('reconciles available CLI skills only after every service is ready', async () => {
+    const { codeCliService } = await loadModules()
+
+    await codeCliService._doInit()
+    expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+
+    await codeCliService._doAllReady()
+    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(12)
+    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
+      'code-mate-codex',
+      path.join('/mock/binary-data', 'code-mate-codex'),
+      '2.0.9',
+      'code-cli:openai-codex'
+    )
+  })
+
   it('should clean up timers on stop', async () => {
     const { codeCliService } = await loadModules()
     await codeCliService._doInit()
@@ -173,6 +212,83 @@ describe('CodeCliService', () => {
     // loadModules() already created one instance,
     // so creating another should throw
     expect(() => new CodeCliService()).toThrow(/already been instantiated/)
+  })
+
+  describe('CLI skill lifecycle', () => {
+    it('installs the bundled skill only after the CLI install succeeds', async () => {
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.installCli({ name: 'codex' })
+
+      expect(binaryManagerMock.installByName).toHaveBeenCalledWith({ name: 'codex' })
+      expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
+        'code-mate-codex',
+        path.join('/mock/binary-data', 'code-mate-codex'),
+        '2.0.9',
+        'code-cli:openai-codex'
+      )
+    })
+
+    it('does not install a skill when the CLI install fails', async () => {
+      binaryManagerMock.installByName.mockRejectedValue(new Error('install failed'))
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.installCli({ name: 'codex' })).rejects.toThrow('install failed')
+
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+    })
+
+    it('does not change the skill when binary removal is blocked', async () => {
+      binaryManagerMock.removeTool.mockResolvedValue({ status: 'cleanup_blocked', reason: 'conflict' })
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.removeCli({ name: 'codex' })).resolves.toEqual({
+        status: 'cleanup_blocked',
+        reason: 'conflict'
+      })
+
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
+    })
+
+    it('removes the owned skill when no CLI remains after removal', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        codex: { name: 'codex', availability: { source: 'none' }, application: { status: 'absent' } }
+      })
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.removeCli({ name: 'codex' })).resolves.toEqual({ status: 'removed' })
+
+      expect(skillServiceMock.uninstallBuiltinSkill).toHaveBeenCalledWith('code-mate-codex', 'code-cli:openai-codex')
+    })
+
+    it('keeps the skill when a system CLI remains after managed removal', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        codex: { name: 'codex', availability: { source: 'system', path: '/usr/local/bin/codex' } }
+      })
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.removeCli({ name: 'codex' })
+
+      expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalled()
+      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
+    })
+
+    it('preserves the skill when CLI state is unknown', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        codex: {
+          name: 'codex',
+          availability: { source: 'none' },
+          application: { status: 'unknown', reason: 'backend_unavailable' }
+        }
+      })
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.reconcileCliSkills()
+
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
+    })
   })
 
   describe('getAvailableTerminalsForPlatform (macOS)', () => {
@@ -904,6 +1020,17 @@ describe('CodeCliService', () => {
     })
   })
 
+  describe('writeConfigFiles', () => {
+    it('delegates Hermes config writes to the Dashboard lifecycle lock', async () => {
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.writeConfigFiles(CodeCli.HERMES, [{ target: 'hermes-config', content: 'model: {}\n' }])
+
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledOnce()
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledWith(expect.any(Function))
+    })
+  })
+
   describe('run (provider/model validation is owned solely by the service)', () => {
     beforeEach(async () => {
       // Keep the directory guard failing so a launch that passes validation returns immediately
@@ -941,6 +1068,24 @@ describe('CodeCliService', () => {
         success: false,
         message: 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
       })
+    })
+
+    it('routes Hermes Agent launches through its managed IPC instead of a terminal', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.HERMES,
+        model: 'hermes-3',
+        providerId: 'deepseek',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
+      })
+      expect(binaryManagerMock.getToolSnapshots).not.toHaveBeenCalled()
     })
 
     it('rejects a normal CLI launch when the model is empty', async () => {
