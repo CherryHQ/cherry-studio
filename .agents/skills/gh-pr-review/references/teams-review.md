@@ -54,14 +54,12 @@ Report-only (default): Scope → Product gate → Review → Filter → Report
 ```
 
 The **Product gate** is stage 1 of `SKILL.md` § Review Stages, run by the
-coordinator before dispatching any reviewer: inspect the semantics actually
-expressed or constrained, then skip silently only when the change has no
-product impact. Interactive is the default: summarize the product effect, ask
-the current user for the product decision, and abort the entire review (no
-reviewers dispatched) if the direction is rejected. Use record-only automated
-behavior only when the invocation or workflow explicitly identifies an
-automated run; then decide nothing and carry the product-impact summary into
-the Report. Reviewers cover stages 2–5.
+coordinator before dispatching any reviewer. Apply its semantic-impact and
+decision-evidence rules without collapsing the no-impact,
+established-direction, and open-decision states. Only an open product decision
+may prompt in an interactive run or use record-only behavior in an explicitly
+automated run; carry the latter's product-impact summary into the Report.
+Reviewers cover stages 2–5.
 
 - **Filter** routes issues per `judgment-matrix.md` § Handling by Risk Level,
   which owns the risk-to-action mapping. If nothing is fixable, skip directly
@@ -387,9 +385,10 @@ fixer edit.
 ## Phase 5: Report
 
 Summary:
-- Product Demand summary when the change has product impact and the session
-  was automated: impact, direction, and points needing human confirmation,
-  explicitly marked as awaiting a product decision — never as approved
+- Product Demand summary when the product decision remains open and the
+  session was automated: impact, direction, and points needing human
+  confirmation, explicitly marked as awaiting a product decision — never as
+  approved
 - Consumer review decisions per surface, when the diff added or expanded shared surface
 - Issues found / fixed (authorized fix only) / reported / failed
 - Reported issues listed with risk, `file:line`, and at-altitude fix guidance
