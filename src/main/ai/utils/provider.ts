@@ -44,6 +44,12 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
 
 export function getExtraHeaders(provider: Provider): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
+
+  if (provider.id === 'aimlapi' || provider.presetProviderId === 'aimlapi') {
+    // No AIMLAPI partner id registered yet — send source attribution only.
+    return { ...headers, 'X-AIMLAPI-Source': 'agent/cherry-studio' }
+  }
+
   if (provider.id !== 'radeon-cloud' && provider.presetProviderId !== 'radeon-cloud') {
     return headers
   }

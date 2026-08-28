@@ -131,4 +131,25 @@ describe('getExtraHeaders', () => {
 
     expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
   })
+
+  it('adds the AIMLAPI source header to the AI/ML API preset', () => {
+    const provider = makeProvider({
+      id: 'aimlapi',
+      settings: { extraHeaders: { 'X-Custom': 'keep' } }
+    })
+
+    expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep', 'X-AIMLAPI-Source': 'agent/cherry-studio' })
+  })
+
+  it('adds the AIMLAPI source header to providers copied from the AI/ML API preset', () => {
+    const provider = makeProvider({ id: 'custom-aimlapi', presetProviderId: 'aimlapi' })
+
+    expect(getExtraHeaders(provider)).toEqual({ 'X-AIMLAPI-Source': 'agent/cherry-studio' })
+  })
+
+  it('does not add the AIMLAPI source to other providers', () => {
+    const provider = makeProvider({ id: 'openrouter', settings: { extraHeaders: { 'X-Custom': 'keep' } } })
+
+    expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
+  })
 })
