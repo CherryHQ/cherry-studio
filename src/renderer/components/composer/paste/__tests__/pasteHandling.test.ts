@@ -1,13 +1,10 @@
+import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
 import pasteHandling from '../pasteHandling'
-
-const mockToast = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }))
-
-vi.mock('@renderer/services/toast', () => ({ toast: mockToast }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -32,8 +29,6 @@ describe('pasteHandling', () => {
   }
 
   beforeEach(() => {
-    mockToast.error.mockReset()
-    mockToast.info.mockReset()
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -230,13 +225,19 @@ describe('pasteHandling', () => {
       path: '/tmp/b.png'
     }
     let resolveFirstFile: (file: FileMetadata) => void = () => undefined
+    let markSecondReadStarted: () => void = () => undefined
     const pendingFirstFile = new Promise<FileMetadata>((resolve) => {
       resolveFirstFile = resolve
     })
+    const secondReadStarted = new Promise<void>((resolve) => {
+      markSecondReadStarted = resolve
+    })
     vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
-    vi.mocked(window.api.file.get).mockImplementation((path) =>
-      path === firstFile.path ? pendingFirstFile : Promise.resolve(secondFile)
-    )
+    vi.mocked(window.api.file.get).mockImplementation((path) => {
+      if (path === firstFile.path) return pendingFirstFile
+      markSecondReadStarted()
+      return Promise.resolve(secondFile)
+    })
     const clipboardFiles = [
       { name: firstFile.name, type: 'image/png' },
       { name: secondFile.name, type: 'image/png' }
@@ -254,16 +255,12 @@ describe('pasteHandling', () => {
     } as unknown as ClipboardEvent
 
     const pastePromise = pasteHandling.handlePaste(event, ['.png'], setFiles)
-    await Promise.resolve()
-    await Promise.resolve()
-    const secondReadStartedBeforeFirstResolved = vi
-      .mocked(window.api.file.get)
-      .mock.calls.some(([path]) => path === secondFile.path)
+    await secondReadStarted
 
     resolveFirstFile(firstFile)
     await pastePromise
 
-    expect(secondReadStartedBeforeFirstResolved).toBe(true)
+    expect(window.api.file.get).toHaveBeenCalledWith(secondFile.path)
     expect(setFiles).toHaveBeenCalledOnce()
     expect(files.map((file) => file.path)).toEqual([selectedFile.path, firstFile.path, secondFile.path])
   })
@@ -299,8 +296,8 @@ describe('pasteHandling', () => {
 
     expect(handled).toBe(true)
     expect(files.map((file) => file.path)).toEqual([successfulFile.path])
-    expect(mockToast.error).toHaveBeenCalledOnce()
-    expect(mockToast.error).toHaveBeenCalledWith('chat.input.file_error')
+    expect(toast.error).toHaveBeenCalledOnce()
+    expect(toast.error).toHaveBeenCalledWith('chat.input.file_error')
   })
 
   it('keeps supported path-backed files and reports unsupported files', async () => {
@@ -332,9 +329,9 @@ describe('pasteHandling', () => {
 
     expect(handled).toBe(true)
     expect(files.map((file) => file.path)).toEqual([supportedFile.path])
-    expect(mockToast.info).toHaveBeenCalledOnce()
-    expect(mockToast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
-    expect(mockToast.error).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledOnce()
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   describe('handler registration and lifecycle', () => {

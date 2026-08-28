@@ -8,6 +8,23 @@ import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../compos
 
 const logger = loggerService.withContext('pasteHandling')
 
+type PathBackedPasteResult =
+  | { kind: 'attachment'; attachment: ComposerAttachment }
+  | { kind: 'empty' }
+  | { kind: 'unsupported' }
+
+async function readPathBackedClipboardEntry(
+  filePath: string,
+  extensionSet: Set<string>
+): Promise<PathBackedPasteResult> {
+  if (!(await isSupportedFile(filePath, extensionSet))) {
+    return { kind: 'unsupported' }
+  }
+
+  const selectedFile = await window.api.file.get(filePath)
+  return selectedFile ? { kind: 'attachment', attachment: toComposerAttachment(selectedFile) } : { kind: 'empty' }
+}
+
 // Track last focused component
 type ComponentType = 'inputbar' | 'messageEditor' | 'TranslatePage' | null
 let lastFocusedComponent: ComponentType = 'inputbar' // Default to inputbar
@@ -89,16 +106,7 @@ export const handlePaste = async (
 
         if (pathBackedEntries.length === clipboardEntries.length) {
           const results = await Promise.allSettled(
-            pathBackedEntries.map(async ({ filePath }) => {
-              if (!(await isSupportedFile(filePath, extensionSet))) {
-                return { kind: 'unsupported' as const }
-              }
-
-              const selectedFile = await window.api.file.get(filePath)
-              return selectedFile
-                ? { kind: 'attachment' as const, attachment: toComposerAttachment(selectedFile) }
-                : { kind: 'empty' as const }
-            })
+            pathBackedEntries.map(({ filePath }) => readPathBackedClipboardEntry(filePath, extensionSet))
           )
           const attachments: ComposerAttachment[] = []
           let hasFileError = false
@@ -153,12 +161,10 @@ export const handlePaste = async (
             continue
           }
 
-          if (await isSupportedFile(filePath, extensionSet)) {
-            const selectedFile = await window.api.file.get(filePath)
-            if (selectedFile) {
-              setFiles((prevFiles) => [...prevFiles, toComposerAttachment(selectedFile)])
-            }
-          } else if (t) {
+          const result = await readPathBackedClipboardEntry(filePath, extensionSet)
+          if (result.kind === 'attachment') {
+            setFiles((prevFiles) => [...prevFiles, result.attachment])
+          } else if (result.kind === 'unsupported' && t) {
             toast.info(t('chat.input.file_not_supported'))
           }
         }
