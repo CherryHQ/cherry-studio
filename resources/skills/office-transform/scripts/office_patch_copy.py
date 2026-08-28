@@ -805,12 +805,14 @@ def main() -> None:
     except json.JSONDecodeError as error:
         fail(f"edits is not valid JSON: {error}")
     # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
-    # as a broken script rather than a bad argument.
+    # as a broken script rather than a bad argument. An unhashable "format" — a list or a dict —
+    # does the same on the lookup below, so it takes the same route to the same message.
     if not isinstance(edits, dict):
         fail(f"edits must be a JSON object, not {type(edits).__name__}: {edits!r}")
-    patcher = PATCHERS.get(edits.get("format"))
+    edits_format = edits.get("format")
+    patcher = PATCHERS.get(edits_format) if isinstance(edits_format, str) else None
     if patcher is None:
-        fail(f"unsupported edits format: {edits.get('format')!r} (use xlsx or docx)")
+        fail(f"unsupported edits format: {edits_format!r} (use xlsx or docx)")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     # Build beside the target and rename only on success. A package written in place and interrupted

@@ -199,6 +199,10 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
     range_ref = anchor.get("range")
     if not sheet_name or not range_ref:
         fail("xlsx anchor requires 'sheet' and 'range'")
+    # 'range' is one A1 string. The two-element form charRange uses in the same anchor would reach
+    # .split() and traceback, and writing the pair here rather than the string is an easy slip.
+    if not isinstance(range_ref, str):
+        fail(f"xlsx anchor 'range' must be an A1 string like 'A1:C10', not {type(range_ref).__name__}: {range_ref!r}")
 
     min_col, min_row, max_col, max_row = parse_a1_range(range_ref)
     area = (max_row - min_row + 1) * (max_col - min_col + 1)
@@ -411,11 +415,12 @@ def main() -> None:
     except json.JSONDecodeError as error:
         fail(f"anchor is not valid JSON: {error}")
     # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
-    # as a broken script rather than a bad argument.
+    # as a broken script rather than a bad argument. An unhashable "format" — a list or a dict —
+    # does the same on the lookup below, so it takes the same route to the same message.
     if not isinstance(anchor, dict):
         fail(f"anchor must be a JSON object, not {type(anchor).__name__}: {anchor!r}")
     anchor_format = anchor.get("format")
-    extractor = EXTRACTORS.get(anchor_format)
+    extractor = EXTRACTORS.get(anchor_format) if isinstance(anchor_format, str) else None
     if extractor is None:
         fail(f"unsupported anchor format: {anchor_format!r} (use xlsx, docx, pdf, or pptx)")
 
