@@ -168,6 +168,16 @@ describe('provider reasoning contracts', () => {
     }
   )
 
+  // Poe serves the OpenAI Responses API natively, so default chat routes there with
+  // the standard Responses reasoning vocabulary; only the chat-completions fallback
+  // keeps the fail-closed wire plus per-model extra_body contracts.
+  it('routes Poe chat through the Responses endpoint with standard reasoning', () => {
+    const poe = provider('poe')
+    expect(poe.defaultChatEndpoint).toBe('openai-responses')
+    expect(poe.endpointConfigs?.['openai-responses']?.reasoningFormat).toEqual({ type: 'openai-responses' })
+    expect(poe.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire).toEqual({ disabled: true })
+  })
+
   it('nests Poe custom reasoning parameters under extra_body', () => {
     expect(
       override('poe', 'gpt-5-4').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
