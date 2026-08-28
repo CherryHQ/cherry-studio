@@ -462,27 +462,38 @@ describe('publish journal', () => {
     expect(fs.existsSync(path.join(root, B))).toBe(true)
   })
 
-  it('flushes the journal directory, and publishes anyway when the filesystem refuses', async () => {
+  it('flushes the journal file before the rename that arms it', () => {
     // Arming the marker is what a power cut may not lose — it is written BEFORE the files
-    // move. But userData can be relocated onto a network mount or FUSE backend that rejects
-    // directory fsync outright, and failing the publish there is the worse bug of the two.
-    const journalDir = path.join(root, '.publish-journal')
-    fsyncDir.shouldFail = (dir) => dir === journalDir
-    makeDir(A)
+    // move. The bytes and not just the directory entry: an entry pointing at an empty file
+    // witnesses nothing, and `readOne` discards what it cannot parse.
+    writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:a' })
 
-    expect(() => writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:a' })).not.toThrow()
-    // The bytes first: a durable directory entry pointing at an empty file witnesses
-    // nothing, and `readOne` discards what it cannot parse.
-    expect(fsyncDir.flushedFiles.some((f) => f.startsWith(path.join(journalDir, `${A}.json`)))).toBe(true)
-    expect(fsyncDir.attempted).toContain(journalDir)
-
-    // Retiring it is flushed too, and recovery still gets through: an intolerant version
-    // would throw here instead, which now also marks the app unrepaired.
-    fsyncDir.attempted.length = 0
-    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
-    expect(fsyncDir.attempted).toContain(journalDir)
-    expect(fs.existsSync(path.join(journalDir, `${A}.json`))).toBe(false)
+    const journalFile = path.join(root, '.publish-journal', `${A}.json`)
+    expect(fsyncDir.flushedFiles.some((f) => f.startsWith(journalFile))).toBe(true)
   })
+
+  // Windows moves are write-through and directory handles cannot be fsynced, so production
+  // skips the flush there — there is nothing to observe and nothing to tolerate.
+  it.skipIf(process.platform === 'win32')(
+    'flushes the journal directory, and publishes anyway when the filesystem refuses',
+    async () => {
+      // userData can be relocated onto a network mount or FUSE backend that rejects
+      // directory fsync outright, and failing the publish there is the worse bug of the two.
+      const journalDir = path.join(root, '.publish-journal')
+      fsyncDir.shouldFail = (dir) => dir === journalDir
+      makeDir(A)
+
+      expect(() => writePublishJournal({ kind: 'install', appId: A, contentHash: 'sha256:a' })).not.toThrow()
+      expect(fsyncDir.attempted).toContain(journalDir)
+
+      // Retiring it is flushed too, and recovery still gets through: an intolerant version
+      // would throw here instead, which now also marks the app unrepaired.
+      fsyncDir.attempted.length = 0
+      expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+      expect(fsyncDir.attempted).toContain(journalDir)
+      expect(fs.existsSync(path.join(journalDir, `${A}.json`))).toBe(false)
+    }
+  )
 
   it('survives a corrupt journal file instead of blocking startup', async () => {
     writeRawJournal(A, '{ not json')
