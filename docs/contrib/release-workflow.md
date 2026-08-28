@@ -49,7 +49,6 @@ Confirm all of the following:
 
 - The previous release is published.
 - Its `chore(release): sync v<version> metadata` pull request is merged into `main` when one was created.
-- There is no unpublished semantic-version `release/v<version>` branch and no draft semantic-version release, including an orphan branch or draft whose counterpart is missing. Only published releases may retain historical release branches.
 - The intended `main` commit is ready to release.
 - Repository secrets used by release preparation, package signing, notarization, and publishing are available.
 - You have permission to run workflows and publish GitHub Releases.
@@ -65,7 +64,7 @@ Do not create the release branch, release tag, or metadata synchronization pull 
    - An exact version such as `2.1.0`, `2.1.0-rc.1`, or `2.1.0-beta.1`.
 4. Run the workflow and wait for it to finish.
 
-The workflow first verifies that `main` records the latest published version and is still at the selected remote head. If that published baseline is `v<baseline-version>`, its release-note collection base is that tag when it is an ancestor; otherwise it requires the latest commit whose full message contains the exact line `release-metadata-boundary: v<baseline-version>`. This marker always names the last published version already represented on `main`, not the requested target version. Only metadata sync commits created before that marker existed may use the legacy exact subject `chore(release): sync v<baseline-version> metadata`, optionally followed by GitHub's ` (#<number>)` squash suffix. The requested version must be strictly greater than that baseline. It then collects release notes, updates the release metadata source files, validates that only the intended version, notes, and stable history entry changed, and regenerates the product manifest itself without a write token. A fresh job accepts only the four staged metadata files, revalidates their contents together with the current `main` and release slot, and creates `release/v<version>` through the GitHub API. The commit must be both Verified and DCO-signed off.
+The workflow freezes the selected `main` commit as the release source and verifies that it records the latest published version. If that published baseline is `v<baseline-version>`, its release-note collection base is that tag when it is an ancestor; otherwise it requires the latest commit whose full message contains the exact line `release-metadata-boundary: v<baseline-version>`. This marker always names the last published version already represented on `main`, not the requested target version. Only metadata sync commits created before that marker existed may use the legacy exact subject `chore(release): sync v<baseline-version> metadata`, optionally followed by GitHub's ` (#<number>)` squash suffix. The requested version must be strictly greater than that baseline. It then collects release notes, updates the release metadata source files, validates that only the intended version, notes, and stable history entry changed, and regenerates the product manifest itself without a write token. A fresh job accepts only the four staged metadata files and creates `release/v<version>` from the frozen source commit through the GitHub API. A later `main` change does not alter or invalidate that release source. Neither the target branch nor a GitHub Release for the target tag may already exist, and the commit must be both Verified and DCO-signed off.
 
 Release preparation may change only these files:
 
@@ -204,13 +203,13 @@ Publish only after the latest release branch commit has passed CI and an `all`-p
 3. Select the matching `release/v<version>` branch and the `publish` operation.
 4. Run the workflow.
 
-The workflow shares the same release-state lock as preparation, builds, backport creation, and Post Release. Immediately before publishing, it requires the draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; requires a successful exact-head `all` build; and confirms that artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. Publication then makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
+The workflow shares the same release-state lock as preparation, builds, backport creation, and Post Release. Immediately before publishing, it requires the draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; requires a successful exact-head `all` build; and confirms that artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. The final fetched `main` SHA is the hotfix cutoff for the release; a hotfix merged after that snapshot belongs to the next release. Publication then makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
 Publishing triggers **Post Release** automatically.
 
 ## 6. Merge the Release Metadata Pull Request
 
-**Post Release** verifies that the published tag and `release/v<version>` still point to the same commit. It computes the metadata-only delta from the release branch point to the published tag, applies that delta with a three-way merge on the latest `main`, and opens `release-sync/v<version>`. Non-overlapping edits made on `main` are preserved; an overlapping edit fails the workflow for maintainer resolution instead of being overwritten.
+**Post Release** verifies that the published tag and `release/v<version>` still point to the same commit. It computes the metadata-only delta from the release branch point to the published tag, applies that delta with a three-way merge on the `main` snapshot checked out by the workflow, and opens `release-sync/v<version>`. If `main` advances while the workflow is running, the pull request still contains only the metadata commit; its normal merge checks reconcile the newer base. Non-overlapping edits made on `main` are preserved, while an overlapping edit produces a pull request conflict instead of being overwritten.
 
 The pull request may contain only:
 
