@@ -42,16 +42,13 @@ export function usePasteHandler(
 ) {
   const handlePaste = useCallback(
     async (event: ClipboardEvent, invocationOptions?: PasteHandlerInvocationOptions) => {
-      return await pasteHandling.handlePaste(
-        event,
-        options.supportedExts,
-        options.setFiles,
+      return await pasteHandling.handlePaste(event, options.supportedExts, options.setFiles, {
         setText,
         text,
-        options.onResize ?? (() => {}),
-        options.t,
-        invocationOptions
-      )
+        resizeTextArea: options.onResize ?? (() => {}),
+        t: options.t,
+        ...invocationOptions
+      })
     },
     [text, setText, options]
   )

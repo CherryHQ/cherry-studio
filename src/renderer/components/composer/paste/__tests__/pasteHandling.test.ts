@@ -67,16 +67,12 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(
-      event,
-      ['.txt'],
-      setFiles,
+    const handled = await pasteHandling.handlePaste(event, ['.txt'], setFiles, {
       setText,
-      'selected draft',
-      undefined,
-      (key) => (key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key),
-      { beforeAddFiles }
-    )
+      text: 'selected draft',
+      t: (key) => (key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key),
+      beforeAddFiles
+    })
 
     expect(handled).toBe(true)
     expect(beforeAddFiles).toHaveBeenCalledOnce()
@@ -132,7 +128,7 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(event, [], setFiles, undefined, '')
+    const handled = await pasteHandling.handlePaste(event, [], setFiles)
 
     expect(handled).toBe(false)
     expect(preventDefault).not.toHaveBeenCalled()
@@ -169,9 +165,7 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, undefined, {
-      beforeAddFiles
-    })
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, { beforeAddFiles })
 
     expect(handled).toBe(true)
     expect(beforeAddFiles).toHaveBeenCalledOnce()
@@ -202,9 +196,7 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, undefined, {
-      beforeAddFiles
-    })
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, { beforeAddFiles })
 
     expect(handled).toBe(true)
     expect(beforeAddFiles).not.toHaveBeenCalled()

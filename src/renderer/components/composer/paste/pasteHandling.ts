@@ -19,6 +19,13 @@ export interface PasteHandlerLifecycle {
   beforeAddFiles?: () => void
 }
 
+export interface PasteHandlingOptions extends PasteHandlerLifecycle {
+  setText?: (text: string) => void
+  text?: string
+  resizeTextArea?: () => void
+  t?: (key: string) => string
+}
+
 // 处理函数存储
 const handlers: {
   inputbar?: PasteHandler
@@ -36,17 +43,14 @@ export const handlePaste = async (
   event: ClipboardEvent,
   supportExts: string[],
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void,
-  setText?: (text: string) => void,
-  text?: string,
-  resizeTextArea?: () => void,
-  t?: (key: string) => string,
-  lifecycle?: PasteHandlerLifecycle
+  options: PasteHandlingOptions = {}
 ): Promise<boolean> => {
+  const { beforeAddFiles, resizeTextArea, setText, t, text } = options
   let preparedFileInsertion = false
   const prepareFileInsertion = () => {
     if (preparedFileInsertion) return
     preparedFileInsertion = true
-    lifecycle?.beforeAddFiles?.()
+    beforeAddFiles?.()
   }
 
   try {
@@ -82,7 +86,7 @@ export const handlePaste = async (
           // A lifecycle callback may have replaced the selected draft before the attachment is
           // appended. Replaying the text captured before that async work would restore the deleted
           // selection (and flatten managed tokens back into plain prompt text).
-          if (!lifecycle && setText && text) setText(text) // 保持全局粘贴的输入框内容不变
+          if (!beforeAddFiles && setText && text) setText(text) // 保持全局粘贴的输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         }
         return true
