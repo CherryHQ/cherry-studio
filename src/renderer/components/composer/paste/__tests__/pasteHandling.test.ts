@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
 import pasteHandling from '../pasteHandling'
 
+const mockToast = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }))
+
+vi.mock('@renderer/services/toast', () => ({ toast: mockToast }))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -28,6 +32,8 @@ describe('pasteHandling', () => {
   }
 
   beforeEach(() => {
+    mockToast.error.mockReset()
+    mockToast.info.mockReset()
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -260,6 +266,75 @@ describe('pasteHandling', () => {
     expect(secondReadStartedBeforeFirstResolved).toBe(true)
     expect(setFiles).toHaveBeenCalledOnce()
     expect(files.map((file) => file.path)).toEqual([selectedFile.path, firstFile.path, secondFile.path])
+  })
+
+  it('keeps successful path-backed files when another read fails and reports one file error', async () => {
+    const successfulFile = {
+      ...selectedFile,
+      id: 'file-success',
+      name: 'success.png',
+      origin_name: 'success.png',
+      path: '/tmp/success.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockImplementation((path) =>
+      path === '/tmp/failure.png' ? Promise.reject(new Error('read failed')) : Promise.resolve(successfulFile)
+    )
+    const clipboardFiles = [
+      { name: 'failure.png', type: 'image/png' },
+      { name: successfulFile.name, type: 'image/png' }
+    ] as File[]
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, (key) => key)
+
+    expect(handled).toBe(true)
+    expect(files.map((file) => file.path)).toEqual([successfulFile.path])
+    expect(mockToast.error).toHaveBeenCalledOnce()
+    expect(mockToast.error).toHaveBeenCalledWith('chat.input.file_error')
+  })
+
+  it('keeps supported path-backed files and reports unsupported files', async () => {
+    const supportedFile = {
+      ...selectedFile,
+      id: 'file-supported',
+      name: 'supported.png',
+      origin_name: 'supported.png',
+      path: '/tmp/supported.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockResolvedValue(supportedFile)
+    const clipboardFiles = [
+      { name: 'unsupported.exe', type: 'application/octet-stream' },
+      { name: supportedFile.name, type: 'image/png' }
+    ] as File[]
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, (key) => key)
+
+    expect(handled).toBe(true)
+    expect(files.map((file) => file.path)).toEqual([supportedFile.path])
+    expect(mockToast.info).toHaveBeenCalledOnce()
+    expect(mockToast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+    expect(mockToast.error).not.toHaveBeenCalled()
   })
 
   describe('handler registration and lifecycle', () => {
