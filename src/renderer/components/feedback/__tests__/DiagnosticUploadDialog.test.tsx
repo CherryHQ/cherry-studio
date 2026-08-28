@@ -33,9 +33,6 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.open_location': 'Open location',
     'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
     'settings.about.diagnostics.report.retry': 'Retry',
-    'settings.about.diagnostics.report.retry_unknown_description':
-      'The previous submission may already have succeeded. Retrying can create a duplicate report.',
-    'settings.about.diagnostics.report.retry_unknown_title': 'Retry diagnostic report?',
     'settings.about.diagnostics.report.save_locally': 'Save locally',
     'settings.about.diagnostics.report.saving': 'Saving diagnostic report…',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
@@ -52,6 +49,8 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.upload.dialog.title': 'Upload diagnostic bundle',
     'settings.about.diagnostics.upload.errors.save_failed': 'Could not save the diagnostic report',
     'settings.about.diagnostics.upload.manual.title': 'Diagnostic report was not submitted',
+    'settings.about.diagnostics.upload.unknown.description':
+      'Could not confirm whether this submission succeeded. Save the diagnostic file locally, then contact the Cherry Studio support team or upload it through the Feishu form via Manual feedback. Retrying may submit the same diagnostic report again.',
     'settings.about.diagnostics.upload.unknown.title': 'Submission result is unknown'
   } as Record<string, string>
 }))
@@ -529,7 +528,7 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 
-  it('requires duplicate-risk confirmation before retrying an unknown submission and keeps retry locked', async () => {
+  it('retries an unknown submission directly and keeps retry locked', async () => {
     let resolveRetry: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
       if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
@@ -548,23 +547,22 @@ describe('DiagnosticUploadDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
     expect(await screen.findByText('Submission result is unknown')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manual feedback' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Could not confirm whether this submission succeeded. Save the diagnostic file locally, then contact the Cherry Studio support team or upload it through the Feishu form via Manual feedback. Retrying may submit the same diagnostic report again.'
+      )
+    ).toBeInTheDocument()
+    const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
     expect(screen.queryByRole('region', { name: 'Saved locally' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show in folder' })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
-    let confirmation = screen.getByRole('dialog', { name: 'Retry diagnostic report?' })
-    expect(confirmation).toHaveTextContent(
-      'The previous submission may already have succeeded. Retrying can create a duplicate report.'
-    )
-    await user.click(within(confirmation).getByRole('button', { name: 'Cancel' }))
-    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.retry_upload')).toHaveLength(0)
+    await user.click(manualFeedback)
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
-    confirmation = screen.getByRole('dialog', { name: 'Retry diagnostic report?' })
-    await user.click(within(confirmation).getByRole('button', { name: 'Retry' }))
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.retry_upload', { bundleId })
+    expect(screen.queryByRole('dialog', { name: 'Retry diagnostic report?' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submitting diagnostic report…' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')

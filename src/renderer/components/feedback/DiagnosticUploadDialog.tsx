@@ -2,7 +2,6 @@ import {
   Alert,
   Button,
   Checkbox,
-  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -71,7 +70,6 @@ export function DiagnosticUploadDialog({
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
-  const [retryConfirmationOpen, setRetryConfirmationOpen] = useState(false)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -377,7 +375,7 @@ export function DiagnosticUploadDialog({
                   onClick={() => handleOpenChange(false)}>
                   {t('settings.about.diagnostics.actions.close')}
                 </Button>
-                {result.status === 'submission_failed' ? (
+                {result.status !== 'uploaded' ? (
                   <Button variant="outline" onClick={() => void openManualForm()}>
                     {t('settings.about.diagnostics.report.open_manual_form')}
                   </Button>
@@ -388,16 +386,7 @@ export function DiagnosticUploadDialog({
                   </Button>
                 ) : null}
                 {result.status !== 'uploaded' ? (
-                  <Button
-                    ref={primaryActionRef}
-                    variant="emphasis"
-                    onClick={() => {
-                      if (result.status === 'submission_unknown') {
-                        setRetryConfirmationOpen(true)
-                      } else {
-                        void retryUpload()
-                      }
-                    }}>
+                  <Button ref={primaryActionRef} variant="emphasis" onClick={() => void retryUpload()}>
                     {t('settings.about.diagnostics.report.retry')}
                   </Button>
                 ) : null}
@@ -415,19 +404,6 @@ export function DiagnosticUploadDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={retryConfirmationOpen}
-        onOpenChange={setRetryConfirmationOpen}
-        title={t('settings.about.diagnostics.report.retry_unknown_title')}
-        description={t('settings.about.diagnostics.report.retry_unknown_description')}
-        cancelText={t('settings.about.diagnostics.actions.cancel')}
-        confirmText={t('settings.about.diagnostics.report.retry')}
-        onConfirm={() => {
-          setRetryConfirmationOpen(false)
-          void retryUpload()
-        }}
-      />
     </>
   )
 }
