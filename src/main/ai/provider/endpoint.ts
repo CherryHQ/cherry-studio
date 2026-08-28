@@ -4,7 +4,7 @@
  */
 
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, endpointImpliedCapability, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getSupportedProviderDefaultEndpoint } from '@shared/utils/endpoint'
 import { getRawModelId } from '@shared/utils/model'
@@ -39,18 +39,18 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `preferredEndpointType` → supported provider default → `model.endpointTypes[0]` → gateway per-model route →
- * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
+ * Priority for chat models: `preferredEndpointType` → usable supported provider default → first usable model endpoint
+ * → gateway per-model route → usable `provider.defaultChatEndpoint` → `undefined`. Non-chat models skip both
+ * chat-default steps so image, embedding, rerank, audio, and video work stays on its operation endpoint. The gateway
+ * step resolves the wire endpoint from the
  * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
- * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
+ * (see `gatewayRouting`).
  *
  * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
  * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
  * `endpointTypes[0]` expresses. It wins only when the model declares that endpoint AND the provider
- * configures a base URL for it; otherwise the normal order applies and the caller sees the declined
- * preference in the returned `endpointType`. The base-URL condition is not redundant: `getBaseUrl`
- * cascades across `endpointConfigs`, so an unconfigured preference would resolve to another
- * endpoint's host instead of failing.
+ * configures a base URL for it; otherwise the normal order applies. Normal candidates must at least declare an
+ * endpoint config; configs without a base URL remain valid for SDK-derived hosts and single-host adapters.
  */
 export function resolveEffectiveEndpoint(
   provider: Provider,
@@ -58,21 +58,27 @@ export function resolveEffectiveEndpoint(
   preferredEndpointType?: EndpointType
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
+  const isChatOperation = endpointImpliedCapability(model.endpointTypes?.[0]) == null
+  const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
+    Boolean(endpointType && provider.endpointConfigs?.[endpointType])
   const preferred =
     preferredEndpointType &&
     model.endpointTypes?.includes(preferredEndpointType) &&
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
       : undefined
-  const supportedProviderDefault = getSupportedProviderDefaultEndpoint(provider, model)
+  const supportedProviderDefault = isChatOperation ? getSupportedProviderDefaultEndpoint(provider, model) : undefined
+  const usableProviderDefault = hasEndpointConfig(supportedProviderDefault) ? supportedProviderDefault : undefined
+  const usableModelEndpoint = model.endpointTypes?.find(hasEndpointConfig)
+  const usableGatewayRoute = hasEndpointConfig(gatewayRoute?.endpointType) ? gatewayRoute : undefined
+  const usableChatFallback =
+    isChatOperation && hasEndpointConfig(provider.defaultChatEndpoint) ? provider.defaultChatEndpoint : undefined
   const endpointType =
-    preferred ??
-    supportedProviderDefault ??
-    model.endpointTypes?.[0] ??
-    gatewayRoute?.endpointType ??
-    provider.defaultChatEndpoint
+    preferred ?? usableProviderDefault ?? usableModelEndpoint ?? usableGatewayRoute?.endpointType ?? usableChatFallback
   const providerOptionsKey =
-    gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
+    usableGatewayRoute && endpointType === usableGatewayRoute.endpointType
+      ? usableGatewayRoute.providerOptionsKey
+      : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
 }
 

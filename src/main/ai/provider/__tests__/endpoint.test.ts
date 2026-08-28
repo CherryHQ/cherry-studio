@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -353,6 +353,49 @@ describe('resolveEffectiveEndpoint', () => {
       endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       baseUrl: 'https://api.deepseek.com/chat'
     })
+  })
+
+  it('does not apply the chat default to a non-chat operation model', () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/chat' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://relay.example/embeddings' }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+      baseUrl: 'https://relay.example/embeddings'
+    })
+  })
+
+  it('skips a supported chat default whose endpoint configuration is missing', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://relay.example/anthropic',
+          adapterFamily: 'anthropic'
+        }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+
+    const resolved = resolveEffectiveEndpoint(provider, model)
+    expect(resolved).toMatchObject({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: 'https://relay.example/anthropic'
+    })
+    expect(resolveAiSdkProviderId(provider, resolved.endpointType)).toBe('anthropic')
   })
 
   it('falls back to provider.defaultChatEndpoint when model has no endpointTypes hint', () => {
