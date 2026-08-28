@@ -266,18 +266,28 @@ from pptx.oxml.ns import qn
 
 def replace_char_range(paragraph, start, end, new_text):
     """Replace paragraph.text[start:end] by editing run text only, so each run keeps its rPr
-    (bold, size, colour) and its a:hlinkClick. An a:br occupies one position in paragraph.text
-    but owns no run, so the cursor must step over it or every later offset shifts by one — and
-    one the range covers has to go, or the replacement keeps a line break nobody asked for."""
+    (bold, size, colour) and its a:hlinkClick. Everything that contributes to paragraph.text
+    without being a run has to be accounted for or every later offset shifts: a:br is one
+    position, and a:fld holds generated text that must not be rewritten. Skipping a child that
+    carries text moves the edit somewhere else without saying so, which is why an unrecognized
+    one is refused rather than passed over."""
     position, written, covered = 0, False, []
     for child in list(paragraph._p):
+        if child.tag in (qn("a:pPr"), qn("a:endParaRPr")):
+            continue                                  # properties, no text of their own
         if child.tag == qn("a:br"):
             if start <= position < end:
                 covered.append(child)                 # removed below, once the range is known good
             position += 1
             continue
+        if child.tag == qn("a:fld"):
+            field = "".join(t.text or "" for t in child.findall(qn("a:t")))
+            if position < end and start < position + len(field):
+                raise ValueError("charRange covers an a:fld; its text is generated, not stored")
+            position += len(field)
+            continue
         if child.tag != qn("a:r"):
-            continue                                  # a:pPr / a:endParaRPr / a:fld
+            raise ValueError(f"paragraph holds {child.tag}, which this helper cannot position")
         run = next(r for r in paragraph.runs if r._r is child)
         run_start, run_end = position, position + len(run.text)
         position = run_end
