@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -99,6 +99,41 @@ afterEach(() => {
 })
 
 describe('FilePreview plugin loading', () => {
+  it('preloads the matching plugin while metadata is pending and reuses that load', async () => {
+    let resolveMetadata: (metadata: {
+      kind: 'file'
+      type: 'text'
+      size: number
+      createdAt: number
+      modifiedAt: number
+      mime: string
+    }) => void
+    mocks.ipcApiRequest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMetadata = resolve
+        })
+    )
+
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} />)
+
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledOnce())
+    expect(screen.getByText('file_preview.loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('plugin-preview')).not.toBeInTheDocument()
+
+    resolveMetadata!({
+      kind: 'file',
+      type: 'text',
+      size: 128,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/markdown'
+    })
+
+    expect(await screen.findByTestId('plugin-preview')).toBeInTheDocument()
+    expect(mocks.load).toHaveBeenCalledOnce()
+  })
+
   it('shows a localized loading state while the plugin is pending', () => {
     mocks.load.mockImplementationOnce(() => new Promise(() => {}))
 
