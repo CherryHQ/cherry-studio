@@ -46,6 +46,15 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps conditional Code Mate skill templates in read-only app resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.code_cli.skills.builtin']).toBe(
+      path.join(registry['app.root.resources'], 'code-cli-skills')
+    )
+    expect(shouldAutoEnsure('feature.code_cli.skills.builtin')).toBe(false)
+  })
+
   it('keeps pi runtime state under the Agents data directory', () => {
     const registry = buildPathRegistry()
     const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')
@@ -124,13 +133,23 @@ describe('buildPathRegistry', () => {
     const registry = buildPathRegistry()
 
     expect(registry['feature.agents.assistant.manifest.file']).toBe(
-      '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
+      path.join('/mock/app', 'resources', 'builtin-agents', 'cherry-assistant', 'product-manifest.json')
     )
   })
 
   it('uses the shared user-owned DeepSeek Harness home', () => {
     const registry = buildPathRegistry()
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
+
+  it('registers the platform-native default Hermes home as external data', () => {
+    const registry = buildPathRegistry()
+    const windowsBase = process.env.LOCALAPPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Local')
+    const expected =
+      process.platform === 'win32' ? path.join(windowsBase, 'hermes') : path.join(os.homedir(), '.hermes')
+
+    expect(registry['external.hermes.default_home']).toBe(expected)
+    expect(shouldAutoEnsure('external.hermes.default_home')).toBe(false)
   })
 
   it('isolates the managed DeepSeek Harness workspace from the user home', () => {

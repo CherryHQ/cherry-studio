@@ -1067,6 +1067,93 @@ describe('AppShellTabBar', () => {
     }
   })
 
+  it('reclamps a dragged tab with the current strip, tab, and launchpad geometry after resize', () => {
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    const originalRequestAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame')
+    const originalCancelAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame')
+    let stripWidth = 300
+    let tabWidth = 100
+    let tabLeft = 100
+
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const element = this as HTMLElement
+      const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
+      const geometry =
+        element.dataset.ui === 'app.tab-bar' || element.dataset.testid === 'app-shell-tab-strip'
+          ? { left: 0, width: stripWidth, height: element.dataset.ui === 'app.tab-bar' ? 44 : 30 }
+          : element.dataset.launchpadButton !== undefined
+            ? { left: stripWidth - 56, width: 28, height: 28 }
+            : element.dataset.tabId === 'a'
+              ? { left: tabLeft + translateX, width: tabWidth, height: 30 }
+              : element.dataset.tabId === 'home'
+                ? { left: 0, width: 100, height: 30 }
+                : { left: 0, width: 0, height: 0 }
+
+      return {
+        x: geometry.left,
+        y: 0,
+        top: 0,
+        bottom: geometry.height,
+        left: geometry.left,
+        right: geometry.left + geometry.width,
+        width: geometry.width,
+        height: geometry.height,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    vi.useFakeTimers()
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
+    })
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: (id: number) => window.clearTimeout(id)
+    })
+
+    try {
+      renderTabBar({ tabs: [createTab('home'), createTab('a')], activeTabId: 'a' })
+      const tab = screen.getByRole('button', { name: 'A' })
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 20, clientY: 20 })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(tab, pointerDown)
+
+      const startDrag = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(startDrag, 'pointerId', { value: 1 })
+      fireEvent(document, startDrag)
+      expect(tab).toHaveStyle({ transform: 'translateX(34px)' })
+
+      stripWidth = 240
+      tabWidth = 160
+      tabLeft = 0
+      const moveAfterResize = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(moveAfterResize, 'pointerId', { value: 1 })
+      fireEvent(document, moveAfterResize)
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+
+      expect(tab).toHaveStyle({ transform: 'translateX(18px)' })
+    } finally {
+      vi.useRealTimers()
+      for (const [key, descriptor] of [
+        ['requestAnimationFrame', originalRequestAnimationFrame],
+        ['cancelAnimationFrame', originalCancelAnimationFrame]
+      ] as const) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor)
+        else Reflect.deleteProperty(globalThis, key)
+      }
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+      rectSpy.mockRestore()
+    }
+  })
+
   it('clears the divider beside a tab whose context menu is open', () => {
     const tabs = [createTab('a'), createTab('b'), createTab('c')]
     renderTabBar({ tabs, activeTabId: 'a' })

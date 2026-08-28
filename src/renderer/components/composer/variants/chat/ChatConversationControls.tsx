@@ -1,10 +1,10 @@
 import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
-import { getLeadingEmoji } from '@renderer/utils/naming'
+import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -89,7 +89,13 @@ export function ChatConversationControls({
     triggerClassName,
     iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
   )
-  const modelLabel = model ? model.name : selectModelLabel
+  const modelProvider = model ? providers.find((provider) => provider.id === model.providerId) : undefined
+  const modelProviderName = model
+    ? modelProvider
+      ? getProviderDisplayName(modelProvider)
+      : getProviderDisplayNameById(model.providerId)
+    : undefined
+  const modelLabel = model ? `${model.name} | ${modelProviderName}` : selectModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
@@ -196,7 +202,9 @@ export function ChatConversationControls({
           trigger={
             <Button variant="ghost" size="sm" className={modelTriggerClassName} disabled={modelPending}>
               {model ? <ModelAvatar model={model} size={20} /> : null}
-              <span className={cn('max-w-52', modelLabelClassName)}>{modelLabel}</span>
+              <span className={cn('max-w-52', modelLabelClassName)} title={modelLabel}>
+                {modelLabel}
+              </span>
               <ChevronDown
                 size={14}
                 aria-hidden
