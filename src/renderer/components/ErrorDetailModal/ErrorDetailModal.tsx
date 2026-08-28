@@ -506,7 +506,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 }) => {
   const { t } = useTranslation()
   const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
-  const [latestDiagnosis, setLatestDiagnosis] = useState<DiagnosisResult | undefined>(cachedDiagnosis)
   const [reportDescription, setReportDescription] = useState<string | null>(null)
   const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -546,7 +545,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 
   const handleDiagnosisComplete = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
-      setLatestDiagnosis(diagnosis)
       await onDiagnosisComplete?.(partId, diagnosis)
     },
     [onDiagnosisComplete]
@@ -556,11 +554,9 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     if (!diagnosticReport) return
     setReportDescription(
       buildDiagnosticReportDescription({
-        diagnosis: latestDiagnosis,
         diagnosisContext,
         error,
         labels: {
-          aiDiagnosis: t('error.diagnosis.ai_result'),
           errorMessage: t('error.message'),
           errorName: t('error.name'),
           location: t('error.diagnostic_report.location'),
@@ -571,7 +567,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
         location: diagnosticReport.location
       })
     )
-  }, [diagnosticReport, diagnosisContext, error, latestDiagnosis, t])
+  }, [diagnosticReport, diagnosisContext, error, t])
 
   const renderErrorDetails = (error?: SerializedError) => {
     if (!error) {

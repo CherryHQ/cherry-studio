@@ -1,5 +1,5 @@
 import type { SerializedError } from '@renderer/types/error'
-import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 
 export const DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES = 2_048
@@ -9,7 +9,6 @@ export interface DiagnosticReportConfig {
 }
 
 export interface DiagnosticReportDescriptionLabels {
-  aiDiagnosis: string
   errorMessage: string
   errorName: string
   location: string
@@ -19,7 +18,6 @@ export interface DiagnosticReportDescriptionLabels {
 }
 
 interface BuildDiagnosticReportDescriptionInput extends DiagnosticReportConfig {
-  diagnosis?: DiagnosisResult
   diagnosisContext?: DiagnosisContext
   error?: SerializedError
   labels: DiagnosticReportDescriptionLabels
@@ -52,7 +50,6 @@ function truncateUtf8(value: string): string {
 }
 
 export function buildDiagnosticReportDescription({
-  diagnosis,
   diagnosisContext,
   error,
   labels,
@@ -67,9 +64,6 @@ export function buildDiagnosticReportDescription({
   appendLine(lines, labels.errorName, error?.name)
   appendLine(lines, labels.statusCode, errorRecord?.status ?? errorRecord?.statusCode)
   appendLine(lines, labels.errorMessage, error?.message)
-
-  const diagnosisText = nonEmptyText(diagnosis?.explanation) ?? nonEmptyText(diagnosis?.summary)
-  if (diagnosisText) lines.push('', `${labels.aiDiagnosis}:`, diagnosisText)
 
   return truncateUtf8(lines.join('\n'))
 }

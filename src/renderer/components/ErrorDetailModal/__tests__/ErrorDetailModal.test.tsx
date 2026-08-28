@@ -1,5 +1,4 @@
-import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,14 +64,6 @@ vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => {
   }
 })
 
-function createDeferredDiagnosis() {
-  let resolve!: (diagnosis: DiagnosisResult) => void
-  const promise = new Promise<DiagnosisResult>((nextResolve) => {
-    resolve = nextResolve
-  })
-  return { promise, resolve }
-}
-
 const { ErrorDetailContent } = await import('../ErrorDetailModal')
 
 Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() })
@@ -114,11 +105,11 @@ describe('ErrorDetailContent diagnostic report', () => {
     expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeInTheDocument()
   })
 
-  it('uses a diagnosis completed in the current error-detail session', async () => {
+  it('keeps AI diagnosis visible in error details but out of the diagnostic-report prefill', async () => {
     const user = userEvent.setup()
     mocks.diagnoseError.mockResolvedValueOnce({
       category: 'runtime',
-      explanation: 'Check the provider account.',
+      explanation: 'Leaked prompt: private diagnosis payload.',
       steps: [],
       summary: 'Provider failed'
     })
@@ -133,40 +124,10 @@ describe('ErrorDetailContent diagnostic report', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
-    expect(await screen.findByText('Check the provider account.')).toBeInTheDocument()
+    expect(await screen.findByText('Leaked prompt: private diagnosis payload.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
-    expect(screen.getByRole('dialog', { name: 'Diagnostic report review' })).toHaveTextContent(
-      'AI diagnosis: Check the provider account.'
-    )
-  })
-
-  it('does not overwrite an open report when a pending diagnosis finishes', async () => {
-    const user = userEvent.setup()
-    const pendingDiagnosis = createDeferredDiagnosis()
-    mocks.diagnoseError.mockReturnValueOnce(pendingDiagnosis.promise)
-
-    render(
-      <ErrorDetailContent
-        blockId="message-1-part-0"
-        diagnosticReport={{ location: 'Home conversation' }}
-        error={{ name: 'ProviderError', message: 'failed', stack: null }}
-        onDiagnosisComplete={vi.fn()}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
-    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
-    const report = await screen.findByRole('dialog', { name: 'Diagnostic report review' })
-
-    await act(async () => {
-      pendingDiagnosis.resolve({
-        category: 'runtime',
-        explanation: 'Late diagnosis',
-        steps: [],
-        summary: 'Late'
-      })
-    })
-
-    expect(report).not.toHaveTextContent('Late diagnosis')
+    const report = screen.getByRole('dialog', { name: 'Diagnostic report review' })
+    expect(report).toHaveTextContent('Error message: failed')
+    expect(report).not.toHaveTextContent('private diagnosis payload')
   })
 })

@@ -9,7 +9,6 @@ import {
 } from '../diagnosticReportDescription'
 
 const labels: DiagnosticReportDescriptionLabels = {
-  aiDiagnosis: 'AI diagnosis',
   errorMessage: 'Error message',
   errorName: 'Error name',
   location: 'Location',
@@ -33,12 +32,6 @@ describe('buildDiagnosticReportDescription', () => {
     } as SerializedError
 
     const description = buildDiagnosticReportDescription({
-      diagnosis: {
-        category: 'provider-quota-category',
-        explanation: 'The provider rate-limited this request.',
-        steps: [{ text: 'Wait and retry.' }],
-        summary: 'Rate limited'
-      },
       diagnosisContext: { modelId: 'gpt-5', providerName: 'OpenAI' },
       error,
       labels,
@@ -52,28 +45,20 @@ describe('buildDiagnosticReportDescription', () => {
         'Model: gpt-5',
         'Error name: AI_APICallError',
         'Status code: 429',
-        'Error message: Rate limit exceeded',
-        '',
-        'AI diagnosis:',
-        'The provider rate-limited this request.'
+        'Error message: Rate limit exceeded'
       ].join('\r\n')
     )
     expect(description).not.toContain('secret')
-    expect(description).not.toContain('Wait and retry')
-    expect(description).not.toContain('provider-quota-category')
   })
 
-  it('falls back to the diagnosis summary and omits unavailable context', () => {
+  it('omits unavailable context', () => {
     expect(
       buildDiagnosticReportDescription({
-        diagnosis: { category: 'runtime', explanation: '', steps: [], summary: 'Runtime failed' },
         error: { name: null, message: 'failed', stack: null },
         labels,
         location: 'Agent conversation'
       })
-    ).toBe(
-      ['Location: Agent conversation', 'Error message: failed', '', 'AI diagnosis:', 'Runtime failed'].join('\r\n')
-    )
+    ).toBe(['Location: Agent conversation', 'Error message: failed'].join('\r\n'))
   })
 
   it('truncates multibyte descriptions within the normalized UTF-8 byte budget', () => {
