@@ -167,6 +167,8 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'agent.toolPermission.decisionDenied': 'Denied',
+    'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
     'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
@@ -778,6 +780,32 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('Choose logger')).toBeInTheDocument()
     })
 
+    it('shows the denied outcome instead of an unanswered AskUserQuestion card', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'cancelled',
+        toolCallId: 'call-ask-denied',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        },
+        approval: { approved: false, reason: 'Need more context first' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Denied')).toBeInTheDocument()
+      expect(screen.getByText('Need more context first')).toBeInTheDocument()
+      expect(screen.queryByText('Questions from Agent')).not.toBeInTheDocument()
+      expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
+    })
+
     it('shows AskUserQuestion answers from tool output when input only has questions', () => {
       const questions = [
         {
@@ -880,6 +908,19 @@ describe('AgentToolRenderer', () => {
       fireEvent.click(screen.getAllByRole('button')[0])
       expect(screen.getByText('Winston')).toBeVisible()
     })
+  })
+
+  it('keeps a denied tool decision and its reason visible in history', () => {
+    const toolResponse = createToolResponse({
+      status: 'cancelled',
+      arguments: { command: 'rm -rf build' },
+      approval: { approved: false, reason: 'use a copy instead' }
+    })
+
+    render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+    expect(screen.getByText('Denied')).toBeInTheDocument()
+    expect(screen.getByText('use a copy instead')).toBeInTheDocument()
   })
 
   describe('assistant create_agent tool rendering', () => {
