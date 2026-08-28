@@ -46,6 +46,7 @@ describe('resolveAgentCapabilities', () => {
       'apply_setting',
       'prepare_diagnostic_report'
     ])
+    expect(support.hostTools?.toolsInChannelSessions).toEqual(['navigate', 'diagnose', 'product_info', 'apply_setting'])
     expect(assistant.hostTools?.tools).toBeUndefined()
   })
 })
