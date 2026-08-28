@@ -243,9 +243,12 @@ export const inLoopCompactionFeature: RequestFeature = {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
             maxOutputTokens,
-            maxInputTokens: Math.max(
-              COMPACTION_MIN_INPUT_BUDGET,
-              Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+            maxInputTokens: Math.min(
+              Math.max(0, compressionWindow - maxOutputTokens),
+              Math.max(
+                COMPACTION_MIN_INPUT_BUDGET,
+                Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+              )
             )
           })
         } catch (error) {

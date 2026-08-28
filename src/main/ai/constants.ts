@@ -21,6 +21,16 @@ export const CONTEXT_COMPACT_KEEP_BUDGET_RATIO = 0.3
 export const COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN = 0.9
 
 /**
+ * More conservative margin for the Claude Code (Agent v2) runtime. Its
+ * auto-compaction is budgeted from the declared window via
+ * `resolveAutoCompactWindow`, and the reproduction in #18894 shows a
+ * 256K-declared / 128K-real channel still overflows with a 10% margin
+ * (effective 230K → budget 194K > 128K). A larger headroom is required
+ * to keep the budget inside the provider's real limit.
+ */
+export const COMPACTION_CLAUDE_SAFETY_MARGIN = 0.6
+
+/**
  * Budget for the compaction request itself. Compaction protects the window, but
  * the summarize call is a window-bound request too: its input carries whole
  * tool outputs, so left un-budgeted it can overflow the compression model's

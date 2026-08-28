@@ -510,8 +510,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
     )
 
-    // With the 0.9 margin the budget is ~799K — still far above the 100K floor.
-    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(700_000)
+    // With the 0.6 margin the budget is ~491K — still far above the 100K floor.
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(400_000)
   })
 
   // The CLI has no table for third-party models, so without the pin they would request its generic
@@ -620,8 +620,8 @@ describe('buildClaudeCodeSessionSettings', () => {
   // earlier, leaving headroom for the gap between declared and real limits.
   it('applies the safety margin to the auto-compact budget for overstated declared windows', async () => {
     // 256K declared, 128K real limit: without the margin the budget would be
-    // floor((256K - 32K) * 0.98) = 219K; with the 0.9 margin it is
-    // floor((floor(256K * 0.9) - 32K) * 0.98) = floor((230K - 32K) * 0.98) = 194K.
+    // floor((256K - 32K) * 0.98) = 219K; with the 0.6 margin it is
+    // floor((floor(256K * 0.6) - 32K) * 0.98) = floor((153K - 32K) * 0.98) = 119K.
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -634,9 +634,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
     // Without the margin: floor((256_000 - 32_000) * 0.98) = 219_520
-    // With the margin: floor((floor(256_000 * 0.9) - 32_000) * 0.98) = floor((230_400 - 32_000) * 0.98) = 194_432
+    // With the margin: floor((floor(256_000 * 0.6) - 32_000) * 0.98) = floor((153_600 - 32_000) * 0.98) = 119_168
     expect(budget).toBeLessThan(219_520)
-    expect(budget).toBe(194_432)
+    expect(budget).toBe(119_168)
   })
 
   it.each([undefined, 64_000, 99_999])(

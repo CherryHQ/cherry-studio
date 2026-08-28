@@ -1022,9 +1022,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
-        maxInputTokens: Math.max(
-          COMPACTION_MIN_INPUT_BUDGET,
-          Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+        maxInputTokens: Math.min(
+          Math.max(0, compressionWindow - maxOutputTokens),
+          Math.max(
+            COMPACTION_MIN_INPUT_BUDGET,
+            Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+          )
         )
       })
       // Every exit below clears the spinner — a fold that produced nothing and a
