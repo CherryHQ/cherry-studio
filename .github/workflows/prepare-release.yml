@@ -151,7 +151,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
-          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git rev-parse:*),Bash(git show:*),Bash(git status:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
+          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh release list:*),Bash(node:*),Bash(cat:*),Bash(pnpm build:builtin-knowledge),Edit,Read,Write,Glob,Grep"'
           prompt: |
             Run the prepare-release skill with exact version argument: ${{ steps.release-version.outputs.version }}
 
@@ -159,45 +159,35 @@ jobs:
 
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
-            The workflow froze the selected dispatch SHA and owns Step 1 item 1. Do not fetch or compare origin/main. It also completed the tag and published-release checks. Do not repeat those checks or run any Git mutation.
+            The workflow froze the selected dispatch SHA and owns Step 1 item 1. Do not fetch or compare origin/main. It also completed the tag and published-release checks. Do not repeat those checks, push, or mutate any remote Git state. Local Git operations are temporary because the next step restores the frozen SHA.
 
-            Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
+            Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. The next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
+            You may create temporary helper files if needed; the workflow discards every change except those three release metadata files.
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+
+      - name: Retain prepared release metadata
+        shell: bash
+        env:
+          RELEASE_HEAD: ${{ github.sha }}
+        run: |
+          RELEASE_PATCH="$RUNNER_TEMP/prepared-release.patch"
+          git diff --binary --full-index "$RELEASE_HEAD" -- \
+            package.json \
+            electron-builder.yml \
+            resources/cherry-studio/release-history.json > "$RELEASE_PATCH"
+
+          git reset --hard "$RELEASE_HEAD"
+          git clean -fd
+          if [ -s "$RELEASE_PATCH" ]; then
+            git apply "$RELEASE_PATCH"
+          fi
 
       - name: Validate prepared release metadata
         shell: bash
         env:
-          RELEASE_HEAD: ${{ github.sha }}
           REQUESTED_VERSION: ${{ steps.release-version.outputs.version }}
         run: |
-          if [ "$(git rev-parse HEAD)" != "$RELEASE_HEAD" ]; then
-            echo "Claude must not create a local release commit" >&2
-            exit 1
-          fi
-
-          node <<'NODE'
-          const { execFileSync } = require('node:child_process')
-          const fs = require('node:fs')
-
-          const allowedFiles = new Set([
-            'package.json',
-            'electron-builder.yml',
-            'resources/cherry-studio/release-history.json'
-          ])
-          const changedFiles = [
-            ...execFileSync('git', ['diff', 'HEAD', '--name-only', '--no-renames', '-z'], { encoding: 'utf8' }).split('\0'),
-            ...execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0')
-          ].filter(Boolean)
-
-          for (const filePath of new Set(changedFiles)) {
-            if (!allowedFiles.has(filePath)) throw new Error(`Unexpected release preparation change: ${filePath}`)
-            if (!fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
-              throw new Error(`Release preparation change is not a regular file: ${filePath}`)
-            }
-          }
-          NODE
-
           node scripts/release/validate-prepared-release.js --target-version "$REQUESTED_VERSION"
 
       - name: Generate product manifest
@@ -254,72 +244,44 @@ jobs:
           REQUESTED_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           node <<'NODE'
-          const { execFileSync } = require('node:child_process')
           const fs = require('node:fs')
           const path = require('node:path')
 
           const artifactRoot = path.resolve(process.env.RUNNER_TEMP, 'prepared-release')
-          const allowedFiles = [
+          const releaseFiles = [
             'electron-builder.yml',
             'package.json',
             'resources/builtin-agents/cherry-assistant/product-manifest.json',
             'resources/cherry-studio/release-history.json'
           ]
-          const discoveredFiles = []
 
-          function walk(directory) {
-            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-              const entryPath = path.join(directory, entry.name)
-              if (entry.isSymbolicLink()) throw new Error(`Prepared release artifact contains a symbolic link: ${entryPath}`)
-              if (entry.isDirectory()) {
-                walk(entryPath)
-              } else if (entry.isFile()) {
-                discoveredFiles.push(path.relative(artifactRoot, entryPath))
-              } else {
-                throw new Error(`Prepared release artifact contains a non-regular file: ${entryPath}`)
-              }
+          for (const filePath of releaseFiles) {
+            const sourcePath = path.join(artifactRoot, filePath)
+            if (!fs.existsSync(sourcePath) || !fs.lstatSync(sourcePath).isFile()) {
+              throw new Error(`Prepared release artifact is missing a regular file: ${filePath}`)
             }
+            fs.copyFileSync(sourcePath, filePath)
           }
+          NODE
 
-          walk(artifactRoot)
-          discoveredFiles.sort()
-          if (JSON.stringify(discoveredFiles) !== JSON.stringify(allowedFiles)) {
-            throw new Error(`Prepared release artifact has an unexpected file set: ${discoveredFiles.join(', ')}`)
-          }
-          for (const filePath of allowedFiles) {
-            fs.copyFileSync(path.join(artifactRoot, filePath), filePath)
-          }
+          node scripts/release/validate-prepared-release.js --target-version "$REQUESTED_VERSION" --include-generated-manifest
 
-          const statusEntries = execFileSync(
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+          const path = require('node:path')
+
+          const releaseFiles = [
+            'electron-builder.yml',
+            'package.json',
+            'resources/builtin-agents/cherry-assistant/product-manifest.json',
+            'resources/cherry-studio/release-history.json'
+          ]
+          const changedFiles = execFileSync(
             'git',
-            ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
+            ['diff', 'HEAD', '--name-only', '--no-renames', '-z', '--', ...releaseFiles],
             { encoding: 'utf8' }
           ).split('\0').filter(Boolean)
-          const changedFiles = []
-
-          for (const entry of statusEntries) {
-            const status = entry.slice(0, 2)
-            const filePath = entry.slice(3)
-            if (status.includes('R') || status.includes('C')) {
-              throw new Error(`Release preparation must not rename or copy files: ${filePath}`)
-            }
-            if (status.includes('D')) {
-              throw new Error(`Release preparation must not delete files: ${filePath}`)
-            }
-            if (!allowedFiles.includes(filePath)) {
-              throw new Error(`Unexpected release preparation change: ${filePath}`)
-            }
-            if (!fs.lstatSync(filePath).isFile()) {
-              throw new Error(`Release preparation change is not a regular file: ${filePath}`)
-            }
-            changedFiles.push(filePath)
-          }
-
-          if (changedFiles.length === 0) {
-            throw new Error('Release preparation produced no changes')
-          }
-
-          changedFiles.sort()
           const additions = changedFiles.map((filePath) => ({
             path: filePath,
             contents: fs.readFileSync(filePath).toString('base64')
@@ -327,19 +289,7 @@ jobs:
           fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'prepare-release-files.json'), JSON.stringify(additions))
           NODE
 
-          RELEASE_VERSION="$(node -p "require('./package.json').version")"
-          if [ "$RELEASE_VERSION" != "$REQUESTED_VERSION" ]; then
-            echo "Prepared version $RELEASE_VERSION does not match requested version $REQUESTED_VERSION" >&2
-            exit 1
-          fi
-
-          if [[ ! "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "Prepared version is not a supported semantic version: $RELEASE_VERSION" >&2
-            exit 1
-          fi
-
-          node scripts/release/validate-prepared-release.js --target-version "$REQUESTED_VERSION" --include-generated-manifest
-
+          RELEASE_VERSION="$REQUESTED_VERSION"
           RELEASE_BRANCH="release/v$RELEASE_VERSION"
           echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
