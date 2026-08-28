@@ -1,5 +1,4 @@
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -112,21 +111,6 @@ describe('ResourceDeleteConfirmDialog', () => {
     const { container } = render(<ResourceDeleteConfirmDialog resource={null} onClose={vi.fn()} />)
 
     expect(container).toBeEmptyDOMElement()
-  })
-
-  it('renders nothing for a protected built-in Agent', () => {
-    const resource = {
-      ...createResource('agent'),
-      id: 'cherry-support',
-      raw: {
-        configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-      } as Extract<ResourceItem, { type: 'agent' }>['raw']
-    } as Extract<ResourceItem, { type: 'agent' }>
-
-    const { container } = render(<ResourceDeleteConfirmDialog resource={resource} onClose={vi.fn()} />)
-
-    expect(container).toBeEmptyDOMElement()
-    expect(mocks.deleteAgent).not.toHaveBeenCalled()
   })
 
   it.each([

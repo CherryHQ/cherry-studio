@@ -23,4 +23,3 @@ export {
   RESOURCE_TYPE_ORDER
 } from './constants'
 export { buildCreateAgentCommand, buildCreateAssistantDto } from './resourceCreate'
-export { canDeleteResource } from './resourcePolicy'

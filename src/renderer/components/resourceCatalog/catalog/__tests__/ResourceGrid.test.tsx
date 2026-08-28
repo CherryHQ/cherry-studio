@@ -2,7 +2,6 @@ import type * as CherryUiModule from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -410,9 +409,7 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
   }
 }
 
-function createAgentResource(
-  overrides: Partial<Extract<ResourceItem, { type: 'agent' }>> = {}
-): Extract<ResourceItem, { type: 'agent' }> {
+function createAgentResource(): ResourceItem {
   return {
     id: 'agent-1',
     type: 'agent',
@@ -421,8 +418,7 @@ function createAgentResource(
     avatar: 'A',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw'],
-    ...overrides
+    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
   }
 }
 
@@ -844,25 +840,6 @@ describe('ResourceGrid card actions', () => {
 
     expect(onDelete).toHaveBeenCalledWith(resource)
   })
-
-  it.each([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT])(
-    'does not expose deletion for a protected %s Agent card',
-    (builtinRole) => {
-      const onDelete = vi.fn()
-      const resource = createAgentResource({
-        id: `builtin-${builtinRole}`,
-        raw: {
-          configuration: { builtin_role: builtinRole }
-        } as Extract<ResourceItem, { type: 'agent' }>['raw']
-      })
-
-      render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
-
-      expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /common.more/ })).not.toBeInTheDocument()
-      expect(onDelete).not.toHaveBeenCalled()
-    }
-  )
 
   it('shows only one assistant group in the compact card layout', () => {
     render(<ResourceCard resource={createAssistantResource({ groupName: 'alpha' })} {...getResourceCardProps()} />)

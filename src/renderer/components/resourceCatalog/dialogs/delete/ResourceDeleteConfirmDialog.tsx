@@ -7,7 +7,6 @@ import {
 } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { canDeleteResource } from '@renderer/utils/resourceCatalog'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +24,7 @@ interface Props {
  * write operations because uninstall touches filesystem symlinks).
  */
 export const ResourceDeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
-  if (!resource || !canDeleteResource(resource)) return null
+  if (!resource) return null
   return <DeleteDialogBody resource={resource} onClose={onClose} />
 }
 
