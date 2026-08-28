@@ -13,8 +13,6 @@ import {
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
-  RUNTIME_INFO_TOOL_NAME,
-  runtimeInfoInputSchema,
   TO_MARKDOWN_DESCRIPTION,
   TO_MARKDOWN_SUPPORTED_EXTENSIONS,
   toMarkdownInputSchema,
@@ -30,12 +28,6 @@ describe('builtin tool contracts', () => {
     expect(WEB_SEARCH_TOOL_NAME).toBe('web_search')
     expect(WEB_FETCH_TOOL_NAME).toBe('web_fetch')
     expect(REPORT_ARTIFACTS_TOOL_NAME).toBe('report_artifacts')
-    expect(RUNTIME_INFO_TOOL_NAME).toBe('runtime_info')
-  })
-
-  it('keeps runtime_info input closed and argument-free', () => {
-    expect(runtimeInfoInputSchema.safeParse({}).success).toBe(true)
-    expect(runtimeInfoInputSchema.safeParse({ includeSettings: true }).success).toBe(false)
   })
 
   it('references the public knowledge list tool name from search input metadata', () => {

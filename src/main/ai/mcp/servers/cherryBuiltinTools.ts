@@ -57,9 +57,6 @@ import {
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
-  RUNTIME_INFO_DESCRIPTION,
-  RUNTIME_INFO_TOOL_NAME,
-  runtimeInfoInputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   webFetchInputSchema,
@@ -72,6 +69,7 @@ import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTo
 import { CherryCliTools } from './cherryCliTools'
 import { type CherryDocumentContext, CherryDocumentTools } from './cherryDocumentTools'
 import { CherryKnowledgeTools } from './cherryKnowledgeTools'
+import { RUNTIME_INFO_DESCRIPTION, RUNTIME_INFO_TOOL_NAME, runtimeInfoInputSchema } from './runtimeInfoTool'
 
 export type { CherryAgentContext }
 export type CherryBuiltinToolsContext = CherryAgentContext & CherryDocumentContext
@@ -216,7 +214,7 @@ function toMcpResult(output: ToolModelOutput): CallToolResult {
   return { content: [{ type: 'text', text }] }
 }
 
-/** List the stateless builtin tools (web / report / image); domain tools live in their providers. */
+/** List the stateless builtin tools (web / report / runtime / image); domain tools live in their providers. */
 export function listCherryBuiltinTools(): Tool[] {
   return Object.entries(resolveHandlers()).map(([name, handler]) => ({
     name,

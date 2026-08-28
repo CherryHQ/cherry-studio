@@ -12,6 +12,7 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { RUNTIME_INFO_TOOL_NAME } from '@main/ai/mcp/servers/runtimeInfoTool'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -32,7 +33,6 @@ import {
   NOTIFY_TOOL_NAME,
   READ_FILE_TOOL_NAME,
   REPORT_ARTIFACTS_TOOL_NAME,
-  RUNTIME_INFO_TOOL_NAME,
   TO_MARKDOWN_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
