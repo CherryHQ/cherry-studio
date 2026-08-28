@@ -45,10 +45,8 @@ const MiniAppTabsPool: React.FC = () => {
     currentMiniAppId,
     splitOpen,
     splitMiniAppId,
-    openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setMiniAppShow
+    setCurrentMiniAppId
   } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
@@ -130,14 +128,8 @@ const MiniAppTabsPool: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
 
-  // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember
-  // every app the split pane ever showed: orphan cleanup only evicts entries no tab references
-  // and the split never owned.
-  const splitPooledIds = useRef(new Set<string>())
-
   useEffect(() => {
-    if (splitOpen && splitMiniAppId) splitPooledIds.current.add(splitMiniAppId)
-    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || splitPooledIds.current.has(appId)
+    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || (splitOpen && splitMiniAppId === appId)
     const orphanedApps = openedKeepAliveMiniApps.filter((app) => !isReferenced(app.appId))
     if (orphanedApps.length === 0) return
 
@@ -150,26 +142,15 @@ const MiniAppTabsPool: React.FC = () => {
   // Realign a current id that resolves to no shown app. Always-on, not gated behind orphan
   // cleanup: a stale-snapshot decision then self-heals on the fresh-pool re-run.
   useEffect(() => {
-    // One-off apps live outside the keep-alive pool but legitimately own the current id.
-    if (currentMiniAppId === openedOneOffMiniApp?.appId) return
     if (openedKeepAliveMiniApps.some((app) => app.appId === currentMiniAppId)) return
 
     if (activeMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeMiniAppId)) {
       setCurrentMiniAppId(activeMiniAppId)
-      setMiniAppShow(true)
       return
     }
 
     setCurrentMiniAppId('')
-    setMiniAppShow(false)
-  }, [
-    activeMiniAppId,
-    currentMiniAppId,
-    openedKeepAliveMiniApps,
-    openedOneOffMiniApp,
-    setCurrentMiniAppId,
-    setMiniAppShow
-  ])
+  }, [activeMiniAppId, currentMiniAppId, openedKeepAliveMiniApps, setCurrentMiniAppId])
 
   /** 设置 ref 回调 */
   const handleSetRef = useCallback((appid: string, el: WebviewTag | null) => {

@@ -3,7 +3,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
-import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -40,19 +39,7 @@ const MiniApp: FC<Props> = ({
   disabled = false
 }) => {
   const { t } = useTranslation()
-  const {
-    miniApps,
-    pinned,
-    openedKeepAliveMiniApps,
-    currentMiniAppId,
-    miniAppShow,
-    splitMiniAppId,
-    setOpenedKeepAliveMiniApps,
-    setSplitOpen,
-    setSplitMiniAppId,
-    updateAppStatus,
-    removeCustomMiniApp
-  } = useMiniApps()
+  const { miniApps, pinned, updateAppStatus, removeCustomMiniApp } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
@@ -62,8 +49,6 @@ const MiniApp: FC<Props> = ({
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
-  const isActive = miniAppShow && currentMiniAppId === app.appId
-  const isOpened = openedKeepAliveMiniApps.some((item) => item.appId === app.appId)
 
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
@@ -125,19 +110,7 @@ const MiniApp: FC<Props> = ({
   }
 
   const handleHide = () => {
-    updateAppStatus(app.appId, 'disabled')
-      .then(() => {
-        // Functional update: resolve against the latest list so a mini app opened
-        // during the status mutation's await is not clobbered by a stale snapshot.
-        setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== app.appId))
-        // Hiding unmounts the app's webview, so a split pane still pointing at it
-        // would sit on its loading mask forever.
-        if (splitMiniAppId === app.appId) {
-          setSplitMiniAppId('')
-          setSplitOpen(false)
-        }
-      })
-      .catch(reportFailure('miniApp.hide_failed'))
+    updateAppStatus(app.appId, 'disabled').catch(reportFailure('miniApp.hide_failed'))
   }
 
   const handleRemoveCustom = async () => {
@@ -224,17 +197,6 @@ const MiniApp: FC<Props> = ({
               </div>
             ) : (
               <MiniAppIcon size={size} app={app} appearance="avatar" />
-            )}
-            {isOpened && (
-              <div
-                className={cn(
-                  'absolute rounded-full bg-background',
-                  isLaunchpad
-                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--border-subtle)]'
-                    : '-right-0.5 -bottom-0.5 p-0.5'
-                )}>
-                <IndicatorLight color="var(--success)" size={6} animation={!isActive} />
-              </div>
             )}
           </div>
           <div
