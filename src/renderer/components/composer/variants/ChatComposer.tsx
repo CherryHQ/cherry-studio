@@ -179,6 +179,7 @@ interface SavedComposerDraft {
   mentionedModels: Model[]
   mentionedModelSelectorValue: Model[]
   mentionedModelMultiSelectMode: boolean
+  mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
 }
@@ -763,6 +764,7 @@ const ChatComposerInner = ({
   })
   const mentionedModelSelectorValueRef = useLatest(mentionedModelSelectorValue)
   const mentionedModelMultiSelectModeRef = useLatest(mentionedModelMultiSelectMode)
+  const runtimeModelRef = useLatest(runtimeModel)
 
   useEffect(() => {
     if (isMentionedModelDraftHydrated || !useMentionedModelSelector) return
@@ -1118,13 +1120,26 @@ const ChatComposerInner = ({
     setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
+    const restoredSelectorModels =
+      savedDraft.mentionedModelSelectionWasPending && savedDraft.mentionedModelSelectorValue.length === 0
+        ? runtimeModelRef.current
+          ? [runtimeModelRef.current]
+          : []
+        : savedDraft.mentionedModelSelectorValue
     restoreMentionedModelSelection(
-      savedDraft.mentionedModelSelectorValue,
+      restoredSelectorModels,
       savedDraft.mentionedModels,
       savedDraft.mentionedModelMultiSelectMode
     )
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
-  }, [actionsRef, exitInputHistoryPreview, restoreMentionedModelSelection, setFiles, setSelectedKnowledgeBases])
+  }, [
+    actionsRef,
+    exitInputHistoryPreview,
+    restoreMentionedModelSelection,
+    runtimeModelRef,
+    setFiles,
+    setSelectedKnowledgeBases
+  ])
 
   const handleCancelEditing = useCallback(() => {
     restoreSavedDraft()
@@ -1174,6 +1189,7 @@ const ChatComposerInner = ({
         mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
         mentionedModelSelectorValue: mentionedModelSelectorValueRef.current,
         mentionedModelMultiSelectMode: mentionedModelMultiSelectModeRef.current,
+        mentionedModelSelectionWasPending: runtimeModelPending && mentionedModelSelectorValueRef.current.length === 0,
         selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
         knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
       }

@@ -3443,6 +3443,7 @@ describe('ChatComposer', () => {
   })
 
   it('does not carry models selected during an edit into the next normal send', async () => {
+    const user = userEvent.setup()
     const onSend = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
@@ -3462,15 +3463,59 @@ describe('ChatComposer', () => {
       </MessageEditingProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await user.click(screen.getByRole('button', { name: 'start editing' }))
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
-    fireEvent.click(screen.getByText('toggle model multi select'))
-    fireEvent.click(screen.getByText('select models 1 and 2'))
+    await user.click(screen.getByText('toggle model multi select'))
+    await user.click(screen.getByText('select models 1 and 2'))
 
     await mocks.surfaceProps?.onSendDraft({ text: 'edited prompt', tokens: [] })
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'false')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'next prompt', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith('next prompt', expect.objectContaining({ mentionedModels: [model.id] }))
+  })
+
+  it('restores the resolved runtime model when editing started while model loading was pending', async () => {
+    const user = userEvent.setup()
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    mocks.model = undefined
+    mocks.modelPending = true
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+    const view = render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    mocks.model = model
+    mocks.modelPending = false
+    view.rerender(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited prompt', tokens: [] })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
 
     await mocks.surfaceProps?.onSendDraft({ text: 'next prompt', tokens: [] })
