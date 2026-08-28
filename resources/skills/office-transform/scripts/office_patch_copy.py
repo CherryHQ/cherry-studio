@@ -293,24 +293,46 @@ def paragraph_text(paragraph) -> str:
     """Reproduce python-docx's Paragraph.text, which office_extract.py compares against.
 
     python-docx walks the paragraph's inner content — its direct w:r children plus the runs
-    inside a w:hyperlink — and within a run maps w:t to its text, w:tab to a tab and
-    w:br/w:cr to a newline. Everything else is absent from `.text`: deleted runs (w:delText)
+    inside a w:hyperlink — and inside a run takes exactly `w:br | w:cr | w:noBreakHyphen |
+    w:ptab | w:t | w:tab`. Everything else is absent from `.text`: deleted runs (w:delText)
     and, because text boxes live under mc:AlternateContent rather than being run children,
     text box content. Walking every descendant w:t instead would drop the separators and
     pick up text box text, failing the expectText gate on an unchanged paragraph in either
-    direction. Verified against python-docx 1.2.
+    direction.
+
+    The mapping has to be exact, not close. expectText is compared against what
+    office_extract.py read with python-docx, so any element this spells differently rejects
+    an edit to a paragraph nobody touched — and says the anchor moved, which sends the caller
+    back to re-extract the same string. A break is a newline only when it wraps a line: a page
+    or column break contributes nothing. Each of the six is checked against python-docx 1.2.
     """
     parts = []
+
+    def break_type(element) -> str:
+        """`w:type` by local name — the prefix is the document's to choose, like everywhere else here."""
+        attributes = element.attributes
+        for index in range(attributes.length):
+            attribute = attributes.item(index)
+            if attribute.name.rsplit(":", 1)[-1] == "type":
+                return attribute.value
+        return ""
 
     def append_run(run) -> None:
         for child in element_children(run):
             local_name = child.tagName.rsplit(":", 1)[-1]
             if local_name == "t":
                 parts.append("".join(t.data for t in child.childNodes if t.nodeType == minidom.Node.TEXT_NODE))
-            elif local_name == "tab":
+            elif local_name in ("tab", "ptab"):
                 parts.append("\t")
-            elif local_name in ("br", "cr"):
+            elif local_name == "cr":
                 parts.append("\n")
+            elif local_name == "br":
+                # A line break is a newline; a page or column break is a layout instruction
+                # `.text` does not spell.
+                if break_type(child) in ("", "textWrapping"):
+                    parts.append("\n")
+            elif local_name == "noBreakHyphen":
+                parts.append("-")
 
     for child in element_children(paragraph):
         local_name = child.tagName.rsplit(":", 1)[-1]
