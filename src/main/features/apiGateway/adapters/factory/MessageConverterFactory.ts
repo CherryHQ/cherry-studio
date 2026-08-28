@@ -32,6 +32,8 @@ export type InputParamsMap = {
 export interface ConverterOptions {
   googleReasoningCache?: ReasoningCache
   openRouterReasoningCache?: ReasoningCache
+  /** Whether the routed target takes PDF file parts natively (Anthropic input only; defaults to true). */
+  supportsPdfFileParts?: boolean
 }
 
 /**
@@ -73,7 +75,8 @@ export class MessageConverterFactory {
     }
     return new AnthropicMessageConverter({
       googleReasoningCache: options.googleReasoningCache,
-      openRouterReasoningCache: options.openRouterReasoningCache
+      openRouterReasoningCache: options.openRouterReasoningCache,
+      supportsPdfFileParts: options.supportsPdfFileParts
     }) as IMessageConverter<InputParamsMap[T]>
   }
 }

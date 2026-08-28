@@ -19,7 +19,8 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { supportsNativePdf } from '@main/ai/runtime/aiSdk'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
@@ -195,19 +196,17 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
 
   // 2. Build converter and extract messages / tools / sampling / provider options.
+  const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const converter = MessageConverterFactory.create(inputFormat, {
     googleReasoningCache,
-    openRouterReasoningCache
+    openRouterReasoningCache,
+    supportsPdfFileParts: supportsNativePdf(provider, model, resolveAiSdkProviderId(provider, endpointType))
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
-  const positionedMessages = positionInlineSystemMessages(
-    convertedMessages,
-    resolveEffectiveEndpoint(provider, model).endpointType,
-    config.requestHeaders
-  )
+  const positionedMessages = positionInlineSystemMessages(convertedMessages, endpointType, config.requestHeaders)
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages

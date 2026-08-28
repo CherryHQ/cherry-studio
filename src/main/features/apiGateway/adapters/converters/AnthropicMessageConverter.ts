@@ -85,12 +85,24 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   return undefined
 }
 
+/**
+ * Note the model can act on when a transcript's PDF document cannot ride to the
+ * routed target: stale/pre-guard history replays through connections whose
+ * target takes no file parts, and a hard provider 400 would poison the session.
+ */
+const PDF_OMITTED_NOTE = '[PDF document omitted: the routed model cannot accept PDF input on this connection]'
+
 /** An Anthropic document block (the Agent SDK's PDF Read) as a `file`/`text` UI part (undefined for content sources). */
-function documentBlockToPart(source: DocumentBlockParam['source']): FileUIPart | TextUIPart | undefined {
+function documentBlockToPart(
+  source: DocumentBlockParam['source'],
+  supportsPdfFileParts: boolean
+): FileUIPart | TextUIPart | undefined {
   if (source.type === 'base64') {
+    if (!supportsPdfFileParts) return { type: 'text', text: PDF_OMITTED_NOTE }
     return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
   }
   if (source.type === 'url') {
+    if (!supportsPdfFileParts) return { type: 'text', text: PDF_OMITTED_NOTE }
     return { type: 'file', mediaType: 'application/pdf', url: source.url }
   }
   if (source.type === 'text') {
@@ -121,7 +133,8 @@ function toolResultAttachmentAnchor(toolCallId: string, kind: 'image' | 'documen
  */
 function toolResultToOutput(
   toolCallId: string,
-  content: NonNullable<ToolResultBlockParam['content']>
+  content: NonNullable<ToolResultBlockParam['content']>,
+  supportsPdfFileParts: boolean
 ): ToolResultConversion {
   if (typeof content === 'string') return { output: content, relocatedParts: [] }
   const lines: string[] = []
@@ -139,7 +152,7 @@ function toolResultToOutput(
         relocatedParts.push({ type: 'text', text: anchor }, file)
       }
     } else if (block.type === 'document') {
-      const part = documentBlockToPart(block.source)
+      const part = documentBlockToPart(block.source, supportsPdfFileParts)
       if (part?.type === 'file') {
         const anchor = toolResultAttachmentAnchor(toolCallId, 'document', ++documentIndex)
         lines.push(`${anchor} (${part.mediaType}): attached in the following user message`)
@@ -184,10 +197,22 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   private mappedTools?: MessageCreateParams['tools']
   private readonly providerToolNames = new Map<string, string>()
   private readonly clientToolNames = new Map<string, string>()
+  private readonly supportsPdfFileParts: boolean
 
-  constructor(options?: { googleReasoningCache?: ReasoningCache; openRouterReasoningCache?: ReasoningCache }) {
+  constructor(options?: {
+    googleReasoningCache?: ReasoningCache
+    openRouterReasoningCache?: ReasoningCache
+    /**
+     * Whether the routed target takes PDF `file` parts natively. When false,
+     * transcript `document` blocks downgrade to an explicit omission note
+     * instead of file parts the target would reject. Defaults to true so
+     * token estimators keep pricing the request as the client sent it.
+     */
+    supportsPdfFileParts?: boolean
+  }) {
     this.googleReasoningCache = options?.googleReasoningCache
     this.openRouterReasoningCache = options?.openRouterReasoningCache
+    this.supportsPdfFileParts = options?.supportsPdfFileParts ?? true
   }
 
   /**
@@ -228,7 +253,9 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         } else if (block.type === 'tool_result') {
           toolResults.set(
             block.tool_use_id,
-            block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }
+            block.content
+              ? toolResultToOutput(block.tool_use_id, block.content, this.supportsPdfFileParts)
+              : { output: '', relocatedParts: [] }
           )
         }
       }
@@ -280,7 +307,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
             parts.push(part)
           }
         } else if (block.type === 'document') {
-          const part = documentBlockToPart(block.source)
+          const part = documentBlockToPart(block.source, this.supportsPdfFileParts)
           if (part) {
             parts.push(part)
           }
