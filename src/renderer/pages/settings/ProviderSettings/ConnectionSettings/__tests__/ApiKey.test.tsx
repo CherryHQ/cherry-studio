@@ -10,6 +10,8 @@ const useProviderMock = vi.fn()
 const useProviderApiKeysMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
+const deleteApiKeyMock = vi.fn()
+const copyApiKeyToClipboardMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, type = 'button', ...props }: any) => (
@@ -26,6 +28,14 @@ vi.mock('@cherrystudio/ui', () => ({
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderApiKeys: (...args: any[]) => useProviderApiKeysMock(...args)
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: vi.fn() }
+}))
+
+vi.mock('../copyApiKeyToClipboard', () => ({
+  copyApiKeyToClipboard: (...args: any[]) => copyApiKeyToClipboardMock(...args)
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
@@ -54,7 +64,9 @@ describe('ApiKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI', authOptional: false }
+      provider: { id: 'openai', name: 'OpenAI', authOptional: false },
+      deleteApiKey: deleteApiKeyMock,
+      isDeletingApiKey: false
     })
     useProviderApiKeysMock.mockReturnValue({ data: { keys: [] } })
     useProviderMetaMock.mockReturnValue({
@@ -120,6 +132,42 @@ describe('ApiKey', () => {
 
     expect(keyManagementButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('dialog', { name: 'settings.provider.api.key.list.title' })).toBeInTheDocument()
+  })
+
+  it('offers copy, edit, and delete actions for the displayed key', async () => {
+    const user = userEvent.setup()
+    const onOpenApiSetup = vi.fn()
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [{ id: 'key-1', key: 'sk-visible-action', isEnabled: true }] }
+    })
+
+    render(<ApiKey providerId="openai" onOpenApiSetup={onOpenApiSetup} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_key.copy' }))
+    expect(copyApiKeyToClipboardMock).toHaveBeenCalledWith('sk-visible-action', expect.any(Function))
+
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+    expect(onOpenApiSetup).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog', { name: 'settings.provider.api.key.list.title' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'common.delete' }))
+    expect(deleteApiKeyMock).toHaveBeenCalledWith('key-1')
+  })
+
+  it('hides the summary delete action when multiple keys exist', () => {
+    useProviderApiKeysMock.mockReturnValue({
+      data: {
+        keys: [
+          { id: 'key-1', key: 'sk-primary', isEnabled: true },
+          { id: 'key-2', key: 'sk-backup', isEnabled: true }
+        ]
+      }
+    })
+
+    render(<ApiKey providerId="openai" />)
+
+    expect(screen.queryByRole('button', { name: 'common.delete' })).not.toBeInTheDocument()
+    expect(screen.getByText('+1')).toBeInTheDocument()
   })
 
   it('never exposes a short saved key that the shared formatter cannot partially mask', () => {

@@ -273,6 +273,27 @@ describe('ProviderApiSetupDialog', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
+  it('prefills saved keys when the key flow is opened for editing', async () => {
+    storedApiKeys = [
+      { id: 'saved-key', key: 'sk-existing', isEnabled: true },
+      { id: 'disabled-key', key: 'sk-disabled', isEnabled: false }
+    ]
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
+
+    const apiKeyInput = await screen.findByDisplayValue('sk-existing')
+    fireEvent.change(apiKeyInput, { target: { value: 'sk-replacement' } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_and_close' }))
+
+    await waitFor(() =>
+      expect(updateApiKeysMock).toHaveBeenCalledWith([
+        { id: 'saved-key', key: 'sk-replacement', isEnabled: true },
+        { id: 'disabled-key', key: 'sk-disabled', isEnabled: false }
+      ])
+    )
+    expect(fetchResolvedProviderModelsMock).not.toHaveBeenCalled()
+  })
+
   it('offers the provider API key website from the key step', () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 

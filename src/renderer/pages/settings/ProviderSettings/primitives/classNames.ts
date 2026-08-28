@@ -511,7 +511,7 @@ export const fieldClasses = {
   inputActionButton: cn(fieldIconButtonBase, 'size-8'),
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
-    'flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+    'flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [&_svg]:-translate-y-px',
   titleWithHelp: 'flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1',
   titleHelpLink:
     'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-link transition-colors hover:underline'

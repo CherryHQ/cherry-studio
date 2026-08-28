@@ -1,8 +1,9 @@
 import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
-import { Eye, EyeOff, KeyRound } from 'lucide-react'
+import { Copy, Edit3, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,7 +12,8 @@ import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { ProviderModelCheck } from '../ModelList'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
-import { fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
+import { apiKeyListClasses, fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
+import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
@@ -33,13 +35,14 @@ export default function ApiKey({
   onContinueApiSetup
 }: ApiKeyProps) {
   const { t } = useTranslation()
-  const { provider } = useProvider(providerId)
+  const { provider, deleteApiKey, isDeletingApiKey } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
   const { inputApiKey, setInputApiKey, hasPendingSync, commitInputApiKeyNow } = useAuthenticationApiKey()
   const { data: apiKeysData, isLoading: isLoadingApiKeys } = useProviderApiKeys(providerId)
   const [showApiKey, setShowApiKey] = useState(false)
   const [keyListOpen, setKeyListOpen] = useState(false)
   const [apiKeyEdited, setApiKeyEdited] = useState(false)
+  const apiKeys = apiKeysData?.keys ?? []
 
   useEffect(() => {
     setShowApiKey(false)
@@ -59,11 +62,21 @@ export default function ApiKey({
     }
   }, [apiKeyEdited, commitInputApiKeyNow, hasPendingSync, onRequestModelPullGuide])
 
+  const handleDeleteApiKey = useCallback(
+    async (keyId: string) => {
+      try {
+        await deleteApiKey(keyId)
+      } catch {
+        toast.error(t('settings.provider.api_key.save_failed'))
+      }
+    },
+    [deleteApiKey, t]
+  )
+
   if (!provider || !meta.isApiKeyFieldVisible) {
     return null
   }
 
-  const apiKeys = apiKeysData?.keys ?? []
   const primaryApiKey = apiKeys.find((entry) => entry.isEnabled) ?? apiKeys[0]
   const requiresApiKey = provider.authOptional !== true
 
@@ -97,7 +110,7 @@ export default function ApiKey({
                 <div
                   className={cn(
                     fieldClasses.inputGroup,
-                    'transition-colors focus-within:border-ring focus-within:bg-accent/40 hover:border-border-strong hover:bg-accent/40'
+                    'group/api-key transition-colors focus-within:border-ring focus-within:bg-accent/40 hover:border-border-strong hover:bg-accent/40'
                   )}>
                   <button
                     type="button"
@@ -106,13 +119,45 @@ export default function ApiKey({
                     aria-haspopup="dialog"
                     aria-expanded={keyListOpen}
                     onClick={() => setKeyListOpen(true)}>
-                    <span className="min-w-0 flex-1 truncate font-mono text-foreground text-sm">
+                    <span className="min-w-0 truncate font-mono text-foreground text-sm">
                       {showApiKey ? primaryApiKey.key : maskStoredApiKey(primaryApiKey.key)}
                     </span>
                     {apiKeys.length > 1 ? (
                       <span className="shrink-0 text-muted-foreground text-xs">+{apiKeys.length - 1}</span>
                     ) : null}
                   </button>
+                  <div className="pointer-events-none flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/api-key:pointer-events-auto group-focus-within/api-key:opacity-100 group-hover/api-key:pointer-events-auto group-hover/api-key:opacity-100">
+                    <Tooltip content={t('settings.provider.api_key.copy')}>
+                      <button
+                        type="button"
+                        className={apiKeyListClasses.keyIconButton}
+                        aria-label={t('settings.provider.api_key.copy')}
+                        onClick={() => void copyApiKeyToClipboard(primaryApiKey.key, t)}>
+                        <Copy />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={t('common.edit')}>
+                      <button
+                        type="button"
+                        className={apiKeyListClasses.keyIconButton}
+                        aria-label={t('common.edit')}
+                        onClick={onOpenApiSetup}>
+                        <Edit3 />
+                      </button>
+                    </Tooltip>
+                    {apiKeys.length === 1 ? (
+                      <Tooltip content={t('common.delete')}>
+                        <button
+                          type="button"
+                          className={apiKeyListClasses.keyDestructiveIconButton}
+                          aria-label={t('common.delete')}
+                          disabled={isDeletingApiKey}
+                          onClick={() => void handleDeleteApiKey(primaryApiKey.id)}>
+                          <Trash2 />
+                        </button>
+                      </Tooltip>
+                    ) : null}
+                  </div>
                   <Tooltip
                     content={
                       showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')

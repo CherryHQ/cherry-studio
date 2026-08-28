@@ -98,6 +98,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const [pendingManualModelIds, setPendingManualModelIds] = useState<UniqueModelId[]>([])
   const [dialogOpen, setDialogOpen] = useState(true)
   const initializedRef = useRef(false)
+  const apiKeyInputInitializedRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const persistedModelsRef = useRef(new Map<UniqueModelId, Model>())
   const modelsPersistedRef = useRef(false)
@@ -161,6 +162,20 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   }, [])
 
   useEffect(() => clearCloseTimer, [clearCloseTimer])
+
+  useEffect(() => {
+    if (
+      initialStep !== 'api-key' ||
+      isLoadingApiKeys ||
+      apiKeysData === undefined ||
+      apiKeyInputInitializedRef.current
+    ) {
+      return
+    }
+
+    apiKeyInputInitializedRef.current = true
+    setApiKey(joinApiKeyString(storedApiKeyEntries.filter((entry) => entry.isEnabled).map((entry) => entry.key)))
+  }, [apiKeysData, initialStep, isLoadingApiKeys, storedApiKeyEntries])
 
   const requestClose = useCallback(() => {
     clearCloseTimer()
@@ -535,7 +550,10 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                     spellCheck={false}
                     placeholder={t('settings.provider.api_setup.keys_placeholder')}
                     aria-label={t('settings.provider.api_key.label')}
-                    onChange={(event) => setApiKey(event.target.value)}
+                    onChange={(event) => {
+                      apiKeyInputInitializedRef.current = true
+                      setApiKey(event.target.value)
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && parseProviderApiKeys(apiKey).length > 0) {
                         event.preventDefault()
