@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -15,6 +16,7 @@ import {
   Code,
   Columns2,
   ExternalLink,
+  Info,
   LayoutGrid,
   Link,
   RotateCcw,
@@ -67,6 +69,7 @@ const MinimalToolbar: FC<Props> = ({
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
   // While split, the primary pane's control closes the split rather than being
   // a dead "open it again" button.
   const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
@@ -360,24 +363,44 @@ const MinimalToolbar: FC<Props> = ({
             </Tooltip>
           )}
 
-          <Tooltip
-            content={
-              openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
-            }
-            placement="bottom">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={handleToggleOpenExternal}
-              className={toolbarButtonClassName({ active: openLinkExternal })}
-              aria-label={
+          {/* Sites only: a local app can open nothing outside itself, so the switch would lie. */}
+          {app.kind === 'site' && (
+            <Tooltip
+              content={
                 openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
               }
-              aria-pressed={openLinkExternal}>
-              <Link size={14} />
-            </Button>
-          </Tooltip>
+              placement="bottom">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleToggleOpenExternal}
+                className={toolbarButtonClassName({ active: openLinkExternal })}
+                aria-label={
+                  openLinkExternal
+                    ? t('miniApp.popup.open_link_external_on')
+                    : t('miniApp.popup.open_link_external_off')
+                }
+                aria-pressed={openLinkExternal}>
+                <Link size={14} />
+              </Button>
+            </Tooltip>
+          )}
+
+          {/* The same panel the launcher tile's context menu opens; sites have no package to describe. */}
+          {app.kind === 'app' && (
+            <Tooltip content={t('miniApp.detail.open')} placement="bottom">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setDetailOpen(true)}
+                className={toolbarButtonClassName()}
+                aria-label={t('miniApp.detail.open')}>
+                <Info size={14} />
+              </Button>
+            </Tooltip>
+          )}
 
           {isDev && (
             <Tooltip content={t('miniApp.popup.devtools')} placement="bottom">
@@ -394,6 +417,7 @@ const MinimalToolbar: FC<Props> = ({
           )}
         </div>
       </div>
+      {detailOpen && <MiniAppDetailPanel appId={app.appId} onClose={() => setDetailOpen(false)} />}
     </div>
   )
 }
