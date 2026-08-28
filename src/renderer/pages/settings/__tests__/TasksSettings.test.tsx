@@ -1302,12 +1302,12 @@ describe('TasksSettings detail behavior', () => {
       }
     ]
 
+    const user = userEvent.setup()
     render(<TasksSettings />)
 
-    fireEvent.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
-    const row = (await screen.findByText('agent.tasks.logs.cancelled')).closest('tr')
-    expect(row).not.toBeNull()
-    expect(within(row!).getByText('-')).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    const row = await screen.findByRole('row', { name: /agent\.tasks\.logs\.cancelled/ })
+    expect(within(row).getByText('-')).toBeInTheDocument()
   })
 
   it('filters channels to the owning Agent and uses Alert for delivery warnings', async () => {

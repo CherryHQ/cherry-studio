@@ -8,7 +8,7 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
   type: 'test.echo',
@@ -413,8 +413,14 @@ describe('JobService.getRunStatesByScheduleIds', () => {
 describe('JobService.setCancelRequestedTx', () => {
   setupTestDatabase()
 
-  it('records cancelRequestedAt once — a repeated cancel does not move it', async () => {
-    const job = jobService.create(baseRow({ status: 'running', startedAt: Date.now() }))
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('records cancelRequestedAt once — a repeated cancel does not move it', () => {
+    const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'], now })
+    const job = jobService.create(baseRow({ status: 'running', startedAt: now }))
     const db = application.get('DbService').getDb()
 
     jobService.setCancelRequestedTx(db, job.id)
@@ -422,13 +428,14 @@ describe('JobService.setCancelRequestedTx', () => {
     expect(first?.cancelRequested).toBe(true)
     expect(first?.cancelRequestedAt).not.toBeNull()
 
-    await new Promise((resolve) => setTimeout(resolve, 5))
+    vi.setSystemTime(now + 5_000)
     jobService.setCancelRequestedTx(db, job.id)
     expect(jobService.getById(job.id)?.cancelRequestedAt).toBe(first?.cancelRequestedAt)
   })
 
-  it('cancelManyTx stamps running rows once and leaves direct-cancelled rows unstamped', async () => {
+  it('cancelManyTx stamps running rows once and leaves direct-cancelled rows unstamped', () => {
     const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'], now })
     const running = jobService.create(baseRow({ status: 'running', queue: 'batch-q', startedAt: now }))
     const pending = jobService.create(baseRow({ status: 'pending', queue: 'batch-q' }))
     const db = application.get('DbService').getDb()
@@ -443,7 +450,7 @@ describe('JobService.setCancelRequestedTx', () => {
     // The pending row went straight to cancelled — no request, no timestamp.
     expect(jobService.getById(pending.id)).toMatchObject({ status: 'cancelled', cancelRequestedAt: null })
 
-    await new Promise((resolve) => setTimeout(resolve, 5))
+    vi.setSystemTime(now + 5_000)
     jobService.cancelManyTx(db, { queue: 'batch-q' }, null)
     expect(jobService.getById(running.id)?.cancelRequestedAt).toBe(stamped?.cancelRequestedAt)
   })
