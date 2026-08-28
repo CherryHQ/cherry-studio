@@ -206,14 +206,11 @@ standard Responses summary field remains off unless its endpoint explicitly opts
 
 `self-hosted` targets chat-template servers (vLLM / SGLang) that gate thinking through `chat_template_kwargs`:
 
-- `chat_template_kwargs.enable_thinking` — turns thinking on/off;
-- `chat_template_kwargs.thinking_budget` — caps the thinking-token budget.
+- `chat_template_kwargs.enable_thinking` — turns thinking on/off.
 
-The wire is endpoint-wide and static. `auto` and `effort` both emit `enable_thinking: true` plus a resolved
-`thinking_budget` (fallback 4096 tokens when the model declares no budget bounds); `off` emits `enable_thinking:
-false`. Because Qwen SKUs always think, a redundant `enable_thinking: true` is a tolerated no-op on modern vLLM, so
-one wire covers both Qwen and Hunyuan families. These targets are already part of the closed `chat_template_kwargs.*`
-operation set, so no schema change was needed to add the format.
+The wire only carries the toggle. Different vLLM/SGLang templates accept different budget field names, so a shared `thinking_budget` with a 4096 fallback would either truncate reasoning or send an invalid param. Only `enable_thinking: true/false` is generic — budget caps belong to a narrower per-family format when needed. Because Qwen SKUs always think, a redundant `enable_thinking: true` is a tolerated no-op on modern vLLM, so one wire covers both Qwen and Hunyuan families. These targets are already part of the closed `chat_template_kwargs.*` operation set, so no schema change was needed to add the format.
+
+`chat_template_kwargs` emissions are body-injected (via `createCustomParamsFetch`) rather than placed in `providerOptions`, so they survive the closed Responses schema that would otherwise drop them. They are injected at the lowest priority — `profile < assistant customParameters < callOverrides` — consistent with the existing custom-params body layer.
 
 ## User-selectable reasoning format
 
