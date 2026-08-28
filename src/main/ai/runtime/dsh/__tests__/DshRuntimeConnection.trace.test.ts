@@ -1,5 +1,5 @@
 import { trace } from '@opentelemetry/api'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeTraceContext } from '../../types'
 
@@ -30,7 +30,7 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
   bridgeRequest: vi.fn().mockResolvedValue(undefined),
-  harnessOptions: undefined as Record<string, unknown> | undefined,
+  harnessOptions: undefined as Record<string, any> | undefined,
   getShellEnv: vi.fn()
 }))
 
@@ -186,36 +186,50 @@ beforeEach(() => {
     SECRET: 'do-not-forward'
   })
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
+  runtimeMocks.harnessOptions = undefined
   vi.mocked(DshBridgeServer).mockClear()
   spans.length = 0
   startSpan.mockClear()
 })
 
-describe('DshRuntimeConnection tracing', () => {
-  it('starts the isolated child with the login-shell PATH but no unrelated host variables', async () => {
-    const connection = await new DshRuntimeConnection(connectInput).start()
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
-    expect(runtimeMocks.harnessOptions?.env).toMatchObject({
-      PATH: '/opt/homebrew/bin:/usr/bin',
-      HOME: '/Users/tester'
+describe('DshRuntimeConnection tracing', () => {
+  it('combines the login-shell PATH with managed CLIs without leaking the main-process environment', async () => {
+    vi.stubEnv('PATH', '/usr/bin')
+    vi.stubEnv('CHERRY_TEST_SECRET', 'do-not-copy')
+
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+
+    expect(env.PATH?.split(':')).toEqual(['/mock/feature.binary.data/shims', '/opt/homebrew/bin', '/usr/bin'])
+    expect(env).toMatchObject({
+      HOME: '/Users/tester',
+      MISE_DATA_DIR: '/mock/feature.binary.data',
+      MISE_CONFIG_DIR: '/mock/feature.binary.data/config',
+      MISE_CACHE_DIR: '/mock/feature.binary.data/cache',
+      MISE_STATE_DIR: '/mock/feature.binary.data/state',
+      MISE_SHIMS_DIR: '/mock/feature.binary.data/shims'
     })
-    expect(runtimeMocks.harnessOptions?.env).not.toHaveProperty('SECRET')
+    expect(env).not.toHaveProperty('CHERRY_TEST_SECRET')
+    expect(env).not.toHaveProperty('SECRET')
     await connection.close()
   })
 
-  it('normalizes a mixed-case Windows Path key for the isolated child', async () => {
+  it('normalizes a mixed-case login-shell Path key for the isolated child', async () => {
     runtimeMocks.getShellEnv.mockResolvedValueOnce({
       Path: 'C:\\Users\\tester\\bin;C:\\Windows',
       HOME: 'C:\\Users\\tester'
     })
 
     const connection = await new DshRuntimeConnection(connectInput).start()
+    const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
 
-    expect(runtimeMocks.harnessOptions?.env).toMatchObject({
-      PATH: 'C:\\Users\\tester\\bin;C:\\Windows',
-      HOME: 'C:\\Users\\tester'
-    })
-    expect(runtimeMocks.harnessOptions?.env).not.toHaveProperty('Path')
+    expect(env.PATH).toContain('C:\\Users\\tester\\bin;C:\\Windows')
+    expect(env.HOME).toBe('C:\\Users\\tester')
+    expect(env).not.toHaveProperty('Path')
     await connection.close()
   })
 

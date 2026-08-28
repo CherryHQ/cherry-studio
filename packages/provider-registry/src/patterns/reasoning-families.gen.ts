@@ -234,6 +234,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
+  { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },
   { pattern: 'glm-?5|glm-4[.-][567]', toggle: true },
   { pattern: 'glm-zero-preview' },
   { pattern: 'glm-z1' }

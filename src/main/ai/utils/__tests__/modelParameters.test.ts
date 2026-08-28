@@ -69,6 +69,22 @@ describe('getTemperature', () => {
     expect(getTemperature(a, model, OMIT_REASONING)).toBe(1)
   })
 
+  it('omits temperature when the resolved provider-model marks it unsupported', () => {
+    const a = makeAssistant({ temperature: 0.7 })
+    const model = makeModel({
+      id: 'moonshot::kimi-k2-6',
+      providerId: 'moonshot',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
+  })
+
   it('disables temperature for Gemini 3.x models', () => {
     const a = makeAssistant({ temperature: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })

@@ -9,7 +9,8 @@ import type {
   AgentSessionEvent,
   CompactionResult,
   ContextUsage,
-  ProviderConfig
+  ProviderConfig,
+  ToolDefinition
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -25,6 +26,12 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
+import {
+  getBinarySearchDirs,
+  getBinaryShimsDir,
+  mergeBinaryExecutionEnv,
+  mergePathSuffixes
+} from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -72,8 +79,11 @@ function quoteShellWord(value: string): string {
 }
 
 /** Preserve pi's own PATH prefix while appending directories resolved by the user's login shell. */
-export function buildPiLoginPathPrefix(loginPath: string | undefined): string | undefined {
-  return loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
+export function buildPiLoginPathPrefix(
+  loginPath: string | undefined,
+  platform: NodeJS.Platform = process.platform
+): string | undefined {
+  return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
 }
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
@@ -91,6 +101,27 @@ const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
     buildPiMcpToolName(serverName, toolName)
   )
 )
+
+function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const definedEnv = Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  )
+  const binarySearchDirs = getBinarySearchDirs()
+  const managedShimsDir = getBinaryShimsDir()
+  const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
+  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
+
+  if (callerOwnsMiseEnvironment) {
+    // A generic shell may already be activated against the user's mise installation. Do not
+    // redirect that installation to Cherry's isolated data directory or expose Cherry's shims
+    // under an incompatible MISE_* contract. Bundled standalone binaries remain a safe fallback,
+    // but stay behind the caller's PATH so they cannot replace the user's own tool versions.
+    return mergePathSuffixes(definedEnv, standaloneBinaryDirs, [managedShimsDir])
+  }
+
+  return mergeBinaryExecutionEnv(definedEnv, standaloneBinaryDirs)
+}
+
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -305,6 +336,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         (toolName) => this.disabledTools.has(toolName),
         authorizeTool
       )
+      // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
+      // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
+      const managedBashTool = pi.createBashToolDefinition(workspacePath, {
+        spawnHook: (context) => ({
+          ...context,
+          env: mergePiBashExecutionEnv(context.env)
+        })
+      }) as ToolDefinition
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,
@@ -327,7 +366,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         model,
         // pi treats `tools` as the complete active-tool allowlist, not just a built-in selector.
         tools: [...PI_BUILTIN_TOOL_NAMES, ...customTools.map((tool) => tool.name)],
-        customTools,
+        customTools: [managedBashTool, ...customTools],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
         ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
@@ -585,8 +624,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.session?.clearQueue()
       this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
     }
-    if (error || this.lastStopReason === 'error') {
-      const failure = error instanceof Error ? error : new Error(this.lastAgentError ?? 'pi agent turn failed')
+    if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
+      let failure: Error
+      if (error instanceof Error) {
+        failure = error
+      } else if (this.lastStopReason === 'length') {
+        failure = new Error(
+          this.lastAgentError ??
+            'Response truncated at the model output limit (stopReason: length). The reply may be incomplete or empty — try continuing the turn or retrying with a higher maximum output.'
+        )
+      } else {
+        failure = new Error(this.lastAgentError ?? 'pi agent turn failed')
+      }
       logger.error('pi prompt failed', failure)
       this.eventQueue.push({ type: 'error', error: failure })
     } else {
