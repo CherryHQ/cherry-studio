@@ -36621,11 +36621,6 @@
       }
     },
     {
-      "apiModelId": "deepseek-v3.2",
-      "modelId": "deepseek-v3-2",
-      "providerId": "tokenhub"
-    },
-    {
       "apiModelId": "deepseek-v4-flash",
       "modelId": "deepseek-v4-flash",
       "providerId": "tokenhub"
@@ -36673,77 +36668,6 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "hunyuan-2.0-thinking-20251109",
-      "modelId": "hunyuan-2-0",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hunyuan-2.0-instruct-20251111",
-      "modelId": "hunyuan-2-0-instruct",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hy-image-lite",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/lite",
-              "isSync": true
-            }
-          }
-        }
-      },
-      "modelId": "hy-image-lite",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hy-image-v3.0",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "seed": {
-                "type": "text"
-              }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/submit"
-            }
-          }
-        }
-      },
-      "modelId": "hy-image-v3-0",
-      "providerId": "tokenhub"
-    },
-    {
       "apiModelId": "hy-mt2-lite",
       "modelId": "hy-mt2-lite",
       "providerId": "tokenhub"
@@ -36764,11 +36688,6 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "hy3-preview",
-      "modelId": "hy3-preview",
-      "providerId": "tokenhub"
-    },
-    {
       "apiModelId": "hy4-preview",
       "modelId": "hy4-preview",
       "providerId": "tokenhub"
@@ -36786,11 +36705,6 @@
     {
       "apiModelId": "kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "minimax-m2.5",
-      "modelId": "minimax-m2-5",
       "providerId": "tokenhub"
     },
     {
@@ -37987,5 +37901,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f94362dfbc16c6ff"
+  "version": "87b257e7a19813f5"
 }
