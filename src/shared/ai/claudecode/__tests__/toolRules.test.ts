@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { CLAUDE_TOOL_DEFS } from '../toolRegistry'
 import {
   buildClaudeMcpToolName,
   classifyClaudeTool,
@@ -52,6 +53,12 @@ describe('Claude Code tool rules', () => {
       'non-bypassable'
     )
     expect(classifyClaudeToolName('EnterPlanMode')).toBe('requires-user')
+  })
+
+  it('keeps requires-user classification in lockstep with the registry', () => {
+    for (const definition of CLAUDE_TOOL_DEFS.filter((tool) => tool.requiresUserInteraction)) {
+      expect(classifyClaudeTool(descriptor(definition.name))).toBe('requires-user')
+    }
   })
 
   it('derives SDK catalog approvals without Bash prefix exceptions', () => {

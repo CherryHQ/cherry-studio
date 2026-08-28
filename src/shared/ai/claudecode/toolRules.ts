@@ -3,6 +3,7 @@ import { normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
 
 import type { ToolApproval, ToolOrigin } from '../tool'
 import { buildMcpWireToolId, buildMcpWireWildcard } from '../tools/mcpSourcePolicy'
+import { claudeToolRequiresUserInteraction } from './toolRegistry'
 
 export interface ClaudeToolDescriptor {
   id: string
@@ -24,7 +25,6 @@ export interface ClaudeToolPolicy {
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead'])
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])
 const SAFE_TOOLS = new Set(['Task', 'TodoWrite'])
-const USER_RESPONSE_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
 const NON_BYPASSABLE_TOOLS = new Set(['mcp__cherry-tools__session_create', 'mcp__cherry-tools__session_send'])
 
 export function normalizeClaudeBuiltinName(name: string): string {
@@ -63,7 +63,7 @@ export function matchesClaudeToolRule(rule: string, descriptor: ClaudeToolDescri
 
 /** Classify a Claude descriptor for the shared evaluator's adapter boundary. */
 export function classifyClaudeTool(descriptor: ClaudeToolDescriptor): ToolCategory {
-  if (USER_RESPONSE_TOOLS.has(normalizeClaudeBuiltinName(descriptor.id))) return 'requires-user'
+  if (claudeToolRequiresUserInteraction(normalizeClaudeBuiltinName(descriptor.id))) return 'requires-user'
   if (NON_BYPASSABLE_TOOLS.has(descriptor.id) || descriptor.bypassApproval === 'enforce') return 'non-bypassable'
   if (descriptor.sourceApproval === 'prompt') return 'sensitive-first-party'
   const name = normalizeClaudeBuiltinName(descriptor.id)

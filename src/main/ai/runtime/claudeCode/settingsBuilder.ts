@@ -77,7 +77,7 @@ import {
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
-import { buildClaudePermissionContext } from './permissionContext'
+import { buildClaudePermissionContext, isClaudeDelegatedId } from './permissionContext'
 import { toSdkPermissionMode } from './permissionMode'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
@@ -469,7 +469,7 @@ async function buildToolPermissions(
     }
 
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    const delegated = typeof opts.agentID === 'string' && opts.agentID.length > 0
+    const delegated = isClaudeDelegatedId(opts.agentID)
     const permissionCall = buildClaudePermissionCall(toolName, input, mountedServers, builtinRole)
     const decision = await evaluatePermission(
       permissionCall,
@@ -511,8 +511,7 @@ async function buildToolPermissions(
       decision.effect === 'ask' &&
       !delegated &&
       interactionState.userResponse === 'message' &&
-      permissionCall.category !== 'requires-user' &&
-      permissionCall.category !== 'sensitive-first-party'
+      ['ordinary', 'shell', 'read', 'edit'].includes(permissionCall.category)
     ) {
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }

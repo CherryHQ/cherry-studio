@@ -13,6 +13,11 @@ interface BuildClaudePermissionContextInput {
   log?: PermissionContext['log']
 }
 
+/** The SDK uses `agent_id` for subagent hook input and `agentID` for canUseTool options. */
+export function isClaudeDelegatedId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
 /** Keep canUseTool and PreToolUse on the same interaction facts for warm and delegated calls. */
 export function buildClaudePermissionContext(input: BuildClaudePermissionContextInput): PermissionContext {
   const interaction = input.delegated

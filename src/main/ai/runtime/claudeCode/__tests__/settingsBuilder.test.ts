@@ -3256,6 +3256,17 @@ describe('buildClaudeCodeSessionSettings', () => {
       await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledOnce())
       expect(emit).toHaveBeenCalledWith(expect.objectContaining({ presentation: 'message' }))
       expect(pending).toBeInstanceOf(Promise)
+
+      mocks.approvalRegister.mockClear()
+      emit.mockClear()
+      const sessionPending = settings.canUseTool!(
+        'mcp__cherry-tools__session_send',
+        { target_session_id: 'session-2' },
+        { signal: { aborted: false }, toolUseID: 'tu-session-wake' } as never
+      )
+      await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledOnce())
+      expect(emit).toHaveBeenCalledWith(expect.objectContaining({ presentation: 'message' }))
+      expect(sessionPending).toBeInstanceOf(Promise)
     })
 
     it('denies an ordinary tool call after the turn ended', async () => {

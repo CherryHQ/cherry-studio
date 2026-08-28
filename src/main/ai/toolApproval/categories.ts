@@ -13,6 +13,7 @@ import { findBuiltinToolPolicy } from './builtinToolPolicy'
 
 const PATH_FIELDS: Record<string, string> = {
   Edit: 'file_path',
+  MultiEdit: 'file_path',
   Glob: 'path',
   Grep: 'path',
   NotebookEdit: 'notebook_path',

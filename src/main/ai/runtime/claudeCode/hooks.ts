@@ -23,7 +23,7 @@ import { rtkRewrite } from '@main/utils/rtk'
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
-import { buildClaudePermissionContext } from './permissionContext'
+import { buildClaudePermissionContext, isClaudeDelegatedId } from './permissionContext'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
 
@@ -83,7 +83,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
     const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
-    const delegated = typeof (input as Record<string, unknown>).agent_id === 'string'
+    // BaseHookInput exposes the subagent identity as `agent_id`; empty strings are not identities.
+    const delegated = isClaudeDelegatedId((input as Record<string, unknown>).agent_id)
     const decision = await evaluatePermission(
       buildClaudePermissionCall(toolName, toolInput, ctx.mountedServers, ctx.builtinRole),
       buildClaudePermissionContext({

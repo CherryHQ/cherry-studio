@@ -34,6 +34,8 @@ function hasPermanentDelete(call: PermissionCall): boolean {
 }
 
 function evaluateProductConduct(call: PermissionCall, context: PermissionContext): PermissionDecision | undefined {
+  const headless = context.turn === 'headless' || context.responder === 'unavailable'
+
   if (context.builtinRole && hasPermanentDelete(call)) {
     return deny(
       'This built-in Agent blocked a permanently destructive operation. It must never permanently delete data. For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.',
@@ -41,7 +43,6 @@ function evaluateProductConduct(call: PermissionCall, context: PermissionContext
     )
   }
 
-  const headless = context.turn === 'headless' || context.responder === 'unavailable'
   if (context.builtinRole === 'assistant' && isConductTag(call, 'feedback-submission')) {
     if (headless) {
       return deny(
@@ -70,7 +71,7 @@ function evaluateProductConduct(call: PermissionCall, context: PermissionContext
     }
   }
 
-  if (context.turn === 'headless' && isConductTag(call, 'agent-config-mutation')) {
+  if (headless && isConductTag(call, 'agent-config-mutation')) {
     return deny(
       'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.',
       'headless-config-mutation'

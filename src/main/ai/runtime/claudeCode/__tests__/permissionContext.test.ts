@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { buildClaudePermissionContext } from '../permissionContext'
+import { buildClaudePermissionContext, isClaudeDelegatedId } from '../permissionContext'
 
 describe('buildClaudePermissionContext', () => {
+  it('uses one non-empty identity predicate for both SDK callback shapes', () => {
+    expect(isClaudeDelegatedId('subagent-1')).toBe(true)
+    expect(isClaudeDelegatedId('')).toBe(false)
+    expect(isClaudeDelegatedId(undefined)).toBe(false)
+  })
+
   const base = {
     mode: 'default' as const,
     roots: { workspace: '/workspace', agentData: '/agent-data' },
