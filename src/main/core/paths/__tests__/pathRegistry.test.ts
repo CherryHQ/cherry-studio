@@ -186,6 +186,19 @@ describe('buildPathRegistry', () => {
     // Same reason `feature.agents.builtin` is in NO_ENSURE: a signed, read-only tree.
     expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
   })
+
+  it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.cli.antigravity.root']).toBe(path.join('/mock/userData', 'Data', 'CodeCli', 'Antigravity'))
+    expect(shouldAutoEnsure('feature.cli.antigravity.root')).toBe(true)
+    // The settings file must sit under the dir handed to the CLI as `--gemini_dir`,
+    // in the fixed `antigravity-cli/` subdir the binary itself resolves.
+    expect(registry['feature.cli.antigravity.settings.file']).toBe(
+      path.join(registry['feature.cli.antigravity.root'], 'antigravity-cli', 'settings.json')
+    )
+    expect(shouldAutoEnsure('feature.cli.antigravity.settings.file')).toBe(true)
+  })
 })
 
 describe('pathRegistry.shouldAutoEnsure', () => {
