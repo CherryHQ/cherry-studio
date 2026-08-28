@@ -6,7 +6,12 @@
 import { ModelIndex, ProviderModelIndex } from './registry-index'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
-import type { EndpointDialect, ProviderConfig, ProviderReasoningFormatSelector, RegistryEndpointConfig } from './schemas/provider'
+import type {
+  EndpointDialect,
+  ProviderConfig,
+  ProviderReasoningFormatSelector,
+  RegistryEndpointConfig
+} from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 
 export interface ModelLookupResult {
