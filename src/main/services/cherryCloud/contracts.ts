@@ -14,13 +14,13 @@ function isSecureOrLoopbackUrl(value: string): boolean {
   )
 }
 
-export const createDesktopAuthorizationResponseSchema = z.strictObject({
+export const createDesktopAuthorizationResponseSchema = z.looseObject({
   authorization_id: z.uuid(),
   authorization_url: z.url().refine(isSecureOrLoopbackUrl, 'Authorization URL must use HTTPS or loopback HTTP'),
   expires_at: utcDateTimeSchema
 })
 
-const tokenSetSchema = z.strictObject({
+const tokenSetSchema = z.looseObject({
   token_type: z.literal('Bearer'),
   access_token: base64Url32BytesSchema,
   expires_in: z.number().int().positive(),
@@ -58,16 +58,16 @@ export const accountSnapshotSchema = z.looseObject({
   quota_pools: z.array(quotaPoolSchema).default([])
 })
 
-export const exchangeDesktopAuthorizationResponseSchema = z.strictObject({
+export const exchangeDesktopAuthorizationResponseSchema = z.looseObject({
   token_set: tokenSetSchema,
   account: accountSnapshotSchema
 })
 
-export const refreshProductSessionResponseSchema = z.strictObject({
+export const refreshProductSessionResponseSchema = z.looseObject({
   token_set: tokenSetSchema
 })
 
-export const cloudModelListSchema = z.strictObject({
+export const cloudModelListSchema = z.looseObject({
   data: z.array(
     z.looseObject({
       id: z.string().min(1),
