@@ -8,7 +8,7 @@ date: 2026-08-24
 
 ## What changed
 
-DXT and MCPB packages larger than 50 MiB are rejected before they are transferred to the main process.
+DXT and MCPB packages larger than 50 MiB are rejected before they are copied into the app-managed staging area.
 
 ## Why this matters to the user
 

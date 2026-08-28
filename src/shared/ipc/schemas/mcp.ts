@@ -18,8 +18,8 @@ import { defineRoute } from '../define'
  * `server.list_prompts` / `server.list_resources` / `server.get_prompt` keep `z.any()` outputs: they
  * hand back raw MCP protocol shapes (`GetPromptResult`) whose types live in the SDK / src/main, and
  * the renderer consumes them untyped — same contract the legacy preload had.
- * `server.read_resource_preview` is typed, since its shape exists for the composer alone. Upload inputs carry the file as an ArrayBuffer
- * (structured-clone safe); the renderer does `file.arrayBuffer()` at the call site now.
+ * `server.read_resource_preview` is typed, since its shape exists for the composer alone. Package-upload inputs carry
+ * only an absolute native path; the main process validates and copies the selected file through a bounded stream.
  */
 const serverId = z.object({ serverId: z.string() })
 const serverIdNonEmpty = z.object({ serverId: z.string().min(1) })
