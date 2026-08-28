@@ -429,7 +429,7 @@ describe('buildDshCompositionYaml', () => {
     expect(providerRoute(yaml, 'deepseek').models[0].reasoningEfforts).toBe(false)
   })
 
-  it('rejects models that explicitly declare no text input', () => {
-    expect(() => makeInjection({ inputModalities: [MODALITY.AUDIO] })).toThrow('text input is required')
+  it('does not reject models based on their declared input modalities', () => {
+    expect(makeInjection({ inputModalities: [MODALITY.AUDIO] }).modelConfig.input).toEqual(['text'])
   })
 })
