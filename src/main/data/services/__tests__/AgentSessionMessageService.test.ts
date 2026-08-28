@@ -428,14 +428,21 @@ describe('AgentSessionMessageService', () => {
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
-      // Archived (not purged) agent: the link survives so restoring it re-attaches the session.
-      expect(agentSessionService.getById('target').agentId).toBe('agent-b')
+      expect(() => agentSessionService.getById('target')).toThrow(/not found/i)
+      const [retained] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'target'))
+      expect(retained.agentId).toBe('agent-b')
       const [result] = agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
       expect(result.delivery).toMatchObject({
         inReplyTo: request.id,
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
+
+      agentService.restoreAgent('agent-b')
+      expect(agentSessionService.getById('target').agentId).toBe('agent-b')
     })
   })
 
