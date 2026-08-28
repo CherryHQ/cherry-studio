@@ -709,7 +709,7 @@ describe('utils/image', () => {
           await readBlob(previewBlob!),
           'image/svg+xml'
         ).documentElement
-        expect(previewSvg.hasAttribute('width')).toBe(false)
+        expect(previewSvg.getAttribute('width')).toBe('100%')
         expect(previewSvg.hasAttribute('height')).toBe(false)
       }
     )
