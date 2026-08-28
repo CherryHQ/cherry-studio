@@ -9,6 +9,9 @@ vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
 const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
 vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
 
+const { loggerWarnMock } = vi.hoisted(() => ({ loggerWarnMock: vi.fn() }))
+vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ warn: loggerWarnMock }) } }))
+
 describe('prepareWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -30,11 +33,29 @@ describe('prepareWindow', () => {
     expect(initI18nMock).toHaveBeenCalledTimes(1)
   })
 
-  it('loads the DataApi DevTools control surface before window preparation completes', async () => {
-    const pending = prepareWindow({ preference: 'all' })
+  it('waits for the DataApi DevTools control surface before window preparation completes', async () => {
+    let resolveDevtools!: () => void
+    exposeControlSurfaceMock.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveDevtools = resolve)))
+    let settled = false
+    const pending = prepareWindow({ preference: 'all' }).then(() => (settled = true))
 
     await vi.waitFor(() => expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    resolveDevtools()
     await pending
+    expect(settled).toBe(true)
+  })
+
+  it('continues window preparation when development DevTools fail to initialize', async () => {
+    exposeControlSurfaceMock.mockRejectedValueOnce(new Error('recorder chunk failed'))
+
+    await expect(prepareWindow({ preference: 'all' })).resolves.toBeUndefined()
+
+    expect(initI18nMock).toHaveBeenCalledTimes(1)
+    expect(preferenceService.preloadAll).toHaveBeenCalledTimes(1)
+    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to initialize DataApi DevTools', expect.any(Error))
   })
 
   it('resolves only after both i18n and the preference warm-up complete', async () => {

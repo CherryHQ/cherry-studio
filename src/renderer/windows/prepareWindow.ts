@@ -1,4 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
 import { initI18n } from '@renderer/i18n/resolver'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
@@ -6,6 +7,8 @@ interface PrepareWindowOptions {
   /** Preference keys the first frame reads — 'all' warms the entire cache. */
   preference: 'all' | UnifiedPreferenceKeyType[]
 }
+
+const logger = loggerService.withContext('prepareWindow')
 
 /**
  * Shared entry-point prologue: every window's `entryPoint.tsx` awaits this before
@@ -19,7 +22,9 @@ export async function prepareWindow(options: PrepareWindowOptions): Promise<void
   // Keep the full recorder out of production bundles while still installing it
   // before the first development render (and thus the first DataApi request).
   const devtoolsReady = import.meta.env.DEV
-    ? import('@data/utils/dataApiDevtools').then(({ DataApiDevtools }) => DataApiDevtools.exposeControlSurface())
+    ? import('@data/utils/dataApiDevtools')
+        .then(({ DataApiDevtools }) => DataApiDevtools.exposeControlSurface())
+        .catch((error) => logger.warn('Failed to initialize DataApi DevTools', error as Error))
     : Promise.resolve()
 
   const preferencesWarm =
