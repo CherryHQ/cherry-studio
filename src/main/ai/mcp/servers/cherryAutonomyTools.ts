@@ -519,12 +519,9 @@ export class CherryAutonomyTools {
     this.assertSessionToolsAuthorized()
     const sessionId = typeof args.session_id === 'string' ? args.session_id.trim() : ''
     if (!sessionId) throw new McpError(ErrorCode.InvalidParams, "'session_id' is required")
-    if (!agentSessionService.isAddressable(sessionId)) {
-      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'The target Session is not addressable')
-    }
     const cursor = typeof args.cursor === 'string' && args.cursor.trim() ? args.cursor.trim() : undefined
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 10
-    const page = agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit })
+    const page = agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit, addressableOnly: true })
     const turns = page.items.toReversed().map((message) => ({
       id: message.id,
       role: message.role,

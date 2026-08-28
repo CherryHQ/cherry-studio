@@ -88,7 +88,7 @@ const BUILTIN_TOOL_POLICIES = {
   cherryNotify: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, NOTIFY_TOOL_NAME, 'auto'),
   cherryConfig: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONFIG_TOOL_NAME, 'auto'),
   cherrySessionList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_LIST_TOOL_NAME, 'auto'),
-  cherrySessionRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_READ_TOOL_NAME, 'auto'),
+  cherrySessionRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_READ_TOOL_NAME, 'required', 'enforce'),
   cherrySessionSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEARCH_TOOL_NAME, 'auto'),
   cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
   cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'required', 'enforce'),

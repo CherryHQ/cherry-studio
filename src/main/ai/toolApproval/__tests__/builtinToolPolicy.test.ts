@@ -29,9 +29,12 @@ describe('builtinToolPolicy', () => {
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_LIST_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval).toBe(
       'auto'
     )
-    expect(
-      findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_READ_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval
-    ).toBe('auto')
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_READ_TOOL_NAME), WITHOUT_HOST_TOOLS)).toMatchObject(
+      {
+        approval: 'required',
+        bypassApproval: 'enforce'
+      }
+    )
     expect(findBuiltinToolPolicy('mcp__skills__install_skill', WITHOUT_HOST_TOOLS)?.approval).toBe('runtime')
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME), WITHOUT_HOST_TOOLS)).toMatchObject(
       {

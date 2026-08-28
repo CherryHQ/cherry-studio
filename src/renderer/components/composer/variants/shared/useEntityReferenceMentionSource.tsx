@@ -148,7 +148,9 @@ export function useEntityReferenceMentionItems({
 
               // Token insertion bypasses the composer's input-length guards (they sit on the
               // typing and paste paths), so the block is budgeted against what the draft has left.
-              const remainingChars = COMPOSER_INPUT_MAX_LENGTH - draft.text.length
+              // The token command also inserts one literal separator after the chip. Reserve it
+              // before budgeting the asynchronous prompt text so serialized text stays bounded.
+              const remainingChars = COMPOSER_INPUT_MAX_LENGTH - draft.text.length - 1
               if (remainingChars < REFERENCE_MIN_ROOM_CHARS) {
                 toast.error(t('chat.input.reference_panel.no_room'))
                 return

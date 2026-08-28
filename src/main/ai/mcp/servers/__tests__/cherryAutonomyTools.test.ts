@@ -24,7 +24,6 @@ const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 const mockGetSession = vi.fn()
 const mockListSessions = vi.fn()
-const mockIsAddressableSession = vi.fn()
 const mockListSessionMessages = vi.fn()
 const mockSearchSessions = vi.fn()
 const mockSearchSessionMessages = vi.fn()
@@ -51,7 +50,6 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
-    isAddressable: mockIsAddressableSession,
     listAddressableByCursor: mockListSessions,
     searchWithMetadataEvidence: mockSearchSessions
   }
@@ -128,6 +126,7 @@ vi.mock('@main/services/MainWindowService', () => ({
   }
 }))
 
+const { AgentSessionDeliveryRoutingError } = await import('@data/services/AgentSessionMessageService')
 const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
 type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
@@ -159,7 +158,6 @@ describe('CherryAutonomyTools', () => {
     vi.clearAllMocks()
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
-    mockIsAddressableSession.mockReturnValue(true)
     mockListSessionMessages.mockReturnValue({ items: [], nextCursor: undefined })
     mockSearchSessions.mockReturnValue([])
     mockSearchSessionMessages.mockReturnValue([])
@@ -239,8 +237,11 @@ describe('CherryAutonomyTools', () => {
         'session_read'
       )
 
-      expect(mockIsAddressableSession).toHaveBeenCalledWith('session_b')
-      expect(mockListSessionMessages).toHaveBeenCalledWith('session_b', { cursor: 'newer-cursor', limit: 2 })
+      expect(mockListSessionMessages).toHaveBeenCalledWith('session_b', {
+        cursor: 'newer-cursor',
+        limit: 2,
+        addressableOnly: true
+      })
       expect(JSON.parse(result.content[0].text)).toEqual({
         sessionId: 'session_b',
         turns: [
@@ -262,7 +263,9 @@ describe('CherryAutonomyTools', () => {
     })
 
     it('does not read an orphaned or deleted-Agent Session', async () => {
-      mockIsAddressableSession.mockReturnValue(false)
+      mockListSessionMessages.mockImplementation(() => {
+        throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'The target Session is not addressable')
+      })
 
       const result = await callTool(createServer(), { session_id: 'orphan' }, 'session_read')
 
@@ -270,7 +273,11 @@ describe('CherryAutonomyTools', () => {
       expect(JSON.parse(result.content[0].text)).toMatchObject({
         error: { code: 'TARGET_UNAVAILABLE' }
       })
-      expect(mockListSessionMessages).not.toHaveBeenCalled()
+      expect(mockListSessionMessages).toHaveBeenCalledWith('orphan', {
+        cursor: undefined,
+        limit: 10,
+        addressableOnly: true
+      })
     })
 
     it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
