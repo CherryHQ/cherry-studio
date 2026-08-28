@@ -9,7 +9,7 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
-import type { OrderEndpoints } from './_endpointHelpers'
+import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 import { CreateLogoSchema } from './logo'
 
 /**
@@ -53,16 +53,23 @@ export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
  * Zod schema for updating an existing miniapp.
  *
  * Preset rows may only update `status`; custom rows can also update their
- * user-editable fields. Reordering goes through the dedicated `/order`
- * endpoints, not this PATCH.
+ * user-editable fields. Standalone reordering uses the dedicated `/order`
+ * endpoints; `order` here is only valid with a status update.
  */
-export const UpdateMiniAppSchema = z.strictObject({
-  status: MiniAppStatusSchema.optional(),
-  name: z.string().min(1).optional(),
-  url: MiniAppUrlSchema.optional()
-  // Logo edits (preset key / image upload / clear) go through the
-  // `mini_app.set_logo` IpcApi command, not this PATCH body.
-})
+export const UpdateMiniAppSchema = z
+  .strictObject({
+    status: MiniAppStatusSchema.optional(),
+    /** Place a row in its target status partition atomically with the status change. */
+    order: OrderRequestSchema.optional(),
+    name: z.string().min(1).optional(),
+    url: MiniAppUrlSchema.optional()
+    // Logo edits (preset key / image upload / clear) go through the
+    // `mini_app.set_logo` IpcApi command, not this PATCH body.
+  })
+  .refine((dto) => dto.order === undefined || dto.status !== undefined, {
+    message: 'order requires status',
+    path: ['order']
+  })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
 /**

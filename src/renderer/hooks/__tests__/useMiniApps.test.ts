@@ -439,6 +439,30 @@ describe('useMiniApps', () => {
       expect(patchCalls).toHaveLength(2)
     })
 
+    it('applies ordered status updates in sequence and refreshes once after the batch', async () => {
+      const invalidate = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useInvalidateCache.mockReturnValue(invalidate)
+      const patch = vi.mocked(dataApiService.patch)
+      patch.mockResolvedValue(createMiniApp('updated'))
+
+      const { result } = renderHook(() => useMiniApps())
+      MockDataApiUtils.resetMocks()
+
+      await act(async () => {
+        await result.current.setAppStatusBulk([
+          { appId: 'a', status: 'enabled', order: { before: 'anchor' } },
+          { appId: 'b', status: 'enabled', order: { position: 'last' } }
+        ])
+      })
+
+      expect(MockDataApiUtils.getCalls('patch')).toEqual([
+        ['/mini-apps/a', { body: { status: 'enabled', order: { before: 'anchor' } } }],
+        ['/mini-apps/b', { body: { status: 'enabled', order: { position: 'last' } } }]
+      ])
+      expect(invalidate).toHaveBeenCalledTimes(1)
+      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
+    })
+
     it('does not touch rows the caller never names — region-hidden apps stay put', async () => {
       // Replaces the legacy "updateMiniApps under Global mode disables CN apps"
       // bug. With the command-style API the caller only PATCHes what it names.
@@ -496,6 +520,27 @@ describe('useMiniApps', () => {
       })
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+    })
+
+    it('should pass target placement with the status update', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue({ success: true })
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: mockTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateAppStatus('app1', 'enabled', { before: 'anchor' })
+      })
+
+      expect(mockTrigger).toHaveBeenCalledWith({
+        params: { appId: 'app1' },
+        body: { status: 'enabled', order: { before: 'anchor' } }
+      })
     })
   })
 
@@ -681,6 +726,8 @@ describe('useMiniApps', () => {
     it('throws when one of the PATCHes fails and invalidates the cache', async () => {
       const apps = [createMiniApp('app1', { status: 'disabled' }), createMiniApp('app2', { status: 'disabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      const invalidate = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useInvalidateCache.mockReturnValue(invalidate)
 
       vi.mocked(dataApiService.patch).mockImplementation(async (path: string) => {
         if (path === '/mini-apps/app1') return { success: true } as never
@@ -698,6 +745,9 @@ describe('useMiniApps', () => {
           ])
         ).rejects.toThrow()
       })
+
+      expect(invalidate).toHaveBeenCalledTimes(1)
+      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
     })
   })
 })

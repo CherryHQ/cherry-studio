@@ -329,6 +329,39 @@ describe('MiniAppService', () => {
       expect(result.orderKey > 'a5').toBe(true)
     })
 
+    it('should commit a status change and target placement together', async () => {
+      await seedCustom({ appId: 'first', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a2' })
+      await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a0' })
+
+      const result = miniAppService.update('mover', {
+        status: 'enabled',
+        order: { before: 'anchor' }
+      })
+
+      expect(result.status).toBe('enabled')
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'mover', 'anchor'])
+    })
+
+    it('should roll back the status change when the target placement is invalid', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a5' })
+
+      let error: unknown
+      try {
+        miniAppService.update('mover', {
+          status: 'enabled',
+          order: { before: 'missing-anchor' }
+        })
+      } catch (caught) {
+        error = caught
+      }
+
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      const stored = miniAppService.getByAppId('mover')
+      expect(stored).toMatchObject({ status: 'disabled', orderKey: 'a5' })
+    })
+
     it('should keep the existing orderKey when status is unchanged', async () => {
       await seedCustom({ appId: 'stay', status: 'enabled', orderKey: 'a5' })
 

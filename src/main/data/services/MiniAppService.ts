@@ -182,11 +182,16 @@ export class MiniAppService {
    * between them keep the same relative position among visible rows, generating
    * a fresh key between the same neighbors when needed. Moving into visible
    * status lands at the visible tail; moving into `disabled` lands at the
-   * disabled tail.
+   * disabled tail. When `order` is provided, the status and target placement
+   * commit in the same transaction.
    */
   update(appId: string, dto: UpdateMiniAppInput): MiniApp {
     const hasStatusUpdate = dto.status !== undefined
     const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
+
+    if (dto.order !== undefined && !hasStatusUpdate) {
+      throw DataApiErrorFactory.validation({ order: ['order requires status'] }, 'Order requires a status update')
+    }
 
     if (!hasStatusUpdate && !hasCustomUpdate) {
       throw DataApiErrorFactory.validation(
@@ -230,7 +235,7 @@ export class MiniAppService {
           if (hasStatusUpdate) {
             const targetStatus = dto.status as MiniAppStatus
             updates.status = targetStatus
-            if (existing.status !== targetStatus) {
+            if (existing.status !== targetStatus && dto.order === undefined) {
               if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
                 const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
                 const [before] = tx
@@ -278,7 +283,14 @@ export class MiniAppService {
           }
 
           const [updated] = tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning().all()
-          return updated
+          if (dto.order === undefined || dto.status === undefined) return updated
+
+          applyMoves(tx, miniAppTable, [{ id: appId, anchor: dto.order }], {
+            pkColumn: miniAppTable.appId,
+            scope: orderScopeForStatus(dto.status)
+          })
+          const [ordered] = tx.select().from(miniAppTable).where(eq(miniAppTable.appId, appId)).limit(1).all()
+          return ordered
         }),
       defaultHandlersFor('MiniApp', appId)
     )

@@ -67,19 +67,17 @@ describe('useMiniAppVisibility', () => {
     })
   })
 
-  it('show flips a single row to enabled via updateAppStatus', async () => {
+  it('show flips a single row to enabled via updateAppStatus', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.show(mocks.disabled[0]))
 
     expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
     expect(result.current.hidden).toEqual([])
-    expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled')
-    await waitFor(() => {
-      expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
-    })
+    expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled', { position: 'last' })
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
   })
 
-  it('hides then shows a visible app back at its original index, not the tail', async () => {
+  it('hides then shows a visible app back at its original index, not the tail', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     const first = mocks.miniApps[0]
 
@@ -90,10 +88,8 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.show(first))
     expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b'])
     expect(result.current.hidden.map((a) => a.appId)).toEqual(['c'])
-    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('a', 'enabled')
-    await waitFor(() => {
-      expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
-    })
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('a', 'enabled', { before: 'b' })
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
   })
 
   it('restores two hidden apps to original order even when shown in reverse', () => {
@@ -110,7 +106,7 @@ describe('useMiniAppVisibility', () => {
     expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
   })
 
-  it('reset restores hidden apps to their original visible rank instead of appending', async () => {
+  it('reset restores hidden apps to their original visible rank instead of appending', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     const first = mocks.miniApps[0]
 
@@ -120,9 +116,11 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.reset())
     expect(result.current.hidden).toEqual([])
     expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
-    await waitFor(() => {
-      expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
-    })
+    expect(mocks.setAppStatusBulk).toHaveBeenCalledWith([
+      { appId: 'a', status: 'enabled', order: { before: 'b' } },
+      { appId: 'c', status: 'enabled', order: { position: 'last' } }
+    ])
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
   })
 
   it('swap explicitly names every row in the move and keeps pinned rows visible', () => {
@@ -158,7 +156,7 @@ describe('useMiniAppVisibility', () => {
     expect(result.current.hidden).toEqual([])
     expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1)
     const updates = mocks.setAppStatusBulk.mock.calls[0][0] as Array<{ appId: string; status: string }>
-    expect(updates).toEqual([{ appId: 'c', status: 'enabled' }])
+    expect(updates).toEqual([{ appId: 'c', status: 'enabled', order: { position: 'last' } }])
   })
 
   it('reorderVisible reorders within the combined visible list', () => {
@@ -195,17 +193,6 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.show(stubApp('b')))
 
     expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'b', 'a'])
-  })
-
-  it('still appends an app that was hidden before the panel opened after a visible drag', () => {
-    mocks.miniApps = [stubApp('a'), stubApp('b')]
-    mocks.disabled = [stubApp('c')]
-    const { result } = renderHook(() => useMiniAppVisibility())
-
-    act(() => result.current.reorderVisible(1, 0))
-    act(() => result.current.show(stubApp('c')))
-
-    expect(result.current.visible.map((a) => a.appId)).toEqual(['b', 'a', 'c'])
   })
 
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {

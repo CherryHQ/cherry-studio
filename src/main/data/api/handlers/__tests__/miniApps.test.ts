@@ -249,6 +249,40 @@ describe('miniAppHandlers', () => {
       expect(result).toMatchObject({ status: 'disabled' })
     })
 
+    it('should delegate target placement with its status update', async () => {
+      const updated = {
+        appId: 'custom-app',
+        presetMiniAppId: null,
+        status: 'enabled',
+        orderKey: 'a1',
+        name: 'My App',
+        url: 'https://my.app'
+      }
+      updateMock.mockResolvedValueOnce(updated)
+
+      const result = await miniAppHandlers['/mini-apps/:appId'].PATCH({
+        params: { appId: 'custom-app' },
+        body: { status: 'enabled', order: { before: 'anchor' } }
+      })
+
+      expect(updateMock).toHaveBeenCalledWith('custom-app', {
+        status: 'enabled',
+        order: { before: 'anchor' }
+      })
+      expect(result).toEqual(updated)
+    })
+
+    it('should reject target placement without a status update', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].PATCH({
+          params: { appId: 'custom-app' },
+          body: { order: { position: 'first' } }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
     it('should parse custom display fields and delegate to service', async () => {
       const updated = {
         appId: 'custom-app',
