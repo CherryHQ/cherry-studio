@@ -141,7 +141,7 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
-import { useTabsContext } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useTabsContext } from '@renderer/hooks/tab'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -166,6 +166,63 @@ function PinnedRouteTitle() {
 function TabIds() {
   const { tabs } = useTabsContext()
   return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
+const conversationTabActionRender = vi.fn()
+
+function ConversationTabMutationControls() {
+  const { activeTabId, addTab, closeTab, setActiveTab, tabs, updateTab } = useTabsContext()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          addTab({
+            id: 'topic-a-tab',
+            type: 'route',
+            url: '/app/chat?topicId=topic-a',
+            title: 'Topic A',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+          addTab({
+            id: 'unrelated-tab',
+            type: 'route',
+            url: '/app/files',
+            title: 'Files',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+        }}>
+        Seed tabs
+      </button>
+      <button type="button" onClick={() => setActiveTab('home')}>
+        Activate home
+      </button>
+      <button
+        type="button"
+        onClick={() => updateTab('topic-a-tab', { title: 'Renamed Topic', metadata: { test: true } })}>
+        Rename background topic
+      </button>
+      <button type="button" onClick={() => closeTab('unrelated-tab')}>
+        Close unrelated tab
+      </button>
+      <div data-testid="conversation-tab-active">{activeTabId}</div>
+      <div data-testid="conversation-tab-snapshot">{tabs.map((tab) => `${tab.id}:${tab.title}`).join(',')}</div>
+    </>
+  )
+}
+
+function ConversationTabActionProbe() {
+  conversationTabActionRender()
+  const closeConversationTabs = useCloseConversationTabs()
+
+  return (
+    <button type="button" onClick={() => closeConversationTabs('assistants', ['topic-a'])}>
+      Close background topic
+    </button>
+  )
 }
 
 // Surfaces restored-session state: active tab id, each tab's awake/dormant state, and the id list.
@@ -439,6 +496,7 @@ beforeEach(() => {
       }
     }
   })
+  conversationTabActionRender.mockClear()
 })
 
 afterEach(() => {
@@ -960,6 +1018,37 @@ describe('TabsProvider', () => {
 
     await waitFor(() => expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledWith([{ type: 'app', id: 'notes' }]))
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('notes-id:app:notes:/app/notes')
+  })
+
+  it('keeps conversation tab actions isolated while reading the latest tab state', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
+        <ConversationTabMutationControls />
+        <ConversationTabActionProbe />
+      </TabsProvider>
+    )
+    const initialActionRenders = conversationTabActionRender.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('unrelated-tab'))
+    expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Topic A')
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate home' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('home'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename background topic' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('Renamed Topic'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close unrelated tab' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('unrelated-tab'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close background topic' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('topic-a-tab'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
   })
 
   it('preserves page-owned titles for the fixed home conversation tab', async () => {

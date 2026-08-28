@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
@@ -21,7 +22,19 @@ import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 const logger = loggerService.withContext('AgentMcpServers')
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
-export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id'> | null
+export type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>
+export type LinkedChannelSnapshot = NotifyChannel | null
+
+export interface AgentNotificationContext {
+  /**
+   * Never read directly — it is hashed into the connection rebuild signature so that binding or
+   * unbinding a Session's channel rebuilds the connection (channel-linked sessions mount a
+   * different MCP server set). Dropping it silently strands a session on the wrong tool surface.
+   */
+  sourceChannel: NotifyChannel | null
+  channels: readonly NotifyChannel[]
+  allowAnyOwnedChannel: boolean
+}
 
 export interface AgentMcpServer {
   name: string
@@ -36,7 +49,8 @@ export function buildAgentMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
   const capabilities = resolveAgentCapabilities(agent)
@@ -53,8 +67,6 @@ export function buildAgentMcpServers(
     }
   }
 
-  const sourceChannelId =
-    linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot?.id
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
@@ -64,7 +76,8 @@ export function buildAgentMcpServers(
       sessionId: session.id,
       workspaceSource,
       workspacePath: session.workspace.path,
-      sourceChannelId,
+      trustedNotifyChannels: notificationContext.channels,
+      allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
       canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
@@ -118,11 +131,38 @@ function toWorkspaceSource(session: AgentSessionEntity): AgentSessionWorkspaceSo
   }
 }
 
-function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
+export function resolveAgentNotificationContext(
+  sessionId: string,
+  agentId: string,
+  linkedChannelSnapshot?: LinkedChannelSnapshot
+): AgentNotificationContext {
+  const sourceChannel =
+    linkedChannelSnapshot === undefined ? resolveSourceChannelSafely(sessionId, agentId) : linkedChannelSnapshot
+  const turnChannels = application.get('AgentSessionRuntimeService').getTurnTrustedNotifyChannels(sessionId)
+  const channels = [...(turnChannels ?? (sourceChannel ? [sourceChannel] : []))].sort(
+    (left, right) => left.id.localeCompare(right.id) || left.type.localeCompare(right.type)
+  )
+
+  return {
+    sourceChannel,
+    channels,
+    allowAnyOwnedChannel: turnChannels === undefined && sourceChannel !== null
+  }
+}
+
+/**
+ * The Session's linked channel, or null unless it belongs to `agentId`. The ownership check is the
+ * boundary that keeps one Agent's task output out of another's channel — never project without it.
+ */
+export function resolveLinkedNotifyChannel(sessionId: string, agentId: string): LinkedChannelSnapshot {
+  const channel = channelService.findBySessionId(sessionId)
+  return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : null
+}
+
+function resolveSourceChannelSafely(sessionId: string, agentId: string): LinkedChannelSnapshot {
   try {
-    const channel = channelService.findBySessionId(sessionId)
-    return channel?.agentId === agentId ? channel.id : undefined
+    return resolveLinkedNotifyChannel(sessionId, agentId)
   } catch {
-    return undefined
+    return null
   }
 }

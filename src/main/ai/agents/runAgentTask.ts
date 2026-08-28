@@ -224,14 +224,17 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     name: taskName ?? 'Scheduled task',
     workspace
   })
-  // Guards legacy rows and races that data hygiene cannot catch.
+  // Snapshot the task's configured recipients before starting the run. Adapter availability affects
+  // delivery, not authority: a temporarily disconnected configured channel must not hide `notify`.
   const subscribedChannels = scheduleId
     ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
     : []
-
+  const trustedNotifyChannels = subscribedChannels
+    .map((channel) => ({ id: channel.id, type: channel.type }))
+    .sort((left, right) => left.id.localeCompare(right.id))
   const channelManager = application.get('ChannelManager')
-  const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
-    const adapter = channelManager.getAdapter(ch.id)
+  const channelListeners: StreamListener[] = subscribedChannels.flatMap((channel) => {
+    const adapter = channelManager.getAdapter(channel.id)
     if (!adapter) return []
     // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
     // `[Task failed]` summary to the same chats, so leaving it on would double-notify.
@@ -327,6 +330,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         userParts: [{ type: 'text', text: effectivePrompt }],
         listeners: [sentinel, ...channelListeners],
         headless: true,
+        trustedNotifyChannels,
         requireIdle: { expectedAgentId: agentId }
       })
       if (started.mode === 'started') break
