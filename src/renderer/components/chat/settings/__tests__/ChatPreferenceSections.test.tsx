@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
+    'chat.input.paste_long_text_as_file': false,
+    'chat.input.paste_long_text_threshold': 1500,
     'chat.message.render_as_markdown': false,
     'chat.message.show_outline': false,
     'chat.code.show_line_numbers': false,
@@ -69,6 +71,9 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 vi.mock('@cherrystudio/ui', () => ({
   CustomTag: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Divider: ({ className }: { className?: string }) => <hr className={className} />,
+  EditableNumber: ({ value, onChange }: { value?: number; onChange?: (value?: number) => void }) => (
+    <input type="number" value={value ?? ''} onChange={(event) => onChange?.(Number(event.target.value))} />
+  ),
   Flex: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
     <div className={className}>{children}</div>
   ),
@@ -132,6 +137,21 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.input.auto_translate_with_space')).toBeNull()
     expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
     expect(screen.queryByText('settings.input.target_language.label')).toBeNull()
+  })
+
+  it('hides the long paste threshold until the paste-as-file toggle is enabled', () => {
+    const { rerender } = render(<ChatPreferenceSections />)
+
+    const toggle = screen.getByRole('button', { name: 'settings.messages.input.paste_long_text_as_file' })
+    expect(toggle).toHaveAttribute('data-checked', 'false')
+    expect(screen.queryByText('settings.messages.input.paste_long_text_threshold')).toBeNull()
+
+    fireEvent.click(toggle)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.paste_long_text_as_file', true)
+    rerender(<ChatPreferenceSections />)
+
+    expect(screen.getByText('settings.messages.input.paste_long_text_threshold')).toBeInTheDocument()
   })
 
   it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {

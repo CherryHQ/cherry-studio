@@ -33,6 +33,8 @@ export const handlePaste = async (
   supportExts: string[],
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void,
   setText?: (text: string) => void,
+  pasteLongTextAsFile?: boolean,
+  pasteLongTextThreshold?: number,
   text?: string,
   resizeTextArea?: () => void,
   t?: (key: string) => string
@@ -49,8 +51,8 @@ export const handlePaste = async (
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
     const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText && !hasSupportedClipboardImage) {
-      // 1. 文本粘贴
-      if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
+      // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
+      if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {
         if (!supportExts.includes(PASTED_TEXT_FILE_EXTENSION)) return false
 
         // 长文本直接转文件，阻止默认粘贴
