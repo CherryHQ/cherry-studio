@@ -705,7 +705,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
               <DialogFooter className="flex-row items-center justify-end sm:justify-end">
                 {setupSucceeded ? (
                   <Button type="button" onClick={requestClose}>
-                    {t('common.close')}
+                    {t('settings.provider.api_setup.done')}
                   </Button>
                 ) : (
                   <>
@@ -755,7 +755,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                 ) : (
                   <>
                     <Button type="button" variant="outline" disabled={!canDismissDialog} onClick={requestClose}>
-                      {t('common.cancel')}
+                      {t('settings.provider.api_setup.skip')}
                     </Button>
                     {hasBlockingModelError ? (
                       <Button type="button" disabled={isBusy} onClick={() => void loadModels()}>

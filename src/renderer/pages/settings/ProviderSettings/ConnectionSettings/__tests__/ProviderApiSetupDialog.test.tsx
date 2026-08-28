@@ -201,7 +201,7 @@ describe('ProviderApiSetupDialog', () => {
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={onClose} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.skip' }))
 
     expect(onClose).not.toHaveBeenCalled()
 
@@ -219,7 +219,7 @@ describe('ProviderApiSetupDialog', () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={onClose} />)
 
     await waitFor(() => expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai'))
-    const cancelButton = screen.getByRole('button', { name: 'common.cancel' })
+    const cancelButton = screen.getByRole('button', { name: 'settings.provider.api_setup.skip' })
     expect(cancelButton).toBeEnabled()
 
     fireEvent.click(cancelButton)
@@ -443,7 +443,7 @@ describe('ProviderApiSetupDialog', () => {
     ]) {
       expect(screen.getByRole('listitem', { name: `${stepName} common.success` })).toBeInTheDocument()
     }
-    const closeButton = screen.getByRole('button', { name: 'common.close' })
+    const closeButton = screen.getByRole('button', { name: 'settings.provider.api_setup.done' })
     vi.useFakeTimers()
     await act(async () => vi.advanceTimersByTime(2000))
     expect(onClose).not.toHaveBeenCalled()
