@@ -642,6 +642,22 @@ export class MiniAppRuntimeService extends BaseService {
   }
 
   /**
+   * Retire the barrier's verdict for an app whose state a fresh install just replaced.
+   *
+   * The verdict is about the trees a crash left, and a fresh install refuses to publish
+   * until every one of them is gone (`assertCleanSlate`). Keeping the mark past that would
+   * leave the app installed and permanently unopenable until a restart — recovery cannot
+   * run again in this process, so nothing else would ever lift it.
+   *
+   * Mutates the barrier's OWN payload rather than a second copy the writer keeps: two sets
+   * can disagree, and `ReadonlySet` is what consumers see, not a promise the writer made.
+   */
+  async clearUnrepaired(appId: string): Promise<void> {
+    const unrepaired = await this.recovered
+    ;(unrepaired as Set<string>).delete(appId)
+  }
+
+  /**
    * Uninstall must not leave a badge behind for a row that no longer exists.
    *
    * The generation is deliberately KEPT: it must stay monotonic for the process. Dropping

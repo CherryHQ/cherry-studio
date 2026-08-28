@@ -27,7 +27,14 @@ vi.mock('../../activityLog', () => ({
 }))
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
-  return mockMiniAppApplication({ MiniAppRuntimeService: { noteUpdateAvailable: vi.fn() } })
+  return mockMiniAppApplication({
+    MiniAppRuntimeService: {
+      withAppQuiesced: (_appId: string, mutate: () => Promise<unknown>) => mutate(),
+      recovered: Promise.resolve(new Set<string>()),
+      clearUnrepaired: vi.fn(),
+      noteUpdateAvailable: vi.fn()
+    }
+  })
 })
 
 // Real builtin trees, not mocks. Stage-unit cases inject `builtinRoot`; the chain

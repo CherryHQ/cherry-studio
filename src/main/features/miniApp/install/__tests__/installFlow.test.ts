@@ -31,6 +31,8 @@ vi.mock('@application', async () => {
   return mockMiniAppApplication({
     MiniAppRuntimeService: {
       withAppQuiesced: (_appId: string, mutate: () => Promise<unknown>) => mutate(),
+      recovered: Promise.resolve(new Set<string>()),
+      clearUnrepaired: vi.fn(),
       noteUpdateAvailable,
       beginUpdate: vi.fn(),
       noteUpdateProgress: vi.fn(),
@@ -251,7 +253,15 @@ describe('installFlow', () => {
 
   it('a failed staging removal does not mask a committed file install', async () => {
     const preview = await previewFileForInstall(await makePackage(), 'win-1')
-    const rm = vi.spyOn(fs.promises, 'rm').mockRejectedValueOnce(new Error('EPERM'))
+    // Aimed at the STAGING tree by path, not at "the first rm": a fresh install now sweeps
+    // its slate first, and a once-only rejection would land there and refuse the install
+    // instead — a green case measuring the opposite of its name.
+    const realRm = fs.promises.rm
+    const rm = vi
+      .spyOn(fs.promises, 'rm')
+      .mockImplementation((target, options) =>
+        String(target).includes('.staging-') ? Promise.reject(new Error('EPERM')) : realRm(target, options)
+      )
     try {
       await expect(confirmPendingInstall(preview.installToken, 'win-1')).resolves.toBeDefined()
     } finally {

@@ -36,14 +36,18 @@ export function miniAppIdOfPartition(partition: string): string {
  * server's tracking cookie survives, and a reinstall of the same appId resumes the
  * old identity.
  *
- * Two admissible callers, and no third:
+ * CALLERS MUST PREVENT ANY GUEST FROM EXISTING OR ATTACHING FOR THE WHOLE CLEAR — a live
+ * one writes straight back into what this just emptied. The requirement is on that
+ * property, not on a list of call sites; two things satisfy it:
  *
- *   - inside `withAppQuiesced`, because a live guest would write straight back into what
- *     this just cleared;
- *   - startup recovery, which runs before any guest can exist — a guest is created only by
- *     a `<webview>` attaching, and that needs a renderer that has not drawn its first frame
- *     yet. Recovery therefore holds no lease, and must not: `withAppQuiesced` would be
- *     waiting on runtime state that is not up.
+ *   - holding `withAppQuiesced`, which evicts what is running and vetoes what attaches;
+ *   - being startup recovery, which runs before any renderer has drawn a frame and so
+ *     before a `<webview>` can attach. It holds no lease and must not: `withAppQuiesced`
+ *     would be waiting on runtime state that is not up.
+ *
+ * Nothing weaker qualifies — "the app has no installation row" in particular does not.
+ * Neither `ensurePartition` nor the `will-attach-webview` gate consults one, so a renderer
+ * can prepare and attach on any appId it names.
  */
 export async function clearMiniAppPartition(appId: string): Promise<void> {
   const sess = session.fromPartition(miniAppPartition(appId))

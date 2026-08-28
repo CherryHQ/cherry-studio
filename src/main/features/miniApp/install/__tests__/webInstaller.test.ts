@@ -63,6 +63,8 @@ vi.mock('@application', async () => {
         spy.order.push('mutate')
         return result
       }),
+      recovered: Promise.resolve(new Set<string>()),
+      clearUnrepaired: vi.fn(),
       forgetApp: vi.fn(),
       noteUpdateAvailable: vi.fn(),
       beginUpdate: vi.fn(),
@@ -532,7 +534,13 @@ describe('web install and update', () => {
     const preview = await previewUrlForInstall(MANIFEST_URL, 'win-1')
     const pkg = downloadedFixture()
     fetchPackage.mockResolvedValue(pkg)
-    const rm = vi.spyOn(fs.promises, 'rm').mockRejectedValueOnce(new Error('EPERM'))
+    // Aimed at the STAGING tree by path — see the same case in `installFlow.test.ts`.
+    const realRm = fs.promises.rm
+    const rm = vi
+      .spyOn(fs.promises, 'rm')
+      .mockImplementation((target, options) =>
+        String(target).includes('.staging-') ? Promise.reject(new Error('EPERM')) : realRm(target, options)
+      )
     try {
       // Cleanup trouble is a leak to LOG — the committed install must still resolve.
       await expect(confirmPendingInstall(preview.installToken, 'win-1')).resolves.toMatchObject({ appId: APP_ID })

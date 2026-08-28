@@ -27,11 +27,27 @@ vi.mock('../../activityLog', () => ({
     forget: vi.fn(async () => {})
   }
 }))
+/**
+ * The startup-recovery barrier, swappable: a fresh install waits on it before it sweeps the
+ * slate, so it is resolved for every case but the one that holds it open on purpose.
+ * `quiesced` is that case's sync point — it fires immediately before the wait.
+ */
+const barrier = vi.hoisted(() => ({ current: Promise.resolve(new Set<string>()) as Promise<ReadonlySet<string>> }))
+const quiesced = vi.hoisted(() => vi.fn())
+const clearUnrepaired = vi.hoisted(() => vi.fn(async () => undefined))
+
 vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({
     MiniAppRuntimeService: {
-      withAppQuiesced: (_appId: string, mutate: () => Promise<unknown>) => mutate(),
+      withAppQuiesced: (appId: string, mutate: () => Promise<unknown>) => {
+        quiesced(appId)
+        return mutate()
+      },
+      get recovered() {
+        return barrier.current
+      },
+      clearUnrepaired,
       forgetApp: vi.fn(),
       // Reached at the END of a reinstall. Without it the reinstall cases die there, which
       // silently turns "the journal was buried" into "something else threw first".
@@ -418,6 +434,90 @@ describe('installMiniAppFromFile', () => {
     await installMiniAppFromFile(await makePackage())
 
     expect(fs.existsSync(miniAppStorageFile(APP_ID))).toBe(false)
+  })
+
+  it('refuses a fresh install onto state an unfinished uninstall left behind', async () => {
+    // The case above covers the uninstall that WORKED. This is the one that did not: cleanup
+    // is best-effort, so the rows go, the save file stays, and the journal is armed for a
+    // recovery that only runs at startup — which an install in this same process never waits
+    // for. The appId comes from the manifest, so the next owner need not be the same
+    // publisher, and what it would inherit is a saved token and a live session.
+    await installMiniAppFromFile(await makePackage())
+    await fs.promises.mkdir(miniAppDataPath(APP_ID), { recursive: true })
+    await fs.promises.writeFile(miniAppStorageFile(APP_ID), '{"token":"secret"}')
+    const next = await makePackage()
+
+    const data = miniAppDataPath(APP_ID)
+    const realRm = fs.promises.rm.bind(fs.promises)
+    const rm = vi
+      .spyOn(fs.promises, 'rm')
+      .mockImplementation((target, opts) =>
+        String(target) === data ? Promise.reject(new Error('EBUSY')) : realRm(target, opts)
+      )
+    try {
+      // Resolves: the rows ARE committed, and reporting a failure over them would be a lie.
+      await uninstallMiniApp(APP_ID)
+
+      await expect(installMiniAppFromFile(next)).rejects.toThrow(/still holds state/i)
+    } finally {
+      rm.mockRestore()
+    }
+
+    // Refused, not half-published — and the debt is still on record for the next launch.
+    expect(dbh.db.select().from(miniAppTable).all()).toHaveLength(0)
+    expect(fs.readFileSync(miniAppStorageFile(APP_ID), 'utf8')).toContain('secret')
+    expect(JSON.parse(fs.readFileSync(path.join(work, '.publish-journal', `${APP_ID}.json`), 'utf8'))).toMatchObject({
+      kind: 'uninstall',
+      appId: APP_ID
+    })
+  })
+
+  it('publishes nothing until startup recovery has finished', async () => {
+    // Recovery repairs these same trees. Sweeping the slate underneath it publishes an app
+    // that owns whatever the repair puts back a moment later.
+    let release: (value: ReadonlySet<string>) => void = () => {}
+    barrier.current = new Promise<ReadonlySet<string>>((resolve) => {
+      release = resolve
+    })
+    const pkg = await makePackage()
+    quiesced.mockClear()
+
+    const installing = installMiniAppFromFile(pkg)
+    // Staging is real I/O, so wall-clock ticks would let a barrier-less version race
+    // through. `quiesced` fires on the statement before the wait — that is the sync point.
+    await vi.waitFor(() => expect(quiesced).toHaveBeenCalled())
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(dbh.db.select().from(miniAppTable).all()).toHaveLength(0)
+
+    release(new Set())
+    await installing
+    expect(dbh.db.select().from(miniAppTable).all()).toHaveLength(1)
+    barrier.current = Promise.resolve(new Set<string>())
+  })
+
+  it('lifts the barrier’s refusal for the id it just re-established', async () => {
+    // Startup recovery may have marked this id unopenable. `assertCleanSlate` has since
+    // removed the very trees that verdict was about, and recovery cannot run again in this
+    // process — so an install that leaves the mark standing produces an app that is
+    // installed, listed, and refused by `ensurePartition` until the next launch.
+    clearUnrepaired.mockClear()
+
+    await installMiniAppFromFile(await makePackage())
+
+    expect(clearUnrepaired).toHaveBeenCalledWith(APP_ID)
+  })
+
+  it('sweeps the partition too, not just the trees, before a fresh install publishes', async () => {
+    // Cookies and the HTTP cache hang off the partition, which no row cascades: an install
+    // that swept only the directories would still resume the previous owner's identity.
+    await installMiniAppFromFile(await makePackage())
+    await uninstallMiniApp(APP_ID)
+    clearStorageData.mockClear()
+
+    await installMiniAppFromFile(await makePackage())
+
+    expect(clearStorageData).toHaveBeenCalled()
   })
 
   it('refuses to uninstall a site mini app', async () => {

@@ -288,13 +288,18 @@ export async function installExtracted(
   await assertIconMatchesDigest(staging, manifest)
   // Check-then-act across BOTH filesystem and database, so the DB transaction alone
   // cannot make it safe — two installs would both pass the check before either writes.
-  // A reinstall also quiesces INSIDE the lock — the same nesting as update and uninstall.
+  // Quiesced INSIDE the lock either way — the same nesting as update and uninstall. A
+  // FRESH install needs it too, because it clears the partition and no guest may write
+  // back into what it empties. "There is no installation row yet" does not stand in for
+  // that: neither `ensurePartition` nor the attach gate consults one.
   const app = await withPublishLock(manifest.id, () =>
-    reinstall
-      ? application
-          .get('MiniAppRuntimeService')
-          .withAppQuiesced(manifest.id, () => publishReinstall(manifest, staging, info, options, reinstall))
-      : publishInstall(manifest, staging, info, options)
+    application
+      .get('MiniAppRuntimeService')
+      .withAppQuiesced(manifest.id, () =>
+        reinstall
+          ? publishReinstall(manifest, staging, info, options, reinstall)
+          : publishInstall(manifest, staging, info, options)
+      )
   )
   // After the commit, outside the lock. Installing is an IpcApi write DataApi never
   // sees — without this signal the launcher's `/mini-apps` query keeps yesterday's list.
@@ -463,6 +468,48 @@ async function publishReinstall(
   }
 }
 
+/**
+ * A fresh install owns NOTHING of whoever held this appId before it.
+ *
+ * The previous owner's uninstall is best-effort by policy: a tree or a partition that
+ * would not clear leaves the app gone from the launcher with its `storage.json` and its
+ * cookies still on disk, journalled for a recovery that only runs at startup — which an
+ * install in this same process never waits for. The appId comes from the manifest, so
+ * the next owner need not be the same publisher, and inheriting a saved token or a live
+ * session is not a continuity quirk.
+ *
+ * Every store is attempted, and every store must go: a partial slate is refused, not
+ * published. Refusing is safe here in a way it is not in an uninstall — nothing has
+ * been committed yet, so the user keeps an app they can retry rather than losing one.
+ * The old journal deliberately survives the refusal; it is still the record of what is
+ * owed. Callers hold `withAppQuiesced` (see `clearMiniAppPartition`).
+ */
+async function assertCleanSlate(appId: string): Promise<void> {
+  // Logged before the sweep: past it the evidence is gone, and "there was debris" is the
+  // signal that some earlier uninstall did not finish.
+  if (fs.existsSync(miniAppInstallPath(appId))) {
+    logger.warn('Reclaiming an orphan mini app directory before install', { id: appId })
+  }
+  let cleared = true
+  for (const tree of [
+    miniAppInstallPath(appId),
+    miniAppBackupPath(appId),
+    miniAppRollingPath(appId),
+    miniAppDataPath(appId)
+  ]) {
+    // Its own `await`, never `cleared &&= await ...`: that short-circuits, so one tree
+    // refusing would skip every store after it and report a slate nothing swept.
+    const removed = await bestEffortCleanup('install slate tree', () =>
+      fs.promises.rm(tree, { recursive: true, force: true })
+    )
+    cleared &&= removed
+  }
+  const partitionCleared = await bestEffortCleanup('install slate partition', () => clearMiniAppPartition(appId))
+  cleared &&= partitionCleared
+  if (cleared) return
+  throw new Error(`Mini app ${appId} still holds state from a previous install that could not be cleared`)
+}
+
 async function publishInstall(
   manifest: MiniAppManifest,
   staging: string,
@@ -475,12 +522,12 @@ async function publishInstall(
   const db = application.get('DbService').getDb()
   const taken = db.select().from(miniAppTable).where(eq(miniAppTable.appId, manifest.id)).all().length > 0
   if (taken) throw new Error(`A mini app with id "${manifest.id}" is already installed`)
-  // A directory with no row is debris from an interrupted uninstall; refusing it
-  // would make that appId permanently uninstallable, and the lock excludes writers.
-  if (fs.existsSync(installPath)) {
-    logger.warn('Reclaiming an orphan mini app directory before install', { id: manifest.id })
-    await fs.promises.rm(installPath, { recursive: true, force: true })
-  }
+
+  // Before the slate is swept, or recovery repairs these same trees underneath it and the
+  // app starts life owning whatever the repair put back.
+  const runtime = application.get('MiniAppRuntimeService')
+  await runtime.recovered
+  await assertCleanSlate(manifest.id)
 
   const contentHash = await hashTree(staging)
   const orderKey = nextMiniAppOrderKey()
@@ -546,6 +593,10 @@ async function publishInstall(
     logger.warn('Installed without a packaged icon', { id: manifest.id, error })
   )
   clearPublishJournal(manifest.id)
+  // The barrier's verdict was about trees `assertCleanSlate` has since removed. Left
+  // standing it would leave this install permanently unopenable — recovery cannot run
+  // again in this process, so nothing else would ever lift it.
+  await runtime.clearUnrepaired(manifest.id)
   logger.info('Installed mini app', { id: manifest.id, version: manifest.version })
   miniAppActivityLog.recordGrant(manifest.id, { name: 'install', version: manifest.version, permissions: granted })
 

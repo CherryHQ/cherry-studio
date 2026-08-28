@@ -150,6 +150,19 @@ describe('MiniAppRuntimeService', () => {
     expect(handle).toHaveBeenCalledTimes(1)
   })
 
+  it('opens the refused app once a fresh install has replaced what recovery left', async () => {
+    // Recovery cannot run again in this process, so without this the app would be installed
+    // and permanently unopenable until a restart. The mark must come off the barrier's OWN
+    // payload — a second copy kept beside it reads back the refusal the barrier still hands out.
+    const svc = new MiniAppRuntimeService()
+    svc.recovered.resolve(new Set(['com.example.broken']))
+    await expect(svc.ensurePartition('com.example.broken')).rejects.toThrow(/could not be repaired/)
+
+    await svc.clearUnrepaired('com.example.broken')
+
+    await expect(svc.ensurePartition('com.example.broken')).resolves.toBeUndefined()
+  })
+
   it('lets a failed prepare be retried', async () => {
     const { installNetworkPolicy } = await import('../network')
     vi.mocked(installNetworkPolicy).mockRejectedValueOnce(new Error('boom'))
