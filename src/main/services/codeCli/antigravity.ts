@@ -5,7 +5,7 @@ import { providerService } from '@data/services/ProviderService'
 import { atomicWriteFile } from '@main/utils/file'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 import { isShellSafeModelId } from './shellQuote'
@@ -57,9 +57,9 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
       apiKey: 'feature.api_gateway.api_key'
     })
     apiKey = gatewayApiKey
-    baseUrl = `http://${host}:${port}`
+    baseUrl = gatewayClientOrigin(host, port)
     const gatewayModel = formatGatewayModelId(input.providerId, input.model)
-    model = `gemini-api://${gatewayModel.replace(':', '/models/')}`
+    model = `gemini-api://${gatewayModel.replace(':', ANTIGRAVITY_MODEL_PATH_SEPARATOR)}`
   } else {
     const provider = providerService.getByProviderId(input.providerId)
     apiKey = providerService.getRotatedApiKey(provider.id)

@@ -85,6 +85,7 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: undefined,
         gatewayModelsById: new Map(),
+        modelById: new Map(),
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -115,6 +116,7 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: 'iterm2',
         gatewayModelsById: new Map(),
+        modelById: new Map(),
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -153,7 +155,10 @@ describe('useLaunchDialogController', () => {
         isOwnLoginSelected: false,
         currentProviderConfig: { modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat` },
         selectedTerminal: 'terminal',
-        gatewayModelsById: new Map(),
+        gatewayModelsById: new Map<UniqueModelId, Model>([
+          [`${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat`, { apiModelId: 'deepseek:deepseek-chat' } as Model]
+        ]),
+        modelById: new Map(),
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -171,6 +176,45 @@ describe('useLaunchDialogController', () => {
     )
   })
 
+  // A direct launch hands `--model` straight to the provider's own API, which only knows the
+  // model by its apiModelId — an aliased model would be launched under a name it never sees.
+  it('launches a direct model under its apiModelId, not its internal id', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: 'anthropic::my-alias',
+      providerId: 'anthropic',
+      rawModelId: 'my-alias',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
+        toolName: 'Antigravity CLI',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::my-alias' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::my-alias', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', gateway: false, model: 'claude-sonnet-4-5' })
+    )
+  })
+
   it('sends gateway: false for a regular (non-gateway) provider', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
@@ -182,6 +226,7 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: 'terminal',
         gatewayModelsById: new Map(),
+        modelById: new Map(),
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -214,6 +259,7 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig,
         selectedTerminal: 'terminal',
         gatewayModelsById: new Map(),
+        modelById: new Map(),
         upsertProviderConfig,
         setCurrentProvider,
         setTerminal: vi.fn(),
@@ -246,6 +292,7 @@ describe('useLaunchDialogController', () => {
         isOwnLoginSelected: false,
         selectedTerminal: undefined,
         gatewayModelsById: new Map(),
+        modelById: new Map(),
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -294,6 +341,7 @@ describe('useLaunchDialogController', () => {
           selectedTerminal: 'terminal',
           apiGatewayProvider: { provider: gatewayProvider, apiKey: 'cs-sk-old', ensureRunning, getApiKey },
           gatewayModelsById: availableModels,
+          modelById: new Map<UniqueModelId, Model>(),
           upsertProviderConfig,
           setCurrentProvider,
           setTerminal: vi.fn(),
@@ -364,6 +412,23 @@ describe('useLaunchDialogController', () => {
       expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.requestMock.mock.invocationCallOrder[0]
       )
+    })
+
+    // Antigravity is not file-configured, so the reconciliation block — and the membership check
+    // that used to live inside it — never ran for it: a stale selection started a session that
+    // the gateway only rejects on the CLI's first request, after all the startup side effects.
+    it('does not start a non-file-configured CLI when its gateway model is gone', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      const ensureRunning = vi.fn().mockResolvedValue(undefined)
+      const { result } = renderGatewayLaunch(getApiKey, new Map(), ensureRunning, CodeCli.ANTIGRAVITY_CLI)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(ensureRunning).not.toHaveBeenCalled()
+      expect(mocks.requestMock).not.toHaveBeenCalled()
     })
 
     // The gateway matches an address against each model's apiModelId, so launching a renamed
@@ -443,7 +508,9 @@ describe('useLaunchDialogController', () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
 
-      expect(getApiKey).toHaveBeenCalledTimes(1)
+      // Nothing may run before the membership check — reading the key persists a freshly
+      // generated one, a side effect a launch that cannot route must not leave behind.
+      expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
     })
@@ -535,6 +602,7 @@ describe('useLaunchDialogController', () => {
             getApiKey
           },
           gatewayModelsById: new Map(),
+          modelById: new Map(),
           upsertProviderConfig: vi.fn(),
           setCurrentProvider: vi.fn(),
           setTerminal: vi.fn(),

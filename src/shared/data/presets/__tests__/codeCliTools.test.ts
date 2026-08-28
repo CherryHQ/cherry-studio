@@ -43,6 +43,7 @@ const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
 }
 
 const EXPECTED_SKILL_CAVEATS: Partial<Record<CodeCli, string[]>> = {
+  [CodeCli.ANTIGRAVITY_CLI]: ['auto-approved by default', 'disposable or read-only copy'],
   [CodeCli.OPENCLAW]: ['exits zero', 'payload'],
   [CodeCli.DEEPSEEK_HARNESS]: ['persistent session', 'write to the workspace'],
   [CodeCli.KIMI_CODE]: ['automatically approves', 'read-only copy', 'KIMI_CODE_HOME', 'sandbox_permissions'],

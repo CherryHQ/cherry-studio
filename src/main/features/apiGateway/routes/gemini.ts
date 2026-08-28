@@ -1,5 +1,9 @@
 import { bearer } from '@elysia/bearer'
-import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
+import {
+  ANTIGRAVITY_MODEL_PATH_SEPARATOR,
+  isReservedGeminiGatewayModelId,
+  stripGeminiGatewayModelSuffix
+} from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 
 import type { InputParamsMap } from '../adapters'
@@ -29,7 +33,7 @@ function parseModelMethod(raw: string): { model: string; method: string } | null
 
 /** Convert Antigravity's custom-model path back to the gateway's `providerId:apiModelId` address. */
 function normalizeAntigravityModelPath(model: string): string {
-  const separator = '/models/'
+  const separator = ANTIGRAVITY_MODEL_PATH_SEPARATOR
   const separatorIndex = model.indexOf(separator)
   if (separatorIndex <= 0) return model
 

@@ -23,6 +23,6 @@ Parse the JSON result and read its `status` field: anything other than a success
 
 Antigravity refuses to run headlessly until it is signed in — it returns `status: "ERROR"` with `authentication failed or timed out` and tells you to run `agy` to log in. Do not do that: stop and ask the user to finish Antigravity setup in Code Mate. Never request, read, print, or copy credentials.
 
-Leave permission handling at its default; never pass `--dangerously-skip-permissions`, which auto-approves every tool request. Only when the user explicitly requests workspace changes may the command add `--mode accept-edits`, and only for the narrowest task needed.
+Headless mode inherits the permission mode persisted in user settings, and reading and writing files inside the active workspace are auto-approved by default — the default is not a read-only boundary, and a prompt cannot make it one. Do not run it against a writable project for a read-only task. Use a disposable or read-only copy instead. Run against the real project only when the user explicitly requests workspace changes, constrain the directory, and inspect the diff afterward. Never pass `--dangerously-skip-permissions`, which auto-approves every tool request including outside the workspace.
 
-Example: ask Antigravity to review a module without editing, run the command above from the repository, and summarize the parsed `response` and any reported `error`.
+Example: for an approved edit, ask Antigravity to touch only named files, run it in that project, parse the `response` and any reported `error`, and inspect the resulting diff before reporting success.

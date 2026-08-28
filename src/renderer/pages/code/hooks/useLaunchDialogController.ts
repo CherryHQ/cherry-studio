@@ -39,6 +39,8 @@ interface UseLaunchDialogControllerOptions {
   apiGatewayProvider?: ApiGatewayProviderBundle | null
   /** Models currently available through the gateway, keyed by UniqueModelId. */
   gatewayModelsById: Map<UniqueModelId, Model>
+  /** Every enabled model, keyed by UniqueModelId — the direct-launch counterpart of the map above. */
+  modelById: Map<UniqueModelId, Model>
   upsertProviderConfig: (
     providerId: string,
     partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
@@ -64,6 +66,7 @@ export function useLaunchDialogController({
   selectedTerminal,
   apiGatewayProvider,
   gatewayModelsById,
+  modelById,
   upsertProviderConfig,
   setCurrentProvider,
   setTerminal,
@@ -153,6 +156,11 @@ export function useLaunchDialogController({
       // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
       // config; re-verify it's serving and rewrite the config with the configured context so the
       // CLI never launches against a dead endpoint.
+      // Every gateway launch, not just the file-configured ones: the reconciliation below skips
+      // tools like Antigravity, so a stale selection would start a session that cannot route.
+      if (isGatewayProvider && !gatewayModelsById.has(cliConfigContext.modelId)) {
+        throw new Error(`Gateway model is no longer available: ${cliConfigContext.modelId}`)
+      }
       if (isGatewayProvider && apiGatewayProvider) {
         await apiGatewayProvider.ensureRunning()
       }
@@ -198,11 +206,11 @@ export function useLaunchDialogController({
           gateway: { provider: apiGatewayProvider.provider, apiKey }
         })
       }
-      // The gateway addresses models as `providerId:apiModelId` — the same id the config write
-      // persists — so a model whose apiModelId differs from its internal id must launch under it.
-      const launchModel = isGatewayProvider
-        ? (gatewayModelsById.get(cliConfigContext.modelId)?.apiModelId ?? cliConfigContext.rawModelId)
-        : cliConfigContext.rawModelId
+      // Both routes address a model by its provider-facing apiModelId: the gateway matches on it,
+      // and a direct launch hands it straight to the provider's own API.
+      const launchModel =
+        (isGatewayProvider ? gatewayModelsById : modelById).get(cliConfigContext.modelId)?.apiModelId ??
+        cliConfigContext.rawModelId
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
         cliTool: selectedCliTool,
@@ -233,6 +241,7 @@ export function useLaunchDialogController({
     effectiveTerminal,
     apiGatewayProvider,
     gatewayModelsById,
+    modelById,
     setCurrentProvider,
     t
   ])

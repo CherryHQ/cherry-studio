@@ -33,6 +33,7 @@ const {
   ipcRequestMock,
   ipcEventHandlers,
   versionStatusesMock,
+  versionStatusesResolvedState,
   mockProviders,
   mockProviderConfigs,
   providersLoadingState,
@@ -62,6 +63,7 @@ const {
   ipcRequestMock: vi.fn(),
   ipcEventHandlers: new Map<string, (payload: unknown) => void>(),
   versionStatusesMock: vi.fn(),
+  versionStatusesResolvedState: { value: true },
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>,
   providersLoadingState: { value: false },
@@ -439,7 +441,7 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => versionStatusesMock()
+  useCliVersionStatuses: () => ({ statuses: versionStatusesMock(), resolved: versionStatusesResolvedState.value })
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({
@@ -528,6 +530,7 @@ describe('CodeCliPage', () => {
     gatewayState.modelsById.clear()
     mockCodeCliState()
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
+    versionStatusesResolvedState.value = true
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
@@ -548,14 +551,52 @@ describe('CodeCliPage', () => {
   })
 
   it('shows Antigravity immediately while hiding Gemini until installation status is resolved', () => {
-    const statuses: Partial<Record<CodeCli, Record<string, unknown>>> = baseVersionStatuses()
-    delete statuses[CodeCli.GEMINI_CLI]
-    versionStatusesMock.mockReturnValue(statuses)
+    versionStatusesMock.mockReturnValue({})
+    versionStatusesResolvedState.value = false
 
     render(<CodeCliPage />)
 
     expect(screen.getByText('Antigravity CLI')).toBeInTheDocument()
     expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
+  })
+
+  // A broken managed install is installed:false with no shim, so the `installed` filter hid the
+  // tool entirely — taking the Retry/Remove that repair or undo it out of reach for good.
+  it('keeps a broken Gemini installation reachable so it can be repaired or removed', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: false, source: 'none', applicationStatus: 'broken' }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  // The redirect used to bail whenever the status was absent, so a permanently failed read left
+  // a selected Gemini hidden AND unredirected — an empty pane with no way out.
+  it('falls back off a selected Gemini when the status read never produces one', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue({})
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+  })
+
+  it('keeps a selected Gemini selected while its status is still unresolved', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue({})
+    versionStatusesResolvedState.value = false
+
+    render(<CodeCliPage />)
+
+    // Redirecting on an in-flight read would move an installed-Gemini user off it on every start.
+    expect(selectToolMock).not.toHaveBeenCalled()
   })
 
   it.each(['system', 'mise'] as const)('shows an installed Gemini CLI from the %s snapshot', (source) => {

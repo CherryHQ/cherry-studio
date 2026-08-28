@@ -109,8 +109,10 @@ describe('API gateway routes (integration)', () => {
       const { body } = await read(await get(app, '/openapi/json', {}))
       expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
 
+      // A wildcard bind is not a dialable target, so the advertised URL must be the
+      // loopback the curl example can actually reach.
       const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
-      expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
+      expect(custom.body.servers).toEqual([{ url: 'http://127.0.0.1:8080' }])
     })
   })
 
