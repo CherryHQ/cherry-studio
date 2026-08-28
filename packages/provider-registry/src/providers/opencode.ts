@@ -72,6 +72,7 @@ const qwenBudgetModels = [
   { max: 81_920, modelId: 'qwen3-6-plus' },
   { max: 262_144, modelId: 'qwen3-7-max' },
   { max: 262_144, modelId: 'qwen3-7-plus' },
+  { max: 262_144, modelId: 'qwen3-8-flash' },
   { max: 262_144, modelId: 'qwen3-8-max' }
 ]
 

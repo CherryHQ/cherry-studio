@@ -53,13 +53,42 @@ const override = (modelId: string, support: ReasoningSupport): Partial<ProviderM
   reasoningContracts: reasoningContracts(support)
 })
 
-const toggleModels = [
-  'glm-5-1',
-  'kimi-k2-6',
-  'kimi-k2-6-fast',
-  'kimi-k2-6-turbo',
-  'kimi-k2-7-code',
-  'kimi-k2-7-code-fast'
+const toggleModels = ['glm-5-1', 'kimi-k2-6', 'kimi-k2-7-code']
+
+// `/v1/models` does not reliably list router-backed variants; keep the exact IDs
+// advertised by Fireworks' serving-path and integration docs.
+const fastToggleModels: Array<{
+  modelId: string
+  name: string
+  pricing: NonNullable<ProviderModelOverride['pricing']>
+}> = [
+  {
+    modelId: 'accounts/fireworks/routers/kimi-k2p6-fast',
+    name: 'Kimi K2.6 Fast',
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.3 },
+      input: { currency: 'USD', perMillionTokens: 2 },
+      output: { currency: 'USD', perMillionTokens: 8 }
+    }
+  },
+  {
+    modelId: 'accounts/fireworks/routers/kimi-k2p6-turbo',
+    name: 'Kimi K2.6 Turbo',
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.3 },
+      input: { currency: 'USD', perMillionTokens: 2 },
+      output: { currency: 'USD', perMillionTokens: 8 }
+    }
+  },
+  {
+    modelId: 'accounts/fireworks/routers/kimi-k2p7-code-fast',
+    name: 'Kimi K2.7 Code Fast',
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.38 },
+      input: { currency: 'USD', perMillionTokens: 1.9 },
+      output: { currency: 'USD', perMillionTokens: 8 }
+    }
+  }
 ]
 
 const effortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
@@ -109,6 +138,7 @@ export default defineProvider({
   modelsDevProvider: 'fireworks-ai',
   overrides: [
     ...toggleModels.map((modelId) => override(modelId, toggleSupport)),
+    ...fastToggleModels.map((model) => ({ ...override(model.modelId, toggleSupport), ...model })),
     { ...override('glm-5-1-fast', toggleSupport), name: 'GLM 5.1 Fast' },
     ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
     ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))

@@ -26,7 +26,10 @@ describe('inferReasoningMembership', () => {
     'qwen3.5-plus',
     'deepseek-r1',
     'hunyuan-a13b',
+    'hy4',
     'kimi-k2.5',
+    'ling-3.0-flash',
+    'ling-3.0-flash-fin',
     // Deliberate coverage extensions: new-generation SKUs the knob rules
     // already cover, plus the canonical-hyphen catalog spellings.
     'claude-sonnet-5',
