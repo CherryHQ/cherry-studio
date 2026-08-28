@@ -2,6 +2,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -250,6 +251,18 @@ describe('collectExportableImages', () => {
     const { refs } = await collectExportableImages([message])
 
     expect(refs).toEqual([{ key: 'gen-9', url: 'file:///data/Files/gen-9.png', filename: 'a.png' }])
+  })
+
+  it('recognizes the canonical agent generate_image runtime name', async () => {
+    mockPhysicalPaths({ 'gen-canonical': '/data/Files/gen-canonical.png' })
+    const part = {
+      ...generateImagePart([{ id: 'gen-canonical', name: 'a.png' }]),
+      type: `tool-${MCP_BUILTIN_RUNTIME_NAMES.cherryTools.generateImage}`
+    }
+
+    const { refs } = await collectExportableImages([view([part], 'assistant')])
+
+    expect(refs).toEqual([{ key: 'gen-canonical', url: 'file:///data/Files/gen-canonical.png', filename: 'a.png' }])
   })
 
   it('collects MCP inline generate_image payloads as data URLs (render parity)', async () => {

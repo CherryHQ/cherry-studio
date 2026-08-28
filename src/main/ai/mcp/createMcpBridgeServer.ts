@@ -158,6 +158,9 @@ export function createMcpBridgeServer(
     if (namingMode !== 'runtime') {
       throw new Error('MCP runtime tool list requested from a raw bridge')
     }
+    // Claim this generation before the potentially slow upstream list request. Otherwise an
+    // older refresh that finishes last gets the newer token and rolls the snapshot backward.
+    const refreshGeneration = ++refreshToken
     const tools = sourceServer
       ? (await (await getSourceClient()).listTools()).tools.map(
           (tool): McpTool => ({
@@ -178,7 +181,7 @@ export function createMcpBridgeServer(
         originalToolName: tool.name
       })
     )
-    bindingStore.replaceSnapshotIfCurrent(++refreshToken, bindings)
+    bindingStore.replaceSnapshotIfCurrent(refreshGeneration, bindings)
     return tools
   }
   if (namingMode === 'runtime' && !sourceServer) void readRuntimeTools()

@@ -123,6 +123,25 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
   })
 
+  it('resolves a canonical external MCP runtime name to its force-prompt policy', async () => {
+    const runtimeName = 'mcp__files_123456789abc__deleteFile__abcdef123456'
+    mocks.findMcpServer.mockReturnValue({
+      id: 'mcp-1',
+      name: 'Files',
+      serverWireName: 'files_123456789abc',
+      disabledAutoApproveTools: ['delete_file']
+    })
+    mocks.listMcpTools.mockReturnValue([{ name: 'delete_file', runtimeName, description: 'Delete a file' }])
+
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+
+    expect(snapshot.resolve(runtimeName)).toMatchObject({
+      id: runtimeName,
+      name: 'delete_file',
+      approval: 'prompt'
+    })
+  })
+
   it('drops a server that becomes unknown on a later update instead of carrying it forward', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

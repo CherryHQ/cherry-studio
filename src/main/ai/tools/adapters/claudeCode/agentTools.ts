@@ -77,7 +77,11 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
         const sourceAccess = resolveMcpSourceToolAccess(server, tool)
         if (!sourceAccess.enabled) continue
         descriptors.push({
-          id: buildClaudeMcpToolName(server.name, tool.name),
+          // The SDK invokes the bridge's opaque runtime name. Keeping the policy descriptor
+          // on the legacy display-name ID makes force-prompt MCP tools resolve as unknown and
+          // lets headless calls auto-allow them. The fallback only admits cache records from
+          // before runtimeName was persisted; current catalog entries always carry it.
+          id: tool.runtimeName ?? buildClaudeMcpToolName(server.name, tool.name),
           name: tool.name,
           description: sanitizeDescription(tool.description || ''),
           origin: 'mcp',

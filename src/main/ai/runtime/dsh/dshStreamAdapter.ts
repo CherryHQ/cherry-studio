@@ -139,8 +139,9 @@ export class DshStreamAdapter {
 
   constructor(private readonly sink: DshStreamSink) {}
 
-  setMcpToolMetadata(metadata: Readonly<Record<string, DshMcpToolMetadata>>): void {
-    this.mcpToolMetadata = metadata
+  setMcpToolMetadata(metadata: Readonly<Record<string, DshMcpToolMetadata>> | undefined): void {
+    // Metadata is enrichment, never a precondition for emitting a provider tool event.
+    this.mcpToolMetadata = metadata ?? {}
   }
 
   /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
