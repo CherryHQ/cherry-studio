@@ -96,17 +96,7 @@ export const HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER = 'data-cherry-html-preview-sc
 export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER}>html{overflow-y:auto;scrollbar-gutter:stable}</style>`
 
 function hasHtmlPreviewScrollbarGutter(html: string): boolean {
-  let found = false
-  const parser = new Parser(
-    {
-      onopentag(name, attributes) {
-        if (name === 'style' && HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes) found = true
-      }
-    },
-    { lowerCaseTags: true }
-  )
-  parser.end(html)
-  return found
+  return html.includes(HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE)
 }
 
 export function injectHtmlPreviewScrollbarGutter(html: string): string {

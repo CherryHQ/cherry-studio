@@ -477,7 +477,8 @@ describe('HtmlArtifactView', () => {
       expect.objectContaining({
         html,
         sandbox: 'allow-same-origin',
-        csp: expect.stringContaining("default-src 'none'")
+        csp: expect.stringContaining("default-src 'none'"),
+        stableScrollbarGutter: true
       }),
       undefined
     )

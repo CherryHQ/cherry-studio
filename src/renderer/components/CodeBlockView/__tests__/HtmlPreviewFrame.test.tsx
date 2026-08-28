@@ -145,6 +145,15 @@ describe('HtmlPreviewFrame', () => {
     expect(injectHtmlPreviewScrollbarGutter(injected)).toBe(injected)
   })
 
+  it('does not let an author style with the marker suppress the owned gutter rule', () => {
+    const authorHtml = '<style data-cherry-html-preview-scrollbar>.preview{color:red}</style><p>Preview</p>'
+
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+
+    expect(injected).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(injected).toContain('.preview{color:red}')
+  })
+
   it('applies the gutter to the actual scrolling element for doctype-less documents', () => {
     const frameDocument = document.implementation.createHTMLDocument()
     Object.defineProperty(frameDocument, 'scrollingElement', { configurable: true, value: frameDocument.body })
