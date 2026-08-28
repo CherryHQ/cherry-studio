@@ -131,4 +131,51 @@ describe('getExtraHeaders', () => {
 
     expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
   })
+
+  it('adds the AIMLAPI source and partner id headers to the AI/ML API preset', () => {
+    const provider = makeProvider({
+      id: 'aimlapi',
+      settings: { extraHeaders: { 'X-Custom': 'keep' } }
+    })
+
+    expect(getExtraHeaders(provider)).toEqual({
+      'X-Custom': 'keep',
+      'X-AIMLAPI-Source': 'agent/cherry-studio',
+      'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
+    })
+  })
+
+  it('adds the AIMLAPI source and partner id headers to providers copied from the AI/ML API preset', () => {
+    const provider = makeProvider({ id: 'custom-aimlapi', presetProviderId: 'aimlapi' })
+
+    expect(getExtraHeaders(provider)).toEqual({
+      'X-AIMLAPI-Source': 'agent/cherry-studio',
+      'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
+    })
+  })
+
+  it('does not add the AIMLAPI source to other providers', () => {
+    const provider = makeProvider({ id: 'openrouter', settings: { extraHeaders: { 'X-Custom': 'keep' } } })
+
+    expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
+  })
+
+  it('replaces case-insensitive user AIMLAPI header overrides with the stable values', () => {
+    const provider = makeProvider({
+      id: 'aimlapi',
+      settings: {
+        extraHeaders: {
+          'x-aimlapi-source': 'other-client',
+          'X-Aimlapi-Partner-Id': 'other-partner',
+          'X-Custom': 'keep'
+        }
+      }
+    })
+
+    expect(getExtraHeaders(provider)).toEqual({
+      'X-Custom': 'keep',
+      'X-AIMLAPI-Source': 'agent/cherry-studio',
+      'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
+    })
+  })
 })

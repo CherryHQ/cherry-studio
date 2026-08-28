@@ -5168,6 +5168,36 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "ling",
+      "id": "ling-3-0-flash-fin",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Ling 3.0 Flash Fin (Free)",
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
       "capabilities": ["reasoning"],
       "contextWindow": 128000,
       "family": "ring",
@@ -7741,11 +7771,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
@@ -9638,7 +9668,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 262144,
+      "contextWindow": 202752,
       "family": "gemma",
       "id": "gemma-3-27b-it",
       "inputModalities": ["text", "image"],
@@ -18436,7 +18466,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
-      "contextWindow": 256000,
+      "contextWindow": 262144,
       "family": "kat-coder",
       "id": "kat-coder-pro-v2-5",
       "inputModalities": ["text", "image"],
@@ -18822,6 +18852,26 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "id": "hy4-preview",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Tencent: Hy4 preview",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
         }
       }
     },
@@ -21715,5 +21765,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "9735d06648aee6dd"
+  "version": "37a0118ba51a8f29"
 }

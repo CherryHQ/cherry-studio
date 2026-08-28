@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-08-26T09:13:48.306Z
- * Total icons: 159
+ * Generated at: 2026-08-28T10:59:52.241Z
+ * Total icons: 160
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -15,6 +15,7 @@ import { AiOnlyIcon } from './ai-only'
 import { AiStudioIcon } from './ai-studio'
 import { Ai21Icon } from './ai21'
 import { AihubmixIcon } from './aihubmix'
+import { AimlapiIcon } from './aimlapi'
 import { AionlabsIcon } from './aionlabs'
 import { AlayanewIcon } from './alayanew'
 import { AllenaiIcon } from './allenai'
@@ -177,6 +178,7 @@ export const PROVIDER_ICON_CATALOG = {
   'ai-studio': AiStudioIcon,
   ai21: Ai21Icon,
   aihubmix: AihubmixIcon,
+  aimlapi: AimlapiIcon,
   aionlabs: AionlabsIcon,
   alayanew: AlayanewIcon,
   allenai: AllenaiIcon,
