@@ -440,9 +440,13 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection(input).start()
 
-    expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(
-      'export PATH="$PATH":\'C:\\Users\\tester\\bin;C:\\Windows\''
-    )
+    if (process.platform === 'win32') {
+      expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+    } else {
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(
+        'export PATH="$PATH":\'C:\\Users\\tester\\bin;C:\\Windows\''
+      )
+    }
   })
 
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
