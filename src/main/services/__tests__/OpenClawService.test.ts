@@ -1525,15 +1525,20 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
-    it('maps Anthropic endpoint models to Anthropic OpenClaw provider config', async () => {
+    it('maps a pinned adapter-only Anthropic endpoint through its shared provider host', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
       vi.mocked(providerService.getByProviderId).mockResolvedValue(
         createProvider({
           id: 'new-api',
           name: 'New API',
+          sharedEndpointHost: true,
           endpointConfigs: {
-            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://new-api.example.com/anthropic' }
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              baseUrl: 'https://new-api.example.com',
+              adapterFamily: 'newapi'
+            },
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' }
           }
         })
       )
@@ -1541,7 +1546,8 @@ describe('OpenClawService gateway status state machine', () => {
         id: 'new-api::claude-sonnet-4',
         providerId: 'new-api',
         apiModelId: 'claude-sonnet-4',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+        preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       })
       vi.mocked(modelService.getByKey).mockResolvedValue(model)
       vi.mocked(modelService.list).mockResolvedValue([model])
@@ -1554,8 +1560,8 @@ describe('OpenClawService gateway status state machine', () => {
       expect(syncProviderConfigSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'anthropic',
-          apiHost: 'https://new-api.example.com/anthropic',
-          anthropicApiHost: 'https://new-api.example.com/anthropic'
+          apiHost: 'https://new-api.example.com',
+          anthropicApiHost: 'https://new-api.example.com'
         }),
         expect.objectContaining({ id: 'claude-sonnet-4', endpoint_type: 'anthropic' })
       )
