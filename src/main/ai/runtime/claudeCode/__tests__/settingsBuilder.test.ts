@@ -2535,7 +2535,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
 
-  it('keeps only channel-safe Support tools in channel sessions while denying unattended diagnostics and all-KB access', async () => {
+  it('keeps reusable Support tools mounted in channel sessions while denying unattended diagnostics and all-KB access', async () => {
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'support-1' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -2580,7 +2580,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       'navigate',
       'diagnose',
       'product_info',
-      'apply_setting'
+      'apply_setting',
+      'prepare_diagnostic_report'
     ])
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
@@ -2588,6 +2589,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       settings.canUseTool?.('mcp__assistant__diagnose', {}, {
         signal: { aborted: false },
         toolUseID: 'diagnose-1'
+      } as never)
+    ).resolves.toMatchObject({ behavior: 'deny' })
+    await expect(
+      settings.canUseTool?.('mcp__assistant__prepare_diagnostic_report', {}, {
+        signal: { aborted: false },
+        toolUseID: 'diagnostic-report-1'
       } as never)
     ).resolves.toMatchObject({ behavior: 'deny' })
     await expect(
