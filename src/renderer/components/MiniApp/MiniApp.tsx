@@ -23,11 +23,22 @@ interface Props {
   size?: number
   isLast?: boolean
   variant?: 'default' | 'launchpad'
+  /** Renders the tile as unavailable: not activatable, not in the tab order. */
+  disabled?: boolean
 }
 
 const logger = loggerService.withContext('App')
 
-const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isLast, variant = 'default' }) => {
+const MiniApp: FC<Props> = ({
+  app,
+  onClick,
+  onOpen,
+  onEditCustom,
+  size = 60,
+  isLast,
+  variant = 'default',
+  disabled = false
+}) => {
   const { t } = useTranslation()
   const {
     miniApps,
@@ -35,7 +46,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     openedKeepAliveMiniApps,
     currentMiniAppId,
     miniAppShow,
+    splitMiniAppId,
     setOpenedKeepAliveMiniApps,
+    setSplitOpen,
+    setSplitMiniAppId,
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
@@ -55,6 +69,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
+    if (disabled) return
     if (onOpen) {
       onOpen(app, displayName)
     } else {
@@ -76,8 +91,11 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     variant === 'launchpad'
       ? ({
           onKeyDown: handleKeyDown,
-          tabIndex: 0,
+          // Keyboard users must not be able to reach or activate a disabled
+          // tile — `pointer-events-none` alone only stops the mouse.
+          tabIndex: disabled ? -1 : 0,
           role: 'button',
+          'aria-disabled': disabled || undefined,
           'aria-label': displayName
         } as const)
       : {}
@@ -112,6 +130,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
         // Functional update: resolve against the latest list so a mini app opened
         // during the status mutation's await is not clobbered by a stale snapshot.
         setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== app.appId))
+        // Hiding unmounts the app's webview, so a split pane still pointing at it
+        // would sit on its loading mask forever.
+        if (splitMiniAppId === app.appId) {
+          setSplitMiniAppId('')
+          setSplitOpen(false)
+        }
       })
       .catch(reportFailure('miniApp.hide_failed'))
   }
@@ -180,9 +204,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
           className={cn(
-            'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
+            'flex flex-col items-center justify-center overflow-hidden outline-none',
+            disabled ? 'cursor-default' : 'cursor-pointer',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ring)_30%,transparent)]'
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
               : 'min-h-[85px]'
           )}
           onClick={handleClick}
@@ -193,22 +218,28 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
               isLaunchpad &&
                 'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
             )}>
-            <MiniAppIcon size={size} app={app} appearance={isLaunchpad ? 'plain' : 'avatar'} />
+            {isLaunchpad ? (
+              <div className="mini-app-icon-clip flex size-full items-center justify-center overflow-hidden rounded-[inherit]">
+                <MiniAppIcon size={size} app={app} appearance="plain" />
+              </div>
+            ) : (
+              <MiniAppIcon size={size} app={app} appearance="avatar" />
+            )}
             {isOpened && (
               <div
                 className={cn(
                   'absolute rounded-full bg-background',
                   isLaunchpad
-                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--color-border-subtle)]'
+                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--border-subtle)]'
                     : '-right-0.5 -bottom-0.5 p-0.5'
                 )}>
-                <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
+                <IndicatorLight color="var(--success)" size={6} animation={!isActive} />
               </div>
             )}
           </div>
           <div
             className={cn(
-              'w-full select-none text-center text-foreground-secondary',
+              'w-full select-none text-center text-muted-foreground',
               isLaunchpad
                 ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'

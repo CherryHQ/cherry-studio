@@ -3,15 +3,19 @@ import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, shell } from 'electron'
-import path, { join } from 'path'
+import { app, nativeImage, nativeTheme, session, shell } from 'electron'
+import path from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
@@ -34,6 +38,12 @@ export class MainWindowService extends BaseService {
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
   private lastRendererProcessCrashTime: number = 0
+  /**
+   * Armed only between onReady and the initial window's ready-to-show:
+   * launch-to-tray suppresses exactly one show — the process's first Main
+   * window. Runtime rebuilds (showMainWindow with init data) always show.
+   */
+  private suppressInitialLaunchShow = false
 
   constructor() {
     super()
@@ -54,6 +64,8 @@ export class MainWindowService extends BaseService {
 
   protected async onInit() {
     const windowManager = application.get('WindowManager')
+    this.setupHtmlArtifactPreviewSession()
+    this.setupSpellCheck()
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -62,15 +74,26 @@ export class MainWindowService extends BaseService {
         this.mainWindow = window
         this.setupMainWindow(window)
         this._onMainWindowCreated.fire(window)
+        // Tab attach delivery is only valid while the renderer's listener is
+        // mounted; a reload or crash tears it down. Mirrors ProtocolService's
+        // readiness reset wiring.
+        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
+        window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.Main, () => {
         this.mainWindow = null
+        // Destroyed-before-ready leaves the launch flag armed; clear it so the
+        // next rebuild is not suppressed. Also drops tab delivery readiness
+        // (queue is kept — it flushes into the next ready renderer).
+        this.suppressInitialLaunchShow = false
+        resetMainRendererTabAttachDelivery()
       })
     )
 
     this.registerWindowShortcuts()
+    this.registerContextMenu()
     this.registerIpcHandlers()
     this.registerActivateHandler()
     this.registerSecondInstanceHandler()
@@ -84,6 +107,19 @@ export class MainWindowService extends BaseService {
     this.registerDisposable(() => app.removeListener('browser-window-created', handler))
   }
 
+  private registerContextMenu() {
+    // App-level so every webContents gets the menu — the main window's own
+    // (web-contents-created fires during BrowserWindow construction, before
+    // onWindowCreatedByType) and all webviews like miniapp. Must stay a single
+    // registration here: a per-window one would stack one app listener per
+    // singleton main-window rebuild and pop duplicate menus.
+    const handler = (_: Electron.Event, webContents: Electron.WebContents) => {
+      contextMenu.contextMenu(webContents)
+    }
+    app.on('web-contents-created', handler)
+    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
+  }
+
   protected async onReady() {
     // Mac: when launching into tray, suppress the Dock icon up-front by telling
     // WindowManager that Main-type windows do not contribute to Dock visibility.
@@ -93,6 +129,8 @@ export class MainWindowService extends BaseService {
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
+      // Suppress only the process-launch window; runtime rebuilds must show.
+      this.suppressInitialLaunchShow = true
     }
 
     // Dev-only: load DevTools extensions before the main window's page loads so
@@ -152,6 +190,16 @@ export class MainWindowService extends BaseService {
     this.mainWindow?.reload()
   }
 
+  /** Start the native close flow when `windowId` identifies the current main window. */
+  public requestClose(windowId: string): boolean {
+    const mainWindow = this.mainWindow
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (application.get('WindowManager').getWindowId(mainWindow) !== windowId) return false
+
+    mainWindow.close()
+    return true
+  }
+
   /**
    * Open the main window via WindowManager.
    * Singleton lifecycle: reuses an existing main window if present (show + focus),
@@ -197,8 +245,7 @@ export class MainWindowService extends BaseService {
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
-    this.setupContextMenu(mainWindow)
-    this.setupSpellCheck(mainWindow)
+    this.setupHtmlArtifactWebviews(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
@@ -207,17 +254,29 @@ export class MainWindowService extends BaseService {
     // Content loading is handled by WindowManager via the registry's htmlPath.
   }
 
-  private setupSpellCheck(mainWindow: BrowserWindow) {
+  /**
+   * Spell check is preference-driven and not window-scoped: `defaultSession` is shared by
+   * every app window, so it converges once here and on every subsequent preference change.
+   * Miniapp webviews live in their own partition and reconcile themselves.
+   */
+  private setupSpellCheck() {
     const preferenceService = application.get('PreferenceService')
-    const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
-    if (enableSpellCheck) {
+    const apply = () => {
       try {
-        const spellCheckLanguages = preferenceService.get('app.spell_check.languages')
-        spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
+        const enabled = preferenceService.get('app.spell_check.enabled')
+        const languages = preferenceService.get('app.spell_check.languages')
+        session.defaultSession.setSpellCheckerEnabled(enabled)
+        if (enabled && languages.length > 0) {
+          session.defaultSession.setSpellCheckerLanguages(languages)
+        }
       } catch (error) {
-        logger.error('Failed to set spell check languages:', error as Error)
+        logger.error('Failed to apply spell check settings:', error as Error)
       }
     }
+    apply()
+    this.registerDisposable(
+      preferenceService.subscribeMultipleChanges(['app.spell_check.enabled', 'app.spell_check.languages'], apply)
+    )
   }
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
@@ -247,19 +306,61 @@ export class MainWindowService extends BaseService {
     }
   }
 
-  private setupContextMenu(mainWindow: BrowserWindow) {
-    contextMenu.contextMenu(mainWindow.webContents)
-    // setup context menu for all webviews like miniapp
-    app.on('web-contents-created', (_, webContents) => {
-      contextMenu.contextMenu(webContents)
+  private setupHtmlArtifactPreviewSession() {
+    const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    const handleWillDownload = (event: Electron.Event) => event.preventDefault()
+    const userAgent = previewSession
+      .getUserAgent()
+      .replace(/CherryStudio\/\S+\s/, '')
+      .replace(/Electron\/\S+\s/, '')
+
+    previewSession.setUserAgent(userAgent)
+    previewSession.setPermissionCheckHandler(() => false)
+    previewSession.setPermissionRequestHandler((_, __, callback) => callback(false))
+    previewSession.on('will-download', handleWillDownload)
+    previewSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      callback({ cancel: !isAllowedHtmlArtifactRequest(details.url) })
     })
 
-    // Dangerous API
-    if (isDev) {
-      mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/preload.js')
+    this.registerDisposable(() => {
+      previewSession.setPermissionCheckHandler(null)
+      previewSession.setPermissionRequestHandler(null)
+      previewSession.removeListener('will-download', handleWillDownload)
+      previewSession.webRequest.onBeforeRequest(null)
+    })
+  }
+
+  private setupHtmlArtifactWebviews(mainWindow: BrowserWindow) {
+    const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+
+    mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+      if (params.partition !== HTML_ARTIFACT_PREVIEW_PARTITION) return
+
+      if (!params.src.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) {
+        event.preventDefault()
+        return
+      }
+
+      delete webPreferences.preload
+      webPreferences.nodeIntegration = false
+      webPreferences.nodeIntegrationInSubFrames = false
+      webPreferences.contextIsolation = true
+      webPreferences.sandbox = true
+      webPreferences.webSecurity = true
+      webPreferences.allowRunningInsecureContent = false
+      webPreferences.safeDialogs = true
+    })
+
+    mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
+      if (webContents.session !== previewSession) return
+
+      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      webContents.on('will-navigate', (event, url) => {
+        if (!url.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) {
+          event.preventDefault()
+        }
       })
-    }
+    })
   }
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
@@ -268,9 +369,11 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // showMode is 'manual' for the main window — first show is owned here.
-      // tray-on-launch suppresses the initial show; otherwise restore Dock and show.
-      const isLaunchToTray = preferenceService.get('app.tray.on_launch')
-      if (!isLaunchToTray) {
+      // Launch-to-tray suppresses only the process's initial window (armed in
+      // onReady, consumed once); runtime rebuilds must always become visible.
+      const suppressShow = this.suppressInitialLaunchShow
+      this.suppressInitialLaunchShow = false
+      if (!suppressShow) {
         //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
         void app.dock?.show()
         mainWindow.show()
@@ -306,7 +409,8 @@ export class MainWindowService extends BaseService {
     })
 
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:517')) {
+      // In-app navigation (dev-server origin, or a packaged page under the app root).
+      if (isAppRendererUrl(url)) {
         return
       }
 
@@ -365,26 +469,6 @@ export class MainWindowService extends BaseService {
       }
 
       return { action: 'deny' }
-    })
-
-    this.setupWebRequestHeaders(mainWindow)
-  }
-
-  private setupWebRequestHeaders(mainWindow: BrowserWindow) {
-    mainWindow.webContents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
-      if (details.responseHeaders?.['X-Frame-Options']) {
-        delete details.responseHeaders['X-Frame-Options']
-      }
-      if (details.responseHeaders?.['x-frame-options']) {
-        delete details.responseHeaders['x-frame-options']
-      }
-      if (details.responseHeaders?.['Content-Security-Policy']) {
-        delete details.responseHeaders['Content-Security-Policy']
-      }
-      if (details.responseHeaders?.['content-security-policy']) {
-        delete details.responseHeaders['content-security-policy']
-      }
-      callback({ cancel: false, responseHeaders: details.responseHeaders })
     })
   }
 

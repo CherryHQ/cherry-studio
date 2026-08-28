@@ -33,7 +33,6 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
-import NotesSettings from './NotesSettings'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
@@ -157,13 +156,19 @@ const HeaderNavbar = ({
 
   useCommandHandler('app.print', handlePrint, { enabled: isActiveTab && activeNode?.type === 'file' })
 
-  const handleShowSettings = useCallback(() => {
-    void ContentPopup.show({
-      title: t('notes.settings.title'),
-      content: <NotesSettings />,
-      width: 600,
-      styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
-    })
+  const handleShowSettings = useCallback(async () => {
+    try {
+      const { default: NotesSettings } = await import('./NotesSettings')
+      void ContentPopup.show({
+        title: t('notes.settings.title'),
+        content: <NotesSettings />,
+        width: 600,
+        styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
+      })
+    } catch (error) {
+      logger.error('Failed to load notes settings:', error as Error)
+      toast.error(t('common.error'))
+    }
   }, [])
 
   const handleBreadcrumbClick = useCallback(
@@ -252,7 +257,7 @@ const HeaderNavbar = ({
           } else if (item.printAction) {
             void handlePrint()
           } else if (item.showSettingsPopup) {
-            handleShowSettings()
+            void handleShowSettings()
           } else if (item.action) {
             item.action(settings, updateSettings)
           }
@@ -294,18 +299,22 @@ const HeaderNavbar = ({
   }, [activeNode, notesTree])
 
   return (
-    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--color-border)]">
+    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--border)]">
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon
+              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon
+              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
@@ -337,7 +346,7 @@ const HeaderNavbar = ({
                         <span
                           className={cn(
                             'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
-                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-primary hover:underline'
+                            item.isFolder && !isLastItem && 'cursor-pointer text-link hover:underline'
                           )}
                           onClick={() => handleBreadcrumbClick(item)}>
                           {item.title}
@@ -360,13 +369,9 @@ const HeaderNavbar = ({
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-icon"
+              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-muted-foreground"
               onClick={handleToggleStarred}>
-              {activeNode.isStarred ? (
-                <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
-              ) : (
-                <Star size={18} />
-              )}
+              {activeNode.isStarred ? <Star size={18} className="fill-amber-400 text-amber-400" /> : <Star size={18} />}
             </div>
           </Tooltip>
         )}
@@ -374,7 +379,7 @@ const HeaderNavbar = ({
           <PopoverTrigger asChild>
             <div>
               <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon">
+                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground">
                   <MoreHorizontal size={18} />
                 </BaseNavbarIcon>
               </Tooltip>

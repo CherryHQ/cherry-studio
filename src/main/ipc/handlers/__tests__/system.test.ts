@@ -9,7 +9,11 @@ const {
   openPathMock,
   openExternalMock,
   isSafeMock,
-  platform
+  nativeThemeMock,
+  platform,
+  screenCaptureStatusMock,
+  requestScreenCaptureMock,
+  openScreenCaptureSettingsMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   getDeviceTypeMock: vi.fn(),
@@ -19,7 +23,11 @@ const {
   openPathMock: vi.fn(),
   openExternalMock: vi.fn(),
   isSafeMock: vi.fn(),
-  platform: { isMac: true }
+  nativeThemeMock: { shouldUseDarkColors: false },
+  platform: { isMac: true },
+  screenCaptureStatusMock: vi.fn(),
+  requestScreenCaptureMock: vi.fn(),
+  openScreenCaptureSettingsMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
@@ -32,10 +40,18 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 vi.mock('electron', () => ({
+  nativeTheme: nativeThemeMock,
   systemPreferences: { isTrustedAccessibilityClient: isTrustedMock },
   shell: { openPath: openPathMock, openExternal: openExternalMock }
 }))
 vi.mock('font-list', () => ({ default: { getFonts: getFontsMock } }))
+// The TCC gate is its own module, not the screenshot barrel: answering a permission
+// query must not drag the overlay service into every app launch.
+vi.mock('@main/utils/screenCapturePermission', () => ({
+  getScreenCapturePermissionStatus: screenCaptureStatusMock,
+  requestScreenCapturePermission: requestScreenCaptureMock,
+  openScreenCaptureSettings: openScreenCaptureSettingsMock
+}))
 
 import { systemHandlers } from '../system'
 
@@ -47,6 +63,7 @@ const ctx = (senderId: string | null) => ({ senderId })
 beforeEach(() => {
   vi.clearAllMocks()
   platform.isMac = true
+  nativeThemeMock.shouldUseDarkColors = false
   appGetMock.mockImplementation((name: string) => {
     if (name === 'WindowManager') return windowManager
     throw new Error(`Unexpected application.get(${name})`)
@@ -57,6 +74,13 @@ describe('systemHandlers', () => {
   it('get_device_type delegates to the platform util', async () => {
     getDeviceTypeMock.mockReturnValue('mac')
     expect(await systemHandlers['system.get_device_type'](undefined, ctx('w1'))).toBe('mac')
+  })
+
+  it('get_native_theme returns Electron resolved theme', async () => {
+    expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('light')
+
+    nativeThemeMock.shouldUseDarkColors = true
+    expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('dark')
   })
 
   it('get_ip_country delegates to RegionService', async () => {
@@ -102,6 +126,23 @@ describe('systemHandlers', () => {
     expect(await systemHandlers['system.mac.is_process_trusted'](undefined, ctx('w1'))).toBe(false)
     expect(await systemHandlers['system.mac.request_process_trust'](undefined, ctx('w1'))).toBe(false)
     expect(isTrustedMock).not.toHaveBeenCalled()
+  })
+
+  it('mac.screen_capture_status reports the OS permission state to the renderer', async () => {
+    screenCaptureStatusMock.mockReturnValue('denied')
+    expect(await systemHandlers['system.mac.screen_capture_status'](undefined, ctx('w1'))).toBe('denied')
+  })
+
+  // The settings UI branches on this to choose between "restart to apply", "open System Settings"
+  // and "the prompt never appeared"; a PRE-prompt status (or void) makes those indistinguishable.
+  it('mac.request_screen_capture answers with the status observed after prompting', async () => {
+    requestScreenCaptureMock.mockResolvedValue('authorized')
+    expect(await systemHandlers['system.mac.request_screen_capture'](undefined, ctx('w1'))).toBe('authorized')
+  })
+
+  it('mac.request_screen_capture reports denial rather than swallowing it', async () => {
+    requestScreenCaptureMock.mockResolvedValue('denied')
+    expect(await systemHandlers['system.mac.request_screen_capture'](undefined, ctx('w1'))).toBe('denied')
   })
 
   it('shell.open_path delegates straight to shell.openPath', async () => {

@@ -1,12 +1,13 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
-import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isCherryAIProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
@@ -17,21 +18,43 @@ import { modelSupportsCliTool } from '../utils/modelSupport'
  * provider list, the model filter handed to the edit panel's `ModelSelector`,
  * and a display-name resolver for the provider list.
  */
-export function useConfigMetadata(selectedCliTool: CodeCli) {
-  const { models: allModels } = useModels({ enabled: true })
+export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[], isProvidersLoading = false) {
+  const { models: allModels, isLoading: isModelsLoading } = useModels({ enabled: true })
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  // `gatewayModelsById` is built from both queries, and each yields an empty list while in flight —
+  // indistinguishable from "no routable model exists". Expose the combined flag so callers that
+  // resolve gateway addresses can wait instead of reading a cold map as an answer.
+  const isGatewayModelsLoading = isModelsLoading || isProvidersLoading
   const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
+  const gatewayProviderIds = useMemo(
+    () =>
+      new Set(providers.filter((provider) => provider.isEnabled && !isExternalCliProvider(provider)).map((p) => p.id)),
+    [providers]
+  )
+  const gatewayModelsById = useMemo(
+    () =>
+      new Map(
+        allModels
+          .filter((model) => gatewayProviderIds.has(model.providerId) && isGatewayRoutableModel(model))
+          .map((model) => [model.id, model])
+      ),
+    [allModels, gatewayProviderIds]
+  )
+  const defaultGatewayModelId =
+    defaultModelId && gatewayModelsById.has(defaultModelId as Model['id']) ? (defaultModelId as Model['id']) : undefined
 
+  const filterProvidersForTool = useCallback((toolId: CodeCli, providers: Provider[]): Provider[] => {
+    const filterFn = CLI_TOOL_PROVIDER_MAP[toolId]
+    // Exclude login-based providers (Claude Code / Codex OAuth, etc.): they carry no API
+    // key/baseUrl to inject into the CLI config, and their "own login" is already surfaced by
+    // the synthetic own-login card. `isLoginBasedProvider` keeps api-key-capable mixed providers.
+    return filterFn
+      ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p) && !isLoginBasedProvider(p))
+      : []
+  }, [])
   const filterProviders = useCallback(
-    (providers: Provider[]): Provider[] => {
-      const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
-      // Exclude login-based providers (Claude Code / Codex OAuth, etc.): they carry no API
-      // key/baseUrl to inject into the CLI config, and their "own login" is already surfaced by
-      // the synthetic own-login card. `isLoginBasedProvider` keeps api-key-capable mixed providers.
-      return filterFn
-        ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p) && !isLoginBasedProvider(p))
-        : []
-    },
-    [selectedCliTool]
+    (providers: Provider[]): Provider[] => filterProvidersForTool(selectedCliTool, providers),
+    [filterProvidersForTool, selectedCliTool]
   )
 
   /** Build a model filter scoped to one provider (for the edit panel's picker). */
@@ -39,6 +62,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     (providerId: string) =>
       (model: Model): boolean => {
         if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
+        // The gateway does dialect conversion, so any chat model of any enabled provider is usable
+        // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
+        // keeping only what the gateway can route (same predicate as its /v1/models listing).
+        if (isApiGatewayProviderId(providerId)) {
+          return isGatewayRoutableModel(model)
+        }
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId
       },
@@ -52,7 +81,11 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
       // (fable-role) detailed model instead of hiding the model entirely.
       const modelId =
         toolId === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)
-          ? getClaudeContextModelId(provider.id, config)
+          ? getClaudeContextModelId(
+              provider.id,
+              config,
+              isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
+            )
           : providerConfig?.modelId
       let modelName: string | undefined
       if (modelId && isUniqueModelId(modelId)) {
@@ -65,7 +98,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
         modelName
       }
     },
-    [modelById]
+    [gatewayModelsById, modelById]
   )
 
   const resolveProviderMeta = useCallback(
@@ -74,5 +107,14 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     [resolveProviderMetaForTool, selectedCliTool]
   )
 
-  return { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool }
+  return {
+    filterProviders,
+    filterProvidersForTool,
+    makeModelFilter,
+    resolveProviderMeta,
+    resolveProviderMetaForTool,
+    gatewayModelsById,
+    defaultGatewayModelId,
+    isGatewayModelsLoading
+  }
 }

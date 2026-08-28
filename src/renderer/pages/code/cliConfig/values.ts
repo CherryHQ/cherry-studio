@@ -1,9 +1,23 @@
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_NAME, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { sanitizeProviderName } from '@shared/utils/provider'
 
 import { CHERRY_PROVIDER_PREFIX } from './constants'
 
-export { sanitizeProviderName } from '@shared/utils/provider'
+export { sanitizeProviderName }
+
+/**
+ * The provider-name segment Cherry writes into CLI provider keys (`cherry-<name>`) and
+ * per-tool provider display fields. Real providers derive it from their sanitized display
+ * name; the synthetic API gateway uses the fixed {@link CLI_API_GATEWAY_PROVIDER_NAME} so
+ * the key is a clean `cherry-gateway` instead of the `Cherry-` its localized title sanitizes to.
+ */
+export function cliProviderKeyName(provider: { id: string; name: string }): string {
+  return isApiGatewayProviderId(provider.id)
+    ? CLI_API_GATEWAY_PROVIDER_NAME
+    : sanitizeProviderName(provider.name, provider.id)
+}
 
 /**
  * Non-throwing `createUniqueModelId` for render/event paths fed by user input

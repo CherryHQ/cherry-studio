@@ -16,7 +16,6 @@ import {
 } from '../../../types/knowledge'
 import {
   KNOWLEDGE_BASES_DEFAULT_LIMIT,
-  KNOWLEDGE_BASES_DEFAULT_PAGE,
   KNOWLEDGE_BASES_MAX_LIMIT,
   ListKnowledgeBasesQuerySchema,
   ListKnowledgeItemsQuerySchema,
@@ -153,6 +152,26 @@ describe('Knowledge base schemas', () => {
     if (result.success) {
       expect(result.data.name).toBe('Base 1_bak')
     }
+  })
+
+  it('accepts a BM25-only restore and rejects half-set embedding config', () => {
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: null,
+        embeddingModelId: null
+      }).success
+    ).toBe(true)
+
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: 3072,
+        embeddingModelId: null
+      }).success
+    ).toBe(false)
   })
 
   it('rejects extra fields in restore-base DTOs', () => {
@@ -395,7 +414,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -409,7 +428,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
@@ -652,7 +671,7 @@ it('rejects non-nullable optional config null clears in patch schema', () => {
   ).toBe(true)
 })
 
-it('keeps patch groupId aligned with topic semantics', () => {
+it('accepts only null or a non-blank groupId in knowledge patches', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: null }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: GROUP_ID }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '   ' }).success).toBe(false)
@@ -764,17 +783,17 @@ describe('isCompletedVectorKnowledgeBase', () => {
 describe('ListKnowledgeBasesQuerySchema', () => {
   it('trims search and applies pagination defaults', () => {
     expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
-      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
       limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
       search: 'docs'
     })
   })
 
-  it('accepts max limit and rejects blank search', () => {
-    expect(ListKnowledgeBasesQuerySchema.parse({ page: 2, limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
-      page: 2,
+  it('accepts cursor and max limit and rejects the old page field', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ cursor: 'next-page', limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
+      cursor: 'next-page',
       limit: KNOWLEDGE_BASES_MAX_LIMIT
     })
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 2, limit: 20 }).success).toBe(false)
     expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
   })
 
@@ -786,7 +805,6 @@ describe('ListKnowledgeBasesQuerySchema', () => {
         updatedAtFrom: '2026-05-01T00:00:00.000Z'
       })
     ).toEqual({
-      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
       limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
       sortBy: 'updatedAt',
       sortOrder: 'desc',

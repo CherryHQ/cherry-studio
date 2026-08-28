@@ -56,7 +56,7 @@ export function transformMiniApp(
   const preset = !isExplicitCustom ? presetMap.get(appId) : undefined
 
   // Preset (default) app — full preset data + delta status, presetMiniAppId set.
-  // Mirrors ModelService preset-derived rows: full data with presetModelId.
+  // Mini apps intentionally retain full preset data for update compatibility.
   if (preset) {
     return {
       appId,

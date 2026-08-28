@@ -1,4 +1,4 @@
-import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
@@ -6,10 +6,11 @@ import {
   hasClaudeDetailedModels,
   readCliConfigDraft,
   readCliConfigFiles,
-  sanitizeCliConfigBlob
+  sanitizeCliConfigBlob,
+  updateCliConfigDraftConfig
 } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 import type { ClaudeModelMode, ConfigDraft } from './types'
@@ -90,11 +91,12 @@ export function resolveManagedDraftOptions(
   providerId: string,
   modelMode: ClaudeModelMode,
   config: Record<string, unknown>,
-  modelId: UniqueModelId | undefined
+  modelId: UniqueModelId | undefined,
+  gatewayModels?: Map<UniqueModelId, Model>
 ): ManagedDraftOptions {
   if (cliTool === CodeCli.CLAUDE_CODE && modelMode === 'detailed') {
     return {
-      cliConfigModelId: getClaudeContextModelId(providerId, config),
+      cliConfigModelId: getClaudeContextModelId(providerId, config, gatewayModels),
       writePrimaryModel: false
     }
   }
@@ -109,33 +111,28 @@ export async function createManagedConfigDraft({
   modelId,
   config,
   files,
-  options = {}
+  options = {},
+  gateway
 }: {
   cliTool: CodeCli
   modelId: UniqueModelId | undefined
   config: Record<string, unknown>
   files?: CliConfigFileDraft[]
   options?: ManagedDraftOptions
+  gateway?: CliConfigGatewayContext
 }): Promise<ConfigDraft> {
   const cliConfigModelId = options.cliConfigModelId ?? modelId
-  if (!cliConfigModelId) {
-    return {
-      modelId,
-      config,
-      files: files ?? [],
-      connection: null,
-      mode: 'managed',
-      error: ''
-    }
-  }
   try {
-    const nextFiles = await readCliConfigDraft({
-      cliTool,
-      modelId: cliConfigModelId,
-      configBlob: config,
-      files,
-      writePrimaryModel: options.writePrimaryModel
-    })
+    const nextFiles = cliConfigModelId
+      ? await readCliConfigDraft({
+          cliTool,
+          modelId: cliConfigModelId,
+          configBlob: config,
+          files,
+          writePrimaryModel: options.writePrimaryModel,
+          gateway
+        })
+      : updateCliConfigDraftConfig(cliTool, files ?? [], config)
     return {
       modelId,
       config,
@@ -164,7 +161,9 @@ export async function loadInitialConfigDraft({
   initialConfig,
   initialClaudeModelMode,
   initialDraftSeed,
-  connectionMatchesProvider
+  connectionMatchesProvider,
+  gateway,
+  gatewayModels
 }: {
   cliTool: CodeCli
   providerId: string
@@ -174,13 +173,16 @@ export async function loadInitialConfigDraft({
   initialClaudeModelMode: ClaudeModelMode
   initialDraftSeed: ConfigDraft
   connectionMatchesProvider: (connection: CliConfigConnection | null, expectedModelId?: UniqueModelId) => boolean
+  gateway?: CliConfigGatewayContext
+  gatewayModels?: Map<UniqueModelId, Model>
 }): Promise<ConfigDraft> {
   const initialDraftOptions = resolveManagedDraftOptions(
     cliTool,
     providerId,
     initialClaudeModelMode,
     initialConfig,
-    initialModelId
+    initialModelId,
+    gatewayModels
   )
   let rawFiles: CliConfigFileDraft[] = []
 
@@ -217,7 +219,8 @@ export async function loadInitialConfigDraft({
       modelId: initialModelId,
       config: initialConfig,
       files: rawFiles,
-      options: initialDraftOptions
+      options: initialDraftOptions,
+      gateway
     })
   } catch (error) {
     return {

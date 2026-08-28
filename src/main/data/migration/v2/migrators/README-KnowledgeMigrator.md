@@ -87,7 +87,7 @@
 |----------------------|---------------------------|-------|
 | `id` | `id` | Direct copy |
 | base owner `id` | `baseId` | From parent base |
-| _no legacy grouping field_ | `groupId` | V1 exports are flat; migrated items are inserted without grouping metadata (`null`) |
+| _no legacy grouping field_ | `groupId` | V1 exports are flat, so migrated items are inserted without grouping metadata (`null`) — except the synthesized children of an expanded `directory`, which point at their container |
 | `type` | `type` | Supported target types: file/url/note/directory. Legacy sitemap maps to url. |
 | `content` + Dexie lookups | `data` | Type-specific transform |
 | `uniqueId` | `status` | `uniqueId` non-empty => `completed`, otherwise `idle` |
@@ -107,11 +107,27 @@
 
 - `directory` items are migrated into `knowledge_item` as container/source declarations when their legacy payload is valid.
 - Legacy `sitemap` items are migrated into `knowledge_item` as `url` items when their legacy payload is valid.
-- V1 does not provide separate child `knowledge_item` ids for every expanded directory child document.
-- Therefore this migrator does not synthesize child item rows during v1 migration.
+- V1 does not provide separate child `knowledge_item` ids for every expanded directory child document, but it does record one loader source string per embedded file. `expandLegacyDirectoryItem` therefore synthesizes one `file` child per distinct loader source so the v1 vectors can be re-attributed instead of dropped.
+- Paths mirror a native directory expansion: the container claims a deduped top-level `raw/` prefix (`docs`, `docs_1`, …) and each child takes `<prefix>/<its path relative to the folder>`. The subtree is derived purely from the v1 source strings — both separators, case-folded segment comparison, per-segment `sanitizeFilename` — with no filesystem access, so the same v1 export migrates identically on macOS and Windows. A source recorded outside the container's folder path falls back to its filename alone and is counted into one aggregated warning per container.
+- Prefix occupancy is tracked by `foldPathSegment` key (NFC + lower-case), not by literal name, while the emitted prefix keeps its original spelling. `raw/docs` and `raw/Docs` are one directory on Windows and default macOS volumes, so two v1 folders differing only in case (or in Unicode composition) must not both claim it — otherwise deleting or re-indexing either container runs `removeDir(raw/<prefix>)` over the other's bytes and leaves its rows and index entries behind. `.Cherry` is folded against `CHERRY_META_DIR` for the same reason, even though `assertSafeKnowledgeRelativePath` only rejects the exact lower-case spelling.
+  - This covers prefix-vs-prefix within the migration. Two related collisions are **not** fixed here because they live in the shared native helpers: `collectReservedTopLevelNames` / `chooseDirectoryPathPrefix` compare literally, so a container re-index can re-pick a case-colliding prefix, and `reserveImportedFileRelativePath` can hand a copied file a name that case-collides with a directory prefix. Both predate the migration and affect natively added directories today.
+- The resulting paths are **path-shaped but unbacked**: no bytes are copied (v1 never stored the folder inside Cherry), so a migrated child still cannot be reindexed from disk. Reindexing the *container* while the original folder still exists fills `raw/<prefix>` for real, converging the migrated shape onto the native one. The prefix is normally re-picked identically — `chooseDirectoryPathPrefix` excludes the container itself and derives from the same basename — so paths and display names do not churn. Two cases do change paths on that reindex:
+  - A prefix that took a `_N` at migration time, when whatever forced the suffix has since been deleted: the reindex reclaims the shorter name.
+  - A segment that `sanitizeFilename` rewrote. The migration sanitizes every segment; the native expansion does not sanitize at all, because it walks a folder that exists on *this* machine — `chooseDirectoryPathPrefix` takes its `path.basename` and `expandDirectoryNode` reuses the `treePath` it just read — so those names are legal here by construction and sanitizing would only misname real files. The migration reads v1 strings that may have been recorded on another OS, cannot verify them against a local file, and is the sole guarantor that the emitted path passes `assertSafeKnowledgeRelativePath` — so it cannot skip the step. Consequence: a folder named `a<b` migrates to `a_b` and reverts to `a<b` when its container is reindexed on a POSIX host. Both spellings are valid v2 paths; only which one is in force changes.
 - Any legacy vector rows that map back to a root `directory` item are considered container-level vectors and are skipped by `KnowledgeVectorMigrator` with warnings.
 - Legacy vector rows that map back to a legacy `sitemap` item are migrated as URL vectors because the item now maps to target type `url`.
 - Child content vectors are only migrated when they can be mapped to an existing migrated `file`, `url`, or `note` item id.
+
+### Relative path ownership
+
+The two phases split ownership of the base's `raw/` namespace, and the order is not interchangeable:
+
+- **`prepare` pins directory prefixes.** A container's prefix is written into `container.data.relativePath` and immediately becomes the item row, the index-store `material.relative_path`, and the UI display name — none of which can be rewritten later. Prefixes are deduped against a **per-base** set (`raw/` is per-base, so sharing one across bases would needlessly push the second base's `docs` to `docs_1`) seeded with `CHERRY_META_DIR`, because a v1 folder literally named `.cherry` would otherwise emit a `relativePath` that `assertSafeKnowledgeRelativePath` rejects on every read.
+- **`execute` names copied files, and yields.** `copyKnowledgeFilesForBase` seeds its `reservedPaths` with `.cherry` plus every directory container's already-pinned prefix, so a v1 file named `docs` lands on `docs_1` instead of squatting in `raw/docs` — where deleting or reindexing the container would `removeDir` it. Filenames are the ones that can move: `reserveImportedFileRelativePath`'s `_N` suffix exists for exactly this.
+
+What forces this direction is not which phase *can* compute a name — `prepare` already knows the base's `fileProcessorId`, and it does touch the filesystem to resolve dimensions — but what a name is already load-bearing for. A prefix becomes a live item row, index material and display name the moment `prepare` writes it, so it can never move. A file's `relativePath` is committed nowhere until the copy loop runs, so it can. Moving the filename reservation into `prepare` would not change that; it would only split the copy loop's dedup state across two phases.
+
+Directory children are skipped by the copy loop and never enter `reservedPaths`: they carry no bytes, their paths are already final, and they cannot collide with a copied file because every child path has a `<prefix>/` segment while every copied filename is a single segment.
 
 ## Current Constraint Decisions
 

@@ -6,7 +6,7 @@ import { createFileRoute } from '@tanstack/react-router'
 const NpxSearchWrapper = () => {
   const { theme } = useTheme()
   return (
-    <SettingsContentColumn theme={theme} innerClassName="max-w-[1200px]">
+    <SettingsContentColumn theme={theme} className="pt-2" innerClassName="max-w-[1200px]">
       <NpxSearch />
     </SettingsContentColumn>
   )

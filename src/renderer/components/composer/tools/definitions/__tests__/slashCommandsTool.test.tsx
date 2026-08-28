@@ -4,7 +4,7 @@ const { mockGetBuiltinSlashCommands } = vi.hoisted(() => ({
   mockGetBuiltinSlashCommands: vi.fn()
 }))
 
-vi.mock('@shared/ai/agentSlashCommands', () => ({
+vi.mock('../agentSlashCommands', () => ({
   getBuiltinSlashCommands: (...args: unknown[]) => mockGetBuiltinSlashCommands(...args)
 }))
 
@@ -31,6 +31,7 @@ describe('slashCommandsTool', () => {
         label: '/clear',
         description: 'Clear context',
         sources: ['root-panel'],
+        searchAliases: ['chat.input.slash_commands.title'],
         rootPanelPlacement: 'trailing'
       })
     ])

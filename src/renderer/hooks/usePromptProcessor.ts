@@ -10,25 +10,37 @@ interface PromptProcessor {
 }
 
 export function usePromptProcessor({ prompt, modelName }: PromptProcessor): string {
-  const [processedPrompt, setProcessedPrompt] = useState(prompt)
+  const [processedPrompt, setProcessedPrompt] = useState({ modelName, prompt, value: prompt })
 
   useEffect(() => {
+    let cancelled = false
+
+    const setCurrentProcessedPrompt = (value: string) => {
+      if (!cancelled) {
+        setProcessedPrompt({ modelName, prompt, value })
+      }
+    }
+
     const processPrompt = async () => {
       try {
         if (containsSupportedVariables(prompt)) {
           const result = await replacePromptVariables(prompt, modelName)
-          setProcessedPrompt(result)
+          setCurrentProcessedPrompt(result)
         } else {
-          setProcessedPrompt(prompt)
+          setCurrentProcessedPrompt(prompt)
         }
       } catch (error) {
         logger.error('Failed to process prompt variables, falling back:', error as Error)
-        setProcessedPrompt(prompt)
+        setCurrentProcessedPrompt(prompt)
       }
     }
 
     void processPrompt()
+
+    return () => {
+      cancelled = true
+    }
   }, [prompt, modelName])
 
-  return processedPrompt
+  return processedPrompt.prompt === prompt && processedPrompt.modelName === modelName ? processedPrompt.value : prompt
 }

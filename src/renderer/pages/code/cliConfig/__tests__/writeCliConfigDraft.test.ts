@@ -1,9 +1,10 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
-import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 
@@ -88,27 +89,26 @@ describe('writeCliConfigDraft', () => {
     written = null
     writes = []
     existing = {}
-    // Draft building still reads config files renderer-side; the mock keeps
-    // resolving `~/…` spec paths to `/resolved~/…` for the `existing` fixture.
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-        file: {
-          readExternal: vi.fn(async (absPath: string) => {
-            if (absPath in existing) return existing[absPath]
-            throw new Error(`File does not exist: ${absPath}`)
+    // Draft building still reads on-disk config files renderer-side
+    // (`code_cli.read_config`); the mock keeps resolving `~/…` spec paths to
+    // `/resolved~/…` for the `existing` fixture.
+    mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+      if (route === 'code_cli.read_config') {
+        return {
+          files: (input.targets as CliConfigTarget[]).map((target) => {
+            const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+            return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
           })
         }
       }
-    })
-    // The disk write is main-process now (`code_cli.write_config` carries
-    // `{ target, content }`, never a path). Translate each target back to the
-    // same `/resolved~/…` path so the content fixtures stay unchanged.
-    mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
-      for (const file of input.files) {
-        written = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
-        writes.push(written)
+      // The disk mutation is main-process now (`code_cli.write_config` carries
+      // a target, never a path). Translate each write target back to the
+      // same `/resolved~/…` path so the content fixtures stay unchanged.
+      for (const file of input.files as CliConfigWriteFile[]) {
+        if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
+        const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        written = nextWrite
+        writes.push(nextWrite)
       }
       return { success: true }
     })
@@ -132,6 +132,110 @@ describe('writeCliConfigDraft', () => {
     )
   })
 
+  it('writes Hermes custom-runtime metadata separately from the API key', async () => {
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.HERMES,
+      files: [
+        { target: 'hermes-config', content: expect.any(String) },
+        { target: 'hermes-env', content: expect.any(String) }
+      ]
+    })
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    const env = files.find((file) => file.target === 'hermes-env')
+    if (!config || typeof config.content !== 'string' || !env || typeof env.content !== 'string') {
+      throw new Error('Expected Hermes config and environment files')
+    }
+
+    expect(parseYaml(config.content)).toEqual({
+      model: {
+        provider: 'custom',
+        default: 'hermes-3',
+        base_url: 'https://api.deepseek.com/v1',
+        api_key: '${CHERRY_HERMES_API_KEY}',
+        api_mode: 'chat_completions'
+      }
+    })
+    expect(config.content).not.toContain('sk-secret')
+    expect(env.content).toContain('CHERRY_HERMES_API_KEY=sk-secret')
+  })
+
+  it('preserves user-owned YAML presentation while updating the Hermes model', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = [
+      '# user-owned comment',
+      'model:',
+      '  context_length: 200000 # keep inline comment',
+      '  label: "keep quoted"',
+      '  tags: [one, two]',
+      'shared: &shared { enabled: true }',
+      'reuse: *shared',
+      ''
+    ].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(config.content).toContain('# user-owned comment')
+    expect(config.content).toContain('context_length: 200000 # keep inline comment')
+    expect(config.content).toContain('label: "keep quoted"')
+    expect(config.content).toContain('tags: [ one, two ]')
+    expect(config.content).toContain('shared: &shared { enabled: true }')
+    expect(config.content).toContain('reuse: *shared')
+    expect(parseYaml(config.content).model).toMatchObject({
+      provider: 'custom',
+      default: 'hermes-3',
+      api_key: '${CHERRY_HERMES_API_KEY}'
+    })
+  })
+
+  it('fills in an empty Hermes model section instead of rejecting it', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = ['# user-owned comment', 'model:', 'telemetry: false', ''].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(parseYaml(config.content)).toMatchObject({
+      telemetry: false,
+      model: { provider: 'custom', default: 'hermes-3', api_key: '${CHERRY_HERMES_API_KEY}' }
+    })
+    expect(config.content).toContain('# user-owned comment')
+  })
+
+  it('names the Hermes config file and path when it cannot be parsed', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = 'model: [unclosed\n'
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await expect(writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })).rejects.toThrow(
+      /Failed to parse .+ at \/resolved~\/\.hermes\/config\.yaml:/
+    )
+  })
+
   describe('claude-code (~/.claude/settings.json)', () => {
     it('injects ANTHROPIC_AUTH_TOKEN/BASE_URL/MODEL into the env block', async () => {
       mockGet({
@@ -151,6 +255,32 @@ describe('writeCliConfigDraft', () => {
         ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
         ANTHROPIC_AUTH_TOKEN: 'sk-secret',
         ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+      })
+    })
+
+    it('normalizes a versioned CherryIN endpoint before writing Claude Code config', async () => {
+      const versionedCherryinProvider = {
+        ...cherryinProvider,
+        endpointConfigs: {
+          ...cherryinProvider.endpointConfigs,
+          'anthropic-messages': { baseUrl: 'https://open.cherryin.net/v1/' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/cherryin': () => versionedCherryinProvider,
+        '/providers/cherryin/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'cherryin::moonshotai/kimi-k3'
+      })
+
+      expect(JSON.parse(written!.content).env).toEqual({
+        ANTHROPIC_BASE_URL: 'https://open.cherryin.net',
+        ANTHROPIC_AUTH_TOKEN: 'sk-secret',
+        ANTHROPIC_MODEL: 'moonshotai/kimi-k3'
       })
     })
 
@@ -207,6 +337,24 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env).not.toHaveProperty('ANTHROPIC_MODEL')
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-5')
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME).toBe('claude-sonnet-4-5')
+    })
+
+    it('round-trips a primary model together with an independent Subagent override', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: { env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-haiku-4-5' } }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-5')
+      expect(parsed.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-haiku-4-5')
     })
 
     it('deep-merges, preserving unrelated keys (mcpServers/theme) and clearing stale managed env keys', async () => {
@@ -311,6 +459,36 @@ describe('writeCliConfigDraft', () => {
       })
     })
 
+    it('writes an explicitly-supplied hand-edited draft verbatim for a real provider (no rebuild)', async () => {
+      // Complement of the gateway-rebuild path: for a real provider, a supplied draft is written
+      // through as-is — no rebuild, so the resolved provider key is NOT injected and the user's
+      // hand-edited managed values survive. (Guards the `args.gateway || !files?.length` branch.)
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({
+          theme: 'dark',
+          env: { ANTHROPIC_AUTH_TOKEN: 'hand-edited-token', ANTHROPIC_MODEL: 'hand-model' }
+        })
+      }
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        files: [editedDraft]
+      })
+
+      // Written byte-for-byte: the resolved provider key (sk-secret) is never merged in.
+      expect(written!.content).toBe(editedDraft.content)
+    })
+
     it('writes the managed Claude reasoning effort', async () => {
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({ theme: 'dark' })
       mockGet({
@@ -383,8 +561,9 @@ describe('writeCliConfigDraft', () => {
       expect(writes).toEqual([])
     })
 
-    it('merges OPENAI_API_KEY into auth.json, preserving unrelated OAuth keys', async () => {
+    it('switches auth.json from ChatGPT OAuth to API-key mode while preserving the official login', async () => {
       existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+        auth_mode: 'chatgpt',
         tokens: { id_token: 'oauth-jwt', access_token: 'oauth-access' }
       })
       mockGet({
@@ -399,6 +578,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const authParsed = JSON.parse(findWrite('auth.json')!.content)
+      expect(authParsed.auth_mode).toBe('apikey')
       expect(authParsed.tokens).toEqual({ id_token: 'oauth-jwt', access_token: 'oauth-access' })
       expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
     })
@@ -564,7 +744,8 @@ describe('writeCliConfigDraft', () => {
 
     const reasoningModel = {
       id: 'deepseek-chat',
-      reasoning: { supportedEfforts: ['low', 'medium', 'high'] }
+      name: 'DeepSeek Chat',
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
     } as unknown
 
     it('writes a Cherry-* provider with the model and no reasoning by default', async () => {
@@ -588,6 +769,52 @@ describe('writeCliConfigDraft', () => {
       expect(model.name).toBe('deepseek-chat')
       expect(model).not.toHaveProperty('reasoning')
       expect(model).not.toHaveProperty('limit')
+      // Top-level default-model selector — OpenCode's launch reads the model from here
+      // (no --model flag), so it must reference the exact provider key + model key above.
+      expect(parsed.model).toBe('cherry-DeepSeek/deepseek-chat')
+    })
+
+    it('forwards provider headers to OpenCode options', async () => {
+      const providerWithRequestOptions = {
+        ...openaiCompatProvider,
+        settings: {
+          extraHeaders: { 'HTTP-Referer': 'https://cherry-ai.com', 'X-Title': 'Cherry Studio' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/deepseek': () => providerWithRequestOptions,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      const options = JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].options
+      expect(options.headers).toEqual({
+        'HTTP-Referer': 'https://cherry-ai.com',
+        'X-Title': 'Cherry Studio'
+      })
+    })
+
+    it('writes OpenCode model limits from Cherry model metadata', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ contextWindow: 65536, maxOutputTokens: 8192 })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      expect(JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+        context: 65536,
+        output: 8192
+      })
     })
 
     it('enables anthropic thinking when reasoning is on', async () => {
@@ -647,6 +874,8 @@ describe('writeCliConfigDraft', () => {
       const model = parsed.provider['cherry-DeepSeek'].models['deepseek-chat']
       expect(model.reasoning).toBe(true)
       expect(model.options.reasoningEffort).toBe('medium')
+      // Non-gateway mode also prefers the record's display name over the raw model id.
+      expect(model.name).toBe('DeepSeek Chat')
     })
 
     // Regression: catalog seeds deepseek/dmxapi without `/v1`. @ai-sdk/openai-compatible
@@ -708,6 +937,24 @@ describe('writeCliConfigDraft', () => {
 
       const parsed = JSON.parse(opencodeWrite().content)
       expect(parsed.permission).toBe('ask')
+    })
+
+    it('writes automatic compaction to the OpenCode config file', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { autoCompact: true }
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      expect(parsed.compaction.auto).toBe(true)
+      expect(parsed).not.toHaveProperty('autoCompact')
     })
   })
 
@@ -801,6 +1048,24 @@ describe('writeCliConfigDraft', () => {
         '# my proxy\nUSER_PROXY=http://localhost:8080\nGEMINI_API_KEY=sk-secret\n' +
           'GOOGLE_GEMINI_BASE_URL=https://generativelanguage.googleapis.com\n'
       )
+    })
+
+    it("preserves a user's own GOOGLE_GENAI_API_VERSION on a direct (non-gateway) write", async () => {
+      // GOOGLE_GENAI_API_VERSION is deliberately NOT a managed key (only gateway mode forces it to
+      // v1beta), so a direct provider write must neither overwrite nor delete the user's own value.
+      existing['/resolved~/.gemini/.env'] = 'GOOGLE_GENAI_API_VERSION=v1\nGEMINI_API_KEY=old\n'
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro'
+      })
+
+      expect(findWrite('.env').content).toContain('GOOGLE_GENAI_API_VERSION=v1\n')
     })
   })
 
@@ -925,6 +1190,248 @@ describe('writeCliConfigDraft', () => {
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(written!.content) as Record<string, any>
       expect(parsed.loop_control).toEqual({ max_steps_per_turn: 12 })
+    })
+  })
+
+  describe('cherry gateway (synthetic provider — gateway URL + gateway key, never the real provider key)', () => {
+    const GATEWAY_BASE_URL = 'http://127.0.0.1:23333'
+    // Field-complete synthetic provider, mirroring useApiGatewayProvider: all three
+    // endpoints point at the local gateway, so any CLI's endpoint pick resolves to it.
+    const gatewayProvider = {
+      id: CLI_API_GATEWAY_PROVIDER_ID,
+      name: '统一网关',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: GATEWAY_BASE_URL },
+        'openai-chat-completions': { baseUrl: GATEWAY_BASE_URL },
+        'openai-responses': { baseUrl: GATEWAY_BASE_URL }
+      },
+      defaultChatEndpoint: 'anthropic-messages'
+    } as unknown as Provider
+    const gateway = { provider: gatewayProvider, apiKey: 'cs-sk-gateway' }
+
+    it('routes a cross-protocol (OpenAI) model through the gateway for claude-code', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env).toEqual({
+        ANTHROPIC_BASE_URL: GATEWAY_BASE_URL,
+        ANTHROPIC_AUTH_TOKEN: 'cs-sk-gateway',
+        // Gateway addressing: single colon, providerId:apiModelId (NOT the "::" internal id).
+        ANTHROPIC_MODEL: 'deepseek:deepseek-chat'
+      })
+      // The real provider is never read, so its key can't leak into the CLI config file.
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek/api-keys')
+    })
+
+    it('addresses by the model record apiModelId when it differs from the internal model id', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat', apiModelId: 'deepseek-reasoner' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-reasoner')
+    })
+
+    it('names the OpenCode provider "cherry-gateway" (not the localized-title-sanitized "cherry-Cherry-")', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(writes.find((w) => w.path.endsWith('opencode.json'))!.content)
+      const provider = parsed.provider['cherry-gateway']
+      expect(provider).toBeTruthy()
+      expect(provider.options.baseURL).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(provider.options.apiKey).toBe('cs-sk-gateway')
+      // The map key stays the addressing id; `name` is what OpenCode's UI shows, so it
+      // carries the display name instead of the opaque gateway id.
+      expect(provider.models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
+      // The gateway-addressed model id contains ":" and OpenCode splits the selector at the
+      // FIRST "/", so this exact string resolves to provider "cherry-gateway" + that model key.
+      expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
+    })
+
+    it('falls back to the bare model id as the OpenCode display name when the record has none', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(writes.find((w) => w.path.endsWith('opencode.json'))!.content)
+      expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('deepseek-chat')
+    })
+
+    it('writes the gateway URL + key + gateway-addressed model for codex under the "cherry-gateway" key', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPENAI_CODEX,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const tomlWrite = writes.find((w) => w.path.endsWith('config.toml'))!
+      const authWrite = writes.find((w) => w.path.endsWith('auth.json'))!
+      const parsed = parseToml(tomlWrite.content) as Record<string, any>
+      expect(parsed.model).toBe('deepseek:deepseek-chat')
+      expect(parsed.model_provider).toBe('cherry-gateway')
+      expect(parsed.model_providers['cherry-gateway'].base_url).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(JSON.parse(authWrite.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
+    })
+
+    it('writes the bare gateway host + gateway key + gateway-addressed model for gemini-cli', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      // @google/genai appends /v1beta itself, so the base URL must stay bare (no /v1, no /v1beta).
+      const env = writes.find((w) => w.path.endsWith('.env'))!.content
+      expect(env).toContain(`GOOGLE_GEMINI_BASE_URL=${GATEWAY_BASE_URL}`)
+      expect(env).not.toContain(`${GATEWAY_BASE_URL}/v1`)
+      expect(env).toContain('GEMINI_API_KEY=cs-sk-gateway')
+      // The gateway serves only /v1beta; force the SDK's API version so a stale v1 can't redirect it.
+      expect(env).toContain('GOOGLE_GENAI_API_VERSION=v1beta')
+
+      const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
+      // Gateway addressing (single colon, providerId:apiModelId) plus the sentinel
+      // suffix that keeps gemini-cli's model normalization from rewriting the name.
+      expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat@cherry' })
+      // The real provider is never read, so its key can't leak into the CLI config file.
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+    })
+
+    it('writes Pi models/settings with the gateway endpoint, key, and gateway-addressed model', async () => {
+      mockGet({
+        '/models/': () => ({
+          id: 'deepseek::deepseek-chat',
+          apiModelId: 'deepseek-chat',
+          name: 'DeepSeek Chat',
+          endpointTypes: ['openai-chat-completions']
+        })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.PI,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const models = JSON.parse(writes.find((w) => w.path.endsWith('models.json'))!.content)
+      expect(models.providers['cherry-gateway']).toMatchObject({
+        baseUrl: `${GATEWAY_BASE_URL}/v1`,
+        api: 'openai-completions',
+        apiKey: 'cs-sk-gateway',
+        models: [{ id: 'deepseek:deepseek-chat', name: 'DeepSeek Chat' }]
+      })
+      const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
+      expect(settings).toMatchObject({
+        defaultProvider: 'cherry-gateway',
+        defaultModel: 'deepseek:deepseek-chat'
+      })
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+    })
+
+    it('rejects the CherryAI managed default model and writes nothing', async () => {
+      mockGet({ '/models/': () => ({ id: 'qwen' }) })
+
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'cherryai::qwen', gateway })
+      ).rejects.toThrow(/gateway/)
+      expect(writes).toEqual([])
+    })
+
+    it('rebuilds from the edited draft: preserves hand-edited unmanaged fields and injects the fresh key', async () => {
+      // Reviewer's data-loss path: the preview draft the user hand-edited carries a stale/empty
+      // gateway key. A gateway save must NOT write it verbatim (stale key) and must NOT rebuild from
+      // disk (losing the edits) — it rebuilds from the supplied draft, so unmanaged edits survive and
+      // the managed credential/model are re-injected fresh.
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({
+          theme: 'dark',
+          env: { ANTHROPIC_AUTH_TOKEN: 'stale-preview-key', KEEP: '1' }
+        })
+      }
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        files: [editedDraft],
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      // hand-edited unmanaged fields survive
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      // managed credential/model re-injected fresh (stale preview key replaced)
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
+      expect(parsed.env.ANTHROPIC_BASE_URL).toBe(GATEWAY_BASE_URL)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
+    })
+
+    it('rebuilds purely from a complete draft when every on-disk read fails', async () => {
+      // A complete in-memory draft must not depend on the disk: a transient read
+      // failure (EACCES/EBUSY) must not block a rebuild the draft already covers.
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({ theme: 'dark', env: { KEEP: '1' } })
+      }
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+      mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        for (const file of input.files as CliConfigWriteFile[]) {
+          // This path asserts writes only; delete entries never reach it (the suite pins that).
+          const nextWrite = {
+            path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`,
+            content: (file as { content: string }).content
+          }
+          written = nextWrite
+          writes.push(nextWrite)
+        }
+        return { success: true }
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        files: [editedDraft],
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
     })
   })
 
@@ -1116,8 +1623,9 @@ describe('writeCliConfigDraft', () => {
       // Before the fix this was swallowed and treated as "file doesn't exist
       // yet", which would silently wipe every unmanaged key from the real file.
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({ hooks: { foo: 'bar' } })
-      vi.mocked(window.api.file.readExternal).mockImplementationOnce(async () => {
-        throw new Error('EACCES: permission denied')
+      mocks.request.mockImplementation(async (route: string) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        return { success: true }
       })
       mockGet({
         '/providers/anthropic': () => anthropicProvider,
@@ -1131,7 +1639,7 @@ describe('writeCliConfigDraft', () => {
       // Nothing was sent to the main-process writer — the real file (and its
       // unmanaged keys) is untouched. (Snapshot/rollback safety around the
       // write itself is a main-side property, pinned in configWriter tests.)
-      expect(mocks.request).not.toHaveBeenCalled()
+      expect(mocks.request.mock.calls.some(([route]) => route === 'code_cli.write_config')).toBe(false)
     })
   })
 })

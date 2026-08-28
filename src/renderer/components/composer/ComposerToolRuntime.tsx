@@ -3,6 +3,7 @@ import {
   ComposerToolDerivedStateProvider,
   type ComposerToolDispatch,
   ComposerToolProvider,
+  type ComposerToolsRegistryApi,
   type ComposerToolState,
   useComposerToolProviderDispatch,
   useComposerToolProviderLaunchers,
@@ -15,18 +16,16 @@ import type {
   ToolContext,
   ToolDefinition,
   ToolRenderContext,
-  ToolStateKey,
-  ToolStateMap
+  ToolStateKey
 } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { createContext, memo, use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
@@ -69,11 +68,81 @@ interface ComposerToolRuntimeBootstrapProps {
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
 type AnyToolRenderContext = ToolRenderContext<readonly ToolStateKey[], readonly ToolActionKey[]>
 
-const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; context: AnyToolRenderContext }) => {
-  const Runtime = tool.composer?.runtime
-  if (!Runtime) return null
-  return <Runtime context={context} />
+interface ComposerToolRuntimeEntryProps extends ComposerToolRuntimeBootstrapProps {
+  tool: AnyToolDefinition
+  toolState: ComposerToolState
+  toolActions: ToolActionMap
+  launcher: AnyToolRenderContext['launcher']
+  toolsRegistry: ComposerToolsRegistryApi
+  t: ReturnType<typeof useTranslation>['t']
 }
+
+const ComposerToolRuntimeEntry = ({
+  tool,
+  toolState,
+  toolActions,
+  launcher,
+  toolsRegistry,
+  scope,
+  assistant,
+  model,
+  session,
+  t
+}: ComposerToolRuntimeEntryProps) => {
+  const context = useMemo<AnyToolRenderContext>(() => {
+    const state: Record<string, unknown> = {}
+    for (const key of tool.dependencies?.state ?? []) state[key] = toolState[key]
+
+    const actions: Record<string, unknown> = {}
+    for (const key of tool.dependencies?.actions ?? []) {
+      const action = toolActions[key]
+      if (action) actions[key] = action
+    }
+
+    return {
+      scope,
+      assistant,
+      model,
+      session,
+      state,
+      actions,
+      launcher,
+      t
+    } as AnyToolRenderContext
+  }, [assistant, launcher, model, scope, session, t, tool, toolActions, toolState])
+
+  useEffect(() => {
+    if (!tool.composer?.menuItems) return
+    return toolsRegistry.registerLaunchers(tool.key, tool.composer.menuItems.createItems(context))
+  }, [context, tool, toolsRegistry])
+
+  const Runtime = tool.composer?.runtime
+  return Runtime ? <Runtime context={context} /> : null
+}
+
+const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previous, next) => {
+  if (
+    previous.tool !== next.tool ||
+    previous.launcher !== next.launcher ||
+    previous.toolsRegistry !== next.toolsRegistry ||
+    previous.scope !== next.scope ||
+    previous.assistant !== next.assistant ||
+    previous.model !== next.model ||
+    previous.session !== next.session ||
+    previous.t !== next.t
+  ) {
+    return false
+  }
+
+  for (const key of next.tool.dependencies?.state ?? []) {
+    if (!Object.is(previous.toolState[key], next.toolState[key])) return false
+  }
+  for (const key of next.tool.dependencies?.actions ?? []) {
+    if (!Object.is(previous.toolActions[key], next.toolActions[key])) return false
+  }
+
+  return true
+})
 
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
@@ -81,7 +150,6 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
-  const { provider } = useProvider(model.providerId)
 
   const toolActions = useMemo<ToolActionMap>(
     () => ({
@@ -95,8 +163,8 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session, provider })
-  }, [assistant, model, provider, scope, session])
+    return getToolsForScope(scope, { assistant, model, session })
+  }, [assistant, model, scope, session])
 
   const getLauncherApiForTool = useCallback(
     (toolKey: string): ToolRenderContext<any, any>['launcher'] => {
@@ -113,76 +181,23 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
     [toolsRegistry]
   )
 
-  const buildRenderContext = useCallback(
-    <S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
-      tool: ToolDefinition<S, A>
-    ): ToolRenderContext<S, A> => {
-      const deps = tool.dependencies
-
-      const state = (deps?.state || ([] as unknown as S)).reduce(
-        (acc, key) => {
-          acc[key] = toolState[key]
-          return acc
-        },
-        {} as Pick<ToolStateMap, S[number]>
-      )
-
-      const runtimeActions = (deps?.actions || ([] as unknown as A)).reduce(
-        (acc, key) => {
-          const actionValue = toolActions[key]
-          if (actionValue) {
-            acc[key] = actionValue
-          }
-          return acc
-        },
-        {} as Pick<ToolActionMap, A[number]>
-      )
-
-      return {
-        scope,
-        assistant,
-        model,
-        session,
-        state,
-        actions: runtimeActions,
-        launcher: getLauncherApiForTool(tool.key),
-        t
-      } as ToolRenderContext<S, A>
-    },
-    [assistant, getLauncherApiForTool, model, scope, session, t, toolActions, toolState]
-  )
-
-  const toolRuntimeEntries = useMemo(
-    () =>
-      availableTools.map((tool) => ({
-        tool,
-        context: buildRenderContext(tool)
-      })),
-    [availableTools, buildRenderContext]
-  )
-
-  useEffect(() => {
-    const disposeCallbacks: Array<() => void> = []
-
-    for (const { tool, context } of toolRuntimeEntries) {
-      if (tool.composer?.menuItems) {
-        const launchers = tool.composer.menuItems.createItems(context)
-        const dispose = toolsRegistry.registerLaunchers(tool.key, launchers)
-        disposeCallbacks.push(dispose)
-      }
-    }
-
-    return () => {
-      disposeCallbacks.forEach((dispose) => dispose())
-    }
-  }, [toolRuntimeEntries, toolsRegistry])
-
   return (
     <>
-      {toolRuntimeEntries.map(({ tool, context }) => {
-        if (!tool.composer?.runtime) return null
-        return <ComposerToolRuntimeSlot key={`${tool.key}-composer-runtime`} tool={tool} context={context} />
-      })}
+      {availableTools.map((tool) => (
+        <MemoizedComposerToolRuntimeEntry
+          key={`${tool.key}-composer-runtime`}
+          tool={tool}
+          toolState={toolState}
+          toolActions={toolActions}
+          launcher={getLauncherApiForTool(tool.key)}
+          toolsRegistry={toolsRegistry}
+          scope={scope}
+          assistant={assistant}
+          model={model}
+          session={session}
+          t={t}
+        />
+      ))}
     </>
   )
 }
@@ -340,15 +355,32 @@ interface ComposerToolMenuProps {
   unifiedPanelControl?: ComposerUnifiedPanelControl
 }
 
+// Ids the pinned toolbar bar (ComposerToolbarShortcuts) is already rendering. The variant
+// publishes them so ComposerActiveToolControls can drop those launchers (they'd otherwise
+// double-render) — and, since the pinned bar is now their persistent home, an unpinned but
+// active tool falls back into the active-controls chips.
+const ComposerPinnedToolsContext = createContext<readonly string[]>([])
+
+export const ComposerPinnedToolsProvider = ComposerPinnedToolsContext.Provider
+
+export function useComposerPinnedTools() {
+  return use(ComposerPinnedToolsContext)
+}
+
 export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
+  const pinnedIds = useComposerPinnedTools()
   const activeLaunchers = useMemo(
     () =>
       getLaunchers('popover').filter(
         (launcher) =>
-          launcher.active && launcher.showInActiveControls !== false && !launcher.disabled && !launcher.hidden
+          launcher.active &&
+          launcher.showInActiveControls !== false &&
+          !launcher.disabled &&
+          !launcher.hidden &&
+          !pinnedIds.includes(launcher.id)
       ),
-    [getLaunchers]
+    [getLaunchers, pinnedIds]
   )
 
   if (activeLaunchers.length === 0) return null
@@ -359,12 +391,12 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
         <button
           key={launcher.id}
           type="button"
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-foreground-secondary text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-foreground [&_svg]:size-4"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
           data-active
           disabled={launcher.disabled}
           aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
           onClick={() => dispatchLauncher(launcher, { source: 'popover', inputAdapter })}>
-          <span className="flex shrink-0 items-center justify-center text-foreground-muted">{launcher.icon}</span>
+          <span className="flex shrink-0 items-center justify-center text-foreground-tertiary">{launcher.icon}</span>
           {launcher.suffix ? <span className="max-w-24 truncate">{launcher.suffix}</span> : null}
         </button>
       ))}
@@ -379,7 +411,7 @@ export const ComposerToolMenu = ({ unifiedPanelControl }: ComposerToolMenuProps)
   return (
     <button
       type="button"
-      className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
+      className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       aria-label={t('settings.quickPanel.title')}
       onClick={() => unifiedPanelControl.open()}>
       <Plus size={18} />

@@ -5,12 +5,22 @@ import { Cron } from 'croner'
 
 const logger = loggerService.withContext('SchedulerService')
 
+/**
+ * setTimeout clamps delays above 2^31-1 ms to fire (near-)immediately, which
+ * would turn a chained interval into a hot loop and a far-future once into an
+ * early fire. `validateTrigger` rejects intervals beyond this bound.
+ */
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1
+
 export type ScheduleCallback = () => void | Promise<void>
 
-interface IntervalEntry {
+interface TimeoutEntry {
   handle: ReturnType<typeof setTimeout>
+  kind: 'interval' | 'once'
   ms: number
   callback: ScheduleCallback
+  nextRunAt: number
+  running: boolean
 }
 
 /**
@@ -37,7 +47,7 @@ interface IntervalEntry {
 @ServicePhase(Phase.WhenReady)
 export class SchedulerService extends BaseService {
   private cronJobs = new Map<string, Cron>()
-  private intervalHandles = new Map<string, IntervalEntry>()
+  private intervalHandles = new Map<string, TimeoutEntry>()
 
   protected override onInit(): void {
     logger.info('SchedulerService initialized')
@@ -49,6 +59,37 @@ export class SchedulerService extends BaseService {
 
   protected override onDestroy(): void {
     this.clearAll()
+  }
+
+  /**
+   * Parse-only validation of a trigger's scheduling semantics — nothing is
+   * registered and no timer is created. Cron expressions and IANA timezones go
+   * through the same Croner construction path as `scheduleCron` (constructed
+   * without a callback, so nothing is scheduled; `nextRun()` forces the
+   * timezone conversion Croner otherwise defers; `.stop()` is defensive),
+   * surfacing the parser's original error. Delays beyond the setTimeout limit
+   * are rejected — Node would fire the timer immediately, turning a chained
+   * interval into a hot loop and a far-future once into an early fire. The
+   * once bound only needs to hold at validation time: the remaining delay
+   * shrinks monotonically, so every later re-arm stays under the limit too.
+   *
+   * @param trigger - Trigger config to validate
+   * @throws The raw Croner / Intl parse error for an invalid cron expression
+   *   or unknown timezone; `RangeError` for an out-of-range interval / once
+   */
+  validateTrigger(trigger: Trigger): void {
+    if (trigger.kind === 'cron') {
+      const probe = new Cron(trigger.expr, { timezone: trigger.timezone, maxRuns: trigger.limit })
+      probe.nextRun()
+      probe.stop()
+      return
+    }
+    if (trigger.kind === 'interval' && trigger.ms > MAX_TIMER_DELAY_MS) {
+      throw new RangeError(`interval of ${trigger.ms} ms exceeds the maximum timer delay (${MAX_TIMER_DELAY_MS} ms)`)
+    }
+    if (trigger.kind === 'once' && trigger.at - Date.now() > MAX_TIMER_DELAY_MS) {
+      throw new RangeError(`once trigger is more than ${MAX_TIMER_DELAY_MS} ms in the future`)
+    }
   }
 
   /**
@@ -73,7 +114,7 @@ export class SchedulerService extends BaseService {
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
-    return this.registerDisposable(() => this.unregister(id))
+    return { dispose: () => this.unregister(id) }
   }
 
   /**
@@ -162,14 +203,22 @@ export class SchedulerService extends BaseService {
   }
 
   /**
-   * Next scheduled fire time for a cron schedule.
+   * Next automatic fire time for any registered schedule. A chained interval
+   * installs its next timeout after the callback settles; while the callback
+   * is running, this reports the due time it would receive if it settled at
+   * the query instant.
    *
    * @param id - Schedule identifier passed to `registerSchedule`
-   * @returns The next fire `Date`, or `null` for unknown id or non-cron triggers
+   * @returns The next fire `Date`, or `null` for an unknown or consumed id
    */
   getNextRun(id: string): Date | null {
     const cron = this.cronJobs.get(id)
     if (cron) return cron.nextRun() ?? null
+    const timeout = this.intervalHandles.get(id)
+    if (timeout) {
+      const nextRunAt = timeout.kind === 'interval' && timeout.running ? Date.now() + timeout.ms : timeout.nextRunAt
+      return new Date(nextRunAt)
+    }
     return null
   }
 
@@ -210,28 +259,34 @@ export class SchedulerService extends BaseService {
       }
     }, delay)
     handle.unref?.()
-    this.intervalHandles.set(id, { handle, ms: delay, callback })
+    this.intervalHandles.set(id, { handle, kind: 'once', ms: delay, callback, nextRunAt: atMs, running: false })
   }
 
   private scheduleInterval(id: string, ms: number, callback: ScheduleCallback): void {
     const fire = async (): Promise<void> => {
+      const entry = this.intervalHandles.get(id)
+      if (!entry || entry.kind !== 'interval') return
+      entry.running = true
       try {
         await callback()
       } catch (err) {
         logger.error('interval-schedule callback error', { id, error: err })
       }
-      // Re-arm only if not unregistered during callback. The map entry was set
-      // before the previous setTimeout fired; if it's still there, we're free
-      // to re-arm. unregister() during callback would have deleted the entry.
-      if (!this.intervalHandles.has(id)) return
+      // Re-arm only when this exact entry still owns the id. unregister()
+      // removes it, while a re-entrant registerSchedule(id, ...) replaces it.
+      if (this.intervalHandles.get(id) !== entry) return
+      const nextRunAt = Date.now() + ms
       const nextHandle = setTimeout(fire, ms)
       nextHandle.unref?.()
-      this.intervalHandles.set(id, { handle: nextHandle, ms, callback })
+      entry.handle = nextHandle
+      entry.nextRunAt = nextRunAt
+      entry.running = false
     }
 
+    const nextRunAt = Date.now() + ms
     const handle = setTimeout(fire, ms)
     handle.unref?.()
-    this.intervalHandles.set(id, { handle, ms, callback })
+    this.intervalHandles.set(id, { handle, kind: 'interval', ms, callback, nextRunAt, running: false })
   }
 
   private clearAll(): void {

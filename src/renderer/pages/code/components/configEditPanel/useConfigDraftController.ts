@@ -1,8 +1,10 @@
-import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
   cliConfigConnectionMatchesProvider,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
+  gatewayExpectedModel,
+  gatewayModelIdFromAddress,
   getClaudeContextModelId,
   safeCreateUniqueModelId,
   sanitizeCliConfigBlob,
@@ -12,7 +14,7 @@ import {
 } from '@renderer/pages/code/cliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +35,12 @@ interface ConfigDraftControllerOptions
   extends Pick<ConfigEditPanelProps, 'cliTool' | 'provider' | 'providerConfig' | 'isCurrentProvider' | 'onSubmit'> {
   apiKeys?: Parameters<typeof cliConfigConnectionMatchesProvider>[3]
   onClose: () => void
+  /** Present when editing the Cherry gateway provider — drives gateway-addressed drafts + matching. */
+  gateway?: CliConfigGatewayContext
+  /** Gateway-routable models by unique id, used for matching and gateway address resolution. */
+  models?: Map<UniqueModelId, Model>
+  /** True while `models` is still being queried — an empty map is not yet meaningful. */
+  isModelsLoading?: boolean
 }
 
 interface ConfigDraftController {
@@ -56,6 +64,9 @@ export function useConfigDraftController({
   providerConfig,
   isCurrentProvider,
   apiKeys,
+  gateway,
+  models,
+  isModelsLoading,
   onSubmit
 }: ConfigDraftControllerOptions): ConfigDraftController {
   const { t } = useTranslation()
@@ -114,17 +125,22 @@ export function useConfigDraftController({
 
   const connectionMatchesProvider = useCallback(
     (connection: CliConfigConnection | null, expectedModelId = draftRef.current.modelId): boolean => {
-      const expectedModel =
-        expectedModelId && isUniqueModelId(expectedModelId) ? parseUniqueModelId(expectedModelId).modelId : undefined
+      // The gateway writes the gateway-addressed id ("providerId:apiModelId"); match against the
+      // same string (via the shared helper) so the stored config lights up as active, not foreign.
+      const expectedModel = gateway
+        ? gatewayExpectedModel(expectedModelId, expectedModelId ? models?.get(expectedModelId)?.apiModelId : undefined)
+        : expectedModelId && isUniqueModelId(expectedModelId)
+          ? parseUniqueModelId(expectedModelId).modelId
+          : undefined
       return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysRef.current, expectedModel)
     },
-    [cliTool, provider]
+    [cliTool, provider, gateway, models]
   )
 
   const resolveManagedOptions = useCallback(
     (modelMode: ClaudeModelMode, config: Record<string, unknown>, modelId: UniqueModelId | undefined) =>
-      resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId),
-    [cliTool, provider.id]
+      resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId, gateway ? models : undefined),
+    [cliTool, gateway, models, provider.id]
   )
 
   const createManagedDraft = useCallback(
@@ -139,9 +155,10 @@ export function useConfigDraftController({
         modelId: nextModelId,
         config: nextConfig,
         files,
-        options
+        options,
+        gateway
       }),
-    [cliTool]
+    [cliTool, gateway]
   )
 
   const loadManagedDraft = useCallback(
@@ -164,27 +181,28 @@ export function useConfigDraftController({
     isCurrentProvider,
     cliTool,
     providerId: provider.id,
-    connectionMatchesProvider,
     initialModelId,
     initialConfig,
     initialClaudeModelMode,
-    initialDraftSeed
+    initialDraftSeed,
+    gateway
   })
 
   useEffect(() => {
     if (initialLoadHasRunRef.current) return
     if (apiKeys === undefined) return // wait for the apiKeys query to resolve (even to an empty array) before judging managed/foreign
+    if (isModelsLoading) return // likewise for the gateway model map: an in-flight query looks identical to "no routable model"
     initialLoadHasRunRef.current = true
 
     const {
       isCurrentProvider,
       cliTool,
       providerId,
-      connectionMatchesProvider,
       initialModelId,
       initialConfig,
       initialClaudeModelMode,
-      initialDraftSeed
+      initialDraftSeed,
+      gateway
     } = initialLoadContextRef.current
     const commitLoadedDraft = (nextDraft: ConfigDraft) => {
       draftRef.current = nextDraft
@@ -201,15 +219,27 @@ export function useConfigDraftController({
       initialConfig,
       initialClaudeModelMode,
       initialDraftSeed,
-      connectionMatchesProvider
+      // Read live rather than from the ref: both close over `models`, and a first-frame snapshot
+      // would judge managed/foreign against a model map that had not loaded yet.
+      connectionMatchesProvider,
+      gateway,
+      gatewayModels: gateway ? models : undefined
     }).then((nextDraft) => {
       if (loadId !== loadIdRef.current) return
       commitLoadedDraft(nextDraft)
     })
-  }, [apiKeys])
+    // Re-runs before the gates pass are free — `initialLoadHasRunRef` latches the one real load.
+  }, [apiKeys, isModelsLoading, connectionMatchesProvider, models])
   /* oxlint-enable react-doctor/no-pass-data-to-parent */
 
-  const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !draft.error
+  // A managed submit needs something to address the CLI file with — the primary model in common
+  // mode, a resolvable role model in detailed mode. Without it the parent skips the write, so the
+  // active provider's files would keep their old contents while the preference moved on (either
+  // mode flip can land here). Mirror the parent's rejection by refusing to arm Save at all.
+  const managedSubmitModelId = resolveManagedOptions(claudeModelMode, draft.config, draft.modelId).cliConfigModelId
+  const canSubmit = isForeignDraft
+    ? draft.files.length > 0 && !draft.error
+    : !draft.error && !(isCurrentProvider && !managedSubmitModelId)
   const canSave = canSubmit && isDirty
 
   const handleModelSelect = useCallback(
@@ -288,7 +318,17 @@ export function useConfigDraftController({
         cliTool,
         extractConfigFromCliConfigDraft(cliTool, files) ?? current.config
       )
-      if (connection && !connectionMatchesProvider(connection, current.modelId)) {
+      // In gateway mode the committed modelId must be a real UniqueModelId (the synthetic gateway
+      // provider owns no models). When none is selected yet, reverse-resolve the raw file's gateway
+      // address so a hand-edited model resolves to a real model instead of being silently dropped.
+      const resolvedModelId =
+        gateway && !current.modelId ? gatewayModelIdFromAddress(connection?.model, models) : current.modelId
+      // Foreign when the raw connection doesn't match, or (gateway) when it names a model we can't
+      // resolve to an enabled one — either way persist the files verbatim rather than committing a
+      // managed draft with no model, which the submit path would silently discard.
+      const isForeign =
+        !!connection && (!connectionMatchesProvider(connection, resolvedModelId) || (gateway && !resolvedModelId))
+      if (isForeign) {
         commitDraft({
           ...current,
           config: nextConfig,
@@ -300,11 +340,15 @@ export function useConfigDraftController({
       } else {
         commitDraft({
           ...current,
-          // connection.model is parsed from a user-edited raw file; fall back to
-          // the current model when it cannot form a valid unique id.
-          modelId: connection?.model
-            ? (safeCreateUniqueModelId(provider.id, connection.model) ?? current.modelId)
-            : current.modelId,
+          // connection.model is parsed from a user-edited raw file; fall back to the current model
+          // when it cannot form a valid unique id. In gateway mode use the reverse-resolved id (the
+          // parsed value is a gateway address "providerId:apiModelId", not a model of the synthetic
+          // provider — recombining it with provider.id would corrupt the stored UniqueModelId).
+          modelId: gateway
+            ? resolvedModelId
+            : connection?.model
+              ? (safeCreateUniqueModelId(provider.id, connection.model) ?? current.modelId)
+              : current.modelId,
           config: nextConfig,
           files,
           connection: null,
@@ -313,7 +357,7 @@ export function useConfigDraftController({
         })
       }
     },
-    [cliTool, connectionMatchesProvider, commitDraft, provider.id]
+    [cliTool, connectionMatchesProvider, commitDraft, provider.id, gateway, models]
   )
 
   const handleSubmit = useCallback(async () => {
@@ -331,7 +375,7 @@ export function useConfigDraftController({
         const isClaudeDetailedSubmit = cliTool === CodeCli.CLAUDE_CODE && claudeModelMode === 'detailed'
         const sanitizedConfig = sanitizeCliConfigBlob(cliTool, current.config)
         const cliConfigModelId = isClaudeDetailedSubmit
-          ? getClaudeContextModelId(provider.id, sanitizedConfig)
+          ? getClaudeContextModelId(provider.id, sanitizedConfig, gateway ? models : undefined)
           : current.modelId
         const nextConfig =
           cliTool === CodeCli.CLAUDE_CODE && !isClaudeDetailedSubmit
@@ -363,7 +407,19 @@ export function useConfigDraftController({
     } finally {
       setSubmitting(false)
     }
-  }, [canSave, claudeModelMode, cliTool, commitDraft, createManagedDraft, onSubmit, onClose, provider.id, t])
+  }, [
+    canSave,
+    claudeModelMode,
+    cliTool,
+    commitDraft,
+    createManagedDraft,
+    gateway,
+    models,
+    onSubmit,
+    onClose,
+    provider.id,
+    t
+  ])
 
   return {
     draft,

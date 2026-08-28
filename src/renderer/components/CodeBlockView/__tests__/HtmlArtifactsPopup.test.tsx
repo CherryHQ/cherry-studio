@@ -1,72 +1,24 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import HtmlArtifactsPopup from '../HtmlArtifactsPopup'
 
 const mocks = vi.hoisted(() => ({
-  CodeEditor: vi.fn(({ value }) => <div data-testid="code-editor">{value}</div>),
-  CodeViewer: vi.fn(({ value }) => <div data-testid="code-viewer">{value}</div>),
-  onOpenChange: undefined as ((open: boolean) => void) | undefined
-}))
-
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: any) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  CodeEditor: mocks.CodeEditor,
-  Dialog: ({ open, children, onOpenChange }: any) => {
-    mocks.onOpenChange = onOpenChange
-    return open ? <div data-testid="dialog">{children}</div> : null
-  },
-  DialogContent: ({ children, closeOnOverlayClick = true, onPointerDownOutside }: any) => (
-    <>
-      <button
-        type="button"
-        data-testid="dialog-overlay"
-        onClick={() => {
-          const event = {
-            defaultPrevented: false,
-            preventDefault: () => {
-              event.defaultPrevented = true
-            }
-          }
-
-          onPointerDownOutside?.(event)
-
-          if (closeOnOverlayClick) {
-            mocks.onOpenChange?.(false)
-          }
-        }}
-      />
-      <div>{children}</div>
-    </>
-  ),
-  DialogTitle: ({ children }: any) => <div>{children}</div>,
-  MenuItem: ({ label }: any) => <div>{label}</div>,
-  MenuList: ({ children }: any) => <div>{children}</div>,
-  Popover: ({ children }: any) => <div>{children}</div>,
-  PopoverContent: ({ children }: any) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: any) => <>{children}</>,
-  ResizableHandle: () => <div data-testid="resize-handle" />,
-  ResizablePanel: ({ children }: any) => <div>{children}</div>,
-  ResizablePanelGroup: ({ children }: any) => <div>{children}</div>,
-  SegmentedControl: ({ options }: any) => (
-    <div data-testid="segmented-control">
-      {options.map((option: any) => (
-        <button key={option.value} type="button">
-          {option.label}
-        </button>
-      ))}
+  CodeEditor: vi.fn(({ value }: { value: string }) => (
+    <div role="textbox" aria-label="HTML editor">
+      {value}
     </div>
-  ),
-  Tooltip: ({ children }: any) => <>{children}</>
+  )),
+  CodeViewer: vi.fn(({ value }: { value: string }) => <pre aria-label="HTML source">{value}</pre>),
+  t: (key: string) => key
 }))
 
-vi.mock('@cherrystudio/ui/lib/utils', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUi>()),
+  CodeEditor: mocks.CodeEditor
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
@@ -77,13 +29,9 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCmTheme: 'light' })
 }))
 
-vi.mock('@renderer/utils/platform', () => ({
-  isMac: false
-}))
-
-vi.mock('@renderer/utils/image', () => ({
-  captureScrollableIframeAsBlob: vi.fn(),
-  captureScrollableIframeAsDataUrl: vi.fn()
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: mocks.t })
 }))
 
 describe('HtmlArtifactsPopup', () => {
@@ -91,26 +39,23 @@ describe('HtmlArtifactsPopup', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('chat.message.font_size', 14)
-    mocks.onOpenChange = undefined
   })
 
-  it('renders read-only source when editable is false', () => {
-    render(
-      <HtmlArtifactsPopup
-        open
-        editable={false}
-        title="HTML Artifacts"
-        html="<h1>Hello</h1>"
-        onClose={vi.fn()}
-        onSave={vi.fn()}
-      />
-    )
+  it('defaults to preview and switches to read-only source', async () => {
+    const user = userEvent.setup()
+    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
 
-    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
+    expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'html_artifacts.preview' })).toBeChecked()
+
+    await user.click(screen.getByRole('radio', { name: 'html_artifacts.code' }))
+
+    expect(screen.getByLabelText('HTML source')).toHaveTextContent('<h1>Hello</h1>')
+    expect(screen.queryByRole('textbox', { name: 'HTML editor' })).not.toBeInTheDocument()
   })
 
-  it('renders the editor when editable is true', () => {
+  it('shows the editor in code mode when editing is allowed', async () => {
+    const user = userEvent.setup()
     render(
       <HtmlArtifactsPopup
         open
@@ -122,26 +67,157 @@ describe('HtmlArtifactsPopup', () => {
       />
     )
 
-    expect(screen.getByTestId('code-editor')).toHaveTextContent('<h1>Hello</h1>')
-    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: 'html_artifacts.code' }))
+
+    expect(screen.getByRole('textbox', { name: 'HTML editor' })).toHaveTextContent('<h1>Hello</h1>')
+    expect(screen.queryByLabelText('HTML source')).not.toBeInTheDocument()
   })
 
-  it('keeps the popup open when clicking the overlay', () => {
-    const onClose = vi.fn()
-
+  it('renders a caller-provided preview in the popup shell', () => {
     render(
       <HtmlArtifactsPopup
         open
         editable={false}
         title="HTML Artifacts"
         html="<h1>Hello</h1>"
-        onClose={onClose}
-        onSave={vi.fn()}
+        canCapturePreview={false}
+        renderPreview={() => <div>Custom preview</div>}
+        onClose={vi.fn()}
       />
     )
 
-    fireEvent.click(screen.getByTestId('dialog-overlay'))
+    expect(screen.getByRole('dialog', { name: 'HTML Artifacts' })).toBeInTheDocument()
+    expect(screen.getByText('Custom preview')).toBeInTheDocument()
+  })
 
+  it('keeps the popup open when the overlay is clicked', () => {
+    const onClose = vi.fn()
+    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={onClose} />)
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+
+    expect(overlay).toBeInTheDocument()
+    fireEvent.click(overlay!)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('dismisses the capture menu after selecting a destination', () => {
+    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.capture.label' }))
+    fireEvent.click(screen.getByRole('button', { name: /html_artifacts\.capture\.to_file/ }))
+
+    expect(screen.queryByRole('button', { name: /html_artifacts\.capture\.to_file/ })).not.toBeInTheDocument()
+  })
+
+  it('renders a script-less frame and keeps capture available for an inert fragment', () => {
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<div><h2>Hello</h2></div>"
+        onClose={vi.fn()}
+      />
+    )
+
+    const iframe = screen.getByTitle('common.html_preview')
+    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'html_artifacts.capture.label' })).toBeInTheDocument()
+  })
+
+  it('still honors an explicit canCapturePreview={false} on the default preview path', () => {
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<div><h2>Hello</h2></div>"
+        canCapturePreview={false}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
+  })
+
+  it('opens active fragments static by default and only runs them via the explicit action', async () => {
+    const user = userEvent.setup()
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html={'<div><canvas id="c"></canvas><script>parent.api.fs.readText("/etc/hosts")</script></div>'}
+        onClose={vi.fn()}
+      />
+    )
+
+    // Security default: script-less frame, no webview, capture still available.
+    const iframe = screen.getByTitle('common.html_preview')
+    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(iframe?.getAttribute('sandbox')).not.toContain('allow-scripts')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+
+    const webview = screen.getByTestId('interactive-html-webview')
+    expect(webview).toHaveAttribute('partition', 'html-artifact-preview')
+    expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
+  })
+
+  it('revokes authorization synchronously when the html changes mid-popup', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html={'<!doctype html><html><body><script>first()</script></body></html>'}
+        onClose={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+
+    // Streamed bytes arrive: the new active html must NOT inherit the run action —
+    // the same render that sees the new html must be back on the static tier.
+    rerender(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html={'<!doctype html><html><body><script>second()</script></body></html>'}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle('common.html_preview')).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' })).toBeInTheDocument()
+  })
+
+  it('keeps script-bearing documents static until the explicit action, then isolates them', async () => {
+    const user = userEvent.setup()
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html={'<!doctype html><html><body><script>parent.api.fs.readText("/etc/hosts")</script></body></html>'}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle('common.html_preview')).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+
+    expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
+    expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
   })
 })

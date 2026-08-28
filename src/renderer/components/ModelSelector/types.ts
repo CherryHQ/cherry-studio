@@ -9,16 +9,17 @@ export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
 export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
+export type ModelSelectorFilter = (model: Model, provider?: Provider) => boolean
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
-  prioritizedProviderIds?: string[]
+  prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
   sideOffset?: number
@@ -39,6 +40,7 @@ export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps 
   multiple: false
   selectionType?: 'model'
   value?: Model
+  noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
 
@@ -46,6 +48,7 @@ export interface ModelSelectorSingleIdProps extends ModelSelectorCommonProps {
   multiple: false
   selectionType: 'id'
   value?: UniqueModelId
+  noneOptionLabel?: string
   onSelect: (modelId: UniqueModelId | undefined) => void
 }
 
@@ -76,12 +79,12 @@ export interface ModelSelectorGroupItem {
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
-  settingsProviderId?: string
 }
 
 export interface ModelSelectorModelItem {
   key: string
   type: 'model'
+  groupKind: 'pinned' | 'provider'
   model: Model
   provider: Provider
   modelId: UniqueModelId
@@ -93,13 +96,14 @@ export interface ModelSelectorModelItem {
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 
 export interface UseModelSelectorDataOptions {
+  enabled?: boolean
   selectedModelIds?: readonly UniqueModelId[]
   maxSelectedCount?: number
   searchText: string
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
-  prioritizedProviderIds?: string[]
+  prioritizedProviderIds?: readonly string[]
 }
 
 export interface UseModelSelectorDataResult {

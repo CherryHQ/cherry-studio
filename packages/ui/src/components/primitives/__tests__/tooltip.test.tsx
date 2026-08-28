@@ -50,16 +50,6 @@ describe('Tooltip', () => {
       expect(wrapper.getAttribute('data-state')).toBeNull()
     })
 
-    it('renders a plain div when content is empty string', () => {
-      const { container } = render(
-        <Tooltip content="">
-          <span>Empty</span>
-        </Tooltip>
-      )
-      const wrapper = container.firstElementChild as HTMLElement
-      expect(wrapper.getAttribute('data-state')).toBeNull()
-    })
-
     it('renders a plain div when isDisabled is true', () => {
       const { container } = render(
         <Tooltip content="tip" isDisabled>
@@ -92,15 +82,6 @@ describe('Tooltip', () => {
       )
       const trigger = container.querySelector('[data-state]')
       expect(trigger).toBeInTheDocument()
-    })
-
-    it('treats content=undefined + title=undefined as fallback', () => {
-      const { container } = render(
-        <Tooltip content={undefined} title={undefined}>
-          <span>Child</span>
-        </Tooltip>
-      )
-      expect(container.querySelector('[data-state]')).toBeNull()
     })
   })
 
@@ -135,15 +116,6 @@ describe('Tooltip', () => {
       )
       expect(container.querySelector('.custom-ph')).toBeInTheDocument()
     })
-
-    it('applies classNames.placeholder to fallback div when no content', () => {
-      const { container } = render(
-        <Tooltip classNames={{ placeholder: 'ph-class' }}>
-          <span>Child</span>
-        </Tooltip>
-      )
-      expect(container.querySelector('.ph-class')).toBeInTheDocument()
-    })
   })
 
   describe('onClick', () => {
@@ -168,17 +140,6 @@ describe('Tooltip', () => {
       fireEvent.click(screen.getByText('Click me'))
       expect(handleClick).toHaveBeenCalledTimes(1)
     })
-
-    it('fires onClick on no-content fallback wrapper', () => {
-      const handleClick = vi.fn()
-      render(
-        <Tooltip onClick={handleClick}>
-          <button type="button">Click me</button>
-        </Tooltip>
-      )
-      fireEvent.click(screen.getByText('Click me'))
-      expect(handleClick).toHaveBeenCalledTimes(1)
-    })
   })
 
   describe('controlled mode', () => {
@@ -191,7 +152,7 @@ describe('Tooltip', () => {
       expect(screen.getByRole('tooltip')).toBeInTheDocument()
     })
 
-    it('keeps the same tooltip color direction in dark mode', () => {
+    it('inverts tooltip colors in dark mode', () => {
       render(
         <Tooltip content="dark-safe" isOpen={true}>
           <button type="button">Trigger</button>
@@ -199,9 +160,7 @@ describe('Tooltip', () => {
       )
 
       const content = getTooltipContentElement('dark-safe')
-      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50')
-      expect(content.className).not.toContain('dark:bg-neutral-100')
-      expect(content.className).not.toContain('dark:text-neutral-900')
+      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50', 'dark:bg-neutral-100', 'dark:text-neutral-900')
     })
 
     it('does not render tooltip content when isOpen is false', () => {
@@ -215,10 +174,22 @@ describe('Tooltip', () => {
   })
 
   describe('arrow rendering', () => {
-    it('renders an arrow by default for TooltipContent', () => {
+    it('renders a positioned Radix arrow by default for TooltipContent', () => {
       renderOpenTooltipContent('compound tip')
 
-      expect(getTooltipContentElement('compound tip').querySelector('svg')).toBeInTheDocument()
+      const content = getTooltipContentElement('compound tip')
+      const arrow = content.querySelector('svg')
+      expect(arrow).toBeInTheDocument()
+      expect(arrow).toHaveClass(
+        'fill-neutral-900',
+        'stroke-neutral-900',
+        'stroke-2',
+        'dark:fill-neutral-100',
+        'dark:stroke-neutral-100'
+      )
+      expect(arrow).toHaveAttribute('width', '12')
+      expect(arrow).toHaveAttribute('height', '6')
+      expect(arrow).toHaveClass('-translate-y-px')
     })
 
     it('passes showArrow through NormalTooltip', () => {
@@ -228,13 +199,23 @@ describe('Tooltip', () => {
         </NormalTooltip>
       )
 
-      expect(getTooltipContentElement('normal tip').querySelector('svg')).not.toBeInTheDocument()
+      const content = getTooltipContentElement('normal tip')
+      expect(content.querySelector('svg')).not.toBeInTheDocument()
     })
 
     it('omits the arrow when TooltipContent disables it', () => {
       renderOpenTooltipContent('compound tip', { showArrow: false })
 
-      expect(getTooltipContentElement('compound tip').querySelector('svg')).not.toBeInTheDocument()
+      const content = getTooltipContentElement('compound tip')
+      expect(content.querySelector('svg')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Electron drag-region opt-out', () => {
+    it('marks tooltip content as no-drag so it stays interactive over titlebar drag regions', () => {
+      renderOpenTooltipContent('drag-safe tip')
+
+      expect(getTooltipContentElement('drag-safe tip')).toHaveClass('[-webkit-app-region:no-drag]')
     })
   })
 

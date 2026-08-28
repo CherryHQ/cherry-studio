@@ -3,7 +3,8 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { CodeCli } from '@shared/types/codeCli'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +22,9 @@ export function useConfigEditPanelBodyProps({
   providerConfig,
   isCurrentProvider,
   modelFilter,
+  gateway,
+  gatewayModels,
+  isGatewayModelsLoading,
   onSubmit
 }: ConfigEditPanelProps): ConfigEditDialogBodyProps {
   const { t } = useTranslation()
@@ -30,6 +34,16 @@ export function useConfigEditPanelBodyProps({
   const providerName = getProviderDisplayName(provider)
   const providerIcon = useIcon(resolveProviderIconRef(provider.id))
   const onSettingsNavigate = useCloseBeforeAction(onClose)
+  const isGateway = isApiGatewayProviderId(provider.id)
+
+  // The gateway id has no DataApi api-keys record (the query 404s); feed the gateway secret directly
+  // so the managed/foreign match resolves against the real key and the initial-load gate isn't stalled.
+  const apiKeys: ApiKeyEntry[] | undefined = isGateway
+    ? gateway?.apiKey
+      ? [{ id: 'gateway', key: gateway.apiKey, isEnabled: true }]
+      : []
+    : apiKeysData?.keys
+  const modelsById = isGateway ? gatewayModels : undefined
 
   const {
     draft,
@@ -48,15 +62,18 @@ export function useConfigEditPanelBodyProps({
     provider,
     providerConfig,
     isCurrentProvider,
-    apiKeys: apiKeysData?.keys,
+    apiKeys,
+    gateway,
+    models: modelsById,
+    isModelsLoading: isGateway && isGatewayModelsLoading,
     onSubmit
   })
 
   const unknownCliConfigModelHint: ReactNode =
     isForeignDraft && draft.connection ? (
-      <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
-        <div className="font-medium text-warning text-xs">{t('code.cli_config.unknown_provider')}</div>
-        <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+      <div className="rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground">
+        <div className="font-medium text-xs">{t('code.cli_config.unknown_provider')}</div>
+        <div className="mt-1 truncate font-mono text-[11px]">
           {draft.connection.model || t('code.cli_config.unknown_model')}
         </div>
       </div>
@@ -87,7 +104,8 @@ export function useConfigEditPanelBodyProps({
         onChange: onConfigChange,
         providerId: provider.id,
         modelFilter,
-        onSettingsNavigate
+        onSettingsNavigate,
+        gatewayModels: modelsById
       })
     : null
   const modelSectionSlot = isClaudeTool && claudeModelMode === 'detailed' ? claudeDetailedModelSlot : modelSlot
@@ -130,6 +148,7 @@ export function useConfigEditPanelBodyProps({
     provider,
     providerName,
     providerIcon,
+    providerSettingsPath: isGateway ? '/settings/api-gateway' : `/settings/provider?id=${provider.id}`,
     theme,
     isClaudeTool,
     claudeModelMode,

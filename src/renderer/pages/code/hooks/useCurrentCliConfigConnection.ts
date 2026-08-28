@@ -1,17 +1,20 @@
 import { dataApiService } from '@data/DataApiService'
+import { useModels } from '@renderer/hooks/useModel'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
-import { useEffect, useState } from 'react'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   type CliConfigConnection,
   cliConfigConnectionMatchesProvider,
   extractConnectionFromCliConfigDraft,
+  gatewayExpectedModel,
   readCliConfigFiles,
   resolveCliConfigApplyContext
 } from '../cliConfig'
+import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 
 const logger = loggerService.withContext('useCurrentCliConfigConnection')
 
@@ -23,15 +26,35 @@ async function readProviderApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
 export function useCurrentCliConfigConnection({
   enabledProvider,
   selectedCliTool,
-  currentProviderConfig
+  currentProviderConfig,
+  apiGatewayProvider
 }: {
   enabledProvider?: Provider
   selectedCliTool: CodeCli
   currentProviderConfig?: CliProviderConfig | null
-}): [CliConfigConnection | null, (connection: CliConfigConnection | null) => void] {
+  apiGatewayProvider?: ApiGatewayProviderBundle | null
+}): {
+  connection: CliConfigConnection | null
+  setConnection: (connection: CliConfigConnection | null) => void
+  reload: () => void
+} {
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useState<CliConfigConnection | null>(null)
+  const [reloadRevision, setReloadRevision] = useState(0)
+  const readGenerationRef = useRef(0)
+  const { models } = useModels({ enabled: true })
+  const reload = useCallback(() => setReloadRevision((revision) => revision + 1), [])
+
+  const isGateway = !!enabledProvider && isApiGatewayProviderId(enabledProvider.id)
+  const gatewayApiKey = apiGatewayProvider?.apiKey ?? null
+  // Resolve the gateway model's apiModelId to a primitive so the effect re-runs only when it changes.
+  const gatewayApiModelId = useMemo(() => {
+    if (!isGateway) return undefined
+    const modelId = currentProviderConfig?.modelId
+    return modelId ? models.find((m) => m.id === modelId)?.apiModelId : undefined
+  }, [isGateway, currentProviderConfig?.modelId, models])
 
   useEffect(() => {
+    const readGeneration = ++readGenerationRef.current
     let cancelled = false
     // The virtual own-login entry has no app-side credential to reconcile against a CLI config file.
     if (!enabledProvider || enabledProvider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
@@ -43,17 +66,26 @@ export function useCurrentCliConfigConnection({
       const files = await readCliConfigFiles(selectedCliTool)
       const connection = extractConnectionFromCliConfigDraft(selectedCliTool, files)
       if (!connection) {
-        if (!cancelled) setCurrentCliConfigConnection(null)
+        if (!cancelled && readGeneration === readGenerationRef.current) setCurrentCliConfigConnection(null)
         return
       }
-      const apiKeys = await readProviderApiKeys(enabledProvider.id)
-      const currentCliConfigContext = resolveCliConfigApplyContext(
-        selectedCliTool,
-        enabledProvider.id,
-        currentProviderConfig ?? undefined
-      )
-      const expectedModel = currentCliConfigContext?.writePrimaryModel ? currentCliConfigContext.rawModelId : undefined
-      if (cancelled) return
+      // Gateway: match against the synthetic gateway key (no DataApi record) and the gateway-addressed
+      // model, so a live gateway config lights up as active rather than showing as a foreign connection.
+      let apiKeys: ApiKeyEntry[]
+      let expectedModel: string | undefined
+      if (isGateway) {
+        apiKeys = gatewayApiKey ? [{ id: 'gateway', key: gatewayApiKey, isEnabled: true }] : []
+        expectedModel = gatewayExpectedModel(currentProviderConfig?.modelId, gatewayApiModelId)
+      } else {
+        apiKeys = await readProviderApiKeys(enabledProvider.id)
+        const currentCliConfigContext = resolveCliConfigApplyContext(
+          selectedCliTool,
+          enabledProvider.id,
+          currentProviderConfig ?? undefined
+        )
+        expectedModel = currentCliConfigContext?.writePrimaryModel ? currentCliConfigContext.rawModelId : undefined
+      }
+      if (cancelled || readGeneration !== readGenerationRef.current) return
       setCurrentCliConfigConnection(
         cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, apiKeys, expectedModel)
           ? null
@@ -61,13 +93,21 @@ export function useCurrentCliConfigConnection({
       )
     })().catch((error) => {
       logger.error('Failed to read current CLI config connection:', error as Error)
-      if (!cancelled) setCurrentCliConfigConnection(null)
+      if (!cancelled && readGeneration === readGenerationRef.current) setCurrentCliConfigConnection(null)
     })
 
     return () => {
       cancelled = true
     }
-  }, [enabledProvider, selectedCliTool, currentProviderConfig])
+  }, [
+    enabledProvider,
+    selectedCliTool,
+    currentProviderConfig,
+    isGateway,
+    gatewayApiKey,
+    gatewayApiModelId,
+    reloadRevision
+  ])
 
-  return [currentCliConfigConnection, setCurrentCliConfigConnection]
+  return { connection: currentCliConfigConnection, setConnection: setCurrentCliConfigConnection, reload }
 }

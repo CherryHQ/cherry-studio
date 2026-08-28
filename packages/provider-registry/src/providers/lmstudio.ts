@@ -3,6 +3,8 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'lmstudio',
   name: 'LM Studio',
+  authOptional: true,
+  defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
@@ -10,7 +12,8 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'http://localhost:1234'
+      baseUrl: 'http://localhost:1234',
+      reasoningFormat: { type: 'openai-chat' }
     }
   },
   metadata: {

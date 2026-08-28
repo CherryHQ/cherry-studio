@@ -1,6 +1,6 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, NormalTooltip } from '@cherrystudio/ui'
 import type { CodeCli } from '@shared/types/codeCli'
-import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
+import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +12,7 @@ export interface OwnLoginCardProps {
   selected: boolean
   configurable?: boolean
   dragging?: boolean
+  onMoveToTop?: () => void
   onToggle: () => void
   onConfigure?: () => void
 }
@@ -26,6 +27,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
   selected,
   configurable,
   dragging,
+  onMoveToTop,
   onToggle,
   onConfigure
 }) => {
@@ -39,16 +41,16 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
           ? 'border-primary/40 opacity-50'
           : selected
             ? 'border-primary bg-primary/5'
-            : 'border-border/40 hover:border-border hover:bg-primary/5'
+            : 'border-border-subtle hover:border-border hover:bg-primary/5'
       }`}>
       <div className="pointer-events-none relative flex items-center gap-3">
         <GripVertical
           size={13}
-          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing"
+          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
         />
 
         <span aria-hidden className="shrink-0">
-          <CliIcon id={toolId} size={24} className="size-6 rounded-md border border-border/30" />
+          <CliIcon id={toolId} size={24} className="size-6 rounded-md border border-border-subtle" />
         </span>
 
         <div className="min-w-0 flex-1">
@@ -58,13 +60,26 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+          {onMoveToTop && (
+            <NormalTooltip content={t('code.move_provider_to_top')} side="top" sideOffset={4} delayDuration={300}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={t('code.move_provider_to_top')}
+                onClick={onMoveToTop}
+                className="size-6 border-border-subtle">
+                <ArrowUpToLine size={13} />
+              </Button>
+            </NormalTooltip>
+          )}
           {configurable && onConfigure && (
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => onConfigure()}
-              className="min-h-0 border-border/50 px-2.5 py-1">
+              className="min-h-0 border-border-subtle px-2.5 py-1">
               <SquarePen size={11} />
               {t('code.configure')}
             </Button>
@@ -74,9 +89,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
             variant={selected ? 'destructive' : 'default'}
             size="sm"
             onClick={onToggle}
-            className={`min-h-0 px-2.5 py-1 ${
-              selected ? 'bg-destructive/10 text-destructive shadow-none hover:bg-destructive/15' : ''
-            }`}>
+            className="min-h-0 px-2.5 py-1">
             {selected ? <CircleMinus size={11} /> : <Play size={11} />}
             {selected ? t('code.disable') : t('code.enable')}
           </Button>

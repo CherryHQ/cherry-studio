@@ -9,7 +9,7 @@ const Codegeex = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const CodegeexIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Codegeex, {
   Avatar: CodegeexAvatar,
-  colorPrimary: '#171E1E'
+  colorPrimary: '#00E7E7'
 })
 
 export default CodegeexIcon

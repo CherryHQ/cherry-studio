@@ -1,5 +1,4 @@
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,18 +11,21 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const { mockUseExternalApps, mockPreview, mockSafeOpen } = vi.hoisted(() => ({
-  mockUseExternalApps: vi.fn(() => ({ data: [] })),
+const { mockPreview, mockSafeOpen, mockLoggerWarn, mockLoggerDebug } = vi.hoisted(() => ({
   mockPreview: vi.fn(),
-  mockSafeOpen: vi.fn()
+  mockSafeOpen: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+  mockLoggerDebug: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ warn: mockLoggerWarn, debug: mockLoggerDebug })
+  }
 }))
 
 vi.mock('../useAttachment', () => ({
   useAttachment: () => ({ preview: mockPreview })
-}))
-
-vi.mock('@renderer/hooks/useExternalApps', () => ({
-  useExternalApps: mockUseExternalApps
 }))
 
 vi.mock('@renderer/utils/file/safeOpen', () => ({
@@ -33,18 +35,7 @@ vi.mock('@renderer/utils/file/safeOpen', () => ({
 describe('useMessageLeafCapabilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseExternalApps.mockReturnValue({ data: [] })
     mockSafeOpen.mockResolvedValue(undefined)
-  })
-
-  it('loads external apps for the message list regardless of inline path hints', () => {
-    const partsByMessageId: Record<string, CherryMessagePart[]> = {
-      message: [{ type: 'text', text: 'plain response' } as CherryMessagePart]
-    }
-
-    renderHook(() => useMessageLeafCapabilities({ partsByMessageId }))
-
-    expect(mockUseExternalApps).toHaveBeenCalledWith()
   })
 
   it('opens shared attachment files through safeOpen', async () => {
@@ -147,6 +138,10 @@ describe('useMessageLeafCapabilities', () => {
     await result.current.openFile?.(file)
 
     expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' })
+    expect(mockLoggerDebug).toHaveBeenCalledWith(
+      'fileMetadataToHandle: falling back to entry id for non-absolute path',
+      expect.objectContaining({ path: 'relative/legacy.pdf' })
+    )
   })
 
   it('projects file display data for shared attachment renderers', () => {
@@ -178,6 +173,32 @@ describe('useMessageLeafCapabilities', () => {
       displayName: 'file.pdf',
       previewUrl: 'file:///tmp'
     })
+  })
+
+  it('omits the preview url without throwing when the shared attachment path is not absolute', () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: 'file-1',
+      type: FILE_TYPE.DOCUMENT,
+      ext: '.pdf',
+      path: 'relative/legacy.pdf',
+      origin_name: 'file.pdf',
+      name: 'stored-file.pdf',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    expect(() => result.current.getFileView?.(file)).not.toThrow()
+    expect(result.current.getFileView?.(file)).toEqual({
+      displayName: 'file.pdf',
+      previewUrl: undefined
+    })
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'getFileView: non-canonical/invalid attachment path',
+      expect.objectContaining({ path: 'relative/legacy.pdf' })
+    )
   })
 
   it('keeps legacy pasted temp-file display behavior local to message attachments', () => {

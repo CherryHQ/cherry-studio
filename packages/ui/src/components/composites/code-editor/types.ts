@@ -26,6 +26,8 @@ export interface CodeEditorProps {
   value: string
   /** Placeholder when the editor content is empty. */
   placeholder?: string | HTMLElement
+  /** Whether the editor should focus after its EditorView is created. */
+  autoFocus?: boolean
   /**
    * Code language string.
    * - Case-insensitive.

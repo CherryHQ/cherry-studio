@@ -8,9 +8,10 @@ import { runWithResponse } from './captureRequest'
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
- * Inbound (response) boundary for the AiHubMix Ideogram branches: V_3 generate
+ * Inbound (response) boundary for the AiHubMix bespoke branches: V_3 generate
  * parses `data[].url`; the V_1/V_2 shared path also accepts the wrapped
- * `output.b64_json[].bytesBase64` form (→ data: URLs).
+ * `output.b64_json[].bytesBase64` form (→ data: URLs); Doubao Seedream parses
+ * `data[].url` / `data[].b64_json` / `data[].base64_json` (→ data: URLs).
  */
 function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
   return {
@@ -63,5 +64,13 @@ describe('AiHubMix response boundary (Ideogram branches)', () => {
       createAihubmixImageModel('V_2', { ...config, fetch }).doGenerate(opts({}))
     )
     expect(result.images).toMatchSnapshot()
+  })
+
+  it('doubao-seedream → mixed data[].url + data[].b64_json (→ data: URLs)', async () => {
+    const response = { data: [{ url: 'https://img/d1.png' }, { b64_json: 'QUJD' }] }
+    const result = await runWithResponse(response, (fetch) =>
+      createAihubmixImageModel('doubao-seedream-5.0-lite', { ...config, fetch }).doGenerate(opts({}))
+    )
+    expect(result.images).toEqual(['https://img/d1.png', 'data:image/png;base64,QUJD'])
   })
 })

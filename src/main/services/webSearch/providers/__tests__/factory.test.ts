@@ -12,6 +12,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: vi.fn() }
+}))
+
 vi.mock('electron', () => ({
   net: {
     fetch: vi.fn()
@@ -35,6 +39,7 @@ import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -70,6 +75,7 @@ describe('createWebSearchProvider', () => {
       'fetch',
       'firecrawl',
       'jina',
+      'parallel',
       'querit',
       'searxng',
       'tavily',
@@ -104,5 +110,6 @@ describe('createWebSearchProvider', () => {
         rotationState
       )
     ).toBeInstanceOf(JinaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'parallel' }), rotationState)).toBeInstanceOf(ParallelProvider)
   })
 })

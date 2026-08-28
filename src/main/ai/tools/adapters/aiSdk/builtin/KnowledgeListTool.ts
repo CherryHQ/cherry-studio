@@ -10,17 +10,12 @@
  * Both modes live in the shared `knowledgeLookup` core so the Claude Code MCP bridge runs identical
  * logic; this file is just the AI-SDK `tool()` wrapper.
  *
- * Scope: when the effective scope (the assistant's static binding when non-empty, else the composer's
- * per-turn selection — see `resolveKnowledgeBaseIds`) is non-empty, only those bases are reachable;
- * when empty, all user bases are.
+ * Scope: when the effective scope (the assistant's static binding narrowed by the composer's per-turn
+ * selection, or that selection alone when there is no binding — see `resolveKnowledgeBaseScope`) is
+ * non-empty, only those bases are reachable. The tool is not exposed when that scope is empty.
  */
 
-import {
-  KB_LIST_TOOL_NAME,
-  kbListOutputSchema,
-  kbListStrictInputSchema,
-  kbTreeOutputSchema
-} from '@shared/ai/builtinTools'
+import { KB_LIST_TOOL_NAME, kbListInputSchema, kbListOutputSchema, kbTreeOutputSchema } from '@shared/ai/builtinTools'
 import { tool } from 'ai'
 import * as z from 'zod'
 
@@ -41,9 +36,8 @@ const knowledgeListResultSchema = z.union([kbListOutputSchema, kbTreeOutputSchem
 
 const kbListTool = tool({
   description: KNOWLEDGE_LIST_DESCRIPTION,
-  inputSchema: kbListStrictInputSchema,
+  inputSchema: kbListInputSchema,
   outputSchema: knowledgeListResultSchema,
-  strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
     return listOrOutlineKnowledge(input, request.knowledgeBaseIds ?? [])

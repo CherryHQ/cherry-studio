@@ -64,12 +64,11 @@ import type { RequestFeature } from '../feature'
 export const qwenThinkingFeature: RequestFeature = {
   name: 'qwen-thinking',
   applies: (scope) =>
-    Boolean(scope.assistant) &&
+    (Boolean(scope.assistant) || scope.request.reasoningEffort !== undefined) &&
     !isOllamaProvider(scope.provider) &&
     isSupportedThinkingTokenQwenModel(scope.model) &&
     !isQwen35to39Model(scope.model) &&
-    !isSupportEnableThinkingProvider(scope.provider),
-  contributeModelAdapters: (scope) => [
-    createQwenThinkingPlugin(scope.assistant!.settings?.reasoning_effort !== undefined)
-  ]
+    !isSupportEnableThinkingProvider(scope.provider) &&
+    scope.reasoning.kind !== 'omit',
+  contributeModelAdapters: (scope) => [createQwenThinkingPlugin(scope.reasoning.kind !== 'off')]
 }

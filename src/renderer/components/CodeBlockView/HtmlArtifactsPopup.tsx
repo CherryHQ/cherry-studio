@@ -28,11 +28,22 @@ import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
-import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  Camera,
+  Check,
+  Code,
+  Eye,
+  Maximize2,
+  Minimize2,
+  SaveIcon,
+  ShieldAlert,
+  SquareSplitHorizontal,
+  X
+} from 'lucide-react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import HtmlPreviewFrame from './HtmlPreviewFrame'
+import HtmlArtifactPreviewSurface, { htmlArtifactPreviewRequiresInteractive } from './HtmlArtifactPreviewSurface'
 
 const logger = loggerService.withContext('HtmlArtifactsPopup')
 
@@ -100,6 +111,8 @@ interface HtmlArtifactsPopupProps {
   html: string
   onSave?: (html: string) => void
   editable?: boolean
+  canCapturePreview?: boolean
+  renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
   onClose: () => void
 }
 
@@ -111,12 +124,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   html,
   onSave,
   editable = true,
+  canCapturePreview = true,
+  renderPreview,
   onClose
 }) => {
   const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
   const [fontSize] = usePreference('chat.message.font_size')
-  const [viewMode, setViewMode] = useState<ViewMode>('split')
+  const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const [splitSizes, setSplitSizes] = useState<[number, number]>([50, 50])
@@ -143,6 +158,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
   const handleCapture = useCallback(
     async (to: 'file' | 'clipboard') => {
+      setCaptureOpen(false)
+
       try {
         const title = extractHtmlTitle(html)
         const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
@@ -164,8 +181,6 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         }
       } catch (error) {
         logger.error('Failed to capture HTML artifact preview', error as Error)
-      } finally {
-        setCaptureOpen(false)
       }
     },
     [html, t]
@@ -185,14 +200,57 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     />
   )
 
-  const renderPreviewPanel = () => (
-    <HtmlPreviewFrame
-      iframeRef={previewFrameRef}
-      html={html}
-      title={t('common.html_preview')}
-      emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
-    />
-  )
+  // Security default: static tier on open; only the explicit run action authorizes
+  // the webview (mirrors the inline consent card — "open" is not authorization).
+  const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
+  // Authorization is scoped to the exact content: the stored html must match in the
+  // same render, so new bytes never inherit a previous run action — no effect-timing window.
+  const interactiveDisclosureId = useId()
+  const [interactiveAuth, setInteractiveAuth] = useState<{ html: string; authorized: boolean }>({
+    html: '',
+    authorized: false
+  })
+  const interactiveAuthorized = interactiveAuth.html === html && interactiveAuth.authorized
+  // The webview tier has no capture iframe; an explicit canCapturePreview={false} wins.
+  const effectiveCanCapturePreview = renderPreview
+    ? canCapturePreview
+    : canCapturePreview && !(requiresInteractivePreview && interactiveAuthorized)
+
+  const renderPreviewPanel = () =>
+    renderPreview ? (
+      renderPreview(previewFrameRef)
+    ) : (
+      <div className="relative h-full w-full">
+        <HtmlArtifactPreviewSurface
+          iframeRef={previewFrameRef}
+          html={html}
+          title={t('common.html_preview')}
+          authorized={interactiveAuthorized}
+          emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
+          forwardBoundaryWheel={false}
+        />
+        {requiresInteractivePreview && !interactiveAuthorized && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-3">
+            <Tooltip content={t('html_artifacts.interactive_preview.description')} delay={200}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="pointer-events-auto border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
+                aria-label={t('html_artifacts.interactive_preview.action')}
+                aria-describedby={interactiveDisclosureId}
+                onClick={() => setInteractiveAuth({ html, authorized: true })}>
+                <ShieldAlert className="size-3.5 text-warning" />
+                {t('html_artifacts.interactive_preview.action')}
+                <span id={interactiveDisclosureId} className="sr-only">
+                  {t('html_artifacts.interactive_preview.description')}
+                </span>
+              </Button>
+            </Tooltip>
+          </div>
+        )}
+      </div>
+    )
 
   const renderContent = () => {
     if (viewMode === 'code') {
@@ -300,29 +358,35 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             <div
               className="flex flex-1 items-center justify-end gap-2 pr-1"
               onDoubleClick={(event) => event.stopPropagation()}>
-              <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
-                <Tooltip content={t('html_artifacts.capture.label')}>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
-                      <Camera className="size-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                </Tooltip>
-                <PopoverContent align="end" className="w-56 p-1.5">
-                  <MenuList>
-                    <MenuItem
-                      label={t('html_artifacts.capture.to_file')}
-                      icon={<FilePngIcon size={14} className="lucide-custom" />}
-                      onClick={() => void handleCapture('file')}
-                    />
-                    <MenuItem
-                      label={t('html_artifacts.capture.to_clipboard')}
-                      icon={<CopyIcon size={14} className="lucide-custom" />}
-                      onClick={() => void handleCapture('clipboard')}
-                    />
-                  </MenuList>
-                </PopoverContent>
-              </Popover>
+              {effectiveCanCapturePreview && (
+                <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
+                  <Tooltip content={t('html_artifacts.capture.label')}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t('html_artifacts.capture.label')}
+                        className="[-webkit-app-region:no-drag]">
+                        <Camera className="size-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                  </Tooltip>
+                  <PopoverContent align="end" className="w-56 p-1.5">
+                    <MenuList>
+                      <MenuItem
+                        label={t('html_artifacts.capture.to_file')}
+                        icon={<FilePngIcon size={14} className="lucide-custom" />}
+                        onClick={() => void handleCapture('file')}
+                      />
+                      <MenuItem
+                        label={t('html_artifacts.capture.to_clipboard')}
+                        icon={<CopyIcon size={14} className="lucide-custom" />}
+                        onClick={() => void handleCapture('clipboard')}
+                      />
+                    </MenuList>
+                  </PopoverContent>
+                </Popover>
+              )}
               <Button
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 variant="ghost"

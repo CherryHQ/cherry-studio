@@ -11,10 +11,12 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/modelSync'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
+import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
 
 const logger = loggerService.withContext('ProviderModelManageDrawer')
@@ -118,6 +120,8 @@ export function useProviderModelPullReconcile(providerId: string) {
       (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
     )
   }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
+  const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
+  const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
   const loadModels = useCallback(async () => {
     const sequence = ++loadModelsSequenceRef.current
@@ -176,9 +180,13 @@ export function useProviderModelPullReconcile(providerId: string) {
       }
 
       try {
-        await createModels(
-          toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model)))
+        const chunks = chunkArray(
+          toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
+          MODELS_BATCH_MAX_ITEMS
         )
+        for (const chunk of chunks) {
+          await createModels(chunk)
+        }
       } catch (error) {
         logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
         toast.error(t('settings.models.manage.operation_failed'))
@@ -265,9 +273,9 @@ export function useProviderModelPullReconcile(providerId: string) {
     provider,
     localModels: models,
     removableModelIds,
-    defaultModelIds: [...defaultModelIds],
+    defaultModelIds: defaultModelIdList,
     staleModelCount: staleModels.length,
-    staleModelIds: staleModels.map((model) => model.id),
+    staleModelIds,
     openPullReconcile,
     closePullReconcile,
     reloadModels: loadModels,

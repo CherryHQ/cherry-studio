@@ -14,6 +14,11 @@ import type {
 } from './types'
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 
+type RegisteredKeyDownHandler = {
+  generation: number
+  handler: QuickPanelKeyDownHandler
+}
+
 export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [symbol, setSymbol] = useState<string>('')
@@ -39,7 +44,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [fillToAvailableHeight, setFillToAvailableHeight] = useState(false)
 
   const clearTimer = useRef<number | null>(null)
-  const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
+  const keyDownHandlerRef = useRef<RegisteredKeyDownHandler | undefined>(undefined)
   const isMountedRef = useRef(true)
   const isVisibleRef = useRef(isVisible)
   const contextRef = useRef<QuickPanelContextType | null>(null)
@@ -93,6 +98,24 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     [ensureListItemIds]
   )
 
+  const clearPanelState = useCallback(() => {
+    setList([])
+    setOnClose(undefined)
+    setBeforeAction(undefined)
+    setAfterAction(undefined)
+    setFilterFn(undefined)
+    setSortFn(undefined)
+    setTitle(undefined)
+    setSymbol('')
+    setTriggerInfo(undefined)
+    setQueryAnchor(undefined)
+    setTrackInputQuery(false)
+    setInitialSearchText(undefined)
+    setParentPanel(undefined)
+    setManageListExternally(false)
+    setReadOnly(false)
+  }, [])
+
   const open = useCallback(
     (options: QuickPanelOpenOptions) => {
       if (clearTimer.current) {
@@ -134,6 +157,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     (action?: QuickPanelCloseAction, searchText?: string) => {
       if (!isMountedRef.current) return
 
+      panelGenerationRef.current += 1
       // Keep imperative key dispatch in sync with close before React commits.
       isVisibleRef.current = false
       setIsVisible(false)
@@ -144,24 +168,10 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         clearTimer.current = null
         if (!isMountedRef.current) return
 
-        setList([])
-        setOnClose(undefined)
-        setBeforeAction(undefined)
-        setAfterAction(undefined)
-        setFilterFn(undefined)
-        setSortFn(undefined)
-        setTitle(undefined)
-        setSymbol('')
-        setTriggerInfo(undefined)
-        setQueryAnchor(undefined)
-        setTrackInputQuery(false)
-        setInitialSearchText(undefined)
-        setParentPanel(undefined)
-        setManageListExternally(false)
-        setReadOnly(false)
+        clearPanelState()
       }, 200)
     },
-    [onClose]
+    [clearPanelState, onClose]
   )
 
   useEffect(() => {
@@ -172,15 +182,17 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       if (clearTimer.current) {
         window.clearTimeout(clearTimer.current)
         clearTimer.current = null
+        clearPanelState()
       }
     }
-  }, [])
+  }, [clearPanelState])
 
   const registerKeyDownHandler = useCallback((handler: QuickPanelKeyDownHandler | undefined) => {
-    keyDownHandlerRef.current = handler
+    const registeredHandler = handler ? { generation: panelGenerationRef.current, handler } : undefined
+    keyDownHandlerRef.current = registeredHandler
 
     return () => {
-      if (keyDownHandlerRef.current === handler) {
+      if (keyDownHandlerRef.current === registeredHandler) {
         keyDownHandlerRef.current = undefined
       }
     }
@@ -188,7 +200,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const dispatchKeyDown = useCallback((event: QuickPanelKeyDownEvent) => {
     if (!isVisibleRef.current) return false
-    return keyDownHandlerRef.current?.(event) ?? false
+    const registeredHandler = keyDownHandlerRef.current
+    if (!registeredHandler || registeredHandler.generation !== panelGenerationRef.current) return false
+    return registeredHandler.handler(event)
   }, [])
 
   const getPanelGeneration = useCallback(() => panelGenerationRef.current, [])

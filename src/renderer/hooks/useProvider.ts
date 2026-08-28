@@ -1,11 +1,11 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
-import { getProviderLabelKey } from '@renderer/i18n/label'
-import i18n from '@renderer/i18n/resolver'
-import { isSystemProviderId } from '@renderer/types/provider'
+import { getProviderDisplayName } from '@renderer/utils/naming'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
+  ProviderPresetField,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
@@ -36,18 +36,22 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
-export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?: SWRConfiguration }) {
+export function useProviders(
+  query?: ListProvidersQuery,
+  options?: { enabled?: boolean; swrOptions?: SWRConfiguration }
+) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const queryOptions =
-    hasQuery || options?.swrOptions
+    hasQuery || options?.enabled === false || options?.swrOptions
       ? {
           ...(hasQuery && { query: filtered }),
+          ...(options?.enabled === false && { enabled: false }),
           ...(options?.swrOptions && { swrOptions: options.swrOptions })
         }
       : undefined
 
-  const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
+  const { data, isLoading, error, refetch } = useQuery('/providers', queryOptions)
 
   const {
     trigger: createTrigger,
@@ -73,7 +77,9 @@ export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?
 
   return {
     providers,
+    hasLoaded: data !== undefined,
     isLoading,
+    error,
     createProvider,
     isCreating,
     createError,
@@ -82,18 +88,23 @@ export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?
 }
 
 // ─── Layer 2: Single read + write + delete ────────────────────────────
-export function useProvider(providerId: string | null | undefined) {
+export function useProviderById(providerId: string | null | undefined) {
   const resolvedProviderId = providerId ?? ''
   const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
     params: { providerId: resolvedProviderId },
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
-  const provider = data
+  return { provider: data, isLoading, error, refetch }
+}
+
+export function useProvider(providerId: string | null | undefined) {
+  const resolvedProviderId = providerId ?? ''
+  const query = useProviderById(providerId)
 
   const mutations = useProviderMutations(resolvedProviderId)
 
-  return { provider, isLoading, error, refetch, ...mutations }
+  return { ...query, ...mutations }
 }
 
 // ─── Layer 3: Pure mutations ──────────────────────────────────────────
@@ -105,7 +116,10 @@ export function useProviderMutations(providerId: string) {
     trigger: patchTrigger,
     isLoading: isUpdating,
     error: updateError
-  } = useMutation('PATCH', '/providers/:providerId', { refresh })
+  } = useMutation('PATCH', '/providers/:providerId', {
+    // Endpoint/default changes alter registry-projected model controls.
+    refresh: [...refresh, '/models', '/models/*']
+  })
 
   const {
     trigger: deleteTrigger,
@@ -253,15 +267,18 @@ export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
 }
 
-/**
- * Pure resolver for a provider's display name. System providers get the
- * i18n label; custom providers use their user-set name. Returns empty
- * string when the provider is missing.
- */
-export function getProviderDisplayName(provider: Provider | undefined): string {
-  if (!provider) return ''
-  return isSystemProviderId(provider.id) ? i18n.t(getProviderLabelKey(provider.id)) : provider.name
+/** Read a sparse projection of the provider's effective registry preset. */
+export function useProviderPreset(providerId: string | null | undefined, fields: readonly ProviderPresetField[]) {
+  const query = useQuery('/providers/:providerId/preset', {
+    params: { providerId: providerId ?? '' },
+    query: { fields: [...fields] },
+    enabled: !!providerId
+  })
+  useDataChange('/providers/:providerId/preset', () => void query.refetch())
+  return query
 }
+
+export { getProviderDisplayName }
 
 /**
  * Hook variant of {@link getProviderDisplayName} for callers that have a

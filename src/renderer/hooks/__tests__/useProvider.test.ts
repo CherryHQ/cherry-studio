@@ -1,4 +1,4 @@
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,8 +9,10 @@ import {
   useProviderActions,
   useProviderApiKeys,
   useProviderAuthConfig,
+  useProviderById,
   useProviderDisplayName,
   useProviderMutations,
+  useProviderPreset,
   useProviders
 } from '../useProvider'
 
@@ -30,6 +32,25 @@ const mockProvider2: any = {
 }
 
 const mockProviderList = [mockProvider1, mockProvider2]
+
+describe('useProviderPreset', () => {
+  it('revalidates registry-backed model projections after a snapshot update', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: { models: [] },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useProviderPreset('openai', ['models']))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/providers/:providerId/preset' }])
+
+    expect(refetch).toHaveBeenCalledOnce()
+  })
+})
 
 describe('useProviders', () => {
   beforeEach(() => {
@@ -52,7 +73,7 @@ describe('useProviders', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return empty array when data is undefined', () => {
+  it('should return a stable empty array when data is undefined', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -62,28 +83,51 @@ describe('useProviders', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useProviders())
+    const { result, rerender } = renderHook(() => useProviders())
+    const firstProviders = result.current.providers
 
     expect(result.current.providers).toEqual([])
     expect(result.current.isLoading).toBe(true)
-  })
-
-  it('should keep the empty fallback array reference stable across rerenders', () => {
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result, rerender } = renderHook(() => useProviders())
-    const firstProviders = result.current.providers
 
     rerender()
 
     expect(result.current.providers).toBe(firstProviders)
+  })
+
+  it('exposes a provider list read failure instead of presenting only an empty list', () => {
+    const error = new Error('Provider registry unavailable')
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useProviders())
+
+    expect(result.current.providers).toEqual([])
+    expect(result.current.hasLoaded).toBe(false)
+    expect(result.current.error).toBe(error)
+  })
+
+  it('marks stale provider data as loaded when background revalidation fails', () => {
+    const error = new Error('Provider registry unavailable')
+    mockUseQuery.mockReturnValue({
+      data: mockProviderList,
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useProviders())
+
+    expect(result.current.providers).toBe(mockProviderList)
+    expect(result.current.hasLoaded).toBe(true)
+    expect(result.current.error).toBe(error)
   })
 
   it('should call useQuery with /providers path', () => {
@@ -96,6 +140,12 @@ describe('useProviders', () => {
     renderHook(() => useProviders({ enabled: false }))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', { query: { enabled: false } })
+  })
+
+  it('should disable the provider request through hook options', () => {
+    renderHook(() => useProviders(undefined, { enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', { enabled: false })
   })
 
   it('should pass local SWR options when provided', () => {
@@ -252,17 +302,32 @@ describe('useProvider', () => {
     expect(result.current.error).toBe(mockError)
     expect(result.current.refetch).toBe(mockRefetch)
   })
+})
 
-  it('should include mutation functions', () => {
-    const { result } = renderHook(() => useProvider('openai'))
+describe('useProviderById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
-    expect(result.current.updateProvider).toBeDefined()
-    expect(result.current.enableProvider).toBeDefined()
-    expect(result.current.deleteProvider).toBeDefined()
-    expect(result.current.updateAuthConfig).toBeDefined()
-    expect(result.current.updateApiKeys).toBeDefined()
-    expect(result.current.addApiKey).toBeDefined()
-    expect(result.current.deleteApiKey).toBeDefined()
+  it('reads the provider without registering provider mutations', () => {
+    mockUseQuery.mockImplementation(() => ({
+      data: mockProvider1,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+
+    const { result } = renderHook(() => useProviderById('openai'))
+
+    expect(result.current.provider).toBe(mockProvider1)
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'openai' },
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
+    expect(mockUseMutation).not.toHaveBeenCalled()
   })
 })
 
@@ -283,7 +348,9 @@ describe('useProviderMutations', () => {
 
     expect(patchCall).toBeDefined()
     // P0: list + entity + /* wildcard covers useProvider(id) and all sub-resource hooks
-    expect(patchCall![2]).toEqual({ refresh: ['/providers', '/providers/openai', '/providers/openai/*'] })
+    expect(patchCall![2]).toEqual({
+      refresh: ['/providers', '/providers/openai', '/providers/openai/*', '/models', '/models/*']
+    })
 
     expect(deleteCall).toBeDefined()
     expect(deleteCall![2]).toEqual({ refresh: ['/providers', '/providers/openai', '/providers/openai/*'] })
@@ -351,7 +418,7 @@ describe('useProviderMutations', () => {
 
     expect(patchCall).toBeDefined()
     expect(patchCall![2]).toEqual({
-      refresh: ['/providers', '/providers/openai-main', '/providers/openai-main/*']
+      refresh: ['/providers', '/providers/openai-main', '/providers/openai-main/*', '/models', '/models/*']
     })
   })
 

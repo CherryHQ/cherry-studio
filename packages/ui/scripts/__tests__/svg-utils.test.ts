@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   colorToLuminance,
+  ensureViewBox,
   isLargeShape,
   isMonochromeSvg,
   isWhiteFill,
@@ -9,6 +10,14 @@ import {
   parseSvgPathBounds,
   parseViewBox
 } from '../svg-utils'
+
+describe('ensureViewBox', () => {
+  it('preserves an existing viewBox and its original whitespace', () => {
+    const svg = '<svg viewBox="0 0 120 120"><path d="M20 20H100V100H20Z"/></svg>'
+
+    expect(ensureViewBox(svg)).toBe(svg)
+  })
+})
 
 // ─── colorToLuminance ───────────────────────────────────────────────
 

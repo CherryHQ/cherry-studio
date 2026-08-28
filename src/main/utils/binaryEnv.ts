@@ -44,8 +44,20 @@ function binaryDataDir(): string {
 }
 
 /** The mise shims dir — where installed-tool shim executables land. */
-function binaryShimsDir(): string {
+export function getBinaryShimsDir(): string {
   return path.join(binaryDataDir(), 'shims')
+}
+
+/**
+ * Whether `candidate` resolves inside `root` — the containment test for
+ * "is this binary one of ours". Case-insensitive on Windows, matching the
+ * filesystem, so a drive-letter or casing difference cannot smuggle a path
+ * past the check.
+ */
+export function isPathWithin(root: string, candidate: string): boolean {
+  const normalize = (value: string) => (isWin ? path.resolve(value).toLowerCase() : path.resolve(value))
+  const relative = path.relative(normalize(root), normalize(candidate))
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 /**
@@ -57,7 +69,7 @@ function binaryShimsDir(): string {
  * `cherry.bin` / `feature.binary.data` elsewhere.
  */
 export function getBinarySearchDirs(): string[] {
-  return [binaryShimsDir(), application.getPath('cherry.bin')]
+  return [getBinaryShimsDir(), application.getPath('cherry.bin')]
 }
 
 /**
@@ -77,7 +89,12 @@ export function getBinaryExecutionEnv(): Record<string, string> {
     MISE_CONFIG_DIR: path.join(dataDir, 'config'),
     MISE_CACHE_DIR: path.join(dataDir, 'cache'),
     MISE_STATE_DIR: path.join(dataDir, 'state'),
-    MISE_SHIMS_DIR: binaryShimsDir(),
+    MISE_SHIMS_DIR: getBinaryShimsDir(),
+    // rustup owns rust's binaries, so they live outside MISE_DATA_DIR. Both the
+    // install subprocess and every launched tool must agree on where, or the
+    // rustup proxies re-download the whole toolchain into the user's real home.
+    MISE_RUSTUP_HOME: application.getPath('feature.binary.data.isolated.rustup'),
+    MISE_CARGO_HOME: application.getPath('feature.binary.data.isolated.cargo'),
     MISE_YES: '1',
     MISE_NO_ANALYTICS: '1',
     MISE_EXPERIMENTAL: '1'
@@ -94,12 +111,71 @@ export function getBinaryExecutionEnv(): Record<string, string> {
  */
 export function getBinaryIsolatedHomeEnv(): Record<string, string> {
   const dataDir = binaryDataDir()
-  return {
+  const env: Record<string, string> = {
     HOME: path.join(dataDir, 'home'),
     XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
     XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
     XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
   }
+  // On Windows, mise's aqua backend runs Sigstore/TUF verification, which resolves
+  // its cache/config dirs from %LOCALAPPDATA%/%APPDATA%. The install subprocess
+  // strips the user's real values (they aren't in MISE_PASSTHROUGH_ENV), so without
+  // these the verify step fails with "Could not determine cache directory" (#16719).
+  // Point them into the isolated data dir alongside HOME/XDG.
+  if (isWin) {
+    env.LOCALAPPDATA = application.getPath('feature.binary.data.isolated.localappdata')
+    env.APPDATA = application.getPath('feature.binary.data.isolated.appdata')
+  }
+  return env
+}
+
+function mergePathEntries(
+  env: Record<string, string>,
+  prefixes: string[],
+  suffixes: string[],
+  excludedEntries: string[] = []
+): Record<string, string> {
+  const pathSeparator = isWin ? ';' : path.delimiter
+  // Windows env keys are case-insensitive, so the input can carry several PATH
+  // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
+  // the output to a single key — otherwise a stale casing left untouched can
+  // shadow the merged value when the child process spawns.
+  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
+  const normalize = (value: string) => {
+    const normalized = path.normalize(value)
+    return isWin ? normalized.toLowerCase() : normalized
+  }
+  const excluded = new Set(excludedEntries.map(normalize))
+  // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
+  // winning. Explicit exclusions are removed from the caller PATH as well as from
+  // either injected side.
+  const pathValue = dedupePathSegments([
+    ...prefixes,
+    ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator)),
+    ...suffixes
+  ])
+    .filter((entry) => !excluded.has(normalize(entry)))
+    .join(pathSeparator)
+  const merged = { ...env }
+  for (const key of pathLikeKeys) delete merged[key]
+  merged[pathKey] = pathValue
+  if (!isWin) merged.PATH = pathValue
+  return merged
+}
+
+/** Prepend PATH entries without changing the caller's other environment variables. */
+export function mergePathPrefixes(env: Record<string, string>, prefixes: string[]): Record<string, string> {
+  return mergePathEntries(env, prefixes, [])
+}
+
+/** Append fallback PATH entries without changing the caller's other environment variables. */
+export function mergePathSuffixes(
+  env: Record<string, string>,
+  suffixes: string[],
+  excludedEntries: string[] = []
+): Record<string, string> {
+  return mergePathEntries(env, [], suffixes, excludedEntries)
 }
 
 // `extraPathPrefixes` are prepended after the mise shims dir but before the
@@ -110,26 +186,8 @@ export function mergeBinaryExecutionEnv(
   extraPathPrefixes: string[] = []
 ): Record<string, string> {
   const binaryEnv = getBinaryExecutionEnv()
-  const pathSeparator = isWin ? ';' : path.delimiter
-  // Windows env keys are case-insensitive, so the input can carry several PATH
-  // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
-  // the output to a single key — otherwise a stale casing left untouched can
-  // shadow the merged value when the child process spawns, losing the shims-first
-  // ordering this function guarantees.
-  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
-  const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  // Shims dir first, then any caller prefixes, then the incoming PATH — deduped
-  // (first occurrence wins) so prepending the shims dir can't double it up when
-  // the caller's PATH already carries it (shellEnv appends the same tool dirs
-  // upstream).
-  const pathValue = dedupePathSegments([
-    binaryEnv.MISE_SHIMS_DIR,
-    ...extraPathPrefixes,
-    ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator))
-  ]).join(pathSeparator)
-  const merged = { ...env, ...binaryEnv }
-  for (const key of pathLikeKeys) delete merged[key]
-  merged[pathKey] = pathValue
-  if (!isWin) merged.PATH = pathValue
-  return merged
+  return {
+    ...mergePathPrefixes(env, [binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),
+    ...binaryEnv
+  }
 }

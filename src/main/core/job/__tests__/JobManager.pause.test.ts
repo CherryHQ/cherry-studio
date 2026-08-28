@@ -24,10 +24,12 @@ import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle/constants'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { drainTrailingDispatch } from './_helpers'
@@ -48,7 +50,8 @@ async function pollUntil(predicate: () => boolean, timeoutMs = 3000): Promise<vo
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     if (predicate()) return
-    await sleep(10)
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(10)
+    else await sleep(10)
   }
   expect(predicate()).toBe(true)
 }
@@ -338,6 +341,7 @@ describe('JobManager pause / drainInFlight', () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['pause.once', makeCountingHandler(counter)]],
+        fakeDate: true,
         keepFakeTimers: true
       })
 
@@ -358,9 +362,6 @@ describe('JobManager pause / drainInFlight', () => {
       expect(jobService.list({ type: 'pause.once' })).toHaveLength(0)
       expect(jobScheduleService.getById(id)!.lastRun).toBeNull()
 
-      vi.useRealTimers()
-      await sleep(250) // let the wall clock pass `at` so the re-armed timer fires immediately
-
       hold.dispose()
       await pollUntil(() => jobService.list({ type: 'pause.once' }).length === 1)
       await pollUntil(() => jobService.list({ type: 'pause.once' })[0].status === 'completed')
@@ -370,9 +371,10 @@ describe('JobManager pause / drainInFlight', () => {
       expect(Date.parse(fired.lastRun!)).toBeGreaterThanOrEqual(at)
 
       // Exactly once — no duplicate make-up fire.
-      await sleep(150)
+      await vi.advanceTimersByTimeAsync(150)
       expect(jobService.list({ type: 'pause.once' })).toHaveLength(1)
 
+      vi.useRealTimers()
       await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
@@ -411,6 +413,7 @@ describe('JobManager pause / drainInFlight', () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['pause.delayed', makeCountingHandler(counter)]],
+        fakeDate: true,
         keepFakeTimers: true
       })
 
@@ -430,8 +433,6 @@ describe('JobManager pause / drainInFlight', () => {
       expect(promoteSpy).not.toHaveBeenCalled()
       expect(jobService.getById(handle.id)?.status).toBe('delayed')
 
-      vi.useRealTimers()
-      await sleep(60) // wall clock passes scheduledAt so release's promotion pass catches it
       hold.dispose()
 
       const settled = await handle.finished
@@ -439,6 +440,7 @@ describe('JobManager pause / drainInFlight', () => {
       expect(counter.count).toBe(1)
 
       promoteSpy.mockRestore()
+      vi.useRealTimers()
       await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
@@ -770,6 +772,62 @@ describe('JobManager pause / drainInFlight', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('keeps onStop joined to recovery past the lifecycle ceiling — teardown waits, it is not raced', async () => {
+      await insertOverdueSchedule('pause.recov6', 's1', { kind: 'after-startup', minutes: 0 })
+
+      const counter = { count: 0 }
+      const missGate = makeGate()
+      let missCount = 0
+      const handler = makeCountingHandler(counter)
+      handler.onMissed = async () => {
+        missCount++
+        await missGate.promise
+      }
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['pause.recov6', handler]],
+        awaitRecovery: false,
+        keepFakeTimers: true
+      })
+      expect(missCount).toBe(1) // flow is parked inside onMissed
+
+      // Arm a schedule so the post-join teardown has something observable to
+      // clear. A one-day interval cannot fire inside the window advanced below.
+      jobManager.registerJobSchedule({
+        type: 'pause.recov6',
+        trigger: { kind: 'interval', ms: 86_400_000 },
+        jobInputTemplate: { message: 'armed' },
+        catchUpPolicy: { kind: 'skip-missed' }
+      } as never)
+      const armed = internals(jobManager).scheduleDisposables.size
+      expect(armed).toBeGreaterThan(0)
+
+      let settled = false
+      const stopP = jobManager._doStop().then(() => {
+        settled = true
+      })
+
+      // Ten times the framework's per-service ceiling. The join is unconditional
+      // by design: racing `_recoveryDone` against a deadline would let the
+      // teardown below run while recovery is still writing, and would resolve
+      // onStop normally — so the framework would emit SERVICE_STOPPED over a
+      // still-live recovery flow.
+      await vi.advanceTimersByTimeAsync(SERVICE_STOP_TIMEOUT_MS * 10)
+      expect(settled).toBe(false)
+      expect(internals(jobManager).scheduleDisposables.size).toBe(armed)
+
+      missGate.release()
+      await vi.advanceTimersByTimeAsync(SERVICE_STOP_TIMEOUT_MS)
+      await stopP
+      expect(settled).toBe(true)
+      // …and the teardown does run, once recovery is genuinely quiescent.
+      expect(internals(jobManager).scheduleDisposables.size).toBe(0)
+
+      vi.useRealTimers()
+      await drainTrailingDispatch(jobManager)
+      await scheduler._doStop()
+    })
+
     it('atomic step: the catch-up enqueue lands before the drain verdict; boundary short-circuit reports pending=false and release replays without duplicating it', async () => {
       const scheduleId = await insertOverdueSchedule('pause.recov2', 's1', { kind: 'after-startup', minutes: 0 })
 
@@ -871,7 +929,9 @@ describe('JobManager pause / drainInFlight', () => {
 
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['pause.blockflow', handler]],
-        awaitRecovery: false
+        awaitRecovery: false,
+        fakeDate: true,
+        keepFakeTimers: true
       })
       expect(missCount).toBe(1) // flow parked inside the first schedule's onMissed
 
@@ -885,7 +945,7 @@ describe('JobManager pause / drainInFlight', () => {
         jobInputTemplate: { message: 'suppressed-once' },
         catchUpPolicy: { kind: 'skip-missed' }
       } as never)
-      await sleep(200)
+      await vi.advanceTimersByTimeAsync(200)
       expect(internals(jobManager).suppressedOnceScheduleIds.has(onceId)).toBe(true)
       expect(scheduler.has(`schedule:${onceId}`)).toBe(false)
 
@@ -897,7 +957,7 @@ describe('JobManager pause / drainInFlight', () => {
       // dispatch claims only after `await mutex.acquire()` — flush before
       // asserting, or a not-yet-run claim would fake a green.
       await flushDispatch()
-      await sleep(50)
+      await vi.advanceTimersByTimeAsync(50)
 
       // The flow is still parked inside onMissed: no kick may have run.
       expect(scheduler.has(`schedule:${onceId}`)).toBe(false)
@@ -912,6 +972,7 @@ describe('JobManager pause / drainInFlight', () => {
       await pollUntil(() => jobService.list({ type: 'pause.blockflow' }).some((r) => r.scheduleId === onceId))
       expect(missCount).toBe(1)
 
+      vi.useRealTimers()
       await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
@@ -957,7 +1018,9 @@ describe('JobManager pause / drainInFlight', () => {
           ['pause.barrier.a', handlerA],
           ['pause.barrier.b', makeCountingHandler(counterB)]
         ],
-        awaitRecovery: false
+        awaitRecovery: false,
+        fakeDate: true,
+        keepFakeTimers: true
       })
       expect(missCount).toBe(1) // flow parked on S1…
       expect(jobService.list({ type: 'pause.barrier.b' })).toHaveLength(0) // …with S2's step not started
@@ -969,17 +1032,18 @@ describe('JobManager pause / drainInFlight', () => {
       expect(scheduler.has(`schedule:${s2.id}`)).toBe(true)
 
       hold.dispose()
-      // Sleep past several interval periods. Without the release barrier the
+      // Advance past several interval periods. Without the release barrier the
       // chained timer fires as soon as the holds are gone and enqueues a
       // natural job — which the parked flow later doubles with its
       // stale-snapshot make-up enqueue.
-      await sleep(500)
+      await vi.advanceTimersByTimeAsync(500)
       expect(jobService.list({ type: 'pause.barrier.b' })).toHaveLength(0)
 
       missGate.release()
       await internals(jobManager)._recoveryDone
       await pollUntil(() => jobService.list({ type: 'pause.barrier.b' }).length >= 1)
 
+      vi.useRealTimers()
       await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
@@ -1112,6 +1176,7 @@ describe('JobManager pause / drainInFlight', () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['pause.barrier-window', makeCountingHandler(counter)]],
+        fakeDate: true,
         keepFakeTimers: true
       })
 
@@ -1127,9 +1192,6 @@ describe('JobManager pause / drainInFlight', () => {
       const hold = jobManager.pause('test: barrier window')
       await vi.advanceTimersByTimeAsync(300)
       expect(internals(jobManager).suppressedOnceScheduleIds.has(id)).toBe(true)
-
-      vi.useRealTimers()
-      await sleep(250) // wall clock passes `at` so the re-armed timer fires immediately
 
       // The single-microtask window of an async release: the recovery chain has
       // settled (no replay cursor, no flow in flight) but the chained
@@ -1150,6 +1212,7 @@ describe('JobManager pause / drainInFlight', () => {
       await pollUntil(() => jobService.list({ type: 'pause.barrier-window' })[0].status === 'completed')
 
       promoteSpy.mockRestore()
+      vi.useRealTimers()
       await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
@@ -1285,19 +1348,82 @@ describe('JobManager pause / drainInFlight', () => {
 
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['pause.spent', makeCountingHandler(counter)]]
+        handlers: [['pause.spent', makeCountingHandler(counter)]],
+        fakeDate: true,
+        keepFakeTimers: true
       })
       expect(internals(jobManager).scheduleDisposables.has(spent.id)).toBe(false)
 
       const hold = jobManager.pause('test: spent once')
       hold.dispose()
-      await sleep(100)
+      await vi.advanceTimersByTimeAsync(100)
 
       // A naive "enabled ∧ missing scheduler entry" rebuild would replay this
       // one-shot; the suppressed-once set is the only rebuild source.
       expect(jobService.list({ type: 'pause.spent' })).toHaveLength(0)
       expect(internals(jobManager).scheduleDisposables.has(spent.id)).toBe(false)
 
+      vi.useRealTimers()
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('does not rewrite a spent once schedule whose nextRun is already null', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [spent] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'pause.spent-idempotent',
+          trigger: { kind: 'once', at: now - 60_000 },
+          jobInputTemplate: { message: 'already-cleared' },
+          enabled: true,
+          lastRun: now - 60_000,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['pause.spent-idempotent', makeCountingHandler({ count: 0 })]],
+        fakeDate: true,
+        keepFakeTimers: true
+      })
+
+      expect(jobScheduleService.getById(spent.id)?.updatedAt).toBe(new Date(spent.updatedAt).toISOString())
+
+      vi.useRealTimers()
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it.each([
+      { label: 'interval', trigger: { kind: 'interval', ms: 1000 } },
+      { label: 'cron', trigger: { kind: 'cron', expr: '* * * * * *' } }
+    ] as const)('refreshes persisted nextRun for an armed $label schedule on release', async ({ label, trigger }) => {
+      const type = `pause.next-run.${label}`
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [[type, makeCountingHandler({ count: 0 })]],
+        fakeDate: true,
+        keepFakeTimers: true
+      })
+      const { id } = jobManager.registerJobSchedule({
+        type,
+        trigger,
+        jobInputTemplate: { message: label },
+        catchUpPolicy: { kind: 'skip-missed' }
+      } as never)
+      const initialNextRun = jobScheduleService.getById(id)?.nextRun
+      expect(initialNextRun).not.toBeNull()
+
+      const hold = jobManager.pause(`test: ${label} nextRun`)
+      await vi.advanceTimersByTimeAsync(2500)
+      expect(jobScheduleService.getById(id)?.nextRun).toBe(initialNextRun)
+      expect(Date.parse(initialNextRun ?? '')).toBeLessThanOrEqual(Date.now())
+
+      hold.dispose()
+      expect(Date.parse(jobScheduleService.getById(id)?.nextRun ?? '')).toBeGreaterThan(Date.now())
+
+      vi.useRealTimers()
       await teardownManager(scheduler, jobManager)
     })
 
@@ -1367,7 +1493,9 @@ describe('JobManager pause / drainInFlight', () => {
     it('does not resume crons removed during the pause window — per-schedule pause stays orthogonal', async () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['pause.cronrm', makeCountingHandler(counter)]]
+        handlers: [['pause.cronrm', makeCountingHandler(counter)]],
+        fakeDate: true,
+        keepFakeTimers: true
       })
 
       const { id } = jobManager.registerJobSchedule({
@@ -1384,13 +1512,14 @@ describe('JobManager pause / drainInFlight', () => {
       expect(scheduler.has(`schedule:${id}`)).toBe(false)
 
       hold.dispose()
-      await sleep(50)
+      await vi.advanceTimersByTimeAsync(50)
       // Release must not resurrect or resume it: still disabled, still unarmed.
       expect(jobScheduleService.getById(id)!.enabled).toBe(false)
       expect(scheduler.has(`schedule:${id}`)).toBe(false)
       expect(internals(jobManager).scheduleDisposables.has(id)).toBe(false)
       expect(jobService.list({ type: 'pause.cronrm' })).toHaveLength(0)
 
+      vi.useRealTimers()
       await teardownManager(scheduler, jobManager)
     })
   })
@@ -1464,6 +1593,57 @@ describe('JobManager pause / drainInFlight', () => {
       // here with settledDone still false and the breaker write in flight.
       expect(settledDone).toBe(true)
 
+      await scheduler._doStop()
+    })
+
+    /**
+     * JobManager's drain budget is module-private, so it is pinned by behaviour
+     * instead of by importing the constant. What matters is that it expires
+     * strictly before the lifecycle framework's per-service ceiling (5s): at or
+     * above it the framework would abandon JobManager mid-drain and everything
+     * after the timeout branch — the warning, the resolver cleanup — would be
+     * unreachable.
+     */
+    const EXPECTED_DRAIN_BUDGET_MS = 4500
+
+    it('gives up draining at its own budget, before the framework ceiling, and still cleans up', async () => {
+      const drainTimeoutWarn = () =>
+        mockMainLoggerService.warn.mock.calls.find(([message]) =>
+          String(message).includes('JobManager.onStop timed out')
+        )
+
+      const counter = { count: 0 }
+      const gate = makeGate()
+      const { scheduler, jobManager } = await bootstrapManager({
+        // Abort unwind far slower than the budget, so the executor signal cannot
+        // settle in time and onStop is forced onto its timeout branch.
+        handlers: [['stop.budget', makeGateHandler(counter, gate.promise, { abortDelayMs: 60_000 })]],
+        keepFakeTimers: true
+      })
+
+      const handle = jobManager.enqueue('stop.budget' as never, { message: 'x' } as never)
+      await pollUntil(() => internals(jobManager).inFlightExecuted.has(handle.id))
+
+      mockMainLoggerService.warn.mockClear()
+      const stopP = jobManager._doStop()
+
+      await vi.advanceTimersByTimeAsync(EXPECTED_DRAIN_BUDGET_MS - 1)
+      expect(drainTimeoutWarn()).toBeUndefined()
+
+      await vi.advanceTimersByTimeAsync(1)
+      await stopP
+
+      expect(drainTimeoutWarn()).toEqual([
+        expect.stringContaining('JobManager.onStop timed out'),
+        { inFlight: 1, timeoutMs: EXPECTED_DRAIN_BUDGET_MS }
+      ])
+      // Reachable only because the budget expired first.
+      expect(internals(jobManager).inFlightExecuted.size).toBe(0)
+      expect(internals(jobManager).finishedResolvers.size).toBe(0)
+
+      gate.release()
+      vi.useRealTimers()
+      await drainTrailingDispatch(jobManager)
       await scheduler._doStop()
     })
   })

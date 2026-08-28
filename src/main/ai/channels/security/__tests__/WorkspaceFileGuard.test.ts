@@ -1,18 +1,20 @@
-import type * as FsPromises from 'node:fs/promises'
-import { mkdir, mkdtemp, open, rm, symlink, truncate, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import type * as MainFileUtils from '@main/utils/file'
+import { openReadableFileSnapshot } from '@main/utils/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveWorkspaceFile } from '../WorkspaceFileGuard'
 
-// Wrap only `open` as a spy so a single test can simulate a file growing between
-// fstat and read; every other fs call (and open by default) stays real.
-vi.mock('node:fs/promises', async (importActual) => {
-  const actual = await importActual<typeof FsPromises>()
-  return { ...actual, open: vi.fn(actual.open) }
+// Wrap only `openReadableFileSnapshot` as a spy so a single test can simulate a file
+// growing between stat and read; every other fs call (and the spy by default) stays real.
+vi.mock('@main/utils/file', async (importActual) => {
+  const actual = await importActual<typeof MainFileUtils>()
+  return { ...actual, openReadableFileSnapshot: vi.fn(actual.openReadableFileSnapshot) }
 })
 
 describe('resolveWorkspaceFile', () => {
@@ -54,6 +56,12 @@ describe('resolveWorkspaceFile', () => {
     await writeFile(path.join(workspace, 'pic.PNG'), 'x')
     const file = await resolveWorkspaceFile(workspace, 'pic.PNG')
     expect(file.media_type).toBe('image/png')
+  })
+
+  it('infers video MIME types for native channel delivery', async () => {
+    await writeFile(path.join(workspace, 'clip.mp4'), 'x')
+    const file = await resolveWorkspaceFile(workspace, 'clip.mp4')
+    expect(file.media_type).toBe('video/mp4')
   })
 
   it('falls back to octet-stream for unknown extensions', async () => {
@@ -108,13 +116,16 @@ describe('resolveWorkspaceFile', () => {
   it('rejects a file that grows past the limit between stat and read', async () => {
     await writeFile(path.join(workspace, 'growing.bin'), 'small')
     const oversize = Buffer.allocUnsafe(MAX_FILE_SIZE_BYTES + 1)
-    // fstat reports a small size (passes the pre-read cap), but the read returns an
-    // oversize buffer — the post-read recheck must still reject it.
-    vi.mocked(open).mockResolvedValueOnce({
-      stat: async () => ({ isFile: () => true, size: 5 }),
-      readFile: async () => oversize,
+    // The snapshot reports a small size (passes the pre-read cap), but the stream yields
+    // an oversize buffer — the post-read recheck must still reject it.
+    vi.mocked(openReadableFileSnapshot).mockResolvedValueOnce({
+      dev: 1,
+      ino: 1,
+      modifiedAt: 0,
+      size: 5,
+      createReadStream: () => Readable.from([oversize]),
       close: async () => {}
-    } as unknown as Awaited<ReturnType<typeof open>>)
+    })
 
     await expect(resolveWorkspaceFile(workspace, 'growing.bin')).rejects.toThrow(/byte limit/)
   })

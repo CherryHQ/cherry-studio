@@ -7,6 +7,8 @@
  * @module utils
  */
 
+export { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS } from './dialog'
+
 /**
  * Converts `null` to `undefined`, otherwise returns the input value.
  * Useful when interfacing with APIs or libraries that treat `null` and `undefined` differently.

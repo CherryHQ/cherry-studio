@@ -2,7 +2,7 @@ import { EmptyState, ReorderableList } from '@cherrystudio/ui'
 import { isOwnLoginConfigurable } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,7 @@ export interface ConfigListProps {
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
   currentProviderModelName?: string
+  providerActionsDisabled?: boolean
   resolveMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
@@ -33,6 +34,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   providerConfigs,
   currentProviderId,
   currentProviderModelName,
+  providerActionsDisabled,
   resolveMeta,
   onConfigure,
   onToggleCurrent,
@@ -53,6 +55,12 @@ export const ConfigList: FC<ConfigListProps> = ({
     })
   }, [providers, normalizedSearch, t, toolName, resolveMeta, providerConfigs])
 
+  const handleMoveToTop = (provider: Provider) => {
+    if (providerActionsDisabled || providers[0]?.id === provider.id) return
+    const nextProviders = [provider, ...providers.filter((candidate) => candidate.id !== provider.id)]
+    void Promise.resolve(onReorder(nextProviders)).catch(() => undefined)
+  }
+
   if (providers.length === 0) {
     return (
       <EmptyState
@@ -64,7 +72,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   }
 
   if (displayedProviders.length === 0) {
-    return <div className="py-8 text-center text-muted-foreground/50 text-xs">{t('code.no_matching_providers')}</div>
+    return <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_matching_providers')}</div>
   }
 
   return (
@@ -73,9 +81,11 @@ export const ConfigList: FC<ConfigListProps> = ({
       visibleItems={displayedProviders}
       getId={(p) => p.id}
       onReorder={onReorder}
+      disabled={providerActionsDisabled}
       gap="0.5rem"
       itemStyle={{ cursor: 'default' }}
       renderItem={(provider, _index, { dragging }) => {
+        const onMoveToTop = providerActionsDisabled || providers[0]?.id === provider.id ? undefined : handleMoveToTop
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           return (
             <OwnLoginCard
@@ -84,6 +94,7 @@ export const ConfigList: FC<ConfigListProps> = ({
               selected={currentProviderId === provider.id}
               configurable={isOwnLoginConfigurable(selectedCliTool)}
               dragging={dragging}
+              onMoveToTop={onMoveToTop ? () => onMoveToTop(provider) : undefined}
               onToggle={() => onToggleCurrent(provider)}
               onConfigure={() => onConfigure(provider)}
             />
@@ -98,8 +109,11 @@ export const ConfigList: FC<ConfigListProps> = ({
             provider={provider}
             providerName={meta.providerName}
             modelName={modelName}
+            description={isApiGatewayProviderId(provider.id) ? t('code.api_gateway.description') : undefined}
             isCurrent={currentProviderId === provider.id}
+            actionsDisabled={providerActionsDisabled}
             dragging={dragging}
+            onMoveToTop={onMoveToTop}
             onConfigure={onConfigure}
             onToggleCurrent={onToggleCurrent}
           />

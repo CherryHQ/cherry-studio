@@ -8,8 +8,8 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
  * MCP Server table - stores user-configured MCP server definitions
  *
  * Migrated from Redux state.mcp.servers.
- * Runtime flags (isUvInstalled, isBunInstalled) are NOT migrated - they are
- * re-detected at runtime and stored via usePersistCache.
+ * Runtime flags (isUvInstalled, isBunInstalled) are NOT migrated; current
+ * binary availability is derived again at runtime.
  */
 export const mcpServerTable = sqliteTable(
   'mcp_server',
@@ -57,7 +57,7 @@ export const mcpServerTable = sqliteTable(
     ),
     check(
       'mcp_server_install_source_check',
-      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'protocol', 'unknown')`
+      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'ai_assisted', 'protocol', 'unknown')`
     )
   ]
 )

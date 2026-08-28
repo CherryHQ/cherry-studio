@@ -9,12 +9,13 @@ import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
   getFromApi as aiSdkGetFromApi,
+  postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
-import { defaultAppHeaders } from '@main/utils/http'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
@@ -23,7 +24,8 @@ import {
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
   isGeminiProvider,
@@ -34,7 +36,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -45,10 +47,11 @@ import {
 } from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
+  AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
-  GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
+  OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
@@ -56,6 +59,7 @@ import {
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
+import { isVertexMaasModelId } from './vertex'
 
 const logger = loggerService.withContext('ModelListService')
 
@@ -75,6 +79,10 @@ function handleOptionalModelListFailure<T>(
     throw error
   }
 
+  return recoverOptionalModelListFailure(error, context)
+}
+
+function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
     error
@@ -125,8 +133,7 @@ async function getFromApi<T>({
 /** Build default headers with rotated API key */
 
 function defaultGroup(modelId: string, providerId: string): string {
-  const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : providerId
+  return deriveModelGroupName(modelId) ?? providerId
 }
 
 /** Build a partial v2 Model from API response */
@@ -167,6 +174,46 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
+/** The trained context length from `/api/show`, whose `model_info` keys carry an architecture prefix. */
+function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined): number | undefined {
+  const architecture = modelInfo?.['general.architecture']
+  if (typeof architecture !== 'string') return undefined
+  const contextLength = modelInfo?.[`${architecture}.context_length`]
+  return typeof contextLength === 'number' && contextLength > 0 ? contextLength : undefined
+}
+
+/**
+ * `/api/tags` carries no context length, so without this the model has no `contextWindow` and
+ * Ollama falls back to sizing by available VRAM — 4k below 24 GiB, where an agent's tool preamble
+ * alone overruns the window and Ollama truncates the conversation away (#18643). Its own guidance
+ * puts agent and coding workloads at 64k+, which only the model's real window can satisfy.
+ */
+async function fetchOllamaContextWindow(
+  baseUrl: string,
+  provider: Provider,
+  model: string,
+  signal?: AbortSignal
+): Promise<number | undefined> {
+  try {
+    const { value } = await postJsonToApi({
+      url: `${baseUrl}/api/show`,
+      headers: defaultHeaders(provider),
+      body: { model },
+      successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
+      failedResponseHandler: createJsonErrorResponseHandler({
+        errorSchema: zodSchema(ApiErrorSchema),
+        errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+      }),
+      abortSignal: signal
+    })
+    return readOllamaContextLength(value.model_info)
+  } catch (error) {
+    // A model that cannot be inspected still belongs in the list; it falls back to the default window.
+    logger.warn('failed to read Ollama context length', { model, error })
+    return undefined
+  }
+}
+
 const ollamaFetcher: ModelFetcher = {
   match: (p) => isOllamaProvider(p),
   fetch: async (provider, signal) => {
@@ -179,7 +226,17 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) => toModel(m.name, provider, { ownedBy: 'ollama' }))
+    const models = dedup(response.models, (m) => m.name)
+    const contextWindows = await Promise.all(
+      models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
+    )
+    return models.map((m, index) =>
+      toModel(m.name, provider, {
+        ownedBy: 'ollama',
+        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [],
+        ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+      })
+    )
   }
 }
 
@@ -208,7 +265,7 @@ const geminiFetcher: ModelFetcher = {
     // would persist the key into local logs users attach to bug reports.
     const response = await getFromApi({
       url: `${baseUrl}/v1beta/models`,
-      headers: { ...defaultAppHeaders(), 'x-goog-api-key': apiKey, ...provider.settings?.extraHeaders },
+      headers: mergeHeaders(defaultAppHeaders(), { 'x-goog-api-key': apiKey }, provider.settings?.extraHeaders),
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
@@ -282,19 +339,27 @@ const vertexFetcher: ModelFetcher = {
     const publisherModels = publisherModelGroups.filter((g) => g !== null).flat()
 
     const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
-      const id = getVertexModelId(model.name)
+      const bareId = getVertexModelId(model.name)
       const ownedBy = getVertexModelPublisher(model.name)
-      return toModel(id, provider, {
-        name: pickPreferredString([model.displayName, id]) || id,
+      // MaaS models are served over the OpenAI-compatible endpoint, which requires the
+      // `{publisher}/{model}` id form even when Google is the publisher. Native Google
+      // models (Gemini/Gemma/embeddings) keep their bare id.
+      const publisherModelId = `${ownedBy}/${bareId}`
+      const apiModelId = isVertexMaasModelId(publisherModelId) ? publisherModelId : bareId
+      return toModel(apiModelId, provider, {
+        name: pickPreferredString([model.displayName, bareId]) || bareId,
         description: model.description,
         ownedBy
       })
     })
 
-    // Match against the bare model id (e.g. `gemini-2.0-flash`), not the `provider::model`
-    // unique id — the support patterns are anchored to the model name and would reject the
-    // prefixed form, dropping every listed model.
-    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.apiModelId ?? ''))
+    // Match against the bare model name (e.g. `gemini-2.0-flash`, `llama-4-scout-…-maas`), not
+    // the `provider::model` unique id nor the publisher-prefixed apiModelId — the support
+    // patterns are anchored to the model name and would reject either prefixed form.
+    const filteredModels = listedModels.filter((model) => {
+      const modelId = model.apiModelId ?? ''
+      return isSupportedVertexPublisherModel(modelId) && (model.ownedBy === 'google' || isVertexMaasModelId(modelId))
+    })
 
     if (filteredModels.length !== listedModels.length) {
       logger.info('Filtered unsupported Vertex publisher models from model list', {
@@ -308,44 +373,17 @@ const vertexFetcher: ModelFetcher = {
   }
 }
 
-const githubFetcher: ModelFetcher = {
-  match: (p) => matchesPreset(p, SystemProviderIds.github),
-  fetch: async (provider, signal) => {
-    const headers = defaultHeaders(provider)
-    const catalogResponse = await getFromApi({
-      url: 'https://models.github.ai/catalog/models',
-      headers,
-      responseSchema: GitHubModelsResponseSchema,
-      abortSignal: signal
-    })
-    const catalogModels = catalogResponse.map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        description: pickPreferredString([m.summary, m.description]),
-        ownedBy: m.publisher
-      })
-    )
-    return dedup(catalogModels, (m) => m.apiModelId)
-  }
-}
-
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
-    const copilotHeaders = {
-      ...COPILOT_DEFAULT_HEADERS,
-      ...provider.settings.extraHeaders
-    }
+    const copilotHeaders = mergeHeaders(COPILOT_DEFAULT_HEADERS, provider.settings.extraHeaders)
     // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
     // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
     const { token } = await copilotService.getToken(null as any, copilotHeaders)
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
-      headers: {
-        ...copilotHeaders,
-        Authorization: `Bearer ${token}`
-      },
+      headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
       responseSchema: CopilotModelsResponseSchema,
       abortSignal: signal
     })
@@ -366,17 +404,23 @@ const copilotFetcher: ModelFetcher = {
 const ovmsFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ovms,
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, ''), true, 'v1')
+    // The servable-status document lives at /v1/config; the provider's chat base URL points at
+    // the OpenAI-compatible /v3 namespace, which has no GET /config. Strip whatever version the
+    // host carries so the version below is always the one OVMS actually serves this on.
+    const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1')
     const response = await getFromApi({
       url: `${baseUrl}/config`,
       headers: defaultHeaders(provider),
       responseSchema: OVMSConfigResponseSchema,
       abortSignal: signal
     })
-    const entries = Object.entries(response).filter(([, info]) =>
-      info?.model_version_status?.some((v) => v?.state === 'AVAILABLE')
+    // List every model registered in OVMS config regardless of its server-side
+    // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
+    // expect downloaded models to appear in the model manager even when OVMS
+    // fails to load them server-side — the UI communicates readiness, not OVMS.
+    return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
+      toModel(name, provider, { ownedBy: 'ovms' })
     )
-    return dedup(entries, ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
   }
 }
 
@@ -404,14 +448,17 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
-  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES
+  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
 }
+const ENDPOINT_TYPE_VALUES = new Set<string>(Object.values(ENDPOINT_TYPE))
 
 function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
   if (!values?.length) {
@@ -420,10 +467,23 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
 
   const endpointTypes = dedup(
     values
-      .map((value) => ENDPOINT_TYPE_ALIASES[value.trim().toLowerCase()])
+      .map((value) => {
+        const normalized = value.trim().toLowerCase()
+        return (
+          ENDPOINT_TYPE_ALIASES[normalized] ??
+          (ENDPOINT_TYPE_VALUES.has(normalized) ? (normalized as EndpointType) : undefined)
+        )
+      })
       .filter((value): value is EndpointType => Boolean(value)),
     (value) => value
   )
+
+  if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
+    const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
+    if (chatEndpoint) {
+      return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
+    }
+  }
 
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }
@@ -459,15 +519,16 @@ const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
   fetch: async (provider, signal, options) => {
     const headers = defaultHeaders(provider)
-    const [modelsResponse, embedModelsResponse] = await Promise.all([
+    const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
+    const [modelsResponse, embedModelsResponse, imageModelsResponse] = await Promise.all([
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/models',
+        url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
       }),
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/embeddings/models',
+        url: modelsApiUrls?.embedding ?? 'https://openrouter.ai/api/v1/embeddings/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
@@ -476,10 +537,34 @@ const openRouterFetcher: ModelFetcher = {
           providerId: provider.id,
           endpoint: 'openrouter-embedding-models'
         })
+      ),
+      getFromApi({
+        url: modelsApiUrls?.image ?? 'https://openrouter.ai/api/v1/images/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        recoverOptionalModelListFailure<OpenAIModelResponseItem>(error, {
+          providerId: provider.id,
+          endpoint: 'openrouter-image-models'
+        })
       )
     ])
-    const all = [...modelsResponse.data, ...embedModelsResponse.data]
-    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
+    return dedup(all, (m) => m.id).map((m) => {
+      const imageModel = imageModelsById.get(m.id)
+      return toModel(m.id, provider, {
+        name: imageModel?.name ?? m.name,
+        ownedBy: m.owned_by,
+        ...(imageModel
+          ? {
+              capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+              endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+            }
+          : {})
+      })
+    })
   }
 }
 
@@ -593,6 +678,50 @@ function isSupportedOpenAIModel(modelId: string): boolean {
   return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
 }
 
+// Anthropic authenticates model listing with `x-api-key` + `anthropic-version`, not
+// `Authorization: Bearer` — the generic OpenAI fetcher's Bearer header would 401. `/v1/models`
+// only returns chat models (no audio/tts), and `limit` maxes at 1000, well above the catalog
+// size, so a single page covers it.
+const ANTHROPIC_VERSION = '2023-06-01'
+
+const anthropicFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.anthropic),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const apiKey = providerService.getRotatedApiKey(provider.id)
+    const response = await getFromApi({
+      url: `${baseUrl}/models?limit=1000`,
+      headers: mergeHeaders(
+        defaultAppHeaders(),
+        { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
+        provider.settings?.extraHeaders
+      ),
+      responseSchema: AnthropicModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, { name: m.display_name || m.id, ownedBy: 'anthropic' })
+    )
+  }
+}
+
+const jinaFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.jina),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const apiModelId = m.id.replace(/^jina-ai\//, '')
+      return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
+    })
+  }
+}
+
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
@@ -619,8 +748,42 @@ const openAICompatibleFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        ownedBy: m.owned_by
+      })
+    )
   }
+}
+
+// ── Ollama probe ──
+
+/** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
+export async function probeOllamaModel(
+  provider: Provider,
+  modelApiId: string | undefined,
+  signal?: AbortSignal,
+  apiKeyOverride?: string
+): Promise<{ latency: number }> {
+  const start = performance.now()
+  const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
+  const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
+  const headers = mergeHeaders(defaultAppHeaders(), getExtraHeaders(provider), {
+    'Content-Type': 'application/json',
+    ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
+  })
+  const response = await fetch(`${baseUrl}/show`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: modelApiId ?? '' }),
+    signal
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => undefined)) as { error?: string; message?: string } | undefined
+    throw new Error(body?.error ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
+  }
+  return { latency: performance.now() - start }
 }
 
 // ── Registry (order matters: first match wins) ──
@@ -630,7 +793,6 @@ const fetchers: ModelFetcher[] = [
   ollamaFetcher,
   geminiFetcher,
   vertexFetcher,
-  githubFetcher,
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
@@ -638,18 +800,11 @@ const fetchers: ModelFetcher[] = [
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
+  anthropicFetcher,
+  jinaFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
-
-const UNSUPPORTED_PROVIDER_PRESETS = [SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic] as const
-
-function isUnsupported(provider: Provider): boolean {
-  return (
-    UNSUPPORTED_PROVIDER_PRESETS.some((presetId) => matchesPreset(provider, presetId)) ||
-    provider.presetProviderId === 'vertex-anthropic'
-  )
-}
 
 // ── Public API ──
 
@@ -659,14 +814,6 @@ export async function listModels(
   options?: { throwOnError?: boolean }
 ): Promise<Partial<Model>[]> {
   try {
-    if (isUnsupported(provider)) {
-      logger.warn('Provider does not support model listing', { providerId: provider.id })
-      if (options?.throwOnError) {
-        throw new Error(`Provider does not support model listing: ${provider.id}`)
-      }
-      return []
-    }
-
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {

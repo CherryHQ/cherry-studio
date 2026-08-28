@@ -3,13 +3,14 @@ import { skillService } from '@main/ai/skills/SkillService'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { SkillResult } from '@shared/types/skill'
+import { shell } from 'electron'
 
 const logger = loggerService.withContext('skillHandlers')
 
 /**
- * Skill handlers delegating to the `skillService` direct-import singleton. Each keeps the
- * legacy `SkillResult` envelope (catch + log + `{ success: false, error }`) so the renderer's
- * `unwrapSkillResult` is unchanged. Skill_ReadFile / Skill_ListFiles stay on legacy IPC.
+ * Skill handlers delegating to the `skillService` direct-import singleton. Legacy routes keep
+ * their `SkillResult` envelope until their callers migrate; new routes return data directly so
+ * IpcApi owns error serialization. Skill_ReadFile / Skill_ListFiles stay on legacy IPC.
  */
 async function toSkillResult<T>(op: () => Promise<T>, failMessage: string): Promise<SkillResult<T>> {
   try {
@@ -29,5 +30,17 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
   'skill.install_from_directory': ({ directoryPath }) =>
     toSkillResult(() => skillService.installFromDirectory({ directoryPath }), 'Failed to install skill from directory'),
   'skill.list_local': ({ workdir }) =>
-    toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins')
+    toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins'),
+  'skill.reconcile': () => skillService.reconcileSkills(),
+  'skill.discover_system': () => skillService.discoverSystem(),
+  'skill.import_system': ({ directoryPath }) => skillService.importSystem({ directoryPath }),
+  'skill.folder.open': async ({ skillId }, { senderId }) => {
+    if (!senderId) throw new Error('Skill folders can only be opened from a managed window')
+
+    const skill = await skillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+
+    const errorMessage = await shell.openPath(skillService.getInstalledSkillDirectory(skill))
+    if (errorMessage) throw new Error(`Failed to open skill folder: ${errorMessage}`)
+  }
 }

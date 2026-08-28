@@ -16,6 +16,7 @@ interface ModelBasicFieldsProps {
   showRequiredIndicator?: boolean
   layout?: 'vertical' | 'horizontal'
   modelIdDisabled?: boolean
+  modelIdAutoFocus?: boolean
   modelIdInputRef?: Ref<HTMLInputElement>
   modelIdAction?: ReactNode
   modelIdError?: string
@@ -35,6 +36,7 @@ export function ModelBasicFields({
   showRequiredIndicator = false,
   layout = 'vertical',
   modelIdDisabled = false,
+  modelIdAutoFocus = false,
   modelIdInputRef,
   modelIdAction,
   modelIdError,
@@ -69,6 +71,7 @@ export function ModelBasicFields({
         help={modelIdError ? <div className={drawerClasses.errorText}>{modelIdError}</div> : null}>
         <div className={drawerClasses.valueRow}>
           <Input
+            autoFocus={modelIdAutoFocus}
             ref={modelIdInputRef}
             required
             spellCheck={false}

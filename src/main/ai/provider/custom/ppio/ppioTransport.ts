@@ -6,9 +6,8 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
 /**
  * PPIO submit/poll transport.
  *
- * Ported from the legacy painting service
- * (`src/renderer/src/pages/paintings/providers/ppio/service.ts`):
- * same API host, adaptive 3s(<60s)/10s poll interval, `maxAttempts` 120,
+ * Preserves the legacy painting transport's API host, adaptive
+ * 3s(<60s)/10s poll interval, `maxAttempts` 120,
  * `maxTransientRetries` 10, `TASK_STATUS_*` machine, per-model param builders
  * and the synchronous (`isSync`) path.
  */
@@ -87,17 +86,13 @@ export interface PpioModelDescriptor {
  * `PpioPaintingData` subset the legacy `buildRequestParams` consumed.
  */
 export interface PpioProviderParams {
-  model?: string
-  modelDescriptor?: PpioModelDescriptor
   size?: string
   ppioSeed?: number
   usePreLlm?: boolean
   addWatermark?: boolean
   outputFormat?: string
+  /** SDK-path (chat) progress callback; the job path reports via `ctx.reportProgress`. */
   onProgress?: (progress: number) => void
-  /** Painting telemetry: called once with the PPIO async task id (parity with
-   * the bespoke `onGenerationStateChange({ generationTaskId })` callback). */
-  onSubmitTaskId?: (taskId: string) => void
 }
 
 export interface PpioTransportSettings {
@@ -182,9 +177,9 @@ class PpioTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bagParams = input.providerParams as PpioProviderParams
-    const descriptor = bagParams.modelDescriptor
+    const descriptor = input.modelDescriptor
     if (!descriptor) {
-      throw new Error(`Unknown model: ${bagParams.model}`)
+      throw new Error(`Unknown model: ${input.modelId}`)
     }
 
     // Native AI SDK fields (size / seed) land on `input.*` post-canonicalGenerate
@@ -211,11 +206,6 @@ class PpioTransport implements ImageGenerationTransport {
       timeout: 120000,
       signal: input.signal
     })
-    // Surface the async task id so the painting layer can record/resume it
-    // (parity with the bespoke `onGenerationStateChange({ generationTaskId })`).
-    if (typeof params.onSubmitTaskId === 'function') {
-      params.onSubmitTaskId(result.task_id)
-    }
     return { taskId: result.task_id }
   }
 

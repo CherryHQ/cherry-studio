@@ -10,10 +10,11 @@ import {
   Input,
   Spinner
 } from '@cherrystudio/ui'
-import { ipcApi } from '@renderer/ipc'
 import { backupToS3 } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import { createDefaultBackupFileName } from '@renderer/utils/backupFileName'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
@@ -33,7 +34,7 @@ export function useS3BackupModal() {
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      await backupToS3({ customFileName, showMessage: true })
+      await backupToS3({ customFileName })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)
@@ -45,12 +46,7 @@ export function useS3BackupModal() {
   }
 
   const showBackupModal = useCallback(async () => {
-    // 获取默认文件名
-    const deviceType = await ipcApi.request('system.get_device_type')
-    const hostname = await window.api.system.getHostname()
-    const timestamp = dayjs().format('YYYYMMDDHHmmss')
-    const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
-    setCustomFileName(defaultFileName)
+    setCustomFileName(await createDefaultBackupFileName())
     setIsModalVisible(true)
   }, [])
 
@@ -97,6 +93,7 @@ export function S3BackupModal({
           <DialogTitle>{t('settings.data.s3.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={t('settings.data.s3.backup.modal.filename.placeholder')}
@@ -156,12 +153,11 @@ export function useS3RestoreModal({
         root,
         autoSync: false,
         syncInterval: 0,
-        maxBackups: 0,
-        skipBackupFile: false
+        maxBackups: 0
       })
       setBackupFiles(files)
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
+    } catch {
+      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: t('error.unknown') }))
     } finally {
       setLoadingFiles(false)
     }
@@ -196,13 +192,12 @@ export function useS3RestoreModal({
         fileName: selectedFile,
         autoSync: false,
         syncInterval: 0,
-        maxBackups: 0,
-        skipBackupFile: false
+        maxBackups: 0
       })
       toast.success(t('message.restore.success'))
       setIsRestoreModalVisible(false)
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.restore.error', { message: error.message }))
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
     } finally {
       setRestoring(false)
     }

@@ -211,5 +211,6 @@ export default defineCreator({
     // ── North (agentic code) ──
     { id: 'north-mini-code-1-0', name: 'North Mini Code 1.0', capabilities: ['function-call'], contextWindow: 131072 },
     { id: 'north-mini-code', name: 'North Mini Code', capabilities: ['function-call'], contextWindow: 131072 }
-  ]
+  ],
+  reasoningFamilies: [{ pattern: '^command-a-plus' }, { pattern: '^north-mini-code' }]
 })

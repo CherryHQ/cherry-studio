@@ -1,3 +1,11 @@
+---
+description: RESTful path, status code, Zod DTO, and scope/side-effect boundary rules for designing DataApi endpoints
+sources:
+  - src/shared/data/api/schemas
+  - src/main/data/api/handlers
+  - src/main/data/db/sqliteErrors.ts
+---
+
 # API Design Guidelines
 
 Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
@@ -22,7 +30,7 @@ When a route is backed by a SQLite table, the route, table, and type names MUST 
 | DB table | singular snake_case | `agent_session` |
 | REST route (collection) | plural kebab-case | `/agent-sessions` |
 | Schema / entity type | singular PascalCase | `AgentSessionEntity` |
-| Inferred row type | `XxxRow` ([§5.3](../naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
+| Inferred row type | `XxxRow` ([§5.3](../architecture/naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
 
 A route noun that diverges from its backing table's concept is drift — fix the route, not the table.
 
@@ -276,18 +284,18 @@ The API server automatically infers status codes based on HTTP method:
 ```typescript
 // Status codes are inferred automatically - no extra code needed
 '/topics': {
-  POST: async ({ body }) => {
-    return await topicService.create(body)  // Returns 201
+  POST: ({ body }) => {
+    return topicService.create(body)  // Returns 201
   }
 },
 
 '/topics/:id': {
-  GET: async ({ params }) => {
-    return await topicService.getById(params.id)  // Returns 200
+  GET: ({ params }) => {
+    return topicService.getById(params.id)  // Returns 200
   },
 
-  DELETE: async ({ params }) => {
-    await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    topicService.delete(params.id)
     return undefined  // Returns 204
   }
 }
@@ -308,8 +316,8 @@ import { SuccessStatus } from '@shared/data/api/types'
 },
 
 '/topics/:id': {
-  DELETE: async ({ params }) => {
-    const deleted = await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    const deleted = topicService.delete(params.id)
     return { data: deleted, status: SuccessStatus.OK }  // Returns 200 with data
   }
 }
@@ -419,8 +427,8 @@ error buried in the `.cause` chain. Translate them to `DataApiError` with
 ```typescript
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 
-const [row] = await withSqliteErrors(
-  () => this.db.insert(tagTable).values(dto).returning(),
+const [row] = withSqliteErrors(
+  () => this.db.insert(tagTable).values(dto).returning().all(),
   defaultHandlersFor('Tag', dto.name)
 )
 ```
@@ -464,6 +472,19 @@ DataApiService is the **data** business-logic layer (persisting and querying rec
 
 **Mixed operations** ("write a row *and* write a file") are split: a business/lifecycle service in main owns the orchestration and the side effect, calls the Entity Service for the DB part, and is triggered from the renderer via a dedicated IPC channel. The side effect never rides through DataApi.
 
+### Fenced Exception: Data Change Notification
+
+One strictly fenced exception to the side-effect rule: after a business write **successfully commits**, the owning data service may publish a read-model observation signal for cross-window data convergence — `notifyDataApiDataChange(effects)` (`src/main/data/dataApiDataChange.ts`), broadcasting `DataApiDataChangeEffect[]` to all windows. Renderers subscribe via `dataApiService.onDataChanged(...)` / `useDataChange(...)`.
+
+Fences (all hard):
+
+- Publish only after commit, never inside a transaction; on rollback the call must be unreachable.
+- The notification never participates in write success — a failure must not roll back or otherwise affect committed data.
+- Effects describe endpoint/read-model changes only — no entity rows, field diffs, SQL predicates, or business commands.
+- Not a channel for file, network, process, window-control, or external-service work.
+- Renderer consumers may use it only for fact refetching and local reconciliation.
+- This is NOT a license for DataApi services to carry side effects in general.
+
 ### Anti-patterns: What Does NOT Belong in DataApi
 
 | Anti-pattern | Why It's Wrong | Correct Approach |
@@ -476,6 +497,7 @@ DataApiService is the **data** business-logic layer (persisting and querying rec
 | `POST /auth/login` | OAuth flow, external service integration | IPC: dedicated auth handler |
 | `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
 | `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IpcApi route (e.g. `knowledge.add_items`). Job DataApi is GET-only. |
+| `POST/PATCH/DELETE /agents/:agentId/tasks…` (schedule mutation) | Mixed-effect command (schedule row + business rows + timer), not CRUD | IpcApi `ai.agent.task.*` → `AgentJobsService`. Task DataApi is GET-only. |
 
 ### Why Misuse is Harmful
 

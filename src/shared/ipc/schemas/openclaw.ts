@@ -6,10 +6,13 @@ import { operationResultSchema } from './common'
 
 /**
  * OpenClaw gateway runtime schemas.
- * Install/update goes renderer → binary.install_tool → BinaryManager.
+ * Install/update goes renderer → binary.install_tool (name-only) → BinaryManager,
+ * which resolves the fixed recipe itself.
  */
 
 // ── Request schemas ──
+const openclawStatusSchema = z.enum(['stopped', 'starting', 'running', 'error'])
+
 export const openclawRequestSchemas = {
   'openclaw.start_gateway': defineRoute({
     input: z.object({ port: z.number().int().min(1).max(65535).optional() }),
@@ -21,7 +24,7 @@ export const openclawRequestSchemas = {
   }),
   'openclaw.get_status': defineRoute({
     input: z.void(),
-    output: z.object({ status: z.enum(['stopped', 'starting', 'running', 'error']) })
+    output: z.object({ status: openclawStatusSchema })
   }),
   'openclaw.get_dashboard_url': defineRoute({
     input: z.void(),
@@ -31,4 +34,10 @@ export const openclawRequestSchemas = {
     input: z.object({ uniqueModelId: UniqueModelIdSchema, port: z.number().optional() }),
     output: operationResultSchema
   })
+}
+
+// ── Event schemas ──
+export type OpenClawEventSchemas = {
+  /** Fired on every gateway-status transition (incl. probe-detected external gateways). */
+  'openclaw.status_changed': { status: z.infer<typeof openclawStatusSchema> }
 }

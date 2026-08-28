@@ -91,6 +91,21 @@ describe('useCodeCli', () => {
       })
       expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
     })
+
+    it('keeps route search and visible selection synchronized', () => {
+      setupConfigsMock({} as CodeCliConfigs)
+      const onToolChange = vi.fn()
+      const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useCodeCli(tool, onToolChange), {
+        initialProps: { tool: CodeCli.CLAUDE_CODE }
+      })
+
+      act(() => result.current.selectTool(CodeCli.OPENAI_CODEX))
+      expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
+      expect(onToolChange).toHaveBeenCalledWith(CodeCli.OPENAI_CODEX)
+
+      rerender({ tool: CodeCli.DEEPSEEK_HARNESS })
+      expect(result.current.selectedCliTool).toBe(CodeCli.DEEPSEEK_HARNESS)
+    })
   })
 
   describe('currentProviderId / currentProviderConfig', () => {
@@ -178,6 +193,24 @@ describe('useCodeCli', () => {
       const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
       expect(updated.modelId).toBe('anthropic::claude-5')
       expect(updated.config).toEqual({ foo: 1 })
+    })
+
+    it('should remove existing config when config is explicitly undefined', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
+      } as unknown as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-5',
+          config: undefined
+        })
+      })
+
+      const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
+      expect(updated.modelId).toBe('anthropic::claude-5')
+      expect(updated).not.toHaveProperty('config')
     })
 
     it('should preserve existing sortIndex when updating model/config', async () => {

@@ -10,6 +10,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import {
@@ -19,11 +20,14 @@ import {
 } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
+  agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -32,7 +36,8 @@ import { noteTable } from '@data/db/schemas/note'
 import { paintingTable } from '@data/db/schemas/painting'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
-import { promptTable } from '@data/db/schemas/prompt'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
@@ -40,6 +45,8 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import { bootConfigService } from '@main/data/bootConfig'
+import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type {
   MigrationProgress,
   MigrationResult,
@@ -52,7 +59,6 @@ import type {
 import { eq, sql } from 'drizzle-orm'
 import Store from 'electron-store'
 import fs from 'fs/promises'
-import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -62,6 +68,57 @@ import type { MigrationPaths } from './MigrationPaths'
 const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
+
+/**
+ * All tables migration writes into — the single source of truth for what
+ * clearMigrationData() wipes on retry and skip.
+ * Order matters: child tables must be cleared before parent tables.
+ */
+const MIGRATION_TARGET_TABLES = [
+  { table: pinTable, name: 'pin' },
+  { table: aiUsageRecordTable, name: 'ai_usage_record' },
+  { table: entityTagTable, name: 'entity_tag' },
+  { table: tagTable, name: 'tag' },
+  { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
+  { table: userProviderTable, name: 'user_provider' },
+  { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
+  { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
+  { table: paintingTable, name: 'painting' },
+  { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
+  { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
+  { table: assistantTable, name: 'assistant' },
+  { table: mcpServerTable, name: 'mcp_server' },
+  { table: miniAppTable, name: 'mini_app' },
+  { table: preferenceTable, name: 'preference' },
+  { table: noteTable, name: 'note' },
+  { table: translateHistoryTable, name: 'translate_history' },
+  { table: translateLanguageTable, name: 'translate_language' },
+  { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
+  { table: knowledgeBaseTable, name: 'knowledge_base' },
+  { table: groupTable, name: 'group' }, // Shared parent: topic/assistant/knowledge_base cleared above
+  { table: promptBindingTable, name: 'prompt_binding' }, // Junction: clear before prompt
+  { table: promptTable, name: 'prompt' },
+  // Agents-domain tables — child → parent order
+  { table: agentSessionMessageFileRefTable, name: 'agent_session_message_file_ref' },
+  { table: agentSessionMessageTable, name: 'agent_session_message' },
+  { table: agentChannelTaskTable, name: 'agent_channel_task' },
+  { table: agentMcpServerTable, name: 'agent_mcp_server' },
+  { table: agentChannelTable, name: 'agent_channel' },
+  // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
+  { table: agentSkillTable, name: 'agent_skill' },
+  { table: agentSessionTable, name: 'agent_session' }, // FK → agent_workspace (ON DELETE set null)
+  { table: agentWorkspaceTable, name: 'agent_workspace' },
+  { table: agentGlobalSkillTable, name: 'agent_global_skill' },
+  { table: agentTable, name: 'agent' },
+  // File-domain tables. Migration runs with FK checks disabled, but keep ref tables before file_entry for readability.
+  { table: chatMessageFileRefTable, name: 'chat_message_file_ref' },
+  { table: paintingFileRefTable, name: 'painting_file_ref' },
+  { table: providerLogoFileRefTable, name: 'provider_logo_file_ref' },
+  { table: miniAppLogoFileRefTable, name: 'mini_app_logo_file_ref' },
+  { table: fileEntryTable, name: 'file_entry' }
+]
+
+type DbTransaction = Parameters<Parameters<DbType['transaction']>[0]>[0]
 
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
@@ -191,11 +248,11 @@ export class MigrationEngine {
 
   /**
    * Execute full migration
-   * @param reduxData - Parsed Redux state data from Renderer
+   * @param reduxSource - Redux export directory in production; parsed data in focused tests
    * @param dexieExportPath - Path to exported Dexie files
    */
   async run(
-    reduxData: Record<string, unknown>,
+    reduxSource: Record<string, unknown> | string,
     dexieExportPath: string,
     localStorageExportPath?: string
   ): Promise<MigrationResult> {
@@ -214,7 +271,7 @@ export class MigrationEngine {
       const context = await createMigrationContext(
         this.getDb(),
         this.paths,
-        reduxData,
+        reduxSource,
         dexieExportPath,
         localStorageExportPath
       )
@@ -264,8 +321,10 @@ export class MigrationEngine {
         // read on prepare failure; surface them on the success path too, alongside any
         // execute-phase warnings (e.g. knowledge files kept but not reindexable).
         const warnings = [...(prepareResult.warnings ?? []), ...(executeResult.warnings ?? [])]
-        if (warnings.length > 0) {
-          logger.warn(`${migrator.name} completed with ${warnings.length} warning(s)`, { warnings })
+        const warningMessages = [...(prepareResult.warningMessages ?? []), ...(executeResult.warningMessages ?? [])]
+        const warningCount = warnings.length + warningMessages.length
+        if (warningCount > 0) {
+          logger.warn(`${migrator.name} completed with ${warningCount} warning(s)`, { warnings, warningMessages })
         }
 
         // Record result
@@ -275,7 +334,8 @@ export class MigrationEngine {
           success: true,
           recordsProcessed: executeResult.processedCount,
           duration: Date.now() - migratorStartTime,
-          ...(warnings.length > 0 ? { warnings } : {})
+          ...(warnings.length > 0 ? { warnings } : {}),
+          ...(warningMessages.length > 0 ? { warningMessages } : {})
         })
 
         // Update progress: migrator completed
@@ -287,13 +347,6 @@ export class MigrationEngine {
 
       // Mark migration completed
       await this.markCompleted()
-
-      // Cleanup temporary files
-      await this.cleanupTempFiles(dexieExportPath)
-
-      if (localStorageExportPath) {
-        await this.cleanupTempFiles(path.dirname(localStorageExportPath))
-      }
 
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
@@ -311,14 +364,32 @@ export class MigrationEngine {
 
       logger.error('Migration failed', err)
 
-      // Mark migration as failed with error details
-      await this.markFailed(errorMessage)
+      // Mark migration as failed with error details. Wrap in its own try-catch
+      // so a secondary failure (e.g. DB in bad state) doesn't mask the original error.
+      try {
+        await this.markFailed(errorMessage)
+      } catch (markError) {
+        logger.error('Failed to record migration failure in database', markError as Error)
+      }
 
       return {
         success: false,
         migratorResults: results,
         totalDuration: Date.now() - startTime,
         error: errorMessage
+      }
+    } finally {
+      // A retry prepares fresh exports, and Skip marks migration completed permanently.
+      // Remove only the registered staging directories on both success and failure so
+      // failed attempts cannot leave large Redux/Dexie snapshots behind indefinitely.
+      await this.cleanupTempFiles(this.paths.migrationDexieExportDir)
+
+      if (localStorageExportPath) {
+        await this.cleanupTempFiles(this.paths.migrationLocalStorageExportDir)
+      }
+
+      if (typeof reduxSource === 'string') {
+        await this.cleanupTempFiles(this.paths.migrationReduxExportDir)
       }
     }
   }
@@ -330,48 +401,8 @@ export class MigrationEngine {
   private verifyAndClearNewTables(): void {
     const db = this.getDb()
 
-    // Tables to clear - add more as they are created
-    // Order matters: child tables must be cleared before parent tables
-    const tables = [
-      { table: pinTable, name: 'pin' },
-      { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
-      { table: userProviderTable, name: 'user_provider' },
-      { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
-      { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
-      { table: paintingTable, name: 'painting' },
-      { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
-      { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
-      { table: assistantTable, name: 'assistant' },
-      { table: mcpServerTable, name: 'mcp_server' },
-      { table: miniAppTable, name: 'mini_app' },
-      { table: preferenceTable, name: 'preference' },
-      { table: noteTable, name: 'note' },
-      { table: translateHistoryTable, name: 'translate_history' },
-      { table: translateLanguageTable, name: 'translate_language' },
-      { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
-      { table: knowledgeBaseTable, name: 'knowledge_base' },
-      { table: promptTable, name: 'prompt' },
-      // Agents-domain tables — child → parent order
-      { table: agentSessionMessageTable, name: 'agent_session_message' },
-      { table: agentChannelTaskTable, name: 'agent_channel_task' },
-      { table: agentMcpServerTable, name: 'agent_mcp_server' },
-      { table: agentChannelTable, name: 'agent_channel' },
-      // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
-      { table: agentSkillTable, name: 'agent_skill' },
-      { table: agentSessionTable, name: 'agent_session' }, // FK → agent_workspace (ON DELETE set null)
-      { table: agentWorkspaceTable, name: 'agent_workspace' },
-      { table: agentGlobalSkillTable, name: 'agent_global_skill' },
-      { table: agentTable, name: 'agent' },
-      // File-domain tables. Migration runs with FK checks disabled, but keep ref tables before file_entry for readability.
-      { table: chatMessageFileRefTable, name: 'chat_message_file_ref' },
-      { table: paintingFileRefTable, name: 'painting_file_ref' },
-      { table: providerLogoFileRefTable, name: 'provider_logo_file_ref' },
-      { table: miniAppLogoFileRefTable, name: 'mini_app_logo_file_ref' },
-      { table: fileEntryTable, name: 'file_entry' }
-    ]
-
     // Check if tables have data (safety check)
-    for (const { table, name } of tables) {
+    for (const { table, name } of MIGRATION_TARGET_TABLES) {
       const result = db.select({ count: sql<number>`count(*)` }).from(table).get()
       const count = result?.count ?? 0
       if (count > 0) {
@@ -379,14 +410,26 @@ export class MigrationEngine {
       }
     }
 
-    // Clear tables atomically in dependency order (children before parents).
     db.transaction((tx) => {
-      for (const { table } of tables) {
-        tx.delete(table).run()
-      }
+      this.clearMigrationData(tx)
     })
 
     logger.info('All new architecture tables cleared successfully')
+  }
+
+  /**
+   * Delete everything migration wrote, atomically within the caller's
+   * transaction. Shared by the pre-run wipe (retry) and skipMigration() so the
+   * cleanup scope cannot drift between the two paths.
+   */
+  private clearMigrationData(tx: DbTransaction): void {
+    for (const { table } of MIGRATION_TARGET_TABLES) {
+      tx.delete(table).run()
+    }
+    // job_schedule is shared with the v2 job system — only migration-written
+    // agent.task rows are migration output. (AgentsMigrator keeps its own
+    // idempotent delete at its entry point.)
+    tx.delete(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task')).run()
   }
 
   /**
@@ -505,53 +548,64 @@ export class MigrationEngine {
 
   /**
    * Skip migration entirely (user chose to ignore old data and use defaults).
-   * Marks migration as completed so the gate will not trigger on next launch.
+   *
+   * Migration is not one big transaction — a failed run leaves already-committed
+   * migrator data behind. Skipping therefore clears everything migration wrote
+   * and marks the status completed so the next launch boots a clean default V2
+   * (seeders repopulate defaults). V1 source data and already-copied files are
+   * left on disk untouched.
    */
   async skipMigration(): Promise<void> {
-    logger.info('Migration skipped by user (version incompatible, using defaults)')
-    await this.markCompleted()
+    logger.info('Migration skipped by user: clearing migrated data and restoring defaults')
+
+    // Boot config first, before the DB transaction: if this write fails, the DB
+    // is untouched and the status stays as-is, so the user can retry or skip
+    // again. The reverse order could persist status=completed while keeping the
+    // migrated hardware-acceleration value forever (migration never re-prompts).
+    // app.disable_hardware_acceleration is the only v1-derived boot key
+    // (BootConfigMappings); app.user_data_path identifies the data directory
+    // pinned at migration entry and must survive the skip.
+    bootConfigService.set('app.disable_hardware_acceleration', DefaultBootConfig['app.disable_hardware_acceleration'])
+    bootConfigService.persist()
+
+    const db = this.getDb()
+    db.transaction((tx) => {
+      this.clearMigrationData(tx)
+      this.upsertMigrationStatus(tx, {
+        status: 'completed',
+        completedAt: Date.now(),
+        version: '2.0.0',
+        error: null
+      })
+    })
   }
 
   /**
    * Mark migration as completed in app_state
    */
   private async markCompleted(): Promise<void> {
-    const db = this.getDb()
-    const statusValue: MigrationStatusValue = {
+    this.upsertMigrationStatus(this.getDb(), {
       status: 'completed',
       completedAt: Date.now(),
       version: '2.0.0',
       error: null
-    }
-
-    await db
-      .insert(appStateTable)
-      .values({
-        key: MIGRATION_V2_STATUS,
-        value: statusValue
-      })
-      .onConflictDoUpdate({
-        target: appStateTable.key,
-        set: {
-          value: statusValue,
-          updatedAt: Date.now()
-        }
-      })
+    })
   }
 
   /**
    * Mark migration as failed in app_state with error details
    */
   private async markFailed(error: string): Promise<void> {
-    const db = this.getDb()
-    const statusValue: MigrationStatusValue = {
+    this.upsertMigrationStatus(this.getDb(), {
       status: 'failed',
       failedAt: Date.now(),
       version: '2.0.0',
       error: error
-    }
+    })
+  }
 
-    await db
+  private upsertMigrationStatus(executor: DbType | DbTransaction, statusValue: MigrationStatusValue): void {
+    executor
       .insert(appStateTable)
       .values({
         key: MIGRATION_V2_STATUS,
@@ -564,6 +618,7 @@ export class MigrationEngine {
           updatedAt: Date.now()
         }
       })
+      .run()
   }
 }
 

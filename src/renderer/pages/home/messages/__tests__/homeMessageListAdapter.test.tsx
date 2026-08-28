@@ -1,6 +1,7 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { render, waitFor } from '@testing-library/react'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,14 +20,36 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
 }))
 
 const chatWriteMock = vi.hoisted(() => ({
+  canStartNewContext: true,
   editMessage: vi.fn(),
-  setActiveNode: vi.fn()
+  setActiveNode: vi.fn(),
+  startNewContext: vi.fn()
+}))
+
+const messageEditingMock = vi.hoisted(() => ({
+  editingMessageId: null as string | null,
+  editingMessage: null as { message: { id: string; topicId: string } } | null,
+  startEditing: vi.fn()
 }))
 
 const commandHandlerMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => ({
   props: [] as any[]
 }))
+const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
+  const refetchTranslationLanguagesMock = vi.fn(async () => undefined)
+  return {
+    refetchTranslationLanguagesMock,
+    useLanguagesMock: vi.fn(() => ({
+      languages: [],
+      getLabel: vi.fn(() => ''),
+      status: 'ready' as const,
+      refetch: refetchTranslationLanguagesMock
+    }))
+  }
+})
+const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
+const openRouteMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -60,7 +83,6 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
 
 vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   getMessageListItemModel: vi.fn(() => undefined),
-  modelToSnapshot: vi.fn(() => undefined),
   toMessageListItem: vi.fn((message) => message)
 }))
 
@@ -76,7 +98,7 @@ vi.mock('@renderer/utils/model', () => ({
 }))
 
 vi.mock('@renderer/components/chat/editing/MessageEditingContext', () => ({
-  useMessageEditing: () => ({ editingMessageId: null, editingMessage: null, startEditing: vi.fn() })
+  useMessageEditing: () => messageEditingMock
 }))
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
@@ -87,18 +109,12 @@ vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: commandHandlerMock
 }))
 
-vi.mock('@renderer/hooks/translate', () => ({
-  useLanguages: () => ({
-    languages: [],
-    getLabel: vi.fn(() => '')
-  })
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: openRouteMock
 }))
 
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({
-    assistant: { id: 'assistant-1', name: 'Assistant' },
-    model: undefined
-  })
+vi.mock('@renderer/hooks/translate', () => ({
+  useLanguages: useLanguagesMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () => ({
@@ -106,7 +122,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () =
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
-  useMessageErrorActions: () => ({})
+  useMessageErrorActions: useMessageErrorActionsMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () => ({
@@ -164,12 +180,11 @@ vi.mock('@renderer/components/chat/messages/messageListProviderBuilder', () => (
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EDIT_MESSAGE: 'EDIT_MESSAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE',
+    FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
     LOCATE_MESSAGE: 'LOCATE_MESSAGE',
-    NEW_CONTEXT: 'NEW_CONTEXT',
     SEND_MESSAGE: 'SEND_MESSAGE'
   },
   EventEmitter: eventMocks
@@ -220,9 +235,11 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
+import { translateText } from '@renderer/utils/translate'
 
 import { useHomeMessageListProviderValue } from '../homeMessageListAdapter'
 import {
@@ -236,6 +253,7 @@ const createTopic = (id: string): Topic =>
     id,
     assistantId: 'assistant-1',
     name: `Topic ${id}`,
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     messages: []
@@ -243,14 +261,18 @@ const createTopic = (id: string): Topic =>
 
 function MessageListAdapterHarness({
   imageActionConsumer,
+  streamingLayers,
   messages = [],
+  onBindRuntime,
   onStartBranchDraft,
   onValue,
   partsByMessageId = {},
   topic
 }: {
   imageActionConsumer?: 'capture'
+  streamingLayers?: MessageListProviderValue['state']['streamingLayers']
   messages?: CherryUIMessage[]
+  onBindRuntime?: MessageListProviderValue['actions']['bindRuntime']
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
   onValue?: (value: MessageListProviderValue) => void
   partsByMessageId?: Record<string, CherryMessagePart[]>
@@ -258,9 +280,12 @@ function MessageListAdapterHarness({
 }) {
   const value = useHomeMessageListProviderValue({
     topic,
+    assistant: { id: 'assistant-1', name: 'Assistant', emoji: '🤖' } as any,
     messages,
     partsByMessageId,
+    streamingLayers,
     imageActionConsumer,
+    onBindRuntime,
     onStartBranchDraft
   })
 
@@ -274,6 +299,9 @@ function MessageListAdapterHarness({
 describe('useHomeMessageListProviderValue topic image actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    chatWriteMock.canStartNewContext = true
+    messageEditingMock.editingMessageId = null
+    messageEditingMock.editingMessage = null
     modelSelectorMock.props = []
     clearPendingTopicImageActionsForTest()
     Object.defineProperty(window, 'api', {
@@ -287,6 +315,76 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         },
         mcp: {
           abortTool: vi.fn()
+        }
+      }
+    })
+  })
+
+  it('loads translation languages only after the message menu requests them', async () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: false })
+
+    act(() => value?.actions.requestTranslationLanguages?.())
+
+    await waitFor(() => expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: true }))
+  })
+
+  it('exposes the current assistant profile for migrated messages without snapshots', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.meta.assistantProfile).toEqual({ name: 'Assistant', avatar: '🤖' })
+  })
+
+  it('exposes the language load status and retries through the shared refetch', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.state.translationLanguagesStatus).toBe('ready')
+
+    act(() => value?.actions.retryTranslationLanguages?.())
+
+    expect(refetchTranslationLanguagesMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens navigation entries in an application tab', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    act(() => void value?.actions.navigateToRoute?.({ path: '/app/paintings', query: { source: 'assistant' } }))
+
+    expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
+  })
+
+  it('injects Home-message diagnosis persistence into the shared error UI', async () => {
+    vi.mocked(dataApiService.get).mockResolvedValue({
+      data: { parts: [{ type: 'data-error', data: { name: 'ProviderError', message: 'failed' } }] }
+    } as Awaited<ReturnType<typeof dataApiService.get<'/messages/:id'>>>)
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
+
+    expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
+    expect(dataApiService.patch).toHaveBeenCalledWith('/messages/message-1', {
+      body: {
+        data: {
+          parts: [
+            expect.objectContaining({
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Provider failed' }) })
+              })
+            })
+          ]
         }
       }
     })
@@ -309,9 +407,17 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     ])
   })
 
-  it('does not bind SEND_MESSAGE to scroll-to-bottom', () => {
+  it('forwards the list runtime without binding SEND_MESSAGE to scroll-to-bottom', () => {
     let value: MessageListProviderValue | undefined
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+    const unbindExternalRuntime = vi.fn()
+    const onBindRuntime = vi.fn(() => unbindExternalRuntime)
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        onBindRuntime={onBindRuntime}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
 
     const runtime: MessageListRuntime = {
       copyTopicImage: vi.fn(),
@@ -320,11 +426,70 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       scrollToBottom: vi.fn()
     }
 
-    value?.actions.bindRuntime?.(runtime)
+    const unbindRuntime = value?.actions.bindRuntime?.(runtime)
 
+    expect(onBindRuntime).toHaveBeenCalledWith(runtime)
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+
+    unbindRuntime?.()
+    expect(unbindExternalRuntime).toHaveBeenCalledOnce()
+  })
+
+  it('passes layered streaming state and reuses unchanged history message projections', () => {
+    const historyMessage = {
+      id: 'history-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'sealed history' }]
+    } as CherryUIMessage
+    const liveMessage = {
+      id: 'live-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'a' }]
+    } as CherryUIMessage
+    const historyPartsByMessageId = {
+      'history-message': historyMessage.parts as CherryMessagePart[]
+    }
+    const streamingLayers = {
+      historyPartsByMessageId,
+      liveMessageIds: ['live-message']
+    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
+    let value: MessageListProviderValue | undefined
+
+    const view = render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[historyMessage, liveMessage]}
+        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts as CherryMessagePart[] }}
+        streamingLayers={streamingLayers}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    const firstHistoryItem = value?.state.messages[0]
+    expect(value?.state.streamingLayers).toBe(streamingLayers)
+
+    const nextLiveMessage = {
+      ...liveMessage,
+      parts: [...(liveMessage.parts ?? []), { type: 'text', text: 'b' } as CherryMessagePart]
+    }
+    view.rerender(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[historyMessage, nextLiveMessage]}
+        partsByMessageId={{
+          ...historyPartsByMessageId,
+          'live-message': nextLiveMessage.parts as CherryMessagePart[]
+        }}
+        streamingLayers={streamingLayers}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.messages[0]).toBe(firstHistoryItem)
+    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message === historyMessage)).toHaveLength(1)
+    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message.id === liveMessage.id)).toHaveLength(2)
   })
 
   it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {
@@ -375,11 +540,41 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(commandHandlerMock).toHaveBeenCalledWith('chat.message.edit_last_user', expect.any(Function), {
       enabled: false
     })
-    expect(eventMocks.on).not.toHaveBeenCalledWith('CLEAR_MESSAGES', expect.any(Function))
-    expect(eventMocks.on).not.toHaveBeenCalledWith('NEW_CONTEXT', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+    expect(value?.actions.getMessageDeleteAvailability).toBeUndefined()
+    expect(value?.actions.deleteMessage).toBeUndefined()
     expect(consumePendingTopicImageActions('topic-a')).toEqual([])
+  })
+
+  it('routes the clear-context divider action through ChatWrite and restores composer focus', async () => {
+    chatWriteMock.startNewContext.mockResolvedValueOnce(undefined)
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    value?.actions.startNewContext?.()
+
+    await waitFor(() => expect(chatWriteMock.startNewContext).toHaveBeenCalledOnce())
+    expect(eventMocks.emit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', { topicId: 'topic-a' })
+  })
+
+  it('does not expose the clear-context divider action while ChatWrite is unavailable', () => {
+    chatWriteMock.canStartNewContext = false
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.actions.startNewContext).toBeUndefined()
+  })
+
+  it('does not expose the clear-context divider action while editing the current topic', () => {
+    messageEditingMock.editingMessageId = 'message-a'
+    messageEditingMock.editingMessage = { message: { id: 'message-a', topicId: 'topic-a' } }
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.actions.startNewContext).toBeUndefined()
   })
 
   it('capture consumer does not bind message-level global listeners', () => {
@@ -468,6 +663,78 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
     expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
+  })
+
+  it('copies a message path into a new topic through the topic duplicate endpoint', async () => {
+    const copyBranchToNewTopicTrigger = vi.fn().mockResolvedValue(createTopic('copied-topic'))
+    let value: MessageListProviderValue | undefined
+
+    await mockUseMutation.withImplementation(
+      () => ({
+        trigger: copyBranchToNewTopicTrigger,
+        isLoading: false,
+        error: undefined
+      }),
+      async () => {
+        render(
+          <MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />
+        )
+
+        await waitFor(() => expect(value).toBeDefined())
+        await value?.actions.copyBranchToNewTopic?.('assistant-old')
+      }
+    )
+
+    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/topics/:id/duplicate', {
+      refresh: ['/topics']
+    })
+    expect(copyBranchToNewTopicTrigger).toHaveBeenCalledWith({
+      params: { id: 'topic-a' },
+      body: { nodeId: 'assistant-old' }
+    })
+  })
+
+  it('keeps a message translation active until its final update is persisted', async () => {
+    let finishPersistingTranslation: (() => void) | undefined
+    let value: MessageListProviderValue | undefined
+    const persistTranslationPromise = new Promise<void>((resolve) => {
+      finishPersistingTranslation = resolve
+    })
+    chatWriteMock.editMessage.mockResolvedValueOnce(undefined).mockReturnValueOnce(persistTranslationPromise)
+    vi.mocked(translateText).mockImplementationOnce(async (_text, _language, onResponse) => {
+      onResponse?.('translated reply', true)
+      return 'translated reply'
+    })
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={{ 'message-1': [{ type: 'text', text: 'reply' }] as CherryMessagePart[] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+
+    let translateAction: Promise<void> | undefined
+    act(() => {
+      translateAction = value?.actions.translateMessage?.(
+        'message-1',
+        { langCode: 'en-us' } as any,
+        'reply'
+      ) as Promise<void>
+    })
+
+    await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(true))
+    await waitFor(() => expect(chatWriteMock.editMessage).toHaveBeenCalledTimes(2))
+    expect(value?.state.isMessageTranslating?.('message-1')).toBe(true)
+
+    await act(async () => {
+      finishPersistingTranslation?.()
+      await translateAction
+    })
+
+    await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(false))
   })
 
   it('shows an error when saving code block edits through chat write fails', async () => {

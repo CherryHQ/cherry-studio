@@ -1,4 +1,4 @@
-import { PortalContainerProvider } from '@cherrystudio/ui'
+import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
@@ -25,14 +25,24 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     const history = createMemoryHistory({ initialEntries: [tab.url] })
     // defaultErrorComponent contains a route render error to its tab; without it the
     // error bubbles to the window-level boundary and tears down the whole window.
-    return createRouter({ routeTree, history, defaultErrorComponent: RouteErrorFallback })
+    return createRouter({
+      routeTree,
+      history,
+      defaultErrorComponent: RouteErrorFallback
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
+
+  // External retargets update tab.url before an async route can replace the outgoing page.
+  // Cover that interval so teardown effects cannot repaint stale page loading UI.
+  const [resolvedHref, setResolvedHref] = useState(tab.url)
+  const transitionUrl = tab.url !== resolvedHref ? tab.url : null
 
   // Sync internal navigation back to tab state
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
       const nextHref = toLocation.href
+      setResolvedHref(nextHref)
       if (nextHref !== tab.url) {
         onUrlChange(nextHref)
       }
@@ -63,8 +73,17 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
             background tab's still-open surface stays hidden with its owning tab. */}
         <div ref={captureTabPortalContainer} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
           <PortalContainerProvider container={tabPortalContainer}>
-            <RouterProvider router={router} />
+            <DialogPortalContainerProvider container={tabPortalContainer}>
+              <RouterProvider router={router} />
+            </DialogPortalContainerProvider>
           </PortalContainerProvider>
+          {transitionUrl && (
+            <div
+              data-testid="tab-route-transition-cover"
+              className="absolute inset-0 z-50 bg-card"
+              aria-hidden="true"
+            />
+          )}
         </div>
       </TabIdProvider>
     </Activity>

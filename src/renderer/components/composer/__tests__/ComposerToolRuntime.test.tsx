@@ -1,11 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(() => {
+const { mockGetToolsForScope, mockQuickPanelValue, mockTranslate, mockUseQuickPanel } = vi.hoisted(() => {
   const mockQuickPanelValue = {
     close: vi.fn(),
     isVisible: false,
@@ -17,6 +18,7 @@ const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hois
   return {
     mockGetToolsForScope: vi.fn(),
     mockQuickPanelValue,
+    mockTranslate: (key: string) => key,
     mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
   }
 })
@@ -37,12 +39,8 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => mockUseQuickPanel()
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: { id: 'provider-1' } })
-}))
-
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mockTranslate })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -58,6 +56,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import {
   ComposerActiveToolControls,
+  ComposerPinnedToolsProvider,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -141,6 +140,44 @@ const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
   useEffect(() => {
     setFiles(nextFiles)
   }, [nextFiles, setFiles])
+
+  return null
+}
+
+const ToolStateControls = () => {
+  const { setFiles, setSelectedKnowledgeBases } = useComposerToolDispatch()
+
+  return (
+    <>
+      <button type="button" onClick={() => setFiles([{ id: 'file-1', path: '/tmp/file.txt' } as any])}>
+        Add file
+      </button>
+      <button
+        type="button"
+        onClick={() => setSelectedKnowledgeBases([{ id: 'knowledge-1', name: 'Knowledge' } as any])}>
+        Select knowledge
+      </button>
+    </>
+  )
+}
+
+const LauncherRegistrationProbe = ({
+  onReady
+}: {
+  onReady: (value: { disposeFirst: () => void; readIds: () => string[] }) => void
+}) => {
+  const { toolsRegistry, triggers } = useComposerToolDispatch()
+
+  useEffect(() => {
+    const disposeFirst = toolsRegistry.registerLaunchers('agent-skills', [
+      { id: 'stale-skills', kind: 'panel', label: 'Stale skills', icon: 'stale' }
+    ])
+    const disposeLatest = toolsRegistry.registerLaunchers('agent-skills', [
+      { id: 'agent-skills', kind: 'panel', label: 'Skills', icon: 'skills' }
+    ])
+    onReady({ disposeFirst, readIds: () => triggers.getLaunchers().map((launcher) => launcher.id) })
+    return disposeLatest
+  }, [onReady, toolsRegistry, triggers])
 
   return null
 }
@@ -294,6 +331,74 @@ describe('ComposerToolRuntimeHost', () => {
     expect(runtimeRegisterCount).toBe(1)
   })
 
+  it('re-registers only tools whose declared state dependencies change', async () => {
+    const user = userEvent.setup()
+    const createFileItems = vi.fn<
+      (context: ToolRenderContext<readonly ['files'], readonly []>) => ComposerToolLauncher[]
+    >(() => [menuLauncher])
+    const createKnowledgeItems = vi.fn<
+      (context: ToolRenderContext<readonly ['selectedKnowledgeBases'], readonly []>) => ComposerToolLauncher[]
+    >(() => [runtimeLauncher])
+
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'file-tool',
+        label: 'File tool',
+        dependencies: { state: ['files'] },
+        composer: { menuItems: { createItems: createFileItems } }
+      },
+      {
+        key: 'knowledge-tool',
+        label: 'Knowledge tool',
+        dependencies: { state: ['selectedKnowledgeBases'] },
+        composer: { menuItems: { createItems: createKnowledgeItems } }
+      }
+    ])
+
+    render(
+      <ComposerToolRuntimeProvider
+        actions={{
+          addNewTopic: vi.fn(),
+          onTextChange: vi.fn()
+        }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
+        <ToolStateControls />
+      </ComposerToolRuntimeProvider>
+    )
+
+    await waitFor(() => {
+      expect(createFileItems).toHaveBeenCalledTimes(1)
+      expect(createKnowledgeItems).toHaveBeenCalledTimes(1)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Add file' }))
+
+    await waitFor(() => expect(createFileItems).toHaveBeenCalledTimes(2))
+    expect(createKnowledgeItems).toHaveBeenCalledTimes(1)
+    expect(createFileItems.mock.lastCall?.[0].state.files).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'Select knowledge' }))
+
+    await waitFor(() => expect(createKnowledgeItems).toHaveBeenCalledTimes(2))
+    expect(createFileItems).toHaveBeenCalledTimes(2)
+    expect(createKnowledgeItems.mock.lastCall?.[0].state.selectedKnowledgeBases).toHaveLength(1)
+  })
+
+  it('keeps the latest launcher registration when a stale disposer runs', async () => {
+    let registration: { disposeFirst: () => void; readIds: () => string[] } | undefined
+    const onReady = vi.fn((value) => {
+      registration = value
+    })
+
+    renderRuntime([], <LauncherRegistrationProbe onReady={onReady} />)
+
+    await waitFor(() => expect(registration?.readIds()).toEqual(['agent-skills']))
+
+    act(() => registration?.disposeFirst())
+
+    expect(registration?.readIds()).toEqual(['agent-skills'])
+  })
+
   it('does not subscribe the runtime host to quick panel state', async () => {
     const runtimeRender = vi.fn()
 
@@ -405,6 +510,68 @@ describe('ComposerActiveToolControls', () => {
     )
 
     await waitFor(() => expect(screen.queryByLabelText('UnpinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('drops active launchers already rendered by the pinned toolbar (dedup)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'pinned-active-tool',
+                  kind: 'command',
+                  label: 'PinnedActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['pinned-active-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('PinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('shows an active launcher as a chip when it is not pinned (backfill)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'unpinned-active-tool',
+                  kind: 'command',
+                  label: 'BackfilledActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['some-other-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('BackfilledActive')).toBeInTheDocument())
   })
 })
 

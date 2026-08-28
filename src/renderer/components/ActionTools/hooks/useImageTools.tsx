@@ -190,13 +190,15 @@ export const useImageTools = (
       if ((e.ctrlKey || e.metaKey) && e.target) {
         // 确认事件发生在容器内部
         if (container.contains(e.target as Node)) {
+          e.preventDefault()
+          e.stopPropagation()
           const delta = e.deltaY < 0 ? 0.1 : -0.1
           zoom(delta)
         }
       }
     }
 
-    container.addEventListener('wheel', handleWheel, { passive: true })
+    container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
   }, [containerRef, zoom, enableWheelZoom])
 
@@ -208,14 +210,16 @@ export const useImageTools = (
   const copy = useCallback(async () => {
     try {
       const imgElement = getCleanImgElement()
-      if (!imgElement) return
+      if (!imgElement) return false
 
       const blob = await svgToPngBlob(imgElement)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       toast.success(t('message.copy.success'))
+      return true
     } catch (error) {
       logger.error('Copy failed:', error as Error)
       toast.error(t('message.copy.failed'))
+      return false
     }
   }, [getCleanImgElement, t])
 
