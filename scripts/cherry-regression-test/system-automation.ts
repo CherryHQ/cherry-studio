@@ -178,7 +178,7 @@ export function selectExternalText(platform: Platform): void {
     '}',
     '[NativeMouse]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)',
     'Start-Sleep -Milliseconds 500'
-  ].join('; ')
+  ].join('\n')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     stdio: 'ignore',
     timeout: 10_000
