@@ -29,6 +29,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -121,6 +122,8 @@ const AppearanceSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
+  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const isChatAssistantVisible = appFavorites.includes('assistants')
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -465,6 +468,15 @@ const AppearanceSettings: FC = () => {
             aria-label={t('settings.display.list_position.work')}
             size="sm"
           />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.sidebar.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.sidebar.chat.visible')}</SettingRowTitle>
+          <Switch checked={isChatAssistantVisible} onCheckedChange={(checked) => setAppPinned('assistants', checked)} />
         </SettingRow>
       </SettingGroup>
 

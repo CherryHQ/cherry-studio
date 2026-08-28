@@ -16,7 +16,6 @@ import {
   getSidebarFavoriteKey,
   getSidebarMenuPath,
   isMessageOnlyConversationUrl,
-  REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
@@ -38,7 +37,6 @@ import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
@@ -142,7 +140,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleRemoveSidebarFavorite = useCallback(
     (favorite: SidebarAppId) => {
-      if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
     },
     [setAppPinned]
@@ -267,7 +264,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
-      isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
       openAgent: handleOpenAgentTab,
