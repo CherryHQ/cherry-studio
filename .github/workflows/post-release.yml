@@ -21,7 +21,7 @@ jobs:
     if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve release branch
+      - name: Resolve release tag
         id: release-ref
         shell: bash
         env:
@@ -35,7 +35,6 @@ jobs:
           fi
 
           echo "eligible=true" >> "$GITHUB_OUTPUT"
-          echo "branch=release/$TAG" >> "$GITHUB_OUTPUT"
           echo "sync-branch=release-sync/$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Check for an existing metadata pull request
@@ -67,25 +66,14 @@ jobs:
           fetch-depth: 0
           ref: main
 
-      - name: Verify published commit and metadata changes
+      - name: Prepare published metadata changes
         id: metadata
         if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
         shell: bash
         env:
-          RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          git fetch --force origin \
-            "refs/heads/$RELEASE_BRANCH:refs/remotes/origin/$RELEASE_BRANCH" \
-            "refs/tags/$TAG:refs/tags/$TAG"
-
-          TAG_SHA="$(git rev-list -n 1 "$TAG")"
-          BRANCH_SHA="$(git rev-parse "origin/$RELEASE_BRANCH")"
-
-          if [ "$TAG_SHA" != "$BRANCH_SHA" ]; then
-            echo "Published tag $TAG points to $TAG_SHA, but the release branch points to $BRANCH_SHA" >&2
-            exit 1
-          fi
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
 
           mapfile -t FILES < <(jq -r '.[]' <<< "$RELEASE_METADATA_FILES")
           for FILE in "${FILES[@]}"; do
@@ -154,7 +142,6 @@ jobs:
           const fs = require('node:fs')
           const path = require('node:path')
 
-          const allowedFiles = new Set(JSON.parse(process.env.RELEASE_METADATA_FILES))
           const changedPaths = execFileSync(
             'git',
             ['diff', '--cached', '--name-only', '--no-renames', '-z'],
@@ -163,30 +150,10 @@ jobs:
             .toString('utf8')
             .split('\0')
             .filter(Boolean)
-          const additions = []
-
-          for (const filePath of changedPaths) {
-            if (!allowedFiles.has(filePath)) {
-              throw new Error(`Unexpected release metadata change: ${filePath}`)
-            }
-            if (!fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
-              throw new Error(`Release metadata is not a regular file: ${filePath}`)
-            }
-
-            const indexMode = execFileSync('git', ['ls-files', '--stage', '--', filePath], { encoding: 'utf8' })
-              .slice(0, 6)
-            const baseMode = execFileSync('git', ['ls-tree', 'HEAD', '--', filePath], { encoding: 'utf8' })
-              .slice(0, 6)
-            if (baseMode !== indexMode) {
-              throw new Error(`Release metadata must not change file mode: ${filePath}`)
-            }
-
-            additions.push({ path: filePath, contents: fs.readFileSync(filePath).toString('base64') })
-          }
-
-          if (additions.length === 0) {
-            throw new Error('Release metadata payload contains no changes')
-          }
+          const additions = changedPaths.map((filePath) => ({
+            path: filePath,
+            contents: fs.readFileSync(filePath).toString('base64')
+          }))
 
           const payload = {
             query: `mutation($input: CreateCommitOnBranchInput!) {

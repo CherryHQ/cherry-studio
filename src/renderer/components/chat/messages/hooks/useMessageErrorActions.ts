@@ -10,12 +10,13 @@ const aiClassifyCacheKey = (message: string, language: string) => `error.classif
 type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'openErrorDetail' | 'navigateErrorTarget'>
 
 interface MessageErrorActionOptions {
+  diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
   persistDiagnosis?: NonNullable<ErrorDetailContentProps['onDiagnosisComplete']>
 }
 
 export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
   const navigate = useNavigate()
-  const { persistDiagnosis } = options
+  const { diagnosticReport, persistDiagnosis } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => {
@@ -46,10 +47,11 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
         blockId: input.partId,
         cachedDiagnosis: input.cachedDiagnosis,
         diagnosisContext: input.diagnosisContext,
+        diagnosticReport,
         onDiagnosisComplete: persistDiagnosis
       })
     },
-    [persistDiagnosis]
+    [diagnosticReport, persistDiagnosis]
   )
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(

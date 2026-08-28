@@ -628,6 +628,63 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.resultEntries)).toEqual([1, 2])
   })
 
+  it('keeps only actionable diagnostic report results outside completed history', () => {
+    const successful = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ])
+    )
+    const deferred = projectCompletedMessageParts(
+      entries([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:session-1',
+              messageId: 'message-1',
+              toolCallId: 'prepare-report'
+            }
+          }
+        }
+      ])
+    )
+    const failed = projectCompletedMessageParts(
+      entries([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: '{"ok":false,"description":"Unavailable draft"}' }],
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(successful.historyEntries)).toEqual([0])
+    expect(indexes(successful.resultEntries)).toEqual([1])
+    expect(indexes(deferred.historyEntries)).toEqual([])
+    expect(indexes(deferred.resultEntries)).toEqual([0])
+    expect(indexes(failed.historyEntries)).toEqual([0])
+    expect(indexes(failed.resultEntries)).toEqual([])
+  })
+
   it.each(GENERATED_IMAGE_RESULTS)('keeps %s outside completed history', (_label, toolName, output) => {
     const layout = projectCompletedMessageParts(
       entries([

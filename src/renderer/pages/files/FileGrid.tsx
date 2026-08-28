@@ -58,7 +58,7 @@ export const FileGrid = memo(function FileGrid({
   onDelete: (id: string) => void
   menuActions: FileContextMenuActions
   scrollRef: RefObject<HTMLDivElement | null>
-  onLayoutChange: () => void
+  onLayoutChange?: () => void
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
@@ -83,7 +83,7 @@ export const FileGrid = memo(function FileGrid({
   const totalSize = rowVirtualizer.getTotalSize()
 
   useEffect(() => {
-    onLayoutChange()
+    onLayoutChange?.()
   }, [columnCount, onLayoutChange, totalSize])
 
   return (
