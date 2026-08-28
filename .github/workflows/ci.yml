@@ -181,6 +181,7 @@ jobs:
             exit 1
           fi
           pnpm i18n:check
+          pnpm i18n:unused:check
 
       - name: Read-only Checks
         run: |

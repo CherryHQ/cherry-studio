@@ -4,6 +4,7 @@ import * as path from 'path'
 import { Project } from 'ts-morph'
 
 import {
+  assertNoUnusedI18nKeys,
   collectUsedI18nKeys,
   collectUsedI18nKeysFromSource,
   createUnusedI18nResult,
@@ -146,6 +147,22 @@ describe('i18n-check-unused', () => {
 
       expect(result.unusedKeys).toEqual(['common.cancel'])
       expect(result.groupedUnusedKeys).toEqual({ common: ['common.cancel'] })
+    })
+  })
+
+  describe('assertNoUnusedI18nKeys', () => {
+    it('rejects catalogs that contain unused keys', () => {
+      const result = createUnusedI18nResult({ 'common.cancel': 'Cancel', 'common.save': 'Save' }, ['common.save'])
+
+      expect(() => assertNoUnusedI18nKeys(result)).toThrow(
+        'Found 1 unused i18n key. Run `pnpm i18n:unused` to review it.'
+      )
+    })
+
+    it('accepts catalogs without unused keys', () => {
+      const result = createUnusedI18nResult({ 'common.save': 'Save' }, ['common.save'])
+
+      expect(() => assertNoUnusedI18nKeys(result)).not.toThrow()
     })
   })
 

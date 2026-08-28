@@ -42,6 +42,7 @@ export interface UnusedI18nResult {
 interface CliOptions {
   all?: boolean
   clean?: boolean
+  failOnUnused?: boolean
   groups?: string
   json?: boolean
 }
@@ -307,6 +308,15 @@ export function findUnusedI18nKeys(baseLocale: I18N, sourceFiles: string[]): Unu
   return createUnusedI18nResult(baseLocale, collectUsedI18nKeys(sourceFiles, localeKeys))
 }
 
+export function assertNoUnusedI18nKeys(result: UnusedI18nResult): void {
+  const count = result.unusedKeys.length
+  if (count === 0) return
+
+  const noun = count === 1 ? 'key' : 'keys'
+  const pronoun = count === 1 ? 'it' : 'them'
+  throw new Error(`Found ${count} unused i18n ${noun}. Run \`pnpm i18n:unused\` to review ${pronoun}.`)
+}
+
 export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
   const next = structuredClone(locale)
   for (const key of keys) {
@@ -407,6 +417,8 @@ export async function runCli(options: CliOptions): Promise<void> {
     }
   }
 
+  if (options.failOnUnused) assertNoUnusedI18nKeys(result)
+
   if (!options.clean || result.unusedKeys.length === 0) return
 
   const groups = parseGroups(options.groups)
@@ -433,6 +445,7 @@ async function main() {
     .description('Find unused i18n keys and optionally clean them by top-level namespace')
     .option('--all', 'with --clean, remove all unused keys without prompting')
     .option('--clean', 'remove selected unused keys from all translation files')
+    .option('--fail-on-unused', 'exit with an error when unused keys are found')
     .option('--groups <groups>', 'comma-separated top-level namespaces to clean')
     .option('--json', 'print machine-readable JSON')
 

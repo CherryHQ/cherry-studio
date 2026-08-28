@@ -123,6 +123,7 @@ Both catalogs use `en-us.json` as the source of truth by default. Set `TRANSLATI
 | `pnpm i18n:sync` | Synchronize every locale with the base locale and sort keys | Yes |
 | `pnpm i18n:check` | Check catalog structure, key alignment, sorting, main-process key coverage, and translated values | No |
 | `pnpm i18n:unused` | Report renderer keys that are not referenced by source code | No |
+| `pnpm i18n:unused:check` | Fail when renderer keys are not referenced by source code | No |
 | `pnpm i18n:remove-unused` | Remove selected unused renderer keys from every renderer locale | Yes |
 | `pnpm i18n:hardcoded` | Report likely hardcoded user-visible strings | No |
 | `pnpm i18n:hardcoded:strict` | Run the hardcoded-string check in CI mode | No |
@@ -163,6 +164,14 @@ For machine-readable output, use JSON mode:
 ```bash
 pnpm i18n:unused --json
 ```
+
+CI uses the failing check mode so unused keys cannot be merged:
+
+```bash
+pnpm i18n:unused:check
+```
+
+This prints the same grouped report and exits with a non-zero status when any unused key is found.
 
 #### Cleaning Unused Keys
 
@@ -243,10 +252,11 @@ Complete the i18n translations introduced by this change.
 - Run pnpm i18n:sync before translating, then run pnpm i18n:check.
 ```
 
-Pull request CI runs `i18n:sync` and fails when it produces an uncommitted diff. It then runs the read-only check:
+Pull request CI runs `i18n:sync` and fails when it produces an uncommitted diff. It then runs the read-only checks:
 
 ```bash
 pnpm i18n:check
+pnpm i18n:unused:check
 ```
 
 The check rejects remaining placeholders, empty translations, missing interpolation variables, changed `<Trans>` component tags, changed `$t()` references, bracketed model notes, implausibly long explanations, and dropped protected terms. CI also runs the strict hardcoded-string check.
