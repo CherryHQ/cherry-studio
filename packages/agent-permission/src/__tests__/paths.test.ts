@@ -22,6 +22,7 @@ beforeAll(() => {
   mkdirSync(agentData)
   mkdirSync(outside)
   writeFileSync(join(workspace, 'inside.txt'), 'inside')
+  writeFileSync(join(workspace, '@inside.txt'), 'at-inside')
   writeFileSync(join(outside, 'secret.txt'), 'secret')
   symlinkSync(outside, join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 })
@@ -46,8 +47,8 @@ describe('isPathWithinRoots', () => {
     await expect(isPathWithinRoots(roots(), '~/.ssh/config')).resolves.toBe(false)
   })
 
-  it('folds unicode spaces and strips pi @ prefixes', async () => {
-    await expect(isPathWithinRoots(roots(), '@inside\u00a0.txt')).resolves.toBe(false)
+  it('folds unicode spaces without stripping literal @ path prefixes', async () => {
+    await expect(isPathWithinRoots(roots(), 'inside\u00a0.txt')).resolves.toBe(false)
     await expect(isPathWithinRoots(roots(), '@inside.txt')).resolves.toBe(true)
   })
 

@@ -1197,6 +1197,44 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
+  it('applies delegated headless facts in the PreToolUse hook', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { permission_mode: 'full' }
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const guardHook = settings.hooks?.PreToolUse?.[0]?.hooks[0]
+
+    await expect(
+      guardHook?.(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'mcp__cherry-tools__config',
+          tool_input: { action: 'rename' },
+          agent_id: 'subagent-1'
+        } as never,
+        'tool-use-1',
+        {} as never
+      )
+    ).resolves.toMatchObject({
+      hookSpecificOutput: expect.objectContaining({
+        permissionDecision: 'deny',
+        permissionDecisionReason: expect.stringContaining('configuration')
+      })
+    })
+  })
+
   it('gates Support and Assistant Bash per mode: ask interactively, lifted by bypassPermissions, denied headless', async () => {
     let interactionState = { currentTurn: 'interactive', userResponse: 'stream' }
     // The guard reads the LIVE permission mode from the session snapshot, so a warm connection
@@ -2971,6 +3009,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
+    // D3 deliberately removes Claude's old delegated blanket-allow escape.
     it('denies an ordinary delegated request after the parent turn ended', async () => {
       const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
@@ -2994,6 +3033,33 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
+    it('denies a delegated request that matches a user ask rule without registering a hanging approval', async () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return { getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }) }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-ask-rule'), {} as never)
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+
+      await expect(
+        settings.canUseTool!('Read', { file_path: '/workspace/project/README.md' }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-ask-rule',
+          agentID: 'subagent-1',
+          matchedAskRule: 'Read'
+        } as never)
+      ).resolves.toMatchObject({ behavior: 'deny' })
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+      expect(emit).not.toHaveBeenCalled()
+    })
+
+    // D3 deliberately removes Claude's old delegated blanket-allow escape. Ordinary asks are
+    // unavailable to a subagent responder and therefore deny rather than hanging for approval.
     it('denies an ordinary delegated request while the parent turn is still live', async () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -3169,6 +3235,27 @@ describe('buildClaudeCodeSessionSettings', () => {
       ).resolves.toMatchObject({ behavior: 'deny' })
       expect(emit).not.toHaveBeenCalled()
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it('emits approval for a sensitive first-party tool after the parent turn ended', async () => {
+      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-sensitive-wake'), {} as never)
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+
+      const pending = settings.canUseTool!('mcp__cherry-tools__generate_image', { prompt: 'draw a square' }, {
+        signal: { aborted: false },
+        toolUseID: 'tu-sensitive-wake'
+      } as never)
+      await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledOnce())
+      expect(emit).toHaveBeenCalledWith(expect.objectContaining({ presentation: 'message' }))
+      expect(pending).toBeInstanceOf(Promise)
     })
 
     it('denies an ordinary tool call after the turn ended', async () => {

@@ -13,6 +13,8 @@ export interface ClaudeToolDescriptor {
   sourceName?: string
   sourceToolName?: string
   sourceApproval?: ToolApproval
+  /** Runtime policy fact projected from the main-process built-in catalog. */
+  bypassApproval?: 'enforce' | 'lift'
 }
 
 export interface ClaudeToolPolicy {
@@ -23,6 +25,7 @@ const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead'])
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])
 const SAFE_TOOLS = new Set(['Task', 'TodoWrite'])
 const USER_RESPONSE_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
+const NON_BYPASSABLE_TOOLS = new Set(['mcp__cherry-tools__session_create', 'mcp__cherry-tools__session_send'])
 
 export function normalizeClaudeBuiltinName(name: string): string {
   return name.startsWith('builtin_') ? name.slice('builtin_'.length) : name
@@ -61,6 +64,7 @@ export function matchesClaudeToolRule(rule: string, descriptor: ClaudeToolDescri
 /** Classify a Claude descriptor for the shared evaluator's adapter boundary. */
 export function classifyClaudeTool(descriptor: ClaudeToolDescriptor): ToolCategory {
   if (USER_RESPONSE_TOOLS.has(normalizeClaudeBuiltinName(descriptor.id))) return 'requires-user'
+  if (NON_BYPASSABLE_TOOLS.has(descriptor.id) || descriptor.bypassApproval === 'enforce') return 'non-bypassable'
   if (descriptor.sourceApproval === 'prompt') return 'sensitive-first-party'
   const name = normalizeClaudeBuiltinName(descriptor.id)
   if (READ_TOOLS.has(name)) return 'read'
@@ -68,6 +72,19 @@ export function classifyClaudeTool(descriptor: ClaudeToolDescriptor): ToolCatego
   if (name === 'Bash') return 'shell'
   if (SAFE_TOOLS.has(name) || descriptor.sourceApproval === 'auto') return 'safe-first-party'
   return 'ordinary'
+}
+
+/** Classify a runtime-native name using the same category map as descriptor-based UI callers. */
+export function classifyClaudeToolName(
+  toolName: string,
+  facts: Pick<ClaudeToolDescriptor, 'sourceApproval' | 'bypassApproval'> = {}
+): ToolCategory {
+  return classifyClaudeTool({
+    id: toolName,
+    name: toolName,
+    origin: toolName.startsWith('mcp__') ? 'mcp' : 'builtin',
+    ...facts
+  })
 }
 
 /** Derive only the SDK-facing catalog approval. Runtime calls use evaluatePermission instead. */

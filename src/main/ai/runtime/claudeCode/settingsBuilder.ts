@@ -15,6 +15,7 @@ import path from 'node:path'
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { normalizeLegacyPermissionMode } from '@cherrystudio/agent-permission'
+import { HEADLESS_ASK_DENIAL } from '@cherrystudio/agent-permission'
 import { evaluatePermission } from '@cherrystudio/agent-permission/node'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
@@ -76,9 +77,11 @@ import {
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
+import { buildClaudePermissionContext } from './permissionContext'
 import { toSdkPermissionMode } from './permissionMode'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
+;('./types')
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 
@@ -469,36 +472,38 @@ async function buildToolPermissions(
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     const delegated = typeof opts.agentID === 'string' && opts.agentID.length > 0
     const permissionCall = buildClaudePermissionCall(toolName, input, mountedServers, builtinRole)
-    const decision = await evaluatePermission(permissionCall, {
-      mode: normalizeLegacyPermissionMode(
-        typeof snapshot.getPermissionMode === 'function' ? snapshot.getPermissionMode() : undefined
-      ),
-      roots: { workspace: session.workspace.path, agentData: agentDataPath },
-      isDisabled: (name) => snapshot.isDisabled(name),
-      responder: delegated ? 'unavailable' : interactionState.userResponse,
-      turn:
-        delegated || interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable'
-          ? 'headless'
-          : 'interactive',
-      delegated,
-      builtinRole,
-      guardRules: CLAUDE_TOOL_GUARD_RULES,
-      guardContext: {
-        input,
-        mountedServers,
-        pluginDirectories,
-        cwd: session.workspace.path,
-        agentDataPath,
-        supportsImages
-      },
-      log: (event) => logger.error(event.message, event)
-    })
+    const decision = await evaluatePermission(
+      permissionCall,
+      buildClaudePermissionContext({
+        mode: normalizeLegacyPermissionMode(
+          typeof snapshot.getPermissionMode === 'function' ? snapshot.getPermissionMode() : undefined
+        ),
+        roots: { workspace: session.workspace.path, agentData: agentDataPath },
+        isDisabled: (name) => snapshot.isDisabled(name),
+        interaction: interactionState,
+        delegated,
+        builtinRole,
+        guardRules: CLAUDE_TOOL_GUARD_RULES,
+        guardContext: {
+          input,
+          mountedServers,
+          pluginDirectories,
+          cwd: session.workspace.path,
+          agentDataPath,
+          supportsImages
+        },
+        log: (event) => logger.error(event.message, event)
+      })
+    )
 
     // An SDK ask rule is an explicit user-authored override. Preserve it even when the product
     // matrix otherwise allows the call, but never let it turn an evaluator deny into an allow.
     const forcedAsk = decision.effect === 'allow' && opts.matchedAskRule !== undefined
     if (decision.effect === 'allow' && !forcedAsk) {
       return { behavior: 'allow', updatedInput: input }
+    }
+    if (forcedAsk && delegated) {
+      return { behavior: 'deny', message: HEADLESS_ASK_DENIAL }
     }
     if (decision.effect === 'deny') {
       return { behavior: 'deny', message: decision.reason }
@@ -507,7 +512,8 @@ async function buildToolPermissions(
       decision.effect === 'ask' &&
       !delegated &&
       interactionState.userResponse === 'message' &&
-      permissionCall.category !== 'requires-user'
+      permissionCall.category !== 'requires-user' &&
+      permissionCall.category !== 'sensitive-first-party'
     ) {
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }

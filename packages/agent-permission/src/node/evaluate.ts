@@ -95,7 +95,7 @@ function toGuardContext(call: PermissionCall, context: PermissionContext): ToolG
     pluginDirectories: inherited.pluginDirectories ?? new Map<string, string>(),
     cwd: context.roots.workspace,
     agentDataPath: context.roots.agentData,
-    interaction: {
+    interaction: context.interaction ?? {
       currentTurn: context.turn,
       userResponse: context.responder
     },

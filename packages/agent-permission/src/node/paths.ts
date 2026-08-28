@@ -12,7 +12,6 @@ const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
 
 function resolveRequestedPath(raw: string, workspace: string): string | undefined {
   let value = raw.replace(UNICODE_SPACES, ' ')
-  if (value.startsWith('@')) value = value.slice(1)
   if (value === '~') value = os.homedir()
   else if (value.startsWith('~/') || (process.platform === 'win32' && value.startsWith('~\\'))) {
     value = path.join(os.homedir(), value.slice(2))

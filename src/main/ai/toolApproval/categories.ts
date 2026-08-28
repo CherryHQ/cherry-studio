@@ -7,14 +7,10 @@ import {
   type ToolCategory
 } from '@cherrystudio/agent-permission'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
-import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
+import { classifyClaudeToolName } from '@shared/ai/claudecode/toolRules'
 
 import { findBuiltinToolPolicy } from './builtinToolPolicy'
 
-const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead'])
-const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])
-const SAFE_TOOLS = new Set(['Task', 'TodoWrite'])
-const NON_BYPASSABLE_TOOLS = new Set(['mcp__cherry-tools__session_create', 'mcp__cherry-tools__session_send'])
 const PATH_FIELDS: Record<string, string> = {
   Edit: 'file_path',
   Glob: 'path',
@@ -35,24 +31,22 @@ const CONFIG_MUTATION_ACTIONS = new Set([
 ])
 
 export function classifyClaudeTool(toolName: string, mountedServers: ReadonlySet<string>): ToolCategory {
-  if (claudeToolRequiresUserInteraction(toolName)) return 'requires-user'
-  if (NON_BYPASSABLE_TOOLS.has(toolName)) return 'non-bypassable'
   const builtin = findBuiltinToolPolicy(toolName, mountedServers)
-  if (builtin?.bypassApproval === 'enforce') return 'non-bypassable'
-  if (builtin?.approval === 'required') return 'sensitive-first-party'
-  if (builtin?.approval === 'auto') return 'safe-first-party'
-  if (READ_TOOLS.has(toolName)) return 'read'
-  if (EDIT_TOOLS.has(toolName)) return 'edit'
-  if (toolName === 'Bash') return 'shell'
-  if (SAFE_TOOLS.has(toolName)) return 'safe-first-party'
-  return 'ordinary'
+  return classifyClaudeToolName(toolName, {
+    sourceApproval: builtin?.approval === 'auto' ? 'auto' : builtin?.approval === 'required' ? 'prompt' : undefined,
+    bypassApproval: builtin?.bypassApproval
+  })
 }
 
 function extractPaths(toolName: string, input: Record<string, unknown>): readonly string[] | undefined {
   const field = PATH_FIELDS[toolName]
   if (!field) return undefined
   const raw = input[field]
-  if (raw === undefined || raw === null || raw === '') return ['.']
+  // Glob/Grep default to cwd when `path` is omitted. Other file tools must let the SDK reject a
+  // missing or malformed path instead of accidentally authorizing the workspace root.
+  if (raw === undefined || raw === null || raw === '') return toolName === 'Glob' || toolName === 'Grep' ? ['.'] : []
+  // A non-string path is deliberately represented as an empty fact, which makes the evaluator ask
+  // rather than treating malformed input as an omitted path.
   return typeof raw === 'string' ? [raw] : []
 }
 

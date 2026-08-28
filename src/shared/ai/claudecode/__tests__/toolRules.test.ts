@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildClaudeMcpToolName,
   classifyClaudeTool,
+  classifyClaudeToolName,
   claudeToolApproval,
   type ClaudeToolDescriptor,
   matchesClaudeToolRule
@@ -47,6 +48,10 @@ describe('Claude Code tool rules', () => {
     expect(classifyClaudeTool(descriptor('AskUserQuestion'))).toBe('requires-user')
     expect(classifyClaudeTool(descriptor('Task'))).toBe('safe-first-party')
     expect(classifyClaudeTool(webSearch)).toBe('ordinary')
+    expect(classifyClaudeToolName('mcp__cherry-tools__session_send', { bypassApproval: 'enforce' })).toBe(
+      'non-bypassable'
+    )
+    expect(classifyClaudeToolName('EnterPlanMode')).toBe('requires-user')
   })
 
   it('derives SDK catalog approvals without Bash prefix exceptions', () => {

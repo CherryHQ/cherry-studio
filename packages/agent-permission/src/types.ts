@@ -1,6 +1,6 @@
 /** Shared, runtime-neutral permission vocabulary and evaluator contracts. */
 
-import type { ToolGuardRule } from './toolGuards'
+import type { ToolGuardInteractionState, ToolGuardRule } from './toolGuards'
 
 export const AGENT_PERMISSION_MODES = ['default', 'edit', 'auto', 'full'] as const
 export type AgentPermissionMode = (typeof AGENT_PERMISSION_MODES)[number]
@@ -47,6 +47,8 @@ export interface PermissionContext {
   responder: 'stream' | 'message' | 'unavailable'
   turn: 'interactive' | 'headless'
   delegated: boolean
+  /** Full interaction facts for runtime-local predicates; `turn` is the evaluator's coarse view. */
+  interaction?: ToolGuardInteractionState
   builtinRole?: string
   /** Runtime-local rules. Their functions never cross a subprocess boundary. */
   guardRules?: readonly ToolGuardRule[]
