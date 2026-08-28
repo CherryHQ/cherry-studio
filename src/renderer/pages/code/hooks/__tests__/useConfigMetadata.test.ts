@@ -57,6 +57,9 @@ const disabledProvider = {
   authMethods: ['api-key']
 } as unknown as Provider
 
+const enabledProvider = (id: string) =>
+  ({ id, name: id, isEnabled: true, authMethods: ['api-key'] }) as unknown as Provider
+
 const makeModel = (providerId: string, modelId: string, capabilities: string[] = []): Model =>
   ({ id: `${providerId}::${modelId}`, providerId, capabilities }) as unknown as Model
 
@@ -120,7 +123,9 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   it('keeps a chat model of ANY enabled provider regardless of the CLI tool (cross-protocol routing)', () => {
     // Claude Code tool, but a non-Anthropic (OpenAI-style) model must still pass:
     // the gateway does dialect conversion, so the per-tool/provider scope is dropped.
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() =>
+      useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider('deepseek'), enabledProvider('openai')])
+    )
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('deepseek', 'deepseek-chat'))).toBe(true)
@@ -128,7 +133,9 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes embedding / rerank / image-generation models (the gateway cannot chat-route them)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() =>
+      useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider('openai'), enabledProvider('jina')])
+    )
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('openai', 'text-embedding-3', [MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
@@ -137,7 +144,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes the CherryAI managed default model (not routable through the gateway)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider(CHERRYAI_PROVIDER_ID)]))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID))).toBe(false)
@@ -149,7 +156,13 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   // non-chat class is excluded — not just embedding/rerank/text-to-image (audio/video generation
   // and transcription models would reach the chat runtime and fail).
   it('excludes non-chat audio/video generation and transcription models', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() =>
+      useConfigMetadata(CodeCli.CLAUDE_CODE, [
+        enabledProvider('elevenlabs'),
+        enabledProvider('openai'),
+        enabledProvider('kling')
+      ])
+    )
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('elevenlabs', 'eleven-tts', [MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(false)
@@ -158,7 +171,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes models of a provider id containing ":" (cannot round-trip the gateway address)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider('corp:west')]))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('corp:west', 'gpt-4o'))).toBe(false)

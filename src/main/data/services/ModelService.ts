@@ -10,6 +10,7 @@
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -34,7 +35,8 @@ import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/da
 import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID,
-  isManagedCherryAiDefaultModel
+  isManagedCherryAiDefaultModel,
+  isManagedCherryCloudModel
 } from '@shared/data/presets/cherryai'
 import type {
   EndpointType,
@@ -121,6 +123,11 @@ function assertProvidersAvailable(providerIds: Iterable<string>): void {
   for (const providerId of new Set(providerIds)) {
     providerService.assertAvailable(providerId)
   }
+}
+
+function assertProviderModelsAreUserManaged(providerId: string, operation: string): void {
+  if (!isManagedCherryCloudModel(providerId)) return
+  throw DataApiErrorFactory.invalidOperation(operation, 'externally managed provider models cannot be modified')
 }
 
 /**
@@ -224,6 +231,27 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
 export interface CreateModelInput {
   dto: CreateModelDto
   registryData?: CreateModelRegistryData
+}
+
+export interface ManagedModelReconcilePayload {
+  toAdd: Array<Omit<CreateModelDto, 'providerId'>>
+  toUpdate: Array<{ modelId: string; patch: UpdateModelDto }>
+  toRemove: string[]
+}
+
+export interface ManagedModelWriter {
+  reconcile(payload: ManagedModelReconcilePayload): Model[]
+}
+
+interface ProviderModelReconcilePayload {
+  toAdd: CreateModelInput[]
+  toUpdate: Array<{ modelId: string; patch: UpdateModelDto }>
+  toRemove: string[]
+}
+
+interface ProviderModelReconcileResult {
+  models: Model[]
+  deletedIds: string[]
 }
 
 type NewUserModelInput = Omit<InsertUserModelRow, 'orderKey'>
@@ -890,6 +918,7 @@ class ModelService {
     if (items.length === 0) return []
     assertProvidersAvailable(items.map(({ dto }) => dto.providerId))
     for (const { dto } of items) {
+      assertProviderModelsAreUserManaged(dto.providerId, `create model ${dto.providerId}/${dto.modelId}`)
       assertManagedCherryAiDefaultModelMutationAllowed(
         dto.providerId,
         dto.modelId,
@@ -948,6 +977,7 @@ class ModelService {
    */
   update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
     providerService.assertAvailable(providerId)
+    assertProviderModelsAreUserManaged(providerId, `update model ${providerId}/${modelId}`)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
@@ -1000,6 +1030,7 @@ class ModelService {
     const db = application.get('DbService').getDb()
 
     for (const { providerId, modelId, patch } of items) {
+      assertProviderModelsAreUserManaged(providerId, `update model ${providerId}/${modelId}`)
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
     }
 
@@ -1057,61 +1088,20 @@ class ModelService {
    */
   reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
     providerService.assertAvailable(providerId)
+    assertProviderModelsAreUserManaged(providerId, `reconcile models for provider ${providerId}`)
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
 
     const db = application.get('DbService').getDb()
-    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const removalFilter = this.filterReconcileRemovals(providerId, payload.toRemove, db)
     const toRemove = removalFilter.toRemove
-
-    let actuallyDeleted = 0
-    const deletedIds: string[] = []
-    const rows = withSqliteErrors(
-      () =>
-        db.transaction((tx) => {
-          if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
-              const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
-              const deletedRows = tx
-                .delete(userModelTable)
-                .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
-                .returning({ id: userModelTable.id })
-                .all()
-              actuallyDeleted += deletedRows.length
-              deletedIds.push(...deletedRows.map((row) => row.id))
-
-              if (deletedRows.length > 0) {
-                pinService.purgeForEntitiesTx(
-                  tx,
-                  'model',
-                  deletedRows.map((row) => row.id)
-                )
-              }
-            }
-          }
-
-          if (values.length > 0) {
-            // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
-            const INSERT_CHUNK_SIZE = 500
-            for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
-              insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
-                pkColumn: userModelTable.id,
-                scope: eq(userModelTable.providerId, providerId)
-              })
-            }
-          }
-
-          return tx
-            .select()
-            .from(userModelTable)
-            .where(eq(userModelTable.providerId, providerId))
-            .orderBy(asc(userModelTable.orderKey))
-            .all() as UserModelRow[]
-        }),
-      createModelsSqliteHandlers(values)
-    )
+    const result = this.applyProviderModelReconcile(providerId, {
+      toAdd: payload.toAdd,
+      toUpdate: [],
+      toRemove
+    })
+    const actuallyDeleted = result.deletedIds.length
 
     if (actuallyDeleted < toRemove.length) {
       // Stale renderer state — caller's toRemove referenced IDs that no longer
@@ -1126,9 +1116,7 @@ class ModelService {
       })
     }
 
-    if (actuallyDeleted > 0) pinService.notifyPurged()
-
-    const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
+    const deletedPresetBackedIds = result.deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
     if (deletedPresetBackedIds.length > 0) {
       logger.info('Deleted preset-backed models during reconcile', {
         providerId,
@@ -1139,11 +1127,110 @@ class ModelService {
 
     logger.info('Reconciled provider models', {
       providerId,
-      added: values.length,
+      added: payload.toAdd.length,
       removed: actuallyDeleted
     })
 
-    return this.enrichRowsFromRegistry(rows)
+    return result.models
+  }
+
+  createManagedWriter(providerId: string): ManagedModelWriter {
+    if (!isManagedCherryCloudModel(providerId)) {
+      throw DataApiErrorFactory.invalidOperation(
+        `create managed model writer for ${providerId}`,
+        'provider models are not externally managed'
+      )
+    }
+
+    return Object.freeze({
+      reconcile: (payload: ManagedModelReconcilePayload): Model[] => {
+        if (payload.toAdd.length === 0 && payload.toUpdate.length === 0 && payload.toRemove.length === 0) {
+          return this.list({ providerId })
+        }
+
+        const result = this.applyProviderModelReconcile(providerId, {
+          toAdd: payload.toAdd.map((dto) => ({ dto: { ...dto, providerId } })),
+          toUpdate: payload.toUpdate,
+          toRemove: payload.toRemove.map((modelId) => createUniqueModelId(providerId, modelId))
+        })
+        notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
+        logger.info('Reconciled externally managed provider models', {
+          providerId,
+          added: payload.toAdd.length,
+          updated: payload.toUpdate.length,
+          removed: result.deletedIds.length
+        })
+        return result.models
+      }
+    })
+  }
+
+  private applyProviderModelReconcile(
+    providerId: string,
+    payload: ProviderModelReconcilePayload
+  ): ProviderModelReconcileResult {
+    const dbService = application.get('DbService')
+    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const deletedIds: string[] = []
+    const rows = withSqliteErrors(
+      () =>
+        dbService.withWriteTx((tx) => {
+          for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+            const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            const deletedRows = tx
+              .delete(userModelTable)
+              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+              .returning({ id: userModelTable.id })
+              .all()
+            deletedIds.push(...deletedRows.map((row) => row.id))
+            if (deletedRows.length > 0) {
+              pinService.purgeForEntitiesTx(
+                tx,
+                'model',
+                deletedRows.map((row) => row.id)
+              )
+            }
+          }
+
+          for (const { modelId, patch } of payload.toUpdate) {
+            const [existing] = tx
+              .select()
+              .from(userModelTable)
+              .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+              .limit(1)
+              .all()
+            if (!existing) throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+
+            const updates = this.buildUpdates(existing, patch)
+            if (Object.keys(updates).length > 0) {
+              tx.update(userModelTable)
+                .set(updates)
+                .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+                .run()
+            }
+          }
+
+          // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
+          const INSERT_CHUNK_SIZE = 500
+          for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
+            insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })
+          }
+
+          return tx
+            .select()
+            .from(userModelTable)
+            .where(eq(userModelTable.providerId, providerId))
+            .orderBy(asc(userModelTable.orderKey))
+            .all() as UserModelRow[]
+        }),
+      createModelsSqliteHandlers(values)
+    )
+
+    if (deletedIds.length > 0) pinService.notifyPurged()
+    return { models: this.enrichRowsFromRegistry(rows), deletedIds }
   }
 
   /**
@@ -1151,6 +1238,7 @@ class ModelService {
    */
   delete(providerId: string, modelId: string): void {
     providerService.assertAvailable(providerId)
+    assertProviderModelsAreUserManaged(providerId, `delete model ${providerId}/${modelId}`)
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     const uniqueModelId = createUniqueModelId(providerId, modelId)
@@ -1188,6 +1276,7 @@ class ModelService {
     const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
 
     for (const item of items) {
+      assertProviderModelsAreUserManaged(item.providerId, `delete model ${item.providerId}/${item.modelId}`)
       assertManagedCherryAiDefaultModelMutationAllowed(
         item.providerId,
         item.modelId,
@@ -1249,4 +1338,10 @@ class ModelService {
   }
 }
 
-export const modelService = new ModelService()
+const modelServiceImplementation = new ModelService()
+
+export const modelService: Omit<ModelService, 'createManagedWriter'> = modelServiceImplementation
+
+export function createManagedModelWriter(providerId: string): ManagedModelWriter {
+  return modelServiceImplementation.createManagedWriter(providerId)
+}

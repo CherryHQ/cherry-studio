@@ -2,7 +2,7 @@ import { Button, InfoTooltip, Input, PageSidePanel, Switch, Tooltip } from '@che
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -19,6 +19,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { toast } from '@renderer/services/toast'
+import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
@@ -48,7 +49,7 @@ interface ModelSettingsProps {
   showDescription?: boolean
   showDividers?: boolean
   showPaintingModel?: boolean
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
   autoFillEmptyModels?: boolean
   onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
@@ -157,9 +158,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
 
-  const chatModelFilter = useCallback(
-    (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
+  const chatModelFilter = useCallback<ModelSelectorFilter>(
+    (model, provider) =>
+      isModelVisibleOutsideAgent(model, provider) && !isNonChatModel(model) && (modelFilter?.(model, provider) ?? true),
     [modelFilter]
+  )
+  const paintingModelFilter = useCallback<ModelSelectorFilter>(
+    (model, provider) => isModelVisibleOutsideAgent(model, provider) && isGenerateImageModel(model),
+    []
   )
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
@@ -336,7 +342,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 <DefaultModelSelector
                   model={paintingModel}
                   providers={providers}
-                  filter={isGenerateImageModel}
+                  filter={paintingModelFilter}
                   compact={compact}
                   onSelect={onSelectPainting}
                   placeholder={t('settings.models.empty')}

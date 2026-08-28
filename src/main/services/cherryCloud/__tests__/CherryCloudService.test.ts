@@ -9,25 +9,18 @@ const mocks = vi.hoisted(() => ({
     port: 49152,
     setExpiresAt: vi.fn()
   },
-  modelBulkDelete: vi.fn(),
-  modelBulkUpdate: vi.fn(),
-  modelCreate: vi.fn(),
   modelList: vi.fn(),
+  modelReconcile: vi.fn(),
   netFetch: vi.fn(),
-  notifyDataChange: vi.fn(),
   openExternal: vi.fn(),
   savedSession: null as Record<string, unknown> | null,
   sessionClear: vi.fn(),
   sessionReplace: vi.fn()
 }))
 
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notifyDataChange }))
-
 vi.mock('@data/services/ModelService', () => ({
+  createManagedModelWriter: () => ({ reconcile: mocks.modelReconcile }),
   modelService: {
-    bulkDelete: mocks.modelBulkDelete,
-    bulkUpdate: mocks.modelBulkUpdate,
-    create: mocks.modelCreate,
     list: mocks.modelList
   }
 }))
@@ -107,11 +100,24 @@ const accountSnapshot = {
 }
 const cloudModelCatalog = {
   data: [
-    { id: 'deepseek-free', display_name: 'DeepSeek Free', context_window: 128_000, max_output_tokens: 8_192 },
-    { id: 'deepseek-go', display_name: 'DeepSeek GO', context_window: 256_000, max_output_tokens: 16_384 },
+    {
+      id: 'deepseek-free',
+      display_name: 'DeepSeek Free',
+      endpoint_type: 'anthropic-messages',
+      context_window: 128_000,
+      max_output_tokens: 8_192
+    },
+    {
+      id: 'deepseek-go',
+      display_name: 'DeepSeek GO',
+      endpoint_type: 'anthropic-messages',
+      context_window: 256_000,
+      max_output_tokens: 16_384
+    },
     {
       id: 'deepseek-inactive',
       display_name: 'DeepSeek Inactive',
+      endpoint_type: 'anthropic-messages',
       context_window: 64_000,
       max_output_tokens: 4_096
     }
@@ -194,10 +200,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
   await service['syncEntitledModels']()
   mocks.netFetch.mockReset()
   mocks.broadcast.mockClear()
-  mocks.modelCreate.mockClear()
-  mocks.modelBulkDelete.mockClear()
-  mocks.modelBulkUpdate.mockClear()
-  mocks.notifyDataChange.mockClear()
+  mocks.modelReconcile.mockClear()
   return service
 }
 
@@ -208,9 +211,7 @@ describe('CherryCloudService', () => {
     mocks.appIsPackaged = false
     mocks.savedSession = null
     mocks.modelList.mockReturnValue([])
-    mocks.modelCreate.mockReturnValue([])
-    mocks.modelBulkDelete.mockReturnValue(undefined)
-    mocks.modelBulkUpdate.mockReturnValue([])
+    mocks.modelReconcile.mockReturnValue([])
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
   })
@@ -661,8 +662,8 @@ describe('CherryCloudService', () => {
     const service = await createSignedInService()
     mocks.modelList.mockReturnValue([
       {
-        id: 'cherry-cloud::old-free',
-        providerId: 'cherry-cloud',
+        id: 'cherryai-subscription::old-free',
+        providerId: 'cherryai-subscription',
         apiModelId: 'old-free',
         name: 'Old Free',
         group: 'Cherry Cloud'
@@ -681,34 +682,32 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
-      entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
-      quotaExhaustedModelIds: ['cherry-cloud::deepseek-free']
+      entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
+      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
     })
 
-    expect(mocks.modelCreate).toHaveBeenCalledWith([
-      {
-        dto: expect.objectContaining({
-          providerId: 'cherry-cloud',
+    expect(mocks.modelReconcile).toHaveBeenCalledWith({
+      toAdd: [
+        expect.objectContaining({
           modelId: 'deepseek-free',
           name: 'DeepSeek Free',
           group: 'Cherry Cloud',
+          endpointTypes: ['anthropic-messages'],
           contextWindow: 128_000,
           maxOutputTokens: 8_192
-        })
-      },
-      {
-        dto: expect.objectContaining({
-          providerId: 'cherry-cloud',
+        }),
+        expect.objectContaining({
           modelId: 'deepseek-go',
           name: 'DeepSeek GO',
           group: 'Cherry Cloud',
+          endpointTypes: ['anthropic-messages'],
           contextWindow: 256_000,
           maxOutputTokens: 16_384
         })
-      }
-    ])
-    expect(mocks.modelBulkDelete).toHaveBeenCalledWith([{ providerId: 'cherry-cloud', modelId: 'old-free' }])
-    expect(mocks.notifyDataChange).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
+      ],
+      toUpdate: [],
+      toRemove: ['old-free']
+    })
 
     for (const [, init] of mocks.netFetch.mock.calls) {
       const headers = new Headers(init.headers)
@@ -716,6 +715,45 @@ describe('CherryCloudService', () => {
       expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
       expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
     }
+  })
+
+  it('rejects a model catalog that omits endpoint_type', async () => {
+    const service = await createSignedInService()
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(accountSnapshot)).mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          { id: 'deepseek-free', display_name: 'DeepSeek Free', context_window: 128_000, max_output_tokens: 8_192 }
+        ]
+      })
+    )
+
+    await expect(service['syncEntitledModels']()).rejects.toThrow(/endpoint_type/)
+    expect(mocks.modelReconcile).not.toHaveBeenCalled()
+  })
+
+  it('persists the endpoint_type selected by the server', async () => {
+    const service = await createSignedInService()
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(accountSnapshot)).mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          {
+            id: 'deepseek-free',
+            display_name: 'DeepSeek Free',
+            endpoint_type: 'openai-responses',
+            context_window: 128_000,
+            max_output_tokens: 8_192
+          }
+        ]
+      })
+    )
+
+    await service['syncEntitledModels']()
+
+    expect(mocks.modelReconcile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toAdd: [expect.objectContaining({ modelId: 'deepseek-free', endpointTypes: ['openai-responses'] })]
+      })
+    )
   })
 
   it('reuses a recent model snapshot when the selector opens repeatedly', async () => {
@@ -754,8 +792,8 @@ describe('CherryCloudService', () => {
         .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
       await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
-        entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
-        quotaExhaustedModelIds: ['cherry-cloud::deepseek-free']
+        entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
+        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {
@@ -817,16 +855,18 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
-      entitledModelIds: ['cherry-cloud::deepseek-free', 'cherry-cloud::deepseek-go'],
+      entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
       quotaExhaustedModelIds: []
     })
 
-    expect(mocks.modelList).toHaveBeenLastCalledWith({ providerId: 'cherry-cloud' })
-    expect(mocks.modelCreate).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        { dto: expect.objectContaining({ providerId: 'cherry-cloud', modelId: 'deepseek-free' }) },
-        { dto: expect.objectContaining({ providerId: 'cherry-cloud', modelId: 'deepseek-go' }) }
-      ])
+    expect(mocks.modelList).toHaveBeenLastCalledWith({ providerId: 'cherryai-subscription' })
+    expect(mocks.modelReconcile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toAdd: expect.arrayContaining([
+          expect.objectContaining({ modelId: 'deepseek-free' }),
+          expect.objectContaining({ modelId: 'deepseek-go' })
+        ])
+      })
     )
   })
 
@@ -848,7 +888,7 @@ describe('CherryCloudService', () => {
     catalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
     await syncFailure
-    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelReconcile).not.toHaveBeenCalled()
   })
 
   it('starts a new model sync when the account changes during an older sync', async () => {
@@ -883,8 +923,10 @@ describe('CherryCloudService', () => {
     oldCatalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
     await oldSyncFailure
-    expect(mocks.modelCreate).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ dto: expect.objectContaining({ modelId: 'deepseek-free' }) })])
+    expect(mocks.modelReconcile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toAdd: expect.arrayContaining([expect.objectContaining({ modelId: 'deepseek-free' })])
+      })
     )
   })
 
@@ -1163,6 +1205,32 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession).toBeNull()
   })
 
+  it('attempts remote Product Session revocation when managed model cleanup fails', async () => {
+    const service = await createSignedInService()
+    mocks.modelList.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-free',
+        name: 'DeepSeek Free',
+        group: 'Cherry Cloud',
+        isEnabled: true
+      }
+    ])
+    mocks.modelReconcile.mockImplementationOnce(() => {
+      throw new Error('database is read-only')
+    })
+    mocks.netFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+
+    expect(mocks.savedSession).toBeNull()
+    expect(mocks.netFetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:8084/api/v1/product-sessions/current',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+  })
+
   it('times out remote Product Session revocation and clears the local login', async () => {
     const service = await createSignedInService()
     const timeoutController = new AbortController()
@@ -1193,8 +1261,8 @@ describe('CherryCloudService', () => {
     const service = await createSignedInService()
     mocks.modelList.mockReturnValue([
       {
-        id: 'cherry-cloud::deepseek-free',
-        providerId: 'cherry-cloud',
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
         apiModelId: 'deepseek-free',
         name: 'DeepSeek Free',
         group: 'Cherry Cloud',
@@ -1209,7 +1277,7 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     expect(mocks.savedSession).not.toBeNull()
-    expect(mocks.modelBulkDelete).not.toHaveBeenCalled()
+    expect(mocks.modelReconcile).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
     expect(mocks.netFetch).not.toHaveBeenCalled()
   })
@@ -1218,22 +1286,20 @@ describe('CherryCloudService', () => {
     const service = await createSignedInService()
     mocks.modelList.mockReturnValue([
       {
-        id: 'cherry-cloud::deepseek-free',
-        providerId: 'cherry-cloud',
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
         apiModelId: 'deepseek-free',
         name: 'DeepSeek Free',
         group: 'Cherry Cloud',
         isEnabled: true
       }
     ])
-    mocks.modelBulkDelete.mockImplementationOnce(() => {
+    mocks.modelReconcile.mockImplementationOnce(() => {
       throw new Error('database is read-only')
     })
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({}, 401))
 
-    await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).rejects.toThrow(
-      'database is read-only'
-    )
+    await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(mocks.broadcast).toHaveBeenLastCalledWith('cherry_cloud.status_changed', {
@@ -1264,15 +1330,15 @@ describe('CherryCloudService', () => {
       await service['syncEntitledModels']()
       mocks.modelList.mockReturnValue([
         {
-          id: 'cherry-cloud::deepseek-free',
-          providerId: 'cherry-cloud',
+          id: 'cherryai-subscription::deepseek-free',
+          providerId: 'cherryai-subscription',
           apiModelId: 'deepseek-free',
           name: 'DeepSeek Free',
           group: 'Cherry Cloud',
           isEnabled: true
         }
       ])
-      mocks.modelBulkDelete.mockClear()
+      mocks.modelReconcile.mockClear()
 
       await vi.advanceTimersByTimeAsync(5_000)
       await Promise.resolve()
@@ -1285,7 +1351,11 @@ describe('CherryCloudService', () => {
       })
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(mocks.savedSession).toBeNull()
-      expect(mocks.modelBulkDelete).toHaveBeenCalledWith([{ providerId: 'cherry-cloud', modelId: 'deepseek-free' }])
+      expect(mocks.modelReconcile).toHaveBeenCalledWith({
+        toAdd: [],
+        toUpdate: [],
+        toRemove: ['deepseek-free']
+      })
     } finally {
       vi.useRealTimers()
     }

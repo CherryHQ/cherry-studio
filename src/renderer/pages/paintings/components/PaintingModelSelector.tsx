@@ -1,9 +1,10 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { first } from 'es-toolkit/compat'
@@ -15,6 +16,9 @@ import { useTranslation } from 'react-i18next'
 import type { PaintingData } from '../model/types/paintingData'
 import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
 import PaintingSectionTitle from './PaintingSectionTitle'
+
+const paintingModelFilter: ModelSelectorFilter = (model, provider) =>
+  isModelVisibleOutsideAgent(model, provider) && supportsImageGenerationEndpoint(model)
 
 interface PaintingModelSelectorProps {
   className?: string
@@ -81,7 +85,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
           onSelect({ providerId, modelId })
         }}
-        filter={supportsImageGenerationEndpoint}
+        filter={paintingModelFilter}
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}

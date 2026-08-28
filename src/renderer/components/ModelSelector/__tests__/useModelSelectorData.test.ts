@@ -1,7 +1,5 @@
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,10 +10,6 @@ import { useModelSelectorData } from '../useModelSelectorData'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
-
-vi.mock('swr', () => ({
-  default: () => ({ data: { entitledModelIds: [], quotaExhaustedModelIds: [] } })
-}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -280,59 +274,20 @@ describe('useModelSelectorData', () => {
     expect([...result.current.visibleSelectedModelIdSet]).toEqual(['openai::gpt-4'])
   })
 
-  it('hides agent-only providers generally and includes them for a marked agent filter', () => {
+  it('leaves provider visibility entirely to the caller filter', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],
       models: [makeModel('gpt-4', 'openai'), makeModel('claude-sonnet', 'claude-code')]
     })
 
-    const general = renderHook(() => useModelSelectorData({ searchText: '' }))
-    expect(general.result.current.modelItems.map((item) => item.modelId)).toEqual(['openai::gpt-4'])
-    general.unmount()
-
-    const agentFilter = renderHook(() => useAgentModelFilter('claude-code'))
-    const agent = renderHook(() => useModelSelectorData({ searchText: '', filter: agentFilter.result.current }))
-
-    expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
-      'claude-code::claude-sonnet',
-      'openai::gpt-4'
-    ])
-  })
-
-  it('shows Cherry Cloud models only in agent selectors', () => {
-    wireDeps({
-      providers: [
-        makeProvider(CHERRYAI_PROVIDER_ID, { name: 'CherryAI' }),
-        makeProvider(CHERRY_CLOUD_PROVIDER_ID, { name: 'CherryAI', presetProviderId: CHERRYAI_PROVIDER_ID })
-      ],
-      models: [
-        makeModel('qwen', CHERRYAI_PROVIDER_ID, { group: 'Qwen' }),
-        makeModel('deepseek-free', CHERRY_CLOUD_PROVIDER_ID, {
-          group: CHERRY_CLOUD_MODEL_GROUP,
-          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-          contextWindow: 128_000
-        })
-      ]
-    })
-
-    const general = renderHook(() => useModelSelectorData({ searchText: '' }))
-    expect(general.result.current.modelItems.map((item) => item.modelId)).toEqual(['cherryai::qwen'])
-    general.unmount()
-
-    for (const agentType of ['claude-code', 'pi', 'dsh'] as const) {
-      const agentFilter = renderHook(() => useAgentModelFilter(agentType))
-      const agent = renderHook(() => useModelSelectorData({ searchText: '', filter: agentFilter.result.current }))
-
-      expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
-        'cherry-cloud::deepseek-free'
-      ])
-      expect(agent.result.current.listItems.find((item) => item.key === 'provider-cherry-cloud')).toMatchObject({
-        title: 'CherryAI',
-        canNavigateToSettings: false
+    const { result } = renderHook(() =>
+      useModelSelectorData({
+        searchText: '',
+        filter: (_model, provider) => provider?.authMethods?.includes('external-cli') ?? false
       })
-      agent.unmount()
-      agentFilter.unmount()
-    }
+    )
+
+    expect(result.current.modelItems.map((item) => item.modelId)).toEqual(['claude-code::claude-sonnet'])
   })
 
   it('applies the caller filter before deriving available tags', () => {

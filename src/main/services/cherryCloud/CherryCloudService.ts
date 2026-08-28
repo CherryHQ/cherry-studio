@@ -1,11 +1,15 @@
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { cherryCloudSessionService } from '@data/services/CherryCloudSessionService'
-import { modelService } from '@data/services/ModelService'
+import { createManagedModelWriter, modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, ENDPOINT_TYPE, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  type EndpointType,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
@@ -26,6 +30,7 @@ const PRODUCTION_API_ORIGIN = 'https://cloud.cherryai.com.cn'
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
+const cherryCloudModelWriter = createManagedModelWriter(CHERRY_CLOUD_PROVIDER_ID)
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
 type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
@@ -566,15 +571,21 @@ export class CherryCloudService extends BaseService {
   }
 
   private reconcileEntitledModels(
-    models: Array<{ id: string; display_name: string; context_window: number; max_output_tokens: number }>
+    models: Array<{
+      id: string
+      display_name: string
+      endpoint_type: EndpointType
+      context_window: number
+      max_output_tokens: number
+    }>
   ): void {
     const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
     const remoteByModelId = new Map(models.map((model) => [model.id, model]))
     const missing = models.filter((model) => !currentByModelId.has(model.id))
     const removed = current
-      .map((model) => ({ providerId: CHERRY_CLOUD_PROVIDER_ID, modelId: parseUniqueModelId(model.id).modelId }))
-      .filter(({ modelId }) => !remoteByModelId.has(modelId))
+      .map((model) => parseUniqueModelId(model.id).modelId)
+      .filter((modelId) => !remoteByModelId.has(modelId))
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
       const remote = remoteByModelId.get(modelId)
@@ -583,7 +594,7 @@ export class CherryCloudService extends BaseService {
         model.name === remote.display_name &&
         model.group === CHERRY_CLOUD_MODEL_GROUP &&
         model.endpointTypes?.length === 1 &&
-        model.endpointTypes[0] === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+        model.endpointTypes[0] === remote.endpoint_type &&
         model.contextWindow === remote.context_window &&
         model.maxOutputTokens === remote.max_output_tokens &&
         model.supportsStreaming &&
@@ -593,12 +604,11 @@ export class CherryCloudService extends BaseService {
       }
       return [
         {
-          providerId: CHERRY_CLOUD_PROVIDER_ID,
           modelId,
           patch: {
             name: remote.display_name,
             group: CHERRY_CLOUD_MODEL_GROUP,
-            endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            endpointTypes: [remote.endpoint_type],
             contextWindow: remote.context_window,
             maxOutputTokens: remote.max_output_tokens,
             supportsStreaming: true,
@@ -608,26 +618,20 @@ export class CherryCloudService extends BaseService {
       ]
     })
 
-    if (missing.length > 0) {
-      modelService.create(
-        missing.map((model) => ({
-          dto: {
-            providerId: CHERRY_CLOUD_PROVIDER_ID,
-            modelId: model.id,
-            name: model.display_name,
-            group: CHERRY_CLOUD_MODEL_GROUP,
-            endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-            contextWindow: model.context_window,
-            maxOutputTokens: model.max_output_tokens,
-            supportsStreaming: true
-          }
-        }))
-      )
-    }
-    if (updates.length > 0) modelService.bulkUpdate(updates)
-    if (removed.length > 0) modelService.bulkDelete(removed)
     if (missing.length > 0 || updates.length > 0 || removed.length > 0) {
-      notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
+      cherryCloudModelWriter.reconcile({
+        toAdd: missing.map((model) => ({
+          modelId: model.id,
+          name: model.display_name,
+          group: CHERRY_CLOUD_MODEL_GROUP,
+          endpointTypes: [model.endpoint_type],
+          contextWindow: model.context_window,
+          maxOutputTokens: model.max_output_tokens,
+          supportsStreaming: true
+        })),
+        toUpdate: updates,
+        toRemove: removed
+      })
     }
   }
 
@@ -783,18 +787,20 @@ export class CherryCloudService extends BaseService {
   }
 
   private finishSessionCleanup(): void {
-    let cleanupError: unknown
     try {
       this.reconcileEntitledModels([])
     } catch (error) {
-      cleanupError ??= error
+      logger.warn('Cherry Cloud managed model cleanup failed after Session removal', {
+        reason: error instanceof Error ? error.message : String(error)
+      })
     }
     try {
       this.emitStatus()
     } catch (error) {
-      cleanupError ??= error
+      logger.warn('Cherry Cloud status broadcast failed after Session removal', {
+        reason: error instanceof Error ? error.message : String(error)
+      })
     }
-    if (cleanupError) throw cleanupError
   }
 
   private resolveRequestUrl(path: string): URL {

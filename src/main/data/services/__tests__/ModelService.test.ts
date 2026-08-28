@@ -7,13 +7,14 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
+import { createManagedModelWriter, modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
+  CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_MODEL_ID,
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
@@ -2661,5 +2662,102 @@ describe('ModelService.reconcileForProvider', () => {
       skippedIds: [modelId]
     })
     warnSpy.mockRestore()
+  })
+})
+
+describe('managed provider model mutations', () => {
+  const dbh = setupTestDatabase()
+  const managedModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'managed-model')
+
+  beforeEach(async () => {
+    notifyDataApiDataChangeMock.mockClear()
+    await dbh.db.insert(userProviderTable).values(providerRow(CHERRY_CLOUD_PROVIDER_ID, 'CherryAI Subscription'))
+    await dbh.db.insert(userModelTable).values(modelRow(CHERRY_CLOUD_PROVIDER_ID, 'managed-model'))
+  })
+
+  it.each([
+    [
+      'create',
+      () =>
+        modelService.create([
+          {
+            dto: { providerId: CHERRY_CLOUD_PROVIDER_ID, modelId: 'new-model' }
+          }
+        ])
+    ],
+    ['update', () => modelService.update(CHERRY_CLOUD_PROVIDER_ID, 'managed-model', { name: 'Changed' })],
+    [
+      'bulk update',
+      () =>
+        modelService.bulkUpdate([
+          { providerId: CHERRY_CLOUD_PROVIDER_ID, modelId: 'managed-model', patch: { name: 'Changed' } }
+        ])
+    ],
+    ['delete', () => modelService.delete(CHERRY_CLOUD_PROVIDER_ID, 'managed-model')],
+    [
+      'bulk delete',
+      () => modelService.bulkDelete([{ providerId: CHERRY_CLOUD_PROVIDER_ID, modelId: 'managed-model' }])
+    ],
+    [
+      'provider reconcile',
+      () => modelService.reconcileForProvider(CHERRY_CLOUD_PROVIDER_ID, { toAdd: [], toRemove: [managedModelId] })
+    ]
+  ] satisfies Array<[string, () => unknown]>)('rejects %s through the generic service contract', (_label, mutate) => {
+    expect(mutate).toThrowError(expect.objectContaining({ code: ErrorCode.INVALID_OPERATION }))
+  })
+
+  it('binds a managed writer to one provider and applies its diff atomically', async () => {
+    const updateId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'update-me')
+    const removeId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'remove-me')
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow(CHERRY_CLOUD_PROVIDER_ID, 'update-me', { name: 'Before' }),
+        modelRow(CHERRY_CLOUD_PROVIDER_ID, 'remove-me')
+      ])
+    pinService.pin({ entityType: 'model', entityId: removeId })
+
+    const writer = createManagedModelWriter(CHERRY_CLOUD_PROVIDER_ID)
+    writer.reconcile({
+      toAdd: [{ modelId: 'add-me', name: 'Added' }],
+      toUpdate: [{ modelId: 'update-me', patch: { name: 'After' } }],
+      toRemove: ['remove-me']
+    })
+
+    const rows = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
+    expect(rows.map((row) => row.modelId).sort()).toEqual(['add-me', 'managed-model', 'update-me'])
+    expect(rows.find((row) => row.id === updateId)?.name).toBe('After')
+    expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, removeId))).toHaveLength(0)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
+    expect(
+      notifyDataApiDataChangeMock.mock.calls.filter(([effects]) =>
+        effects.some((effect: { endpoint: string }) => effect.endpoint === '/models')
+      )
+    ).toHaveLength(1)
+  })
+
+  it('rolls back earlier managed changes when a later write fails', async () => {
+    const writer = createManagedModelWriter(CHERRY_CLOUD_PROVIDER_ID)
+
+    expect(() =>
+      writer.reconcile({
+        toAdd: [{ modelId: 'managed-model', name: 'Duplicate' }],
+        toUpdate: [{ modelId: 'managed-model', patch: { name: 'Must Roll Back' } }],
+        toRemove: []
+      })
+    ).toThrow()
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, managedModelId))
+    expect(row.name).toBe('managed-model')
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('does not issue managed writers for ordinary providers', () => {
+    expect(() => createManagedModelWriter('openai')).toThrowError(
+      expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
+    )
   })
 })

@@ -4,6 +4,7 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
+import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -137,7 +138,11 @@ export function ResourceCreateWizard({
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
   const isAgentModelDisabled = useAgentModelDisabled()
-  const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
+  const assistantModelFilter = useCallback<ModelSelectorFilter>(
+    (model, provider) => isModelVisibleOutsideAgent(model, provider) && (modelFilter?.(model, provider) ?? true),
+    [modelFilter]
+  )
+  const activeModelFilter = kind === 'agent' ? agentModelFilter : assistantModelFilter
   const activeIsModelDisabled = kind === 'agent' ? isAgentModelDisabled : undefined
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)

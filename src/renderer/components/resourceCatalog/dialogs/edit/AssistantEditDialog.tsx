@@ -27,6 +27,7 @@ import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { toast } from '@renderer/services/toast'
+import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -443,7 +444,7 @@ function AssistantBasicFields({
   onSettingsNavigate
 }: {
   form: UseFormReturn<AssistantEditFormValues>
-  modelFilter?: (model: Model) => boolean
+  modelFilter: EditDialogBaseProps['modelFilter']
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -1080,7 +1081,7 @@ function ContextManagementFields({
             allowClear
             emptyLabel={t('library.config.basic.context_compress_model_follow')}
             // A compression model summarizes history — only chat-capable models qualify.
-            filter={(model) => !isNonChatModel(model)}
+            filter={(model, provider) => isModelVisibleOutsideAgent(model, provider) && !isNonChatModel(model)}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}

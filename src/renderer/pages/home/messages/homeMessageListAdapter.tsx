@@ -29,7 +29,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
@@ -41,6 +41,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
+import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
@@ -743,7 +744,8 @@ export function useHomeMessageListProviderValue({
           } as SharedModel)
         : undefined
 
-      const mentionModelFilter = (model: SharedModel) => {
+      const mentionModelFilter: ModelSelectorFilter = (model, provider) => {
+        if (!isModelVisibleOutsideAgent(model, provider)) return false
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false

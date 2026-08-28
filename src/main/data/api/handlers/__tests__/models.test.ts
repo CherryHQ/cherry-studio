@@ -7,7 +7,6 @@ import {
   MODELS_BATCH_MAX_ITEMS,
   MODELS_DELETE_MAX_IDS
 } from '@shared/data/api/schemas/models'
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
@@ -121,62 +120,6 @@ describe('Model handler validation', () => {
     const ids = Array.from({ length: MODELS_DELETE_MAX_IDS + 1 }, (_, index) => `cherryin::model-${index}`)
 
     expect(() => DeleteModelsQuerySchema.parse({ ids })).toThrow()
-  })
-})
-
-describe('managed Cherry Cloud model writes', () => {
-  const uniqueModelId = `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-v3`
-  const mutations: Array<[string, () => Promise<unknown>]> = [
-    [
-      'collection create',
-      () =>
-        modelHandlers['/models'].POST({
-          body: [{ providerId: CHERRY_CLOUD_PROVIDER_ID, modelId: 'deepseek-v3' }]
-        } as never)
-    ],
-    [
-      'collection update',
-      () =>
-        modelHandlers['/models'].PATCH({
-          body: [{ uniqueModelId, patch: { isEnabled: false } }]
-        } as never)
-    ],
-    [
-      'collection delete',
-      () => modelHandlers['/models'].DELETE({ query: { ids: uniqueModelId } } as never)
-    ],
-    [
-      'single update',
-      () =>
-        modelHandlers['/models/:uniqueModelId*'].PATCH({
-          params: { uniqueModelId },
-          body: { isEnabled: false }
-        } as never)
-    ],
-    [
-      'single delete',
-      () => modelHandlers['/models/:uniqueModelId*'].DELETE({ params: { uniqueModelId } } as never)
-    ],
-    [
-      'provider reconcile',
-      () =>
-        modelHandlers['/providers/:providerId/models:reconcile'].POST({
-          params: { providerId: CHERRY_CLOUD_PROVIDER_ID },
-          body: { toAdd: [], toRemove: [] }
-        } as never)
-    ]
-  ]
-
-  it.each(mutations)('rejects %s through DataApi', async (_label, mutate) => {
-    await expect(mutate()).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION, status: 400 })
-
-    expect(lookupModelMock).not.toHaveBeenCalled()
-    expect(createMock).not.toHaveBeenCalled()
-    expect(bulkUpdateMock).not.toHaveBeenCalled()
-    expect(bulkDeleteMock).not.toHaveBeenCalled()
-    expect(updateMock).not.toHaveBeenCalled()
-    expect(deleteMock).not.toHaveBeenCalled()
-    expect(reconcileForProviderMock).not.toHaveBeenCalled()
   })
 })
 

@@ -10,7 +10,7 @@
  * those make sense as chat targets).
  */
 
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
@@ -22,42 +22,29 @@ import useSWR from 'swr'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
-/**
- * Marks a model filter as an *agent* picker, which is allowed to surface
- * agent-only providers (e.g. `claude-code`). General/chat selectors leave their
- * filter unmarked, so `useModelSelectorData` hides those providers from them.
- */
-const AGENT_ONLY_FILTER = Symbol('agentModelFilter')
 const CHERRY_CLOUD_AVAILABILITY_KEY = 'agent/cherry-cloud-model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
+const EMPTY_CHERRY_CLOUD_AVAILABILITY = { entitledModelIds: [], quotaExhaustedModelIds: [] }
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
-type AgentModelFilter = ModelPredicate & { [AGENT_ONLY_FILTER]?: true }
-
-/** True when `filter` came from {@link useAgentModelFilter} (may include agent-only providers). */
-export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) => boolean): boolean {
-  return Boolean((filter as AgentModelFilter | undefined)?.[AGENT_ONLY_FILTER])
-}
 
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined): AgentModelFilter {
-  return useMemo<AgentModelFilter>(() => {
+export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
+  return useMemo<ModelPredicate>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    const predicate: AgentModelFilter = (model, provider) => {
+    return (model, provider) => {
       if (!baseAgentFilter(model)) return false
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
-    predicate[AGENT_ONLY_FILTER] = true
-    return predicate
   }, [agentType])
 }
 
 /** Returns the Agent selector rule for models that stay visible but cannot be selected. */
 export function useAgentModelDisabled(): ModelPredicate {
-  const { data: cloudAvailability } = useSWR(
+  const { data: cloudAvailability, mutate } = useSWR(
     CHERRY_CLOUD_AVAILABILITY_KEY,
     () => ipcApi.request('cherry_cloud.models.sync'),
     {
@@ -67,6 +54,10 @@ export function useAgentModelDisabled(): ModelPredicate {
       shouldRetryOnError: false
     }
   )
+
+  useIpcOn('cherry_cloud.status_changed', (status) => {
+    void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: status.phase === 'signed-in' }).catch(() => undefined)
+  })
 
   return useMemo(
     () => (model: Model) =>

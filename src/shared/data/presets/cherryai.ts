@@ -2,7 +2,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 
 export const CHERRYAI_PROVIDER_ID = 'cherryai' as const
 export const CHERRYAI_PROVIDER_NAME = 'CherryAI' as const
-export const CHERRY_CLOUD_PROVIDER_ID = 'cherry-cloud' as const
+export const CHERRY_CLOUD_PROVIDER_ID = 'cherryai-subscription' as const
 export const CHERRYAI_DEFAULT_MODEL_ID = 'qwen' as const
 export const CHERRYAI_DEFAULT_MODEL_NAME = 'Qwen' as const
 export const CHERRYAI_DEFAULT_MODEL_GROUP = 'Qwen' as const

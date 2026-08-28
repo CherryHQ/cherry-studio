@@ -1,9 +1,10 @@
 import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
@@ -21,7 +22,7 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
 
-const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
+const CHAT_MODEL_FILTER: ModelSelectorFilter = (model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model)
 
 export interface ChatConversationControlsProps {
   assistantId: string | null

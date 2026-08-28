@@ -1,3 +1,4 @@
+import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 const base64Url32BytesSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
@@ -71,6 +72,7 @@ export const cloudModelListSchema = z.strictObject({
     z.looseObject({
       id: z.string().min(1),
       display_name: z.string().min(1),
+      endpoint_type: z.enum(objectValues(ENDPOINT_TYPE)),
       context_window: z.number().int().positive(),
       max_output_tokens: z.number().int().positive()
     })
