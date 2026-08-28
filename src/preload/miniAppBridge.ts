@@ -77,8 +77,14 @@ const gateChat = (params: unknown) => {
   return {
     messages: messages?.map((m) => {
       const { role, content } = (m ?? {}) as { role?: unknown; content?: unknown }
-      assertPayloadSize(String(content ?? ''), MINI_APP_GUEST_LIMITS.chatContentChars, 'chat content')
-      return { role: str(role)?.slice(0, 16), content: str(content) }
+      // Coerced ONCE, and measured on the string that is actually forwarded. Converting a
+      // second time asks the guest's own `toString()` again, and a stateful one can answer
+      // short here and enormous there — the gate passes and main structured-clones the
+      // real size before Zod ever looks at it. `?? ''` measures only; `undefined` still
+      // travels as `undefined`, which main's required `z.string()` refuses as before.
+      const text = str(content)
+      assertPayloadSize(text ?? '', MINI_APP_GUEST_LIMITS.chatContentChars, 'chat content')
+      return { role: str(role)?.slice(0, 16), content: text }
     }),
     reasoning: str(raw.reasoning)?.slice(0, 16),
     model: str(raw.model)?.slice(0, 16)
@@ -94,7 +100,9 @@ const gateChat = (params: unknown) => {
  */
 const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; body?: unknown } | null) => {
   const params = raw ?? {}
-  assertPayloadSize(String(params.url ?? ''), MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
+  // Coerced once and measured on the forwarded string — see `gateChat`.
+  const url = str(params.url)
+  assertPayloadSize(url ?? '', MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
   const headers = (params.headers ?? {}) as Record<string, unknown>
   if (Object.keys(headers).length > MINI_APP_GUEST_LIMITS.fetchHeaderCount) {
     throw guestRefusal(`Mini app request exceeds the ${MINI_APP_GUEST_LIMITS.fetchHeaderCount} header limit`)
@@ -108,7 +116,7 @@ const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; bo
   }
   const body = str(params.body)
   if (body !== undefined) assertPayloadSize(body, MINI_APP_GUEST_LIMITS.fetchBodyChars, 'request body')
-  return { url: str(params.url), method: str(params.method)?.slice(0, 16), headers: bounded, body }
+  return { url, method: str(params.method)?.slice(0, 16), headers: bounded, body }
 }
 
 /** Notifications truncate instead of throwing — the one exception, decided in §6.5. */
@@ -216,9 +224,10 @@ contextBridge.exposeInMainWorld('cherry', {
   clipboard: {
     read: async () => call('clipboard.read'),
     write: async (params?: { text?: unknown } | null) => {
-      const { text } = params ?? {}
-      assertPayloadSize(String(text ?? ''), MINI_APP_GUEST_LIMITS.clipboardTextChars, 'clipboard text')
-      return call('clipboard.write', { text: str(text) })
+      // Coerced once and measured on the forwarded string — see `gateChat`.
+      const text = str((params ?? {}).text)
+      assertPayloadSize(text ?? '', MINI_APP_GUEST_LIMITS.clipboardTextChars, 'clipboard text')
+      return call('clipboard.write', { text })
     }
   },
   notification: {

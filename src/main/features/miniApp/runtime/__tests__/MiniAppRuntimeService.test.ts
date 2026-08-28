@@ -86,6 +86,9 @@ beforeEach(() => {
 describe('MiniAppRuntimeService', () => {
   it('registers the protocol once per partition', async () => {
     const svc = new MiniAppRuntimeService()
+    // `onReady` resolves this after startup recovery, and `ensurePartition` waits on it so
+    // that no guest can load a tree a crash left mid-publish. Stated, not stubbed away.
+    svc.recovered.resolve()
 
     await svc.ensurePartition('com.example.a')
     await svc.ensurePartition('com.example.a')
@@ -98,9 +101,37 @@ describe('MiniAppRuntimeService', () => {
     // The bug this guards: the `readyPartitions` guard is only set after the await,
     // so concurrent callers all pass it and `protocol.handle` throws on the second.
     const svc = new MiniAppRuntimeService()
+    // `onReady` resolves this after startup recovery, and `ensurePartition` waits on it so
+    // that no guest can load a tree a crash left mid-publish. Stated, not stubbed away.
+    svc.recovered.resolve()
 
     await Promise.all([svc.ensurePartition('com.example.a'), svc.ensurePartition('com.example.a')])
 
+    expect(handle).toHaveBeenCalledTimes(1)
+  })
+
+  it('admits no guest until startup recovery has finished', async () => {
+    // `IpcApiService` is `BeforeReady` and same-phase services initialise in PARALLEL, so
+    // `mini_app.runtime.prepare` can arrive while `recoverInterruptedPublishes()` is still
+    // walking the journal. A guest admitted in that window loads the tree the crash left in
+    // place and keeps running it after recovery rolls that tree back — the new version's
+    // code against the old version's grants.
+    const svc = new MiniAppRuntimeService()
+    let admitted = false
+
+    const preparing = svc.ensurePartition('com.example.a').then(() => {
+      admitted = true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(admitted).toBe(false)
+    // The load-bearing half: nothing was registered either, so there is no scheme for a
+    // guest to fetch the mid-publish tree through.
+    expect(handle).not.toHaveBeenCalled()
+
+    svc.recovered.resolve()
+    await preparing
+    expect(admitted).toBe(true)
     expect(handle).toHaveBeenCalledTimes(1)
   })
 
@@ -108,6 +139,9 @@ describe('MiniAppRuntimeService', () => {
     const { installNetworkPolicy } = await import('../network')
     vi.mocked(installNetworkPolicy).mockRejectedValueOnce(new Error('boom'))
     const svc = new MiniAppRuntimeService()
+    // `onReady` resolves this after startup recovery, and `ensurePartition` waits on it so
+    // that no guest can load a tree a crash left mid-publish. Stated, not stubbed away.
+    svc.recovered.resolve()
 
     await expect(svc.ensurePartition('com.example.c')).rejects.toThrow('boom')
 

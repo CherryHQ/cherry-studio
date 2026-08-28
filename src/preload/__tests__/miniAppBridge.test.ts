@@ -198,6 +198,29 @@ describe('the guest bridge', () => {
     expect(sent[3]).toEqual({ model: 'quick' })
   })
 
+  it('measures the very string it forwards, even when toString answers differently twice', async () => {
+    // The bypass a single conversion closes: a gate that coerces to MEASURE and coerces
+    // AGAIN to FORWARD asks the guest's own `toString()` twice. A stateful one answers
+    // short the first time — passing the character cap — and enormous the second, and it is
+    // that second string which gets structured-cloned into the main process, before Zod
+    // there ever looks at it. The size gate exists precisely to stop that allocation.
+    const twoFaced = (cap: number) => {
+      let asked = 0
+      return { toString: () => (asked++ === 0 ? 'ok' : 'x'.repeat(cap + 1_000)) } as never
+    }
+
+    await cherry.clipboard.write({ text: twoFaced(MINI_APP_GUEST_LIMITS.clipboardTextChars) })
+    await cherry.network.fetch({ url: twoFaced(MINI_APP_GUEST_LIMITS.fetchUrlChars) })
+    await cherry.ai.chat({
+      messages: [{ role: 'user', content: twoFaced(MINI_APP_GUEST_LIMITS.chatContentChars) }]
+    })
+
+    const sent = invoke.mock.calls.map(([, payload]) => (payload as { params: never }).params)
+    expect(sent[0]).toEqual({ text: 'ok' })
+    expect(sent[1]).toMatchObject({ url: 'ok' })
+    expect(sent[2]).toMatchObject({ messages: [{ role: 'user', content: 'ok' }] })
+  })
+
   it('truncates a notification instead of refusing it', async () => {
     // The one exception (§6.5): a long title is clipped, never a rejected call.
     await cherry.notification.show({

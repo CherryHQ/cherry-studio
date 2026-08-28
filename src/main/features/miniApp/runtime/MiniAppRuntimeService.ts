@@ -11,7 +11,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase, Signal } from '@main/core/lifecycle'
 import { markSelfHardenedSession } from '@main/core/security/selfHardenedSessions'
 import { getAppLanguage } from '@main/i18n'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
@@ -91,12 +91,30 @@ export class MiniAppRuntimeService extends BaseService {
   private readonly sessionAppIds = new WeakMap<Electron.Session, string>()
 
   /**
+   * Resolved once startup recovery has repaired whatever a crash left mid-publish.
+   *
+   * `IpcApiService` is `BeforeReady`, so `mini_app.runtime.prepare` already answers before
+   * this service's `onReady` has run a line; same-phase services initialise in PARALLEL
+   * (`LifecycleManager`), so `MainWindowService` can have the window up — and a restored
+   * tab calling `prepare` — while `recoverInterruptedPublishes()` is still walking the
+   * journal. A guest admitted in that window loads the tree the crash left in place and
+   * keeps running it after recovery rolls that tree back: the new version's code against
+   * the old version's manifest and grants, a pairing the user never consented to.
+   *
+   * A barrier rather than a `@DependsOn` on the window service: there is nothing to repair
+   * on almost every launch, and making the main window wait for this one would charge every
+   * start for a case that is rare.
+   */
+  readonly recovered = new Signal<void>()
+
+  /**
    * The service's ONE `onReady` — every mini-app wiring lands here.
    *
    * All of it belongs here rather than at module load: `ipcOn`/`ipcHandle` are
    * auto-cleaned on stop/destroy, and recovery needs DbService (a BeforeReady
    * service, so it is up by the time this runs).
    */
+
   protected async onReady(): Promise<void> {
     // 1. Capability bridge.
     this.ipcHandle(MINI_APP_BRIDGE_CHANNEL, async (event, payload) => {
@@ -132,7 +150,14 @@ export class MiniAppRuntimeService extends BaseService {
 
     // 6. Repair anything a crash left mid-publish, then drop staging trees — in a
     //    freshly started process every `.staging-*` is by definition abandoned.
-    await recoverInterruptedPublishes()
+    try {
+      await recoverInterruptedPublishes()
+    } finally {
+      // In a `finally`, and guarded: a recovery that threw must not wedge every future
+      // `prepare` behind a promise that will never settle. The staging sweep below is
+      // deliberately outside the barrier — it touches no tree a guest can load.
+      if (!this.recovered.isResolved) this.recovered.resolve()
+    }
     await sweepAbandonedStaging()
   }
 
@@ -149,6 +174,10 @@ export class MiniAppRuntimeService extends BaseService {
    * first and configuring after would let the first load run un-proxied.
    */
   async ensurePartition(appId: string): Promise<void> {
+    // The barrier, before anything else: this is the single choke point every guest passes
+    // through, `mini_app.runtime.prepare` included. Already resolved on a launch with
+    // nothing to repair, which is almost all of them.
+    await this.recovered
     const partition = miniAppPartition(appId)
     if (this.readyPartitions.has(partition)) return
 
