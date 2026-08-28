@@ -8,6 +8,7 @@ import * as z from 'zod'
 export const SystemProviderIdSchema = z.enum([
   '302ai',
   'aihubmix',
+  'aimlapi',
   'aionly',
   'alayanew',
   'anthropic',
@@ -75,6 +76,7 @@ export const isSystemProviderId = (id: string): id is SystemProviderId => {
 export const SystemProviderIds = {
   '302ai': '302ai',
   aihubmix: 'aihubmix',
+  aimlapi: 'aimlapi',
   aionly: 'aionly',
   alayanew: 'alayanew',
   anthropic: 'anthropic',
