@@ -80,18 +80,9 @@ const thinkingBudgetWire: ReasoningWireProfile = {
   }
 }
 
-// Official Claude bots on Poe. They route through Poe's Anthropic-compatible
-// endpoint by default; only official Claude models are served there, and Poe's
-// Responses emulation for Claude (LiteLLM→Vertex) breaks streams, so none of
-// them may fall through to the provider default. anthropic-messages needs no
-// per-model contract: 4.6+/5.x/Fable use the built-in anthropic effort wire,
-// the 4.5 line reaches the budget wire via the catalog's `wireDialect: 'budget'`.
-// openai-chat-completions stays as a fallback carrying Poe's thinking_budget
-// contract. `apiModelId` is the exact Poe bot name (differs from the canonical
-// modelId); api.poe.com/v1/models lists bots in lowercase-dotted form.
+// Poe's Responses emulation breaks Claude streams, so official bots prefer Anthropic.
+// The 4.5 line uses budget thinking; later models use effort controls.
 const claudeModels: { apiModelId: string; modelId: string }[] = [
-  { apiModelId: 'Claude-Fable-5', modelId: 'claude-fable-5' },
-  { apiModelId: 'Claude-Sonnet-5', modelId: 'claude-sonnet-5' },
   { apiModelId: 'Claude-Opus-4.8', modelId: 'claude-opus-4-8' },
   { apiModelId: 'Claude-Opus-4.7', modelId: 'claude-opus-4-7' },
   { apiModelId: 'Claude-Opus-4.6', modelId: 'claude-opus-4-6' },

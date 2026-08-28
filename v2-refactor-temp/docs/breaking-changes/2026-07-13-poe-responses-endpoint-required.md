@@ -2,7 +2,7 @@
 title: Poe defaults to the OpenAI Responses API endpoint
 category: changed
 severity: notice
-introduced_in_pr: #14144
+introduced_in_pr: '#14144'
 date: 2026-07-13
 ---
 
@@ -18,11 +18,12 @@ Anthropic-compatible endpoint (`anthropic-messages`) at the model level.
 
 ## Why this matters to the user
 
-On the Responses endpoint, reasoning-effort control and built-in web search
-work for all bots via the standard OpenAI pipeline; on chat-completions,
-reasoning only worked for the model families with audited parameter contracts
-and unknown/community bots stayed fail-closed. Users who never changed Poe's
-endpoint will see their requests move to `/v1/responses` after upgrading.
+On the Responses endpoint, reasoning-effort control works for all bots through
+the standard OpenAI pipeline. Built-in web search remains available for the
+models Poe marks as supporting it. On chat-completions, reasoning only worked
+for model families with audited parameter contracts, and unknown/community
+bots stayed fail-closed. Users who never changed Poe's endpoint will see their
+requests move to `/v1/responses` after upgrading.
 
 ## What the user should do
 

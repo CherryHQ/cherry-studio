@@ -22199,15 +22199,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01498
+          "perMillionTokens": 0.017721
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0749
+          "perMillionTokens": 0.088606
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.1498
+          "perMillionTokens": 0.177212
         }
       },
       "providerId": "openrouter",
@@ -22267,15 +22267,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.007
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.22
+          "perMillionTokens": 0.44
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.66
+          "perMillionTokens": 1.32
         }
       },
       "providerId": "openrouter",
@@ -22301,15 +22301,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0374
+          "perMillionTokens": 0.044
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.122
+          "perMillionTokens": 1.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.366
+          "perMillionTokens": 3.96
         }
       },
       "providerId": "openrouter",
@@ -26619,15 +26619,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.020625
+          "perMillionTokens": 0.033
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0825
+          "perMillionTokens": 0.132
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.33
+          "perMillionTokens": 0.528
         }
       },
       "providerId": "openrouter",
@@ -28381,15 +28381,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.04
+          "perMillionTokens": 0.05
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.25
         }
       },
       "providerId": "openrouter",
@@ -29467,17 +29467,13 @@
       "apiModelId": "qwen/qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.12
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.6
+          "perMillionTokens": 3.2
         }
       },
       "providerId": "openrouter",
@@ -29748,15 +29744,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.085
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.53125
+          "perMillionTokens": 0.05
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.425
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
@@ -32037,48 +32029,6 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "Claude-Fable-5",
-      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-fable-5",
-      "providerId": "poe",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "missing": {
-                  "type": "omit-mode"
-                }
-              },
-              "operations": [
-                {
-                  "target": "extra_body.thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "omit-mode"
-                }
-              },
-              "operations": [
-                {
-                  "target": "extra_body.thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "claude-haiku-4.5",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
       "modelId": "claude-haiku-4-5",
@@ -32334,48 +32284,6 @@
       "apiModelId": "Claude-Sonnet-4.6",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
       "modelId": "claude-sonnet-4-6",
-      "providerId": "poe",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "missing": {
-                  "type": "omit-mode"
-                }
-              },
-              "operations": [
-                {
-                  "target": "extra_body.thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "omit-mode"
-                }
-              },
-              "operations": [
-                {
-                  "target": "extra_body.thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "Claude-Sonnet-5",
-      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-sonnet-5",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -37799,5 +37707,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "973c88ebf15851a8"
+  "version": "0807d0c23a4a44b6"
 }
