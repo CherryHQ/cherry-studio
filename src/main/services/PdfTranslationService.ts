@@ -33,7 +33,7 @@ import {
   type PdfTranslationStage
 } from '@shared/ipc/schemas/translate'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { stringify as stringifyToml } from 'smol-toml'
 import * as z from 'zod'
 
@@ -126,12 +126,6 @@ const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
   if (alias) return alias
   const [language, region] = code.split('-', 2)
   return region ? `${language}-${region.toUpperCase()}` : language
-}
-
-const gatewayHostForClient = (host: string): string => {
-  if (host === '0.0.0.0') return '127.0.0.1'
-  if (host === '::') return '[::1]'
-  return host
 }
 
 /**
@@ -253,7 +247,7 @@ export class PdfTranslationService extends BaseService {
 
       const apiKey = await gateway.ensureValidApiKey()
       const config = gateway.getCurrentConfig()
-      const baseUrl = `http://${gatewayHostForClient(config.host)}:${config.port}/v1`
+      const baseUrl = `${gatewayClientOrigin(config.host, config.port)}/v1`
 
       await fs.promises.rm(outputDir, { force: true, recursive: true })
       await fs.promises.mkdir(outputDir, { recursive: true })
