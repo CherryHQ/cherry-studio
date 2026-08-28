@@ -6,6 +6,8 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type * as HooksTabModule from '../../../hooks/tab'
+import type * as MiniAppKeepAliveModule from '@renderer/utils/miniAppKeepAlive'
 
 const mocks = vi.hoisted(() => ({
   closeTab: vi.fn(),
@@ -28,7 +30,16 @@ const mocks = vi.hoisted(() => ({
   ],
   tabBarProps: undefined as Record<string, unknown> | undefined,
   showSearchPopup: vi.fn(),
-  hideSearchPopup: vi.fn()
+  hideSearchPopup: vi.fn(),
+  miniApps: {
+    openedKeepAliveMiniApps: [] as unknown[],
+    currentMiniAppId: '',
+    openedOneOffMiniApp: null as unknown,
+    setOpenedKeepAliveMiniApps: vi.fn(),
+    setCurrentMiniAppId: vi.fn(),
+    setMiniAppShow: vi.fn()
+  },
+  clearWebviewState: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
@@ -63,22 +74,26 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
-vi.mock('../../../hooks/tab', () => ({
-  useMainWindowNavigation: vi.fn(),
-  useTabs: () => ({
-    activeTabId: mocks.activeTabId,
-    closeTab: mocks.closeTab,
-    closeTabs: mocks.closeTabs,
-    detachTab: mocks.detachTab,
-    openTab: vi.fn(),
-    pinTab: vi.fn(),
-    reorderTabs: vi.fn(),
-    setActiveTab: mocks.setActiveTab,
-    tabs: mocks.tabs,
-    unpinTab: vi.fn(),
-    updateTab: vi.fn()
-  })
-}))
+vi.mock('../../../hooks/tab', async () => {
+  const actual = await vi.importActual<HooksTabModule>('../../../hooks/tab')
+  return {
+    ...actual,
+    useMainWindowNavigation: vi.fn(),
+    useTabs: () => ({
+      activeTabId: mocks.activeTabId,
+      closeTab: mocks.closeTab,
+      closeTabs: mocks.closeTabs,
+      detachTab: mocks.detachTab,
+      openTab: vi.fn(),
+      pinTab: vi.fn(),
+      reorderTabs: vi.fn(),
+      setActiveTab: mocks.setActiveTab,
+      tabs: mocks.tabs,
+      unpinTab: vi.fn(),
+      updateTab: vi.fn()
+    })
+  }
+})
 
 vi.mock('../../app/Sidebar', () => ({
   default: () => <aside data-testid="sidebar" />
@@ -110,6 +125,27 @@ vi.mock('../TabRouter', () => ({
   TabRouter: ({ tab }: { tab: { id: string } }) => <section data-testid="tab-router" data-tab-id={tab.id} />
 }))
 
+vi.mock('@renderer/hooks/useMiniApps', () => ({
+  useMiniApps: () => mocks.miniApps
+}))
+
+vi.mock('@renderer/utils/miniAppKeepAlive', async () => {
+  const actual = await vi.importActual<MiniAppKeepAliveModule>(
+    '@renderer/utils/miniAppKeepAlive'
+  )
+  return actual
+})
+
+vi.mock('@renderer/utils/webviewStateManager', () => ({
+  clearWebviewState: mocks.clearWebviewState,
+  clearAllWebviewStates: vi.fn(),
+  getWebviewLoaded: vi.fn(() => false),
+  setWebviewLoaded: vi.fn(),
+  onWebviewStateChange: vi.fn(() => () => {}),
+  waitForWebviewLoaded: vi.fn(() => Promise.resolve(false)),
+  getLoadedAppIds: vi.fn(() => [])
+}))
+
 import { AppShell } from '../AppShell'
 
 afterEach(() => {
@@ -131,6 +167,9 @@ afterEach(() => {
     }
   ]
   mocks.tabBarProps = undefined
+  mocks.miniApps.openedKeepAliveMiniApps = []
+  mocks.miniApps.currentMiniAppId = ''
+  mocks.miniApps.openedOneOffMiniApp = null
 })
 
 describe('AppShell', () => {
