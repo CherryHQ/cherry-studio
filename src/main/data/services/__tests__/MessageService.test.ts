@@ -2389,6 +2389,22 @@ describe('MessageService', () => {
       expect(follow.parentId).toBe('m-root')
     })
 
+    it('keeps a surviving multi-model reply active when deleting the selected reply', async () => {
+      await seedMultiModelTree()
+      await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
+
+      const result = messageService.delete('m-a2', false)
+
+      expect(result.deletedIds).toEqual(['m-a2'])
+      expect(result.newActiveNodeId).toBe('m-a1')
+      expect(messageService.getById('m-root').data).toEqual(mainText('hi'))
+      expect(messageService.getById('m-a1').data).toEqual(mainText('reply A'))
+
+      const reloadedBranch = messageService.getBranchMessages('topic-1', { includeSiblings: true })
+      expect(reloadedBranch.activeNodeId).toBe('m-a1')
+      expect(reloadedBranch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a1'])
+    })
+
     it('reparent rebases a moved group id so it cannot merge with an unrelated group at the destination', async () => {
       // u1 → { x(g=0), y(g=5) };  x → { c1(g=5), c2(g=5) }
       // Deleting x moves c1/c2 to u1, where group 5 already belongs to the unrelated y.

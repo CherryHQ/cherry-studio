@@ -46,7 +46,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -2020,7 +2020,29 @@ export class MessageService {
 
         // Check if activeNodeId is affected
         if (topic.activeNodeId === id) {
-          newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
+          if (activeNodeStrategy === 'clear') {
+            newActiveNodeId = null
+          } else if (message.role === 'assistant' && message.siblingsGroupId !== 0) {
+            const [survivingReply] = tx
+              .select({ id: messageTable.id })
+              .from(messageTable)
+              .where(
+                and(
+                  eq(messageTable.topicId, message.topicId),
+                  eq(messageTable.parentId, message.parentId),
+                  eq(messageTable.role, 'assistant'),
+                  eq(messageTable.siblingsGroupId, message.siblingsGroupId),
+                  ne(messageTable.id, id),
+                  isNull(messageTable.deletedAt)
+                )
+              )
+              .orderBy(desc(messageTable.createdAt), desc(messageTable.id))
+              .limit(1)
+              .all()
+            newActiveNodeId = survivingReply?.id ?? parentFallback
+          } else {
+            newActiveNodeId = parentFallback
+          }
         }
 
         // Hard delete this message

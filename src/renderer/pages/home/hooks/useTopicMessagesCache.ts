@@ -29,11 +29,15 @@ import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 /** Drop messages matching `removedIds` from items and sibling groups. */
 function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): BranchMessage[] {
-  return items
-    .filter((item) => !removedIds.has(item.message.id))
-    .map((item) =>
-      item.siblingsGroup ? { ...item, siblingsGroup: item.siblingsGroup.filter((s) => !removedIds.has(s.id)) } : item
-    )
+  return items.flatMap((item) => {
+    const siblingsGroup = item.siblingsGroup?.filter((sibling) => !removedIds.has(sibling.id)) ?? []
+    if (!removedIds.has(item.message.id)) {
+      return [{ ...item, ...(item.siblingsGroup ? { siblingsGroup } : {}) }]
+    }
+
+    const [message, ...remainingSiblings] = siblingsGroup
+    return message ? [{ message, ...(remainingSiblings.length > 0 ? { siblingsGroup: remainingSiblings } : {}) }] : []
+  })
 }
 
 function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
