@@ -49,6 +49,7 @@ import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtr
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { transformLmStudioRequestBody } from './lmstudio'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
@@ -248,6 +249,17 @@ export async function resolveProviderAiSdkConfig(
       build: withSelectedApiKey((ctx) => {
         const config = buildOpenAICompatibleConfig(ctx)
         config.providerSettings.transformRequestBody = transformZhipuRequestBody
+        return config
+      })
+    },
+    // LM Studio's OpenAI-compatible endpoint expects bare base64 for images when
+    // a message contains multiple image blocks. Keep single-image requests on
+    // the unchanged OpenAI data-URI format (lmstudio.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, SystemProviderIds.lmstudio),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenAICompatibleConfig(ctx)
+        config.providerSettings.transformRequestBody = transformLmStudioRequestBody
         return config
       })
     },
