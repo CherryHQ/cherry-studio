@@ -1,5 +1,9 @@
+import type { ConversationNavigationTarget } from './navigation'
+
 export type NotificationType = 'progress' | 'success' | 'error' | 'warning' | 'info' | 'action'
-export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update'
+export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update' | 'mini-app'
+
+export const CONVERSATION_NOTIFICATION_ACTION_KEY = 'conversation.open'
 
 export interface Notification<T = any> {
   /** 通知唯一标识 */
@@ -17,9 +21,8 @@ export interface Notification<T = any> {
   /** 附加元数据，T 可定制各种业务字段 */
   meta?: T
   /**
-   * 点击/操作的可序列化标识（'action' 类通知用）。回调函数无法跨 Electron IPC 结构化克隆，
-   * 因此改由该字段承载：将来接入 action 通知时，renderer 订阅 `notification.clicked` 事件、
-   * 按 actionKey 在本地注册表里查回调并触发。
+   * 点击/操作的可序列化标识。回调函数无法跨 Electron IPC 结构化克隆，因此由 main 直接
+   * 处理系统级 actionKey；未拦截的通知继续通过 `notification.clicked` 交给 renderer。
    */
   actionKey?: string
   /** 声音/声音开关标识，结合用户偏好决定是否播放 */
@@ -27,3 +30,12 @@ export interface Notification<T = any> {
   /** 通知源 */
   source: NotificationSource
 }
+
+type ConversationNotificationBase = Notification<ConversationNavigationTarget> & {
+  meta: ConversationNavigationTarget
+  actionKey: typeof CONVERSATION_NOTIFICATION_ACTION_KEY
+}
+
+export type ConversationNotification =
+  | (ConversationNotificationBase & { kind: 'task-completion'; type: 'success' })
+  | (ConversationNotificationBase & { kind: 'approval-request'; type: 'warning' })

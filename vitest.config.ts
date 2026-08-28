@@ -121,6 +121,20 @@ export default defineConfig({
           }
         }
       },
+      // preload 单元测试配置
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('src/shared')
+          }
+        },
+        test: {
+          name: 'preload',
+          environment: 'node',
+          include: ['src/preload/**/*.{test,spec}.ts', 'src/preload/**/__tests__/**/*.{test,spec}.ts']
+        }
+      },
       // provider-registry 包单元测试配置
       {
         extends: true,

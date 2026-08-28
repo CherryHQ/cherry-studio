@@ -218,8 +218,7 @@ describe('AppShellTabBar', () => {
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
   })
 
-  it('shows the focused tab as a Back control with a visible detach action', async () => {
-    const user = userEvent.setup()
+  it('shows Settings as a focused Back control without detach actions', () => {
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
     const detachTab = vi.fn()
 
@@ -237,16 +236,15 @@ describe('AppShellTabBar', () => {
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('menu-tab.open-in-new-window')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.close-others')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
 
-    const detachButton = screen.getByLabelText('tab.open_in_new_window', { selector: 'button' })
-    expect(detachButton).toHaveTextContent('')
-    await user.click(detachButton)
-    expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
+    expect(screen.queryByLabelText('tab.open_in_new_window', { selector: 'button' })).not.toBeInTheDocument()
+    expect(detachTab).not.toHaveBeenCalled()
   })
 
-  it('detaches the focused tab when dragged outside the tab bar', () => {
+  it('prevents Settings drag detach', () => {
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
@@ -297,12 +295,100 @@ describe('AppShellTabBar', () => {
       Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
       fireEvent(document, pointerMove)
 
-      expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'tab.detach',
-        expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
-      )
-      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+      expect(mocks.ipcRequest).not.toHaveBeenCalledWith('tab.detach', expect.anything())
+      expect(closeTab).not.toHaveBeenCalled()
     } finally {
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+      rectSpy.mockRestore()
+    }
+  })
+
+  it('positions the detached window when a fast drag drops right after the detaching move', () => {
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
+      return {
+        width: isTabBar ? 800 : 160,
+        height: isTabBar ? 44 : 30,
+        top: 0,
+        left: 0,
+        right: isTabBar ? 800 : 160,
+        bottom: isTabBar ? 44 : 30,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      configurable: true,
+      value: vi.fn()
+    })
+    const moveWindowSend = vi.fn()
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      value: { ipcRenderer: { send: moveWindowSend } }
+    })
+
+    try {
+      const regularTab = createTab('regular')
+      const closeTab = renderTabBar({
+        tabs: [regularTab],
+        activeTabId: regularTab.id,
+        detachTab: vi.fn()
+      })
+      const tab = screen.getByRole('button', { name: regularTab.title })
+
+      // One detaching pointermove, then the pointer comes up before any further move
+      // can issue Tab_MoveWindow — the window must still be positioned and shown.
+      const pointerDown = new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: 100,
+        clientY: 20,
+        screenX: 100,
+        screenY: 20
+      })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(tab, pointerDown)
+
+      const pointerMove = new MouseEvent('pointermove', {
+        bubbles: true,
+        clientX: 100,
+        clientY: 100,
+        screenX: 100,
+        screenY: 100
+      })
+      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
+
+      const pointerUp = new MouseEvent('pointerup', {
+        bubbles: true,
+        clientX: 100,
+        clientY: 100,
+        screenX: 100,
+        screenY: 100
+      })
+      Object.defineProperty(pointerUp, 'pointerId', { value: 1 })
+
+      // Dispatch both inside one act so React cannot flush the pending
+      // setDragState({ mode: 'detach' }) between them — pointerup then sees only
+      // the synchronous dragRef.detachedCreated flag, the stale-closure fallback
+      // the fix adds (real-world fast drops race the render commit the same way).
+      act(() => {
+        document.dispatchEvent(pointerMove)
+        document.dispatchEvent(pointerUp)
+      })
+
+      expect(closeTab).toHaveBeenCalledWith(regularTab.id)
+      expect(moveWindowSend).toHaveBeenCalledWith(
+        'tab:move-window',
+        expect.objectContaining({ tabId: regularTab.id, x: -300, y: 80 })
+      )
+    } finally {
+      Reflect.deleteProperty(window, 'electron')
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
       } else {
@@ -439,6 +525,19 @@ describe('AppShellTabBar', () => {
     expect(screen.queryByTestId('menu-tab.move-to-first')).toBeNull()
     expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(1)
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
+  })
+
+  it('does not offer pinning for transient mini-app tabs', () => {
+    const transientMiniAppTab = createTab('mini-app', {
+      url: '/app/mini-app/deepseek-harness',
+      metadata: { transientMiniApp: true }
+    })
+
+    renderTabBar({ tabs: [transientMiniAppTab], activeTabId: transientMiniAppTab.id, detachTab: vi.fn() })
+
+    expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
+    expect(screen.getByTestId('menu-tab.open-in-new-window')).toBeInTheDocument()
+    expect(screen.getByTestId('menu-tab.close')).toBeInTheDocument()
   })
 
   it('allows both the last normal tab and pinned tabs to close from the menu', () => {
@@ -962,6 +1061,93 @@ describe('AppShellTabBar', () => {
     }
   })
 
+  it('reclamps a dragged tab with the current strip, tab, and launchpad geometry after resize', () => {
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    const originalRequestAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame')
+    const originalCancelAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame')
+    let stripWidth = 300
+    let tabWidth = 100
+    let tabLeft = 100
+
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const element = this as HTMLElement
+      const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
+      const geometry =
+        element.dataset.ui === 'app.tab-bar' || element.dataset.testid === 'app-shell-tab-strip'
+          ? { left: 0, width: stripWidth, height: element.dataset.ui === 'app.tab-bar' ? 44 : 30 }
+          : element.dataset.launchpadButton !== undefined
+            ? { left: stripWidth - 56, width: 28, height: 28 }
+            : element.dataset.tabId === 'a'
+              ? { left: tabLeft + translateX, width: tabWidth, height: 30 }
+              : element.dataset.tabId === 'home'
+                ? { left: 0, width: 100, height: 30 }
+                : { left: 0, width: 0, height: 0 }
+
+      return {
+        x: geometry.left,
+        y: 0,
+        top: 0,
+        bottom: geometry.height,
+        left: geometry.left,
+        right: geometry.left + geometry.width,
+        width: geometry.width,
+        height: geometry.height,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    vi.useFakeTimers()
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
+    })
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: (id: number) => window.clearTimeout(id)
+    })
+
+    try {
+      renderTabBar({ tabs: [createTab('home'), createTab('a')], activeTabId: 'a' })
+      const tab = screen.getByRole('button', { name: 'A' })
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 20, clientY: 20 })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(tab, pointerDown)
+
+      const startDrag = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(startDrag, 'pointerId', { value: 1 })
+      fireEvent(document, startDrag)
+      expect(tab).toHaveStyle({ transform: 'translateX(34px)' })
+
+      stripWidth = 240
+      tabWidth = 160
+      tabLeft = 0
+      const moveAfterResize = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(moveAfterResize, 'pointerId', { value: 1 })
+      fireEvent(document, moveAfterResize)
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+
+      expect(tab).toHaveStyle({ transform: 'translateX(18px)' })
+    } finally {
+      vi.useRealTimers()
+      for (const [key, descriptor] of [
+        ['requestAnimationFrame', originalRequestAnimationFrame],
+        ['cancelAnimationFrame', originalCancelAnimationFrame]
+      ] as const) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor)
+        else Reflect.deleteProperty(globalThis, key)
+      }
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+      rectSpy.mockRestore()
+    }
+  })
+
   it('clears the divider beside a tab whose context menu is open', () => {
     const tabs = [createTab('a'), createTab('b'), createTab('c')]
     renderTabBar({ tabs, activeTabId: 'a' })
@@ -1201,5 +1387,11 @@ describe('getTabCapabilities', () => {
     expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, canDetach: false })).detach).toBe(
       false
     )
+  })
+
+  it('disables pinning for transient mini-app tabs', () => {
+    const transientMiniAppTab = createTab('mini-app', { metadata: { transientMiniApp: true } })
+
+    expect(getTabCapabilities(transientMiniAppTab, ctx({ normalIndex: 0 })).togglePin).toBe(false)
   })
 })

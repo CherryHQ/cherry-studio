@@ -6,7 +6,7 @@ import { motion } from 'motion/react'
 import type { ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { useOptionalRightPanelState } from '../panes/Shell'
+import { useOptionalRightPanelState, useRightPanelComposerElevated } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
@@ -284,6 +284,7 @@ export function ChatAppShell({
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
   const rightPanelState = useOptionalRightPanelState()
+  const composerElevated = useRightPanelComposerElevated()
   // While the right pane maximizes/minimizes, its docked spacer snaps under the
   // covering surface; a FLIP layout animation would smear that snap across the
   // wipe as visible scale distortion, so the center reflows instantly instead.
@@ -307,7 +308,7 @@ export function ChatAppShell({
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse} onResizingChange={setListResizing}>
-          {pane}
+          {panePosition === 'left' ? pane : undefined}
         </PageSidebar>
 
         <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">
@@ -324,7 +325,7 @@ export function ChatAppShell({
                 centerClassName,
                 // Let the elevated composer escape the center stacking context and paint
                 // above the full-height maximized panel without replacing its editor DOM.
-                rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
+                composerElevated && '!transform-none !will-change-auto'
               )}>
               {topBar && (
                 <div className="relative z-10 shrink-0">

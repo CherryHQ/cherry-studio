@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,12 +13,26 @@ import type { ComposerDraftToken } from '../tokens'
 const mocks = vi.hoisted(() => ({
   onSendDraft: vi.fn(),
   runtimeLoads: 0,
-  runtimeIntent: undefined as ComposerDeferredIntent | undefined
+  runtimeIntent: undefined as ComposerDeferredIntent | undefined,
+  runtimeTokens: [] as Array<{ id: string; kind: string; label?: string }>,
+  toastError: vi.fn()
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 vi.mock('@renderer/components/SendMessageButton', () => ({
-  default: ({ sendMessage }: { sendMessage: () => void }) => (
-    <button type="button" onClick={sendMessage}>
+  default: ({
+    disabled,
+    onDisabledClick,
+    sendMessage
+  }: {
+    disabled?: boolean
+    onDisabledClick?: () => void
+    sendMessage: () => void
+  }) => (
+    <button type="button" onClick={disabled ? onDisabledClick : sendMessage}>
       Send
     </button>
   )
@@ -27,13 +41,17 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
 vi.mock('../ComposerSurfaceRuntime', () => {
   mocks.runtimeLoads += 1
   return {
-    default: ({ initialTextSelection, text, deferredIntent }: ComposerSurfaceProps) => {
+    default: ({ initialTextSelection, text, deferredIntent, tokens }: ComposerSurfaceProps) => {
       mocks.runtimeIntent = deferredIntent
+      mocks.runtimeTokens = tokens.map((token) => ({ id: token.id, kind: token.kind, label: token.label }))
       return (
         <div
           data-testid="composer-runtime"
           data-selection={`${initialTextSelection?.start}:${initialTextSelection?.end}`}>
           {text}
+          {tokens.map((token) => (
+            <span key={token.id}>{token.label}</span>
+          ))}
         </div>
       )
     }
@@ -60,7 +78,7 @@ class FakeDataTransfer {
 }
 
 function Harness(overrides: Partial<ComposerSurfaceProps> = {}) {
-  const [text, setText] = useState('draft')
+  const [text, setText] = useState('')
   const props: ComposerSurfaceProps = {
     text,
     onTextChange: setText,
@@ -68,7 +86,7 @@ function Harness(overrides: Partial<ComposerSurfaceProps> = {}) {
     managedTokenKinds: [],
     onTokensChange: vi.fn(),
     placeholder: 'Message',
-    sendMessageShortcut: 'Enter',
+    sendMessageShortcut: ['Enter'],
     sendDisabled: false,
     isLoading: false,
     onSendDraft: mocks.onSendDraft,
@@ -94,11 +112,14 @@ describe('deferred ComposerSurface', () => {
   beforeEach(() => {
     vi.stubGlobal('DataTransfer', FakeDataTransfer)
     mocks.runtimeIntent = undefined
+    mocks.runtimeTokens = []
     mocks.onSendDraft.mockClear()
+    mocks.toastError.mockClear()
     MockUsePreferenceUtils.resetMocks()
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 
@@ -122,19 +143,46 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.runtimeLoads).toBe(0)
   })
 
+  it('keeps a whitespace-only draft on the fallback without loading the runtime', () => {
+    render(<Harness text="   " />)
+
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('   ')
+    expect(mocks.runtimeLoads).toBe(0)
+  })
+
+  it('swaps in the rich runtime while idle, before the user can type into the fallback', async () => {
+    const idleCallbacks: Array<() => void> = []
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => idleCallbacks.push(callback))
+    vi.stubGlobal('cancelIdleCallback', () => {})
+
+    render(<Harness text="" />)
+    expect(mocks.runtimeLoads).toBe(0)
+
+    act(() => idleCallbacks.forEach((callback) => callback()))
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the rich runtime on focus so the fallback swap cannot swallow the first keystroke', async () => {
+    render(<Harness text="" />)
+
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Message' }))
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('')
+    expect(runtime).toHaveAttribute('data-selection', '0:0')
+  })
+
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {
     render(<Harness />)
 
     const input = screen.getByRole('textbox', { name: 'Message' })
-    expect(input).toHaveValue('draft')
-    expect(mocks.runtimeLoads).toBe(0)
+    expect(input).toHaveValue('')
 
+    // Focus starts the runtime load; a composition begun before the swap commits keeps the
+    // textarea mounted, so the committed characters survive into the runtime.
     fireEvent.focus(input)
-    expect(mocks.runtimeLoads).toBe(0)
-
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'draft text', selectionStart: 10, selectionEnd: 10 } })
-    await waitFor(() => expect(mocks.runtimeLoads).toBe(1))
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('draft text')
 
     fireEvent.compositionEnd(input, { currentTarget: { selectionStart: 10, selectionEnd: 10 } })
@@ -206,6 +254,89 @@ describe('deferred ComposerSurface', () => {
     expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
   })
 
+  it('loads the runtime for the first picker file token on an empty unused-assistant fallback', async () => {
+    // Catches: switch to a not-yet-used assistant (empty text/draftTokens), click paperclip,
+    // and the managed file token never becomes visible because the deferred textarea cannot
+    // render chips and needsRuntime used to ignore props.tokens until a drag requested the runtime.
+    // Excluded: drag/paste (they already call requestRuntime), later attachments after the
+    // runtime is warm, and send-time FileEntry creation.
+    const fileToken: ComposerDraftToken = {
+      id: 'file:source-1',
+      kind: 'file',
+      label: 'report.txt'
+    }
+    let actions: ComposerSurfaceActions | undefined
+
+    function FreshAssistantPickerHarness() {
+      const [tokens, setTokens] = useState<ComposerDraftToken[]>([])
+      return (
+        <>
+          <button type="button" onClick={() => setTokens([fileToken])}>
+            Upload attachment
+          </button>
+          <Harness
+            tokens={tokens}
+            onActionsChange={(next) => {
+              actions = next
+            }}
+          />
+        </>
+      )
+    }
+
+    render(<FreshAssistantPickerHarness />)
+
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(screen.queryByTestId('composer-runtime')).not.toBeInTheDocument()
+    await waitFor(() => expect(actions).toBeDefined())
+    expect(actions!.getDraft().tokens).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload attachment' }))
+
+    expect(actions!.getDraft().tokens).toEqual([
+      expect.objectContaining({ id: 'file:source-1', kind: 'file', label: 'report.txt' })
+    ])
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('report.txt')
+    expect(mocks.runtimeTokens).toEqual([{ id: 'file:source-1', kind: 'file', label: 'report.txt' }])
+  })
+
+  it('loads the runtime for a restored multi-line draft the fixed-height fallback cannot hold', async () => {
+    render(<Harness text={'line one\nline two\nline three'} />)
+
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('line one line two line three')
+  })
+
+  it('loads the runtime for any non-empty draft, even one line a narrow input may soft-wrap', async () => {
+    render(<Harness text="one long single line" />)
+
+    expect(await screen.findByTestId('composer-runtime')).toHaveTextContent('one long single line')
+  })
+
+  it('marks the deferred intent as focused when the fallback textarea gained focus', async () => {
+    render(<Harness />)
+
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'hello' } })
+
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.hadFocus).toBe(true)
+  })
+
+  it('loads the runtime for the compact structural variant', async () => {
+    render(<Harness compactWhenSingleLine />)
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the runtime for the expanded structural variant', async () => {
+    render(<Harness isExpanded />)
+
+    expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
   it('follows the send-shortcut preference when the caller does not pass one', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.input.send_message_shortcut', 'Ctrl+Enter')
     render(<Harness sendMessageShortcut={undefined} />)
@@ -218,12 +349,78 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
   })
 
+  it('routes the steer shortcut to onSendDraft with { steer: true } in the deferred textarea', () => {
+    render(<Harness steerShortcut={['CommandOrControl', 'Enter']} />)
+
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
+    expect(mocks.onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
+  })
+
+  it('ignores the steer shortcut in the deferred textarea when the caller does not pass one', () => {
+    render(<Harness />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter', ctrlKey: true })
+    expect(mocks.onSendDraft).not.toHaveBeenCalled()
+  })
+
   it('navigates input history on the first arrow key', () => {
     const onInputHistoryNavigate = vi.fn(() => true)
-    render(<Harness text="" isInputHistoryActive onInputHistoryNavigate={onInputHistoryNavigate} />)
+    render(<Harness text="" onInputHistoryNavigate={onInputHistoryNavigate} />)
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
     expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+  })
+
+  it('matches the runtime ArrowUp history boundary for a non-empty draft', async () => {
+    const text = 'draft'
+    const onInputHistoryNavigate = vi.fn(() => true)
+    render(<Harness text={text} onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' })
+    input.setSelectionRange(0, 0)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+
+    input.setSelectionRange(1, text.length)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+
+    input.setSelectionRange(text.length, text.length)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+    await screen.findByTestId('composer-runtime')
+  })
+
+  it('hands the end selection to the runtime for history recalled before it loads', async () => {
+    const historyText = 'previous chat prompt'
+    let actions: ComposerSurfaceActions | undefined
+
+    function InputHistoryHarness() {
+      const [text, setText] = useState('')
+      return (
+        <Harness
+          text={text}
+          onTextChange={setText}
+          onActionsChange={(nextActions) => {
+            actions = nextActions
+          }}
+          onInputHistoryNavigate={() => {
+            actions?.replaceDraft({ text: historyText, tokens: [] })
+            return true
+          }}
+        />
+      )
+    }
+
+    render(<InputHistoryHarness />)
+    await waitFor(() => expect(actions).toBeDefined())
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'ArrowUp' })
+
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveAttribute('data-selection', `${historyText.length}:${historyText.length}`)
   })
 
   it('replays a programmatic first token insertion through the runtime', async () => {
@@ -232,6 +429,7 @@ describe('deferred ComposerSurface', () => {
     const onTokensChange = vi.fn()
     render(
       <Harness
+        text="draft"
         onActionsChange={(next) => {
           actions = next
         }}
@@ -254,6 +452,7 @@ describe('deferred ComposerSurface', () => {
     const quote = { id: 'q2', kind: 'quote', promptText: 'Quoted line' } as ComposerDraftToken
     render(
       <Harness
+        text="draft"
         onActionsChange={(next) => {
           actions = next
         }}
@@ -300,5 +499,19 @@ describe('deferred ComposerSurface', () => {
     const { container } = render(<Harness isLoading sendDisabled />)
     const pause = container.querySelector('[data-ui="chat.composer.action.pause"]')
     expect(pause?.getAttribute('aria-label')).toBeTruthy()
+  })
+
+  it('shows blocked-send feedback when the disabled send button is clicked before the runtime loads', () => {
+    render(<Harness sendDisabled sendBlockedReason="test.send_blocked" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(mocks.toastError).toHaveBeenCalledWith('test.send_blocked')
+  })
+
+  it('shows blocked-send feedback when the send shortcut is pressed while disabled', () => {
+    render(<Harness sendDisabled sendBlockedReason="test.send_blocked" />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter' })
+    expect(mocks.toastError).toHaveBeenCalledWith('test.send_blocked')
   })
 })

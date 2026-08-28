@@ -5,8 +5,6 @@
  * LAN transfer, and a handful of micro-domains.
  */
 export enum IpcChannel {
-  App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',
@@ -138,9 +136,6 @@ export enum IpcChannel {
   // TRACE
   TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-
-  // ExternalApps
-  ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
   // Global Skills
   Skill_ReadFile = 'skill:read-file',

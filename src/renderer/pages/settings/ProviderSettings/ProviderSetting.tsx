@@ -7,50 +7,96 @@ import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
-import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
-import { ModelList, ModelListHealthProvider, useModelListHealth } from './ModelList'
+import ProviderApiSetupDialog, { type ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
+import { ApiKeyProvider } from './hooks/providerSetting/useAuthenticationApiKey'
+import { useProviderApiKey } from './hooks/providerSetting/useProviderApiKey'
+import { ModelList, ModelListHealthProvider } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
 
 interface ProviderSettingProps {
   providerId: string
-  isOnboarding?: boolean
+  initialApiSetupStep?: ProviderApiSetupInitialStep
+  onApiSetupClosed?: () => void
 }
 
-function ProviderSettingSections({ providerId, isLoginBased }: { providerId: string; isLoginBased: boolean }) {
-  const health = useModelListHealth()
+function ProviderSettingSections({
+  providerId,
+  isLoginBased,
+  initialApiSetupStep,
+  onApiSetupClosed
+}: {
+  providerId: string
+  isLoginBased: boolean
+  initialApiSetupStep?: ProviderApiSetupInitialStep
+  onApiSetupClosed?: () => void
+}) {
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
+  const [apiSetupStep, setApiSetupStep] = useState<ProviderApiSetupInitialStep | null>(initialApiSetupStep ?? null)
   const requestModelPullGuide = useCallback(() => {
     setModelPullGuideVersion((version) => version + 1)
   }, [])
-
-  const authenticationSection = (
-    <AuthenticationSection
-      providerId={providerId}
-      onOpenModelHealthCheck={health.openHealthCheck}
-      onRequestModelPullGuide={requestModelPullGuide}
-    />
-  )
+  const openApiSetup = useCallback((initialStep: ProviderApiSetupInitialStep) => setApiSetupStep(initialStep), [])
+  const closeApiSetup = useCallback(() => {
+    setApiSetupStep(null)
+    onApiSetupClosed?.()
+  }, [onApiSetupClosed])
 
   return (
-    <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
-      <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
-        {authenticationSection}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+    <>
+      <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
+        <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
+          <AuthenticationSection
+            providerId={providerId}
+            onRequestModelPullGuide={requestModelPullGuide}
+            onOpenApiSetup={() => openApiSetup('api-key')}
+            onContinueApiSetup={() => openApiSetup('models')}
+          />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ModelList
+              providerId={providerId}
+              modelPullGuideVersion={modelPullGuideVersion}
+              onContinueApiSetup={() => openApiSetup('models')}
+            />
+          </div>
         </div>
-      </div>
-    </Scrollbar>
+      </Scrollbar>
+      {apiSetupStep ? (
+        <ProviderApiSetupDialog providerId={providerId} initialStep={apiSetupStep} onClose={closeApiSetup} />
+      ) : null}
+    </>
   )
 }
 
-export default function ProviderSetting({ providerId, isOnboarding = false }: ProviderSettingProps) {
+function ProviderSettingContent({
+  providerId,
+  isLoginBased,
+  initialApiSetupStep,
+  onApiSetupClosed
+}: {
+  providerId: string
+  isLoginBased: boolean
+  initialApiSetupStep?: ProviderApiSetupInitialStep
+  onApiSetupClosed?: () => void
+}) {
+  const apiKey = useProviderApiKey(providerId)
+
+  return (
+    <ApiKeyProvider value={apiKey}>
+      <ModelListHealthProvider providerId={providerId}>
+        <ProviderSettingSections
+          providerId={providerId}
+          isLoginBased={isLoginBased}
+          initialApiSetupStep={initialApiSetupStep}
+          onApiSetupClosed={onApiSetupClosed}
+        />
+      </ModelListHealthProvider>
+    </ApiKeyProvider>
+  )
+}
+
+export default function ProviderSetting({ providerId, initialApiSetupStep, onApiSetupClosed }: ProviderSettingProps) {
   const { provider } = useProvider(providerId)
   const { theme } = useTheme()
-
-  useProviderOnboardingAutoEnable({
-    providerId,
-    isOnboarding
-  })
 
   if (!provider) {
     return null
@@ -65,9 +111,12 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
               <ProviderHeader providerId={providerId} />
             </div>
           </div>
-          <ModelListHealthProvider providerId={providerId}>
-            <ProviderSettingSections providerId={providerId} isLoginBased={isLoginBasedProvider(provider)} />
-          </ModelListHealthProvider>
+          <ProviderSettingContent
+            providerId={providerId}
+            isLoginBased={isLoginBasedProvider(provider)}
+            initialApiSetupStep={initialApiSetupStep}
+            onApiSetupClosed={onApiSetupClosed}
+          />
         </div>
       </div>
     </ProviderSettingsContainer>

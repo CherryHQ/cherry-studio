@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.4",
+    "version": "2.0.9",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -56,6 +56,7 @@
       "/app/knowledge",
       "/app/launchpad",
       "/app/notes",
+      "/app/release-notes",
       "/app/translate",
       "/settings/about",
       "/settings/api-gateway",
@@ -65,14 +66,17 @@
       "/settings/data",
       "/settings/dependencies",
       "/settings/file-processing",
+      "/settings/general",
       "/settings/local-models",
       "/settings/mcp",
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
+      "/settings/screenshot",
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
@@ -103,7 +107,8 @@
         "defaultBinding": [
           "Escape"
         ],
-        "editable": false
+        "editable": false,
+        "when": "!webview.focused"
       }
     },
     {
@@ -335,6 +340,39 @@
       }
     },
     {
+      "id": "screenshot.capture",
+      "titleKey": "settings.shortcuts.screenshot_capture",
+      "categoryKey": "settings.shortcuts.feature.screenshot",
+      "scope": "main",
+      "enablement": "feature.screenshot.enabled",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "A"
+        ],
+        "global": true,
+        "when": "feature.screenshot.enabled",
+        "supportedPlatforms": [
+          "darwin",
+          "win32",
+          "linux"
+        ]
+      }
+    },
+    {
+      "id": "topic.clear_messages",
+      "titleKey": "chat.topics.clear.title",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "L"
+        ]
+      }
+    },
+    {
       "id": "topic.create",
       "titleKey": "settings.shortcuts.new_topic",
       "categoryKey": "settings.shortcuts.topic",
@@ -410,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "cde3bb6539c1f8fa",
-    "count": 62,
+    "version": "b3b73ceeb452801e",
+    "count": 61,
     "entries": [
       {
         "id": "cherryin",
@@ -536,10 +574,6 @@
       {
         "id": "vertexai",
         "name": "VertexAI"
-      },
-      {
-        "id": "github",
-        "name": "Github Models"
       },
       {
         "id": "copilot",
@@ -746,12 +780,15 @@
         "openai-codex",
         "opencode",
         "openclaw",
+        "deepseek-harness",
         "gemini-cli",
+        "antigravity-cli",
         "qwen-code",
         "kimi-code",
         "qoder-cli",
         "github-copilot-cli",
-        "pi"
+        "pi",
+        "hermes"
       ]
     }
   }

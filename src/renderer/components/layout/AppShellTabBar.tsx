@@ -5,6 +5,7 @@ import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
@@ -410,19 +411,21 @@ interface TabCapabilities {
 
 /**
  * Single source of truth for what a tab can do, derived from its zone and the
- * tab counts. Normal tabs can always be closed/pinned/detached; if the last tab
- * closes, TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs
- * can be closed via the context menu (no inline X), and the batch close actions
- * only ever clear the normal zone — pinned tabs are exempt as close *targets*,
- * matching browser convention. Reordering is per-zone. `normalIndex` is the
- * tab's position within the normal zone — required to offer "close tabs to the
- * right"; for a pinned tab every normal tab counts as being to its right.
+ * tab counts. Normal tabs can always be closed/detached; restorable tabs can also
+ * be pinned. Transient mini-app tabs cannot be restored from the persistent pinned
+ * store, so pinning is deliberately unavailable for them. If the last tab closes,
+ * TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs can be
+ * closed via the context menu (no inline X), and the batch close actions only ever
+ * clear the normal zone — pinned tabs are exempt as close *targets*, matching
+ * browser convention. Reordering is per-zone. `normalIndex` is the tab's position
+ * within the normal zone — required to offer "close tabs to the right"; for a
+ * pinned tab every normal tab counts as being to its right.
  */
 export function getTabCapabilities(
-  tab: Pick<Tab, 'id' | 'isPinned'>,
+  tab: Pick<Tab, 'id' | 'isPinned' | 'metadata'> & { url?: string },
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean; normalIndex?: number }
 ): TabCapabilities {
-  const detach = ctx.canDetach
+  const detach = ctx.canDetach && !isSettingsPath(tab.url)
   if (tab.isPinned) {
     const hasSiblings = ctx.pinnedCount > 1
     return {
@@ -439,7 +442,7 @@ export function getTabCapabilities(
   return {
     menu: true,
     reorder: hasSiblings,
-    togglePin: true,
+    togglePin: tab.metadata?.transientMiniApp !== true,
     detach,
     close: true,
     closeOthers: hasSiblings,
@@ -622,7 +625,6 @@ export const AppShellTabBar = ({
   const animationFrameIdsRef = useRef(new Set<number>())
   const closeTimersRef = useRef<number[]>([])
   const thawTimerRef = useRef<number | null>(null)
-  const stripRef = useRef<HTMLDivElement | null>(null)
   const stripPointerInsideRef = useRef(false)
   const thawAfterCollapseRef = useRef(false)
   const handleStripMouseLeaveRef = useRef<() => void>(() => undefined)
@@ -681,6 +683,7 @@ export const AppShellTabBar = ({
     () => ({ pinnedCount: pinnedTabs.length, normalCount: normalTabs.length, canDetach: !!detachTab }),
     [pinnedTabs.length, normalTabs.length, detachTab]
   )
+  const canDetachActiveTab = !!detachTab && normalTabs.some((tab) => tab.id === activeTabId && !isSettingsPath(tab.url))
 
   // ─── Context menu actions ───────────────────────────────────────────────────
 
@@ -742,16 +745,25 @@ export const AppShellTabBar = ({
 
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
-  const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({
-      pinnedTabs,
-      normalTabs,
-      normalReorderStartIndex,
-      canDetach: !!detachTab,
-      reorderTabs,
-      closeTab,
-      setActiveTab
-    })
+  const {
+    tabBarRef,
+    tabListRef: stripRef,
+    rightInsetRef,
+    tabRefs,
+    noTransition,
+    getTranslateX,
+    handlePointerDown,
+    handleTabClick,
+    isDragging,
+    isGhost
+  } = useTabDrag({
+    pinnedTabs,
+    normalTabs,
+    normalReorderStartIndex,
+    reorderTabs,
+    closeTab,
+    setActiveTab
+  })
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
@@ -931,7 +943,9 @@ export const AppShellTabBar = ({
                         noTransition,
                         translateX: getTranslateX(tab.id, 'pinned'),
                         onPointerDown:
-                          caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'pinned') : () => undefined
+                          caps.reorder || caps.detach
+                            ? (e) => handlePointerDown(e, tab, 'pinned', caps.detach)
+                            : () => undefined
                       }}
                       tabRef={(el) => {
                         if (el) {
@@ -960,7 +974,7 @@ export const AppShellTabBar = ({
                   menu: true,
                   reorder: false,
                   togglePin: false,
-                  detach: !!detachTab,
+                  detach: !!detachTab && !isSettingsPath(tab.url),
                   close: true,
                   closeOthers: false,
                   closeToRight: false
@@ -989,7 +1003,9 @@ export const AppShellTabBar = ({
                       noTransition,
                       translateX: getTranslateX(tab.id, 'normal'),
                       onPointerDown:
-                        caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
+                        caps.reorder || caps.detach
+                          ? (e) => handlePointerDown(e, tab, 'normal', caps.detach)
+                          : () => undefined
                     }}
                     tabRef={(el) => {
                       if (el) {
@@ -1103,7 +1119,9 @@ export const AppShellTabBar = ({
                     noTransition,
                     translateX: getTranslateX(tab.id, 'normal'),
                     onPointerDown:
-                      caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
+                      caps.reorder || caps.detach
+                        ? (e) => handlePointerDown(e, tab, 'normal', caps.detach)
+                        : () => undefined
                   }}
                   tabRef={(el) => {
                     if (el) {
@@ -1121,6 +1139,7 @@ export const AppShellTabBar = ({
           {!isFocusedTab && (
             <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
               <button
+                ref={rightInsetRef}
                 type="button"
                 data-launchpad-button
                 aria-label={t('title.launchpad')}
@@ -1137,7 +1156,7 @@ export const AppShellTabBar = ({
 
         {isFocusedTab ? (
           <div className="flex h-full shrink-0 items-stretch">
-            {detachTab && (
+            {detachTab && canDetachActiveTab && (
               <div className="flex items-center pr-2 [-webkit-app-region:no-drag]">
                 <Tooltip content={t('tab.open_in_new_window')} placement="bottom" delay={800}>
                   <Button

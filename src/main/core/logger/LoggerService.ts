@@ -44,7 +44,7 @@ const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
 /**
  * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
  * level, console output, and the CSLOGGER_MAIN_* overrides all turn on together.
- * Idempotent when already in dev (`isDev || x === isDev`). See docs/guides/diagnostics.md.
+ * Idempotent when already in dev (`isDev || x === isDev`). See docs/references/diagnostics/README.md.
  */
 const DEV_LOGGING = isDev || DIAGNOSTICS_ENABLED
 
@@ -248,28 +248,56 @@ export class LoggerService {
       }
     }
 
-    // add source information to meta
+    // Winston merges only the first splat object into the logged line (no
+    // `format.splat()` configured), so collapse caller data + source into one meta.
+    const entry: Record<string, unknown> = {}
+    const rest: unknown[] = []
+    let fileMessage = message
+
+    const [first, ...others] = meta
+    if (first instanceof Error) {
+      Object.assign(entry, first)
+      entry.stack = first.stack
+      fileMessage = `${message} ${first.message}`
+    } else if (first !== null && typeof first === 'object') {
+      Object.assign(entry, first)
+    } else if (first !== undefined) {
+      rest.push(first)
+    }
+    for (const item of others) {
+      rest.push(item instanceof Error ? { name: item.name, message: item.message, stack: item.stack } : item)
+    }
+    if (rest.length > 0) {
+      entry.data = rest
+    }
+
+    // source fields assigned last so caller data can never clobber them
     // renderer process has its own module and context, do not use this.module and this.context
-    const sourceWithContext: LogSourceWithContext = source
+    entry.process = source.process
     if (source.process === 'main') {
-      sourceWithContext.module = this.module
+      entry.module = this.module
       if (Object.keys(this.context).length > 0) {
-        sourceWithContext.context = this.context
+        entry.context = this.context
+      }
+    } else {
+      if (source.window !== undefined) {
+        entry.window = source.window
+      }
+      if (source.module !== undefined) {
+        entry.module = source.module
+      }
+      if (source.context !== undefined) {
+        entry.context = source.context
       }
     }
-    meta.push(sourceWithContext)
 
     // add extra system information for error and warn levels
     if (level === LEVEL.ERROR || level === LEVEL.WARN) {
-      const extra = {
-        sys: SYSTEM_INFO,
-        appver: APP_VERSION
-      }
-
-      meta.push(extra)
+      entry.sys = SYSTEM_INFO
+      entry.appver = APP_VERSION
     }
 
-    this.logger.log(level, message, ...meta)
+    this.logger.log(level, fileMessage, entry)
   }
 
   /**
@@ -375,7 +403,12 @@ export class LoggerService {
   }
 
   /**
-   * Register IPC handler for renderer process logging
+   * Register IPC handler for renderer process logging.
+   *
+   * Deliberately NOT routed through `handleGuarded` (unlike other legacy IPC):
+   * this runs at module-eval time via the constructor, and importing the
+   * `validateSender` chain would pull `@application` into core/logger's init
+   * order. The channel only forwards log lines — no privileged action.
    */
   private registerIpcHandler(): void {
     ipcMain.handle(

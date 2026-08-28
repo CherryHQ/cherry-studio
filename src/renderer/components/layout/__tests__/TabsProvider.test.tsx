@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,6 +73,7 @@ let normalTabsValue: Tab[] = []
 const setNormalTabsMock = vi.fn()
 let activeTabIdValue = ''
 const setActiveTabIdMock = vi.fn()
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -115,11 +116,11 @@ vi.mock('@renderer/utils/routeTitle', async () => {
 })
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() },
+  ipcApi: { request: ipcRequestMock },
   useIpcOn: vi.fn()
 }))
 
-import { useTabsContext } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useTabsContext } from '@renderer/hooks/tab'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -144,6 +145,63 @@ function PinnedRouteTitle() {
 function TabIds() {
   const { tabs } = useTabsContext()
   return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
+const conversationTabActionRender = vi.fn()
+
+function ConversationTabMutationControls() {
+  const { activeTabId, addTab, closeTab, setActiveTab, tabs, updateTab } = useTabsContext()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          addTab({
+            id: 'topic-a-tab',
+            type: 'route',
+            url: '/app/chat?topicId=topic-a',
+            title: 'Topic A',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+          addTab({
+            id: 'unrelated-tab',
+            type: 'route',
+            url: '/app/files',
+            title: 'Files',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+        }}>
+        Seed tabs
+      </button>
+      <button type="button" onClick={() => setActiveTab('home')}>
+        Activate home
+      </button>
+      <button
+        type="button"
+        onClick={() => updateTab('topic-a-tab', { title: 'Renamed Topic', metadata: { test: true } })}>
+        Rename background topic
+      </button>
+      <button type="button" onClick={() => closeTab('unrelated-tab')}>
+        Close unrelated tab
+      </button>
+      <div data-testid="conversation-tab-active">{activeTabId}</div>
+      <div data-testid="conversation-tab-snapshot">{tabs.map((tab) => `${tab.id}:${tab.title}`).join(',')}</div>
+    </>
+  )
+}
+
+function ConversationTabActionProbe() {
+  conversationTabActionRender()
+  const closeConversationTabs = useCloseConversationTabs()
+
+  return (
+    <button type="button" onClick={() => closeConversationTabs('assistants', ['topic-a'])}>
+      Close background topic
+    </button>
+  )
 }
 
 // Surfaces restored-session state: active tab id, each tab's awake/dormant state, and the id list.
@@ -317,11 +375,37 @@ function PinnedOverflowSeeder() {
   )
 }
 
+function TransientMiniAppPinner() {
+  const { openTab, pinTab, tabs } = useTabsContext()
+  const didOpenRef = useRef(false)
+  const didPinRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/mini-app/deepseek-harness', {
+      id: 'transient-mini-app',
+      title: 'DeepSeek Harness',
+      metadata: { transientMiniApp: true },
+      forceNew: true
+    })
+  }, [openTab])
+
+  useEffect(() => {
+    if (didPinRef.current || !tabs.some((tab) => tab.id === 'transient-mini-app')) return
+    didPinRef.current = true
+    pinTab('transient-mini-app')
+  }, [pinTab, tabs])
+
+  return <div data-testid="transient-tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
 beforeEach(() => {
   currentLanguage = 'en'
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
+  conversationTabActionRender.mockClear()
 })
 
 afterEach(() => {
@@ -330,6 +414,49 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('rejects direct detach requests for Settings tabs', () => {
+    const settingsTab = { ...HOME_TAB, id: 'settings', url: '/settings/provider', title: 'Settings' }
+
+    const { result } = renderHook(() => useTabsContext(), {
+      wrapper: ({ children }) => <TabsProvider initialDefaultTab={settingsTab}>{children}</TabsProvider>
+    })
+
+    act(() => result.current.detachTab(settingsTab.id))
+
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('tab.detach', expect.anything())
+  })
+
+  it('keeps conversation tab actions isolated while reading the latest tab state', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
+        <ConversationTabMutationControls />
+        <ConversationTabActionProbe />
+      </TabsProvider>
+    )
+    const initialActionRenders = conversationTabActionRender.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('unrelated-tab'))
+    expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Topic A')
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate home' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('home'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename background topic' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('Renamed Topic'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close unrelated tab' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('unrelated-tab'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close background topic' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('topic-a-tab'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+  })
+
   it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider
@@ -390,6 +517,17 @@ describe('TabsProvider', () => {
     )
 
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+  })
+
+  it('keeps a transient mini-app tab visible when pinning is requested programmatically', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <TransientMiniAppPinner />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('transient-tab-ids')).toHaveTextContent('transient-mini-app'))
+    expect(setPinnedTabsMock.mock.calls.some(([arg]) => typeof arg === 'function')).toBe(false)
   })
 
   it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
@@ -645,6 +783,37 @@ describe('TabsProvider', () => {
 })
 
 describe('TabsProvider session restore', () => {
+  it('drops transient mini-app tabs whose in-memory descriptor disappears on restart', async () => {
+    const codeTab: Tab = {
+      id: 'code',
+      type: 'route',
+      url: '/app/code',
+      title: 'Code',
+      lastAccessTime: 1,
+      isDormant: false
+    }
+    const transientMiniAppTab: Tab = {
+      id: 'deepseek-harness',
+      type: 'route',
+      url: '/app/mini-app/deepseek-harness-web',
+      title: 'DeepSeek Harness',
+      metadata: { transientMiniApp: true },
+      lastAccessTime: 2,
+      isDormant: false
+    }
+    normalTabsValue = [codeTab, transientMiniAppTab]
+    activeTabIdValue = transientMiniAppTab.id
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent(codeTab.id))
+    expect(screen.getByTestId('session-ids')).not.toHaveTextContent(transientMiniAppTab.id)
+  })
+
   it('restores the persisted session and keeps only the active tab awake', async () => {
     const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
     const tabB: Tab = { id: 'b', type: 'route', url: '/app/agents', title: '', lastAccessTime: 2, isDormant: false }
@@ -772,6 +941,19 @@ describe('TabsProvider session restore', () => {
 })
 
 describe('migratePinnedTabs', () => {
+  it('drops pinned transient mini-app tabs on restore', () => {
+    const transientMiniAppTab: Tab = {
+      ...PINNED_FILES_TAB,
+      id: 'transient-mini-app',
+      url: '/app/mini-app/transient',
+      metadata: { transientMiniApp: true }
+    }
+
+    const { tabs, changed } = migratePinnedTabs([transientMiniAppTab, PINNED_FILES_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([PINNED_FILES_TAB])
+  })
+
   it('redirects an OpenClaw pin to the Code page and flags the change', () => {
     const { tabs, changed } = migratePinnedTabs([PINNED_OPENCLAW_TAB, PINNED_FILES_TAB])
     expect(changed).toBe(true)

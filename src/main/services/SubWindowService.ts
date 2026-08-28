@@ -5,8 +5,8 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
+import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { isSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -52,7 +52,6 @@ export class SubWindowService extends BaseService {
   /** tabId → windowId map (windowId belongs to WindowManager's namespace, distinct from tabId) */
   private tabIdToWindowId: Map<string, string> = new Map()
   private windowState: Map<string, SubWindowState> = new Map()
-  private settingsWindowId?: string
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -153,19 +152,6 @@ export class SubWindowService extends BaseService {
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
 
-    if (isSettingsPath(url) && this.settingsWindowId) {
-      const existingWindow = wm.getWindow(this.settingsWindowId)
-      if (existingWindow && !existingWindow.isDestroyed()) {
-        const existingTabId = [...this.tabIdToWindowId].find(([, windowId]) => windowId === this.settingsWindowId)?.[0]
-        const existingState = existingTabId && this.windowState.get(existingTabId)
-        this.tabIdToWindowId.set(tabId, this.settingsWindowId)
-        if (existingState) this.windowState.set(tabId, existingState)
-        this.openSettingsWindow(url)
-        return this.settingsWindowId
-      }
-      this.settingsWindowId = undefined
-    }
-
     const initData: SubWindowInitData = {
       tabId,
       url,
@@ -194,7 +180,6 @@ export class SubWindowService extends BaseService {
     }
 
     this.tabIdToWindowId.set(tabId, windowId)
-    if (isSettingsPath(url)) this.settingsWindowId = windowId
 
     // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
     // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
@@ -219,33 +204,12 @@ export class SubWindowService extends BaseService {
     // so even if WindowManager's internal 'closed' handler later calls removeAllListeners,
     // this callback has already executed.
     win.once('closed', () => {
-      for (const [mappedTabId, mappedWindowId] of this.tabIdToWindowId) {
-        if (mappedWindowId === windowId) {
-          this.tabIdToWindowId.delete(mappedTabId)
-          this.windowState.delete(mappedTabId)
-        }
-      }
-      if (this.settingsWindowId === windowId) this.settingsWindowId = undefined
+      this.tabIdToWindowId.delete(tabId)
+      this.windowState.delete(tabId)
     })
 
     logger.info(`Created sub window for tab ${tabId}`, { windowId, url, title, type, isPinned })
     return windowId
-  }
-
-  public openSettingsWindow(path: SettingsPath): boolean {
-    if (!this.settingsWindowId) return false
-
-    const wm = application.get('WindowManager')
-    const window = wm.getWindow(this.settingsWindowId)
-    if (!window || window.isDestroyed()) {
-      this.settingsWindowId = undefined
-      return false
-    }
-
-    application.get('IpcApiService').send(this.settingsWindowId, 'navigation.open_route_requested', { to: path })
-    wm.show(this.settingsWindowId)
-    wm.focus(this.settingsWindowId)
-    return true
   }
 
   /** Whether the calling window resolves to a SubWindow (guards operations that must never act on the main window). */
@@ -254,20 +218,18 @@ export class SubWindowService extends BaseService {
   }
 
   /**
-   * Re-attaches a tab from a detached sub-window back into the main window: broadcasts the
-   * Tab to the main window (which re-absorbs it) and closes the caller sub-window. The two
-   * guards are load-bearing: skip the whole thing when no main window exists (else the tab
-   * would be lost), and only close the caller when it truly is a SubWindow (never the main
-   * window). `senderId` is the calling window resolved by IpcContext.
+   * Re-attaches a tab from a detached sub-window back into the main window. Delivery is
+   * delegated to openTabInMainWindow, which handles both the live path (directed
+   * `tab.attached` event + raise the window, covering close-to-tray) and the cold path
+   * (rebuild the main window around the tab via `tab-attach` init data). We then close the
+   * caller sub-window — but only when it truly is a SubWindow (never the main window).
+   * `senderId` is the calling window resolved by IpcContext.
    */
   public attachTab(tab: Tab, senderId: WindowId | null): void {
-    const wm = application.get('WindowManager')
-    if (wm.getWindowsByType(WindowType.Main).length === 0) {
-      logger.warn('tab attach skipped: main window not available')
-      return
+    openTabInMainWindow(tab)
+    if (this.isSubWindowSender(senderId)) {
+      application.get('WindowManager').close(senderId)
     }
-    application.get('IpcApiService').broadcastToType(WindowType.Main, 'tab.attached', tab)
-    if (this.isSubWindowSender(senderId)) wm.close(senderId)
   }
 
   /**

@@ -260,6 +260,8 @@ function createUnifiedPanelListItem(
     id: launcher.id,
     label: launcher.label,
     description: getLauncherDescription(launcher),
+    tooltip: launcher.tooltip,
+    tooltipAnchor: launcher.tooltipAnchor,
     icon: launcher.icon,
     suffix: launcher.suffix,
     searchAliases: launcher.searchAliases,
@@ -370,7 +372,9 @@ function openUnifiedPanelSubmenu(
     symbol: launcher.id,
     parentPanel: options.parentPanel,
     queryAnchor: options.queryAnchor,
-    triggerInfo: options.triggerInfo ?? { type: 'button' }
+    // A submenu is opened by a selection, so its query starts empty and is typed, not triggered.
+    triggerInfo: { type: 'button' },
+    trackInputQuery: true
   })
 }
 

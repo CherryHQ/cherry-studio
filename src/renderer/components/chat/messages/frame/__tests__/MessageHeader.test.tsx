@@ -1,11 +1,15 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageHeader from '../MessageHeader'
 
 const providerState = vi.hoisted(() => ({
-  actions: {} as { selectMessage?: (messageId: string, selected: boolean) => void },
+  actions: {} as {
+    navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void
+    selectMessage?: (messageId: string, selected: boolean) => void
+  },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined
 }))
 
@@ -17,6 +21,8 @@ vi.mock('@cherrystudio/ui', () => ({
     <div className={className}>{children}</div>
   ),
   AvatarImage: ({ className }: { className?: string }) => <div className={className} />,
+  Badge: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) =>
+    asChild ? <>{children}</> : <span>{children}</span>,
   Checkbox: ({
     className,
     ...props
@@ -54,6 +60,7 @@ vi.mock('@renderer/utils/naming', () => ({
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => providerState.actions,
+  useOptionalMessageListActions: () => providerState.actions,
   useMessageListMeta: () => ({
     assistantProfile: undefined,
     userProfile: undefined
@@ -66,7 +73,10 @@ vi.mock('../../MessageListProvider', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, values?: { agent?: string; session?: string }) =>
+      key === 'agent.session_delivery.from' ? `From ${values?.agent} / ${values?.session}` : key
+  })
 }))
 
 const createMessage = (role: 'assistant' | 'user' = 'assistant', extra: Record<string, unknown> = {}) =>
@@ -171,5 +181,69 @@ describe('MessageHeader', () => {
     const { container } = render(<MessageHeader message={createMessage()} />)
 
     expect(container.querySelector('[data-message-select-checkbox]')).not.toBeNull()
+  })
+
+  it('shows durable sender attribution without transport status on a received message', () => {
+    const sender = { agentId: 'agent-a', sessionId: 'session-a' }
+    const { container, getByText } = render(
+      <MessageHeader
+        message={createMessage('user', {
+          delivery: {
+            version: 1,
+            sender,
+            receiver: { agentId: 'agent-b', sessionId: 'session-b' },
+            senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
+            receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
+            replyPolicy: 'none',
+            turnRef: null,
+            sourceMessageId: null,
+            outcome: null,
+            error: null,
+            statusAt: '2026-06-06T00:00:01.000Z',
+            status: 'accepted',
+            inReplyTo: null
+          }
+        })}
+      />
+    )
+
+    expect(getByText('From Agent A / Research')).toBeTruthy()
+    expect(container.querySelector('.lucide-mouse-pointer-click')).not.toBeNull()
+    expect(screen.queryByText('agent.session_delivery.status.accepted')).toBeNull()
+  })
+
+  it('opens the sending session from durable attribution', async () => {
+    const user = userEvent.setup()
+    const navigateToRoute = vi.fn()
+    providerState.actions = { navigateToRoute }
+
+    render(
+      <MessageHeader
+        message={createMessage('user', {
+          delivery: {
+            version: 1,
+            sender: { agentId: 'agent-a', sessionId: 'session-source' },
+            receiver: { agentId: 'agent-b', sessionId: 'session-current' },
+            senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
+            receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
+            replyPolicy: 'none',
+            turnRef: null,
+            sourceMessageId: null,
+            outcome: null,
+            error: null,
+            statusAt: '2026-06-06T00:00:01.000Z',
+            status: 'accepted',
+            inReplyTo: null
+          }
+        })}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /From Agent A \/ Research/ }))
+
+    expect(navigateToRoute).toHaveBeenCalledWith({
+      path: '/app/agents',
+      query: { sessionId: 'session-source' }
+    })
   })
 })

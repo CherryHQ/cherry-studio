@@ -32,6 +32,12 @@ describe('tabHandlers', () => {
     expect(subWindowService.createWindow).toHaveBeenCalledWith(detachPayload)
   })
 
+  it('rejects Settings detach requests at the main-process boundary', async () => {
+    await tabHandlers['tab.detach']({ ...detachPayload, url: '/settings/provider' }, ctx('w1'))
+
+    expect(subWindowService.createWindow).not.toHaveBeenCalled()
+  })
+
   it('drag_end restores the caller window opacity when below 1', async () => {
     const setOpacity = vi.fn()
     windowManager.getWindow.mockReturnValue({ isDestroyed: () => false, getOpacity: () => 0.85, setOpacity })

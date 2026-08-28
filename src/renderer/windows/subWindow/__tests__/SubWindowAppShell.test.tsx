@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,19 +15,35 @@ type ShellTab = {
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 const openTab = vi.fn()
-const updateTab = vi.fn()
-let navigationHandler: ((payload: { to: string }) => void) | undefined
+const ipcListeners = new Map<string, (value: boolean) => void>()
+let ipcRequest: ReturnType<typeof vi.fn> = vi.fn()
+let resolveInitialFullscreen: ((value: boolean) => void) | undefined
 
-async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitData | null } = {}) {
+async function renderSubWindowAppShell({
+  init = null,
+  isMac = false
+}: {
+  init?: SubWindowInitData | null
+  isMac?: boolean
+} = {}) {
   vi.resetModules()
-  vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/utils/platform', () => ({ isMac, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/ipc', () => {
+    ipcRequest = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveInitialFullscreen = resolve
+        })
+    )
+    return {
+      ipcApi: { request: ipcRequest },
+      useIpcOn: (event: string, handler: (value: boolean) => void) => {
+        ipcListeners.set(event, handler)
+      }
+    }
+  })
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => init
-  }))
-  vi.doMock('@renderer/ipc', () => ({
-    useIpcOn: (_event: string, handler: (payload: { to: string }) => void) => {
-      navigationHandler = handler
-    }
   }))
   vi.doMock('@renderer/hooks/tab', () => ({
     useTabs: () => ({
@@ -35,7 +51,7 @@ async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitDa
       activeTabId: 'home',
       setActiveTab: vi.fn(),
       closeTab: vi.fn(),
-      updateTab,
+      updateTab: vi.fn(),
       addTab: vi.fn(),
       reorderTabs: vi.fn(),
       openTab,
@@ -61,7 +77,9 @@ async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitDa
     useHasWindowControls: () => false
   }))
   vi.doMock('../SubWindowTitleBar', () => ({
-    SubWindowTitleBar: () => <header data-testid="sub-window-title-bar" />
+    SubWindowTitleBar: ({ isFullscreen }: { isFullscreen: boolean }) => (
+      <header data-testid="sub-window-title-bar" data-fullscreen={String(isFullscreen)} />
+    )
   }))
   vi.doMock('@renderer/components/layout/TabRouter', () => ({
     TabRouter: () => <section data-testid="tab-router" />
@@ -83,7 +101,9 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.resetModules()
-  navigationHandler = undefined
+  ipcListeners.clear()
+  ipcRequest = vi.fn()
+  resolveInitialFullscreen = undefined
 })
 
 describe('SubWindowAppShell', () => {
@@ -122,16 +142,30 @@ describe('SubWindowAppShell', () => {
     expect(openTab).toHaveBeenCalledOnce()
   })
 
-  it('navigates the detached Settings tab when another Settings open is requested', async () => {
-    await renderSubWindowAppShell()
+  it('reflects native fullscreen in the title bar on macOS', async () => {
+    await renderSubWindowAppShell({ isMac: true })
 
-    navigationHandler?.({ to: '/settings/about' })
+    const titleBar = screen.getByTestId('sub-window-title-bar')
+    expect(titleBar).toHaveAttribute('data-fullscreen', 'false')
 
-    expect(updateTab).toHaveBeenCalledWith('home', {
-      url: '/settings/about',
-      title: '/settings/about',
-      icon: undefined,
-      metadata: undefined
+    act(() => {
+      ipcListeners.get('window.fullscreen_changed')?.(true)
     })
+
+    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
+  })
+
+  it('queries the initial fullscreen state on mount (macOS)', async () => {
+    await renderSubWindowAppShell({ isMac: true })
+
+    expect(ipcRequest).toHaveBeenCalledWith('window.is_full_screen')
+
+    // Async act flushes the request's microtask so the mount-time update lands
+    // inside the act scope.
+    await act(async () => {
+      resolveInitialFullscreen?.(true)
+    })
+
+    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
   })
 })

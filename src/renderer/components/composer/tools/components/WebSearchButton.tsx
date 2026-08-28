@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { type IconRef, useIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
@@ -10,7 +11,7 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
-import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
+import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
@@ -32,12 +33,21 @@ const REASON_MESSAGE_KEYS: Partial<Record<WebToolUnavailableReason, string>> = {
   'openai-minimal-reasoning': 'chat.web_search.warning.openai'
 }
 
+const WebSearchProviderIcon: FC<{ iconRef?: IconRef }> = ({ iconRef }) => {
+  const Icon = useIcon(iconRef)
+  return Icon ? <Icon width={18} height={18} /> : <Globe />
+}
+
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
-  const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const {
+    defaultFetchUrlsProvider,
+    defaultSearchKeywordsProvider,
+    isLoading: isLoadingWebSearchProviders
+  } = useWebSearchProviders()
   const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
@@ -60,11 +70,13 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
   const activeProviderId = clientSearchAvailable ? defaultSearchKeywordsProvider?.id : undefined
 
-  const providerLogo =
-    webSearchRoute === 'client' && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
+  const providerIconRef =
+    enableWebSearch && webSearchRoute === 'client' && activeProviderId
+      ? getWebSearchProviderIconRef(activeProviderId)
+      : undefined
   const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
-  const isDisabled = Boolean(disabledReason)
+  const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
 
   const onClick = useCallback(
     async (restoreFocus?: () => void) => {
@@ -122,8 +134,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         : undefined
   const tooltipTitle = disabledReason ?? routeHint ?? ariaLabel
 
-  const ProviderIcon = enableWebSearch ? providerLogo : undefined
-  const icon = useMemo(() => (ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />), [ProviderIcon])
+  const icon = useMemo(() => <WebSearchProviderIcon iconRef={providerIconRef} />, [providerIconRef])
 
   useEffect(() => {
     return launcher.registerLaunchers([

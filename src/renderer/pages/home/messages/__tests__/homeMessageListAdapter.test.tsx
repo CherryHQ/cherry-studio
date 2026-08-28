@@ -1,5 +1,6 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -179,7 +180,6 @@ vi.mock('@renderer/components/chat/messages/messageListProviderBuilder', () => (
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EDIT_MESSAGE: 'EDIT_MESSAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE',
@@ -370,8 +370,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      diagnosticReport: { location: string }
       persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
     }
+    expect(options.diagnosticReport).toEqual({ location: 'error.diagnostic_report.locations.home' })
     await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
 
     expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
@@ -523,6 +525,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       />
     )
 
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
+    )
+
     const runtime: MessageListRuntime = {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn(),
@@ -540,7 +546,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(commandHandlerMock).toHaveBeenCalledWith('chat.message.edit_last_user', expect.any(Function), {
       enabled: false
     })
-    expect(eventMocks.on).not.toHaveBeenCalledWith('CLEAR_MESSAGES', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
     expect(value?.actions.getMessageDeleteAvailability).toBeUndefined()
@@ -664,6 +669,35 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
     expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
+  })
+
+  it('copies a message path into a new topic through the topic duplicate endpoint', async () => {
+    const copyBranchToNewTopicTrigger = vi.fn().mockResolvedValue(createTopic('copied-topic'))
+    let value: MessageListProviderValue | undefined
+
+    await mockUseMutation.withImplementation(
+      () => ({
+        trigger: copyBranchToNewTopicTrigger,
+        isLoading: false,
+        error: undefined
+      }),
+      async () => {
+        render(
+          <MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />
+        )
+
+        await waitFor(() => expect(value).toBeDefined())
+        await value?.actions.copyBranchToNewTopic?.('assistant-old')
+      }
+    )
+
+    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/topics/:id/duplicate', {
+      refresh: ['/topics']
+    })
+    expect(copyBranchToNewTopicTrigger).toHaveBeenCalledWith({
+      params: { id: 'topic-a' },
+      body: { nodeId: 'assistant-old' }
+    })
   })
 
   it('keeps a message translation active until its final update is persisted', async () => {

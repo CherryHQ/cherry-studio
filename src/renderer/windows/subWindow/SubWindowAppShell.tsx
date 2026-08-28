@@ -5,9 +5,9 @@ import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
 import { useTabs } from '@renderer/hooks/tab'
+import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import { useIpcOn } from '@renderer/ipc'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -31,6 +31,7 @@ export const SubWindowAppShell = () => {
   const { tabs, activeTabId, updateTab, openTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
+  const isFullscreen = useNativeFullscreen()
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip
@@ -67,10 +68,6 @@ export const SubWindowAppShell = () => {
     })
   }
 
-  useIpcOn('navigation.open_route_requested', ({ to }) => {
-    if (activeTabId) handleUrlChange(activeTabId, to)
-  })
-
   // Windows/Linux sub-windows are frameless, so the OS draws no min/max/close. Draw them
   // ourselves in the top-right corner and publish their width as --window-controls-width so
   // the standalone title bar can reserve that corner. macOS keeps its native traffic lights,
@@ -85,7 +82,7 @@ export const SubWindowAppShell = () => {
         data-ui="app.detached-window"
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
         style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
-        <SubWindowTitleBar />
+        <SubWindowTitleBar isFullscreen={isFullscreen} />
         {/* Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
           {/* Route Tabs: Only render non-dormant tabs */}

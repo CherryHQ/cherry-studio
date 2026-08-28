@@ -23,6 +23,7 @@ import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -97,6 +98,8 @@ interface AgentMessageListParams {
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
@@ -152,6 +155,8 @@ export function useAgentMessageListProviderValue({
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openDiagnosticReport,
+  diagnosticReport,
   deleteMessage,
   respondToolApproval,
   imageActionConsumer,
@@ -160,6 +165,7 @@ export function useAgentMessageListProviderValue({
   messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
@@ -252,9 +258,9 @@ export function useAgentMessageListProviderValue({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    diagnosticReport,
     persistDiagnosis
   })
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const openPath = useCallback(
     (path: string) => {
@@ -263,19 +269,10 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
-  const showInFolder = useCallback(
-    (path: string) => {
-      return window.api.file.showInFolder(requireWorkspaceFilePath(workspacePath, path))
-    },
+  const resolvePath = useMemo<MessageListActions['resolvePath']>(
+    () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
     [workspacePath]
   )
-
-  const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
-    const open = leafCapabilities.openInExternalApp
-    if (!open) return undefined
-
-    return (app, path) => open(app, requireWorkspaceFilePath(workspacePath, path))
-  }, [leafCapabilities.openInExternalApp, workspacePath])
 
   const abortTool = useCallback((toolId: string) => {
     return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
@@ -407,12 +404,12 @@ export function useAgentMessageListProviderValue({
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
+      resolvePath,
       openPath,
-      openInExternalApp,
       openArtifactFile,
+      openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
       openAgentToolFlow,
-      showInFolder,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -435,14 +432,15 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       locateMessage,
       messageUiStateCache.updateMessageUiState,
+      normalInteractionsEnabled,
       openCitationsPanel,
       openArtifactFile,
+      openDiagnosticReport,
       openAgentToolFlow,
-      openInExternalApp,
       openPath,
       respondToolApproval,
+      resolvePath,
       selectionController.actions,
-      showInFolder,
       updateRenderConfig
     ]
   )
