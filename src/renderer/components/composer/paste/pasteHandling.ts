@@ -79,7 +79,10 @@ export const handlePaste = async (
           }
           prepareFileInsertion()
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
-          if (setText && text) setText(text) // 保持输入框内容不变
+          // A lifecycle callback may have replaced the selected draft before the attachment is
+          // appended. Replaying the text captured before that async work would restore the deleted
+          // selection (and flatten managed tokens back into plain prompt text).
+          if (!lifecycle && setText && text) setText(text) // 保持全局粘贴的输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         }
         return true

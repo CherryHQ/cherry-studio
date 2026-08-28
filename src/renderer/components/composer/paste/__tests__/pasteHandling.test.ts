@@ -51,9 +51,12 @@ describe('pasteHandling', () => {
   it('marks long pasted text files with the pasted-text composer kind', async () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()
-    const beforeAddFiles = vi.fn()
+    const order: string[] = []
+    const beforeAddFiles = vi.fn(() => order.push('beforeAddFiles'))
+    const setText = vi.fn()
     let files: ComposerAttachment[] = []
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      order.push('setFiles')
       files = updater(files)
     })
     const event = {
@@ -68,8 +71,8 @@ describe('pasteHandling', () => {
       event,
       ['.txt'],
       setFiles,
-      undefined,
-      '',
+      setText,
+      'selected draft',
       undefined,
       (key) => (key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key),
       { beforeAddFiles }
@@ -77,6 +80,8 @@ describe('pasteHandling', () => {
 
     expect(handled).toBe(true)
     expect(beforeAddFiles).toHaveBeenCalledOnce()
+    expect(order).toEqual(['beforeAddFiles', 'setFiles'])
+    expect(setText).not.toHaveBeenCalled()
     expect(preventDefault).toHaveBeenCalled()
     expect(window.api.file.createTempFile).toHaveBeenCalledWith('pasted_text.txt')
     expect(window.api.file.write).toHaveBeenCalledWith('/tmp/pasted_text.txt', clipboardText)
