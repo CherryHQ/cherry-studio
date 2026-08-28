@@ -259,10 +259,13 @@ from pptx.oxml.ns import qn
 def replace_char_range(paragraph, start, end, new_text):
     """Replace paragraph.text[start:end] by editing run text only, so each run keeps its rPr
     (bold, size, colour) and its a:hlinkClick. An a:br occupies one position in paragraph.text
-    but owns no run, so the cursor must step over it or every later offset shifts by one."""
+    but owns no run, so the cursor must step over it or every later offset shifts by one — and
+    one the range covers has to go, or the replacement keeps a line break nobody asked for."""
     position, written = 0, False
-    for child in paragraph._p:
+    for child in list(paragraph._p):                  # list(): the loop removes children
         if child.tag == qn("a:br"):
+            if start <= position < end:
+                paragraph._p.remove(child)
             position += 1
             continue
         if child.tag != qn("a:r"):
