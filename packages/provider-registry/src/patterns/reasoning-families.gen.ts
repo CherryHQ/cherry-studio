@@ -108,6 +108,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // bailing
   { pattern: 'ring-(?:1t|mini|flash)' },
   { pattern: '^inkling' },
+  { pattern: '^ling-3-0-flash-fin' },
   // bytedance
   {
     pattern: 'doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\\d|doubao-seed-1[.-]8',
