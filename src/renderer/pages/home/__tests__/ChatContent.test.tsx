@@ -203,12 +203,16 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children,
-  TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,
-  TranslationOverlaySetterProvider: ({ children }: { children: ReactNode }) => children
-}))
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/components/chat/messages/blocks/MessagePartsContext')>()
+  return {
+    ...actual,
+    PartsProvider: ({ children }: { children: ReactNode }) => children,
+    RefreshProvider: ({ children }: { children: ReactNode }) => children,
+    TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,
+    TranslationOverlaySetterProvider: ({ children }: { children: ReactNode }) => children
+  }
+})
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   MessageListProvider: ({ value, children }: { value: unknown; children: ReactNode }) => {

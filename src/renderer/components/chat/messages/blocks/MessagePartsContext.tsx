@@ -230,10 +230,7 @@ export const TranslationOverlaySetterProvider = TranslationOverlaySetterContext.
 /** Read the full overlay map (empty object when no provider is mounted). */
 export function useTranslationOverlay(): Record<string, TranslationOverlayEntry> {
   const store = use(TranslationOverlayContext)
-  const subscribe = useCallback(
-    (listener: () => void) => store?.subscribeMap(listener) ?? (() => {}),
-    [store]
-  )
+  const subscribe = useCallback((listener: () => void) => store?.subscribeMap(listener) ?? (() => {}), [store])
   const getSnapshot = useCallback(() => store?.getMapSnapshot() ?? EMPTY_TRANSLATION_OVERLAY, [store])
   const getServerSnapshot = useCallback(() => EMPTY_TRANSLATION_OVERLAY, [])
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
