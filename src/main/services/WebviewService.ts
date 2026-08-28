@@ -1,7 +1,17 @@
-import { getAppLanguage, t } from '@main/utils/language'
-import { IpcChannel } from '@shared/IpcChannel'
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getAppLanguage, t } from '@main/i18n'
 import { app, dialog, session, shell, webContents } from 'electron'
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs } from 'fs'
+import { join } from 'path'
+
+import { isMiniAppPartition } from '../features/miniApp/runtime/partition'
+import { isSafeExternalUrl } from '../utils/externalUrlSafety'
+
+const logger = loggerService.withContext('WebviewService')
+/** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
+const WEBVIEW_PARTITION = 'persist:webview'
 
 /**
  * init the useragent of the webview session
@@ -14,7 +24,7 @@ export function initSessionUserAgent() {
 
   wvSession.setUserAgent(newUA)
   wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
-    const language = getAppLanguage()
+    const language = application.get('PreferenceService').get('app.language')
     const headers = {
       ...details.requestHeaders,
       'User-Agent': details.url.includes('google.com') ? originUA : newUA,
@@ -27,118 +37,122 @@ export function initSessionUserAgent() {
 /**
  * WebviewService handles the behavior of links opened from webview elements
  * It controls whether links should be opened within the application or in an external browser
+ *
+ * Site webviews only. A mini app guest (`persist:miniapp:*`) carries its own deny-all
+ * popup policy, and `setWindowOpenHandler` REPLACES whatever was installed before —
+ * a call here would hand the guest `shell.openExternal`, an exit from a sandbox that
+ * promises none. Decided on the session, never on what the renderer claims.
  */
 export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
   const webview = webContents.fromId(webviewId)
   if (!webview) return
-
-  webview.setWindowOpenHandler(({ url }) => {
-    if (isExternal) {
-      void shell.openExternal(url)
-      return { action: 'deny' }
-    } else {
-      return { action: 'allow' }
-    }
-  })
-}
-
-const attachKeyboardHandler = (contents: Electron.WebContents) => {
-  if (contents.getType?.() !== 'webview') {
+  if (webview.session !== session.fromPartition(WEBVIEW_PARTITION)) {
+    logger.warn('Refused to change the popup policy of a webview outside the site partition', { webviewId })
     return
   }
 
-  const handleBeforeInput = (event: Electron.Event, input: Electron.Input) => {
-    if (!input) {
-      return
+  webview.setWindowOpenHandler(({ url }) => {
+    if (isExternal) {
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url)
+      } else {
+        logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      }
+      return { action: 'deny' }
+    } else {
+      // In-app popups must stay on web origins; isSafeExternalUrl is not reused here
+      // because its allowlist (mailto:, editor deep-links) targets shell.openExternal.
+      if (url.startsWith('http:') || url.startsWith('https:')) {
+        return { action: 'allow' }
+      }
+      logger.warn(`Blocked in-app popup for untrusted URL scheme: ${url}`)
+      return { action: 'deny' }
     }
+  })
+}
 
-    const key = input.key?.toLowerCase()
-    if (!key) {
-      return
-    }
+@Injectable('WebviewService')
+@ServicePhase(Phase.WhenReady)
+export class WebviewService extends BaseService {
+  protected async onInit() {
+    this.initSessionUserAgent()
+    this.initKeyboardRelayPreload()
+  }
 
-    // Helper to check if this is a shortcut we handle
-    const isHandledShortcut = (k: string) => {
-      const isFindShortcut = (input.control || input.meta) && k === 'f'
-      const isPrintShortcut = (input.control || input.meta) && k === 'p'
-      const isSaveShortcut = (input.control || input.meta) && k === 's'
-      const isEscape = k === 'escape'
-      const isEnter = k === 'enter'
-      return isFindShortcut || isPrintShortcut || isSaveShortcut || isEscape || isEnter
-    }
+  /**
+   * Initialize the useragent of the webview session.
+   * Removes CherryStudio and Electron from the useragent.
+   */
+  private initSessionUserAgent() {
+    const wvSession = session.fromPartition(WEBVIEW_PARTITION)
+    const originUA = wvSession.getUserAgent()
+    const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
-    if (!isHandledShortcut(key)) {
-      return
-    }
-
-    const host = contents.hostWebContents
-    if (!host || host.isDestroyed()) {
-      return
-    }
-
-    const isFindShortcut = (input.control || input.meta) && key === 'f'
-    const isPrintShortcut = (input.control || input.meta) && key === 'p'
-    const isSaveShortcut = (input.control || input.meta) && key === 's'
-
-    // Always prevent Cmd/Ctrl+F to override the guest page's native find dialog
-    if (isFindShortcut) {
-      event.preventDefault()
-    }
-
-    // Prevent default print/save dialogs and handle them with custom logic
-    if (isPrintShortcut || isSaveShortcut) {
-      event.preventDefault()
-    }
-
-    // Send the hotkey event to the renderer
-    // The renderer will decide whether to preventDefault for Escape and Enter
-    // based on whether the search bar is visible
-    host.send(IpcChannel.Webview_SearchHotkey, {
-      webviewId: contents.id,
-      key,
-      control: Boolean(input.control),
-      meta: Boolean(input.meta),
-      shift: Boolean(input.shift),
-      alt: Boolean(input.alt)
+    wvSession.setUserAgent(newUA)
+    wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
+      const language = getAppLanguage()
+      const headers = {
+        ...details.requestHeaders,
+        'User-Agent': details.url.includes('google.com') ? originUA : newUA,
+        'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
+      }
+      cb({ requestHeaders: headers })
     })
+    this.registerDisposable(() => wvSession.webRequest.onBeforeSendHeaders(null))
   }
 
-  contents.on('before-input-event', handleBeforeInput)
-  contents.once('destroyed', () => {
-    contents.removeListener('before-input-event', handleBeforeInput)
-  })
-}
+  /**
+   * Install the keyboard relay into every SITE mini app guest. Assigned per `<webview>`
+   * rather than on the session, which `persist:webview` OAuth login windows also share.
+   *
+   * NOT local mini apps — the filter below excludes them, deliberately. Read it before
+   * concluding that a local app missing its shortcuts is a bug to fix here.
+   */
+  private initKeyboardRelayPreload() {
+    const preloadPath = join(__dirname, '../preload/miniApp.js')
+    // Electron reports nothing when a preload path is wrong, and the symptom is every
+    // MiniApp shortcut silently dying, so the mismatch has to be its own signal.
+    if (!existsSync(preloadPath)) {
+      logger.error(`MiniApp keyboard relay preload is missing, shortcuts will not work: ${preloadPath}`)
+      return
+    }
 
-export function initWebviewHotkeys() {
-  webContents.getAllWebContents().forEach((contents) => {
-    if (contents.isDestroyed()) return
-    attachKeyboardHandler(contents)
-  })
-
-  app.on('web-contents-created', (_, contents) => {
-    attachKeyboardHandler(contents)
-  })
-}
-
-/**
- * Print webview content to PDF
- * @param webviewId The webview webContents id
- * @returns Path to saved PDF file or null if user cancelled
- */
-export async function printWebviewToPDF(webviewId: number): Promise<string | null> {
-  const webview = webContents.fromId(webviewId)
-  if (!webview) {
-    throw new Error('Webview not found')
+    const attach = (_: Electron.Event, contents: Electron.WebContents) => {
+      contents.on('will-attach-webview', (_event, webPreferences, params) => {
+        // LOCAL mini apps are EXCLUDED, by their partition rather than by which window this
+        // is: `webviewHost` gives them the sandboxed bridge preload, both writers land on
+        // the same single `webPreferences.preload` slot, and without this filter which one
+        // survives is decided by the order two unrelated modules happened to register in.
+        //
+        // THE COST, written here because reviewers keep re-deriving it as a defect: a local
+        // mini app emits no `MINI_APP_KEYDOWN_CHANNEL`, so host shortcuts stop reaching the
+        // host while its guest has focus. Composing the relay INTO the bridge is blocked by
+        // Electron rather than by effort — a sandboxed preload must be ONE bundled file, so
+        // any module the two entries share becomes a rollup chunk the sandboxed one would
+        // have to `require`. Verified by building; inlining the wiring does not help either,
+        // because `@shared/utils/webviewKey` is then hoisted and the site relay breaks too.
+        // Closing it needs per-entry build machinery. Known gap, not an oversight.
+        if (isMiniAppPartition(params.partition)) return
+        webPreferences.preload = preloadPath
+      })
+    }
+    app.on('web-contents-created', attach)
+    this.registerDisposable(() => app.removeListener('web-contents-created', attach))
   }
 
-  try {
-    // Get the page title for default filename
+  /**
+   * Print webview content to PDF.
+   */
+  async printWebviewToPDF(webviewId: number): Promise<string | null> {
+    const webview = webContents.fromId(webviewId)
+    if (!webview) {
+      throw new Error('Webview not found')
+    }
+
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
-    // Sanitize filename by removing invalid characters
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)
     const defaultFilename = sanitizedTitle ? `${sanitizedTitle}.pdf` : `webpage-${Date.now()}.pdf`
 
-    // Show save dialog
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: t('dialog.save_as_pdf'),
       defaultPath: defaultFilename,
@@ -149,7 +163,6 @@ export async function printWebviewToPDF(webviewId: number): Promise<string | nul
       return null
     }
 
-    // Generate PDF with settings to capture full page
     const pdfData = await webview.printToPDF({
       margins: {
         marginType: 'default'
@@ -160,34 +173,24 @@ export async function printWebviewToPDF(webviewId: number): Promise<string | nul
       preferCSSPageSize: true
     })
 
-    // Save PDF to file
     await fs.writeFile(filePath, pdfData)
 
     return filePath
-  } catch (error) {
-    throw new Error(`Failed to print to PDF: ${(error as Error).message}`)
-  }
-}
-
-/**
- * Save webview content as HTML
- * @param webviewId The webview webContents id
- * @returns Path to saved HTML file or null if user cancelled
- */
-export async function saveWebviewAsHTML(webviewId: number): Promise<string | null> {
-  const webview = webContents.fromId(webviewId)
-  if (!webview) {
-    throw new Error('Webview not found')
   }
 
-  try {
-    // Get the page title for default filename
+  /**
+   * Save webview content as HTML.
+   */
+  async saveWebviewAsHTML(webviewId: number): Promise<string | null> {
+    const webview = webContents.fromId(webviewId)
+    if (!webview) {
+      throw new Error('Webview not found')
+    }
+
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
-    // Sanitize filename by removing invalid characters
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)
     const defaultFilename = sanitizedTitle ? `${sanitizedTitle}.html` : `webpage-${Date.now()}.html`
 
-    // Show save dialog
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: t('dialog.save_as_html'),
       defaultPath: defaultFilename,
@@ -201,7 +204,6 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
       return null
     }
 
-    // Get the HTML content with safe error handling
     const html = await webview.executeJavaScript(`
       (() => {
         try {
@@ -214,17 +216,17 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
             // Add PUBLIC identifier if publicId is present
             if (dt.publicId) {
               // Escape single quotes in publicId
-              const escapedPublicId = String(dt.publicId).replace(/'/g, "\\'");
+              const escapedPublicId = String(dt.publicId).replace(/'/g, "\\\\'");
               doctype += " PUBLIC '" + escapedPublicId + "'";
 
               // Add systemId if present (required when publicId is present)
               if (dt.systemId) {
-                const escapedSystemId = String(dt.systemId).replace(/'/g, "\\'");
+                const escapedSystemId = String(dt.systemId).replace(/'/g, "\\\\'");
                 doctype += " '" + escapedSystemId + "'";
               }
             } else if (dt.systemId) {
               // SYSTEM identifier (without PUBLIC)
-              const escapedSystemId = String(dt.systemId).replace(/'/g, "\\'");
+              const escapedSystemId = String(dt.systemId).replace(/'/g, "\\\\'");
               doctype += " SYSTEM '" + escapedSystemId + "'";
             }
 
@@ -238,11 +240,8 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
       })()
     `)
 
-    // Save HTML to file
     await fs.writeFile(filePath, html, 'utf-8')
 
     return filePath
-  } catch (error) {
-    throw new Error(`Failed to save as HTML: ${(error as Error).message}`)
   }
 }

@@ -1,0 +1,90 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PPIO request boundary > glm-image — quality + watermark_enabled: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "prompt": "a fox",
+  "quality": "hd",
+  "size": "1280x1280",
+  "watermark_enabled": true,
+}
+`;
+
+exports[`PPIO request boundary > hunyuan — size x→* + watermark: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "prompt": "a fox",
+  "seed": 7,
+  "size": "1024*1024",
+  "watermark": false,
+}
+`;
+
+exports[`PPIO request boundary > jimeng — width/height split + use_pre_llm + logo_info: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "height": 1024,
+  "logo_info": {
+    "add_logo": true,
+  },
+  "prompt": "a fox",
+  "seed": 42,
+  "use_pre_llm": true,
+  "width": 1024,
+}
+`;
+
+exports[`PPIO request boundary > qwen-image-edit — image from files + output_format + seed: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "image": "data:image/png;base64,AQID",
+  "output_format": "png",
+  "prompt": "a fox",
+  "seed": 5,
+  "watermark": false,
+}
+`;
+
+exports[`PPIO request boundary > qwen-image-edit-2509 — image from files + output_format + seed: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "image": "data:image/png;base64,AQID",
+  "output_format": "png",
+  "prompt": "a fox",
+  "seed": 5,
+  "watermark": false,
+}
+`;
+
+exports[`PPIO request boundary > qwen-image-txt2img — size x→* + watermark: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "prompt": "a fox",
+  "size": "1024*1024",
+  "watermark": true,
+}
+`;
+
+exports[`PPIO request boundary > seedream-4.0 draw — sequential_image_generation: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "prompt": "a fox",
+  "sequential_image_generation": "disabled",
+  "size": "2048x2048",
+  "watermark": true,
+}
+`;
+
+exports[`PPIO request boundary > seedream-4.0 edit — plural images[]: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "images": [
+    "data:image/png;base64,AQID",
+  ],
+  "prompt": "a fox",
+  "sequential_image_generation": "disabled",
+  "size": "2048x2048",
+  "watermark": true,
+}
+`;
+
+exports[`PPIO request boundary > z-image-turbo-lora — size x→* + seed + loras: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "loras": [],
+  "prompt": "a fox",
+  "seed": 1,
+  "size": "1024*1024",
+}
+`;

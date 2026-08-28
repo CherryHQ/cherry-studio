@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { toDataApiError } from '@shared/data/api/apiErrors'
-import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/apiTypes'
+import { toDataApiError } from '@shared/data/api/errors'
+import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/types'
 
 const logger = loggerService.withContext('DataApi:MiddlewareEngine')
 
@@ -38,8 +38,6 @@ export class MiddlewareEngine {
     }
 
     this.middlewareOrder.splice(insertIndex, 0, middleware.name)
-
-    logger.debug(`Registered middleware: ${middleware.name} (priority: ${priority})`)
   }
 
   /**
@@ -93,8 +91,6 @@ export class MiddlewareEngine {
       name: 'request-logger',
       priority: 10,
       execute: async (req: DataRequest, res: DataResponse, next: () => Promise<void>) => {
-        const startTime = Date.now()
-
         logger.debug(`Incoming request: ${req.method} ${req.path}`, {
           id: req.id,
           params: req.params,
@@ -103,17 +99,11 @@ export class MiddlewareEngine {
 
         await next()
 
-        const duration = Date.now() - startTime
-        res.metadata = {
-          ...res.metadata,
-          duration,
-          timestamp: Date.now()
-        }
-
+        // Request duration is measured once, monotonically, in ApiServer.handleRequest
+        // under CS_DIAGNOSTICS — not here (this middleware does not wrap the handler).
         logger.debug(`Request completed: ${req.method} ${req.path}`, {
           id: req.id,
-          status: res.status,
-          duration
+          status: res.status
         })
       }
     })
@@ -132,7 +122,6 @@ export class MiddlewareEngine {
 
         if (!res.metadata) {
           res.metadata = {
-            duration: 0,
             timestamp: Date.now()
           }
         }

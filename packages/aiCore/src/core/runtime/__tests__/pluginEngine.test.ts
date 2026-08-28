@@ -5,10 +5,10 @@
  */
 
 import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import { createMockImageModel, createMockLanguageModel, createMockMiddleware } from '@test-utils'
 import { wrapLanguageModel } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createMockImageModel, createMockLanguageModel, createMockMiddleware } from '../../../__tests__'
 import { ModelResolutionError, RecursiveDepthError } from '../../errors'
 import type { AiPlugin, GenerateTextParams, GenerateTextResult } from '../../plugins'
 import { PluginEngine } from '../pluginEngine'
@@ -378,6 +378,20 @@ describe('PluginEngine', () => {
           vi.fn().mockResolvedValue({ text: 'test' })
         )
       ).rejects.toThrow(ModelResolutionError)
+    })
+
+    it('should reject a resolver that returns a non-V3 model', async () => {
+      const plugin: AiPlugin = {
+        name: 'legacy-resolver',
+        resolveModel: vi.fn().mockResolvedValue({
+          specificationVersion: 'v2',
+          provider: 'legacy',
+          modelId: 'legacy-model'
+        })
+      }
+      engine = new PluginEngine('openai', [plugin])
+
+      await expect(engine.resolveModel('legacy-model')).rejects.toThrow(ModelResolutionError)
     })
   })
 
@@ -1005,6 +1019,55 @@ describe('PluginEngine', () => {
 
       expect(transformParamsSpy).toHaveBeenCalled()
       expect(transformResultSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('resolveModel', () => {
+    it('should resolve model without middleware', async () => {
+      const resolvePlugin: AiPlugin = {
+        name: 'test-resolve',
+        enforce: 'post',
+        resolveModel: vi.fn().mockResolvedValue(mockLanguageModel)
+      }
+      engine = new PluginEngine('openai', [resolvePlugin])
+
+      const result = await engine.resolveModel('gpt-4')
+
+      expect(result).toBe(mockLanguageModel)
+      expect(wrapLanguageModel).not.toHaveBeenCalled()
+    })
+
+    it('should resolve model and apply middleware', async () => {
+      const middleware = createMockMiddleware()
+      const resolvePlugin: AiPlugin = {
+        name: 'test-resolve',
+        enforce: 'post',
+        resolveModel: vi.fn().mockResolvedValue(mockLanguageModel)
+      }
+      const middlewarePlugin: AiPlugin = {
+        name: 'test-middleware',
+        configureContext: async (context) => {
+          context.middlewares = context.middlewares || []
+          context.middlewares.push(middleware)
+        }
+      }
+      engine = new PluginEngine('openai', [middlewarePlugin, resolvePlugin])
+
+      const result = await engine.resolveModel('gpt-4')
+
+      expect(wrapLanguageModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: mockLanguageModel,
+          middleware: [middleware]
+        })
+      )
+      expect((result as any)._middlewareApplied).toBe(true)
+    })
+
+    it('should throw ModelResolutionError when no plugin resolves the model', async () => {
+      engine = new PluginEngine('openai', [])
+
+      await expect(engine.resolveModel('nonexistent')).rejects.toThrow(ModelResolutionError)
     })
   })
 })

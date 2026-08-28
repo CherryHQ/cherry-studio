@@ -1,5 +1,14 @@
 import { vi } from 'vitest'
 
+// Electron Vite turns `?nodeWorker` imports into Worker factories in production.
+// Vitest otherwise evaluates the worker entry as a regular Node module, where
+// `parentPort` is unavailable. Tests that invoke the factory must mock it locally.
+vi.mock('@main/services/readableContent/readableContentWorker?nodeWorker', () => ({
+  default: vi.fn(() => {
+    throw new Error('Readable content worker factory must be mocked by tests that invoke it')
+  })
+}))
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')
@@ -44,13 +53,14 @@ vi.mock('@main/data/db/DbService', async () => {
 })
 
 // Mock application globally - provides type-safe service access via application.get()
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('./__mocks__/main/application')
   return mockApplicationFactory()
 })
 
 // Mock electron modules that are commonly used in main process
 vi.mock('electron', () => {
+  const partitionSessions = new Map<string, Record<string, unknown>>()
   const mock = {
     app: {
       getPath: vi.fn((key: string) => {
@@ -65,7 +75,18 @@ vi.mock('electron', () => {
             return '/mock/unknown'
         }
       }),
-      getVersion: vi.fn(() => '1.0.0')
+      getVersion: vi.fn(() => '1.0.0'),
+      getLocale: vi.fn(() => 'en-US'),
+      getPreferredSystemLanguages: vi.fn(() => ['en-US']),
+      // Explicit false (matching the previous `undefined` semantics) so the
+      // dev-only logs diversion in core/paths/constants.ts stays exercised.
+      isPackaged: false,
+      setAppLogsPath: vi.fn(),
+      // The real `app` is an EventEmitter, and code that hardens every web contents
+      // subscribes to `web-contents-created` through it.
+      on: vi.fn(),
+      once: vi.fn(),
+      removeListener: vi.fn()
     },
     ipcMain: {
       handle: vi.fn(),
@@ -84,16 +105,47 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
-      showItemInFolder: vi.fn()
+      openPath: vi.fn(),
+      showItemInFolder: vi.fn(),
+      trashItem: vi.fn()
     },
     session: {
       defaultSession: {
         clearCache: vi.fn(),
-        clearStorageData: vi.fn()
-      }
+        clearStorageData: vi.fn(),
+        webRequest: {
+          onBeforeSendHeaders: vi.fn()
+        }
+      },
+      // Memoised per partition, because the real one is too: callers key WeakMaps and
+      // WeakSets on the session object, and a fresh stub each call makes every such
+      // lookup miss while every individual assertion still passes.
+      fromPartition: vi.fn((partition: string) => {
+        const cached = partitionSessions.get(partition)
+        if (cached) return cached
+        const created = {
+          clearCache: vi.fn(),
+          clearStorageData: vi.fn(),
+          clearCodeCaches: vi.fn(),
+          setProxy: vi.fn(async () => {}),
+          setPermissionRequestHandler: vi.fn(),
+          setPermissionCheckHandler: vi.fn(),
+          setDisplayMediaRequestHandler: vi.fn(),
+          setDevicePermissionHandler: vi.fn(),
+          protocol: { handle: vi.fn(), unhandle: vi.fn() },
+          webRequest: {
+            onBeforeRequest: vi.fn(),
+            onBeforeSendHeaders: vi.fn(),
+            onHeadersReceived: vi.fn()
+          }
+        }
+        partitionSessions.set(partition, created)
+        return created
+      })
     },
     webContents: {
-      getAllWebContents: vi.fn(() => [])
+      getAllWebContents: vi.fn(() => []),
+      fromId: vi.fn(() => undefined)
     },
     systemPreferences: {
       getMediaAccessStatus: vi.fn(),
@@ -109,7 +161,10 @@ vi.mock('electron', () => {
       getPrimaryDisplay: vi.fn(),
       getAllDisplays: vi.fn()
     },
-    Notification: vi.fn()
+    Notification: vi.fn(),
+    net: {
+      fetch: vi.fn()
+    }
   }
 
   return { __esModule: true, ...mock, default: mock }
@@ -163,50 +218,43 @@ vi.mock('electron-store', () => {
 })
 
 // Mock Node.js modules
-vi.mock('node:os', () => {
-  const mock = {
-    platform: vi.fn(() => 'darwin'),
-    arch: vi.fn(() => 'x64'),
-    version: vi.fn(() => '20.0.0'),
-    cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
+//
+// The fs/os/path modules are passed through to their real implementations
+// (`...await vi.importActual(...)`) so that third-party libraries such as
+// `drizzle-orm/better-sqlite3/migrator` can read files from disk. Historically these
+// modules were replaced wholesale with vi.fn() stubs, which caused any code
+// reading migration files, tmp directories, or real paths to silently break.
+//
+// Individual tests that require controlled fs/os/path behaviour should spy
+// on the specific method(s) they need (`vi.spyOn(fs, 'existsSync')`) or
+// declare a local `vi.mock(..., factory)` inside the test file.
+//
+// `os.homedir()` is still stubbed to `/mock/home` because many existing
+// tests assume this deterministic value when building expected paths.
+vi.mock('node:os', async () => {
+  const actual = await vi.importActual<typeof import('node:os')>('node:os')
+  return {
+    ...actual,
     homedir: vi.fn(() => '/mock/home'),
-    totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024) // 8GB
+    default: {
+      ...actual,
+      homedir: () => '/mock/home'
+    }
   }
-  return { ...mock, default: mock }
 })
 
 vi.mock('node:path', async () => {
-  const actual = await vi.importActual('node:path')
+  const actual = await vi.importActual<typeof import('node:path')>('node:path')
   return {
     ...actual,
-    join: vi.fn((...args: string[]) => args.join('/')),
-    resolve: vi.fn((...args: string[]) => args.join('/'))
+    default: actual
   }
 })
 
-vi.mock('node:fs', () => {
-  const mock = {
-    promises: {
-      access: vi.fn(),
-      readFile: vi.fn(),
-      writeFile: vi.fn(),
-      mkdir: vi.fn(),
-      readdir: vi.fn(),
-      stat: vi.fn(),
-      unlink: vi.fn(),
-      rmdir: vi.fn()
-    },
-    existsSync: vi.fn(),
-    readFileSync: vi.fn(),
-    writeFileSync: vi.fn(),
-    mkdirSync: vi.fn(),
-    readdirSync: vi.fn(),
-    statSync: vi.fn(),
-    unlinkSync: vi.fn(),
-    rmdirSync: vi.fn(),
-    createReadStream: vi.fn(),
-    createWriteStream: vi.fn()
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+  return {
+    ...actual,
+    default: actual
   }
-
-  return { ...mock, default: mock }
 })

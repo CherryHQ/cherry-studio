@@ -2,51 +2,117 @@
  * Topic API Handlers
  *
  * Implements all topic-related API endpoints including:
+ * - Cursor-paginated topic list with optional name search
  * - Topic CRUD operations
+ * - Topic path duplication
  * - Active node switching for branch navigation
+ * - Scoped reorder (single + batch) via OrderEndpoints
  */
 
 import { topicService } from '@data/services/TopicService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { TopicSchemas } from '@shared/data/api/schemas/topics'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
+import {
+  CreateTopicSchema,
+  DeleteTopicsQuerySchema,
+  DuplicateTopicSchema,
+  LatestTopicQuerySchema,
+  ListTopicsQuerySchema,
+  MoveTopicSchema,
+  ReuseOrCreateTopicSchema,
+  SetActiveNodeSchema,
+  type TopicSchemas,
+  UpdateTopicSchema
+} from '@shared/data/api/schemas/topics'
+import type { HandlersFor } from '@shared/data/api/types'
 
-/**
- * Handler type for a specific topic endpoint
- */
-type TopicHandler<Path extends keyof TopicSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Topic API handlers implementation
- */
-export const topicHandlers: {
-  [Path in keyof TopicSchemas]: {
-    [Method in keyof TopicSchemas[Path]]: TopicHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
+    GET: async ({ query }) => {
+      const parsed = ListTopicsQuerySchema.parse(query ?? {})
+      return topicService.listByCursor(parsed)
+    },
+
     POST: async ({ body }) => {
-      return await topicService.create(body)
+      const parsed = CreateTopicSchema.parse(body)
+      return topicService.create(parsed)
+    },
+
+    DELETE: async ({ query }) => {
+      const parsed = DeleteTopicsQuerySchema.parse(query)
+      return topicService.deleteByIds(parsed.ids)
+    }
+  },
+
+  '/topics/latest': {
+    GET: async ({ query }) => {
+      const parsed = LatestTopicQuerySchema.parse(query ?? {})
+      return { topic: topicService.getLatestActive(parsed) }
+    }
+  },
+
+  '/topics/reusable-placeholder': {
+    POST: async ({ body }) => {
+      const parsed = ReuseOrCreateTopicSchema.parse(body)
+      return topicService.reuseOrCreatePlaceholder(parsed)
     }
   },
 
   '/topics/:id': {
     GET: async ({ params }) => {
-      return await topicService.getById(params.id)
+      return topicService.getById(params.id)
     },
 
     PATCH: async ({ params, body }) => {
-      return await topicService.update(params.id, body)
+      const parsed = UpdateTopicSchema.parse(body)
+      return topicService.update(params.id, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await topicService.delete(params.id)
+      topicService.delete(params.id)
       return undefined
+    }
+  },
+
+  '/topics/:id/move': {
+    POST: async ({ params, body }) => {
+      const parsed = MoveTopicSchema.parse(body)
+      return topicService.move(params.id, parsed)
     }
   },
 
   '/topics/:id/active-node': {
     PUT: async ({ params, body }) => {
-      return await topicService.setActiveNode(params.id, body.nodeId)
+      const parsed = SetActiveNodeSchema.parse(body)
+      return topicService.setActiveNode(params.id, parsed.nodeId)
+    }
+  },
+
+  '/topics/:id/duplicate': {
+    POST: async ({ params, body }) => {
+      const parsed = DuplicateTopicSchema.parse(body)
+      return topicService.duplicate(params.id, parsed)
+    }
+  },
+
+  '/assistants/:assistantId/topics': {
+    DELETE: async ({ params }) => {
+      return topicService.deleteByAssistantId(params.assistantId)
+    }
+  },
+
+  '/topics/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      topicService.reorder(params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/topics/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      topicService.reorderBatch(parsed.moves)
+      return undefined
     }
   }
 }

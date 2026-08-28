@@ -2,16 +2,30 @@ import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('child_process', () => ({ spawn: vi.fn() }))
-vi.mock('@main/utils/process', () => ({ crossPlatformSpawn: vi.fn() }))
-vi.mock('@main/utils/shell-env', () => ({
-  default: vi.fn().mockResolvedValue({ PATH: '/usr/bin' })
+vi.mock('@main/utils/processRunner', () => ({
+  crossPlatformSpawn: vi.fn(),
+  terminateProcessTree: vi.fn(),
+  waitForProcessExit: vi.fn(
+    (child: EventEmitter, timeoutMs: number) =>
+      new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => resolve(false), timeoutMs)
+        child.once('close', () => {
+          clearTimeout(timeout)
+          resolve(true)
+        })
+      })
+  )
+}))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn().mockResolvedValue({ PATH: '/usr/bin' })
 }))
 
-import { crossPlatformSpawn } from '@main/utils/process'
+import { crossPlatformSpawn, terminateProcessTree } from '@main/utils/processRunner'
 
 import { ChildProcessHandle } from '../ChildProcessHandle'
 
 const mockSpawn = crossPlatformSpawn as unknown as ReturnType<typeof vi.fn>
+const mockTerminateProcessTree = terminateProcessTree as unknown as ReturnType<typeof vi.fn>
 
 function createMockChildProcess(pid = 1234) {
   const cp = new EventEmitter() as any
@@ -137,6 +151,20 @@ describe('ChildProcessHandle', () => {
       expect(handle.state).toBe('idle')
     })
 
+    it('terminates the process tree for detached children', async () => {
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+
+      const handle = new ChildProcessHandle({ id: 'tree-proc', command: 'sleep', detached: true })
+      await handle.start()
+
+      const stopPromise = handle.stop()
+      expect(mockTerminateProcessTree).toHaveBeenCalledWith(mockCp, false, 'tree-proc')
+
+      mockCp.emit('close', 0, null)
+      await stopPromise
+    })
+
     it('sends SIGKILL after killTimeoutMs', async () => {
       vi.useFakeTimers()
 
@@ -156,7 +184,7 @@ describe('ChildProcessHandle', () => {
       expect(mockCp.kill).toHaveBeenCalledTimes(1)
 
       // Advance time past the killTimeoutMs
-      vi.advanceTimersByTime(1001)
+      await vi.advanceTimersByTimeAsync(1001)
 
       expect(mockCp.kill).toHaveBeenCalledWith('SIGKILL')
       expect(mockCp.kill).toHaveBeenCalledTimes(2)

@@ -1,15 +1,11 @@
 import { loggerService } from '@logger'
-import type { RequestContext as ErrorRequestContext } from '@shared/data/api/apiErrors'
-import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/apiErrors'
-import type { ApiImplementation } from '@shared/data/api/apiTypes'
-import type {
-  DataRequest,
-  DataResponse,
-  HttpMethod,
-  RequestContext,
-  SuccessStatusCode
-} from '@shared/data/api/apiTypes'
-import { isCustomStatusResult, SuccessStatus } from '@shared/data/api/apiTypes'
+import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
+import { isDev } from '@main/core/platform'
+import type { RequestContext as ErrorRequestContext } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
+import type { ApiImplementation } from '@shared/data/api/types'
+import type { DataRequest, DataResponse, HttpMethod, RequestContext, SuccessStatusCode } from '@shared/data/api/types'
+import { isCustomStatusResult, SuccessStatus } from '@shared/data/api/types'
 
 import { MiddlewareEngine } from './MiddlewareEngine'
 
@@ -17,6 +13,8 @@ import { MiddlewareEngine } from './MiddlewareEngine'
 type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
 
 const logger = loggerService.withContext('DataApi:Server')
+const DATA_API_TIMING_ENABLED = isDev || DIAGNOSTICS_ENABLED
+const DATA_API_HANDLER_TIMING_ENABLED = isDev
 
 /**
  * Core API Server - Transport agnostic request processor
@@ -66,6 +64,9 @@ export class ApiServer {
   async handleRequest(request: DataRequest): Promise<DataResponse> {
     const { method, path } = request
     const startTime = Date.now()
+    // DevTools and CS_DIAGNOSTICS both need monotonic request timings.
+    const perfStart = DATA_API_TIMING_ENABLED ? performance.now() : 0
+    let handlerDuration: number | undefined
 
     // Build error request context for tracking
     const errorContext: ErrorRequestContext = {
@@ -74,8 +75,6 @@ export class ApiServer {
       method: method,
       timestamp: startTime
     }
-
-    logger.debug(`Processing request: ${method} ${path}`)
 
     try {
       // Find handler
@@ -93,14 +92,27 @@ export class ApiServer {
 
       // Execute handler if middleware didn't set error
       if (!requestContext.response.error) {
-        await this.executeHandler(requestContext, handlerMatch)
+        const handlerStart = DATA_API_HANDLER_TIMING_ENABLED ? performance.now() : 0
+        try {
+          await this.executeHandler(requestContext, handlerMatch)
+        } finally {
+          if (DATA_API_HANDLER_TIMING_ENABLED) {
+            handlerDuration = performance.now() - handlerStart
+          }
+        }
       }
 
-      // Set timing metadata
-      requestContext.response.metadata = {
-        ...requestContext.response.metadata,
-        duration: Date.now() - startTime,
-        timestamp: Date.now()
+      // Opt-in timing: devtools reads metadata in dev; diagnostics additionally logs slow requests.
+      if (DATA_API_TIMING_ENABLED) {
+        const duration = performance.now() - perfStart
+        requestContext.response.metadata = {
+          ...requestContext.response.metadata,
+          duration,
+          ...(DATA_API_HANDLER_TIMING_ENABLED ? { handlerDuration } : {}),
+          timestamp: Date.now()
+        }
+        if (DIAGNOSTICS_ENABLED && duration > SLOW_THRESHOLD_MS.dataApiRequest)
+          logger.info(`[Diagnostics/dataapi] ${duration.toFixed(1)}ms ${method} ${path}`)
       }
 
       return requestContext.response
@@ -110,14 +122,18 @@ export class ApiServer {
       // Convert to DataApiError and serialize for IPC
       const apiError = error instanceof DataApiError ? error : toDataApiError(error, `${method} ${path}`)
 
+      const duration = DATA_API_TIMING_ENABLED ? performance.now() - perfStart : undefined
       return {
         id: request.id,
         status: apiError.status,
         error: apiError.toJSON(), // Serialize for IPC transmission
-        metadata: {
-          duration: Date.now() - startTime,
-          timestamp: Date.now()
-        }
+        metadata: DATA_API_TIMING_ENABLED
+          ? {
+              duration,
+              ...(DATA_API_HANDLER_TIMING_ENABLED ? { handlerDuration } : {}),
+              timestamp: Date.now()
+            }
+          : { timestamp: Date.now() }
       }
     }
   }
@@ -148,32 +164,83 @@ export class ApiServer {
     return null
   }
 
-  /**
-   * Extract path parameters from URL
-   */
+  // Extract path parameters from URL.
+  //
+  // Supports two param forms:
+  //   - Plain: `:name` matches exactly one path segment.
+  //   - Greedy: `:name` + `*` (trailing star) matches one-or-more consecutive
+  //     path segments, joined with `/`. Greedy may appear as the last segment,
+  //     OR in the middle anchored by static / plain-param trailing segments.
+  //     A pattern may contain at most one greedy param; a second greedy is
+  //     rejected defensively to keep matching unambiguous. Greedy does NOT
+  //     match zero segments.
+  //
+  // NOTE: Intentionally NOT calling decodeURIComponent() anywhere in this
+  // function, including for greedy captures. Path params (IDs) in this project
+  // are raw strings — keeping them untouched acts as implicit validation and
+  // preserves embedded `/`, `::`, `%`, etc. verbatim. See also the docs at
+  // docs/references/data/api-design-guidelines.md § "Greedy Tail Parameters".
   private extractPathParams(pattern: string, path: string): Record<string, string> | null {
     const patternParts = pattern.split('/')
     const pathParts = path.split('/')
 
-    if (patternParts.length !== pathParts.length) {
-      return null
+    const isGreedy = (part: string) => part.startsWith(':') && part.endsWith('*') && part.length > 2
+
+    // Locate the greedy segment (if any) and reject patterns with more than one.
+    let greedyIdx = -1
+    for (let i = 0; i < patternParts.length; i++) {
+      if (isGreedy(patternParts[i])) {
+        if (greedyIdx !== -1) return null
+        greedyIdx = i
+      }
     }
 
+    // Fast path: no greedy → strict length + classic matching.
+    if (greedyIdx === -1) {
+      if (patternParts.length !== pathParts.length) return null
+      const params: Record<string, string> = {}
+      for (let i = 0; i < patternParts.length; i++) {
+        if (patternParts[i].startsWith(':')) {
+          params[patternParts[i].slice(1)] = pathParts[i]
+        } else if (patternParts[i] !== pathParts[i]) {
+          return null
+        }
+      }
+      return params
+    }
+
+    // Greedy path: anchor leading + trailing static/plain segments, capture
+    // the middle. Greedy captures at least one segment, so path length must
+    // be >= pattern length.
+    if (pathParts.length < patternParts.length) return null
+
+    const trailingLen = patternParts.length - greedyIdx - 1
+    const greedyEnd = pathParts.length - trailingLen // exclusive
     const params: Record<string, string> = {}
 
-    for (let i = 0; i < patternParts.length; i++) {
+    // Match leading fixed part.
+    for (let i = 0; i < greedyIdx; i++) {
       if (patternParts[i].startsWith(':')) {
-        const paramName = patternParts[i].slice(1)
-        // NOTE: Intentionally NOT calling decodeURIComponent() here.
-        // Path params (IDs) in this project are nanoid/UUID-style strings with no
-        // URL-encoded characters. Keeping them raw acts as implicit validation —
-        // any caller passing percent-encoded or special characters will simply
-        // fail to match, preventing unexpected ID formats from reaching services.
-        params[paramName] = pathParts[i]
+        params[patternParts[i].slice(1)] = pathParts[i]
       } else if (patternParts[i] !== pathParts[i]) {
         return null
       }
     }
+
+    // Match trailing fixed part (anchors the greedy capture).
+    for (let t = 0; t < trailingLen; t++) {
+      const patternPart = patternParts[greedyIdx + 1 + t]
+      const pathPart = pathParts[greedyEnd + t]
+      if (patternPart.startsWith(':')) {
+        params[patternPart.slice(1)] = pathPart
+      } else if (patternPart !== pathPart) {
+        return null
+      }
+    }
+
+    // Greedy capture (guaranteed ≥1 segment by the length check above).
+    const greedyName = patternParts[greedyIdx].slice(1, -1)
+    params[greedyName] = pathParts.slice(greedyIdx, greedyEnd).join('/')
 
     return params
   }

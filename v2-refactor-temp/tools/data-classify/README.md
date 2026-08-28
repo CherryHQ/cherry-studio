@@ -5,6 +5,16 @@ Cherry Studio 数据重构项目的自动化工具集，用于管理数据分类
 **版本**: 2.0.0
 **更新日期**: 2025-11-28
 
+> ⚠️ **阶段性使命已完成（重要）**
+>
+> 本工具中仅 **代码生成（generate）** 流水线仍在使用。数据提取、一致性/生成校验、重复键检查等命令与脚本已完成阶段性使命，**不再支持，请勿再次运行**。
+>
+> | 仍可用 | 已弃用（不再支持） |
+> | --- | --- |
+> | `npm run generate`、`generate:preferences`、`generate:boot-config`、`generate:migration` | `npm run extract`、`validate`、`validate:gen`、`check:duplicates`、`all` |
+>
+> 对应脚本文件已加 `DO-NOT-USE-` 前缀（`DO-NOT-USE-extract-inventory.js`、`DO-NOT-USE-validate-consistency.js`、`DO-NOT-USE-validate-generation.js`、`DO-NOT-USE-check-duplicates.js`）；运行已弃用的 npm 命令只会打印一行提示。下文中保留的相关章节仅作历史记录，如有疑问请询问作者。
+
 ## 概述
 
 本工具集提供以下功能：
@@ -20,15 +30,15 @@ Cherry Studio 数据重构项目的自动化工具集，用于管理数据分类
 v2-refactor-temp/tools/data-classify/
 ├── scripts/
 │   ├── lib/
-│   │   └── classificationUtils.js  # 共享工具函数
-│   ├── extract-inventory.js        # 从源码提取数据清单
-│   ├── generate-all.js             # 运行所有生成器
-│   ├── generate-preferences.js     # 生成 preferenceSchemas.ts
-│   ├── generate-boot-config.js     # 生成 bootConfigSchemas.ts
-│   ├── generate-migration.js       # 生成 PreferencesMappings.ts + BootConfigMappings.ts
-│   ├── validate-consistency.js     # 验证数据一致性
-│   ├── validate-generation.js      # 验证生成代码质量
-│   └── check-duplicates.js         # 检查重复的目标键
+│   │   └── classificationUtils.js          # 共享工具函数（仅被下方已弃用脚本使用）
+│   ├── generate-all.js                     # 运行所有生成器
+│   ├── generate-preferences.js             # 生成 preferenceSchemas.ts
+│   ├── generate-boot-config.js             # 生成 bootConfigSchemas.ts
+│   ├── generate-migration.js               # 生成 PreferencesMappings.ts + BootConfigMappings.ts
+│   ├── DO-NOT-USE-extract-inventory.js     # [已弃用] 从源码提取数据清单
+│   ├── DO-NOT-USE-validate-consistency.js  # [已弃用] 验证数据一致性
+│   ├── DO-NOT-USE-validate-generation.js   # [已弃用] 验证生成代码质量
+│   └── DO-NOT-USE-check-duplicates.js      # [已弃用] 检查重复的目标键
 ├── data/
 │   ├── classification.json         # 分类映射（自动生成，人工维护）
 │   ├── inventory.json              # 数据清单（脚本生成）
@@ -46,31 +56,36 @@ cd v2-refactor-temp/tools/data-classify
 # 安装依赖
 npm install
 
-# 运行完整工作流
-npm run all
+# 生成所有代码（当前唯一仍受支持的流程）
+npm run generate
 
-# 或者分步执行
-npm run extract          # 提取数据清单
-npm run generate         # 生成所有代码
-npm run validate         # 验证一致性
-npm run validate:gen     # 验证生成代码
+# 或仅生成单一目标
+npm run generate:preferences   # 仅生成 preferenceSchemas.ts
+npm run generate:boot-config   # 仅生成 bootConfigSchemas.ts
+npm run generate:migration     # 仅生成 PreferencesMappings.ts + BootConfigMappings.ts
 ```
+
+> `extract` / `validate` / `validate:gen` / `check:duplicates` / `all` 已弃用，不再支持，详见顶部说明。
 
 ## 可用脚本
 
-| 脚本                           | 说明                                             |
-| ------------------------------ | ------------------------------------------------ |
-| `npm run extract`              | 从源文件提取数据清单                             |
-| `npm run generate`             | 运行所有代码生成器                               |
-| `npm run generate:preferences` | 仅生成 preferenceSchemas.ts                      |
-| `npm run generate:boot-config` | 仅生成 bootConfigSchemas.ts                      |
-| `npm run generate:migration`   | 仅生成 PreferencesMappings.ts + BootConfigMappings.ts |
-| `npm run validate`             | 验证数据一致性                                   |
-| `npm run validate:gen`         | 验证生成代码质量                                 |
-| `npm run check:duplicates`     | 检查重复的目标键                                 |
-| `npm run all`                  | 运行完整工作流                                   |
+| 脚本                           | 说明                                             | 状态        |
+| ------------------------------ | ------------------------------------------------ | ----------- |
+| `npm run generate`             | 运行所有代码生成器                               | ✅ 可用     |
+| `npm run generate:preferences` | 仅生成 preferenceSchemas.ts                      | ✅ 可用     |
+| `npm run generate:boot-config` | 仅生成 bootConfigSchemas.ts                      | ✅ 可用     |
+| `npm run generate:migration`   | 仅生成 PreferencesMappings.ts + BootConfigMappings.ts | ✅ 可用     |
+| `npm run extract`              | 从源文件提取数据清单                             | ⛔ 已弃用   |
+| `npm run validate`             | 验证数据一致性                                   | ⛔ 已弃用   |
+| `npm run validate:gen`         | 验证生成代码质量                                 | ⛔ 已弃用   |
+| `npm run check:duplicates`     | 检查重复的目标键                                 | ⛔ 已弃用   |
+| `npm run all`                  | 运行完整工作流                                   | ⛔ 已弃用   |
+
+> ⛔ 标记的命令已完成阶段性使命，**不再支持**，运行只会打印提示。详见顶部说明。
 
 ## 脚本架构
+
+> 注：下图与下表为原始完整工作流的历史记录；其中 `extract-inventory` / `validate-consistency` / `validate-generation` / `check-duplicates` 相关脚本已弃用（文件名已加 `DO-NOT-USE-` 前缀），仅 `generate-*` 仍在使用。
 
 ### 依赖关系图
 
@@ -125,16 +140,18 @@ npm run validate:gen     # 验证生成代码
 
 | 脚本                      | 输入                                    | 输出                                          | 依赖                                                                           |
 | ------------------------- | --------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------ |
-| `extract-inventory.js`    | 源代码文件                              | `data/inventory.json`                         | `classificationUtils.js`                                                       |
 | `generate-preferences.js` | `classification.json`                   | `preferenceSchemas.ts`                        | 无                                                                             |
 | `generate-boot-config.js` | `classification.json`                   | `bootConfigSchemas.ts`                        | 无                                                                             |
 | `generate-migration.js`   | `classification.json`                   | `PreferencesMappings.ts`, `BootConfigMappings.ts` | 无                                                                             |
 | `generate-all.js`         | -                                       | 运行三个生成器                                | `generate-preferences.js`, `generate-boot-config.js`, `generate-migration.js`  |
-| `validate-consistency.js` | `inventory.json`, `classification.json` | `validation-report.md`                        | `classificationUtils.js`                                                       |
-| `validate-generation.js`  | 生成的 `.ts` 文件                       | 控制台输出                                    | 无                                                                             |
-| `check-duplicates.js`     | `classification.json`                   | 控制台输出                                    | 无                                                                             |
+| `DO-NOT-USE-extract-inventory.js` _(已弃用)_    | 源代码文件                              | `data/inventory.json`                         | `classificationUtils.js`                                                       |
+| `DO-NOT-USE-validate-consistency.js` _(已弃用)_ | `inventory.json`, `classification.json` | `validation-report.md`                        | `classificationUtils.js`                                                       |
+| `DO-NOT-USE-validate-generation.js` _(已弃用)_  | 生成的 `.ts` 文件                       | 控制台输出                                    | 无                                                                             |
+| `DO-NOT-USE-check-duplicates.js` _(已弃用)_     | `classification.json`                   | 控制台输出                                    | 无                                                                             |
 
 ## 数据分类工作流
+
+> ⚠️ 本节为历史记录：步骤 1（提取）与步骤 4（验证）所用命令已弃用、不再支持，当前仅步骤 3（生成）仍受支持。
 
 ### 1. 提取数据清单
 
@@ -144,10 +161,10 @@ npm run extract
 
 扫描源文件并提取以下数据源的信息：
 
-- **Redux Store**: `src/renderer/src/store/*.ts`
+- **Redux Store**: `src/renderer/store/*.ts`
 - **Electron Store**: `src/main/services/ConfigManager.ts`
 - **LocalStorage**: 所有使用 localStorage 的文件
-- **Dexie 数据库**: `src/renderer/src/databases/index.ts`
+- **Dexie 数据库**: `src/renderer/databases/index.ts`
 
 > **注意**: `dexieSettings` 数据源中的字符串字面量 key 会被自动提取，但动态 key（如模板字符串拼接的）需要手动维护。详见下方 [dexieSettings 数据源](#dexiesettings-数据源) 章节。
 
@@ -173,8 +190,8 @@ npm run generate
 
 生成以下 TypeScript 文件：
 
-- `packages/shared/data/preference/preferenceSchemas.ts` - 偏好配置类型定义与默认值
-- `packages/shared/data/bootConfig/bootConfigSchemas.ts` - 启动配置类型定义与默认值
+- `src/shared/data/preference/preferenceSchemas.ts` - 偏好配置类型定义与默认值
+- `src/shared/data/bootConfig/bootConfigSchemas.ts` - 启动配置类型定义与默认值
 - `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts` - 偏好迁移映射
 - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts` - 启动配置迁移映射
 
@@ -229,7 +246,7 @@ npm run validate:gen
 - ✅ 必须在 Node.js 进程启动的最早阶段同步加载（早于 `app.whenReady`、早于 lifecycle 的 `BeforeReady` 阶段）
 - ✅ 影响进程级别的行为，一旦进程启动就无法更改
 - ✅ 不能存储在 SQLite 中（数据库由 lifecycle `BeforeReady` 阶段初始化，远晚于 boot config 的加载时机）
-- ✅ 使用同步文件 I/O 读取（`boot-config.json`）
+- ✅ 使用同步文件 I/O 读取（`~/.cherrystudio/boot-config.json`，刻意放在 userData 之外，避免鸡生蛋问题）
 
 **时序关系**:
 
@@ -249,7 +266,7 @@ Boot config 在整个启动链的最前端，为后续所有阶段提供基础�
 | | bootConfig | preferences |
 | --- | --- | --- |
 | 加载时机 | 进程启动最早阶段（同步） | lifecycle `BeforeReady` 阶段（异步） |
-| 存储方式 | JSON 文件（`boot-config.json`） | SQLite 数据库 |
+| 存储方式 | JSON 文件（`~/.cherrystudio/boot-config.json`） | SQLite 数据库 |
 | 访问方式（Main） | `bootConfigService.get()` 同步 | `application.get('PreferenceService').get()` |
 | 访问方式（Renderer） | `usePreference('BootConfig.*')` 统一访问 | `usePreference('key')` |
 
@@ -440,6 +457,8 @@ Boot config 在整个启动链的最前端，为后续所有阶段提供基础�
 ---
 
 ## 增量更新策略
+
+> ⚠️ 本节描述的提取（`npm run extract`）流程已弃用、不再支持，仅作历史记录。
 
 ### 核心特性
 
@@ -741,8 +760,8 @@ Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`）�
 // 生成: PreferenceTypes.ThemeMode.system（不加引号）
 
 // 引用常量
-{ "defaultValue": "VALUE: MEMORY_FACT_EXTRACTION_PROMPT" }
-// 生成: MEMORY_FACT_EXTRACTION_PROMPT（不加引号）
+{ "defaultValue": "VALUE: TRANSLATE_PROMPT" }
+// 生成: TRANSLATE_PROMPT（不加引号）
 
 // 特殊 null 值
 { "defaultValue": "VALUE: null" }
@@ -801,7 +820,7 @@ npm install
 
 ### 生成代码问题
 
-1. 运行 `npm run validate:gen` 识别问题
+1. ~~运行 `npm run validate:gen` 识别问题~~（已弃用，不再支持）
 2. 检查源分类数据
 3. 使用 `npm run generate` 重新生成
 

@@ -6,7 +6,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 
-import { JSONStreamReader } from './JSONStreamReader'
+import { JsonStreamReader } from './JsonStreamReader'
 
 export class DexieFileReader {
   private exportPath: string
@@ -37,9 +37,9 @@ export class DexieFileReader {
    * Use this for tables with large amounts of data (e.g., messages)
    * @param tableName - Name of the table to stream
    */
-  createStreamReader(tableName: string): JSONStreamReader {
+  createStreamReader(tableName: string): JsonStreamReader {
     const filePath = path.join(this.exportPath, `${tableName}.json`)
-    return new JSONStreamReader(filePath)
+    return new JsonStreamReader(filePath)
   }
 
   /**

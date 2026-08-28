@@ -7,31 +7,38 @@ import * as React from 'react'
 const buttonVariants = cva(
   cn(
     'inline-flex items-center justify-center gap-2 whitespace-nowrap',
-    'rounded-xs text-sm font-medium transition-all',
+    'rounded-md font-normal transition-all',
     'disabled:pointer-events-none disabled:opacity-40',
-    "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-    'aria-loading:cursor-progress aria-loading:opacity-40',
-    'shadow-xs',
-    // TODO 原值py-4 px-6 太胖了...
-    'py-2 px-4'
+    "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 [&_.lucide:not(.lucide-custom)]:text-current outline-none aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+    'data-[busy=true]:cursor-progress data-[busy=true]:opacity-40',
+    'shadow-xs'
   ),
   {
     variants: {
       variant: {
-        default: 'bg-primary hover:bg-primary-hover text-white',
-        destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:ring-destructive/20',
-        outline: cn('border border-primary/40 bg-primary/10 text-primary', 'hover:bg-primary/5'),
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'hover:text-primary-hover text-primary',
-        link: 'text-primary underline-offset-4 hover:underline hover:text-primary-hover'
+        default:
+          'bg-neutral-900 text-white hover:bg-neutral-800 focus-visible:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200 dark:focus-visible:bg-neutral-200',
+        destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:bg-destructive-hover',
+        outline:
+          'border border-border bg-transparent text-foreground shadow-none hover:bg-accent focus-visible:border-primary focus-visible:bg-accent',
+        secondary:
+          'rounded-lg bg-secondary text-secondary-foreground shadow-none hover:bg-secondary-hover focus-visible:bg-secondary-hover',
+        /** Dialog primary action style: same color hierarchy as default, with a flatter v2 shell. */
+        emphasis:
+          'rounded-lg bg-neutral-900 text-white shadow-none hover:bg-neutral-800 focus-visible:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200 dark:focus-visible:bg-neutral-200',
+        ghost:
+          'text-neutral-900 shadow-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground dark:text-neutral-100',
+        link: 'text-neutral-900 underline-offset-4 hover:text-neutral-700 hover:underline focus-visible:text-neutral-700 focus-visible:underline dark:text-neutral-100 dark:hover:text-neutral-300 dark:focus-visible:text-neutral-300'
       },
       size: {
-        default: 'min-h-9',
-        sm: 'min-h-8 rounded-md gap-1.5',
-        lg: 'min-h-10 rounded-md',
+        default: 'min-h-7.5 gap-1.5 px-2.5 text-[13px]',
+        sm: 'min-h-7 gap-1.5 px-2.5 text-xs',
+        lg: 'min-h-9 px-4 text-sm',
         icon: 'size-9',
-        'icon-sm': 'size-8',
-        'icon-lg': 'size-10'
+        'icon-sm': 'size-7',
+        'icon-lg': 'size-10',
+        /** Navbar / toolbar icon button: 30px box, 18px icon (8px radius from base). */
+        'icon-navbar': 'size-[30px] [&_svg]:!size-[18px]'
       }
     },
     defaultVariants: {
@@ -63,7 +70,9 @@ function Button({
 
   // Determine spinner size based on button size
   const getSpinnerSize = () => {
-    if (size === 'sm' || size === 'icon-sm') return 14
+    if (size === 'icon-sm') return 13
+    if (size === 'sm') return 14
+    if (size === 'icon-navbar') return 18
     if (size === 'lg' || size === 'icon-lg') return 18
     return 16
   }
@@ -77,9 +86,11 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      data-variant={variant ?? 'default'}
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
-      aria-loading={loading}
+      aria-busy={loading || undefined}
+      data-busy={loading || undefined}
       {...props}>
       {/* asChild mode does not support loading because Slot requires a single child element */}
       {asChild ? (
@@ -94,4 +105,6 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>['variant']>
+
+export { Button, type ButtonVariant, buttonVariants }

@@ -29,8 +29,8 @@ async function generateAll() {
     // 成功总结
     console.log('🎉 所有代码生成成功！')
     console.log('\n📝 生成的文件:')
-    console.log('   - packages/shared/data/preference/preferenceSchemas.ts')
-    console.log('   - packages/shared/data/bootConfig/bootConfigSchemas.ts')
+    console.log('   - src/shared/data/preference/preferenceSchemas.ts')
+    console.log('   - src/shared/data/bootConfig/bootConfigSchemas.ts')
     console.log('   - src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts')
     console.log('   - src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts')
 

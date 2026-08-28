@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
+import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
-import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
+import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
-import type { RequestSearchContext } from '../base/context'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const McpSearchRequestSchema = z.object({
   jsonrpc: z.string(),
@@ -44,16 +45,19 @@ const ExaSearchResultsSchema = z.object({
   autopromptString: z.string().optional()
 })
 
-const DEFAULT_API_HOST = 'https://mcp.exa.ai/mcp'
 const REQUEST_TIMEOUT_MS = 25000
 const logger = loggerService.withContext('MainWebSearchProvider:ExaMcp')
 
-type ExaMcpSearchContext = RequestSearchContext<z.infer<typeof McpSearchRequestSchema>> & {
+type ExaMcpSearchContext = ApiKeyRequestSearchContext<z.infer<typeof McpSearchRequestSchema>> & {
   upstreamSignal?: AbortSignal
 }
 
 export class ExaMcpProvider extends BaseWebSearchProvider {
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = this.prepareSearchContext(query, config, httpOptions)
     const responseText = await this.executeSearch(context)
 
@@ -68,7 +72,8 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
     return {
       query,
       maxResults: config.maxResults,
-      requestUrl: this.provider.apiHost || DEFAULT_API_HOST,
+      requestUrl: resolveProviderApiHost(this.provider, 'searchKeywords'),
+      apiKey: this.resolveApiKey(false),
       requestBody: McpSearchRequestSchema.parse({
         jsonrpc: '2.0',
         id: 1,
@@ -91,11 +96,15 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
     const searchResults = this.parseResponse(responseText)
 
     return {
-      query: searchResults.autopromptString || context.query,
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
       results: (searchResults.results || []).slice(0, context.maxResults).map((result) => ({
         title: result.title?.trim() || '',
         content: result.text?.trim() || '',
-        url: result.url || ''
+        url: result.url || '',
+        sourceInput: context.query
       }))
     }
   }
@@ -218,13 +227,19 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       : timeoutController.signal
 
     try {
+      const headers: Record<string, string> = {
+        ...defaultAppHeaders(),
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json'
+      }
+
+      if (context.apiKey) {
+        headers['x-api-key'] = context.apiKey
+      }
+
       const response = await net.fetch(context.requestUrl, {
         method: 'POST',
-        headers: {
-          ...defaultAppHeaders(),
-          accept: 'application/json, text/event-stream',
-          'content-type': 'application/json'
-        },
+        headers,
         body: JSON.stringify(context.requestBody),
         signal
       })

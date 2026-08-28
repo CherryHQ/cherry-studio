@@ -6,7 +6,7 @@
  * for consumers to subscribe to.
  *
  * @example
- * // Producer (WindowService):
+ * // Producer (MainWindowService):
  * private readonly _onMainWindowCreated = new Emitter<BrowserWindow>()
  * readonly onMainWindowCreated: Event<BrowserWindow> = this._onMainWindowCreated.event
  *
@@ -23,6 +23,22 @@
  */
 export interface Disposable {
   dispose(): void
+}
+
+/**
+ * Wrap a cleanup function as a Disposable.
+ * Bridges APIs that return () => void (e.g., PreferenceService.subscribeChange)
+ * to the Disposable interface used by BaseService.registerDisposable().
+ */
+export function toDisposable(fn: () => void): Disposable {
+  let disposed = false
+  return {
+    dispose() {
+      if (disposed) return
+      disposed = true
+      fn()
+    }
+  }
 }
 
 /**

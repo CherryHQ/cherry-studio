@@ -6,43 +6,35 @@
  * - Listing with optional filters (isActive, type)
  */
 
+import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { CreateMCPServerDto, ListMCPServersQuery, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { MCPServer } from '@shared/data/types/mcpServer'
-import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
-const logger = loggerService.withContext('DataApi:MCPServerService')
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
-/**
- * Strip null values from an object, converting them to undefined.
- * This bridges the gap between SQLite NULL and TypeScript optional fields.
- */
-function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const result = {} as Record<string, unknown>
-  for (const [key, value] of Object.entries(obj)) {
-    result[key] = value === null ? undefined : value
-  }
-  return result as { [K in keyof T]: Exclude<T[K], null> }
-}
+const logger = loggerService.withContext('DataApi:McpServerService')
 
 /**
- * Convert database row to MCPServer entity
+ * Convert database row to McpServer entity
  */
-function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
-  const clean = stripNulls(row)
+function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
-    type: clean.type as MCPServer['type'],
-    installSource: clean.installSource as MCPServer['installSource'],
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    type: clean.type as McpServer['type'],
+    installSource: clean.installSource as McpServer['installSource'],
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
-export class MCPServerService {
+export class McpServerService {
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -50,20 +42,20 @@ export class MCPServerService {
   /**
    * Get an MCP server by ID
    */
-  async getById(id: string): Promise<MCPServer> {
-    const [row] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1)
+  getById(id: string): McpServer {
+    const [row] = this.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1).all()
 
     if (!row) {
-      throw DataApiErrorFactory.notFound('MCPServer', id)
+      throw DataApiErrorFactory.notFound('McpServer', id)
     }
 
-    return rowToMCPServer(row)
+    return rowToMcpServer(row)
   }
 
   /**
    * List MCP servers with optional filters
    */
-  async list(query: ListMCPServersQuery): Promise<{ items: MCPServer[]; total: number; page: number }> {
+  list(query: ListMcpServersQuery): { items: McpServer[]; total: number; page: number } {
     const conditions: SQL[] = []
     if (query.id !== undefined) {
       conditions.push(eq(mcpServerTable.id, query.id))
@@ -77,13 +69,11 @@ export class MCPServerService {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-    const [rows, [{ count }]] = await Promise.all([
-      this.db.select().from(mcpServerTable).where(whereClause).orderBy(asc(mcpServerTable.sortOrder)),
-      this.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).where(whereClause)
-    ])
+    const rows = this.db.select().from(mcpServerTable).where(whereClause).orderBy(asc(mcpServerTable.sortOrder)).all()
+    const [{ count }] = this.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).where(whereClause).all()
 
     return {
-      items: rows.map(rowToMCPServer),
+      items: rows.map(rowToMcpServer),
       total: count,
       page: 1
     }
@@ -92,12 +82,13 @@ export class MCPServerService {
   /**
    * Create a new MCP server
    */
-  async create(dto: CreateMCPServerDto): Promise<MCPServer> {
+  create(dto: CreateMcpServerDto): McpServer {
     this.validateName(dto.name)
+    this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
 
     const { sortOrder, isActive, ...rest } = dto
 
-    const [row] = await this.db
+    const [row] = this.db
       .insert(mcpServerTable)
       .values({
         ...rest,
@@ -105,53 +96,122 @@ export class MCPServerService {
         isActive: isActive ?? false
       })
       .returning()
+      .all()
 
     logger.info('Created MCP server', { id: row.id, name: row.name })
 
-    return rowToMCPServer(row)
+    return rowToMcpServer(row)
+  }
+
+  createMany(dtos: CreateMcpServerDto[]): McpServer[] {
+    const created = application.get('DbService').withWriteTx((tx) => {
+      const names = new Set<string>()
+      for (const dto of dtos) {
+        this.validateName(dto.name)
+        this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
+        if (names.has(dto.name)) {
+          throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
+        }
+        names.add(dto.name)
+      }
+
+      const existing = tx
+        .select({ name: mcpServerTable.name })
+        .from(mcpServerTable)
+        .where(inArray(mcpServerTable.name, [...names]))
+        .get()
+      if (existing) {
+        throw DataApiErrorFactory.conflict(`MCP server '${existing.name}' already exists`, 'McpServer')
+      }
+
+      return dtos.map(({ sortOrder, isActive, ...rest }) => {
+        const [row] = tx
+          .insert(mcpServerTable)
+          .values({
+            ...rest,
+            sortOrder: sortOrder ?? 0,
+            isActive: isActive ?? false
+          })
+          .returning()
+          .all()
+        return row
+      })
+    })
+
+    logger.info('Created MCP servers', { count: created.length })
+    return created.map(rowToMcpServer)
   }
 
   /**
    * Update an existing MCP server
    */
-  async update(id: string, dto: UpdateMCPServerDto): Promise<MCPServer> {
-    await this.getById(id)
+  update(id: string, dto: UpdateMcpServerDto): McpServer {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const [existingRow] = tx.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1).all()
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('McpServer', id)
+      }
 
-    if (dto.name !== undefined) {
-      this.validateName(dto.name)
-    }
+      const existing = rowToMcpServer(existingRow)
+      const name = dto.name ?? existing.name
+      const env = dto.env ?? existing.env
+      const isActive = dto.isActive ?? existing.isActive
 
-    const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
-      typeof mcpServerTable.$inferInsert
-    >
+      this.validateName(name)
+      this.validateQVerisConfiguration({ name, env, isActive })
 
-    const [row] = await this.db.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning()
+      const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
+        typeof mcpServerTable.$inferInsert
+      >
+      const [row] = tx.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
+      return rowToMcpServer(row)
+    })
 
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 
-    return rowToMCPServer(row)
+    return result
   }
 
   /**
    * Find an MCP server by ID or name. Returns undefined if not found.
    */
-  async findByIdOrName(idOrName: string): Promise<MCPServer | undefined> {
-    const [row] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, idOrName)).limit(1)
+  findByIdOrName(idOrName: string): McpServer | undefined {
+    const [row] = this.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, idOrName)).limit(1).all()
 
-    if (row) return rowToMCPServer(row)
+    if (row) return rowToMcpServer(row)
 
-    const [byName] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.name, idOrName)).limit(1)
+    const [byName] = this.db.select().from(mcpServerTable).where(eq(mcpServerTable.name, idOrName)).limit(1).all()
 
-    return byName ? rowToMCPServer(byName) : undefined
+    return byName ? rowToMcpServer(byName) : undefined
   }
 
   /**
-   * Delete an MCP server
+   * Delete an MCP server and cascade-remove its associations from all agents.
+   * Junction table rows are explicitly removed first so we can identify affected
+   * agents for event emission; FK ON DELETE CASCADE is a safety net.
    */
-  async delete(id: string): Promise<void> {
-    await this.getById(id)
+  delete(id: string): void {
+    this.getById(id)
 
-    await this.db.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
+    let affectedAgentIds: string[] = []
+    application.get('DbService').withWriteTx((tx) => {
+      affectedAgentIds = agentService.removeMcpFromAllAgentsTx(tx, id)
+      tx.delete(mcpServerTable).where(eq(mcpServerTable.id, id)).run()
+    })
+
+    // The delete has already committed. `emitAgentUpdatedForIds` runs a
+    // best-effort post-commit refresh (fresh reads) whose failure must NOT
+    // reject delete() — the server row is already gone. Log the un-refreshed
+    // agents so warm sessions can be reconciled, then swallow.
+    try {
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'mcps')
+    } catch (error) {
+      logger.error('MCP server deleted but agent refresh failed; affected agents may retain stale tool policy', {
+        mcpServerId: id,
+        affectedAgentIds,
+        error
+      })
+    }
 
     logger.info('Deleted MCP server', { id })
   }
@@ -159,10 +219,10 @@ export class MCPServerService {
   /**
    * Reorder MCP servers by updating sortOrder based on ordered IDs
    */
-  async reorder(orderedIds: string[]): Promise<void> {
-    await this.db.transaction(async (tx) => {
+  reorder(orderedIds: string[]): void {
+    this.db.transaction((tx) => {
       for (let i = 0; i < orderedIds.length; i++) {
-        await tx.update(mcpServerTable).set({ sortOrder: i }).where(eq(mcpServerTable.id, orderedIds[i]))
+        tx.update(mcpServerTable).set({ sortOrder: i }).where(eq(mcpServerTable.id, orderedIds[i])).run()
       }
     })
 
@@ -174,6 +234,12 @@ export class MCPServerService {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
     }
   }
+
+  private validateQVerisConfiguration(server: Pick<McpServer, 'name' | 'env' | 'isActive'>): void {
+    if (server.name === BuiltinMcpServerNames.qveris && server.isActive && !server.env?.QVERIS_API_KEY?.trim()) {
+      throw DataApiErrorFactory.validation({ env: ['QVERIS_API_KEY is required when QVeris is enabled'] })
+    }
+  }
 }
 
-export const mcpServerService = new MCPServerService()
+export const mcpServerService = new McpServerService()

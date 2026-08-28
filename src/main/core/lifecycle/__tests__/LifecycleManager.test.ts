@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../BaseService'
 import { when } from '../conditions'
+import { SERVICE_STOP_TIMEOUT_MS } from '../constants'
 import { Conditional, DependsOn, ErrorHandling, Injectable } from '../decorators'
 import { LifecycleManager } from '../LifecycleManager'
 import { ServiceContainer } from '../ServiceContainer'
@@ -268,8 +270,8 @@ describe('LifecycleManager', () => {
 
     it('should no-op if not initialized', async () => {
       const manager = LifecycleManager.getInstance()
-      // Should not throw
-      await expect(manager.stopAll()).resolves.toBeUndefined()
+      // Should not throw, and reports a clean (empty) pass
+      await expect(manager.stopAll()).resolves.toEqual({ timedOut: [], failed: [] })
     })
   })
 
@@ -339,6 +341,488 @@ describe('LifecycleManager', () => {
       await manager.destroyAll()
       expect(manager.isInitialized()).toBe(false)
       expect(manager.getInitializationOrder()).toEqual([])
+    })
+  })
+
+  // ── shutdown teardown ceiling ──
+
+  describe('shutdown teardown ceiling', () => {
+    beforeEach(() => {
+      // Real timers here would make every timeout assertion a CI coin flip.
+      vi.useFakeTimers()
+      mockMainLoggerService.info.mockClear()
+      mockMainLoggerService.warn.mockClear()
+      mockMainLoggerService.error.mockClear()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /** Messages a mocked logger level received, for `stringContaining` matching. */
+    const messages = (level: 'info' | 'warn' | 'error'): string[] =>
+      mockMainLoggerService[level].mock.calls.map((call) => String(call[0]))
+
+    /** An onStop that never settles — the framework has to abandon it. */
+    const neverSettles = (): Promise<void> => new Promise<void>(() => {})
+
+    // ── fairness: the point of the whole mechanism ──
+
+    it('should stop the services queued behind a stuck onStop instead of starving them', async () => {
+      const stopped: string[] = []
+
+      @Injectable('FirstService')
+      class FirstService extends BaseService {
+        protected override onStop() {
+          stopped.push('First')
+        }
+      }
+
+      @Injectable('SecondService')
+      @DependsOn(['FirstService'])
+      class SecondService extends BaseService {
+        protected override onStop() {
+          stopped.push('Second')
+        }
+      }
+
+      @Injectable('StuckService')
+      @DependsOn(['SecondService'])
+      class StuckService extends BaseService {
+        protected override onStop() {
+          stopped.push('Stuck')
+          return neverSettles()
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(FirstService)
+      container.register(SecondService)
+      container.register(StuckService)
+
+      await initializeServices(manager)
+
+      const pending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      const summary = await pending
+
+      // Reverse order puts the stuck service first; without a ceiling the other
+      // two would never be called at all.
+      expect(stopped).toEqual(['Stuck', 'Second', 'First'])
+      expect(summary).toEqual({ timedOut: ['StuckService'], failed: [] })
+      expect(container.getInstance('SecondService')!.state).toBe(LifecycleState.Stopped)
+      expect(container.getInstance('FirstService')!.state).toBe(LifecycleState.Stopped)
+    })
+
+    it('should keep going through consecutive timeouts', async () => {
+      const stopped: string[] = []
+
+      @Injectable('TailService')
+      class TailService extends BaseService {
+        protected override onStop() {
+          stopped.push('Tail')
+        }
+      }
+
+      @Injectable('StuckOneService')
+      @DependsOn(['TailService'])
+      class StuckOneService extends BaseService {
+        protected override onStop() {
+          stopped.push('StuckOne')
+          return neverSettles()
+        }
+      }
+
+      @Injectable('StuckTwoService')
+      @DependsOn(['StuckOneService'])
+      class StuckTwoService extends BaseService {
+        protected override onStop() {
+          stopped.push('StuckTwo')
+          return neverSettles()
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(TailService)
+      container.register(StuckOneService)
+      container.register(StuckTwoService)
+
+      await initializeServices(manager)
+
+      const pending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      const summary = await pending
+
+      expect(stopped).toEqual(['StuckTwo', 'StuckOne', 'Tail'])
+      expect(summary.timedOut).toEqual(['StuckTwoService', 'StuckOneService'])
+      expect(container.getInstance('TailService')!.state).toBe(LifecycleState.Stopped)
+    })
+
+    // ── no false success ──
+
+    it('should not emit SERVICE_STOPPED or advance state for a timed-out service', async () => {
+      @Injectable('StuckService')
+      class StuckService extends BaseService {
+        protected override onStop() {
+          return neverSettles()
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(StuckService)
+
+      await initializeServices(manager)
+
+      const stoppedListener = vi.fn()
+      manager.on(LifecycleEvents.SERVICE_STOPPED, stoppedListener)
+
+      const pending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      const summary = await pending
+
+      expect(stoppedListener).not.toHaveBeenCalled()
+      // `Stopping` is the honest state: the service never proved it stopped.
+      expect(container.getInstance('StuckService')!.state).toBe(LifecycleState.Stopping)
+      expect(summary.timedOut).toEqual(['StuckService'])
+      expect(messages('warn')).toContainEqual(expect.stringContaining("Service 'StuckService' stop timed out"))
+    })
+
+    it('should report a throwing onStop as failed without emitting SERVICE_STOPPED', async () => {
+      @Injectable('BrokenStopService')
+      class BrokenStopService extends BaseService {
+        protected override onStop(): Promise<void> {
+          return Promise.reject(new Error('stop boom'))
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(BrokenStopService)
+
+      await initializeServices(manager)
+
+      const stoppedListener = vi.fn()
+      manager.on(LifecycleEvents.SERVICE_STOPPED, stoppedListener)
+
+      const pending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      const summary = await pending
+
+      expect(stoppedListener).not.toHaveBeenCalled()
+      expect(container.getInstance('BrokenStopService')!.state).toBe(LifecycleState.Stopping)
+      expect(summary).toEqual({ timedOut: [], failed: ['BrokenStopService'] })
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error stopping service 'BrokenStopService'"),
+        expect.any(Error)
+      )
+    })
+
+    it('should still destroy a service whose onStop threw', async () => {
+      const destroyed: string[] = []
+
+      @Injectable('BrokenStopService')
+      class BrokenStopService extends BaseService {
+        protected override onStop(): Promise<void> {
+          return Promise.reject(new Error('stop boom'))
+        }
+        protected override onDestroy() {
+          destroyed.push('BrokenStop')
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(BrokenStopService)
+
+      await initializeServices(manager)
+
+      const stopPending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      await stopPending
+
+      const destroyPending = manager.destroyAll()
+      await vi.runAllTimersAsync()
+      const destroySummary = await destroyPending
+
+      // The destroy skip is keyed on stop being IN FLIGHT, not on the `Stopping`
+      // state a rejected onStop also leaves behind: that one has settled and its
+      // disposables were already cleaned by _doStop's finally, so nothing runs
+      // underneath onDestroy. Skipping it here would be a silent regression.
+      expect(destroyed).toEqual(['BrokenStop'])
+      expect(destroySummary).toEqual({ timedOut: [], failed: [] })
+      expect(container.getInstance('BrokenStopService')!.state).toBe(LifecycleState.Destroyed)
+    })
+
+    it('should skip destroy for a service whose stop never completed and report it as failed', async () => {
+      const destroyed: string[] = []
+
+      @Injectable('CleanService')
+      class CleanService extends BaseService {
+        protected override onDestroy() {
+          destroyed.push('Clean')
+        }
+      }
+
+      @Injectable('StuckService')
+      @DependsOn(['CleanService'])
+      class StuckService extends BaseService {
+        protected override onStop() {
+          return neverSettles()
+        }
+        protected override onDestroy() {
+          destroyed.push('Stuck')
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(CleanService)
+      container.register(StuckService)
+
+      await initializeServices(manager)
+
+      const destroyedListener = vi.fn()
+      manager.on(LifecycleEvents.SERVICE_DESTROYED, destroyedListener)
+
+      const stopPending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      await stopPending
+
+      const stuckInstance = container.getInstance('StuckService')!
+      const destroyPending = manager.destroyAll()
+      await vi.runAllTimersAsync()
+      const destroySummary = await destroyPending
+
+      // onDestroy must not run alongside an onStop that is still in flight.
+      expect(destroyed).toEqual(['Clean'])
+      expect(destroyedListener).toHaveBeenCalledTimes(1)
+      expect(destroyedListener).toHaveBeenCalledWith(expect.objectContaining({ name: 'CleanService' }))
+      expect(destroySummary).toEqual({ timedOut: [], failed: ['StuckService'] })
+      expect(stuckInstance.state).toBe(LifecycleState.Stopping)
+    })
+
+    it('should abandon a hung onDestroy and still destroy the services behind it', async () => {
+      const destroyed: string[] = []
+
+      @Injectable('TailService')
+      class TailService extends BaseService {
+        protected override onDestroy() {
+          destroyed.push('Tail')
+        }
+      }
+
+      @Injectable('StuckDestroyService')
+      @DependsOn(['TailService'])
+      class StuckDestroyService extends BaseService {
+        protected override onDestroy() {
+          destroyed.push('StuckDestroy')
+          return neverSettles()
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(TailService)
+      container.register(StuckDestroyService)
+
+      await initializeServices(manager)
+
+      const destroyedListener = vi.fn()
+      manager.on(LifecycleEvents.SERVICE_DESTROYED, destroyedListener)
+
+      const pending = manager.destroyAll()
+      await vi.runAllTimersAsync()
+      const summary = await pending
+
+      expect(destroyed).toEqual(['StuckDestroy', 'Tail'])
+      expect(summary).toEqual({ timedOut: ['StuckDestroyService'], failed: [] })
+      expect(destroyedListener).toHaveBeenCalledTimes(1)
+      expect(destroyedListener).toHaveBeenCalledWith(expect.objectContaining({ name: 'TailService' }))
+      expect(messages('warn')).toContainEqual(
+        expect.stringContaining("Service 'StuckDestroyService' destroy timed out")
+      )
+    })
+
+    it('should report a throwing onDestroy as failed and leave the state where it was', async () => {
+      @Injectable('BrokenDestroyService')
+      class BrokenDestroyService extends BaseService {
+        protected override onDestroy(): Promise<void> {
+          return Promise.reject(new Error('destroy boom'))
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(BrokenDestroyService)
+
+      await initializeServices(manager)
+
+      const stopPending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      await stopPending
+
+      const destroyedListener = vi.fn()
+      manager.on(LifecycleEvents.SERVICE_DESTROYED, destroyedListener)
+
+      const destroyPending = manager.destroyAll()
+      await vi.runAllTimersAsync()
+      const summary = await destroyPending
+
+      expect(destroyedListener).not.toHaveBeenCalled()
+      expect(summary).toEqual({ timedOut: [], failed: ['BrokenDestroyService'] })
+      // Unlike _doStop, _doDestroy has no finally: a rejection disposes nothing
+      // and advances nothing, so the state is whatever preceded the call.
+      expect(container.getInstance('BrokenDestroyService')!.state).toBe(LifecycleState.Stopped)
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error destroying service 'BrokenDestroyService'"),
+        expect.any(Error)
+      )
+    })
+
+    // ── aggregate logs ──
+
+    it('should not print "All services stopped" when a service timed out', async () => {
+      @Injectable('StuckService')
+      class StuckService extends BaseService {
+        protected override onStop() {
+          return neverSettles()
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(StuckService)
+
+      await initializeServices(manager)
+
+      const pending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      await pending
+
+      expect(messages('info')).not.toContainEqual(expect.stringContaining('All services stopped'))
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Service stop pass finished with 1 timeout(s), 0 failure(s)'),
+        { timedOut: ['StuckService'], failed: [] }
+      )
+    })
+
+    it('should not print "All services destroyed" when a service was skipped', async () => {
+      @Injectable('StuckService')
+      class StuckService extends BaseService {
+        protected override onStop() {
+          return neverSettles()
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(StuckService)
+
+      await initializeServices(manager)
+
+      const stopPending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      await stopPending
+
+      mockMainLoggerService.info.mockClear()
+      mockMainLoggerService.warn.mockClear()
+
+      const destroyPending = manager.destroyAll()
+      await vi.runAllTimersAsync()
+      await destroyPending
+
+      expect(messages('info')).not.toContainEqual(expect.stringContaining('All services destroyed'))
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Service destroy pass finished with 0 timeout(s), 1 failure(s)'),
+        { timedOut: [], failed: ['StuckService'] }
+      )
+    })
+
+    it('should keep the historical success logs and an empty summary for a clean pass', async () => {
+      @Injectable('HealthyService')
+      class HealthyService extends BaseService {}
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(HealthyService)
+
+      await initializeServices(manager)
+
+      const stopSummary = await manager.stopAll()
+      const destroySummary = await manager.destroyAll()
+
+      expect(stopSummary).toEqual({ timedOut: [], failed: [] })
+      expect(destroySummary).toEqual({ timedOut: [], failed: [] })
+      expect(messages('info')).toContainEqual(expect.stringContaining('All services stopped'))
+      expect(messages('info')).toContainEqual(expect.stringContaining('All services destroyed'))
+      expect(messages('warn')).not.toContainEqual(expect.stringContaining('pass finished with'))
+    })
+
+    it('should log a rejection that arrives after the service was already abandoned', async () => {
+      @Injectable('LateFailService')
+      class LateFailService extends BaseService {
+        protected override onStop(): Promise<void> {
+          return new Promise<void>((_, reject) => {
+            setTimeout(() => reject(new Error('late boom')), SERVICE_STOP_TIMEOUT_MS * 2)
+          })
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(LateFailService)
+
+      await initializeServices(manager)
+
+      const pending = manager.stopAll()
+      await vi.runAllTimersAsync()
+      const summary = await pending
+
+      // The late failure is observable, but it does not rewrite the verdict the
+      // pass already recorded.
+      expect(summary).toEqual({ timedOut: ['LateFailService'], failed: [] })
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error stopping service 'LateFailService'"),
+        expect.any(Error)
+      )
+    })
+
+    // ── runtime stop() stays unbounded ──
+
+    it('should NOT time out the runtime stop() path', async () => {
+      let release!: () => void
+
+      @Injectable('SlowRuntimeService')
+      class SlowRuntimeService extends BaseService {
+        protected override onStop(): Promise<void> {
+          return new Promise<void>((resolve) => {
+            release = resolve
+          })
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(SlowRuntimeService)
+
+      await initializeServices(manager)
+
+      let settled = false
+      const pending = manager.stop('SlowRuntimeService').then(() => {
+        settled = true
+      })
+
+      // Ten times the shutdown ceiling: the runtime path deliberately has none.
+      await vi.advanceTimersByTimeAsync(SERVICE_STOP_TIMEOUT_MS * 10)
+      expect(settled).toBe(false)
+
+      release()
+      await pending
+      expect(settled).toBe(true)
+      expect(container.getInstance('SlowRuntimeService')!.state).toBe(LifecycleState.Stopped)
     })
   })
 
@@ -832,6 +1316,62 @@ describe('LifecycleManager', () => {
     })
   })
 
+  // ── getBootstrapSummary ──
+
+  describe('getBootstrapSummary', () => {
+    it('should render the summary with ASCII-only borders (no Unicode box-drawing)', async () => {
+      @Injectable('SummaryService')
+      class SummaryService extends BaseService {}
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(SummaryService)
+
+      await initializeServices(manager)
+
+      const summary = manager.getBootstrapSummary(12.345, 0)
+
+      // Box-drawing characters (U+2500–U+257F) mojibake on non-UTF-8 Windows consoles.
+      expect(summary).not.toMatch(/[─-╿]/)
+      expect(summary).toContain('Bootstrap Summary')
+      expect(summary).toContain('SummaryService')
+      expect(summary).toContain('+--')
+      expect(summary).toContain('|')
+    })
+
+    it('should keep the timing column aligned when a service name overflows the default width', async () => {
+      @Injectable('AlignmentLongServiceNameExceedingThirtyTwoChars')
+      class LongNameService extends BaseService {}
+
+      @Injectable('ShortSvc')
+      class ShortNameService extends BaseService {}
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(LongNameService)
+      container.register(ShortNameService)
+
+      await initializeServices(manager)
+
+      const summary = manager.getBootstrapSummary(1, 0)
+      const lines = summary.split('\n')
+
+      // Every row shares the same width — outer borders line up.
+      expect(new Set(lines.map((line) => line.length)).size).toBe(1)
+
+      // Timing values on service rows right-align to the same column,
+      // regardless of how long the service name is.
+      const timingEnds = lines
+        .filter((line) => /^\|\s{4}/.test(line) && /\d+\.\d{3}ms/.test(line))
+        .map((line) => {
+          const match = line.match(/\d+\.\d{3}ms/)!
+          return match.index! + match[0].length
+        })
+      expect(timingEnds.length).toBeGreaterThanOrEqual(2)
+      expect(new Set(timingEnds).size).toBe(1)
+    })
+  })
+
   // ── allReady ──
 
   describe('allReady', () => {
@@ -858,14 +1398,14 @@ describe('LifecycleManager', () => {
       container.register(ServiceB)
 
       await initializeServices(manager)
-      await manager.allReady()
+      manager.allReady()
 
       expect(calls).toContain('A')
       expect(calls).toContain('B')
       expect(calls).toHaveLength(2)
     })
 
-    it('should emit ALL_SERVICES_READY event after all hooks complete', async () => {
+    it('should emit ALL_SERVICES_READY event after all hooks are invoked', async () => {
       @Injectable('SimpleService')
       class SimpleService extends BaseService {}
 
@@ -878,7 +1418,7 @@ describe('LifecycleManager', () => {
       const listener = vi.fn()
       manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
 
-      await manager.allReady()
+      manager.allReady()
       expect(listener).toHaveBeenCalledOnce()
     })
 
@@ -906,10 +1446,10 @@ describe('LifecycleManager', () => {
 
       await initializeServices(manager)
 
-      // Should not throw
-      await expect(manager.allReady()).resolves.toBeUndefined()
+      // Should not throw — allReady is fire-and-forget and never propagates hook errors
+      expect(() => manager.allReady()).not.toThrow()
 
-      // Healthy service hook should still have been called
+      // Healthy service hook should still have been called synchronously
       expect(healthyCalls).toEqual(['healthy'])
     })
 
@@ -932,7 +1472,10 @@ describe('LifecycleManager', () => {
       const errorListener = vi.fn()
       manager.on(LifecycleEvents.SERVICE_ERROR, errorListener)
 
-      await manager.allReady()
+      manager.allReady()
+      // SERVICE_ERROR is emitted from an async .catch on the fire-and-forget hook
+      // promise — drain microtasks so the listener observes the event.
+      await Promise.resolve()
 
       expect(errorListener).toHaveBeenCalledOnce()
       expect(errorListener).toHaveBeenCalledWith(
@@ -961,7 +1504,7 @@ describe('LifecycleManager', () => {
       const listener = vi.fn()
       manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
 
-      await manager.allReady()
+      manager.allReady()
       expect(listener).toHaveBeenCalledOnce()
     })
 
@@ -971,8 +1514,46 @@ describe('LifecycleManager', () => {
       const listener = vi.fn()
       manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
 
-      await manager.allReady()
+      manager.allReady()
       expect(listener).toHaveBeenCalledOnce()
+    })
+
+    it('should not block on services whose onAllReady is long-running (fire-and-forget)', async () => {
+      let resolveOnAllReady: () => void = () => {}
+      let onAllReadyStarted = false
+
+      @Injectable('SlowService')
+      class SlowService extends BaseService {
+        protected override async onAllReady() {
+          onAllReadyStarted = true
+          await new Promise<void>((resolve) => {
+            resolveOnAllReady = resolve
+          })
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(SlowService)
+
+      await initializeServices(manager)
+
+      const listener = vi.fn()
+      manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
+
+      // `allReady` must return synchronously even though the service's
+      // `onAllReady` is awaiting a promise that never resolves.
+      manager.allReady()
+
+      // `ALL_SERVICES_READY` fires immediately, before the hook completes.
+      expect(listener).toHaveBeenCalledOnce()
+
+      // Drain microtasks: the hook body has started by now.
+      await Promise.resolve()
+      expect(onAllReadyStarted).toBe(true)
+
+      // Cleanup: resolve the dangling promise so the suite does not leak it.
+      resolveOnAllReady()
     })
   })
 })

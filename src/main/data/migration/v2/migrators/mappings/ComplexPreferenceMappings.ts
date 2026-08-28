@@ -18,9 +18,27 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
-import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
-import { transformCodeCli } from './CodeCliTransforms'
+import { loggerService } from '@logger'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { markV1CustomCss } from '@shared/utils/customCssMigration'
+
+import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
+import {
+  flattenCompressionConfig,
+  migrateWebSearchProviders,
+  normalizeWebSearchDefaultProvider
+} from '../transformers/PreferenceTransformers'
+import { contextCountToMaxMessages } from './AssistantMappings'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
+import { transformLlmModelIds } from './LlmModelTransforms'
+import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
+import {
+  copyTargetLanguageForMiniWindow,
+  copyTranslatePageLanguages,
+  splitBidirectionalPairForAction
+} from './TranslateTransforms'
+
+const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
 // ============================================================================
 // Type Definitions
@@ -66,6 +84,21 @@ export interface ComplexMapping {
   transform: TransformFunction
 }
 
+function transformSidebarFavorites(): TransformResult {
+  return {
+    'ui.sidebar.favorites': DefaultPreferences.default['ui.sidebar.favorites']
+  }
+}
+
+function transformV1CustomCss(sources: Record<string, unknown>): TransformResult {
+  const customCss = sources.customCss
+  if (typeof customCss !== 'string') return {}
+
+  return {
+    'ui.custom_css': markV1CustomCss(customCss)
+  }
+}
+
 // ============================================================================
 // Complex Mappings Configuration
 // ============================================================================
@@ -81,7 +114,42 @@ export interface ComplexMapping {
  *
  * Remember to also define the target keys in target-key-definitions.json!
  */
+/**
+ * v1's default assistant carried the context policy every NEW assistant was
+ * cloned from. Migrating it only onto the migrated assistant rows would lose it
+ * for assistants created afterwards, which would silently start unlimited.
+ * Uses the same conversion as the per-assistant migration so both agree.
+ */
+function transformDefaultAssistantContextCount(sources: Record<string, unknown>): TransformResult {
+  const maxMessages = contextCountToMaxMessages(sources.contextCount)
+  // The global layer has no "inherit": unusable input and v1's unlimited both
+  // leave the generated default, which is already `null`.
+  return maxMessages == null ? {} : { 'chat.context_settings.max_messages': maxMessages }
+}
+
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // v1 default-assistant context policy → global context-message limit
+  {
+    id: 'default_assistant_context_count_migrate',
+    description: "Carry v1's default-assistant contextCount into the global recent-messages limit",
+    sources: {
+      contextCount: { source: 'redux', category: 'assistants', key: 'defaultAssistant.settings.contextCount' }
+    },
+    targetKeys: ['chat.context_settings.max_messages'],
+    transform: transformDefaultAssistantContextCount
+  },
+
+  // WebSearch default provider normalization
+  {
+    id: 'websearch_default_provider_migrate',
+    description: 'Normalize legacy websearch default provider into the v2 keyword-search default provider key',
+    sources: {
+      defaultProvider: { source: 'redux', category: 'websearch', key: 'defaultProvider' }
+    },
+    targetKeys: ['chat.web_search.default_search_keywords_provider'],
+    transform: normalizeWebSearchDefaultProvider
+  },
+
   // WebSearch provider overrides migration
   {
     id: 'websearch_providers_migrate',
@@ -100,32 +168,59 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     sources: {
       compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
     },
-    targetKeys: [
-      'chat.web_search.compression.method',
-      'chat.web_search.compression.cutoff_limit',
-      'chat.web_search.compression.cutoff_unit',
-      'chat.web_search.compression.rag_document_count',
-      'chat.web_search.compression.rag_embedding_model_id',
-      'chat.web_search.compression.rag_embedding_dimensions',
-      'chat.web_search.compression.rag_rerank_model_id'
-    ],
+    targetKeys: ['chat.web_search.compression.method', 'chat.web_search.compression.cutoff_limit'],
     transform: flattenCompressionConfig
   },
 
-  // CodeCLI layered preset overrides
   {
-    id: 'code_cli_overrides',
-    description: 'Merge codeTools per-tool data (models, env vars, directories) into layered preset overrides',
+    id: 'onboarding_completed_migrate',
+    description: 'Convert legacy localStorage onboarding-completed into the v2 provider setup status',
     sources: {
-      selectedModels: { source: 'redux', category: 'codeTools', key: 'selectedModels' },
-      environmentVariables: { source: 'redux', category: 'codeTools', key: 'environmentVariables' },
-      directories: { source: 'redux', category: 'codeTools', key: 'directories' },
-      currentDirectory: { source: 'redux', category: 'codeTools', key: 'currentDirectory' },
-      selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' },
-      selectedTerminal: { source: 'redux', category: 'codeTools', key: 'selectedTerminal' }
+      completed: { source: 'localStorage', key: 'onboarding-completed' }
     },
-    targetKeys: ['feature.code_cli.overrides'],
-    transform: transformCodeCli
+    targetKeys: ['app.onboarding.provider_setup.status'],
+    transform: (sources) => {
+      if (sources.completed === undefined || sources.completed === null) return {}
+      return {
+        'app.onboarding.provider_setup.status':
+          sources.completed === true || sources.completed === 'true' ? 'completed' : 'pending'
+      }
+    }
+  },
+
+  // CodeCLI: no migration — feature.code_cli.configs is a fresh v2 key (v1 codeTools is throwaway).
+
+  // Shortcut preferences (legacy array → per-key PreferenceShortcutType)
+  {
+    id: 'shortcut_preferences_migrate',
+    description: 'Convert legacy shortcuts array into per-key { binding, enabled } preferences',
+    sources: {
+      shortcuts: { source: 'redux', category: 'shortcuts', key: 'shortcuts' }
+    },
+    targetKeys: [...SHORTCUT_TARGET_KEYS],
+    transform: transformShortcuts
+  },
+
+  // Sidebar favorites: reset every migrated user to the canonical v2 tabs.
+  {
+    id: 'sidebar_favorites_migrate',
+    description: 'Reset legacy sidebar favorites to the canonical v2 tabs',
+    sources: {
+      visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
+      disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
+    },
+    targetKeys: ['ui.sidebar.favorites'],
+    transform: transformSidebarFavorites
+  },
+
+  {
+    id: 'custom_css_v1_marker',
+    description: 'Preserve legacy custom CSS behind a versioned marker until the user reviews it for v2',
+    sources: {
+      customCss: { source: 'redux', category: 'settings', key: 'customCss' }
+    },
+    targetKeys: ['ui.custom_css'],
+    transform: transformV1CustomCss
   },
 
   // File processing overrides merging
@@ -138,6 +233,95 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.file_processing.overrides'],
     transform: mergeFileProcessingOverrides
+  },
+
+  // LLM model ID migration (Model object → UniqueModelId)
+  {
+    id: 'llm_model_ids_to_unique',
+    description: 'Convert legacy LLM Model objects (provider + id) into UniqueModelId format (provider::modelId)',
+    sources: {
+      defaultModel: { source: 'redux', category: 'llm', key: 'defaultModel' },
+      quickModel: { source: 'redux', category: 'llm', key: 'quickModel' },
+      translateModel: { source: 'redux', category: 'llm', key: 'translateModel' }
+    },
+    targetKeys: ['chat.default_model_id', 'feature.quick_assistant.model_id', 'feature.translate.model_id'],
+    transform: transformLlmModelIds
+  },
+
+  // OpenClaw preferences migration (legacy port + JSON model string → v2 preferences)
+  {
+    id: 'openclaw_preferences',
+    description:
+      'Convert legacy OpenClaw port and selected model JSON string into v2 preferences; invalid ports fall through to schema defaults',
+    sources: {
+      gatewayPort: { source: 'redux', category: 'openclaw', key: 'gatewayPort' },
+      selectedModelUniqId: { source: 'redux', category: 'openclaw', key: 'selectedModelUniqId' }
+    },
+    targetKeys: ['feature.openclaw.gateway_port', 'feature.openclaw.selected_model_id'],
+    transform: (sources) => {
+      let modelRef: LegacyModelRef | null = null
+      const raw = sources.selectedModelUniqId
+
+      if (typeof raw === 'string' && raw.length > 0) {
+        try {
+          const parsed = JSON.parse(raw) as unknown
+          if (parsed != null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            modelRef = parsed as LegacyModelRef
+          }
+        } catch (error) {
+          logger.warn('Legacy openclaw selectedModelUniqId not valid JSON, dropping', {
+            raw,
+            error
+          })
+        }
+      }
+
+      return {
+        'feature.openclaw.gateway_port':
+          typeof sources.gatewayPort === 'number' && Number.isFinite(sources.gatewayPort) && sources.gatewayPort > 0
+            ? sources.gatewayPort
+            : undefined,
+        'feature.openclaw.selected_model_id': legacyModelToUniqueId(modelRef)
+      }
+    }
+  },
+
+  // Translate: split bidirectional pair for action translate
+  {
+    id: 'translate_action_pair_split',
+    description: 'Split legacy translate:bidirectional:pair into action translate preferred/alter language',
+    sources: {
+      bidirectionalPair: { source: 'dexie-settings', key: 'translate:bidirectional:pair' }
+    },
+    targetKeys: ['feature.translate.action.preferred_lang', 'feature.translate.action.alter_lang'],
+    transform: splitBidirectionalPairForAction
+  },
+
+  // Translate: copy target language for mini window
+  {
+    id: 'translate_mini_window_target',
+    description: 'Copy legacy translate:target:language to mini window target language',
+    sources: {
+      targetLanguage: { source: 'dexie-settings', key: 'translate:target:language' }
+    },
+    targetKeys: ['feature.translate.mini_window.target_lang'],
+    transform: copyTargetLanguageForMiniWindow
+  },
+
+  {
+    id: 'translate_page_languages',
+    description: 'Copy legacy translate page languages with canonicalized lang codes',
+    sources: {
+      bidirectionalPair: { source: 'dexie-settings', key: 'translate:bidirectional:pair' },
+      sourceLanguage: { source: 'dexie-settings', key: 'translate:source:language' },
+      targetLanguage: { source: 'dexie-settings', key: 'translate:target:language' }
+    },
+    targetKeys: [
+      'feature.translate.page.bidirectional_pair',
+      'feature.translate.page.source_language',
+      'feature.translate.page.target_language'
+    ],
+    transform: copyTranslatePageLanguages
   }
 ]
 

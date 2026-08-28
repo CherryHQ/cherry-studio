@@ -1,14 +1,32 @@
-import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
-import { bootConfigService } from '@main/data/bootConfig'
-import { app, dialog } from 'electron'
+import fs from 'node:fs'
+import path from 'node:path'
 
-import { LifecycleManager } from '../lifecycle/LifecycleManager'
-import { ServiceContainer } from '../lifecycle/ServiceContainer'
-import { LifecycleEvents, Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
+import { loggerService } from '@logger'
+import {
+  type Disposable,
+  LifecycleManager,
+  Phase,
+  type ServiceConstructor,
+  ServiceContainer,
+  ServiceInitError,
+  SHUTDOWN_TIMEOUT_MS
+} from '@main/core/lifecycle'
+import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
+import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { handleGuarded } from '@main/core/security/guardedIpc'
+import { bootConfigService } from '@main/data/bootConfig'
+import { IpcChannel } from '@shared/IpcChannel'
+import { app, dialog } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import type { ServiceRegistry } from './serviceRegistry'
 
 const logger = loggerService.withContext('Lifecycle')
+
+/** Hold with opaque ID for cross-process identification */
+interface QuitPreventionHold extends Disposable {
+  readonly id: string
+}
 
 /**
  * Application
@@ -22,6 +40,28 @@ export class Application {
   private isBootstrapped = false
   private isShuttingDown = false
   private _isQuitting = false
+  private quitPreventionHolds = new Map<string, string>()
+  private ipcQuitHolds = new Map<string, QuitPreventionHold>()
+
+  /**
+   * Frozen path registry. `null` until `bootstrap()` is invoked, after
+   * which it persists for the entire process lifetime — `shutdown()` does
+   * NOT clear it, so `getPath()` remains callable from `onStop()` /
+   * `onDestroy()` cleanup paths and from logger/dialog code that runs
+   * during shutdown.
+   */
+  private pathMap: PathMap | null = null
+
+  /**
+   * Cache of PathKeys whose directory has already been auto-ensured.
+   * Each Cherry-owned key is `mkdirSync`'d at most once per process —
+   * subsequent `getPath()` calls hit this Set and return immediately.
+   *
+   * NOT cleared on shutdown (paths remain valid for cleanup code that
+   * runs after `stopAll()`). Cleared by `__setPathMapForTesting()` to
+   * allow test isolation.
+   */
+  private ensuredKeys = new Set<PathKey>()
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -74,11 +114,50 @@ export class Application {
   }
 
   /**
+   * Initialize the path registry by building it from current Electron path
+   * state and storing it as a frozen snapshot in this Application instance.
+   *
+   * Timing contract:
+   *   - MUST be called AFTER `resolveUserDataLocation()` so that all
+   *     `app.setPath('userData', ...)` calls have completed.
+   *   - MUST be called BEFORE `bootstrap()` — `bootstrap()` asserts the
+   *     registry is initialized and refuses to start otherwise.
+   *
+   * Naming note: the underlying `buildPathRegistry()` is the constructor
+   * that does the actual `Object.freeze()`. This method is the *installer*
+   * that places the built registry into the Application instance.
+   *
+   * Single-call enforced — repeated invocation throws to surface misuse
+   * (e.g. accidentally calling it from both main/main.ts and a test).
+   * Tests that need a fresh registry should use `__setPathMapForTesting()`
+   * instead, which bypasses this guard for test isolation.
+   *
+   * LoggerService and BootConfigService bypass this registry and read
+   * paths directly via `paths/constants.ts` (`LOGS_DIR`, `BOOT_CONFIG_PATH`);
+   * one-shot startup pipelines (migration, legacy backup restore) carry
+   * their own ad-hoc path logic and do not consume the registry either.
+   */
+  public initPathRegistry(): void {
+    if (this.pathMap !== null) {
+      throw new Error('initPathRegistry() called twice — path registry is already initialized')
+    }
+    this.pathMap = buildPathRegistry()
+    logger.debug(`Path registry initialized with ${Object.keys(this.pathMap).length} entries`)
+  }
+
+  /**
    * Bootstrap the application
    * Initializes services in three phases with maximum parallelization:
    * 1. Background: fire-and-forget, independent services
    * 2. BeforeReady: services that don't need Electron API (parallel with app.whenReady)
    * 3. WhenReady: services that require Electron API
+   *
+   * Precondition: `initPathRegistry()` must have been called from the
+   * preboot phase in `main/index.ts`. This is enforced by an entry-point
+   * assertion below — there is no silent fallback initialization, so any
+   * code path that reaches `bootstrap()` without first calling
+   * `initPathRegistry()` fails fast with a clear error pointing at the
+   * fix location.
    */
   public async bootstrap(): Promise<void> {
     if (this.isBootstrapped) {
@@ -86,9 +165,23 @@ export class Application {
       return
     }
 
-    // Register signal handlers FIRST, before anything else,
-    // so Ctrl+C is handled even during early bootstrap stages
+    // Path registry must be initialized by preboot — see initPathRegistry()
+    // for the timing contract. We do not auto-initialize here on purpose:
+    // a silent fallback would mask the case where main/index.ts forgot to
+    // call initPathRegistry() and would push the failure to the first
+    // getPath() call deep inside service startup, where the diagnostic
+    // is much harder to read.
+    if (this.pathMap === null) {
+      throw new Error(
+        'Path registry not initialized. Call application.initPathRegistry() ' +
+          'after resolveUserDataLocation() in main/index.ts before invoking bootstrap().'
+      )
+    }
+
+    // Register signal and quit handlers FIRST, before anything else,
+    // so Ctrl+C and app quit are handled even during early bootstrap stages
     this.setupSignalHandlers()
+    this.setupQuitHandlers()
 
     logger.info('Bootstrapping...')
 
@@ -119,11 +212,18 @@ export class Application {
 
       this.isBootstrapped = true
 
-      // 4. Wait for Background to finish, then notify all services
+      // 4. Wait for Background to finish, then notify all services.
+      // ServiceInitError = fail-fast service failure → must propagate to
+      // handleFatalServiceError() via the outer catch block.
+      // Non-ServiceInitError = graceful/unexpected failure in a background
+      // service — log and continue, as background services are non-critical.
       await backgroundPromise.catch((err) => {
+        if (err instanceof ServiceInitError) {
+          throw err
+        }
         logger.error('Background phase failed:', err)
       })
-      await this.lifecycleManager.allReady()
+      this.lifecycleManager.allReady()
     } catch (error) {
       if (error instanceof ServiceInitError) {
         await this.handleFatalServiceError(error)
@@ -134,12 +234,18 @@ export class Application {
 
     const totalDuration = performance.now() - bootstrapStart
     logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
-    logger.info(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
+    logger.debug(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
   }
 
   /**
-   * Shutdown the application
-   * Stops and destroys all services gracefully
+   * Shutdown the application.
+   * Stops and destroys all lifecycle-managed services gracefully.
+   * Also handles legacy service cleanup (bootConfig, logger).
+   *
+   * Each service carries its own teardown ceiling (see `stopAll`), so a stuck
+   * `onStop()` no longer costs the services behind it their turn. Whether this
+   * shutdown was clean is stated on the `Shutdown complete` line — that is the
+   * first line to read when diagnosing one.
    */
   public async shutdown(): Promise<void> {
     if (this.isShuttingDown) {
@@ -148,17 +254,37 @@ export class Application {
     }
 
     this.isShuttingDown = true
+    this._isQuitting = true
     logger.info('Shutting down...')
 
     const start = performance.now()
 
-    // Stop all services
-    await this.lifecycleManager.stopAll()
+    // Flush boot config first (save pending debounced writes)
+    try {
+      bootConfigService.flush()
+    } catch (e) {
+      logger.warn('bootConfig flush error:', e as Error)
+    }
 
-    // Destroy all services
-    await this.lifecycleManager.destroyAll()
+    // Stop all lifecycle-managed services (reverse init order)
+    const stopSummary = await this.lifecycleManager.stopAll()
 
-    logger.info(`Shutdown complete (${(performance.now() - start).toFixed(3)}ms)`)
+    // Destroy all lifecycle-managed services
+    const destroySummary = await this.lifecycleManager.destroyAll()
+
+    // Kept per pass rather than concatenated: a service that times out in stop
+    // is then skipped in destroy, so a flat list would carry its name twice with
+    // no way to tell which pass each entry came from.
+    const elapsed = `${(performance.now() - start).toFixed(3)}ms`
+    const unclean = [stopSummary, destroySummary].some((s) => s.timedOut.length > 0 || s.failed.length > 0)
+    if (unclean) {
+      logger.warn(`Shutdown complete, but not cleanly (${elapsed})`, { stop: stopSummary, destroy: destroySummary })
+    } else {
+      logger.info(`Shutdown complete (${elapsed})`)
+    }
+
+    // Close logger LAST — after this point, no more logging
+    loggerService.finish()
   }
 
   /**
@@ -194,7 +320,11 @@ export class Application {
 
   /**
    * Handle boot config load error by showing a dialog before any services start.
-   * For parse errors: offer reset (delete corrupted file) + restart.
+   * For parse errors (unparseable JSON, nothing salvageable): offer reset
+   * (delete corrupted file) + restart.
+   * For validation errors (valid JSON, some values rejected): offer repair
+   * (persist valid keys + defaults for invalid ones) + restart — a full reset
+   * would erase the valid keys the per-key validation deliberately kept.
    * For read errors: offer restart (file may be temporarily inaccessible).
    */
   private async handleBootConfigError(): Promise<void> {
@@ -203,25 +333,52 @@ export class Application {
 
     await app.whenReady()
 
+    const isReadError = loadError.type === 'read_error'
+    const isValidationError = loadError.type === 'validation_error'
     const isParseError = loadError.type === 'parse_error'
+
+    const message = isReadError
+      ? 'The configuration file (boot-config.json) could not be read.'
+      : isValidationError
+        ? 'The configuration file (boot-config.json) contains invalid values.'
+        : 'The configuration file (boot-config.json) contains invalid data.'
+    const continueHint = isValidationError
+      ? 'The application can continue — valid settings are kept and the invalid entries fall back to defaults — or you can repair the file and restart.'
+      : isParseError
+        ? 'The application can continue with default settings, or you can reset the file and restart.'
+        : 'The application can continue with default settings, or you can restart to try again.'
+    const fileHint = isValidationError
+      ? `"Repair and Restart" rewrites the file, keeping the valid entries and resetting the invalid ones. Other options preserve it for manual inspection at:\n${loadError.filePath}`
+      : isParseError
+        ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}`
+        : `The file will be preserved for manual inspection at:\n${loadError.filePath}`
 
     const result = await dialog.showMessageBox({
       type: 'warning',
-      title: isParseError ? 'Configuration File Corrupted' : 'Configuration File Read Error',
-      message: isParseError
-        ? 'The configuration file (boot-config.json) contains invalid data.'
-        : 'The configuration file (boot-config.json) could not be read.',
-      detail: `Error: ${loadError.message}\n\nThe application can continue with default settings, or you can ${isParseError ? 'reset the file and restart' : 'restart to try again'}.\n\n${isParseError ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}` : `The file will be preserved for manual inspection at:\n${loadError.filePath}`}`,
-      buttons: ['Continue with Defaults', isParseError ? 'Reset and Restart' : 'Restart', 'Exit'],
+      title: isReadError
+        ? 'Configuration File Read Error'
+        : isValidationError
+          ? 'Configuration File Invalid'
+          : 'Configuration File Corrupted',
+      message,
+      detail: `Error: ${loadError.message}\n\n${continueHint}\n\n${fileHint}`,
+      buttons: [
+        isValidationError ? 'Continue' : 'Continue with Defaults',
+        isValidationError ? 'Repair and Restart' : isParseError ? 'Reset and Restart' : 'Restart',
+        'Exit'
+      ],
       defaultId: 0,
       cancelId: 2
     })
 
     if (result.response === 1) {
-      if (isParseError) {
+      if (isValidationError) {
+        bootConfigService.repair()
+      } else if (isParseError) {
         bootConfigService.reset()
       }
-      logger.info(`User chose to ${isParseError ? 'reset and restart' : 'restart'} after boot config error`)
+      const action = isValidationError ? 'repair and restart' : isParseError ? 'reset and restart' : 'restart'
+      logger.info(`User chose to ${action} after boot config error`)
       this.relaunch()
       return
     }
@@ -277,13 +434,19 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
+    // Last resort, not the working mechanism. Starvation is handled one level
+    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
+    // only catches the case where enough services burn their whole ceiling to
+    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
+    // every timer here it is powerless against a synchronously blocking
+    // `onStop()`, which never yields the event loop for it to fire on.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
       process.exit(1)
     }
 
     process.on('SIGINT', async () => {
-      const timer = setTimeout(forceExit, 5000)
+      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -295,7 +458,7 @@ export class Application {
     })
 
     process.on('SIGTERM', async () => {
-      const timer = setTimeout(forceExit, 5000)
+      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -308,28 +471,79 @@ export class Application {
   }
 
   /**
-   * Setup Electron app event handlers
+   * Setup quit event handlers (before-quit + will-quit).
+   * Called at the start of bootstrap(), alongside setupSignalHandlers(),
+   * so quit is handled correctly even during early bootstrap stages.
    */
-  private setupElectronHandlers(): void {
-    // macOS: re-create window when dock icon is clicked
-    app.on('activate', () => {
-      this.lifecycleManager.emit(LifecycleEvents.APP_ACTIVATE)
+  private setupQuitHandlers(): void {
+    // before-quit: gate check + mark quitting. Does NOT preventDefault unless blocking.
+    app.on('before-quit', (event) => {
+      if (!this.canQuit()) {
+        event.preventDefault()
+        this._isQuitting = false // Reset — quit was blocked, not actually quitting
+        const reasons = [...this.quitPreventionHolds.values()].join(', ')
+        logger.info(`Quit prevented: ${reasons}`)
+        return
+      }
+      this._isQuitting = true
     })
 
-    // All windows closed
+    // will-quit: all windows closed, perform actual cleanup
+    app.on('will-quit', (event) => {
+      if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
+
+      event.preventDefault()
+
+      // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
+      const timer = setTimeout(() => {
+        logger.warn('Forced exit after shutdown timeout (will-quit)')
+        process.exit(1)
+      }, SHUTDOWN_TIMEOUT_MS)
+
+      this.shutdown()
+        .catch((err) => logger.error('Error during shutdown:', err as Error))
+        .finally(() => {
+          clearTimeout(timer)
+          app.exit(0)
+        })
+    })
+  }
+
+  /**
+   * Setup Electron app event handlers that require app.whenReady().
+   */
+  private setupElectronHandlers(): void {
+    // Non-macOS: quit through standard before-quit → will-quit flow when all windows close
     app.on('window-all-closed', () => {
       if (!isMac) {
-        void this.shutdown().then(() => this.quit())
+        this.quit()
       }
     })
 
-    // Before quit - use app.exit() to force quit and avoid re-triggering before-quit event
-    app.on('before-quit', (event) => {
-      if (!this.isShuttingDown) {
-        event.preventDefault()
-        this.shutdown()
-          .catch((error) => logger.error('Error during shutdown:', error as Error))
-          .finally(() => app.exit(0))
+    // Register Application-scoped IPC handlers (quit, relaunch, preventQuit)
+    this.registerApplicationIpc()
+  }
+
+  /**
+   * Register IPC handlers for the Application_* scope.
+   * All application lifecycle operations exposed to renderer live here.
+   */
+  private registerApplicationIpc(): void {
+    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
+      this.relaunch(options)
+    })
+
+    handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
+      const hold = this.preventQuit(reason)
+      this.ipcQuitHolds.set(hold.id, hold)
+      return hold.id
+    })
+
+    handleGuarded(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
+      const hold = this.ipcQuitHolds.get(holdId)
+      if (hold) {
+        hold.dispose()
+        this.ipcQuitHolds.delete(holdId)
       }
     })
   }
@@ -376,16 +590,42 @@ export class Application {
   }
 
   /**
+   * Register a quit prevention hold. Returns a hold with opaque UUID id and dispose().
+   * While any hold is active, app.quit() will be blocked in before-quit.
+   * Used for critical operations (e.g. data migration) where quitting would cause corruption.
+   */
+  public preventQuit(reason: string): QuitPreventionHold {
+    const id = uuidv4()
+    this.quitPreventionHolds.set(id, reason)
+    logger.info(`Quit prevention hold added: "${reason}" (id: ${id})`)
+    return {
+      id,
+      dispose: () => {
+        this.quitPreventionHolds.delete(id)
+        logger.info(`Quit prevention hold removed (id: ${id})`)
+      }
+    }
+  }
+
+  private canQuit(): boolean {
+    return this.quitPreventionHolds.size === 0
+  }
+
+  /**
    * Graceful quit: set flag then trigger the Electron quit event chain.
-   * The before-quit / will-quit handlers in index.ts handle legacy service cleanup.
+   * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
   public quit(): void {
     if (this._isQuitting) {
-      logger.warn('Already quitting')
+      // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
+      // handler preventDefault'd and broke the chain), this gives the user a
+      // second chance to exit via the menu without resorting to `kill -9`.
+      logger.warn('Already quitting — re-triggering app.quit() in case a previous attempt stalled')
+      app.quit()
       return
     }
-    this._isQuitting = true
     logger.info('Quitting application...')
+    this._isQuitting = true
     app.quit()
   }
 
@@ -446,6 +686,132 @@ export class Application {
    */
   public async restart<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.restart(name)
+  }
+
+  /**
+   * Activate a service's heavy resources.
+   * The service must implement Activatable (onActivate/onDeactivate).
+   * No cascade — activation is service-specific.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async activate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.activate(name)
+  }
+
+  /**
+   * Deactivate a service, releasing heavy resources.
+   * The service must implement Activatable.
+   * No cascade — deactivation is service-specific.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async deactivate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.deactivate(name)
+  }
+
+  /**
+   * Get a registered application path.
+   *
+   * Sole entry point for all path lookups in the main process. Paths are
+   * registered in `src/main/core/paths/pathRegistry.ts`; see
+   * `src/main/core/paths/README.md` for naming conventions, namespace
+   * taxonomy, and usage guidelines.
+   *
+   * Callable only after `application.initPathRegistry()` has been invoked
+   * from the preboot phase in `main/index.ts`. Earlier calls throw — any
+   * consumer that runs before then is a contract violation and must be
+   * either deferred (into a service `onStart()`) or migrated to a
+   * special-case path source (e.g. `paths/constants.ts` for code that
+   * must run before the registry exists).
+   *
+   * @param key      Dotted path key (e.g. 'feature.files.data', 'cherry.bin').
+   *                 Type-checked at compile time against the path registry.
+   * @param filename Optional filename to join under the registered root.
+   *                 Should be a single relative segment (no absolute path,
+   *                 no '..', no path separators). If the constraint is
+   *                 violated, a warning is logged via loggerService and the
+   *                 path is joined anyway — the warning is a developer hint
+   *                 that you may want to register a new path key for the
+   *                 deeper path you're constructing.
+   */
+  public getPath(key: PathKey, filename?: string): string {
+    if (this.pathMap === null) {
+      throw new Error(
+        `application.getPath('${key}') called before application.initPathRegistry() ran. ` +
+          `Ensure all app.setPath() calls finish, then invoke application.initPathRegistry() ` +
+          `from main/index.ts preboot before any service uses the path registry.`
+      )
+    }
+
+    const base = this.pathMap[key]
+
+    // Lazy auto-ensure: on first access of an opt-in key, mkdir the
+    // relevant directory so callers can immediately read/write without
+    // an explicit `fs.mkdirSync` step.
+    //   - Directory keys: ensure `base` itself.
+    //   - File keys (key ends with 'file'): ensure `path.dirname(base)`
+    //     so the file's parent dir exists. The file itself is NOT
+    //     created — it remains the caller's responsibility.
+    // Opt-out lives in `pathRegistry.shouldAutoEnsure` (data-driven, see
+    // the NO_ENSURE list there). The result is cached in `ensuredKeys`
+    // so each key's directory is created at most once per process.
+    if (!this.ensuredKeys.has(key) && shouldAutoEnsure(key)) {
+      const dirToEnsure = key.endsWith('file') ? path.dirname(base) : base
+      try {
+        fs.mkdirSync(dirToEnsure, { recursive: true })
+      } catch (err) {
+        // Don't block path resolution if mkdir fails (read-only FS,
+        // missing permissions, etc.). Caller may still need the path
+        // for error reporting or read-only checks.
+        logger.warn(
+          `application.getPath: mkdir failed for key '${key}' at '${dirToEnsure}'. ` +
+            `Returning path anyway. Error: ${(err as Error).message}`
+        )
+      }
+      // Cache regardless of success — retrying on every call would be
+      // a perf trap. Failed-once is treated the same as succeeded-once.
+      this.ensuredKeys.add(key)
+    }
+
+    if (filename === undefined) return base
+
+    if (path.isAbsolute(filename) || filename.includes('..') || filename.includes(path.sep)) {
+      logger.warn(
+        `Application.getPath: filename "${filename}" should be a single relative segment ` +
+          `(no absolute paths, no '..', no separators). Consider registering a new key in ` +
+          `pathRegistry.ts if you need a deeper path.`
+      )
+    }
+
+    return path.join(base, filename)
+  }
+
+  /**
+   * @internal — Test-only hook for injecting a mock path registry without
+   * running the heavyweight `bootstrap()` flow. Production code MUST NOT
+   * call this. The double-underscore prefix and the NODE_ENV guard together
+   * prevent accidental misuse.
+   *
+   * Usage in a test:
+   * ```ts
+   * vi.mock('@main/core/paths/pathRegistry', () => ({
+   *   buildPathRegistry: () => Object.freeze({ 'feature.files.data': '/mock' })
+   * }))
+   * import { buildPathRegistry } from '@main/core/paths/pathRegistry'
+   * import { Application } from '@main/core/application/Application'
+   * const app = Application.getInstance()
+   * app.__setPathMapForTesting(buildPathRegistry())
+   * ```
+   */
+  public __setPathMapForTesting(map: PathMap | null): void {
+    if (process.env.NODE_ENV !== 'test') {
+      throw new Error('__setPathMapForTesting may only be called in tests')
+    }
+    this.pathMap = map
+    // Clear the auto-ensure cache so each test starts from a clean state.
+    // Without this, a key that was already mkdir'd in a previous test
+    // would silently skip mkdir in the next test, breaking call-count
+    // assertions and hiding regressions.
+    this.ensuredKeys.clear()
   }
 }
 

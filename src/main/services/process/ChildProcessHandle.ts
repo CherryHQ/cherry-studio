@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import { crossPlatformSpawn } from '@main/utils/process'
-import getShellEnv from '@main/utils/shell-env'
+import { isWin } from '@main/core/platform'
+import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import type { ChildProcess } from 'child_process'
 
 import type { ChildProcessOptions, ProcessHandle, ProcessLogLine } from './types'
@@ -13,6 +14,7 @@ export class ChildProcessHandle implements ProcessHandle {
   private _pid: number | undefined = undefined
   private _process: ChildProcess | undefined = undefined
   private _exited = false
+  private _stopPromise: Promise<void> | undefined = undefined
   private readonly def: ChildProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
@@ -106,6 +108,7 @@ export class ChildProcessHandle implements ProcessHandle {
 
       this._pid = undefined
       this._process = undefined
+      this._stopPromise = undefined
 
       if (this._state === ProcessState.Stopping) {
         this._state = ProcessState.Stopped
@@ -128,14 +131,18 @@ export class ChildProcessHandle implements ProcessHandle {
       this._state = ProcessState.Crashed
       this._pid = undefined
       this._process = undefined
+      this._stopPromise = undefined
       this.logger.error(`Process error: ${err.message}`, err)
       this.onExited?.(null, null)
     })
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    if (this._state === ProcessState.Stopping) {
+      return this._stopPromise ?? Promise.resolve()
+    }
     if (this._state !== ProcessState.Running) {
-      return
+      return Promise.resolve()
     }
 
     this._state = ProcessState.Stopping
@@ -144,33 +151,42 @@ export class ChildProcessHandle implements ProcessHandle {
     const child = this._process
     if (!child) {
       this._state = ProcessState.Stopped
+      return Promise.resolve()
+    }
+
+    const stopPromise = this.stopProcess(child)
+    this._stopPromise = stopPromise
+    return stopPromise
+  }
+
+  private async stopProcess(child: ChildProcess): Promise<void> {
+    const killTimeoutMs = this.def.killTimeoutMs ?? DEFAULT_KILL_TIMEOUT_MS
+
+    const gracefulExit = waitForProcessExit(child, killTimeoutMs)
+    await this.signalProcess(child, false)
+    if (await gracefulExit) {
       return
     }
 
-    return new Promise<void>((resolve) => {
-      const killTimeoutMs = this.def.killTimeoutMs ?? DEFAULT_KILL_TIMEOUT_MS
-
-      const killTimer = setTimeout(() => {
-        this.logger.warn(`Kill timeout reached, sending SIGKILL to pid=${this._pid ?? child.pid}`)
-        child.kill('SIGKILL')
-        this._exited = true
-        this._state = ProcessState.Stopped
-        this._pid = undefined
-        this._process = undefined
-        resolve()
-      }, killTimeoutMs)
-
-      child.once('close', () => {
-        clearTimeout(killTimer)
-        resolve()
-      })
-
-      child.kill('SIGTERM')
-    })
+    this.logger.warn(`Kill timeout reached, sending SIGKILL to pid=${this._pid ?? child.pid}`)
+    const forcedExit = waitForProcessExit(child, killTimeoutMs)
+    await this.signalProcess(child, true)
+    if (!(await forcedExit)) {
+      throw new Error(`Process ${this.id} did not exit after forced termination`)
+    }
   }
 
   async restart(): Promise<void> {
     await this.stop()
     await this.start()
+  }
+
+  private async signalProcess(child: ChildProcess, force: boolean): Promise<void> {
+    if (isWin || this.def.detached) {
+      await terminateProcessTree(child, force, this.id)
+      return
+    }
+
+    child.kill(force ? 'SIGKILL' : 'SIGTERM')
   }
 }

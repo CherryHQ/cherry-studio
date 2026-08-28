@@ -1,4 +1,4 @@
-import type { MCPConfigSample } from '@shared/data/types/mcpServer'
+import type { McpConfigSample } from '@shared/data/types/mcpServer'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -8,8 +8,8 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
  * MCP Server table - stores user-configured MCP server definitions
  *
  * Migrated from Redux state.mcp.servers.
- * Runtime flags (isUvInstalled, isBunInstalled) are NOT migrated - they are
- * re-detected at runtime and stored via usePersistCache.
+ * Runtime flags (isUvInstalled, isBunInstalled) are NOT migrated; current
+ * binary availability is derived again at runtime.
  */
 export const mcpServerTable = sqliteTable(
   'mcp_server',
@@ -34,7 +34,7 @@ export const mcpServerTable = sqliteTable(
     dxtPath: text(),
     reference: text(),
     searchKey: text(),
-    configSample: text({ mode: 'json' }).$type<MCPConfigSample>(),
+    configSample: text({ mode: 'json' }).$type<McpConfigSample>(),
     disabledTools: text({ mode: 'json' }).$type<string[]>(),
     disabledAutoApproveTools: text({ mode: 'json' }).$type<string[]>(),
     shouldConfig: integer({ mode: 'boolean' }),
@@ -57,10 +57,10 @@ export const mcpServerTable = sqliteTable(
     ),
     check(
       'mcp_server_install_source_check',
-      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'protocol', 'unknown')`
+      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'ai_assisted', 'protocol', 'unknown')`
     )
   ]
 )
 
-export type McpServerInsert = typeof mcpServerTable.$inferInsert
-export type McpServerSelect = typeof mcpServerTable.$inferSelect
+export type InsertMcpServerRow = typeof mcpServerTable.$inferInsert
+export type McpServerRow = typeof mcpServerTable.$inferSelect

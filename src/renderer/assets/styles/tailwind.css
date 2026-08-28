@@ -1,0 +1,44 @@
+/* Same statement as index.css; repeated here for windows that only load this file. */
+@layer properties, theme, base, components, utilities, app;
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@cherrystudio/ui/styles/theme.css';
+
+@source '../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
+@source '../../../../node_modules/streamdown/dist/*.js';
+@source '../../../../node_modules/@streamdown/code/dist/*.js';
+@source '../../../../node_modules/@streamdown/cjk/dist/*.js';
+@source '../../../../node_modules/@streamdown/math/dist/*.js';
+@source '../../../../node_modules/@streamdown/mermaid/dist/*.js';
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Application-side Tailwind bridge for @cherrystudio/ui.
+ *
+ * Organization guidelines:
+ * 1. Keep shared design-system tokens in `@cherrystudio/ui/styles/theme.css`.
+ * 2. Keep renderer-only shell tokens in this file.
+ * 3. Place global element resets in `@layer base`.
+ * 4. Add renderer-only reusable patterns in `@layer components` when needed.
+ * 5. Add custom utilities in `@layer utilities`.
+ *
+ * The shared generated theme is the only Tailwind variable adapter. Do not
+ * recreate renderer aliases or duplicate its `@theme` mappings here. Genuine
+ * renderer-only App Shell variables belong in a dedicated owning stylesheet,
+ * not in this generic theme entry.
+ */
+
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Let the Electron window surface control the document background. */
+@layer app {
+  :root {
+    background-color: unset;
+  }
+}

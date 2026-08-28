@@ -8,20 +8,21 @@ const switchRootVariants = cva(
   [
     'cs-switch cs-switch-root',
     'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-primary',
+    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-brand-600',
     'disabled:cursor-not-allowed disabled:opacity-40',
-    'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+    'focus-visible:[box-shadow:inset_0_0_0_1px_var(--ring)]'
   ],
   {
     variants: {
       size: {
+        xs: ['h-4.5 w-8'],
         sm: ['w-9 h-5'],
         md: ['w-11 h-5.5'],
         lg: ['w-11 h-6']
       },
       loading: {
         false: null,
-        true: ['bg-primary-hover!']
+        true: ['bg-brand-300!']
       }
     },
     defaultVariants: {
@@ -39,16 +40,22 @@ const switchThumbVariants = cva(
   {
     variants: {
       size: {
+        xs: ['ml-[1px] size-4 data-[state=checked]:translate-x-3.5'],
         sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
         md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
         lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
       },
       loading: {
         false: null,
-        true: ['bg-primary-hover!']
+        true: ['bg-brand-300!']
       }
     },
     compoundVariants: [
+      {
+        size: 'xs',
+        loading: true,
+        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
+      },
       {
         size: 'sm',
         loading: true,
@@ -68,7 +75,7 @@ const switchThumbVariants = cva(
   }
 )
 
-const switchThumbSvgVariants = cva(['transition-all'], {
+const switchThumbSvgVariants = cva(['size-full', 'transition-all'], {
   variants: {
     loading: {
       false: null,
@@ -84,7 +91,7 @@ const switchThumbSvgVariants = cva(['transition-all'], {
 interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
   /** When true, displays a loading animation in the switch thumb. Defaults to false when undefined. */
   loading?: boolean
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   classNames?: {
     root?: string
     thumb?: string
@@ -102,8 +109,6 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
         data-slot="switch-thumb"
         className={cn(switchThumbVariants({ size, loading }), classNames?.thumb)}>
         <svg
-          width="inherit"
-          height="inherit"
           viewBox="0 0 19 19"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -138,8 +143,8 @@ const DescriptionSwitch = ({
   const isLeftSide = position === 'left'
   const id = useId()
   return (
-    <div className={cn('flex w-full gap-3 justify-between p-4xs', isLeftSide && 'flex-row-reverse')}>
-      <label className={cn('flex flex-col gap-5xs cursor-pointer')} htmlFor={id}>
+    <div className={cn('flex w-full gap-3 justify-between p-2', isLeftSide && 'flex-row-reverse')}>
+      <label className={cn('flex flex-col gap-1 cursor-pointer')} htmlFor={id}>
         {/* TODO: use standard typography component */}
         <p
           className={cn(
@@ -156,7 +161,7 @@ const DescriptionSwitch = ({
         {/* TODO: use standard typography component */}
         {description && (
           <span
-            className={cn('text-foreground-secondary', {
+            className={cn('text-muted-foreground', {
               'text-[10px] leading-3': size === 'sm',
               'text-xs leading-3.5': size === 'md',
               'text-sm leading-4': size === 'lg'

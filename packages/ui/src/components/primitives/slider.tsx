@@ -29,8 +29,8 @@ const sliderTrackVariants = cva(
 
 const sliderThumbVariants = cva(
   cn(
-    'block shrink-0 rounded-full border border-primary/40 bg-background shadow-sm transition-[color,box-shadow]',
-    'ring-primary/30 hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden',
+    'block shrink-0 rounded-full border border-background bg-primary shadow-xs transition-[color,box-shadow]',
+    'ring-primary/30 hover:ring-4 focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-hidden',
     'disabled:pointer-events-none disabled:opacity-50'
   ),
   {
@@ -47,7 +47,7 @@ const sliderThumbVariants = cva(
   }
 )
 
-const sliderMarkLabelVariants = cva('absolute text-muted-foreground', {
+const sliderMarkLabelVariants = cva('absolute top-0 whitespace-nowrap text-muted-foreground leading-none', {
   variants: {
     size: {
       sm: 'text-[10px]',
@@ -91,6 +91,8 @@ function Slider({
   orientation = 'horizontal',
   showValueLabel,
   formatValueLabel,
+  getThumbAriaLabel,
+  getThumbAriaValueText,
   onValueChange,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
@@ -98,6 +100,8 @@ function Slider({
     marks?: SliderMark[]
     showValueLabel?: boolean
     formatValueLabel?: (value: number) => React.ReactNode
+    getThumbAriaLabel?: (index: number) => string
+    getThumbAriaValueText?: (value: number, index: number) => string
   }) {
   const [localValues, setLocalValues] = React.useState(() =>
     Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min]
@@ -139,6 +143,8 @@ function Slider({
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
+          aria-label={getThumbAriaLabel?.(index)}
+          aria-valuetext={getThumbAriaValueText?.(val, index)}
           className={cn(sliderThumbVariants({ size }), showValueLabel && 'group')}>
           {showValueLabel && (
             <span data-slot="slider-value-label" className={sliderValueLabelVariants({ size })}>
@@ -161,11 +167,13 @@ function Slider({
       {sliderElement}
       <div
         data-slot="slider-marks"
-        className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 w-full')}>
+        className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
         {marks.map((mark) => {
           const range = max - min
           if (range === 0) return null
           const percentage = ((mark.value - min) / range) * 100
+          const transform =
+            percentage <= 0 ? 'translateX(0)' : percentage >= 100 ? 'translateX(-100%)' : 'translateX(-50%)'
           return (
             <span
               key={mark.value}
@@ -174,7 +182,7 @@ function Slider({
               style={
                 isVertical
                   ? { top: `${100 - percentage}%`, transform: 'translateY(-50%)' }
-                  : { left: `${percentage}%`, transform: 'translateX(-50%)' }
+                  : { left: `${percentage}%`, transform }
               }>
               {mark.label}
             </span>

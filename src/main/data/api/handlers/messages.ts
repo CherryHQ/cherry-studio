@@ -8,31 +8,30 @@
  */
 
 import { messageService } from '@data/services/MessageService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type {
-  ActiveNodeStrategy,
-  BranchMessagesQueryParams,
-  MessageSchemas,
-  TreeQueryParams
+import {
+  BranchMessagesQuerySchema,
+  CreateMessageSchema,
+  DeleteMessageQuerySchema,
+  type MessageSchemas,
+  PathThroughQuerySchema,
+  ReserveBranchSchema,
+  TreeQuerySchema,
+  UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
+import type { HandlersFor } from '@shared/data/api/types'
+import { MessageDataSchema } from '@shared/data/types/message'
 
-/**
- * Handler type for a specific message endpoint
- */
-type MessageHandler<Path extends keyof MessageSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
+export const messageHandlers: HandlersFor<MessageSchemas> = {
+  '/messages/:id/reply-group': {
+    DELETE: async ({ params }) => {
+      return messageService.deleteReplyGroup(params.id)
+    }
+  },
 
-/**
- * Message API handlers implementation
- */
-export const messageHandlers: {
-  [Path in keyof MessageSchemas]: {
-    [Method in keyof MessageSchemas[Path]]: MessageHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
   '/topics/:topicId/tree': {
     GET: async ({ params, query }) => {
-      const q = (query || {}) as TreeQueryParams
-      return await messageService.getTree(params.topicId, {
+      const q = TreeQuerySchema.parse(query ?? {})
+      return messageService.getTree(params.topicId, {
         rootId: q.rootId,
         nodeId: q.nodeId,
         depth: q.depth
@@ -42,8 +41,8 @@ export const messageHandlers: {
 
   '/topics/:topicId/messages': {
     GET: async ({ params, query }) => {
-      const q = (query || {}) as BranchMessagesQueryParams
-      return await messageService.getBranchMessages(params.topicId, {
+      const q = BranchMessagesQuerySchema.parse(query ?? {})
+      return messageService.getBranchMessages(params.topicId, {
         nodeId: q.nodeId,
         cursor: q.cursor,
         limit: q.limit,
@@ -52,24 +51,51 @@ export const messageHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      return await messageService.create(params.topicId, body)
+      const parsed = CreateMessageSchema.parse(body)
+      return messageService.create(params.topicId, parsed)
+    },
+
+    DELETE: async ({ params }) => {
+      return messageService.clearTopicMessages(params.topicId)
+    }
+  },
+
+  '/topics/:topicId/path': {
+    GET: async ({ params, query }) => {
+      const q = PathThroughQuerySchema.parse(query ?? {})
+      return messageService.getPathThrough(params.topicId, q.nodeId)
     }
   },
 
   '/messages/:id': {
     GET: async ({ params }) => {
-      return await messageService.getById(params.id)
+      return messageService.getById(params.id)
     },
 
     PATCH: async ({ params, body }) => {
-      return await messageService.update(params.id, body)
+      const parsed = UpdateMessageSchema.parse(body)
+      return messageService.update(params.id, parsed)
     },
 
     DELETE: async ({ params, query }) => {
-      const q = (query || {}) as { cascade?: boolean; activeNodeStrategy?: ActiveNodeStrategy }
+      const q = DeleteMessageQuerySchema.parse(query ?? {})
       const cascade = q.cascade ?? false
       const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
-      return await messageService.delete(params.id, cascade, activeNodeStrategy)
+      return messageService.delete(params.id, cascade, activeNodeStrategy, q.awaitingInputOnly ?? false)
+    }
+  },
+
+  '/messages/:id/siblings': {
+    POST: async ({ params, body }) => {
+      const parsed = MessageDataSchema.parse(body)
+      return messageService.createSibling(params.id, parsed)
+    }
+  },
+
+  '/messages/:id/branches': {
+    POST: async ({ params, body }) => {
+      const parsed = ReserveBranchSchema.parse(body)
+      return messageService.reserveBranch(params.id, parsed.activate ?? true)
     }
   }
 }

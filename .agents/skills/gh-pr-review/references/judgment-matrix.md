@@ -7,25 +7,33 @@ low or high risk depending on scope and impact.
 
 | Risk | Rule | Examples |
 |------|------|----------|
-| Low | Only one reasonable fix exists | null check, fix incorrect comment, rename to match convention, remove redundant duplicate code, fix obvious off-by-one error, missing useEffect cleanup, missing i18n key |
-| Medium | Multiple fixes possible, but no design decision or external contract involved | extracting shared logic across functions, removing unused internal methods, simplifying cross-function control flow, adjusting internal module boundaries, refactoring Redux selector logic |
-| High | Involves design decisions or external contracts | public API change (signature, behavior, deprecation), IPC channel contract change, Redux state shape change (BLOCKED by v2), IndexedDB schema change (BLOCKED by v2), architecture restructuring, algorithm replacement with multiple viable approaches, introducing a new dependency, changing data persistence/serialization format, performance optimization involving space-time trade-offs, user-facing behavior change beyond the stated bug scope, build system configuration change |
+| Low | Only one reasonable fix exists | null check, fix incorrect comment, rename to match convention, remove redundant duplicate code, fix obvious off-by-one error, missing useEffect cleanup, missing i18n key, over-broad DataApi refresh with an obvious narrower key |
+| Medium | Multiple fixes possible, but no design decision or external contract involved | extracting shared logic across functions, removing unused internal methods, simplifying cross-function control flow, adjusting internal module boundaries, moving handler business logic into an existing service method, fixing unstable SWR keys or external-store snapshots |
+| High | Involves design decisions or external contracts | public API change (signature, behavior, deprecation), IpcApi contract change, architecture restructuring, algorithm replacement with multiple viable approaches, introducing a new dependency, changing data persistence/serialization format, performance optimization involving space-time trade-offs, user-facing behavior change beyond the stated bug scope, build system configuration change, new DataApi endpoint for non-SQLite side effects, new BootConfig key, cross-service transaction redesign, persistence migration |
 
 ## Handling by Risk Level
 
-| `FIX_MODE` | Low risk | Medium risk | High risk |
-|------------|----------|-------------|-----------|
-| full       | Auto-fix | Auto-fix    | Auto-fix  |
-| low_medium | Auto-fix | Auto-fix    | Confirm   |
-| low        | Auto-fix | Confirm     | Confirm   |
+| Mode | Low risk | Medium risk | High risk |
+|------|----------|-------------|-----------|
+| Report-only (default — any target) | Report | Report | Report |
+| Authorized fix (explicit `fix` invocation, local targets) | Auto-fix | Report options and trade-offs | Report options and trade-offs |
 
-**Special rule for "full" mode**: issues that would change test baselines
-(screenshot comparisons, golden files) are always deferred for user confirmation,
+Authority comes from the invocation, never from the target type or reviewer
+confidence. Medium and high risk can have multiple reasonable fixes: surface
+the feasible options and key trade-offs, optionally identify a reviewer
+recommendation, and leave the implementation choice with the user. Never
+present an option as already chosen, and never ask mid-flow which issues to
+fix. **Test-baseline rule**: fixes that would change test baselines (screenshot
+comparisons, golden files) are never auto-applied — report them instead,
 regardless of risk level.
 
-**V2 block rule**: any fix that would modify Redux state shape or IndexedDB
-schema is ALWAYS deferred for user confirmation with a warning that these
-changes are currently blocked until v2.0.0.
+**Legacy-data rule on `main`**: Redux is removed, and Dexie/ElectronStore are
+throwaway v1 stacks. Do not repair or extend them. When the diff introduces new
+v1 use, report it and route the implementation to Cache, Preference, DataApi,
+or the v2 migrators as appropriate. When already editing an area, removal of
+dead v1 residue is allowed; unrelated cleanup remains out of scope. A true v1
+maintenance fix belongs on the `v1` branch and must not be auto-fixed on
+`main`.
 
 ## Worth Fixing?
 
@@ -58,6 +66,27 @@ defines **whether to fix** a discovered issue.
   them for the user's awareness rather than auto-fixing.
 - `console.log` → `loggerService`: always worth fixing (project convention).
 - Hardcoded UI strings → i18n: always worth fixing (project convention).
+- Mandatory-doc violations (naming conventions, process architecture docs,
+  data docs, plus on-demand lifecycle/IPC/window/job docs when touched):
+  always worth reporting at Warning minimum; never excluded as style
+  preference or "matches nearby code".
+- Entity leakage into a generic surface (cross-module or intra-module): always
+  worth reporting. The only valid fix restores ownership — relocating the
+  concern to its owning domain or an explicit extension point. Side tables,
+  metadata flags on generic contracts, or additional special cases are not
+  fixes and must not be applied or suggested as such. Typically medium risk
+  when the extension point already exists, high when it must be designed.
+- DataApi misuse for pure side effects: always worth reporting; fixing is high
+  risk if it changes IPC/API contracts.
+- Handler-level business logic: worth fixing when the owning service and
+  smallest move are clear; otherwise report as a design confirmation.
+- Bypassing an owning service's business rules: worth reporting. Do not flag
+  read-only `left join` data matching unless it reimplements another domain's
+  validation, filtering, ordering, or row mapping.
+- Renderer data hook bugs that can leave stale UI, corrupt optimistic state, or
+  leak subscriptions are worth reporting.
+- New BootConfig keys require explicit pre-lifecycle justification and tech-lead
+  confirmation.
 
 ## Anti-patterns (Do NOT Fix)
 
@@ -73,5 +102,7 @@ evidence of an actual bug:
   observable behavior (not just implementation details), verify the original
   behavior is actually a bug, not an intentional design choice. When intent
   cannot be confirmed from the diff context alone, flag but do not fix.
-- **V2-blocked changes** — any change to Redux slices, IndexedDB schema, or
-  files marked with the v2 deprecation header. Flag for awareness only.
+- **Legacy-stack repairs on `main`** — do not fix Dexie/ElectronStore behavior
+  or reintroduce Redux. Report newly introduced dependencies; route v1
+  maintenance to the `v1` branch. Removing dead residue in an already-touched
+  area is allowed when it cannot affect live v2 behavior.

@@ -14,21 +14,26 @@ describe('Translate handler validation (Zod schemas)', () => {
     })
 
     it('should accept valid query', () => {
-      const result = TranslateHistoryQuerySchema.parse({ page: 1, limit: 20, star: true, search: 'hello' })
-      expect(result.page).toBe(1)
+      const result = TranslateHistoryQuerySchema.parse({
+        cursor: '1000:history-1',
+        limit: 20,
+        star: true,
+        search: 'hello'
+      })
+      expect(result.cursor).toBe('1000:history-1')
       expect(result.star).toBe(true)
     })
 
-    it('should reject negative page', () => {
-      expect(() => TranslateHistoryQuerySchema.parse({ page: -1 })).toThrow()
+    it('should reject offset pagination params', () => {
+      expect(() => TranslateHistoryQuerySchema.parse({ page: 1 })).toThrow()
     })
 
     it('should reject limit over 100', () => {
       expect(() => TranslateHistoryQuerySchema.parse({ limit: 101 })).toThrow()
     })
 
-    it('should reject non-integer page', () => {
-      expect(() => TranslateHistoryQuerySchema.parse({ page: 1.5 })).toThrow()
+    it('should reject non-integer limit', () => {
+      expect(() => TranslateHistoryQuerySchema.parse({ limit: 1.5 })).toThrow()
     })
   })
 

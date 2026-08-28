@@ -1,47 +1,41 @@
-import type { AssistantMeta } from '@shared/data/types/meta'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
-import { groupTable } from './group'
+import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { assistantTable } from './assistant'
 
 /**
  * Topic table - stores conversation topics/threads
  *
- * Topics are containers for messages and belong to assistants.
- * They can be organized into groups and have tags for categorization.
+ * Topics are containers for messages and reference assistants via FK.
  */
 export const topicTable = sqliteTable(
   'topic',
   {
     id: uuidPrimaryKey(),
-    name: text(),
+    name: text().notNull().default(''),
     // Whether the name was manually edited by user
-    isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
-    // FK to assistant table
-    assistantId: text(),
-    // Preserved assistant info for display when assistant is deleted
-    assistantMeta: text({ mode: 'json' }).$type<AssistantMeta>(),
-    // Topic-specific prompt override
-    prompt: text(),
+    isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
+    // FK to assistant table - "last used assistant"
+    // SET NULL: preserve topic when assistant is deleted
+    assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
     // Active node ID in the message tree
     activeNodeId: text(),
 
-    // FK to group table for organization
-    // SET NULL: preserve topic when group is deleted
-    groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
-    // Sort order within group
-    sortOrder: integer().default(0),
-    // Pinning state and order
-    isPinned: integer({ mode: 'boolean' }).default(false),
-    pinnedOrder: integer().default(0),
+    traceId: text(),
+
+    // Global fractional-indexing order key.
+    ...orderKeyColumns,
+
+    // User-visible conversation activity. Metadata writes still advance
+    // updatedAt, but only activity-bearing message phases update this column.
+    lastActivityAt: integer().notNull().$defaultFn(Date.now),
 
     ...createUpdateDeleteTimestamps
   },
   (t) => [
-    index('topic_group_updated_idx').on(t.groupId, t.updatedAt),
-    index('topic_group_sort_idx').on(t.groupId, t.sortOrder),
+    index('topic_last_activity_at_idx').on(t.lastActivityAt),
     index('topic_updated_at_idx').on(t.updatedAt),
-    index('topic_is_pinned_idx').on(t.isPinned, t.pinnedOrder),
+    orderKeyIndex('topic')(t),
     index('topic_assistant_id_idx').on(t.assistantId)
   ]
 )

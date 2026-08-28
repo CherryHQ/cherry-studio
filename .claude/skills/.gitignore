@@ -3,12 +3,11 @@
 *
 !.gitignore
 !README*.md
+!cherry-electron-dev
+!cherry-pr-test
 !create-skill
 !gh-create-issue
 !gh-create-pr
 !gh-pr-review
 !prepare-release
-!v2-data-api
-!v2-migrator
-!v2-renderer
 !vercel-react-best-practices

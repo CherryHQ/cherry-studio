@@ -1,13 +1,14 @@
 /**
  * Boot config migrator - migrates boot configuration from legacy storage to BootConfigService
  *
- * Reads from ElectronStore, Redux, Dexie settings, and localStorage sources,
- * then writes values to bootConfigService (boot-config.json).
+ * Reads from ElectronStore, Redux, Dexie settings, localStorage, and the legacy
+ * home config file (~/.cherrystudio/config/config.json) sources, then writes
+ * values to bootConfigService (~/.cherrystudio/boot-config.json).
  */
 
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
-import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
+import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 
@@ -22,18 +23,20 @@ import {
 
 const logger = loggerService.withContext('BootConfigMigrator')
 
+type MigrationSource = 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage' | 'configfile'
+
 interface MigrationItem {
   originalKey: string
-  targetKey: string
+  targetKey: BootConfigKey
   defaultValue: unknown
-  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage'
+  source: MigrationSource
   sourceCategory?: string
 }
 
 interface PreparedData {
-  targetKey: string
+  targetKey: BootConfigKey
   value: unknown
-  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage'
+  source: MigrationSource
   originalKey: string
 }
 
@@ -46,10 +49,13 @@ export class BootConfigMigrator extends BaseMigrator {
   private preparedItems: PreparedData[] = []
   private skippedCount = 0
 
-  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
-    const warnings: string[] = []
+  override reset(): void {
     this.preparedItems = []
     this.skippedCount = 0
+  }
+
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+    const warnings: string[] = []
 
     try {
       const migrationItems = this.loadMigrationItems()
@@ -68,6 +74,11 @@ export class BootConfigMigrator extends BaseMigrator {
             originalValue = ctx.sources.dexieSettings.get(item.originalKey)
           } else if (item.source === 'localStorage') {
             originalValue = ctx.sources.localStorage.get(item.originalKey)
+          } else if (item.source === 'configfile') {
+            // Reader returns Record<string, string> | null. `null` flows into
+            // the shared null-skip guard below, matching the other sources'
+            // "no data → skip" semantics without a special branch.
+            originalValue = ctx.sources.legacyHomeConfig.getUserDataPath()
           }
 
           // Determine value to migrate
@@ -79,6 +90,15 @@ export class BootConfigMigrator extends BaseMigrator {
               this.skippedCount++
               continue
             }
+          }
+
+          // v1 data is an untrusted external source — skip values that fail
+          // the boot config schema instead of failing the whole migration in
+          // execute() over one corrupt setting.
+          if (!bootConfigSchema.shape[item.targetKey].safeParse(valueToMigrate).success) {
+            this.skippedCount++
+            warnings.push(`Skipped ${item.originalKey}: v1 value fails boot config schema validation`)
+            continue
           }
 
           this.preparedItems.push({
@@ -121,7 +141,19 @@ export class BootConfigMigrator extends BaseMigrator {
       let processedCount = 0
 
       for (const item of this.preparedItems) {
-        bootConfigService.set(item.targetKey as BootConfigKey, item.value as never)
+        if (item.targetKey === 'app.user_data_path') {
+          // app.user_data_path is a per-exe map, and the migration gate's
+          // preboot step (pinUserDataPath) may have already written the
+          // current exe's recovered directory into it BEFORE this migrator
+          // runs. A wholesale set() would clobber that pin — fatal when the v1
+          // config is keyed by a now-changed exe path. Merge instead, letting
+          // existing (pinned) entries win on any key conflict.
+          const legacy = (item.value ?? {}) as Record<string, string>
+          const current = bootConfigService.get('app.user_data_path') ?? {}
+          bootConfigService.set('app.user_data_path', { ...legacy, ...current })
+        } else {
+          bootConfigService.set(item.targetKey, item.value as never)
+        }
         processedCount++
 
         const progress = Math.round((processedCount / this.preparedItems.length) * 100)
@@ -131,8 +163,10 @@ export class BootConfigMigrator extends BaseMigrator {
         })
       }
 
-      // Flush to ensure all values are persisted to boot-config.json
-      bootConfigService.flush()
+      // Persist (strict) to ensure all values reach boot-config.json. Unlike
+      // flush(), persist() throws on write failure, so a failed disk write is
+      // surfaced as a migration failure below instead of a silent false-success.
+      bootConfigService.persist()
 
       logger.info('Execute completed', { processedCount })
 
@@ -157,8 +191,7 @@ export class BootConfigMigrator extends BaseMigrator {
       let targetCount = 0
 
       for (const item of this.preparedItems) {
-        const key = item.targetKey as BootConfigKey
-        const value = bootConfigService.get(key)
+        const value = bootConfigService.get(item.targetKey)
 
         if (value === undefined) {
           errors.push({
@@ -209,7 +242,7 @@ export class BootConfigMigrator extends BaseMigrator {
 
     // Process ElectronStore mappings
     for (const mapping of BOOT_CONFIG_ELECTRON_STORE_MAPPINGS) {
-      const defaultValue = DefaultBootConfig[mapping.targetKey as BootConfigKey] ?? null
+      const defaultValue = DefaultBootConfig[mapping.targetKey] ?? null
       items.push({
         originalKey: mapping.originalKey,
         targetKey: mapping.targetKey,
@@ -221,7 +254,7 @@ export class BootConfigMigrator extends BaseMigrator {
     // Process Redux mappings
     for (const [category, mappings] of Object.entries(BOOT_CONFIG_REDUX_MAPPINGS)) {
       for (const mapping of mappings) {
-        const defaultValue = DefaultBootConfig[mapping.targetKey as BootConfigKey] ?? null
+        const defaultValue = DefaultBootConfig[mapping.targetKey] ?? null
         items.push({
           originalKey: mapping.originalKey,
           targetKey: mapping.targetKey,
@@ -234,7 +267,7 @@ export class BootConfigMigrator extends BaseMigrator {
 
     // Process Dexie settings mappings
     for (const mapping of BOOT_CONFIG_DEXIE_SETTINGS_MAPPINGS) {
-      const defaultValue = DefaultBootConfig[mapping.targetKey as BootConfigKey] ?? null
+      const defaultValue = DefaultBootConfig[mapping.targetKey] ?? null
       items.push({
         originalKey: mapping.originalKey,
         targetKey: mapping.targetKey,
@@ -245,12 +278,41 @@ export class BootConfigMigrator extends BaseMigrator {
 
     // Process localStorage mappings
     for (const mapping of BOOT_CONFIG_LOCALSTORAGE_MAPPINGS) {
-      const defaultValue = DefaultBootConfig[mapping.targetKey as BootConfigKey] ?? null
+      const defaultValue = DefaultBootConfig[mapping.targetKey] ?? null
       items.push({
         originalKey: mapping.originalKey,
         targetKey: mapping.targetKey,
         defaultValue,
         source: 'localStorage'
+      })
+    }
+
+    // Config-file source mappings — manually maintained, not auto-generated.
+    // The `targetKey: BootConfigKey` type annotation is the regen safety net:
+    // if the schema loses 'app.user_data_path', this array literal fails to
+    // compile at its declaration site (loud failure, not silent drift).
+    //
+    // Config-file items intentionally use `defaultValue: null` rather than
+    // the schema default. The other sources fall back to DefaultBootConfig on
+    // a missing source value to ensure the key exists with a sane default —
+    // but for config-file data like `app.user_data_path`, "no v1 file" means
+    // "nothing to migrate", and writing the schema default `{}` would be a
+    // spurious migration. Null here flows into the shared null-skip guard in
+    // prepare(), matching the reader's `null` return semantics.
+    const configFileMappings: ReadonlyArray<{ originalKey: string; targetKey: BootConfigKey }> = [
+      {
+        // `appDataPath` field at the top level of ~/.cherrystudio/config/config.json
+        // (legacy string or array of { executablePath, dataPath })
+        originalKey: 'appDataPath',
+        targetKey: 'app.user_data_path'
+      }
+    ]
+    for (const mapping of configFileMappings) {
+      items.push({
+        originalKey: mapping.originalKey,
+        targetKey: mapping.targetKey,
+        defaultValue: null,
+        source: 'configfile'
       })
     }
 

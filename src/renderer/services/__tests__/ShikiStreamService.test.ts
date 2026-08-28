@@ -1,0 +1,351 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { shikiStreamService } from '../ShikiStreamService'
+
+const getTokenizerCache = () => (shikiStreamService as any).tokenizerCache
+
+const workerMocks = vi.hoisted(() => ({
+  failInit: false,
+  terminate: vi.fn(),
+  lastMessage: null as { type?: string; language?: string } | null
+}))
+
+vi.mock('../../workers/shikiStream.worker?worker', () => ({
+  default: class MockShikiStreamWorker {
+    onmessage: ((event: MessageEvent) => void) | null = null
+
+    postMessage(message: { id: number; type: string; chunk?: string; language?: string }) {
+      workerMocks.lastMessage = message
+      if (message.type === 'init' && workerMocks.failInit) {
+        queueMicrotask(() => {
+          this.onmessage?.({ data: { id: message.id, type: 'error', error: 'init failed' } } as MessageEvent)
+        })
+        return
+      }
+
+      const result =
+        message.type === 'highlight'
+          ? { lines: [[{ content: message.chunk ?? '', color: '#000000', offset: 0 }]], recall: 0 }
+          : message.type === 'highlight-html'
+            ? `<pre class="shiki">${message.chunk ?? ''}</pre>`
+            : { success: true }
+
+      queueMicrotask(() => {
+        this.onmessage?.({
+          data: {
+            id: message.id,
+            type: `${message.type}-result`,
+            result
+          }
+        } as MessageEvent)
+      })
+    }
+
+    terminate() {
+      workerMocks.terminate()
+    }
+  }
+}))
+
+describe('ShikiStreamService', () => {
+  const language = 'typescript'
+  const theme = 'one-light'
+  const callerId = 'test-caller'
+
+  // 保证每次测试环境干净
+  beforeEach(() => {
+    workerMocks.failInit = false
+    workerMocks.terminate.mockClear()
+    shikiStreamService.dispose()
+  })
+  afterEach(() => {
+    shikiStreamService.dispose()
+  })
+
+  describe('Worker initialization and degradation', () => {
+    it('should initialize worker and highlight via worker', async () => {
+      const code = 'const x = 1;'
+
+      const result = await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+
+      expect(shikiStreamService.hasWorkerHighlighter()).toBe(true)
+      expect(shikiStreamService.hasMainHighlighter()).toBe(false)
+      expect(result.lines.length).toBeGreaterThan(0)
+      expect(result.recall).toBe(0)
+    })
+
+    it('should fallback to main thread if worker initialization fails', async () => {
+      const originalWorker = globalThis.Worker
+      // @ts-ignore: 强制删除 Worker 构造函数
+      globalThis.Worker = undefined
+
+      const code = 'const y = 2;'
+
+      const result = await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+      expect(shikiStreamService.hasWorkerHighlighter()).toBe(false)
+      expect(result.lines.length).toBeGreaterThan(0)
+      expect(result.recall).toBe(0)
+
+      // @ts-ignore: 恢复 Worker 构造函数
+      globalThis.Worker = originalWorker
+    })
+
+    it('should not retry worker after too many init failures', async () => {
+      workerMocks.failInit = true
+
+      await shikiStreamService.highlightCodeChunk('const a = 1', language, theme, callerId)
+      await shikiStreamService.highlightCodeChunk('const a = 2', language, theme, callerId)
+      await shikiStreamService.highlightCodeChunk('const a = 3', language, theme, callerId)
+
+      expect(workerMocks.terminate).toHaveBeenCalledTimes(2)
+      expect((shikiStreamService as any).workerInitRetryCount).toBe(2)
+      expect(shikiStreamService.hasWorkerHighlighter()).toBe(false)
+    })
+  })
+
+  describe('tokenizer management (main)', () => {
+    let originalWorker: any
+
+    beforeEach(() => {
+      originalWorker = globalThis.Worker
+      // @ts-ignore: 强制删除 Worker 构造函数
+      globalThis.Worker = undefined
+    })
+    afterEach(() => {
+      // @ts-ignore: 恢复 Worker 构造函数
+      globalThis.Worker = originalWorker
+    })
+
+    it('should reuse the same tokenizer for the same callerId-language-theme', async () => {
+      const code1 = 'const a = 1;'
+      const code2 = 'const b = 2;'
+      const cacheKey = `${callerId}-${language}-${theme}`
+
+      // 先高亮一次，创建 tokenizer
+      await shikiStreamService.highlightCodeChunk(code1, language, theme, callerId)
+      const tokenizer1 = getTokenizerCache().get(cacheKey)
+
+      // 再高亮一次，应该复用 tokenizer
+      await shikiStreamService.highlightCodeChunk(code2, language, theme, callerId)
+      const tokenizer2 = getTokenizerCache().get(cacheKey)
+
+      expect(tokenizer1).toBe(tokenizer2)
+    })
+
+    it.each([
+      // [desc, callerId, language, theme, other, otherDesc]
+      ['different language', 'javascript', 'one-light', 'test-caller'],
+      ['different theme', 'typescript', 'material-theme-darker', 'test-caller'],
+      ['different callerId', 'typescript', 'one-light', 'another-caller']
+    ])('should create a new tokenizer for %s', async (_description, _language, _theme, _callerId) => {
+      const code = 'const x = 1;'
+
+      const cacheKey = `${callerId}-${language}-${theme}`
+      const otherCacheKey = `${_callerId}-${_language}-${_theme}`
+
+      await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
+      expect(getTokenizerCache().has(otherCacheKey)).toBe(false)
+
+      await shikiStreamService.highlightCodeChunk(code, _language, _theme, _callerId)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
+      expect(getTokenizerCache().has(otherCacheKey)).toBe(true)
+    })
+
+    it('should cleanup tokenizer for a specific callerId', async () => {
+      const code = 'const x = 1;'
+      const cacheKey = `${callerId}-${language}-${theme}`
+
+      await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
+
+      shikiStreamService.cleanupTokenizers(callerId)
+      expect(getTokenizerCache().has(cacheKey)).toBe(false)
+    })
+
+    it('should not affect other callerIds when cleaning up', async () => {
+      const code1 = 'const x = 1;'
+      const code2 = 'const y = 2;'
+      const otherCallerId = 'other-caller'
+
+      const cacheKey1 = `${callerId}-${language}-${theme}`
+      const cacheKey2 = `${otherCallerId}-${language}-${theme}`
+
+      await shikiStreamService.highlightCodeChunk(code1, language, theme, callerId)
+      await shikiStreamService.highlightCodeChunk(code2, language, theme, otherCallerId)
+
+      expect(getTokenizerCache().has(cacheKey1)).toBe(true)
+      expect(getTokenizerCache().has(cacheKey2)).toBe(true)
+
+      shikiStreamService.cleanupTokenizers(callerId)
+      expect(getTokenizerCache().has(cacheKey1)).toBe(false)
+      expect(getTokenizerCache().has(cacheKey2)).toBe(true)
+    })
+
+    it('should not affect highlightCodeChunk when cleanupTokenizers is called concurrently', async () => {
+      const code = 'const x = 1;'
+
+      await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+      const cacheKey = `${callerId}-${language}-${theme}`
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
+
+      // 并发高亮和清理
+      await Promise.all([
+        shikiStreamService.highlightCodeChunk(code, language, theme, callerId),
+        Promise.resolve(shikiStreamService.cleanupTokenizers(callerId)),
+        shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+      ])
+
+      // 高亮后缓存应该存在
+      expect(getTokenizerCache().has(cacheKey)).toBe(true)
+      // 最后清理
+      shikiStreamService.cleanupTokenizers(callerId)
+      expect(getTokenizerCache().has(cacheKey)).toBe(false)
+    })
+  })
+
+  describe('one-shot codeToHtml (highlightCodeToHtml)', () => {
+    it('returns worker-produced HTML and never touches the main-thread highlighter', async () => {
+      const html = await shikiStreamService.highlightCodeToHtml('const x = 1;', language, theme)
+
+      // Shape contract holds for both the mock and the real worker output.
+      expect(html).toMatch(/^<pre class="shiki/)
+      expect(shikiStreamService.hasWorkerHighlighter()).toBe(true)
+      expect(shikiStreamService.hasMainHighlighter()).toBe(false)
+    })
+
+    it('accepts an empty string through the worker path (guard is typeof, not falsy)', async () => {
+      const html = await shikiStreamService.highlightCodeToHtml('', language, theme)
+
+      expect(html).toMatch(/^<pre class="shiki/)
+      expect(shikiStreamService.hasMainHighlighter()).toBe(false)
+    })
+
+    it("normalizes an empty language to 'text' before the worker round-trip", async () => {
+      const html = await shikiStreamService.highlightCodeToHtml('code', '', theme)
+
+      expect(html).toMatch(/^<pre class="shiki/)
+      expect(workerMocks.lastMessage?.type).toBe('highlight-html')
+      expect(workerMocks.lastMessage?.language).toBe('text')
+    })
+
+    it("resolves an empty language to 'text' HTML on the main-thread fallback path", async () => {
+      const originalWorker = globalThis.Worker
+      // @ts-ignore: 强制删除 Worker 构造函数
+      globalThis.Worker = undefined
+      try {
+        const html = await shikiStreamService.highlightCodeToHtml('plain words', '', theme)
+
+        expect(html).toMatch(/^<pre class="shiki/)
+        expect(html).toContain('plain')
+      } finally {
+        // @ts-ignore: 恢复 Worker 构造函数
+        globalThis.Worker = originalWorker
+      }
+    })
+
+    it('falls back to real main-thread shiki HTML when the worker is unavailable', async () => {
+      const originalWorker = globalThis.Worker
+      try {
+        // @ts-ignore: 强制删除 Worker 构造函数
+        globalThis.Worker = undefined
+
+        const html = await shikiStreamService.highlightCodeToHtml('const y = 2;', language, theme)
+
+        // Real shiki output: one span per token, so assert on token fragments.
+        expect(html).toMatch(/^<pre class="shiki/)
+        expect(html).toContain('>const</span>')
+        expect(html).toContain('</code></pre>')
+        expect(shikiStreamService.hasMainHighlighter()).toBe(true)
+      } finally {
+        // @ts-ignore: 恢复 Worker 构造函数
+        globalThis.Worker = originalWorker
+      }
+    })
+
+    it('resolves an unknown language to a fallback instead of throwing (main thread)', async () => {
+      const originalWorker = globalThis.Worker
+      // @ts-ignore: 强制删除 Worker 构造函数
+      globalThis.Worker = undefined
+      try {
+        const html = await shikiStreamService.highlightCodeToHtml('plain words', 'not-a-real-language', theme)
+
+        expect(html).toMatch(/^<pre class="shiki/)
+        expect(html).toContain('plain')
+      } finally {
+        // @ts-ignore: 恢复 Worker 构造函数
+        globalThis.Worker = originalWorker
+      }
+    })
+  })
+
+  describe('dispose', () => {
+    it('should release all resources and reset state', async () => {
+      // 先初始化资源
+      const code = 'const x = 1;'
+      await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+
+      // mock 关键方法
+      const worker = (shikiStreamService as any).worker
+      const workerTerminateSpy = worker ? vi.spyOn(worker, 'terminate') : undefined
+      // Don't spy on highlighter.dispose() since it's managed by AsyncInitializer now
+      const tokenizerCache = getTokenizerCache()
+      const tokenizerClearSpies: any[] = []
+      for (const tokenizer of tokenizerCache.values()) {
+        tokenizerClearSpies.push(vi.spyOn(tokenizer, 'clear'))
+      }
+
+      // dispose
+      shikiStreamService.dispose()
+
+      // worker terminated
+      if (workerTerminateSpy) {
+        expect(workerTerminateSpy).toHaveBeenCalled()
+      }
+      // highlighter is managed by AsyncInitializer, so we don't dispose it directly
+      // Just check that the reference is cleared
+      expect((shikiStreamService as any).highlighter).toBeNull()
+
+      // all tokenizers cleared
+      for (const spy of tokenizerClearSpies) {
+        expect(spy).toHaveBeenCalled()
+      }
+      // assert cache and references are cleared
+      expect((shikiStreamService as any).worker).toBeNull()
+      expect((shikiStreamService as any).highlighter).toBeNull()
+      expect(getTokenizerCache().size).toBe(0)
+      expect((shikiStreamService as any).pendingRequests.size).toBe(0)
+      expect((shikiStreamService as any).workerInitPromise).toBeNull()
+      expect((shikiStreamService as any).workerInitRetryCount).toBe(0)
+    })
+
+    it('should be idempotent when called multiple times', () => {
+      // 重复 dispose 不抛异常
+      expect(() => {
+        shikiStreamService.dispose()
+        shikiStreamService.dispose()
+        shikiStreamService.dispose()
+      }).not.toThrow()
+
+      expect((shikiStreamService as any).worker).toBeNull()
+      expect((shikiStreamService as any).highlighter).toBeNull()
+      expect(getTokenizerCache().size).toBe(0)
+    })
+
+    it('should re-initialize after dispose when highlightCodeChunk is called', async () => {
+      const code = 'const x = 1;'
+
+      shikiStreamService.dispose()
+      const result = await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
+
+      expect(result.lines.length).toBeGreaterThan(0)
+    })
+
+    it('should not throw when cleanupTokenizers is called after dispose', () => {
+      shikiStreamService.dispose()
+      expect(() => {
+        shikiStreamService.cleanupTokenizers('any-caller')
+      }).not.toThrow()
+    })
+  })
+})

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TaskExecutor } from '../TaskExecutor'
-import { ProcessState } from '../types'
+import { type ProcessExitedEvent, ProcessState } from '../types'
 
 // ---------------------------------------------------------------------------
 // Mock types & factories
@@ -22,13 +22,13 @@ type MockHandle = {
   onLog: undefined
 }
 
-type ExitedListener = (id: string, code: number | null, signal: NodeJS.Signals | null) => void
+type ExitedListener = (event: ProcessExitedEvent) => void
 
 type MockPM = {
   register: ReturnType<typeof vi.fn>
   unregister: ReturnType<typeof vi.fn>
-  on: ReturnType<typeof vi.fn>
-  off: ReturnType<typeof vi.fn>
+  onProcessExited: ReturnType<typeof vi.fn>
+  exitedListeners: Set<ExitedListener>
   handles: Map<string, MockHandle>
 }
 
@@ -74,9 +74,13 @@ function createMockHandle(id: string, autoRespond: boolean): MockHandle {
  */
 function createMockPM(autoRespond = false): MockPM {
   const handles = new Map<string, MockHandle>()
+  const exitedListeners = new Set<ExitedListener>()
   return {
-    on: vi.fn(),
-    off: vi.fn(),
+    onProcessExited: vi.fn((listener: ExitedListener) => {
+      exitedListeners.add(listener)
+      return { dispose: () => exitedListeners.delete(listener) }
+    }),
+    exitedListeners,
     register: vi.fn((def: { id: string }) => {
       const proc = createMockHandle(def.id, autoRespond)
       handles.set(def.id, proc)
@@ -91,12 +95,10 @@ function createMockPM(autoRespond = false): MockPM {
 // Test helpers
 // ---------------------------------------------------------------------------
 
-/** Invoke all `process:exited` listeners registered on the mock PM for the given workerId. */
+/** Invoke all process-exit listeners registered on the mock PM for the given workerId. */
 function simulateWorkerExit(pm: MockPM, workerId: string, code: number | null, signal: NodeJS.Signals | null): void {
-  for (const call of pm.on.mock.calls) {
-    if (call[0] === 'process:exited') {
-      ;(call[1] as ExitedListener)(workerId, code, signal)
-    }
+  for (const listener of pm.exitedListeners) {
+    listener({ id: workerId, code, signal })
   }
 }
 

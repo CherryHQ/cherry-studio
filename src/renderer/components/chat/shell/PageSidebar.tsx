@@ -1,0 +1,92 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { cn } from '@renderer/utils/style'
+import { AnimatePresence, motion } from 'motion/react'
+import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  CHAT_SHELL_PANE_WIDTH,
+  CHAT_SHELL_TRANSITION,
+  RESOURCE_LIST_PANE_MAX_WIDTH,
+  RESOURCE_LIST_PANE_MIN_WIDTH
+} from './paneLayout'
+import { getVerticalSplitterProps } from './splitterA11y'
+import { useResourceListPaneResize } from './useResourceListPaneResize'
+
+export interface PageSidebarProps {
+  children?: ReactNode
+  open?: boolean
+  width?: string | number
+  className?: string
+  style?: CSSProperties
+  onPaneCollapse?: () => void
+  onResizingChange?: (resizing: boolean) => void
+}
+
+export function PageSidebar({
+  children,
+  open,
+  width,
+  className,
+  style,
+  onPaneCollapse,
+  onResizingChange
+}: PageSidebarProps) {
+  const { t } = useTranslation()
+  const [hasOpened, setHasOpened] = useState(Boolean(open))
+  const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
+  const resolvedWidth = width ?? CHAT_SHELL_PANE_WIDTH
+
+  useEffect(() => {
+    if (open) setHasOpened(true)
+  }, [open])
+
+  const shouldRender = Boolean(children && (open || hasOpened))
+  const onResizingChangeRef = useRef(onResizingChange)
+  useEffect(() => {
+    onResizingChangeRef.current = onResizingChange
+  }, [onResizingChange])
+  useEffect(() => {
+    onResizingChangeRef.current?.(isResizing)
+  }, [isResizing])
+
+  return (
+    <AnimatePresence initial={false}>
+      {shouldRender && (
+        <motion.div
+          ref={paneRef}
+          key="page-sidebar"
+          initial={{ width: 0, opacity: 0 }}
+          animate={open ? { width: resolvedWidth, opacity: 1 } : { width: 0, opacity: 0 }}
+          exit={{ width: 0, opacity: 0 }}
+          transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
+          aria-hidden={!open}
+          inert={!open}
+          data-ui="part:conversation-navigation"
+          data-resource-list-pane
+          data-resizing={isResizing || undefined}
+          className={cn('group/resource-list-pane relative shrink-0 overflow-visible', className)}
+          style={style}>
+          {/* Keep the list clipped without covering its scrollbar with the resize hit area. */}
+          <div data-resource-list-pane-content className="h-full min-h-0 overflow-hidden">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
+          <div
+            data-resource-list-pane-resize-handle
+            onMouseDown={startResizing}
+            {...getVerticalSplitterProps({
+              width: paneWidth,
+              min: RESOURCE_LIST_PANE_MIN_WIDTH,
+              max: RESOURCE_LIST_PANE_MAX_WIDTH,
+              label: t('common.resize_panel'),
+              onResize: setPaneWidth
+            })}
+            className="group/resource-list-resize-handle absolute top-0 bottom-0 left-full z-10 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
+            <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}

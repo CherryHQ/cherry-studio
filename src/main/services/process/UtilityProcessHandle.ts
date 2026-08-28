@@ -11,6 +11,7 @@ export class UtilityProcessHandle implements ProcessHandle {
   private _pid: number | undefined = undefined
   private _process: Electron.UtilityProcess | undefined = undefined
   private _exited = false
+  private _stopPromise: Promise<void> | undefined = undefined
   private readonly def: UtilityProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
   private readonly messageHandlers = new Set<(message: unknown) => void>()
@@ -79,6 +80,7 @@ export class UtilityProcessHandle implements ProcessHandle {
 
       this._pid = undefined
       this._process = undefined
+      this._stopPromise = undefined
 
       if (this._state === ProcessState.Stopping) {
         this._state = ProcessState.Stopped
@@ -95,9 +97,12 @@ export class UtilityProcessHandle implements ProcessHandle {
     })
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    if (this._state === ProcessState.Stopping) {
+      return this._stopPromise ?? Promise.resolve()
+    }
     if (this._state !== ProcessState.Running) {
-      return
+      return Promise.resolve()
     }
 
     this._state = ProcessState.Stopping
@@ -106,10 +111,10 @@ export class UtilityProcessHandle implements ProcessHandle {
     const proc = this._process
     if (!proc) {
       this._state = ProcessState.Stopped
-      return
+      return Promise.resolve()
     }
 
-    return new Promise<void>((resolve) => {
+    const stopPromise = new Promise<void>((resolve) => {
       const killTimeoutMs = this.def.killTimeoutMs ?? DEFAULT_KILL_TIMEOUT_MS
 
       const killTimer = setTimeout(() => {
@@ -128,6 +133,8 @@ export class UtilityProcessHandle implements ProcessHandle {
 
       proc.kill()
     })
+    this._stopPromise = stopPromise
+    return stopPromise
   }
 
   async restart(): Promise<void> {

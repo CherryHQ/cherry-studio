@@ -5,20 +5,37 @@ import * as React from 'react'
 function Avatar({
   className,
   size = 'default',
+  children,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Root> & {
   size?: 'default' | 'sm' | 'lg'
 }) {
+  // Radix keeps `imageLoadingStatus` on Avatar.Root for the lifetime of the Root and never
+  // resets it when the rendered <AvatarImage> unmounts or its `src` changes. Once an image
+  // loads, switching to a different image or removing it entirely leaves the Root stuck in
+  // `loaded`, which suppresses the Fallback and paints a blank avatar. Derive a stable key
+  // from the direct <AvatarImage>'s `src` so React remounts the Root whenever the image
+  // source changes (or disappears). Consumers don't need to remember a manual `key={src}`.
+  const imageKey = React.Children.toArray(children).reduce<string | undefined>((found, child) => {
+    if (found !== undefined) return found
+    if (React.isValidElement(child) && child.type === AvatarImage) {
+      return (child.props as React.ComponentProps<typeof AvatarImage>).src ?? undefined
+    }
+    return undefined
+  }, undefined)
+
   return (
     <AvatarPrimitive.Root
+      key={imageKey ?? '__no-avatar-image__'}
       data-slot="avatar"
       data-size={size}
       className={cn(
         'group/avatar relative flex size-8 shrink-0 overflow-hidden rounded-full select-none data-[size=lg]:size-10 data-[size=sm]:size-6',
         className
       )}
-      {...props}
-    />
+      {...props}>
+      {children}
+    </AvatarPrimitive.Root>
   )
 }
 

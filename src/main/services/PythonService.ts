@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
-import { application } from '@main/core/application'
-import { ipcMain } from 'electron'
+import { application } from '@application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
+import { IpcChannel } from '@shared/IpcChannel'
 
 interface PythonExecutionRequest {
   id: string
@@ -19,18 +21,32 @@ interface PythonExecutionResponse {
 /**
  * Service for executing Python code by communicating with the PyodideService in the renderer process
  */
-export class PythonService {
-  private pendingRequests = new Map<string, { resolve: (value: string) => void; reject: (error: Error) => void }>()
+@Injectable('PythonService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowManager'])
+export class PythonService extends BaseService {
+  private pendingRequests = new Map<
+    string,
+    { resolve: (value: string) => void; reject: (error: Error) => void; timeoutId: NodeJS.Timeout }
+  >()
 
-  constructor() {
-    this.setupIpcHandlers()
+  protected async onInit() {
+    this.registerIpcHandlers()
   }
 
-  private setupIpcHandlers() {
-    // Handle responses from renderer
-    ipcMain.on('python-execution-response', (_, response: PythonExecutionResponse) => {
+  protected async onStop() {
+    for (const [id, { reject, timeoutId }] of this.pendingRequests) {
+      clearTimeout(timeoutId)
+      reject(new Error('PythonService is stopping'))
+      this.pendingRequests.delete(id)
+    }
+  }
+
+  private registerIpcHandlers() {
+    this.ipcOn(IpcChannel.Python_ExecutionResponse, (_, response: PythonExecutionResponse) => {
       const request = this.pendingRequests.get(response.id)
       if (request) {
+        clearTimeout(request.timeoutId)
         this.pendingRequests.delete(response.id)
         if (response.error) {
           request.reject(new Error(response.error))
@@ -49,41 +65,32 @@ export class PythonService {
     context: Record<string, any> = {},
     timeout: number = 60000
   ): Promise<string> {
-    if (!application.get('WindowService').getMainWindow()) {
+    if (application.get('WindowManager').getWindowsByType(WindowType.Main).length === 0) {
       throw new Error('Main window not found')
     }
 
     return new Promise((resolve, reject) => {
       const requestId = randomUUID()
 
-      // Store the request
-      this.pendingRequests.set(requestId, { resolve, reject })
-
-      // Set up timeout
       const timeoutId = setTimeout(() => {
         this.pendingRequests.delete(requestId)
         reject(new Error('Python execution timed out'))
-      }, timeout + 5000) // Add 5s buffer for IPC communication
+      }, timeout + 5000)
 
-      // Update resolve/reject to clear timeout
-      const originalResolve = resolve
-      const originalReject = reject
       this.pendingRequests.set(requestId, {
         resolve: (value: string) => {
           clearTimeout(timeoutId)
-          originalResolve(value)
+          resolve(value)
         },
         reject: (error: Error) => {
           clearTimeout(timeoutId)
-          originalReject(error)
-        }
+          reject(error)
+        },
+        timeoutId
       })
 
-      // Send request to renderer
       const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
-      application.get('WindowService').getMainWindow()?.webContents.send('python-execution-request', request)
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Python_ExecutionRequest, request)
     })
   }
 }
-
-export const pythonService = new PythonService()

@@ -1,17 +1,10 @@
 import { loggerService } from '@logger'
-import { Readability } from '@mozilla/readability'
+import { readableContentService } from '@main/services/readableContent'
+import { isAbortError } from '@main/utils/error'
+import { fetchRemoteText } from '@main/utils/remoteFetch'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
-import { isValidUrl } from '@shared/utils'
-import { net } from 'electron'
-import { JSDOM } from 'jsdom'
-import TurndownService from 'turndown'
-
-import { localBrowser } from '../providers/locals/LocalBrowser'
-import { isAbortError } from './errors'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
-const turndownService = new TurndownService()
-const SAFE_JSDOM_URL = 'http://localhost/'
 
 function buildHeaders(headers?: HeadersInit) {
   const resolvedHeaders = new Headers(headers)
@@ -26,44 +19,25 @@ function buildHeaders(headers?: HeadersInit) {
   return resolvedHeaders
 }
 
-export async function fetchWebSearchContent(
-  url: string,
-  usingBrowser: boolean,
-  httpOptions: RequestInit = {}
-): Promise<WebSearchResult> {
+export async function fetchWebSearchContent(url: string, httpOptions: RequestInit = {}): Promise<WebSearchResult> {
   try {
-    if (!isValidUrl(url)) {
-      throw new Error(`Invalid URL format: ${url}`)
-    }
+    // web_fetch is reachable from untrusted channel input and auto-allowed, so
+    // direct main-process fetches must bind the connection to validated DNS results.
+    const html = await fetchRemoteText(url, {
+      headers: buildHeaders(httpOptions.headers),
+      signal: httpOptions.signal ?? undefined,
+      maxRedirects: 5
+    })
 
-    let html: string
-
-    if (usingBrowser) {
-      html = await localBrowser.fetchHtml(url, { signal: httpOptions.signal ?? undefined })
-    } else {
-      const response = await net.fetch(url, {
-        ...httpOptions,
-        headers: buildHeaders(httpOptions.headers),
-        signal: httpOptions.signal
-          ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])
-          : AbortSignal.timeout(30000)
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`)
-      }
-
-      html = await response.text()
-    }
-
-    const dom = new JSDOM(html, { url: SAFE_JSDOM_URL })
-    const article = new Readability(dom.window.document).parse()
-    const markdown = turndownService.turndown(article?.content || '').trim()
+    const article = await readableContentService.extractReadableMarkdown(html, {
+      signal: httpOptions.signal ?? undefined
+    })
 
     return {
-      title: article?.title || url,
+      title: article.title || url,
       url,
-      content: markdown
+      content: article.content,
+      sourceInput: url
     }
   } catch (error) {
     if (isAbortError(error)) {

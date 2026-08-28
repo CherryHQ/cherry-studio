@@ -7,21 +7,23 @@ The `ChatMigrator` handles the largest data migration task: topics and messages 
 | Data | Source | File/Path |
 |------|--------|-----------|
 | Topics with messages | Dexie `topics` table | `topics.json` |
-| Topic metadata (name, pinned, etc.) | Redux `assistants[].topics[]` | `ReduxStateReader.getCategory('assistants')` |
+| Topic metadata (name, pinned, etc.) | Redux `assistants[].topics[]` **and** `defaultAssistant.topics[]` | `ReduxStateReader.getCategory('assistants')` |
 | Message blocks | Dexie `message_blocks` table | `message_blocks.json` |
-| Assistants (for meta) | Redux `assistants` slice | `ReduxStateReader.getCategory('assistants')` |
+| Assistants (for meta) | Redux `assistants` slice (incl. `defaultAssistant`) | `ReduxStateReader.getCategory('assistants')` |
 
 ### Topic Data Split (Important!)
 
 The old system stores topic data in **two separate locations**:
 
 1. **Dexie `topics` table**: Contains only `id` and `messages[]` array (NO `assistantId`!)
-2. **Redux `assistants[].topics[]`**: Contains metadata (`name`, `pinned`, `prompt`, `isNameManuallyEdited`) and implicitly the `assistantId` (from parent assistant)
+2. **Redux `assistants[].topics[]`** *and* **`defaultAssistant.topics[]`**: Contains metadata (`name`, `pinned`, `prompt`, `isNameManuallyEdited`) and implicitly the `assistantId` (from parent assistant)
 
 Redux deliberately clears `messages[]` to reduce storage size. The migrator merges these sources:
 - Messages come from Dexie
 - Metadata (name, pinned, etc.) comes from Redux
 - `assistantId` comes from Redux structure (each assistant owns its topics)
+
+> **Note**: `state.defaultAssistant` is a sibling slot of `state.assistants[]`, not a member of it. Topics living under `defaultAssistant.topics[]` were silently dropped before the migration walked this slot — their post-migration rows would otherwise have shown up as "Unnamed Topic" with no timestamp source.
 
 ## Key Transformations
 
@@ -36,6 +38,7 @@ Redux deliberately clears `messages[]` to reduce storage size. The migrator merg
 3. **Block Inlining**
    - Old: `message.blocks: string[]` (IDs) + separate `message_blocks` table
    - New: `message.data.blocks: MessageDataBlock[]` (inline JSON)
+   - Migration indexing decodes one legacy block at a time, then batches serialized rows by count and character budget before writing them to the file-backed temporary SQLite table. This prevents large inline image/tool payloads from accumulating in a record-count-only in-memory batch.
 
 4. **Citation Migration**
    - Old: Separate `CitationMessageBlock` with `response`, `knowledge`, `memories`
@@ -51,15 +54,21 @@ The migrator handles potential data inconsistencies from the old system:
 
 | Issue | Detection | Handling |
 |-------|-----------|----------|
-| **Duplicate message ID** | Same ID appears in multiple topics | Generate new UUID, update parentId refs, log warning |
+| **Duplicate message ID** | Same ID appears within or across topics | Assign globally unique IDs before tree construction, remap same-topic references to the nearest earlier occurrence, and log a warning |
+| **Forward `askId`** | A response points to a message appearing later in the source array | Treat it as unresolved and use the chronological fallback; parent edges may only target previously processed messages |
+| **Disconnected/cyclic message graph** | A migrated message is not reachable from a virtual topic root | Fail migration validation before marking the migration complete |
 | **TopicId mismatch** | `message.topicId` ≠ parent `topic.id` | Use correct parent topic.id (silent fix) |
 | **Missing blocks** | Block ID not found in `message_blocks` | Skip missing block (silent) |
 | **Invalid topic** | Topic missing required `id` field | Skip entire topic |
-| **Missing topic metadata** | Topic not found in Redux `assistants[].topics[]` | Use Dexie values, fallback name if empty |
-| **Missing assistantId** | Topic not in any `assistant.topics[]` | `assistantId` and `assistantMeta` will be null |
-| **Empty topic name** | Both Dexie and Redux have empty `name` (ancient bug) | Use fallback "Unnamed Topic" |
-| **Message with no blocks** | `blocks` array is empty after resolution | Skip message, re-link children to parent's parent |
-| **Topic with no messages** | All messages skipped (no blocks) | Keep topic, set `activeNodeId` to null |
+| **Empty source topic** | `topic.messages` missing or `[]` AND no user-intent signal (`pinned` / `isNameManuallyEdited` / non-blank `prompt` from Redux meta) | Skip topic — v1 surfaced empty topics on first launch and on every abandoned "new topic" click; they have no timestamp source and would just clutter the post-migration list. Logged at info level. Empty topics that the user pinned, renamed, or wrote a topic-level prompt for are kept (intentional state). |
+| **Missing topic metadata** | Topic not found in Redux `assistants[].topics[]` / `defaultAssistant.topics[]` | Use Dexie values, fallback name if empty |
+| **Legacy `'default'` assistantId** | `topic.assistantId === 'default'` (or topic lived under `state.defaultAssistant.topics[]`) | Rewrite via `sharedData.legacyAssistantIdRemap` (`'default' → UUID` produced by `AssistantMigrator`). Resolves under the migrated user assistant — v2 has no `'default'` sentinel row. |
+| **Missing assistantId** | Topic not in any `assistant.topics[]`, or empty/null `assistantId` after remap | Set `assistantId = NULL`. v2's `topic.assistantId` is nullable (FK `ON DELETE SET NULL`); the renderer composes a runtime default from `Preference.defaultModelId` when no specific assistant is attached. `orphanedAssistantTopics` counter increments. |
+| **Orphan assistantId** | `topic.assistantId` (post-remap) not in `validAssistantIds` | Same NULL fallback as above; `orphanedAssistantTopics` counter increments and a warning is logged. |
+| **Empty topic name** | Both Dexie and Redux have empty `name` (ancient bug) | Leave the name empty, like a natively-created v2 topic — the UI renders the localized placeholder at display time |
+| **Missing topic timestamps** | Both Dexie and Redux miss `createdAt` / `updatedAt` | Derive from messages: `createdAt = min(message.createdAt)`, `updatedAt = max(message.createdAt)`. If no message has a parseable `createdAt`, falls through to `parseTimestamp()`'s `Date.now()` fallback (logged as a warning). |
+| **Message with no blocks** | `blocks` array is empty after resolution | Keep legacy `type: 'clear'` messages as context boundaries, store them as hidden `data-clear` parts, and skip/re-link other empty messages |
+| **Topic where all messages are skipped** | All messages dropped (no blocks) | Keep topic, set `activeNodeId` to null. Distinct from the "empty source topic" case above (which is dropped). |
 
 ## Field Mappings
 
@@ -76,12 +85,12 @@ Topic data is merged from Dexie + Redux before transformation:
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
 | (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
-| (none) | `groupId` | null (new field) |
 | (none) | `sortOrder` | 0 (new field) |
 | Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
 | (none) | `pinnedOrder` | 0 (new field) |
-| `createdAt` | `createdAt` | ISO string → timestamp |
-| `updatedAt` | `updatedAt` | ISO string → timestamp |
+| `createdAt` | `createdAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `min(message.createdAt)` |
+| `updatedAt` | `updatedAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `max(message.createdAt)` |
+| (computed from imported messages) | `lastActivityAt` | Maximum user creation / assistant completion activity; falls back to topic `createdAt` |
 
 **Dropped fields**: `type` ('chat' | 'session')
 
@@ -93,19 +102,18 @@ Topic data is merged from Dexie + Redux before transformation:
 | (computed) | `parentId` | From tree building algorithm |
 | (from parent topic) | `topicId` | Uses parent topic.id for consistency |
 | `role` | `role` | Direct copy |
-| `blocks` + `mentions` + citations | `data` | Complex transformation |
+| `blocks` + `mentions` + citations + clear `type` | `data` | Complex transformation; converts legacy `type: 'clear'` to a hidden `data-clear` part |
 | (extracted) | `searchableText` | Extracted from text blocks |
 | `status` | `status` | Normalized to success/error/paused |
 | (computed) | `siblingsGroupId` | From multi-model detection |
 | `assistantId` | `assistantId` | Direct copy |
 | `modelId` | `modelId` | Direct copy |
 | (from Message.model) | `modelMeta` | Generated from model entity |
-| `traceId` | `traceId` | Direct copy |
 | `usage` + `metrics` | `stats` | Merged into single stats object |
 | `createdAt` | `createdAt` | ISO string → timestamp |
 | `updatedAt` | `updatedAt` | ISO string → timestamp |
 
-**Dropped fields**: `type`, `useful`, `enabledMCPs`, `agentSessionId`, `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
+**Dropped fields**: `type` after converting `clear` to `data-clear`, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
 
 ### Block Type Mapping
 

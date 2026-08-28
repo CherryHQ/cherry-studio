@@ -15,6 +15,7 @@
 
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -116,6 +117,15 @@ export class TranslateMigrator extends BaseMigrator {
   private languageSkippedCount = 0
   private cachedLanguageRecords: OldCustomTranslateLanguage[] = []
 
+  override reset(): void {
+    this.historySourceCount = 0
+    this.historySkippedCount = 0
+    this.cachedHistoryRecords = []
+    this.languageSourceCount = 0
+    this.languageSkippedCount = 0
+    this.cachedLanguageRecords = []
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     const warnings: string[] = []
 
@@ -182,8 +192,8 @@ export class TranslateMigrator extends BaseMigrator {
         }
 
         if (newLanguageRecords.length > 0) {
-          await db.transaction(async (tx) => {
-            await tx.insert(translateLanguageTable).values(newLanguageRecords)
+          db.transaction((tx) => {
+            tx.insert(translateLanguageTable).values(newLanguageRecords).run()
           })
           processedCount += newLanguageRecords.length
         }
@@ -199,6 +209,9 @@ export class TranslateMigrator extends BaseMigrator {
           skipped: this.languageSkippedCount
         })
       }
+
+      // ── Seed builtin languages (history FK requires them to exist) ──
+      new TranslateLanguageSeeder().run(db)
 
       // ── Migrate translate history (batched) ──
       if (this.historySourceCount > 0) {
@@ -218,10 +231,10 @@ export class TranslateMigrator extends BaseMigrator {
           newHistoryRecords.push(transformHistoryRecord(old, validLangCodes))
         }
 
-        await db.transaction(async (tx) => {
+        db.transaction((tx) => {
           for (let i = 0; i < newHistoryRecords.length; i += HISTORY_BATCH_SIZE) {
             const batch = newHistoryRecords.slice(i, i + HISTORY_BATCH_SIZE)
-            await tx.insert(translateHistoryTable).values(batch)
+            tx.insert(translateHistoryTable).values(batch).run()
 
             const historyProcessed = Math.min(i + HISTORY_BATCH_SIZE, newHistoryRecords.length)
             const progress = Math.round(((processedCount + historyProcessed) / totalCount) * 100)
@@ -260,7 +273,7 @@ export class TranslateMigrator extends BaseMigrator {
 
     try {
       // Validate translate history
-      const historyResult = await db.select({ count: sql<number>`count(*)` }).from(translateHistoryTable).get()
+      const historyResult = db.select({ count: sql<number>`count(*)` }).from(translateHistoryTable).get()
       const historyTargetCount = historyResult?.count ?? 0
       const expectedHistoryCount = this.historySourceCount - this.historySkippedCount
 
@@ -272,7 +285,7 @@ export class TranslateMigrator extends BaseMigrator {
       }
 
       // Validate translate languages
-      const languageResult = await db.select({ count: sql<number>`count(*)` }).from(translateLanguageTable).get()
+      const languageResult = db.select({ count: sql<number>`count(*)` }).from(translateLanguageTable).get()
       const languageTargetCount = languageResult?.count ?? 0
       const expectedLanguageCount = this.languageSourceCount - this.languageSkippedCount
 

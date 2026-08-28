@@ -1,0 +1,63 @@
+import * as React from 'react'
+
+import { cn } from '../../../lib/utils'
+import { ImagePreviewDialog, type ImagePreviewDialogProps } from './image-preview-dialog'
+import type { ImagePreviewItem } from './types'
+
+export interface ImagePreviewTriggerProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+  dialogProps?: Omit<ImagePreviewDialogProps, 'activeIndex' | 'items' | 'onActiveIndexChange' | 'onOpenChange' | 'open'>
+  item: ImagePreviewItem
+  items?: ImagePreviewItem[]
+  preview?: boolean
+}
+
+export function ImagePreviewTrigger({
+  alt,
+  className,
+  dialogProps,
+  item,
+  items,
+  onClick,
+  preview = true,
+  ...props
+}: ImagePreviewTriggerProps) {
+  const [open, setOpen] = React.useState(false)
+  const previewItems = React.useMemo(() => items ?? [item], [item, items])
+  const initialIndex = React.useMemo(
+    () =>
+      Math.max(
+        0,
+        previewItems.findIndex((previewItem) => previewItem.id === item.id)
+      ),
+    [item.id, previewItems]
+  )
+  const [activeIndex, setActiveIndex] = React.useState(initialIndex)
+
+  return (
+    <>
+      <img
+        alt={alt ?? item.alt ?? item.title ?? ''}
+        className={cn(preview && 'cursor-zoom-in', className)}
+        onClick={(event) => {
+          onClick?.(event)
+          if (!event.defaultPrevented && preview) {
+            setActiveIndex(initialIndex)
+            setOpen(true)
+          }
+        }}
+        src={item.src}
+        {...props}
+      />
+      {preview && (
+        <ImagePreviewDialog
+          {...dialogProps}
+          activeIndex={activeIndex}
+          items={previewItems}
+          onActiveIndexChange={setActiveIndex}
+          onOpenChange={setOpen}
+          open={open}
+        />
+      )}
+    </>
+  )
+}

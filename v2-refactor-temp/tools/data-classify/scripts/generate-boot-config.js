@@ -3,10 +3,103 @@
 const fs = require('fs')
 const path = require('path')
 
+/**
+ * Manually maintained boot config items that aren't sourced from
+ * classification.json. These get merged into the generator's normal
+ * extraction pipeline so they flow through the same sort/emit code as
+ * classification-derived items — the output schema is a single, flat,
+ * fully auto-generated file.
+ *
+ * When classification.json learns to model new source kinds (e.g. a
+ * 'configfile' category), these entries should move into classification.json
+ * and this constant can shrink.
+ */
+const MANUAL_BOOT_CONFIG_ITEMS = [
+  {
+    source: 'configfile',
+    sourceCategory: 'legacy-home',
+    originalKey: 'appDataPath',
+    targetKey: 'app.user_data_path',
+    zodType: 'z.record(z.string(), z.string())',
+    defaultValue: 'VALUE: {}',
+    jsdoc: [
+      'Custom user data directory, keyed by executable path.',
+      '',
+      'Conceptually a single setting ("where user data lives"); stored as a',
+      'Record so the same machine can host multiple installations (stable / dev /',
+      "portable) with independent user data locations — matching the v1 behavior",
+      "of ~/.cherrystudio/config/config.json's `appDataPath` array.",
+      '',
+      'Key: normalized executable path from getNormalizedExecutablePath() —',
+      "intentionally not `app.getPath('exe')` for Linux AppImage and Windows",
+      'portable builds, whose raw exe paths are unstable across launches.',
+      'Value: absolute path to the chosen userData directory.',
+      '',
+      'Migrated from v1 ~/.cherrystudio/config/config.json on first v1→v2 run',
+      "via the 'configfile' source in BootConfigMigrator."
+    ]
+  },
+  {
+    source: 'preboot',
+    sourceCategory: 'transient',
+    originalKey: 'userDataRelocation',
+    targetKey: 'temp.user_data_relocation',
+    zodType:
+      'z\n' +
+      '    .union([\n' +
+      '      z.object({\n' +
+      "        status: z.literal('pending'),\n" +
+      '        taskId: z.uuid(),\n' +
+      '        from: z.string(),\n' +
+      '        to: z.string(),\n' +
+      '        copy: z.boolean()\n' +
+      '      }),\n' +
+      '      z.object({\n' +
+      "        status: z.literal('failed'),\n" +
+      '        taskId: z.uuid(),\n' +
+      '        from: z.string(),\n' +
+      '        to: z.string(),\n' +
+      '        copy: z.boolean(),\n' +
+      '        error: z.string(),\n' +
+      '        failedAt: z.string()\n' +
+      '      })\n' +
+      '    ])\n' +
+      '    .nullable()',
+    defaultValue: null,
+    jsdoc: [
+      'In-flight relocation of the Electron userData directory tree',
+      "(the directory returned by `app.getPath('userData')`).",
+      '',
+      'Lives under the `temp.*` top-level namespace — reserved for ephemeral',
+      'runtime state: single in-flight operations meant to be cleared once',
+      'consumed. **Never** backed up or synced: restoring a stale temp.* entry',
+      'on a different machine or at a different time can cause silent data',
+      'corruption (e.g. re-executing a relocation that already happened).',
+      '',
+      'Lifecycle:',
+      '  - null: no relocation in progress (default).',
+      "  - { status: 'pending', taskId, from, to, copy }: the relocation",
+      '    request face (services/userDataRelocation) wrote this request and',
+      '    the next preboot should execute it.',
+      "  - { status: 'failed', taskId, from, to, copy, error, failedAt }:",
+      '    a previous preboot attempt failed. The record stays in BootConfig',
+      '    until the dedicated relocation window shows the error and the user',
+      '    explicitly abandons it by restarting on the previous userData path.',
+      '',
+      'Note: "userData" here means the Electron OS directory',
+      "(app.getPath('userData')), not the colloquial sense of user content.",
+      'The copy includes everything under that directory — user files,',
+      'Chromium runtime state, logs, etc.',
+      '',
+      'Consumer: src/main/services/userDataRelocation'
+    ]
+  }
+]
+
 class BootConfigGenerator {
   constructor() {
     this.dataDir = path.resolve(__dirname, '../data')
-    this.targetFile = path.resolve(__dirname, '../../../../packages/shared/data/bootConfig/bootConfigSchemas.ts')
+    this.targetFile = path.resolve(__dirname, '../../../../src/shared/data/bootConfig/bootConfigSchemas.ts')
     this.classificationFile = path.join(this.dataDir, 'classification.json')
   }
 
@@ -94,26 +187,38 @@ class BootConfigGenerator {
       }
     })
 
-    console.log(`After deduplication: ${deduplicatedData.length} bootConfig items`)
+    // Append manually maintained items (config-file source for v1 legacy
+    // home config). These bypass classification.json deliberately — see the
+    // MANUAL_BOOT_CONFIG_ITEMS comment at the top of this file.
+    for (const manual of MANUAL_BOOT_CONFIG_ITEMS) {
+      deduplicatedData.push({ ...manual, fullPath: `${manual.source}/${manual.sourceCategory}/${manual.originalKey}` })
+    }
+
+    console.log(`After deduplication + manual items: ${deduplicatedData.length} bootConfig items`)
     return deduplicatedData
   }
 
-  mapType(itemType, defaultValue) {
-    if (itemType && itemType !== 'unknown') {
-      if (itemType === 'boolean') return 'boolean'
-      if (itemType === 'string') return 'string'
-      if (itemType === 'number') return 'number'
-      return itemType
-    }
+  /**
+   * Map an item to its emitted zod schema expression.
+   *
+   * Only explicit `zodType` (manual items) and explicit simple `type`
+   * (classification items) are accepted. Deliberately NEVER falls back to
+   * `typeof defaultValue` like the old interface-type mapper did: a
+   * 'VALUE: xxx' escape string would masquerade as a string default and
+   * silently emit the wrong schema. Unknown types abort generation loudly.
+   */
+  mapZodType(item) {
+    if (item.zodType) return item.zodType
 
-    if (defaultValue !== null && defaultValue !== undefined) {
-      const valueType = typeof defaultValue
-      if (valueType === 'boolean' || valueType === 'string' || valueType === 'number') {
-        return valueType
-      }
+    const ZOD_TYPE_MAP = { boolean: 'z.boolean()', string: 'z.string()', number: 'z.number()' }
+    const mapped = ZOD_TYPE_MAP[item.type]
+    if (!mapped) {
+      throw new Error(
+        `No zod mapping for bootConfig item '${item.targetKey}' (type: ${item.type}). ` +
+          `Add an explicit zodType or a simple type (boolean/string/number).`
+      )
     }
-
-    return 'unknown'
+    return mapped
   }
 
   formatDefaultValue(value) {
@@ -146,20 +251,44 @@ class BootConfigGenerator {
  * Auto-generated boot config schema
  * Generated at: ${new Date().toISOString()}
  *
- * This file is automatically generated from classification.json
- * To update this file, modify classification.json and run:
+ * This file is automatically generated from classification.json (plus a
+ * small MANUAL_BOOT_CONFIG_ITEMS list in generate-boot-config.js for keys
+ * that don't fit classification.json's model yet, e.g. config-file sources).
+ *
+ * The zod schema is the single source of truth: the BootConfigSchema type
+ * is inferred from it, and BootConfigService validates file/set values
+ * against it at runtime.
+ *
+ * To update this file, either modify classification.json or the manual list
+ * in the generator, then run:
  * node v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js
  *
  * === AUTO-GENERATED CONTENT START ===
  */`
 
-    let interfaceCode = 'export interface BootConfigSchema {\n'
-    sortedData.forEach((item) => {
-      const tsType = this.mapType(item.type, item.defaultValue)
-      interfaceCode += `  // ${item.source}/${item.sourceCategory}/${item.originalKey}\n`
-      interfaceCode += `  '${item.targetKey}': ${tsType}\n`
+    // Namespace form required by eslint's import-zod/prefer-zod-namespace —
+    // emitting `import { z }` would make every regeneration lint-dirty.
+    const importCode = "import * as z from 'zod'"
+
+    let schemaCode = 'export const bootConfigSchema = z.object({\n'
+    sortedData.forEach((item, index) => {
+      const zodExpr = this.mapZodType(item)
+      // Optional JSDoc block (currently only emitted for manual items).
+      if (Array.isArray(item.jsdoc) && item.jsdoc.length > 0) {
+        if (index > 0) schemaCode += '\n'
+        schemaCode += '  /**\n'
+        for (const line of item.jsdoc) {
+          schemaCode += line.length > 0 ? `   * ${line}\n` : '   *\n'
+        }
+        schemaCode += '   */\n'
+      }
+      schemaCode += `  // ${item.source}/${item.sourceCategory}/${item.originalKey}\n`
+      const isLast = index === sortedData.length - 1
+      schemaCode += `  '${item.targetKey}': ${zodExpr}${isLast ? '' : ','}\n`
     })
-    interfaceCode += '}'
+    schemaCode += '})'
+
+    const typeCode = 'export type BootConfigSchema = z.infer<typeof bootConfigSchema>'
 
     let defaultsCode = 'export const DefaultBootConfig: BootConfigSchema = {\n'
     sortedData.forEach((item, index) => {
@@ -171,7 +300,7 @@ class BootConfigGenerator {
 
     const footer = '// === AUTO-GENERATED CONTENT END ==='
 
-    return [header, '', interfaceCode, '', defaultsCode, '', footer, ''].join('\n')
+    return [header, '', importCode, '', schemaCode, '', typeCode, '', defaultsCode, '', footer, ''].join('\n')
   }
 
   writeFile(content) {

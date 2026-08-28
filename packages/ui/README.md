@@ -1,139 +1,162 @@
 # @cherrystudio/ui
 
-Cherry Studio UI 组件库 - 为 Cherry Studio 设计的 React 组件集合
+Cherry Studio UI component library for React applications.
 
-## ✨ 特性
+## ✨ Features
 
-- 🎨 **设计系统**: 完整的 CherryStudio 设计令牌（17种颜色 × 11个色阶 + 语义化主题）
-- 🌓 **Dark Mode**: 开箱即用的深色模式支持
-- 🚀 **Tailwind v4**: 基于最新 Tailwind CSS v4 构建
-- 📦 **灵活导入**: 2种样式导入方式，满足不同使用场景
-- 🔷 **TypeScript**: 完整的类型定义和智能提示
-- 🎯 **零冲突**: CSS 变量隔离，不覆盖用户主题
+- 🎨 **Design System**: Cherry Studio primitive palettes, product semantics, and Shadcn-compatible theme mappings
+- 🌓 **Dark Mode**: Built-in light and dark theme support
+- 🚀 **Tailwind v4**: Built on top of the latest Tailwind CSS v4
+- 📦 **Flexible Imports**: Two style integration modes for different adoption paths
+- 🔷 **TypeScript**: Complete type definitions and editor support
+- 🎯 **Low Collision**: CSS variable isolation without taking over app runtime state by default
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 安装
+### Install
 
 ```bash
 npm install @cherrystudio/ui
 # peer dependencies
-npm install framer-motion react react-dom tailwindcss
+npm install motion react react-dom tailwindcss
 ```
 
-### 两种使用方式
+> The recommended integration style in this repository is to use the package export entry points:
+> `@cherrystudio/ui`
+> `@cherrystudio/ui/components`
+> `@cherrystudio/ui/icons`
+> `@cherrystudio/ui/utils`
+> `@cherrystudio/ui/styles/tokens.css`
+> `@cherrystudio/ui/styles/theme.css`
+>
+### Two Integration Modes
 
-#### 方式 1：完整覆盖 ✨
+#### Mode 1: Full Theme Contract ✨
 
-使用完整的 CherryStudio 设计系统，所有 Tailwind 类名映射到设计系统。
+Use the full Cherry Studio design system so Tailwind theme tokens resolve to Cherry Studio values.
 
 ```css
 /* app.css */
 @import '@cherrystudio/ui/styles/theme.css';
 ```
 
-**特点**：
+**Characteristics:**
 
-- ✅ 直接使用标准 Tailwind 类名（`bg-primary`、`bg-red-500`、`p-md`、`rounded-lg`）
-- ✅ 所有颜色使用设计师定义的值
-- ✅ 扩展的 Spacing 系统（`p-5xs` ~ `p-8xl`，共 16 个语义化尺寸）
-- ✅ 扩展的 Radius 系统（`rounded-4xs` ~ `rounded-3xl`，共 11 个圆角）
-- ⚠️ 会完全覆盖 Tailwind 默认主题
+- ✅ Use standard Tailwind utility names directly (`bg-primary`, `bg-red-500`, `p-4`, `rounded-lg`)
+- ✅ Colors resolve to Cherry Studio design values
+- ✅ Uses Tailwind's standard numeric spacing scale
+- ✅ Includes Shadcn-derived radii through `rounded-4xl` plus `rounded-full`; smaller Cherry aliases remain available for compatibility
+- ⚠️ Overrides the default Tailwind theme contract for the imported app bundle
 
-**示例**：
+**Example:**
 
 ```tsx
-<Button className="bg-primary text-red-500 p-md rounded-lg">
-  {/* bg-primary → 品牌色（lime-500） */}
-  {/* text-red-500 → 设计师定义的红色 */}
-  {/* p-md → 2.5rem（spacing-md） */}
-  {/* rounded-lg → 2.5rem（radius-lg） */}
+<Button className="bg-primary text-red-500 p-4 rounded-lg">
+  {/* bg-primary -> the current primary action semantic */}
+  {/* text-red-500 -> Cherry Studio red-500 */}
+  {/* p-4 -> Tailwind numeric spacing */}
+  {/* rounded-lg -> semantic radius token */}
 </Button>
 
-{/* 扩展的工具类 */}
-<div className="p-5xs">最小间距 (0.5rem)</div>
-<div className="p-xs">超小间距 (1rem)</div>
-<div className="p-sm">小间距 (1.5rem)</div>
-<div className="p-md">中等间距 (2.5rem)</div>
-<div className="p-lg">大间距 (3.5rem)</div>
-<div className="p-xl">超大间距 (5rem)</div>
-<div className="p-8xl">最大间距 (15rem)</div>
-
-<div className="rounded-4xs">最小圆角 (0.25rem)</div>
-<div className="rounded-xs">小圆角 (1rem)</div>
-<div className="rounded-md">中等圆角 (2rem)</div>
-<div className="rounded-xl">大圆角 (3rem)</div>
-<div className="rounded-round">完全圆角 (999px)</div>
+<div className="rounded-4xs">Tiny radius (0.03125rem)</div>
+<div className="rounded-xs">Small radius (0.125rem)</div>
+<div className="rounded-md">Medium radius (0.5rem)</div>
+<div className="rounded-xl">Large radius (0.875rem)</div>
+<div className="rounded-full">Full radius (9999px)</div>
 ```
 
-#### 方式 2：选择性覆盖 🎯
+#### Mode 2: Selective Foundation Consumption 🎯
 
-只导入设计令牌（CSS 变量），手动选择要覆盖的部分。
+Import only primitives and existing foundation providers, then decide which values your design system exposes.
 
 ```css
 /* app.css */
 @import 'tailwindcss';
 @import '@cherrystudio/ui/styles/tokens.css';
 
-/* 只使用部分设计系统 */
-@theme {
-  --color-primary: var(--cs-primary);     /* 使用 CS 的主色 */
-  --color-red-500: oklch(...);            /* 使用自己的红色 */
-  --spacing-md: var(--cs-size-md);        /* 使用 CS 的间距 */
-  --radius-lg: 1rem;                      /* 使用自己的圆角 */
+/* Re-export only the parts you need */
+@theme inline {
+  --color-primary: var(--cs-brand-500); /* Adopt a Cherry Studio foundation value */
+  --color-red-500: oklch(...); /* Keep your own red scale */
+  --radius-lg: 1rem; /* Keep your own radius */
 }
 ```
 
-**特点**：
+**Characteristics:**
 
-- ✅ 不覆盖任何 Tailwind 默认主题
-- ✅ 通过 CSS 变量访问所有设计令牌（`var(--cs-primary)`、`var(--cs-red-500)`）
-- ✅ 精细控制哪些使用 CS、哪些保持原样
-- ✅ 适合有自己设计系统但想借用部分 CS 设计令牌的场景
+- ✅ Does not override the full Tailwind theme
+- ✅ Gives access to Cherry Studio foundation values (`var(--cs-brand-500)`, `var(--cs-red-500)`)
+- ✅ Lets you choose what to adopt and what to keep
+- ✅ Works when you already own the semantic contract and only need selected Cherry Studio foundations
+- ⚠️ Does not expose the complete Shadcn or Cherry Studio product contract
 
-**示例**：
+**Component consumption after defining the adapter:**
 
 ```tsx
-{/* 通过 CSS 变量使用 CS 设计令牌 */}
-<button style={{ backgroundColor: 'var(--cs-primary)' }}>
-  使用 CherryStudio 品牌色
-</button>
+{/* The consumer-owned adapter maps its primary utility to the selected foundation value. */}
+<button className="bg-primary text-primary-foreground">Use the adopted primary color</button>
 
-{/* 保持原有的 Tailwind 类名不受影响 */}
+{/* Keep your original Tailwind theme untouched */}
 <div className="bg-red-500">
-  使用 Tailwind 默认的红色
+  Use the default Tailwind red
 </div>
 
-{/* 可用的 CSS 变量 */}
-<div style={{
-  color: 'var(--cs-primary)',           // 品牌色
-  backgroundColor: 'var(--cs-red-500)', // 红色-500
-  padding: 'var(--cs-size-md)',         // 间距
-  borderRadius: 'var(--cs-radius-lg)'   // 圆角
-}} />
+{/* Components consume the consumer-owned utility contract, not raw --cs-* providers. */}
+<div className="rounded-lg bg-primary text-primary-foreground" />
 ```
 
-### Provider 配置
+`src/styles/contract.css` is an internal composition layer used by the generated `theme.css` entry to preserve the
+foundation → runtime input → Shadcn → product import order. It is not a public package export or a supported
+consumer entry point.
 
-在你的 App 根组件中添加 HeroUI Provider：
+### CSS Variable Rules
 
-```tsx
-import { HeroUIProvider } from '@heroui/react'
+The normative v2 architecture, Shadcn contract, and migration boundary are defined in
+[Design Token System](./docs/design-token-system.md). Official Shadcn variables remain unprefixed; approved
+Cherry Studio product variables extend the same unprefixed public namespace. Use the
+[Variable Catalog](./docs/variable-catalog.md) to select a stable role and distinguish runtime API from internal
+providers and tooling-only historical names.
 
-function App() {
-  return (
-    <HeroUIProvider>
-      {/* 你的应用内容 */}
-    </HeroUIProvider>
-  )
-}
-```
+To avoid mixing value sources, semantic variables, theme mappings, and runtime overrides, use these rules:
 
-## 使用
+1. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the official Shadcn contract
+2. Approved Cherry Studio product semantics are also unprefixed, such as `--success` and `--background-subtle`
+3. Historical migration names are tooling-only and must not be recreated as runtime product variables
+4. Shared `--cs-*` variables are internal value providers; a selective-foundation consumer may reference primitive
+   providers only while defining its own adapter, not from ordinary component styles. `--cs-theme-*` is the reserved
+   host-written input subset
+5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output, not another semantic input layer. Only the
+   adapter owner declares `--color-*` inside `@theme`; component CSS, page CSS, and renderer
+   TypeScript/TSX-authored styles must neither declare nor consume `--color-*`. Components normally consume generated
+   radius and typography mappings through Tailwind utilities.
+6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility
+7. Component-, page-, and Electron-shell variables stay in their owning stylesheet and are not added to the shared contract merely because they are CSS custom properties
 
-### 基础组件
+Default consumption rules:
+
+1. Regular application packages should depend on `@cherrystudio/ui/styles/theme.css` by default
+2. Components should prefer semantic utilities such as `bg-background`, `text-muted-foreground`, and `bg-success`; custom CSS may use the matching official or product variable
+3. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
+4. Runtime theme logic should write shared theme values only through registered `--cs-theme-*` inputs, not directly to official semantics or derived `--color-*` variables; renderer-only runtime values stay owner-local under `--app-*`
+
+### Shadcn CLI Ownership
+
+Use the Shadcn CLI to scaffold or update component source and dependency metadata only. Cherry Studio's authored
+theme layers and generator own the shared CSS contract, even though `components.json` points the CLI at the generated
+`src/styles/theme.css` entry.
+
+- Do not retain direct CLI edits to `src/styles/theme.css`; `pnpm theme:build` is its only writer.
+- Review any CSS proposed by `shadcn add` and place it according to ownership: official semantics in `shadcn.css`,
+  Cherry Studio product semantics in `product.css` and `theme-contract.ts`, and component-local styles with the
+  component.
+- Add Tailwind mappings through the theme generator rather than by hand-editing its output.
+- Run `pnpm theme:build` followed by `pnpm theme:check` after accepting a component that changes theme requirements.
+
+## Usage
+
+### Basic Components
 
 ```tsx
 import { Button, Input } from '@cherrystudio/ui'
@@ -141,123 +164,210 @@ import { Button, Input } from '@cherrystudio/ui'
 function App() {
   return (
     <div>
-      <Button variant="primary" size="md">
-        点击我
-      </Button>
+      <Button variant="default" size="default">Click me</Button>
       <Input
         type="text"
-        placeholder="请输入内容"
-        onChange={(value) => console.log(value)}
+        placeholder="Type here"
+        onChange={(event) => console.log(event.currentTarget.value)}
       />
     </div>
   )
 }
 ```
 
-### 分模块导入
+### Modular Imports
 
 ```tsx
-// 只导入组件
+// Components only
 import { Button } from '@cherrystudio/ui/components'
 
-// 只导入工具函数
-import { cn, formatFileSize } from '@cherrystudio/ui/utils'
+// Utilities only
+import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
-## 开发
+## Development
 
 ```bash
-# 安装依赖
-yarn install
+# Install dependencies
+pnpm install
 
-# 开发模式（监听文件变化）
-yarn dev
+# Development mode
+pnpm dev
 
-# 构建
-yarn build
+# Build
+pnpm build
 
-# 类型检查
-yarn type-check
+# Type check
+pnpm type:check
 
-# 运行测试
-yarn test
+# Validate the variable graph, generated adapter, registry, and renderer authored-CSS boundary
+pnpm theme:check
+
+# Run tests
+pnpm test
 ```
 
-## 目录结构
+### Icon Generation
+
+Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
+
+In this command, `--type=icons` means general UI icons that are not Provider or Model logos.
+
+```bash
+# Generate general icons, Providers, and Models
+pnpm icons:generate
+
+# General icons
+pnpm icons:generate --type=icons
+
+# Provider icons, Avatars, barrels, catalogs, and per-icon loaders
+pnpm icons:generate --type=providers
+
+# Model icons, Avatars, barrels, and per-icon loaders
+pnpm icons:generate --type=models
+```
+
+| Type        | SVG source                            | Generated output                                                                 |
+| ----------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| `icons`     | `icons/general/*.svg`                 | General React icon components and their barrel                                   |
+| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, catalogs, and loaders |
+| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and loaders              |
+
+Import key-based lookup APIs from `@cherrystudio/ui/icons`. Static provider components intentionally use the
+separate `@cherrystudio/ui/icons/providers` entry so the ordinary lookup path does not evaluate the full provider barrel.
+Provider components are intentionally no longer re-exported from `@cherrystudio/ui/icons`; static consumers must use
+the provider entry explicitly.
+
+Generation uses a hash cache and skips unchanged SVG files. Use the optional arguments when a narrower or clean regeneration is needed:
+
+```bash
+# Regenerate one provider and its Avatar/catalog/loader entries
+pnpm icons:generate --type=providers --only=opencode
+
+# Regenerate multiple models
+pnpm icons:generate --type=models --only=claude,gemini
+
+# Ignore the hash cache and regenerate every provider
+pnpm icons:generate --type=providers --force
+```
+
+- Omitting `--type` generates all three groups in order: `icons`, `providers`, then `models`.
+- `--type=icons|providers|models` limits generation to one source and output group.
+- `--only=<name[,name]>` limits Provider or Model component and Avatar generation to the listed names.
+- `--force` bypasses the SVG hash cache.
+
+Provider and Model generation runs the SVG component stage first and the Avatar plus lookup-artifact stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
+
+## Package Surface
+
+The `packages/ui` workspace contains both runtime code and development-only assets.
+
+- Runtime surface:
+  - `src/`
+  - `dist/` build output
+  - package export entry points declared in `package.json`
+- Development assets:
+  - `stories/` and `.storybook/`
+  - `scripts/` used for icon and theme generation
+  - `icons/` source assets used by the generation pipeline
+  - `docs/` for migration and reference material
+
+Only the runtime surface should be treated as consumable package API.
+
+### Structural Markers
+
+`packages/ui` keeps Shadcn-compatible `data-slot` attributes for component-internal styling and its standalone build.
+When Cherry Studio consumes the package source, the app's UI-contract generator treats those markers as structural
+semantics and emits the corresponding public `data-ui` `part:*` tokens without removing the original attributes.
+Existing renderer code, application tests, and custom themes that use `data-slot` continue to work; new selectors can
+use the generated semantic layer. The application-level token grammar, stability tiers, maintained anchors, and
+selector rules are defined by the
+[UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
+are public selectors; inferred roles are best-effort discovery coordinates.
+
+## Directory Structure
 
 ```text
+docs/                    # Migration plans and reference docs
 src/
-├── components/          # React 组件
-│   ├── Button/         # 按钮组件
-│   ├── Input/          # 输入框组件
-│   └── index.ts        # 组件导出
+├── components/
+│   ├── primitives/     # Primitive components
+│   ├── composites/     # Composite components
+│   ├── icons/          # Icon runtime exports and catalogs
+│   └── index.ts
 ├── hooks/              # React Hooks
-├── utils/              # 工具函数
-├── types/              # 类型定义
-└── index.ts            # 主入口文件
+├── lib/                # Internal utilities
+├── styles/             # Tokens and theme entry files
+├── utils/              # Utility functions
+└── index.ts            # Main runtime entry point
+scripts/                # Theme and icon generation tooling
+stories/                # Storybook stories and sandbox usage
+icons/                  # Raw icon assets for code generation
 ```
 
-## 组件列表
+## Naming Conventions
 
-### Button 按钮
+All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/architecture/naming-conventions.md`](../../docs/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
 
-支持多种变体和尺寸的按钮组件。
+Examples:
+
+- `button.tsx` exports `Button`
+- `data-table.tsx` exports `DataTable`
+- `error-boundary/index.tsx` exports `ErrorBoundary`
+- `use-dnd-reorder.ts` exports `useDndReorder`
+
+## Components
+
+### Button
+
+A button component with multiple variants and sizes.
 
 **Props:**
 
-- `variant`: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
-- `size`: 'sm' | 'md' | 'lg'
-- `loading`: boolean
-- `fullWidth`: boolean
-- `leftIcon` / `rightIcon`: React.ReactNode
+- `variant`: `default` | `destructive` | `outline` | `secondary` | `emphasis` | `ghost` | `link`
+- `size`: `default` | `sm` | `lg` | `icon` | `icon-sm` | `icon-lg` | `icon-navbar`
+- `loading`, `loadingIcon`, `loadingIconClassName`: loading-state controls
+- `asChild`: render through Radix `Slot`
+- all standard React button props
 
-### Input 输入框
+### Input
 
-带有错误处理和密码显示切换的输入框组件。
+The Shadcn-compatible native input primitive.
 
 **Props:**
 
-- `type`: 'text' | 'password' | 'email' | 'number'
-- `error`: boolean
-- `errorMessage`: string
-- `onChange`: (value: string) => void
+- accepts standard React input props, including native `type`, `value`, and event-based `onChange`
+- use `aria-invalid` for invalid-state styling
+- use `className` for supported layout composition
 
 ## Hooks
 
-### useDebounce
+### useDndReorder
 
-防抖处理，延迟执行状态更新。
+Keeps drag reordering correct when the rendered list is a filtered subset of the source list.
 
-### useLocalStorage
+### useDndState
 
-本地存储的 React Hook 封装。
+Reads the active and hovered identifiers from the current dnd-kit context.
 
-### useClickOutside
+## Utilities
 
-检测点击元素外部区域。
+### toUndefinedIfNull(value)
 
-### useCopyToClipboard
+Converts `null` to `undefined` at API boundaries.
 
-复制文本到剪贴板。
+### toNullIfUndefined(value)
 
-## 工具函数
+Converts `undefined` to `null` at API boundaries.
 
-### cn(...inputs)
+### DIALOG_CLOSE_DURATION_MS
 
-基于 clsx 的类名合并工具，支持条件类名。
+Duration of the Dialog CSS close animation: 200 ms.
 
-### formatFileSize(bytes)
+### DIALOG_UNMOUNT_DELAY_MS
 
-格式化文件大小显示。
+Delay for imperative Dialog hosts before unmounting: 200 ms.
 
-### debounce(func, delay)
-
-防抖函数。
-
-### throttle(func, delay)
-
-节流函数。
-
-## 许可证
+## License
 
 MIT

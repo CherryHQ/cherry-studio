@@ -1,6 +1,5 @@
 {
   "code": 200,
-  "msg": "ok",
   "data": {
     "queryContext": {
       "originalQuery": "hello"
@@ -9,10 +8,30 @@
       "value": [
         {
           "name": "Bocha Title",
-          "summary": "Bocha Content",
+          "snippet": "Bocha Content",
+          "summary": null,
           "url": "https://bocha.example/result"
+        },
+        {
+          "name": "Bocha Summary Title",
+          "snippet": null,
+          "summary": "Bocha Summary Content",
+          "url": "https://bocha.example/summary-result"
+        },
+        {
+          "name": "Bocha Preferred Summary Title",
+          "snippet": "Bocha Ignored Snippet",
+          "summary": "Bocha Preferred Summary Content",
+          "url": "https://bocha.example/preferred-summary-result"
+        },
+        {
+          "name": "Bocha Empty Content Title",
+          "snippet": null,
+          "summary": null,
+          "url": "https://bocha.example/empty-content-result"
         }
       ]
     }
-  }
+  },
+  "msg": null
 }

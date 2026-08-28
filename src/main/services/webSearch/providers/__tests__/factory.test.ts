@@ -1,4 +1,4 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -10,6 +10,10 @@ vi.mock('@logger', () => ({
       error: vi.fn()
     })
   }
+}))
+
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: vi.fn() }
 }))
 
 vi.mock('electron', () => ({
@@ -30,60 +34,82 @@ vi.mock('electron', () => ({
   }))
 }))
 
+import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
+import { FetchProvider } from '../api/FetchProvider'
+import { JinaProvider } from '../api/JinaProvider'
+import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { createWebSearchProvider } from '../factory'
-import { LocalBaiduProvider } from '../locals/LocalBaiduProvider'
-import { LocalBingProvider } from '../locals/LocalBingProvider'
-import { LocalGoogleProvider } from '../locals/LocalGoogleProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
+import { WEB_SEARCH_PROVIDER_REGISTRY } from '../registry'
 
-function createProvider(overrides: Partial<ResolvedWebSearchProvider>): ResolvedWebSearchProvider {
+function createProvider<TProviderId extends WebSearchProvider['id']>(
+  overrides: Partial<WebSearchProvider> & { id: TProviderId }
+): WebSearchProvider & { id: TProviderId } {
+  const { id, ...restOverrides } = overrides
+
   return {
-    id: 'tavily',
+    id,
     name: 'Provider',
     type: 'api',
-    usingBrowser: false,
     apiKeys: ['test-key'],
-    apiHost: 'https://api.example.com',
+    capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.example.com' }],
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: '',
-    ...overrides
-  }
+    ...restOverrides
+  } as WebSearchProvider & { id: TProviderId }
 }
 
 describe('createWebSearchProvider', () => {
-  it('maps each provider id to the correct implementation class', () => {
-    expect(createWebSearchProvider(createProvider({ id: 'zhipu' }))).toBeInstanceOf(ZhipuProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'tavily' }))).toBeInstanceOf(TavilyProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'searxng' }))).toBeInstanceOf(SearxngProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'exa' }))).toBeInstanceOf(ExaProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }))).toBeInstanceOf(ExaMcpProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'bocha' }))).toBeInstanceOf(BochaProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'querit' }))).toBeInstanceOf(QueritProvider)
-    expect(
-      createWebSearchProvider(createProvider({ id: 'local-google', type: 'local', usingBrowser: true, apiKeys: [] }))
-    ).toBeInstanceOf(LocalGoogleProvider)
-    expect(
-      createWebSearchProvider(createProvider({ id: 'local-bing', type: 'local', usingBrowser: true, apiKeys: [] }))
-    ).toBeInstanceOf(LocalBingProvider)
-    expect(
-      createWebSearchProvider(createProvider({ id: 'local-baidu', type: 'local', usingBrowser: true, apiKeys: [] }))
-    ).toBeInstanceOf(LocalBaiduProvider)
+  it('registers every supported provider id', () => {
+    expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
+      'bocha',
+      'exa',
+      'exa-mcp',
+      'fetch',
+      'firecrawl',
+      'jina',
+      'parallel',
+      'querit',
+      'searxng',
+      'tavily',
+      'zhipu'
+    ])
   })
 
-  it('throws for unsupported provider ids', () => {
-    expect(() =>
+  it('maps each provider id to the correct implementation class', () => {
+    const rotationState = new ApiKeyRotationState()
+
+    expect(createWebSearchProvider(createProvider({ id: 'zhipu' }), rotationState)).toBeInstanceOf(ZhipuProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'tavily' }), rotationState)).toBeInstanceOf(TavilyProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'searxng' }), rotationState)).toBeInstanceOf(SearxngProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'exa' }), rotationState)).toBeInstanceOf(ExaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }), rotationState)).toBeInstanceOf(
+      ExaMcpProvider
+    )
+    expect(createWebSearchProvider(createProvider({ id: 'bocha' }), rotationState)).toBeInstanceOf(BochaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'querit' }), rotationState)).toBeInstanceOf(QueritProvider)
+    expect(
+      createWebSearchProvider(createProvider({ id: 'fetch', capabilities: [{ feature: 'fetchUrls' }] }), rotationState)
+    ).toBeInstanceOf(FetchProvider)
+    expect(
       createWebSearchProvider(
         createProvider({
-          id: 'unsupported-provider' as ResolvedWebSearchProvider['id']
-        })
+          id: 'jina',
+          capabilities: [
+            { feature: 'searchKeywords', apiHost: 'https://s.jina.ai' },
+            { feature: 'fetchUrls', apiHost: 'https://r.jina.ai' }
+          ]
+        }),
+        rotationState
       )
-    ).toThrow('Unsupported web search provider: unsupported-provider')
+    ).toBeInstanceOf(JinaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'parallel' }), rotationState)).toBeInstanceOf(ParallelProvider)
   })
 })

@@ -1,9 +1,9 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-25T15:56:52.716Z
+ * Generated at: 2026-08-11T04:29:58.855Z
  *
  * This file contains pure mapping relationships without default values.
- * Default values are managed in packages/shared/data/preferences.ts
+ * Default values are managed in src/shared/data/preferences.ts
  *
  * === AUTO-GENERATED CONTENT START ===
  */
@@ -17,6 +17,10 @@ export const ELECTRON_STORE_MAPPINGS = [
   {
     originalKey: 'ZoomFactor',
     targetKey: 'app.zoom_factor'
+  },
+  {
+    originalKey: 'clientId',
+    targetKey: 'app.user.id'
   }
 ] as const
 
@@ -79,10 +83,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.developer_mode.enabled'
     },
     {
-      originalKey: 'showAssistants',
-      targetKey: 'assistant.tab.show'
-    },
-    {
       originalKey: 'showTopics',
       targetKey: 'topic.tab.show'
     },
@@ -96,7 +96,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.chat.target_language'
+      targetKey: 'chat.input.translate.target_language'
     },
     {
       originalKey: 'proxyMode',
@@ -113,14 +113,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'userName',
       targetKey: 'app.user.name'
-    },
-    {
-      originalKey: 'userId',
-      targetKey: 'app.user.id'
-    },
-    {
-      originalKey: 'showPrompt',
-      targetKey: 'chat.message.show_prompt'
     },
     {
       originalKey: 'showMessageDivider',
@@ -160,31 +152,11 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'topicPosition',
-      targetKey: 'topic.position'
-    },
-    {
-      originalKey: 'showTopicTime',
-      targetKey: 'topic.tab.show_time'
-    },
-    {
-      originalKey: 'pinTopicsToTop',
-      targetKey: 'topic.tab.pin_to_top'
+      targetKey: 'topic.tab.position'
     },
     {
       originalKey: 'assistantIconType',
       targetKey: 'assistant.icon_type'
-    },
-    {
-      originalKey: 'pasteLongTextAsFile',
-      targetKey: 'chat.input.paste_long_text_as_file'
-    },
-    {
-      originalKey: 'pasteLongTextThreshold',
-      targetKey: 'chat.input.paste_long_text_threshold'
-    },
-    {
-      originalKey: 'clickAssistantToShowTopic',
-      targetKey: 'assistant.click_to_show_topic'
     },
     {
       originalKey: 'renderInputMessageAsMarkdown',
@@ -261,10 +233,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'codeFancyBlock',
       targetKey: 'chat.code.fancy_block'
-    },
-    {
-      originalKey: 'mathEngine',
-      targetKey: 'chat.message.math.engine'
     },
     {
       originalKey: 'mathEnableSingleDollar',
@@ -347,10 +315,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'topic.naming.enabled'
     },
     {
-      originalKey: 'customCss',
-      targetKey: 'ui.custom_css'
-    },
-    {
       originalKey: 'topicNamingPrompt',
       targetKey: 'topic.naming_prompt'
     },
@@ -361,14 +325,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'confirmRegenerateMessage',
       targetKey: 'chat.message.confirm_regenerate'
-    },
-    {
-      originalKey: 'sidebarIcons.visible',
-      targetKey: 'ui.sidebar.icons.visible'
-    },
-    {
-      originalKey: 'sidebarIcons.disabled',
-      targetKey: 'ui.sidebar.icons.invisible'
     },
     {
       originalKey: 'narrowMode',
@@ -476,15 +432,19 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'maxKeepAliveMinapps',
-      targetKey: 'feature.minapp.max_keep_alive'
-    },
-    {
-      originalKey: 'showOpenedMinappsInSidebar',
-      targetKey: 'feature.minapp.show_opened_in_sidebar'
+      targetKey: 'feature.mini_app.max_keep_alive'
     },
     {
       originalKey: 'minappsOpenLinkExternal',
-      targetKey: 'feature.minapp.open_link_external'
+      targetKey: 'feature.mini_app.open_link_external'
+    },
+    {
+      originalKey: 'minAppRegion',
+      targetKey: 'feature.mini_app.region'
+    },
+    {
+      originalKey: 'privacyPolicyVersion',
+      targetKey: 'app.privacy.policy_version'
     },
     {
       originalKey: 'enableSpellCheck',
@@ -493,10 +453,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'spellCheckLanguages',
       targetKey: 'app.spell_check.languages'
-    },
-    {
-      originalKey: 'enableQuickPanelTriggers',
-      targetKey: 'chat.input.quick_panel.triggers_enabled'
     },
     {
       originalKey: 'useSystemTitleBar',
@@ -543,10 +499,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.export.menus.plain_text'
     },
     {
-      originalKey: 'exportMenuOptions.notes',
-      targetKey: 'data.export.menus.notes'
-    },
-    {
       originalKey: 'notification.assistant',
       targetKey: 'app.notification.assistant.enabled'
     },
@@ -577,6 +529,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'localBackupSkipBackupFile',
       targetKey: 'data.backup.local.skip_backup_file'
+    },
+    {
+      originalKey: 'defaultPaintingProvider',
+      targetKey: 'feature.paintings.default_provider'
     },
     {
       originalKey: 's3.endpoint',
@@ -624,19 +580,19 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'apiServer.enabled',
-      targetKey: 'feature.csaas.enabled'
+      targetKey: 'feature.api_gateway.enabled'
     },
     {
       originalKey: 'apiServer.host',
-      targetKey: 'feature.csaas.host'
+      targetKey: 'feature.api_gateway.host'
     },
     {
       originalKey: 'apiServer.port',
-      targetKey: 'feature.csaas.port'
+      targetKey: 'feature.api_gateway.port'
     },
     {
       originalKey: 'apiServer.apiKey',
-      targetKey: 'feature.csaas.api_key'
+      targetKey: 'feature.api_gateway.api_key'
     },
     {
       originalKey: 'showMessageOutline',
@@ -689,30 +645,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
-  memory: [
+  llm: [
     {
-      originalKey: 'memoryConfig.embedderDimensions',
-      targetKey: 'feature.memory.embedder_dimensions'
-    },
-    {
-      originalKey: 'memoryConfig.isAutoDimensions',
-      targetKey: 'feature.memory.auto_dimensions'
-    },
-    {
-      originalKey: 'memoryConfig.customFactExtractionPrompt',
-      targetKey: 'feature.memory.fact_extraction_prompt'
-    },
-    {
-      originalKey: 'memoryConfig.customUpdateMemoryPrompt',
-      targetKey: 'feature.memory.update_memory_prompt'
-    },
-    {
-      originalKey: 'currentUserId',
-      targetKey: 'feature.memory.current_user_id'
-    },
-    {
-      originalKey: 'globalMemoryEnabled',
-      targetKey: 'feature.memory.enabled'
+      originalKey: 'quickAssistantId',
+      targetKey: 'feature.quick_assistant.assistant_id'
     }
   ],
   nutstore: [
@@ -744,73 +680,7 @@ export const REDUX_STORE_MAPPINGS = {
   preprocess: [
     {
       originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default_markdown_conversion'
-    }
-  ],
-  shortcuts: [
-    {
-      originalKey: 'shortcuts.zoom_in',
-      targetKey: 'shortcut.app.zoom_in'
-    },
-    {
-      originalKey: 'shortcuts.zoom_out',
-      targetKey: 'shortcut.app.zoom_out'
-    },
-    {
-      originalKey: 'shortcuts.zoom_reset',
-      targetKey: 'shortcut.app.zoom_reset'
-    },
-    {
-      originalKey: 'shortcuts.show_settings',
-      targetKey: 'shortcut.app.show_settings'
-    },
-    {
-      originalKey: 'shortcuts.show_app',
-      targetKey: 'shortcut.app.show_main_window'
-    },
-    {
-      originalKey: 'shortcuts.mini_window',
-      targetKey: 'shortcut.app.show_mini_window'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_toggle',
-      targetKey: 'shortcut.selection.toggle_enabled'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_select_text',
-      targetKey: 'shortcut.selection.get_text'
-    },
-    {
-      originalKey: 'shortcuts.new_topic',
-      targetKey: 'shortcut.topic.new'
-    },
-    {
-      originalKey: 'shortcuts.toggle_show_assistants',
-      targetKey: 'shortcut.app.toggle_show_assistants'
-    },
-    {
-      originalKey: 'shortcuts.copy_last_message',
-      targetKey: 'shortcut.chat.copy_last_message'
-    },
-    {
-      originalKey: 'shortcuts.search_message_in_chat',
-      targetKey: 'shortcut.chat.search_message'
-    },
-    {
-      originalKey: 'shortcuts.search_message',
-      targetKey: 'shortcut.app.search_message'
-    },
-    {
-      originalKey: 'shortcuts.clear_topic',
-      targetKey: 'shortcut.chat.clear'
-    },
-    {
-      originalKey: 'shortcuts.toggle_new_context',
-      targetKey: 'shortcut.chat.toggle_new_context'
-    },
-    {
-      originalKey: 'shortcuts.exit_fullscreen',
-      targetKey: 'shortcut.app.exit_fullscreen'
+      targetKey: 'feature.file_processing.default_document_to_markdown'
     }
   ],
   translate: [
@@ -832,7 +702,7 @@ export const REDUX_STORE_MAPPINGS = {
   ocr: [
     {
       originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default_text_extraction'
+      targetKey: 'feature.file_processing.default_image_to_text'
     }
   ],
   note: [
@@ -895,6 +765,10 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
     targetKey: 'feature.translate.auto_detection_method'
   },
   {
+    originalKey: 'image://avatar',
+    targetKey: 'app.user.avatar'
+  },
+  {
     originalKey: 'translate:markdown:enabled',
     targetKey: 'feature.translate.page.enable_markdown'
   },
@@ -903,20 +777,8 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
     targetKey: 'feature.translate.page.scroll_sync'
   },
   {
-    originalKey: 'translate:bidirectional:pair',
-    targetKey: 'feature.translate.page.bidirectional_pair'
-  },
-  {
     originalKey: 'translate:bidirectional:enabled',
     targetKey: 'feature.translate.page.bidirectional_enabled'
-  },
-  {
-    originalKey: 'translate:source:language',
-    targetKey: 'feature.translate.page.source_language'
-  },
-  {
-    originalKey: 'translate:target:language',
-    targetKey: 'feature.translate.page.target_language'
   }
 ] as const
 
@@ -936,12 +798,12 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 
 /**
  * 映射统计:
- * - ElectronStore项: 1
- * - Redux Store项: 208
- * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
- * - DexieSettings项: 7
+ * - ElectronStore项: 2
+ * - Redux Store项: 174
+ * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
+ * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 216
+ * - 总配置项: 181
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

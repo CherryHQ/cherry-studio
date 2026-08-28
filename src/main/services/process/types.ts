@@ -25,10 +25,15 @@ export interface ProcessLogLine {
   timestamp: number
 }
 
-export interface ProcessManagerEvents {
-  'process:started': (id: string, pid: number) => void
-  'process:exited': (id: string, code: number | null, signal: NodeJS.Signals | null) => void
-  'process:log': (line: ProcessLogLine) => void
+export interface ProcessStartedEvent {
+  id: string
+  pid: number
+}
+
+export interface ProcessExitedEvent {
+  id: string
+  code: number | null
+  signal: NodeJS.Signals | null
 }
 
 export const DEFAULT_KILL_TIMEOUT_MS = 5000

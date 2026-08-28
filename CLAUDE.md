@@ -1,232 +1,114 @@
-# AI Assistant Guide
-
-This file provides guidance to AI coding assistants when working with code in this repository. Adherence to these guidelines is crucial for maintaining code quality and consistency.
-
 ## Guiding Principles (MUST FOLLOW)
 
+### Mindset
+
+How to approach any coding task in this repo.
+
+#### Think Before Coding
+
+- State assumptions explicitly. If uncertain, ask before implementing.
+- When multiple interpretations exist, surface them — do not pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what is confusing. Ask.
+
+#### Simplicity First
+
+- Write the minimum code that solves the problem. Nothing speculative.
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that was not requested.
+- No error handling for impossible scenarios.
+- If you wrote 200 lines and it could be 50, rewrite it.
+- Inline comments cap at 2 lines. Needing more means the code is a patch — fix the implementation instead of narrating it. Say *why*, never restate *what*; no changelogs, no rationale essays, no pasted chat/review replies. (Doc comments on an exported API — TSDoc `@param`/`@returns`/`@deprecated` — are documentation, not narration, and are exempt.)
+
+#### Surgical Changes
+
+- Touch only what the task requires. Do not "improve" adjacent code, comments, or formatting.
+- Do not refactor things that are not broken.
+- Match existing style even if you would do it differently.
+- If you notice unrelated dead code, mention it — do not delete it.
+- Remove imports / variables / functions that **your** changes orphaned. Leave pre-existing dead code alone unless asked.
+- Every changed line must trace directly to the user's request.
+
+#### Goal-Driven Execution
+
+- Convert tasks into verifiable goals before coding:
+  - "Add validation" → "Write tests for invalid inputs, then make them pass."
+  - "Fix the bug" → "Write a test that reproduces it, then make it pass."
+  - "Refactor X" → "Ensure tests pass before and after."
+- For multi-step tasks, state a brief plan with explicit verification per step:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+```
+
+### Operational Rules
+
+Project-specific tools, paths, and conventions.
+
 - **Keep it clear**: Write code that is easy to read, maintain, and explain.
-- **Match the house style**: Reuse existing patterns, naming, and conventions.
-- **Search smart**: Prefer `ast-grep` for semantic queries; fall back to `rg`/`grep` when needed.
-- **Build with Tailwind CSS & Shadcn UI**: Use components from `@packages/ui` (Shadcn UI + Tailwind CSS) for every new UI component; never add `antd` or `styled-components`.
+- **Read local READMEs first**: Before editing code in a directory, check for a `README.md` in that directory (and its parents) and read it — these files capture local conventions, invariants, and entry points that aren't obvious from the code alone.
+- **Fix upstream, don't hack downstream**: When a new feature hits an existing module's limitation, flag the upstream improvement for the user's decision before proposing a downstream workaround.
+- **Library-first, custom-last**: Before writing custom code, check library/framework docs for built-in options or existing solutions. Write custom code only when no adequate alternative exists.
+- **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
-- **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
-- **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
-- **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
-- **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat:`, `fix:`, `refactor:`, `docs:`).
-- **Sign commits**: Use `git commit --signoff` as required by contributor guidelines.
+- **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
+- **Check what you changed, not the whole repo**: for code, run `pnpm lint` (it covers format + typecheck + `i18n:check`) plus the tests covering your change — per-project wrappers (`pnpm test:main <file>`, `test:renderer`, `test:aicore`, `test:shared`, `test:pkg:ui`, `test:scripts`) or `pnpm exec vitest run <file>` for a few files; full `pnpm test` only when the change is broad or you can't name the affected tests. Never use `pnpm test <path>`: the script chains several vitest invocations with `&&`, CLI args reach only the last one, and earlier projects run their full suites unfiltered. Docs/markdown-only edits need just `pnpm docs:check` (links + structure + frontmatter + index). CI runs the full gate; your job is to not obviously break it.
+- **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
+- **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
+- **Target the right branch**: `main` is the default branch for all active development — submit features, refactors, optimizations, and fixes here.
 
-## Pull Request Workflow (CRITICAL)
+## Development
 
-When creating a Pull Request, you MUST use the `gh-create-pr` skill.
-If the skill is unavailable, directly read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually.
+### Commands
 
-## Review Workflow
+Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` — let it enforce them). For every other script, read `package.json` — the ones you must know:
 
-When reviewing a Pull Request, do NOT run `pnpm lint`, `pnpm test`, or `pnpm format` locally.
-Instead, check CI status directly using GitHub CLI:
+- `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
+- `pnpm test` — run all Vitest tests
+- `pnpm format` — Biome format + lint (write mode)
+- `pnpm docs:check` — the docs gate (`check-links` + structure closed-set + frontmatter/`sources` existence + generated-index freshness); the only thing `build:check` adds over `lint` + `test`. Run it for docs/markdown edits instead of the full gate. Docs under `docs/references/**` and `docs/contrib/**` carry `description`/`sources` frontmatter; `docs/README.md` is generated — edit frontmatter and run `pnpm docs:index`, never the index by hand.
+- `pnpm build:check` — `lint` + `docs:check` + full `test`, i.e. the whole gate in one command. Worth it for broad or risky changes; for anything narrower run the piece that matters. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
+- `pnpm test:lint` — the CI-equivalent lint gate: it denies oxlint warnings that `pnpm lint` / `pnpm build:check` silently tolerate; run it when CI must pass.
 
-- **Check CI status**: `gh pr checks <PR_NUMBER>` - View all CI check results for the PR
-- **Check PR details**: `gh pr view <PR_NUMBER>` - View PR status, reviews, and merge readiness
-- **View failed logs**: `gh run view <RUN_ID> --log-failed` - Inspect logs for failed CI runs
+### Testing
 
-Only investigate CI failures by reading the logs, not by re-running checks locally.
+- Tests run with Vitest 3 (see `vitest.config.*` for project setup).
+- **No behavior-pinning tests**: a test whose only assertion records what the code currently does — a snapshot of whatever came out, `toHaveBeenCalled` on a mock, an expected value re-derived the way the implementation derives it — has zero value. It cannot fail for a real reason, it breaks on every refactor, and it certifies existing bugs as "expected". Assert the contract instead: real input → the outcome the feature promises, plus the failure and edge cases. Before writing a test, state the bug it would catch; if you cannot, do not write it. **The existing suite is full of these** — delete the ones in a file you are already editing rather than keeping them green; a repo-wide purge is its own task, not a side effect of an unrelated PR.
+- **Frontend Tests — MUST READ**: [Frontend Testing Guidelines](docs/references/testing/frontend-testing.md).
+- **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
+- **Database Tests**: For any service/handler/seeder that reads or writes SQLite, use `setupTestDatabase()` from `@test-helpers/db` — it provides a real file-backed DB with production migrations. Do NOT hand-write `CREATE TABLE` SQL, override `@application`, or stub Drizzle chains. See [docs/references/testing/database-testing.md](docs/references/testing/database-testing.md).
 
-## Issue Workflow
+### Patched Dependencies
 
-When creating an Issue, you MUST use the `gh-create-issue` skill.
-If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
+Before upgrading any dependency, check `patches/` for custom patches.
 
-### Current Contribution Restrictions
+## GitHub
 
-> **IMPORTANT**: Feature PRs that change Redux data models or IndexedDB schemas are **temporarily blocked** until v2.0.0 releases. Only bug fixes, performance improvements, docs, and non-data-model features are accepted. Track progress at [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162).
+### Pull Requests
 
-## Development Commands
+Use the `gh-create-pr` skill. Fallback: read `.agents/skills/gh-create-pr/SKILL.md` directly.
 
-- **Install**: `pnpm install` — Install all project dependencies (requires Node ≥22, pnpm 10.27.0)
-- **Development**: `pnpm dev` — Runs Electron app in development mode with hot reload
-- **Debug**: `pnpm debug` — Starts with debugging; attach via `chrome://inspect` on port 9222
-- **Build Check**: `pnpm build:check` — **REQUIRED** before commits (`pnpm lint && pnpm test`)
-  - If having i18n sort issues, run `pnpm i18n:sync` first
-  - If having formatting issues, run `pnpm format` first
-- **Full Build**: `pnpm build` — TypeScript typecheck + electron-vite build
-- **Test**: `pnpm test` — Run all Vitest tests (main + renderer + aiCore + shared + scripts)
-  - `pnpm test:main` — Main process tests only (Node environment)
-  - `pnpm test:renderer` — Renderer process tests only (jsdom environment)
-  - `pnpm test:aicore` — aiCore package tests only
-  - `pnpm test:watch` — Watch mode
-  - `pnpm test:coverage` — With v8 coverage report
-  - `pnpm test:e2e` — Playwright end-to-end tests
-- **Lint**: `pnpm lint` — oxlint + eslint fix + TypeScript typecheck + i18n check + format check
-- **Format**: `pnpm format` — Biome format + lint (write mode)
-- **Typecheck**: `pnpm typecheck` — Concurrent node + web TypeScript checks using `tsgo`
-- **i18n**:
-  - `pnpm i18n:sync` — Sync i18n template keys
-  - `pnpm i18n:translate` — Auto-translate missing keys
-  - `pnpm i18n:check` — Validate i18n completeness
-- **Bundle Analysis**: `pnpm analyze:renderer` / `pnpm analyze:main` — Visualize bundle sizes
-- **Agents DB**:
-  - `pnpm agents:generate` — Generate Drizzle migrations
-  - `pnpm agents:push` — Push schema to SQLite DB
-  - `pnpm agents:studio` — Open Drizzle Studio
+### Code Review
 
-## Project Architecture
+When reviewing a GitHub PR, do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — its CI already ran them; inspect via `gh` instead.
 
-### Electron Structure
+### Issues
 
-- **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
-- **Renderer Process** (`src/renderer/`): React UI
-- **Preload Scripts** (`src/preload/`): Secure IPC bridge
+Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/SKILL.md` directly.
 
-### Key Architectural Components
+## Conventions
 
-#### Data Management
+### TypeScript
 
-**MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
+- Cross-process types belong in `src/shared/`; renderer-only shared types in `src/renderer/types/` (see [Shared Layer Architecture](docs/references/architecture/shared-layer.md)).
 
-| System     | Use Case                        | APIs                                            |
-| ---------- | ------------------------------- | ----------------------------------------------- |
-| BootConfig | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
-| Cache      | Temp data (can lose)            | `useCache`, `useSharedCache`, `usePersistCache` |
-| Preference | User settings                   | `usePreference`                                 |
-| DataApi    | Business data (**critical**)    | `useQuery`, `useMutation`                       |
+### Naming Conventions
 
-Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
+**MUST READ**: [docs/references/architecture/naming-conventions.md](docs/references/architecture/naming-conventions.md) — files, directories, identifiers, and singular/plural rules.
 
-### Build System
-
-- **Electron-Vite**: Development and build tooling (v4.0.0)
-- **Rolldown-Vite**: Using experimental rolldown-vite instead of standard vite
-- **Workspaces**: Monorepo structure with `packages/` directory
-- **Multiple Entry Points**: Main app, mini window, selection toolbar
-- **Styled Components**: CSS-in-JS styling with SWC optimization
-
-### Testing Strategy
-
-- **Vitest**: Unit and integration testing
-- **Playwright**: End-to-end testing
-- **Component Testing**: React Testing Library
-- **Coverage**: Available via `yarn test:coverage`
-
-#### Main Process Services (Lifecycle)
-
-**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) for architecture, decision guides, and usage patterns.
-
-All main-process services must use the lifecycle system. When creating or migrating a service:
-
-1. **Extend `BaseService`** and apply decorators:
-
-```typescript
-import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/core/lifecycle'
-
-@Injectable('MyService')
-@ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
-@DependsOn(['DbService'])             // what must be ready first
-export class MyService extends BaseService {
-  protected async onInit() {
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers() {
-    // Use this.ipcHandle() / this.ipcOn() for auto-tracked IPC handlers
-    this.ipcHandle(IpcChannel.MyAction, (_, arg) => this.handleAction(arg))
-  }
-
-  protected async onStop() { /* service-specific cleanup — IPC auto-removed */ }
-}
-```
-
-> Use `this.ipcHandle()` / `this.ipcOn()` instead of `ipcMain.handle()` / `ipcMain.on()` for lifecycle-managed services — handlers are automatically removed on service stop/destroy. Always extract IPC registrations into a `private registerIpcHandlers()` method.
-
-> Use `Emitter<T>` / `Event<T>` for inter-service runtime communication (e.g., notifying other services when work completes after `onInit()`). Use `Signal<T>` for one-shot completion. Register subscriptions via `this.registerDisposable()` for automatic cleanup on stop/destroy. See [Lifecycle Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md#service-events-emitter--event).
-
-2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
-
-```typescript
-export const services = {
-  // ...existing
-  MyService,  // ← one line, types auto-derived
-} as const
-```
-
-3. **Access at runtime** via the type-safe `application.get()` (or `application.getOptional()` for `@Conditional` services):
-
-```typescript
-import { application } from '@main/core/application'
-const myService = application.get('MyService')
-const optionalService = application.getOptional('ConditionalService') // T | undefined
-```
-
-**Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.
-
-> **Migrating old services?** See the step-by-step [Lifecycle Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
-
-#### Non-Lifecycle Services (Direct-Import Singleton)
-
-Services that do **not** own long-lived resources or register persistent side effects (both main and renderer process) should **not** use the lifecycle system. Use a named export singleton instead:
-
-```typescript
-export class ExportService {
-  async exportToDocx(messages: Message[]) { /* ... */ }
-}
-export const exportService = new ExportService()
-```
-
-Rules:
-- **Always use named export** (`export const x = new X()`), never `export default new X()` or `export default X.getInstance()`
-- Export both the class (for type references) and the instance (for runtime use)
-- Do not use manual singleton patterns (`private static instance` + `getInstance()`) — a module-level `const` is already a singleton
-- See [Lifecycle Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for the decision criteria (main process only)
-
-### Key Patterns
-
-- **IPC Communication**: Secure main-renderer communication via preload scripts
-- **Service Layer**: Clear separation between UI and business logic
-- **Plugin Architecture**: Extensible via MCP servers and middleware
-- **Multi-language Support**: i18n with dynamic loading
-- **Theme System**: Light/dark themes with custom CSS variables
-
-## v2 Refactoring (In Progress)
-
-The v2 branch is undergoing a major refactoring effort:
-
-### Data Layer
-
-- **Removing**: Redux, Dexie
-- **Adopting**: Cache / Preference / DataApi architecture (see [Data Management](#data-management))
-
-### UI Layer
-
-- **Removing**: antd, HeroUI, styled-components
-- **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
-- **Prohibited**: antd, HeroUI, styled-components
-
-### Data Classification Toolchain
-
-The `v2-refactor-temp/tools/data-classify/` directory contains the code generation pipeline for the v2 data layer. `classification.json` is the single source of truth.
-
-**Rule**: After modifying `classification.json` or `target-key-definitions.json`, you **MUST** run:
-
-```bash
-cd v2-refactor-temp/tools/data-classify && npm run generate
-```
-
-This regenerates the following TypeScript files:
-- `packages/shared/data/preference/preferenceSchemas.ts`
-- `packages/shared/data/bootConfig/bootConfigSchemas.ts`
-- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
-- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
-
-### File Naming Convention
-
-During migration, use `*.v2.ts` suffix for files not yet fully migrated:
-
-- Indicates work-in-progress refactoring
-- Avoids conflicts with existing code
-- **Post-completion**: These files will be renamed or merged into their final locations
-
-## Logging Standards
-
-### Usage
+### Logging
 
 ```typescript
 import { loggerService } from "@logger";
@@ -237,102 +119,111 @@ logger.warn("message");
 logger.error("message", error);
 ```
 
-- Backend: Winston with daily log rotation
-- Log files in `userData/logs/`
-- Never use `console.log` — always use `loggerService`
+### Paths
 
-### Tracing (OpenTelemetry)
-
-- `packages/mcp-trace/` provides trace-core and trace-node/trace-web adapters
-- `NodeTraceService` exports spans via OTLP HTTP
-- `SpanCacheService` caches span entities for the trace viewer window
-- IPC calls can carry span context via `tracedInvoke()`
-
-## Tech Stack
-
-| Layer         | Technologies                                         |
-| ------------- | ---------------------------------------------------- |
-| Runtime       | Electron 38, Node ≥22                                |
-| Frontend      | React 19, TypeScript ~5.8                            |
-| UI            | Ant Design 5.27, styled-components 6, TailwindCSS v4 |
-| State         | Redux Toolkit, redux-persist, Dexie (IndexedDB)      |
-| Rich Text     | TipTap 3.2 (with Yjs collaboration)                  |
-| AI SDK        | Vercel AI SDK v5 (`ai`), `@cherrystudio/ai-core`     |
-| Build         | electron-vite 5 with rolldown-vite 7 (experimental)  |
-| Test          | Vitest 3 (unit), Playwright (e2e)                    |
-| Lint/Format   | ESLint 9, oxlint, Biome 2                            |
-| DB (main)     | Drizzle ORM + LibSQL (SQLite)                        |
-| DB (renderer) | Dexie (IndexedDB)                                    |
-| Logging       | Winston + winston-daily-rotate-file                  |
-| Tracing       | OpenTelemetry                                        |
-| i18n          | i18next + react-i18next                              |
-
-## Conventions
-
-### TypeScript
-
-- Strict mode enabled; use `tsgo` (native TypeScript compiler preview) for typechecking
-- Separate configs: `tsconfig.node.json` (main), `tsconfig.web.json` (renderer)
-- Type definitions centralized in `src/renderer/src/types/` and `packages/shared/`
-
-### Code Style
-
-- Biome handles formatting (2-space indent, single quotes, trailing commas)
-- oxlint + ESLint for linting; `simple-import-sort` enforces import order
-- React hooks: `eslint-plugin-react-hooks` enforced
-- No unused imports: `eslint-plugin-unused-imports`
-
-### File Naming
-
-- React components: `PascalCase.tsx`
-- Services, hooks, utilities: `camelCase.ts`
-- Test files: `*.test.ts` or `*.spec.ts` alongside source or in `__tests__/` subdirectory
+**MUST READ**: [src/main/core/paths/README.md](src/main/core/paths/README.md) — namespaces, naming, adding new keys, testing patterns. (Rule stated in Guiding Principle "Access paths centrally".)
 
 ### i18n
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
-- Run `pnpm i18n:check` to validate; `pnpm i18n:sync` to add missing keys
-- Locale files in `src/renderer/src/i18n/`
+- Locale catalogs live in `src/renderer/i18n/locales/` and `src/main/i18n/locales/`; both use `en-us.json` as the source of truth
+- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then translate every one. No separate `pnpm i18n:check` run needed — `pnpm lint` includes it, and it rejects leftover placeholders as well as empty values, interpolation/tag mismatches, and unsorted keys.
 
-### Packages with Custom Patches
+### UI Design
 
-Several dependencies have patches in `patches/` — be careful when upgrading:
-- `antd`, `@ai-sdk/google`, `@ai-sdk/openai`, `@anthropic-ai/vertex-sdk`
-- `@google/genai`, `@langchain/core`, `@langchain/openai`
-- `ollama-ai-provider-v2`, `electron-updater`, `epub`, `tesseract.js`
-- `@anthropic-ai/claude-agent-sdk`
+For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and follow its colors, fonts, spacing, and component specs strictly.
 
-## Testing Guidelines
+## Architecture
 
-- Tests use Vitest 3 with project-based configuration
-- Main process tests: Node environment, `tests/main.setup.ts`
-- Renderer tests: jsdom environment, `tests/renderer.setup.ts`, `@testing-library/react`
-- aiCore tests: separate `packages/aiCore/vitest.config.ts`
-- All tests run without CI dependency (fully local)
-- Coverage via v8 provider (`pnpm test:coverage`)
-- **Features without tests are not considered complete**
-- **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
+### Code Organization
 
-## Important Notes
+Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/references/architecture/naming-conventions.md)).
 
-### V2 Refactoring in Progress
+A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary re-exporting one cohesive public API (internals private, outsiders import through it): re-export only (no logic / `export *`), no nesting, and it exists only if lint can seal off deep imports — else no barrel. `index.tsx` is always banned ([Naming Conventions §6.4](docs/references/architecture/naming-conventions.md)).
 
-Files marked with the following header are **blocked for feature changes**:
+- [Main Process Architecture](docs/references/architecture/main-process.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`/`i18n`) and dependency direction.
+- [Renderer Architecture](docs/references/architecture/renderer.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
+- [Shared Layer Architecture](docs/references/architecture/shared-layer.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
 
-```typescript
-/**
- * @deprecated Scheduled for removal in v2.0.0
- * ⚠️ NOTICE: V2 DATA&UI REFACTORING
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- */
-```
+### Data
 
-Do not introduce new features to these files. Bug fixes only.
+**MUST READ**: [docs/references/data/README.md](docs/references/data/README.md) for system selection, architecture, and patterns.
 
-### Security
+| System                                                     | Use Case                            | APIs                                                       |
+| ---------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------- |
+| [BootConfig](docs/references/data/boot-config-overview.md) | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
+| [Cache](docs/references/data/cache-overview.md)            | Temp data (can lose)                | `useCache`, `useSharedCache`, `useSharedCacheValue`, `usePersistCache` |
+| [Preference](docs/references/data/preference-overview.md)  | User settings                       | `usePreference`                                            |
+| [DataApi](docs/references/data/data-api-overview.md)       | Business data (**critical**)        | `useQuery`, `useMutation`                                  |
 
-- Never expose Node.js APIs directly to renderer; use `contextBridge` in preload
-- Validate all IPC inputs in main process handlers
-- URL sanitization via `strict-url-sanitise`
-- IP validation via `ipaddr.js` (API server)
-- `express-validator` for API server request validation
+Scope:
+
+- **BootConfig**: sync file-based; direct in main (pre-lifecycle), via `usePreference('BootConfig.*')` otherwise
+- **Cache**: memory / shared (cross-window) / persist tiers; memory + shared on both main and renderer; persist on both too but as **independent** stores (renderer = localStorage, main = JSON file at `{userData}/cache.json`), never shared — main additionally relays renderer persist sync between windows
+- **Preference**: cross-process (main + renderer); auto-syncs across windows
+- **DataApi**: SQLite-backed; no auto-sync, fetch on demand from renderer
+
+Database: SQLite via **better-sqlite3** + Drizzle ORM — the driver is **synchronous** (queries and transactions run inline with no `await`, unlike the app's otherwise-async data layers), so `getDb()` queries and `withWriteTx(fn)` callbacks must be written synchronously. Schemas in `src/main/data/db/schemas/`, migrations via `pnpm db:migrations:generate`
+
+**Write atomicity**: use `application.get('DbService').withWriteTx(fn)` to commit multiple writes (or a read-then-write) all-or-nothing in one synchronous `BEGIN IMMEDIATE` transaction; `fn` must be synchronous. A single write doesn't need it — better-sqlite3 runs each statement atomically on its one connection. See [Database Patterns — Write Serialization](docs/references/data/database-patterns.md#write-serialization-dbservicewritewritetx).
+
+**DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
+
+### IPC (IpcApi)
+
+**MUST READ**: [docs/references/ipc/README.md](docs/references/ipc/README.md) — paradigm boundary (RPC vs REST), schema/router/preload/facade layering, `IpcContext`, error model, security.
+
+Non-data command IPC (window/system/shell/notification/external/file) goes through **IpcApi** — the fifth subsystem alongside BootConfig/Cache/Preference/DataApi, RPC-over-IPC with single-point schemas (`schema + handler` to add a route; `ipcApi.request('namespace.action', input)` to call; `IpcApiService.broadcast`/`send` + `useIpcOn` for events). Legacy command IPC still coexists, so you'll encounter both. Decision: SQLite data → DataApi; user setting → Preference; losable/shared → Cache; everything else imperative → IpcApi.
+
+### Window Manager
+
+**MUST READ**: [docs/references/window-manager/README.md](docs/references/window-manager/README.md) — lifecycle modes, pool mechanics, API reference.
+
+All `BrowserWindow` goes through `WindowManager` with one of three modes (`default` / `singleton` / `pooled`), declared per type in `src/main/core/window/windowRegistry.ts`.
+
+- **Consumer API**: use only `open()` / `close()` — never `create()` / `destroy()` in business code.
+- **Attach listeners in `onWindowCreated`**, not after `open()` — reused windows skip the latter.
+- **Renderer reads init data via `useWindowInitData`**.
+
+### Main Process Services (Lifecycle)
+
+**MUST READ**: [docs/references/lifecycle/README.md](docs/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
+
+All main-process services that own long-lived resources or register persistent side effects **must** use the lifecycle system:
+
+- **Extend `BaseService`**, apply `@Injectable`, `@ServicePhase`, `@DependsOn` decorators
+- **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`) — one line per service
+- **Use `@DependsOn` for same-phase dependencies only** — do NOT declare dependencies on BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`) from WhenReady services; phase ordering is auto-enforced by the container
+- **Access via `application.get('Name')`** (or `getOptional()` for `@Conditional` services)
+- **Use `this.ipcHandle()` / `this.ipcOn()`** for IPC — auto-cleaned on stop/destroy, returns `Disposable`
+- **Use `this.registerInterval()`** for recurring timers — auto-unref'd, exception-isolated, auto-cleaned on stop/destroy, returns `Disposable`
+- **Use `this.registerDisposable()`** for cleanup tracking — accepts `Disposable` objects or `() => void` cleanup functions
+- **Use `Emitter<T>` / `Event<T>`** for inter-service events, **`Signal<T>`** for one-shot completion
+- **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
+- **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown
+
+For detailed code examples, see [Usage Guide](docs/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/references/lifecycle/lifecycle-migration-guide.md).
+
+### Non-Lifecycle Services (Direct-Import Singleton)
+
+Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/references/lifecycle/lifecycle-decision-guide.md) for criteria.
+
+## Schema & Migration Rules
+
+The v2 refactor has landed. v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/` — never add fallbacks, dual-writes, or guards for v1 save / read / loss.
+
+**The migration chain is no longer throwaway.** It was consolidated into a single clean initial migration and shipped with `v2.0.0-rc.1`, so `migrations/sqlite-drizzle/` now runs against databases holding real user rows. Never wipe or rewrite an already-shipped migration, and never tell a user to delete their database: schema changes go in as new appended migrations generated by `pnpm db:migrations:generate`. `src/main/data/db/schemas/` still changes freely — but every change must survive a migrate-forward on a populated database.
+
+**Resolving migration merge conflicts: regenerate, never rename.** When an upstream migration conflicts with your local one, delete your local `.sql` + its `meta/*_snapshot.json` and re-run `pnpm db:migrations:generate`. Renaming/renumbering instead silently reuses the snapshot's random `id`, forking the chain for everyone — and `drizzle-kit generate` still exits `0`; only `pnpm db:migrations:check` catches it. CI enforces both the chain check and a schema↔migration generate-and-diff step.
+
+### Data Classification Toolchain
+
+`v2-refactor-temp/tools/data-classify/` is the code generation pipeline for the v2 data layer; `classification.json` is the single source of truth (see its README). Four files are **auto-generated — NEVER edit them by hand**: `src/shared/data/preference/preferenceSchemas.ts`, `src/shared/data/bootConfig/bootConfigSchemas.ts`, and `PreferencesMappings.ts` + `BootConfigMappings.ts` in `src/main/data/migration/v2/migrators/mappings/`. To change them, edit `classification.json` or `target-key-definitions.json` (both in `data/`), then run `cd v2-refactor-temp/tools/data-classify && npm run generate`.
+
+### Breaking Changes Log
+
+When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
+
+## Local Instructions
+
+If `CLAUDE.local.md` exists in the repository root (gitignored, may be absent), read it in full before acting on anything in this file — it holds the developer's private instructions and **OVERRIDES this file wherever they conflict**. Tools that auto-load it (e.g. Claude Code) need not re-read it.

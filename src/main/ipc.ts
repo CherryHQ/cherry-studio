@@ -1,358 +1,49 @@
-import fs from 'node:fs'
-import { arch } from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
-import { generateSignature } from '@main/integration/cherryai'
-import { anthropicService } from '@main/services/AnthropicService'
-import { getIpCountry } from '@main/utils/ipService'
+import { handleGuarded } from '@main/core/security/guardedIpc'
 import {
-  autoDiscoverGitBash,
-  getBinaryPath,
-  getGitBashPathInfo,
-  isBinaryExists,
-  runInstallScript,
-  validateGitBashPath
-} from '@main/utils/process'
-import { handleZoomFactor } from '@main/utils/zoom'
-import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+  listDirectory as searchListDirectory,
+  listDirectoryEntries as searchListDirectoryEntries
+} from '@main/services/file'
+import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import { extractPdfText } from '@shared/utils/pdf'
-import type {
-  AgentPersistedMessage,
-  FileMetadata,
-  Notification,
-  OcrProvider,
-  PluginError,
-  Provider,
-  SupportedOcrFile
-} from '@types'
-import checkDiskSpace from 'check-disk-space'
-import type { ProxyConfig } from 'electron'
-import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
-import fontList from 'font-list'
+import { dialog } from 'electron'
 
-import { agentMessageRepository } from './services/agents/database'
-import { pluginService } from './services/agents/plugins/PluginService'
-import { appService } from './services/AppService'
-import AppUpdater from './services/AppUpdater'
-import BackupManager from './services/BackupManager'
-import { cherryINOAuthService } from './services/CherryINOAuthService'
-import { ConfigKeys, configManager } from './services/ConfigManager'
+import { skillService } from './ai/skills/SkillService'
 import { copilotService } from './services/CopilotService'
-import DxtService from './services/DxtService'
-import { ExportService } from './services/ExportService'
-import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import { knowledgeService } from './services/KnowledgeService'
-import { memoryService } from './services/memory/MemoryService'
-import NotificationService from './services/NotificationService'
-import * as NutstoreService from './services/NutstoreService'
-import ObsidianVaultService from './services/ObsidianVaultService'
-import { ocrService } from './services/ocr/OcrService'
-import { openClawService } from './services/OpenClawService'
-import { proxyManager } from './services/ProxyManager'
-import { pythonService } from './services/PythonService'
-import { fileServiceManager } from './services/remotefile/FileServiceManager'
-import { searchService } from './services/SearchService'
-import { storeSyncService } from './services/StoreSyncService'
-import { vertexAIService } from './services/VertexAIService'
-import { setOpenLinkExternal } from './services/WebviewService'
-import { calculateDirectorySize, getResourcePath } from './utils'
-import { decrypt, encrypt } from './utils/aes'
-import {
-  getCacheDir,
-  getConfigDir,
-  getFilesDir,
-  getNotesDir,
-  hasWritePermission,
-  isPathInside,
-  untildify
-} from './utils/file'
-import { updateAppDataConfig } from './utils/init'
-import { getCpuName, getDeviceType, getHostname } from './utils/system'
-import { compress, decompress } from './utils/zip'
+import { legacyBackupManager as backupManager } from './services/LegacyBackupManager'
+import * as NutstoreService from './services/nutstore/NutstoreService'
+import { decrypt } from './utils/aes'
+import { getHostname } from './utils/system'
+import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
-const backupManager = new BackupManager()
-const exportService = new ExportService()
-const obsidianVaultService = new ObsidianVaultService()
-// vertexAIService and memoryService are now imported as named exports
-const dxtService = new DxtService()
-// pluginService is now imported as a named export
+export async function registerIpc() {
+  void backupManager.cleanupStaleTempArtifacts()
 
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
-}
-
-function extractPluginError(error: unknown): PluginError | null {
-  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
-    return error as PluginError
-  }
-  return null
-}
-
-export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const appUpdater = new AppUpdater()
-  const notificationService = new NotificationService()
-
-  // Register shutdown handlers
-  const powerMonitorService = application.get('PowerMonitorService')
-  powerMonitorService.registerShutdownHandler(() => {
-    appUpdater.setAutoUpdate(false)
-  })
-
-  powerMonitorService.registerShutdownHandler(() => {
-    const mw = application.get('WindowService').getMainWindow()
-    if (mw && !mw.isDestroyed()) {
-      mw.webContents.send(IpcChannel.App_SaveData)
-    }
-  })
-
-  ipcMain.handle(IpcChannel.App_Info, () => ({
-    version: app.getVersion(),
-    isPackaged: app.isPackaged,
-    appPath: app.getAppPath(),
-    filesPath: getFilesDir(),
-    notesPath: getNotesDir(),
-    configPath: getConfigDir(),
-    appDataPath: app.getPath('userData'),
-    resourcesPath: getResourcePath(),
-    logsPath: logger.getLogsDir(),
-    arch: arch(),
-    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
-    installPath: path.dirname(app.getPath('exe'))
-  }))
-
-  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
-    let proxyConfig: ProxyConfig
-
-    if (proxy === 'system') {
-      // system proxy will use the system filter by themselves
-      proxyConfig = { mode: 'system' }
-    } else if (proxy) {
-      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy, proxyBypassRules: bypassRules }
-    } else {
-      proxyConfig = { mode: 'direct' }
-    }
-
-    await proxyManager.configureProxy(proxyConfig)
-  })
-
-  ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
-  ipcMain.handle(IpcChannel.App_Quit, () => application.quit())
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
-
-  // Update
-  ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
-
-  // language
-  // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
-  //   configManager.setLanguage(language)
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // const powerService = application.get('PowerService')
+  // powerService.registerShutdownHandler(() => {
+  //   const mw = application.get('MainWindowService').getMainWindow()
+  //   if (mw && !mw.isDestroyed()) {
+  //     mw.webContents.send(IpcChannel.App_SaveData)
+  //   }
   // })
 
-  // spell check
-  ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
-    // disable spell check for all webviews
-    const webviews = webContents.getAllWebContents()
-    webviews.forEach((webview) => {
-      webview.session.setSpellCheckerEnabled(isEnable)
-    })
-  })
-
-  // spell check languages
-  ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
-    if (languages.length === 0) {
-      return
-    }
-    const windows = BrowserWindow.getAllWindows()
-    windows.forEach((window) => {
-      window.webContents.session.setSpellCheckerLanguages(languages)
-    })
-    void application.get('PreferenceService').set('app.spell_check.languages', languages)
-  })
-
-  // launch on boot
-  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
-    await appService.setAppLaunchOnBoot(isLaunchOnBoot)
-  })
-
-  // // launch to tray
-  // ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
-  //   configManager.setLaunchToTray(isActive)
-  // })
-
-  // // tray
-  // ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
-  //   configManager.setTray(isActive)
-  // })
-
-  // // to tray on close
-  // ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
-  //   configManager.setTrayOnClose(isActive)
-  // })
-
-  // // auto update
-  // ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
-  //   appUpdater.setAutoUpdate(isActive)
-  //   configManager.setAutoUpdate(isActive)
-  // })
-
-  ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
-    logger.info(`set test plan: ${isActive}`)
-    if (isActive !== application.get('PreferenceService').get('app.dist.test_plan.enabled')) {
-      appUpdater.cancelDownload()
-    }
-  })
-
-  ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
-    logger.info(`set test channel: ${channel}`)
-    if (channel !== application.get('PreferenceService').get('app.dist.test_plan.channel')) {
-      appUpdater.cancelDownload()
-    }
-  })
-
-  ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
-    try {
-      return await agentMessageRepository.persistExchange(payload)
-    } catch (error) {
-      logger.error('Failed to persist agent session messages', error as Error)
-      throw error
-    }
-  })
-
-  ipcMain.handle(
-    IpcChannel.AgentMessage_GetHistory,
-    async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
-      try {
-        return await agentMessageRepository.getSessionHistory(sessionId)
-      } catch (error) {
-        logger.error('Failed to get agent session history', error as Error)
-        throw error
-      }
-    }
-  )
-
-  //only for mac
-  if (isMac) {
-    ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {
-      return systemPreferences.isTrustedAccessibilityClient(false)
-    })
-
-    //return is only the current state, not the new state
-    ipcMain.handle(IpcChannel.App_MacRequestProcessTrust, (): boolean => {
-      return systemPreferences.isTrustedAccessibilityClient(true)
-    })
-  }
-
-  ipcMain.handle(IpcChannel.App_SetFullScreen, (_, value: boolean): void => {
-    mainWindow.setFullScreen(value)
-  })
-
-  ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
-    return mainWindow.isFullScreen()
-  })
-
-  // Get System Fonts
-  ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
-    try {
-      const fonts = await fontList.getFonts()
-      return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
-    } catch (error) {
-      logger.error('Failed to get system fonts:', error as Error)
-      return []
-    }
-  })
-
-  // Get IP Country
-  ipcMain.handle(IpcChannel.App_GetIpCountry, async () => {
-    return getIpCountry()
-  })
-
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string) => {
-    // Legacy config handler - will be deprecated
-    logger.warn(`Legacy Config_Set called for key: ${key}`)
-  })
+  // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
+  // Application lifecycle handlers live in core/application/Application.ts (registerApplicationIpc).
 
   // // theme
-  // ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+  // handleGuarded(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
   //   themeService.setTheme(theme)
   // })
 
-  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
-    const windows = BrowserWindow.getAllWindows()
-    handleZoomFactor(windows, delta, reset)
-    return application.get('PreferenceService').get('app.zoom_factor')
-  })
-
-  // clear cache
-  ipcMain.handle(IpcChannel.App_ClearCache, async () => {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-
-    try {
-      await Promise.all(
-        sessions.map(async (session) => {
-          await session.clearCache()
-          await session.clearStorageData({
-            storages: ['cookies', 'filesystem', 'shadercache', 'websql', 'serviceworkers', 'cachestorage']
-          })
-        })
-      )
-      await fileManager.clearTemp()
-      // do not clear logs for now
-      // TODO clear logs
-      // await fs.writeFileSync(log.transports.file.getFile().path, '')
-      return { success: true }
-    } catch (error: any) {
-      logger.error('Failed to clear cache:', error)
-      return { success: false, error: error.message }
-    }
-  })
-
-  // get cache size
-  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = getCacheDir()
-    logger.info(`Calculating cache size for path: ${cachePath}`)
-
-    try {
-      const sizeInBytes = await calculateDirectorySize(cachePath)
-      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
-      return `${sizeInMB}`
-    } catch (error: any) {
-      logger.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
-      return '0'
-    }
-  })
-
-  let preventQuitListener: ((event: Electron.Event) => void) | null = null
-  ipcMain.handle(IpcChannel.App_SetStopQuitApp, (_, stop: boolean = false, reason: string = '') => {
-    if (stop) {
-      // Only add listener if not already added
-      if (!preventQuitListener) {
-        preventQuitListener = (event: Electron.Event) => {
-          event.preventDefault()
-          void notificationService.sendNotification({
-            title: reason,
-            message: reason
-          } as Notification)
-        }
-        app.on('before-quit', preventQuitListener)
-      }
-    } else {
-      // Remove listener if it exists
-      if (preventQuitListener) {
-        app.removeListener('before-quit', preventQuitListener)
-        preventQuitListener = null
-      }
-    }
-  })
-
   // Select app data path
-  ipcMain.handle(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
+  handleGuarded(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
     try {
       const { canceled, filePaths } = await dialog.showOpenDialog(options)
       if (canceled || filePaths.length === 0) {
@@ -365,563 +56,132 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
+  handleGuarded(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
     const hasPermission = await hasWritePermission(filePath)
     return hasPermission
   })
 
-  ipcMain.handle(IpcChannel.App_ResolvePath, async (_, filePath: string) => {
+  handleGuarded(IpcChannel.App_ResolvePath, async (_, filePath: string) => {
     return path.resolve(untildify(filePath))
   })
 
   // Check if a path is inside another path (proper parent-child relationship)
-  ipcMain.handle(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
+  handleGuarded(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
     return isPathInside(childPath, parentPath)
   })
 
-  // Set app data path
-  ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    updateAppDataConfig(filePath)
-    app.setPath('userData', filePath)
-  })
-
-  ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {
-    return process.argv
-      .slice(1)
-      .find((arg) => arg.startsWith('--new-data-path='))
-      ?.split('--new-data-path=')[1]
-  })
-
-  ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      w.webContents.session.flushStorageData()
-      await w.webContents.session.cookies.flushStore()
-      await w.webContents.session.closeAllConnections()
-    }
-
-    session.defaultSession.flushStorageData()
-    await session.defaultSession.cookies.flushStore()
-    await session.defaultSession.closeAllConnections()
-  })
-
-  ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
-    return fs.readdirSync(path).length > 0
-  })
-
-  // Copy user data to new location
-  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string, occupiedDirs: string[] = []) => {
-    try {
-      await fs.promises.cp(oldPath, newPath, {
-        recursive: true,
-        filter: (src) => {
-          if (occupiedDirs.some((dir) => src.startsWith(path.resolve(dir)))) {
-            return false
-          }
-          return true
-        }
-      })
-      return { success: true }
-    } catch (error: any) {
-      logger.error('Failed to copy user data:', error)
-      return { success: false, error: error.message }
-    }
-  })
-
-  // Relaunch app
-  ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
-    application.relaunch(options)
-  })
-
-  // Reset all data (factory reset)
-  ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
-
-  // check for update
-  ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    return await appUpdater.checkForUpdates()
-  })
-
-  // notification
-  ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
-    await notificationService.sendNotification(notification)
-  })
-  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
-    mainWindow.webContents.send('notification-click', notification)
-  })
+  // Application_Relaunch is registered by Application.registerApplicationIpc()
 
   // zip
-  ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
-  ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
+  handleGuarded(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 
   // system
-  ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
-  ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
-  ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
-    if (!isWin) {
-      return true // Non-Windows systems don't need Git Bash
-    }
-
-    try {
-      // Use autoDiscoverGitBash to handle auto-discovery and persistence
-      const bashPath = autoDiscoverGitBash()
-      if (bashPath) {
-        logger.info('Git Bash is available', { path: bashPath })
-        return true
-      }
-
-      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
-      return false
-    } catch (error) {
-      logger.error('Unexpected error checking Git Bash', error as Error)
-      return false
-    }
-  })
-
-  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
-    if (!isWin) {
-      return null
-    }
-
-    const customPath = configManager.get(ConfigKeys.GitBashPath)
-    return customPath ?? null
-  })
-
-  // Returns { path, source } where source is 'manual' | 'auto' | null
-  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
-    return getGitBashPathInfo()
-  })
-
-  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
-    if (!isWin) {
-      return false
-    }
-
-    if (!newPath) {
-      // Clear manual setting and re-run auto-discovery
-      configManager.set(ConfigKeys.GitBashPath, null)
-      configManager.set(ConfigKeys.GitBashPathSource, null)
-      // Re-run auto-discovery to restore auto-discovered path if available
-      autoDiscoverGitBash()
-      return true
-    }
-
-    const validated = validateGitBashPath(newPath)
-    if (!validated) {
-      return false
-    }
-
-    // Set path with 'manual' source
-    configManager.set(ConfigKeys.GitBashPath, validated)
-    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
-    return true
-  })
-
-  ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    win && win.webContents.toggleDevTools()
-  })
+  handleGuarded(IpcChannel.System_GetHostname, getHostname)
+  // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
+  // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
+    const { result, cleanupError } = await backupManager.backupToWebdav(event, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
+  handleGuarded(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
+    const { result, cleanupError } = await backupManager.backupToLocalDir(event, fileName, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
+  handleGuarded(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_BackupToS3, async (event, config) => {
+    const { result, cleanupError } = await backupManager.backupToS3(event, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
+  handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
   // file
-  ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Save, fileManager.save.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Clear, fileManager.clear.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Read, fileManager.readFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteDir, fileManager.deleteDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteExternalFile, fileManager.deleteExternalFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteExternalDir, fileManager.deleteExternalDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Move, fileManager.moveFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_MoveDir, fileManager.moveDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SaveBase64Image, fileManager.saveBase64Image.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_GetPdfInfo, fileManager.pdfPageCount.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ListDirectory, fileManager.listDirectory.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_GetDirectoryStructure, fileManager.getDirectoryStructure.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_StartWatcher, fileManager.startFileWatcher.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_StopWatcher, fileManager.stopFileWatcher.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_PauseWatcher, fileManager.pauseFileWatcher.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ResumeWatcher, fileManager.resumeFileWatcher.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
-
-  // pdf
-  ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
-
-  // file service
-  ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.uploadFile(file)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_List, async (_, provider: Provider) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.listFiles()
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Delete, async (_, provider: Provider, fileId: string) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.deleteFile(fileId)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Retrieve, async (_, provider: Provider, fileId: string) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.retrieveFile(fileId)
-  })
+  handleGuarded(IpcChannel.File_Open, fileManager.open.bind(fileManager))
+  handleGuarded(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
+  handleGuarded(IpcChannel.File_Save, fileManager.save.bind(fileManager))
+  handleGuarded(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_DeleteExternalFile, fileManager.deleteExternalFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_DeleteExternalDir, fileManager.deleteExternalDir.bind(fileManager))
+  handleGuarded(IpcChannel.File_Move, fileManager.moveFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_MoveDir, fileManager.moveDir.bind(fileManager))
+  handleGuarded(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
+  handleGuarded(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
+  handleGuarded(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
+  handleGuarded(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
+  handleGuarded(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
+  handleGuarded(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
+  handleGuarded(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
+    searchListDirectoryEntries(dirPath, options)
+  )
+  handleGuarded(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
+  handleGuarded(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
+  handleGuarded(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
+  handleGuarded(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // fs
-  ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
-  ipcMain.handle(IpcChannel.Fs_ReadText, FileService.readTextFileWithAutoEncoding.bind(FileService))
-
-  // export
-  ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord.bind(exportService))
-
-  // open path
-  ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
-    await shell.openPath(path)
-  })
-
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeService.create.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeService.reset.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, knowledgeService.add.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, knowledgeService.remove.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeService.search.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeService.rerank.bind(knowledgeService))
-
-  // memory
-  ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
-  ipcMain.handle(IpcChannel.Memory_Search, (_, query, config) => memoryService.search(query, config))
-  ipcMain.handle(IpcChannel.Memory_List, (_, config) => memoryService.list(config))
-  ipcMain.handle(IpcChannel.Memory_Delete, (_, id) => memoryService.delete(id))
-  ipcMain.handle(IpcChannel.Memory_Update, (_, id, memory, metadata) => memoryService.update(id, memory, metadata))
-  ipcMain.handle(IpcChannel.Memory_Get, (_, memoryId) => memoryService.get(memoryId))
-  ipcMain.handle(IpcChannel.Memory_SetConfig, (_, config) => memoryService.setConfig(config))
-  ipcMain.handle(IpcChannel.Memory_DeleteUser, (_, userId) => memoryService.deleteUser(userId))
-  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, (_, userId) =>
-    memoryService.deleteAllMemoriesForUser(userId)
-  )
-  ipcMain.handle(IpcChannel.Memory_GetUsersList, () => memoryService.getUsersList())
-  ipcMain.handle(IpcChannel.Memory_MigrateMemoryDb, () => memoryService.migrateMemoryDb())
-
-  // VertexAI
-  ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
-    return vertexAIService.getAuthHeaders(params)
-  })
-
-  ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
-    return vertexAIService.getAccessToken(params)
-  })
-
-  ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
-    vertexAIService.clearAuthCache(projectId, clientEmail)
-  })
+  handleGuarded(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
+  handleGuarded(IpcChannel.Fs_ReadText, FileService.readTextFileWithAutoEncoding.bind(FileService))
 
   // aes
-  ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
-    encrypt(text, secretKey, iv)
-  )
-  ipcMain.handle(IpcChannel.Aes_Decrypt, (_, encryptedData: string, iv: string, secretKey: string) =>
+  handleGuarded(IpcChannel.Aes_Decrypt, (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
 
-  // DXT upload handler
-  ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
-    try {
-      // Create a temporary file with the uploaded content
-      const tempPath = await fileManager.createTempFile(event, fileName)
-      await fileManager.writeFile(event, tempPath, Buffer.from(fileBuffer))
-
-      // Process DXT file using the temporary path
-      return await dxtService.uploadDxt(event, tempPath)
-    } catch (error) {
-      logger.error('DXT upload error:', error as Error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to upload DXT file'
-      }
-    }
-  })
-
-  // Register Python execution handler
-  ipcMain.handle(
-    IpcChannel.Python_Execute,
-    async (_, script: string, context?: Record<string, any>, timeout?: number) => {
-      return await pythonService.executeScript(script, context, timeout)
-    }
-  )
-
-  ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
-  ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
-  ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
-  ipcMain.handle(IpcChannel.App_InstallBunBinary, () => runInstallScript('install-bun.js'))
-  ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
-
   //copilot
-  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, copilotService.getAuthMessage.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, copilotService.getCopilotToken.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, copilotService.saveCopilotToken.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
-
-  // CherryIN OAuth
-  ipcMain.handle(IpcChannel.CherryIN_SaveToken, cherryINOAuthService.saveToken.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_HasToken, cherryINOAuthService.hasToken.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_GetBalance, cherryINOAuthService.getBalance.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_Logout, cherryINOAuthService.logout.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, cherryINOAuthService.startOAuthFlow.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, cherryINOAuthService.exchangeToken.bind(cherryINOAuthService))
-
-  // Obsidian service
-  ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
-    return obsidianVaultService.getVaults()
-  })
-
-  ipcMain.handle(IpcChannel.Obsidian_GetFiles, (_event, vaultName) => {
-    return obsidianVaultService.getFilesByVaultName(vaultName)
-  })
+  handleGuarded(IpcChannel.Copilot_GetAuthMessage, copilotService.getAuthMessage.bind(copilotService))
+  handleGuarded(IpcChannel.Copilot_GetCopilotToken, copilotService.getCopilotToken.bind(copilotService))
+  handleGuarded(IpcChannel.Copilot_SaveCopilotToken, copilotService.saveCopilotToken.bind(copilotService))
+  handleGuarded(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
+  handleGuarded(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
+  handleGuarded(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
 
   // nutstore
-  ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))
-  ipcMain.handle(IpcChannel.Nutstore_DecryptToken, (_, token: string) => NutstoreService.decryptToken(token))
-  ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
+  handleGuarded(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))
+  handleGuarded(IpcChannel.Nutstore_DecryptToken, (_, token: string) => NutstoreService.decryptToken(token))
+  handleGuarded(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
 
-  // search window
-  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string, show?: boolean) => {
-    await searchService.openSearchWindow(uid, show)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
-    await searchService.closeSearchWindow(uid)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
-    return await searchService.openUrlInSearchWindow(uid, url)
-  })
-
-  // webview
-  ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
-    setOpenLinkExternal(webviewId, isExternal)
-  )
-  ipcMain.handle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
-    const webview = webContents.fromId(webviewId)
-    if (!webview) return
-    webview.session.setSpellCheckerEnabled(isEnable)
-  })
-
-  // Webview print and save handlers
-  ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
-    const { printWebviewToPDF } = await import('./services/WebviewService')
-    return await printWebviewToPDF(webviewId)
-  })
-
-  ipcMain.handle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
-    const { saveWebviewAsHTML } = await import('./services/WebviewService')
-    return await saveWebviewAsHTML(webviewId)
-  })
-
-  // store sync
-  storeSyncService.registerIpcHandler()
-
-  // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
-  //   configManager.setDisableHardwareAcceleration(isDisable)
-  // })
-  // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
-  //   configManager.setUseSystemTitleBar(isActive)
-  // })
-  ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
+  // Global Skills: install / uninstall / install-from-zip / install-from-directory / list-local
+  // migrated to IpcApi (skill.*). read-file / list-files stay on legacy IPC (roadmap placeholders).
+  handleGuarded(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
     try {
-      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
-      logger.debug('disk space', diskSpace)
-      const { free, size } = diskSpace
-      return {
-        free,
-        size
-      }
-    } catch (error) {
-      logger.error('check disk space error', error as Error)
-      return null
-    }
-  })
-  // Anthropic OAuth
-  ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
-  ipcMain.handle(IpcChannel.Anthropic_CompleteOAuthWithCode, (_, code: string) =>
-    anthropicService.completeOAuthWithCode(code)
-  )
-  ipcMain.handle(IpcChannel.Anthropic_CancelOAuthFlow, () => anthropicService.cancelOAuthFlow())
-  ipcMain.handle(IpcChannel.Anthropic_GetAccessToken, () => anthropicService.getValidAccessToken())
-  ipcMain.handle(IpcChannel.Anthropic_HasCredentials, () => anthropicService.hasCredentials())
-  ipcMain.handle(IpcChannel.Anthropic_ClearCredentials, () => anthropicService.clearCredentials())
-
-  // ExternalApps
-  ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
-
-  // OCR
-  ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
-    ocrService.ocr(file, provider)
-  )
-  ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
-
-  // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
-  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
-  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))
-
-  // CherryAI
-  ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
-
-  // Claude Code Plugins
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
-    try {
-      const data = await pluginService.install(options)
+      const data = await skillService.readFile(skillId, filename)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin', { options, error })
+      logger.error('Failed to read skill file', { skillId, filename, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+  handleGuarded(IpcChannel.Skill_ListFiles, async (_, skillId: string) => {
     try {
-      await pluginService.uninstall(options)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to uninstall plugin', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_UninstallPackage, async (_, options) => {
-    try {
-      const data = await pluginService.uninstallPluginPackage(options)
+      const data = await skillService.listFiles(skillId)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to uninstall plugin package', { options, error })
+      logger.error('Failed to list skill files', { skillId, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
-    try {
-      const data = await pluginService.listInstalled(agentId)
-      return { success: true, data }
-    } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to list installed plugins', {
-          agentId,
-          error: pluginError
-        })
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', {
-        agentId,
-        error: err
-      })
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'list-installed',
-          reason: err.message
-        }
-      }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
-    try {
-      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to write plugin content', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromZip, async (_, options) => {
-    try {
-      const data = await pluginService.installFromZip(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install plugin from ZIP', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, async (_, options) => {
-    try {
-      const data = await pluginService.installFromDirectory(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install plugin from directory', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
-    mainWindow.webContents.forcefullyCrashRenderer()
-  })
-
-  // Preference handlers
-  // PreferenceService IPC handlers are now registered via lifecycle onReady()
-
-  // OpenClaw
-  ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
-  ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
-  ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
-  ipcMain.handle(IpcChannel.OpenClaw_StartGateway, openClawService.startGateway)
-  ipcMain.handle(IpcChannel.OpenClaw_StopGateway, openClawService.stopGateway)
-  ipcMain.handle(IpcChannel.OpenClaw_GetStatus, openClawService.getStatus)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckHealth, openClawService.checkHealth)
-  ipcMain.handle(IpcChannel.OpenClaw_GetDashboardUrl, openClawService.getDashboardUrl)
-  ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
-  ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckUpdate, openClawService.checkUpdate)
-  ipcMain.handle(IpcChannel.OpenClaw_PerformUpdate, openClawService.performUpdate)
+  // MainWindow_CrashRenderProcess handler moved into MainWindowService (dev-only).
 }

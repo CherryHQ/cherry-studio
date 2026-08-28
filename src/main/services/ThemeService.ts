@@ -1,17 +1,13 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, nativeTheme } from 'electron'
-
-import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
+import { nativeTheme } from 'electron'
 
 @Injectable('ThemeService')
 @ServicePhase(Phase.WhenReady)
 export class ThemeService extends BaseService {
   private theme: ThemeMode = ThemeMode.system
-  private unsubscribes: (() => void)[] = []
-  private boundThemeUpdatedHandler = this.themeUpdatedHandler.bind(this)
+  private readonly boundThemeUpdatedHandler = this.themeUpdatedHandler.bind(this)
 
   protected async onInit() {
     const preferenceService = application.get('PreferenceService')
@@ -25,8 +21,9 @@ export class ThemeService extends BaseService {
     }
 
     nativeTheme.on('updated', this.boundThemeUpdatedHandler)
+    this.registerDisposable(() => nativeTheme.removeListener('updated', this.boundThemeUpdatedHandler))
 
-    this.unsubscribes.push(
+    this.registerDisposable(
       preferenceService.subscribeChange('ui.theme_mode', (newTheme) => {
         this.theme = newTheme
         nativeTheme.themeSource = newTheme
@@ -34,29 +31,8 @@ export class ThemeService extends BaseService {
     )
   }
 
-  protected async onStop() {
-    nativeTheme.removeListener('updated', this.boundThemeUpdatedHandler)
-
-    for (const unsub of this.unsubscribes) {
-      unsub()
-    }
-    this.unsubscribes = []
-  }
-
   private themeUpdatedHandler() {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (win && !win.isDestroyed() && win.setTitleBarOverlay) {
-        try {
-          win.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
-        } catch (error) {
-          // don't throw error if setTitleBarOverlay failed
-          // Because it may be called with some windows have some title bar
-        }
-      }
-      win.webContents.send(
-        IpcChannel.NativeThemeUpdated,
-        nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light
-      )
-    })
+    const theme = nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light
+    application.get('IpcApiService').broadcast('system.native_theme_updated', theme)
   }
 }

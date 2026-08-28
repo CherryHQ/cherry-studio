@@ -1,20 +1,76 @@
 import { EventEmitter } from 'node:events'
 
 import { loggerService } from '@logger'
+import {
+  CpuProfiler,
+  DIAGNOSTICS_ENABLED,
+  EventLoopLagSampler,
+  formatPhaseProfile,
+  type ServiceSpan
+} from '@main/core/diagnostics'
 
+import { SERVICE_STOP_TIMEOUT_MS } from './constants'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
 import {
+  isActivatable,
   isPausable,
   type LifecycleEvent,
   type LifecycleEventPayload,
   LifecycleEvents,
   LifecycleState,
   Phase,
-  ServiceInitError
+  ServiceInitError,
+  type TeardownOutcome,
+  type TeardownSummary
 } from './types'
 
 const logger = loggerService.withContext('Lifecycle')
+
+/**
+ * Race a teardown against a ceiling. The loser is NOT cancelled — it keeps
+ * running in the background, overlapping whatever the shutdown pass does next.
+ * That overlap is accepted during shutdown: the process is about to disappear,
+ * and no service pins its correctness on `onStop` (crash and `kill -9` bypass
+ * it entirely, so every service already carries atomic writes or self-healing).
+ *
+ * `run` carries its own rejection handler, so a late failure from the loser is
+ * still logged rather than vanishing.
+ *
+ * The timer must be cleared: one leaked multi-second timer per service would
+ * hold the event loop open long after an otherwise instant shutdown.
+ */
+async function raceWithTimeout(run: Promise<TeardownOutcome>, timeoutMs: number): Promise<TeardownOutcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<TeardownOutcome>((resolve) => {
+    timer = setTimeout(() => resolve('timed_out'), timeoutMs)
+  })
+  try {
+    return await Promise.race([run, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Emit the aggregate log for one teardown pass.
+ *
+ * A clean pass keeps the historical `All services stopped/destroyed` line. Any
+ * other pass must NOT print it: that line is the first thing read when
+ * diagnosing a bad shutdown, and claiming success over a starved or failed
+ * service is exactly the false signal this mechanism exists to remove.
+ */
+function logTeardownSummary(pass: 'stop' | 'destroy', summary: TeardownSummary, durationMs: number): void {
+  const elapsed = `${durationMs.toFixed(3)}ms`
+  if (summary.timedOut.length === 0 && summary.failed.length === 0) {
+    logger.info(`All services ${pass === 'stop' ? 'stopped' : 'destroyed'} (${elapsed})`)
+    return
+  }
+  logger.warn(
+    `Service ${pass} pass finished with ${summary.timedOut.length} timeout(s), ${summary.failed.length} failure(s) (${elapsed})`,
+    { timedOut: summary.timedOut, failed: summary.failed }
+  )
+}
 
 /**
  * LifecycleManager
@@ -38,6 +94,10 @@ export class LifecycleManager extends EventEmitter {
   private phaseTiming: Map<Phase, { duration: number; serviceCount: number }> = new Map()
   /** Phase adjustments captured from validateAndAdjustPhases */
   private phaseAdjustments: PhaseAdjustment[] = []
+
+  /** Diagnostic profiling state, only populated when CS_DIAGNOSTICS is set. */
+  private phaseEpoch = 0
+  private serviceSpans: Map<string, ServiceSpan> = new Map()
 
   /** Tracks services that were paused due to cascade from another service */
   private pausedByCascade: Map<string, Set<string>> = new Map()
@@ -106,9 +166,14 @@ export class LifecycleManager extends EventEmitter {
 
     const serviceCount = layers.flat().length
     const orderStr = layers.map((layer) => `[${layer.join(', ')}]`).join(' -> ')
-    logger.info(`─── ${phase} start (${serviceCount} services) ─── ${orderStr}`)
+    logger.info(`--- ${phase} start (${serviceCount} services) --- ${orderStr}`)
 
     const phaseStart = performance.now()
+    this.phaseEpoch = phaseStart
+    const lagSampler = DIAGNOSTICS_ENABLED ? new EventLoopLagSampler() : null
+    lagSampler?.start(phaseStart)
+    const cpuProfiler = DIAGNOSTICS_ENABLED && phase === Phase.WhenReady ? new CpuProfiler() : null
+    await cpuProfiler?.start()
 
     // Initialize services layer by layer, parallel within each layer
     for (const layer of layers) {
@@ -132,7 +197,27 @@ export class LifecycleManager extends EventEmitter {
 
     const phaseDuration = performance.now() - phaseStart
     this.phaseTiming.set(phase, { duration: phaseDuration, serviceCount })
-    logger.info(`─── ${phase} complete (${phaseDuration.toFixed(3)}ms) ───`)
+    logger.info(`--- ${phase} complete (${phaseDuration.toFixed(3)}ms) ---`)
+
+    if (lagSampler) {
+      const lagSummary = lagSampler.stop()
+      const spans = [...this.serviceSpans.values()].filter((s) => this.servicePhase.get(s.name) === phase)
+      logger.info(`\n${formatPhaseProfile(phase, spans, lagSummary, lagSampler.thresholdMs)}`)
+    }
+    if (cpuProfiler) {
+      // Write next to app.log (always writable, predictable) — not process.cwd(),
+      // which is unwritable/surprising for a packaged app. A failed write must
+      // never break boot. `application` is imported lazily here (only on the
+      // diagnostics path) to avoid a static Application↔LifecycleManager cycle.
+      try {
+        const { application } = await import('@application')
+        const cpuProfilePath = application.getPath('app.logs', 'boot-whenReady.cpuprofile')
+        await cpuProfiler.stopAndWrite(cpuProfilePath)
+        logger.info(`[Diagnostics] CPU profile written to ${cpuProfilePath}`)
+      } catch (err) {
+        logger.warn('[Diagnostics] Failed to write CPU profile', err as Error)
+      }
+    }
 
     // Mark as initialized when WhenReady phase completes
     if (phase === Phase.WhenReady) {
@@ -141,12 +226,27 @@ export class LifecycleManager extends EventEmitter {
   }
 
   /**
-   * Stop all services in reverse initialization order
+   * Stop all services in reverse initialization order.
+   *
+   * Every service gets its own `SERVICE_STOP_TIMEOUT_MS` ceiling. On expiry the
+   * pass abandons that service and moves on, so one stuck `onStop()` can no
+   * longer starve every service queued behind it.
+   *
+   * What this guarantees is that each service's stop is *initiated* in reverse
+   * order and that no single service's *async wait* exceeds the ceiling — not
+   * that the pass runs strictly serially (an abandoned teardown keeps running)
+   * and not a hard wall-clock bound (a synchronously blocking `onStop()` cannot
+   * be preempted by a timer, and the ceiling starts counting only once
+   * `_doStop()` reaches its first `await`).
+   *
+   * @returns Which services timed out or failed. Both empty = clean pass.
    */
-  public async stopAll(): Promise<void> {
+  public async stopAll(): Promise<TeardownSummary> {
+    const summary: TeardownSummary = { timedOut: [], failed: [] }
+
     if (!this.initialized) {
       logger.warn('Services not initialized')
-      return
+      return summary
     }
 
     logger.info('Stopping all services...')
@@ -156,31 +256,41 @@ export class LifecycleManager extends EventEmitter {
     const stopOrder = [...this.initializationOrder].reverse()
 
     for (const serviceName of stopOrder) {
-      await this.stopSingle(serviceName)
+      const outcome = await this.stopSingle(serviceName, SERVICE_STOP_TIMEOUT_MS)
+      if (outcome === 'timed_out') summary.timedOut.push(serviceName)
+      else if (outcome === 'failed') summary.failed.push(serviceName)
     }
 
-    logger.info(`All services stopped (${(performance.now() - start).toFixed(3)}ms)`)
+    logTeardownSummary('stop', summary, performance.now() - start)
+    return summary
   }
 
   /**
-   * Destroy all services and release resources
+   * Destroy all services and release resources.
+   * Same per-service ceiling and same guarantees as {@link stopAll}.
+   *
+   * @returns Which services timed out or failed. Both empty = clean pass.
    */
-  public async destroyAll(): Promise<void> {
+  public async destroyAll(): Promise<TeardownSummary> {
     logger.info('Destroying all services...')
     const start = performance.now()
+    const summary: TeardownSummary = { timedOut: [], failed: [] }
 
     // Destroy in reverse order
     const destroyOrder = [...this.initializationOrder].reverse()
 
     for (const serviceName of destroyOrder) {
-      await this.destroyService(serviceName)
+      const outcome = await this.destroyService(serviceName, SERVICE_STOP_TIMEOUT_MS)
+      if (outcome === 'timed_out') summary.timedOut.push(serviceName)
+      else if (outcome === 'failed') summary.failed.push(serviceName)
     }
 
     this.initialized = false
     this.initializationOrder = []
     this.pausedByCascade.clear()
     this.stoppedByCascade.clear()
-    logger.info(`All services destroyed (${(performance.now() - start).toFixed(3)}ms)`)
+    logTeardownSummary('destroy', summary, performance.now() - start)
+    return summary
   }
 
   /**
@@ -205,6 +315,15 @@ export class LifecycleManager extends EventEmitter {
       await instance._doInit()
       const duration = performance.now() - start
       this.serviceTiming.set(serviceName, duration)
+      if (DIAGNOSTICS_ENABLED) {
+        this.serviceSpans.set(serviceName, {
+          name: serviceName,
+          startOffset: start - this.phaseEpoch,
+          endOffset: start + duration - this.phaseEpoch,
+          duration
+        })
+      }
+      logger.debug(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
     } catch (error) {
@@ -216,35 +335,95 @@ export class LifecycleManager extends EventEmitter {
   /**
    * Stop a single service (no cascade).
    * Internal method used by stopAll and stop.
+   *
    * @param serviceName - Service name to stop
+   * @param timeoutMs - Ceiling for the async wait on `_doStop()`. Omitting it
+   *   waits indefinitely, which is what the runtime `stop()` / `restart()` path
+   *   does. Those have no production callers today, and bounding them would
+   *   require inventing a cascade failure-propagation contract (what a public
+   *   `Promise<void>` becomes, whether the cascade continues past a failure,
+   *   whether a failed dependent is recorded, whether `restart()` still starts)
+   *   with nobody to validate it against.
+   * @returns How the attempt ended. Only `completed` emits SERVICE_STOPPED.
    */
-  private async stopSingle(serviceName: string): Promise<void> {
+  private async stopSingle(serviceName: string, timeoutMs?: number): Promise<TeardownOutcome> {
     const instance = this.container.getInstance(serviceName)
-    if (!instance || instance.state === LifecycleState.Stopped) return
+    if (!instance || instance.state === LifecycleState.Stopped) return 'completed'
 
-    try {
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPING, serviceName, LifecycleState.Stopping)
-      await instance._doStop()
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
-      logger.debug(`Service '${serviceName}' stopped`)
-    } catch (error) {
-      logger.error(`Error stopping service '${serviceName}':`, error as Error)
+    // Defensive: a service left mid-stop must not get a second concurrent
+    // _doStop(). Unreachable today — the runtime path has no ceiling, so
+    // nothing lingers in Stopping — but cheap insurance if that ever changes.
+    if (instance.state === LifecycleState.Stopping) {
+      logger.warn(`Service '${serviceName}' is already stopping — skipping duplicate stop`)
+      return 'timed_out'
     }
+
+    this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPING, serviceName, LifecycleState.Stopping)
+    const start = performance.now()
+
+    // Attach the handlers up-front so a rejection arriving AFTER a timeout is
+    // still logged instead of disappearing into an abandoned promise. This is
+    // an observability need, not crash protection — `Promise.race` attaches its
+    // own handlers to every entrant, so the loser never goes unhandled.
+    const run = instance._doStop().then(
+      (): TeardownOutcome => 'completed',
+      (error): TeardownOutcome => {
+        logger.error(`Error stopping service '${serviceName}':`, error as Error)
+        return 'failed'
+      }
+    )
+
+    const outcome = timeoutMs === undefined ? await run : await raceWithTimeout(run, timeoutMs)
+
+    if (outcome === 'timed_out') {
+      logger.warn(`Service '${serviceName}' stop timed out — proceeding`, { timeoutMs })
+      return outcome
+    }
+    if (outcome === 'failed') return outcome
+
+    this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
+    logger.debug(`Service '${serviceName}' stopped (${(performance.now() - start).toFixed(3)}ms)`)
+    return outcome
   }
 
   /**
-   * Destroy a single service
+   * Destroy a single service.
+   *
+   * @param serviceName - Service name to destroy
+   * @param timeoutMs - Ceiling for the async wait on `_doDestroy()`. Omitting it
+   *   waits indefinitely — same rationale as {@link stopSingle}.
+   * @returns How the attempt ended. Only `completed` emits SERVICE_DESTROYED.
    */
-  private async destroyService(serviceName: string): Promise<void> {
+  private async destroyService(serviceName: string, timeoutMs?: number): Promise<TeardownOutcome> {
     const instance = this.container.getInstance(serviceName)
-    if (!instance || instance.state === LifecycleState.Destroyed) return
+    if (!instance || instance.isDestroyed) return 'completed'
 
-    try {
-      await instance._doDestroy()
+    const run = instance._doDestroy().then(
+      (): TeardownOutcome => 'completed',
+      (error): TeardownOutcome => {
+        logger.error(`Error destroying service '${serviceName}':`, error as Error)
+        return 'failed'
+      }
+    )
+
+    let outcome = timeoutMs === undefined ? await run : await raceWithTimeout(run, timeoutMs)
+
+    if (outcome === 'timed_out') {
+      logger.warn(`Service '${serviceName}' destroy timed out — proceeding`, { timeoutMs })
+    } else if (outcome === 'completed' && !instance.isDestroyed) {
+      // `_doDestroy()`'s stop-still-in-flight guard returns normally, so a
+      // fulfilled promise is NOT proof the service was destroyed. Judge by the
+      // final state, or a skipped service aggregates as a success and
+      // `destroyAll()` prints `All services destroyed` over it.
+      //
+      // 'failed' rather than 'timed_out': this step never started, let alone ran
+      // out of time. The timeout that caused the skip is already attributed in
+      // the stop pass's summary; repeating it here would double-count.
+      outcome = 'failed'
+    }
+
+    if (outcome === 'completed') {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DESTROYED, serviceName, LifecycleState.Destroyed)
-      logger.debug(`Service '${serviceName}' destroyed`)
-    } catch (error) {
-      logger.error(`Error destroying service '${serviceName}':`, error as Error)
     }
 
     // Clean cascade tracking maps
@@ -256,6 +435,8 @@ export class LifecycleManager extends EventEmitter {
     for (const [, set] of this.stoppedByCascade) {
       set.delete(serviceName)
     }
+
+    return outcome
   }
 
   /**
@@ -305,16 +486,29 @@ export class LifecycleManager extends EventEmitter {
    */
   public getBootstrapSummary(totalDuration: number, excludedCount: number): string {
     const totalServices = this.initializationOrder.length
-    const W = 48
     const lines: string[] = []
 
     const fmt = (ms: number) => ms.toFixed(3) + 'ms'
-    const row = (content: string) => `│${content.padEnd(W)}│`
-    const sep = (l: string, r: string) => `${l}${'─'.repeat(W)}${r}`
 
-    lines.push(sep('┌', '┐'))
-    lines.push(row('               Bootstrap Summary'.padEnd(W)))
-    lines.push(sep('├', '┤'))
+    const excludedByPhase = this.container.getExcludedByPhase()
+
+    // Name column auto-sizes to the longest service name (min 32) so the timing
+    // column stays aligned even for long names (e.g. FileProcessingService).
+    let nameCol = 32
+    for (const [name] of this.serviceTiming) nameCol = Math.max(nameCol, name.length)
+    for (const names of excludedByPhase.values()) {
+      for (const name of names) nameCol = Math.max(nameCol, name.length)
+    }
+    const W = nameCol + 22
+
+    // ASCII-only borders: Unicode box-drawing characters render as mojibake when
+    // the main-process stdout is piped through a non-UTF-8 Windows console (CP936/GBK).
+    const row = (content: string) => `|${content.padEnd(W)}|`
+    const sep = () => `+${'-'.repeat(W)}+`
+
+    lines.push(sep())
+    lines.push(row('                  Bootstrap Summary'.padEnd(W)))
+    lines.push(sep())
     lines.push(row(`  Total: ${totalServices} services in ${fmt(totalDuration)}`))
 
     // Service list grouped by phase, sorted by duration within each group
@@ -331,8 +525,6 @@ export class LifecycleManager extends EventEmitter {
       list.push([name, ms])
     }
 
-    const excludedByPhase = this.container.getExcludedByPhase()
-
     for (const phase of phaseOrder) {
       const timing = this.phaseTiming.get(phase)
       const services = servicesByPhase.get(phase)
@@ -344,9 +536,10 @@ export class LifecycleManager extends EventEmitter {
       if (timing && services && services.length > 0) {
         services.sort((a, b) => b[1] - a[1])
         const title = `[${phase}] ${timing.serviceCount} services`
-        lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
+        lines.push(row(`  ${title.padEnd(nameCol + 4)} ${fmt(timing.duration).padStart(12)}`))
         for (const [name, ms] of services) {
-          lines.push(row(`    ${name.padEnd(28)} ${fmt(ms).padStart(12)}`))
+          const tags = this.getServiceTags(name)
+          lines.push(row(`    ${name.padEnd(nameCol)} ${tags}  ${fmt(ms).padStart(10)}`))
         }
       } else {
         lines.push(row(`  [${phase}]`))
@@ -354,47 +547,56 @@ export class LifecycleManager extends EventEmitter {
 
       if (excludedServices && excludedServices.length > 0) {
         for (const name of excludedServices) {
-          lines.push(row(`    ${name.padEnd(28)} ${'Excluded'.padStart(12)}`))
+          lines.push(row(`    ${name.padEnd(nameCol)} C   ${'Excluded'.padStart(10)}`))
         }
       }
     }
 
-    // Phase adjustments & exclusions
-    if (this.phaseAdjustments.length > 0 || excludedCount > 0) {
-      lines.push(sep('├', '┤'))
-      lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
+    // Count tags: initialized services + excluded (which are always Conditional)
+    let conditionalCount = excludedCount
+    let activatableCount = 0
+    for (const name of this.initializationOrder) {
+      const tags = this.getServiceTags(name)
+      if (tags[0] === 'C') conditionalCount++
+      if (tags[1] === 'A') activatableCount++
     }
 
-    lines.push(sep('└', '┘'))
+    lines.push(sep())
+    lines.push(row(`  (C)onditional: ${conditionalCount}  |  (A)ctivatable: ${activatableCount}`))
+    lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
+    lines.push(sep())
     return lines.join('\n')
   }
 
   /**
    * Notify all initialized services that the entire system is ready.
-   * Calls _doAllReady() on every service in initializationOrder in parallel.
-   * Errors are logged and emitted as SERVICE_ERROR but never propagate —
-   * onAllReady is a post-bootstrap supplement, not a critical initialization gate.
-   * Emits ALL_SERVICES_READY after all hooks complete.
+   *
+   * `onAllReady` is a post-bootstrap supplement (per `BaseService.onAllReady` JSDoc) —
+   * it is NOT part of service initialization and does NOT change `LifecycleState`.
+   * The framework therefore fires `_doAllReady()` for every service in parallel but
+   * does NOT await their completion. Bootstrap proceeds as soon as every hook has
+   * been invoked.
+   *
+   * Errors from `onAllReady` are still surfaced asynchronously: each `_doAllReady()`
+   * promise has a `.catch` that logs and emits `SERVICE_ERROR`, so unhandled rejections
+   * cannot be silently lost. Because `.catch` runs in a microtask, listeners observing
+   * `SERVICE_ERROR` after a synchronous `onAllReady` throw must drain microtasks first.
+   *
+   * Emits `ALL_SERVICES_READY` immediately after all hooks have been invoked (NOT after
+   * they complete). Listeners MUST NOT assume all `onAllReady` side effects have
+   * finished — services running deferred work inside `onAllReady` (e.g. a `setTimeout`)
+   * own their own lifecycle and must be joined via `onStop` if shutdown coordination
+   * is required.
    */
-  public async allReady(): Promise<void> {
-    const results = await Promise.allSettled(
-      this.initializationOrder.map(async (serviceName) => {
-        const instance = this.container.getInstance(serviceName)
-        if (!instance) return
-        await instance._doAllReady()
-      })
-    )
-
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i]
-      if (result.status === 'rejected') {
-        const serviceName = this.initializationOrder[i]
-        const error = result.reason as Error
+  public allReady(): void {
+    for (const serviceName of this.initializationOrder) {
+      const instance = this.container.getInstance(serviceName)
+      if (!instance) continue
+      void instance._doAllReady().catch((error: Error) => {
         logger.error(`Service '${serviceName}' onAllReady failed:`, error)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, LifecycleState.Ready, error)
-      }
+      })
     }
-
     this.emit(LifecycleEvents.ALL_SERVICES_READY)
   }
 
@@ -597,9 +799,11 @@ export class LifecycleManager extends EventEmitter {
     // Re-initialize the service (calls _doInit)
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, name, LifecycleState.Initializing)
+      const start = performance.now()
       await instance._doInit()
+      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, name, LifecycleState.Ready)
-      logger.debug(`Service '${name}' started`)
+      logger.info(`Service '${name}' started (${duration.toFixed(3)}ms)`)
     } catch (error) {
       const metadata = this.container.getMetadata(name)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Stopped, error as Error)
@@ -617,9 +821,11 @@ export class LifecycleManager extends EventEmitter {
 
       try {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, depName, LifecycleState.Initializing)
+        const depStart = performance.now()
         await depInstance._doInit()
+        const depDuration = performance.now() - depStart
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, depName, LifecycleState.Ready)
-        logger.debug(`Service '${depName}' started (cascade)`)
+        logger.info(`Service '${depName}' started (cascade) (${depDuration.toFixed(3)}ms)`)
       } catch (error) {
         const metadata = this.container.getMetadata(depName)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, depName, LifecycleState.Stopped, error as Error)
@@ -673,10 +879,12 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_PAUSING, serviceName, LifecycleState.Pausing)
+      const start = performance.now()
       const success = await instance._doPause()
+      const duration = performance.now() - start
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_PAUSED, serviceName, LifecycleState.Paused)
-        logger.debug(`Service '${serviceName}' paused`)
+        logger.info(`Service '${serviceName}' paused (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
       logger.error(`Error pausing service '${serviceName}':`, error as Error)
@@ -695,14 +903,94 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_RESUMING, serviceName, LifecycleState.Resuming)
+      const start = performance.now()
       const success = await instance._doResume()
+      const duration = performance.now() - start
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_RESUMED, serviceName, LifecycleState.Ready)
-        logger.debug(`Service '${serviceName}' resumed`)
+        logger.info(`Service '${serviceName}' resumed (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
       logger.error(`Error resuming service '${serviceName}':`, error as Error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error as Error)
+    }
+  }
+
+  /**
+   * Build service annotation tags for bootstrap summary display.
+   * Fixed 2-char string: position 0 = C (Conditional), position 1 = A (Activatable).
+   */
+  private getServiceTags(name: string): string {
+    const metadata = this.container.getMetadata(name)
+    const instance = this.container.getInstance(name)
+    const c = metadata?.conditions?.length ? 'C' : ' '
+    const a = instance && isActivatable(instance) ? 'A' : ' '
+    return c + a
+  }
+
+  // ============================================================================
+  // Feature Activation Operations
+  // ============================================================================
+
+  /**
+   * Activate a service's heavy resources.
+   * The service must implement Activatable (onActivate/onDeactivate).
+   * No cascade — activation is service-specific.
+   * @param name - Service name to activate
+   */
+  public async activate(name: string): Promise<void> {
+    const instance = this.container.getInstance(name)
+    if (!instance) {
+      logger.warn(`Cannot activate: service '${name}' not found`)
+      return
+    }
+    if (instance.state !== LifecycleState.Ready) {
+      logger.warn(`Cannot activate: '${name}' not Ready (${instance.state})`)
+      return
+    }
+    if (!isActivatable(instance)) {
+      logger.error(`Cannot activate: '${name}' does not implement Activatable`)
+      return
+    }
+    if (instance.isActivated) return
+
+    try {
+      await instance._doActivate()
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ACTIVATED, name, LifecycleState.Ready)
+    } catch (error) {
+      logger.error(`Error activating '${name}':`, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
+    }
+  }
+
+  /**
+   * Deactivate a service, releasing heavy resources.
+   * The service must implement Activatable.
+   * No cascade — deactivation is service-specific.
+   * @param name - Service name to deactivate
+   */
+  public async deactivate(name: string): Promise<void> {
+    const instance = this.container.getInstance(name)
+    if (!instance) {
+      logger.warn(`Cannot deactivate: service '${name}' not found`)
+      return
+    }
+    if (!isActivatable(instance)) {
+      logger.error(`Cannot deactivate: '${name}' does not implement Activatable`)
+      return
+    }
+    if (!instance.isActivated) return
+    if (instance.state !== LifecycleState.Ready) {
+      logger.warn(`Cannot deactivate: '${name}' not Ready (${instance.state})`)
+      return
+    }
+
+    try {
+      await instance._doDeactivate()
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_DEACTIVATED, name, LifecycleState.Ready)
+    } catch (error) {
+      logger.error(`Error deactivating '${name}':`, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
     }
   }
 }

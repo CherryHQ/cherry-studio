@@ -1,7 +1,12 @@
+import { loggerService } from '@logger'
+import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
-import type { Disposable } from './event'
-import { type ErrorStrategy, isPausable, LifecycleState } from './types'
+import { getServiceName } from './decorators'
+import { type Disposable, toDisposable } from './event'
+import { type ErrorStrategy, isActivatable, isPausable, LifecycleState, type ServiceConstructor } from './types'
+
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * Abstract base class for all lifecycle-managed services
@@ -18,14 +23,20 @@ export abstract class BaseService {
   /** Guard flag to ensure onAllReady is called at most once per service instance */
   private _allReadyCalled = false
 
-  /** Channels registered via ipcHandle(), auto-cleaned on stop */
-  private _ipcHandleChannels: string[] = []
-
-  /** Listeners registered via ipcOn(), auto-cleaned on stop */
-  private _ipcOnListeners: { channel: string; listener: (...args: any[]) => void }[] = []
-
   /** Disposables registered via registerDisposable(), auto-cleaned on stop */
   private _disposables: Disposable[] = []
+
+  /** Whether the service's heavy resources are currently activated (Activatable interface) */
+  private _activated = false
+
+  /** Guard flag to prevent concurrent activate/deactivate execution */
+  private _activating = false
+
+  /**
+   * Whether `_doStop()` is currently running. Distinct from `state === Stopping`,
+   * which a rejected `onStop()` also leaves behind — see `_doDestroy()`.
+   */
+  private _stopInFlight = false
 
   /** Error handling strategy for this service */
   static errorStrategy: ErrorStrategy = 'graceful'
@@ -40,9 +51,10 @@ export abstract class BaseService {
   constructor() {
     const ctor = this.constructor
     if (BaseService.instances.has(ctor)) {
+      const name = getServiceName(ctor as ServiceConstructor)
       throw new Error(
-        `Service '${ctor.name}' has already been instantiated. ` +
-          `Use ServiceContainer.get(${ctor.name}) to access the existing instance.`
+        `Service '${name}' has already been instantiated. ` +
+          `Use ServiceContainer.get(${name}) to access the existing instance.`
       )
     }
     BaseService.instances.add(ctor)
@@ -92,55 +104,104 @@ export abstract class BaseService {
   }
 
   /**
+   * Whether the service's heavy resources are currently activated.
+   * Only meaningful for services implementing the Activatable interface.
+   * Always false for non-Activatable services.
+   */
+  public get isActivated(): boolean {
+    return this._activated
+  }
+
+  /**
    * Register an IPC handler (ipcMain.handle).
    * Automatically tracked and removed on service stop/destroy.
+   * Returns a Disposable to manually unregister before service stop if needed.
+   *
+   * ⚠ No sender validation here: this sugar is deprecated (see
+   * ipc-migration-guide.md) and channels migrating to IpcApi get its
+   * `validateSender` gate instead. A channel that stays on this sugar and
+   * needs source trust must call `validateSender` explicitly in its handler,
+   * as PreferenceService/CacheService do.
    */
   protected ipcHandle(
     channel: string,
     listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
-  ): void {
-    ipcMain.handle(channel, listener)
-    this._ipcHandleChannels.push(channel)
+  ): Disposable {
+    // Opt-in (CS_DIAGNOSTICS): time each invocation, log handlers slower than 50ms.
+    const handler = DIAGNOSTICS_ENABLED
+      ? async (event: IpcMainInvokeEvent, ...args: any[]) => {
+          const t0 = performance.now()
+          try {
+            return await listener(event, ...args)
+          } finally {
+            const dt = performance.now() - t0
+            if (dt > SLOW_THRESHOLD_MS.ipcHandler) logger.info(`[Diagnostics/ipc] ${dt.toFixed(1)}ms ${channel}`)
+          }
+        }
+      : listener
+    ipcMain.handle(channel, handler)
+    return this.registerDisposable(() => ipcMain.removeHandler(channel))
   }
 
   /**
    * Register an IPC event listener (ipcMain.on).
    * Automatically tracked and removed on service stop/destroy.
+   * Returns a Disposable to manually unregister before service stop if needed.
+   *
+   * ⚠ No sender validation here — same stance as `ipcHandle` above.
    */
-  protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): void {
+  protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): Disposable {
     ipcMain.on(channel, listener)
-    this._ipcOnListeners.push({ channel, listener })
+    return this.registerDisposable(() => ipcMain.removeListener(channel, listener))
+  }
+
+  /**
+   * Register a recurring timer scoped to this service's lifecycle.
+   * Started immediately, unref'd (does not block process exit), and cleared
+   * automatically on stop/destroy via registerDisposable. Async rejections
+   * are caught and logged; they do not stop the loop.
+   *
+   * NOT suitable for Activatable services that need a timer tied to activation —
+   * manage those manually inside onActivate/onDeactivate.
+   */
+  protected registerInterval(callback: () => void | Promise<void>, intervalMs: number): Disposable {
+    const handle = setInterval(async () => {
+      try {
+        await callback()
+      } catch (err) {
+        const name = getServiceName(this.constructor as ServiceConstructor)
+        logger.error(`[${name}] registerInterval callback failed`, err as Error)
+      }
+    }, intervalMs)
+    handle.unref()
+    return this.registerDisposable(() => clearInterval(handle))
   }
 
   /**
    * Register a disposable for automatic cleanup on service stop/destroy.
-   * Use for event subscriptions, signals, or any resource implementing Disposable.
+   * Accepts either a Disposable object or a plain cleanup function.
+   * Returns the registered disposable for optional inline assignment.
    *
    * @example
+   * // Disposable object (e.g., Emitter subscription)
    * this.registerDisposable(windowService.onMainWindowCreated((win) => this.bind(win)))
+   *
+   * // Plain cleanup function (e.g., PreferenceService.subscribeChange)
+   * this.registerDisposable(preferenceService.subscribeChange('key', handler))
+   *
+   * // Inline assignment
+   * this.emitter = this.registerDisposable(new Emitter<void>())
    */
-  protected registerDisposable(disposable: Disposable): void {
+  protected registerDisposable<T extends Disposable>(disposable: T): T
+  protected registerDisposable(dispose: () => void): Disposable
+  protected registerDisposable<T extends Disposable>(disposableOrFn: T | (() => void)): T | Disposable {
+    const disposable = typeof disposableOrFn === 'function' ? toDisposable(disposableOrFn) : disposableOrFn
     this._disposables.push(disposable)
+    return disposable
   }
 
   /**
-   * Remove all tracked IPC handlers and listeners.
-   * Called automatically after onStop() and in _doDestroy().
-   * Safe to call multiple times (double-remove is a no-op).
-   */
-  private _cleanupIpc(): void {
-    for (const channel of this._ipcHandleChannels) {
-      ipcMain.removeHandler(channel)
-    }
-    for (const { channel, listener } of this._ipcOnListeners) {
-      ipcMain.removeListener(channel, listener)
-    }
-    this._ipcHandleChannels = []
-    this._ipcOnListeners = []
-  }
-
-  /**
-   * Dispose all tracked disposables (event subscriptions, signals, etc.).
+   * Dispose all tracked disposables (IPC handlers, event subscriptions, signals, etc.).
    * Called automatically after onStop() and in _doDestroy().
    */
   private _cleanupDisposables(): void {
@@ -198,6 +259,20 @@ export abstract class BaseService {
    * Called by LifecycleManager
    */
   public async _doInit(): Promise<void> {
+    if (DIAGNOSTICS_ENABLED) {
+      const name = getServiceName(this.constructor as ServiceConstructor)
+      const t0 = performance.now()
+      this._state = LifecycleState.Initializing
+      await this.onInit()
+      const t1 = performance.now()
+      this._state = LifecycleState.Ready
+      await this.onReady()
+      const t2 = performance.now()
+      logger.info(
+        `[Diagnostics/_doInit] ${name}  onInit=${(t1 - t0).toFixed(1)}ms  onReady=${(t2 - t1).toFixed(1)}ms  total=${(t2 - t0).toFixed(1)}ms`
+      )
+      return
+    }
     this._state = LifecycleState.Initializing
     await this.onInit()
     this._state = LifecycleState.Ready
@@ -210,10 +285,20 @@ export abstract class BaseService {
    */
   public async _doStop(): Promise<void> {
     this._state = LifecycleState.Stopping
+    this._stopInFlight = true
     try {
+      // Auto-deactivate: independent try/catch, failure does not block onStop
+      if (this._activated && isActivatable(this)) {
+        try {
+          await this.onDeactivate()
+        } catch {
+          // best-effort — logged by service
+        }
+        this._activated = false
+      }
       await this.onStop()
     } finally {
-      this._cleanupIpc()
+      this._stopInFlight = false
       this._cleanupDisposables()
     }
     this._state = LifecycleState.Stopped
@@ -224,10 +309,107 @@ export abstract class BaseService {
    * Called by LifecycleManager
    */
   public async _doDestroy(): Promise<void> {
+    if (this._state === LifecycleState.Destroyed) {
+      return
+    }
+    // An abandoned _doStop() keeps running after the shutdown ceiling expires.
+    // Destroying underneath it would race live work and tear down the very
+    // resources that work is using, so skip; the caller turns the unchanged
+    // state into a non-`completed` outcome. `_cleanupDisposables()` below is
+    // skipped along with it — moot, since destroy only runs on the shutdown
+    // path, where the process is about to disappear.
+    //
+    // Deliberately keyed on the in-flight flag, NOT on `Stopping`: a rejected
+    // onStop() also leaves the state at `Stopping` (`_state = Stopped` sits
+    // after the try/finally), but it has already settled AND already disposed
+    // via that finally. Nothing is running underneath it, so it keeps the
+    // pre-existing behaviour of getting its onDestroy().
+    if (this._stopInFlight) {
+      const name = getServiceName(this.constructor as ServiceConstructor)
+      logger.warn(`Skipping destroy for '${name}' — stop still in flight`)
+      return
+    }
+    // Safety net: deactivate if still active (e.g., destroy without stop)
+    if (this._activated && isActivatable(this)) {
+      try {
+        await this.onDeactivate()
+      } catch {
+        // best-effort
+      }
+      this._activated = false
+    }
     await this.onDestroy()
-    this._cleanupIpc()
     this._cleanupDisposables()
     this._state = LifecycleState.Destroyed
+  }
+
+  /**
+   * Internal method to execute feature activation.
+   * Only works if the service implements Activatable and is in Ready state.
+   * Idempotent. Guarded against concurrent execution.
+   * Called by LifecycleManager or via protected activate().
+   * @returns True if activation succeeded or was already active
+   */
+  public async _doActivate(): Promise<boolean> {
+    if (!isActivatable(this)) return false
+    if (this._activated || this._activating) return this._activated
+    if (this._state !== LifecycleState.Ready) return false
+    this._activating = true
+    try {
+      const start = performance.now()
+      await this.onActivate()
+      const duration = performance.now() - start
+      this._activated = true
+      logger.info(
+        `Service '${getServiceName(this.constructor as ServiceConstructor)}' activated (${duration.toFixed(3)}ms)`
+      )
+      return true
+    } finally {
+      this._activating = false
+    }
+  }
+
+  /**
+   * Internal method to execute feature deactivation.
+   * Only works if the service implements Activatable.
+   * Idempotent. Guarded against concurrent execution.
+   * Called by LifecycleManager or via protected deactivate().
+   * @returns True if deactivation succeeded or was already inactive
+   */
+  public async _doDeactivate(): Promise<boolean> {
+    if (!isActivatable(this)) return false
+    if (!this._activated || this._activating) return !this._activated
+    this._activating = true
+    try {
+      const start = performance.now()
+      await this.onDeactivate()
+      const duration = performance.now() - start
+      this._activated = false
+      logger.info(
+        `Service '${getServiceName(this.constructor as ServiceConstructor)}' deactivated (${duration.toFixed(3)}ms)`
+      )
+      return true
+    } finally {
+      this._activating = false
+    }
+  }
+
+  /**
+   * Self-activate: load heavy resources.
+   * For use within the service itself (e.g., in onReady() or event handlers).
+   * External callers should use application.activate(name) instead.
+   */
+  protected async activate(): Promise<boolean> {
+    return this._doActivate()
+  }
+
+  /**
+   * Self-deactivate: release heavy resources.
+   * For use within the service itself.
+   * External callers should use application.deactivate(name) instead.
+   */
+  protected async deactivate(): Promise<boolean> {
+    return this._doDeactivate()
   }
 
   /**
@@ -237,9 +419,7 @@ export abstract class BaseService {
    * @returns True if pause was successful, false if service doesn't support pause
    */
   public async _doPause(): Promise<boolean> {
-    if (!isPausable(this)) {
-      return false
-    }
+    if (!isPausable(this)) return false
     this._state = LifecycleState.Pausing
     await this.onPause()
     this._state = LifecycleState.Paused
@@ -253,9 +433,7 @@ export abstract class BaseService {
    * @returns True if resume was successful, false if service doesn't support resume
    */
   public async _doResume(): Promise<boolean> {
-    if (!isPausable(this)) {
-      return false
-    }
+    if (!isPausable(this)) return false
     this._state = LifecycleState.Resuming
     await this.onResume()
     this._state = LifecycleState.Ready

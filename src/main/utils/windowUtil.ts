@@ -1,24 +1,8 @@
+import { isDev, isWin } from '@main/core/platform'
 import type { BrowserWindow } from 'electron'
-
-import { isDev, isWin } from '../constant'
 
 // see: https://www.electronjs.org/zh/docs/latest/api/base-window#winsetbackgroundmaterialmaterial-windows
 const WINDOWS_11_22H2_BUILD = 22621
-
-function isTilingWindowManager() {
-  if (process.platform === 'darwin') {
-    return false
-  }
-
-  if (process.platform !== 'linux') {
-    return true
-  }
-
-  const desktopEnv = process.env.XDG_CURRENT_DESKTOP?.toLowerCase()
-  const tilingSystems = ['hyprland', 'i3', 'sway', 'bspwm', 'dwm', 'awesome', 'qtile', 'herbstluftwm', 'xmonad']
-
-  return tilingSystems.some((system) => desktopEnv?.includes(system))
-}
 
 //see: https://github.com/electron/electron/issues/42055#issuecomment-2449365647
 export const replaceDevtoolsFont = (browserWindow: BrowserWindow) => {
@@ -91,5 +75,3 @@ const isWindowsMicaSupported = () => {
 export const getWindowsBackgroundMaterial = () => {
   return isWindowsMicaSupported() ? 'mica' : undefined
 }
-
-export { isTilingWindowManager }

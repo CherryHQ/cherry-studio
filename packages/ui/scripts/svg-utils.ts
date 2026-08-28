@@ -1,7 +1,7 @@
 /**
  * Shared SVG utility functions for icon generation scripts.
  *
- * Used by generate-icons.ts, generate-mono-icons.ts, and generate-avatars.ts.
+ * Used by icons-generate.ts and icons-generate-avatars.ts.
  */
 
 import * as fs from 'fs'
@@ -27,19 +27,6 @@ export function parseLogoTypeArg(): LogoType {
   throw new Error(`Invalid --type value: ${value}. Use "providers" or "models".`)
 }
 
-export function toCamelCase(filename: string): string {
-  const name = filename.replace(/\.svg$/, '')
-  const parts = name.split('-')
-  if (parts.length === 1) return parts[0]
-  return (
-    parts[0] +
-    parts
-      .slice(1)
-      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-      .join('')
-  )
-}
-
 export function ensureViewBox(svgCode: string): string {
   if (/viewBox\s*=\s*"[^"]*"/.test(svgCode)) return svgCode
 
@@ -58,24 +45,64 @@ export function isImageBased(content: string): boolean {
 
 export function buildSvgMap(type: LogoType): Map<string, string> {
   const svgDir = SVG_SOURCE_MAP[type]
+  const lightDir = path.join(svgDir, 'light')
   const map = new Map<string, string>()
-  if (!fs.existsSync(svgDir)) return map
+  const sourceDir = fs.existsSync(lightDir) ? lightDir : svgDir
+  if (!fs.existsSync(sourceDir)) return map
 
-  for (const file of fs.readdirSync(svgDir)) {
+  for (const file of fs.readdirSync(sourceDir)) {
     if (!file.endsWith('.svg')) continue
-    map.set(toCamelCase(file), path.join(svgDir, file))
+    map.set(file.replace(/\.svg$/, ''), path.join(sourceDir, file))
+  }
+  return map
+}
+
+export interface LightDarkSvgPair {
+  light: string
+  /** null when the logo has no dedicated dark variant (single-source logo). */
+  dark: string | null
+}
+
+/**
+ * Scan a logo source directory with light/ and (optional) dark/ subdirectories,
+ * returning a map keyed by kebab-case dirName → { light, dark } SVG paths.
+ *
+ * The light variant is required. The dark variant is optional — if dark/{name}.svg
+ * is missing, the entry has dark=null and the public CompoundIcon API falls back
+ * to the light SVG for `variant="dark"` without generating a duplicate dark
+ * component.
+ */
+export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPair> {
+  const svgDir = SVG_SOURCE_MAP[type]
+  const lightDir = path.join(svgDir, 'light')
+  const darkDir = path.join(svgDir, 'dark')
+  const map = new Map<string, LightDarkSvgPair>()
+  if (!fs.existsSync(lightDir)) return map
+
+  for (const file of fs.readdirSync(lightDir)) {
+    if (!file.endsWith('.svg')) continue
+    const darkPath = path.join(darkDir, file)
+    const hasDark = fs.existsSync(darkPath)
+    map.set(file.replace(/\.svg$/, ''), {
+      light: path.join(lightDir, file),
+      dark: hasDark ? darkPath : null
+    })
   }
   return map
 }
 
 export function getComponentName(baseDir: string, dirName: string): string {
-  const colorPath = path.join(baseDir, dirName, 'color.tsx')
-  try {
-    const content = fs.readFileSync(colorPath, 'utf-8')
-    const match = content.match(/export \{ (\w+) \}/)
-    if (match) return match[1]
-  } catch {
-    /* fallback */
+  for (const filename of ['light.tsx', 'color.tsx']) {
+    const filePath = path.join(baseDir, dirName, filename)
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const match = content.match(/export \{ (\w+) \}/)
+      if (match) {
+        return filename === 'light.tsx' ? match[1].replace(/Light$/, '') : match[1]
+      }
+    } catch {
+      /* try next filename */
+    }
   }
   return dirName.charAt(0).toUpperCase() + dirName.slice(1)
 }
@@ -83,7 +110,12 @@ export function getComponentName(baseDir: string, dirName: string): string {
 export function collectIconDirs(baseDir: string): string[] {
   return fs
     .readdirSync(baseDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && fs.existsSync(path.join(baseDir, e.name, 'color.tsx')))
+    .filter(
+      (e) =>
+        e.isDirectory() &&
+        (fs.existsSync(path.join(baseDir, e.name, 'light.tsx')) ||
+          fs.existsSync(path.join(baseDir, e.name, 'color.tsx')))
+    )
     .map((e) => e.name)
     .sort()
 }

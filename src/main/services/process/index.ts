@@ -4,10 +4,11 @@ export type { TaskExecutorOptions } from './TaskExecutor'
 export { TaskExecutor } from './TaskExecutor'
 export type {
   ChildProcessOptions,
+  ProcessExitedEvent,
   ProcessHandle,
   ProcessLogLine,
-  ProcessManagerEvents,
   ProcessOptions,
+  ProcessStartedEvent,
   UtilityProcessOptions
 } from './types'
 export { ProcessState } from './types'

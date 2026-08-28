@@ -1,34 +1,64 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
-const lastUsedKeyByProvider = new Map<ResolvedWebSearchProvider['id'], string>()
+import { WebSearchConfigError } from '../WebSearchConfigError'
 
-export function resolveProviderApiHost(provider: ResolvedWebSearchProvider): string {
-  const host = provider.apiHost?.trim()
+export function resolveProviderApiHost(provider: WebSearchProvider, capability: WebSearchCapability): string {
+  const host = provider.capabilities.find((item) => item.feature === capability)?.apiHost?.trim()
   if (!host) {
-    throw new Error(`API host is required for provider ${provider.id}`)
+    throw new WebSearchConfigError(
+      'api_host_missing',
+      `API host is required for provider ${provider.id} capability ${capability}`
+    )
   }
+
+  let protocol: string
+  try {
+    protocol = new URL(host).protocol
+  } catch (cause) {
+    throw new WebSearchConfigError(
+      'api_host_invalid',
+      `API host must be a valid HTTP(S) URL for provider ${provider.id} capability ${capability}`,
+      { cause }
+    )
+  }
+
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    throw new WebSearchConfigError(
+      'api_host_invalid',
+      `API host must be a valid HTTP(S) URL for provider ${provider.id} capability ${capability}`
+    )
+  }
+
   return host
 }
 
-export function resolveProviderApiKey(provider: ResolvedWebSearchProvider, required: boolean = true): string {
-  const keys = provider.apiKeys.map((key) => key.trim()).filter(Boolean)
+export class ApiKeyRotationState {
+  private readonly lastUsedKeyByProvider = new Map<WebSearchProvider['id'], string>()
 
-  if (keys.length === 0) {
-    if (required) {
-      throw new Error(`API key is required for provider ${provider.id}`)
+  resolve(provider: WebSearchProvider, required: boolean = true): string {
+    const keys = provider.apiKeys.map((key) => key.trim()).filter(Boolean)
+
+    if (keys.length === 0) {
+      if (required) {
+        throw new WebSearchConfigError('api_key_missing', `API key is required for provider ${provider.id}`)
+      }
+      return ''
     }
-    return ''
+
+    if (keys.length === 1) {
+      return keys[0]
+    }
+
+    const lastUsedKey = this.lastUsedKeyByProvider.get(provider.id)
+    const currentIndex = lastUsedKey ? keys.indexOf(lastUsedKey) : -1
+    const nextIndex = (currentIndex + 1) % keys.length
+    const nextKey = keys[nextIndex]
+
+    this.lastUsedKeyByProvider.set(provider.id, nextKey)
+    return nextKey
   }
 
-  if (keys.length === 1) {
-    return keys[0]
+  clear(): void {
+    this.lastUsedKeyByProvider.clear()
   }
-
-  const lastUsedKey = lastUsedKeyByProvider.get(provider.id)
-  const currentIndex = lastUsedKey ? keys.indexOf(lastUsedKey) : -1
-  const nextIndex = (currentIndex + 1) % keys.length
-  const nextKey = keys[nextIndex]
-
-  lastUsedKeyByProvider.set(provider.id, nextKey)
-  return nextKey
 }

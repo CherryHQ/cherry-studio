@@ -6,7 +6,7 @@ const path = require('path')
 class PreferencesGenerator {
   constructor() {
     this.dataDir = path.resolve(__dirname, '../data')
-    this.targetFile = path.resolve(__dirname, '../../../../packages/shared/data/preference/preferenceSchemas.ts')
+    this.targetFile = path.resolve(__dirname, '../../../../src/shared/data/preference/preferenceSchemas.ts')
     this.classificationFile = path.join(this.dataDir, 'classification.json')
     this.targetKeyDefinitionsFile = path.join(this.dataDir, 'target-key-definitions.json')
   }
@@ -305,7 +305,7 @@ class PreferencesGenerator {
  * === AUTO-GENERATED CONTENT START ===
  */
 
-import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT, TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {

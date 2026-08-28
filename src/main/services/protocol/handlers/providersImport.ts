@@ -1,0 +1,60 @@
+import { loggerService } from '@logger'
+import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
+
+const logger = loggerService.withContext('ProtocolService:providersImport')
+
+export function parseProvidersImportData(data: string) {
+  try {
+    const decoded = Buffer.from(data, 'base64').toString('utf-8')
+    let result: unknown
+
+    try {
+      result = JSON.parse(decoded)
+    } catch {
+      result = JSON.parse(decoded.replaceAll("'", '"').replaceAll('(', '').replaceAll(')', ''))
+    }
+
+    return JSON.stringify(result)
+  } catch (error) {
+    logger.error('parseProvidersImportData error:', error as Error)
+    return null
+  }
+}
+
+export async function handleProvidersProtocolUrl(url: URL) {
+  switch (url.pathname) {
+    case '/api-keys': {
+      // jsonConfig example:
+      // {
+      //   "id": "custom-openai",
+      //   "baseUrl": "https://api.example.com/v1",
+      //   "apiKey": "sk-xxxx",
+      //   "name": "Custom OpenAI", // optional
+      //   "type": "openai" // optional
+      // }
+      // cherrystudio://providers/api-keys?v=1&data={base64Encode(JSON.stringify(jsonConfig))}
+
+      // replace + and / to _ and - because + and / are processed by URLSearchParams
+      const processedSearch = url.search.replaceAll('+', '_').replaceAll('/', '-')
+      const params = new URLSearchParams(processedSearch)
+      const data = parseProvidersImportData(params.get('data')?.replaceAll('_', '+').replaceAll('-', '/') || '')
+
+      if (!data) {
+        logger.error('handleProvidersProtocolUrl data is null or invalid')
+        return
+      }
+
+      const version = params.get('v')
+      if (version == '1') {
+        // TODO: handle different version
+        logger.debug('handleProvidersProtocolUrl', { data, version })
+      }
+
+      openSettingsInMainWindow(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
+      break
+    }
+    default:
+      logger.error(`Unknown MCP protocol URL: ${url}`)
+      break
+  }
+}

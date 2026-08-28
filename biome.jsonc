@@ -14,7 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!**/package.json", "!coverage/**", "!config/app-upgrade-segments.json"]
+    "includes": ["**/*.json", "!**/package.json", "!coverage/**"]
   },
   "css": {
     "formatter": {
@@ -23,7 +23,16 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**", "!v2-refactor-temp/**"],
+    "includes": [
+      "**",
+      "!**/.claude/**",
+      "!**/.vscode/**",
+      "!**/.conductor/**",
+      "!v2-refactor-temp/**",
+      "!resources/**",
+      "!**/storybook-static/**",
+      "!**/dist/**"
+    ],
     "maxSize": 2097152
   },
   "formatter": {
@@ -49,9 +58,10 @@
       "!*.cjs",
       "!*.md",
       "!src/main/integration/**",
+      "!src/main/services/nutstore/sso/lib/**",
       "!**/tailwind.css",
       "!**/package.json",
-      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/routeTree.gen.ts",
       "!.zed/**",
       "!v2-refactor-temp/**"
     ],
@@ -85,7 +95,7 @@
     "enabled": true,
     "includes": [
       "!**/tailwind.css",
-      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/routeTree.gen.ts",
       "!v2-refactor-temp/**",
       "src/renderer/**/*.{tsx,ts}"
     ],

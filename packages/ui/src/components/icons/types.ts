@@ -5,10 +5,27 @@ export interface IconComponent {
   (props: SVGProps<SVGSVGElement>): React.JSX.Element
 }
 
-/** Compound icon with .Color, .Mono, and .Avatar sub-components */
-export interface CompoundIcon extends IconComponent {
-  Color: IconComponent
-  Mono: IconComponent
+/** Props for the default theme-aware compound icon component.
+ *
+ * Without `variant`, the component renders both light and dark internally and
+ * lets Tailwind's `dark:` modifier pick which one is visible.
+ *
+ * With `variant="light"` or `variant="dark"`, only the chosen variant renders.
+ */
+export interface CompoundIconProps extends SVGProps<SVGSVGElement> {
+  variant?: 'light' | 'dark'
+}
+
+/** Compound icon: one theme-aware default component plus a circular `.Avatar`.
+ *
+ * Usage:
+ *   <Anthropic />                  — auto light/dark (Tailwind `dark:` modifier)
+ *   <Anthropic variant="light" />  — force light variant
+ *   <Anthropic variant="dark" />   — force dark variant
+ *   <Anthropic.Avatar />           — circular wrapper (separate concept)
+ */
+export interface CompoundIcon {
+  (props: CompoundIconProps): React.JSX.Element
   Avatar: React.FC<Omit<IconAvatarProps, 'icon'>>
   colorPrimary: string
 }
@@ -23,17 +40,12 @@ export interface IconMeta {
   colorScheme?: 'mono' | 'color'
 }
 
-/** Generated catalog entry: metadata + component reference */
-export interface CatalogEntry extends IconMeta {
-  component: CompoundIcon
-}
-
 /** Icon component props */
 export interface IconProps extends SVGProps<SVGSVGElement> {
   /** Icon ID matching a catalog entry. e.g. "openai", "anthropic" */
   id: string
   /** Which variant to render */
-  variant?: 'color' | 'mono'
+  variant?: 'light' | 'dark'
   /** Icon size in px, or CSS string */
   size?: number | string
   /** Fallback when ID is not found */

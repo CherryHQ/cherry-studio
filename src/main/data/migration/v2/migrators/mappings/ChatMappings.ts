@@ -12,7 +12,7 @@
  *
  * ### Messages:
  * - Source: Dexie `topics.messages[]` (embedded in topic) + `message_blocks` table
- * - Target: SQLite `messageTable` with inline blocks in `data.blocks`
+ * - Target: SQLite `messageTable` with AI SDK parts in `data.parts`
  *
  * ## Key Transformations:
  *
@@ -24,43 +24,79 @@
  *    - Old: Multiple messages share same `askId`, `foldSelected` marks active
  *    - New: Same `parentId` + non-zero `siblingsGroupId` groups siblings
  *
- * 3. **Block Storage**
+ * 3. **Block → Parts**
  *    - Old: `message.blocks: string[]` (IDs) + separate `message_blocks` table
- *    - New: `message.data.blocks: MessageDataBlock[]` (inline JSON)
+ *    - New: `message.data.parts` (AI SDK UIMessage parts, inline JSON)
  *
  * 4. **Citations → References**
  *    - Old: Separate `CitationMessageBlock` with response/knowledge/memories
  *    - New: Merged into `MainTextBlock.references` as typed ContentReference[]
  *
- * 5. **Mentions → References**
+ * 5. **Mentions Dropped**
  *    - Old: `message.mentions: Model[]`
- *    - New: `MentionReference[]` in `MainTextBlock.references`
+ *    - New: Not migrated — derivable from sibling responses' modelId + siblingsGroupId
  *
  * @since v2.0.0
  */
 
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { DbType } from '@data/db/types'
+import { loggerService } from '@logger'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type {
-  BlockType,
+  CherryMessagePart,
   CitationReference,
   CitationType,
-  CodeBlock,
-  CompactBlock,
   ContentReference,
-  ErrorBlock,
-  FileBlock,
-  ImageBlock,
-  MainTextBlock,
-  MentionReference,
+  DataUIPart,
+  DynamicToolUIPart,
+  FileUIPart,
   MessageData,
-  MessageDataBlock,
+  MessageSnapshot,
   MessageStats,
+  ReasoningUIPart,
   ReferenceCategory,
-  ThinkingBlock,
-  ToolBlock,
-  TranslationBlock,
-  VideoBlock
+  SerializedErrorData,
+  TextUIPart
 } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
+import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
+import { createClearContextPart, withCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema, type Base64String } from '@shared/types/file'
+import type { SourceUrlUIPart } from 'ai'
+import mime from 'mime'
+import { v7 as uuidv7 } from 'uuid'
+
+import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+
+const logger = loggerService.withContext('ChatMappings')
+
+/**
+ * Optional dependencies threaded through the mapper. Currently only used by
+ * the image case to promote v1 inline base64 (either `block.url = 'data:...'`
+ * or `block.metadata.generateImageResponse.images[]` from upgraded legacy
+ * data) into v2 `file_entry` rows so the bytes leave the message JSON blob
+ * and gain `fileEntryId` / path-resilience.
+ *
+ * Migration runs in `preboot/` before any `WhenReady` lifecycle service is
+ * up, so this can't go through `application.get('FileManager')`. We follow
+ * the established migration pattern (see `FileMigrator.execute` at
+ * `src/main/data/migration/v2/migrators/FileMigrator.ts:254`) and write
+ * directly to `fileEntryTable` via the migration's own DB handle. The same
+ * pattern of "decode → write physical → insert row" that
+ * `internal/entry/create.ts:createInternal` runs at service-time is open-
+ * coded inline here so the mapper can stay service-free.
+ *
+ * When omitted, inline base64 is left in place: `block.url = data:` becomes
+ * `FileUIPart.url = data:` (functional via fileProcessor's pass-through);
+ * `metadata.generateImageResponse.images` is dropped (current behavior).
+ */
+export interface ChatMappingDeps {
+  db: DbType
+  filesDataDir: string
+}
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -68,7 +104,7 @@ import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 
 /**
  * Old Topic type from Redux assistants slice
- * Source: src/renderer/src/types/index.ts
+ * Source: src/renderer/types/index.ts
  */
 export interface OldTopic {
   id: string
@@ -84,7 +120,7 @@ export interface OldTopic {
 }
 
 /**
- * Old Assistant type for extracting AssistantMeta
+ * Old Assistant type from Redux state
  * Note: In Redux state, assistant.topics[] contains topic metadata (but with messages: [])
  */
 export interface OldAssistant {
@@ -124,7 +160,7 @@ export interface OldModel {
 
 /**
  * Old Message type from Dexie topics table
- * Source: src/renderer/src/types/newMessage.ts
+ * Source: src/renderer/types/newMessage.ts
  */
 export interface OldMessage {
   id: string
@@ -151,10 +187,10 @@ export interface OldMessage {
   // Metadata
   usage?: OldUsage
   metrics?: OldMetrics
-  traceId?: string
 
-  // Fields being transformed
-  mentions?: OldModel[] // → MentionReference in MainTextBlock.references
+  // Dropped: mentions are redundant in tree-based architecture
+  // (derivable from sibling response messages' modelId + siblingsGroupId)
+  mentions?: OldModel[]
 
   // Dropped fields
   type?: 'clear' | 'text' | '@'
@@ -162,6 +198,8 @@ export interface OldMessage {
   enabledMCPs?: unknown[]
   agentSessionId?: string
   providerMetadata?: unknown
+  // Legacy span pointer; dropped because v1 span detail files are not migrated.
+  traceId?: string
 }
 
 /**
@@ -197,7 +235,7 @@ export interface OldMessageBlock {
   status: string // Dropped in new schema
   model?: OldModel // Dropped in new schema
   metadata?: Record<string, unknown>
-  error?: unknown
+  error?: SerializedErrorData
 }
 
 /**
@@ -248,7 +286,7 @@ export interface OldCodeBlock extends OldMessageBlock {
 export interface OldImageBlock extends OldMessageBlock {
   type: 'image'
   url?: string
-  file?: { id: string; [key: string]: unknown } // file.id → fileId
+  file?: FileMetadata
 }
 
 /**
@@ -256,7 +294,7 @@ export interface OldImageBlock extends OldMessageBlock {
  */
 export interface OldFileBlock extends OldMessageBlock {
   type: 'file'
-  file: { id: string; [key: string]: unknown } // file.id → fileId
+  file: FileMetadata
 }
 
 /**
@@ -276,7 +314,24 @@ export interface OldToolBlock extends OldMessageBlock {
   toolId: string
   toolName?: string
   arguments?: Record<string, unknown>
-  content?: string | object
+  /** MCP CallToolResult format: { content: [{type, text}], isError: boolean } */
+  content?:
+    | {
+        content?: Array<{ type: string; text?: string; data?: string; mimeType?: string }>
+        isError?: boolean
+      }
+    | string
+  metadata?: Record<string, unknown> & {
+    /** Full McpToolResponse preserved at save time */
+    rawMcpToolResponse?: {
+      id: string
+      tool: { id: string; name: string; type: string; serverId?: string; serverName?: string; description?: string }
+      arguments?: Record<string, unknown>
+      status: string
+      response?: unknown
+      toolCallId: string
+    }
+  }
 }
 
 /**
@@ -351,16 +406,12 @@ export type OldBlock =
  */
 export interface NewTopic {
   id: string
-  name: string | null
+  name: string
   isNameManuallyEdited: boolean
   assistantId: string | null
-  assistantMeta: AssistantMeta | null
-  prompt: string | null
   activeNodeId: string | null
-  groupId: string | null
-  sortOrder: number
-  isPinned: boolean
-  pinnedOrder: number
+  orderKey: string
+  lastActivityAt: number
   createdAt: number // timestamp
   updatedAt: number // timestamp
 }
@@ -375,14 +426,11 @@ export interface NewMessage {
   topicId: string
   role: string
   data: MessageData
-  searchableText: string | null
+  searchableText: string
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
-  assistantId: string | null
-  assistantMeta: AssistantMeta | null
   modelId: string | null
-  modelMeta: ModelMeta | null
-  traceId: string | null
+  messageSnapshot: MessageSnapshot | null
   stats: MessageStats | null
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -396,7 +444,6 @@ export interface NewMessage {
  * Transform old Topic to new Topic format
  *
  * @param oldTopic - Source topic from Redux/Dexie
- * @param assistant - Assistant entity for generating AssistantMeta
  * @param activeNodeId - Last message ID to set as active node
  * @returns New topic ready for SQLite insertion
  *
@@ -406,57 +453,30 @@ export interface NewMessage {
  * | id | id | Direct copy |
  * | name | name | Direct copy |
  * | isNameManuallyEdited | isNameManuallyEdited | Direct copy |
- * | assistantId | assistantId | Direct copy |
- * | (from Assistant) | assistantMeta | Generated from assistant entity |
- * | prompt | prompt | Direct copy |
+ * | assistantId | assistantId | FK to assistant table (validated) |
  * | (computed) | activeNodeId | Last message ID |
- * | (none) | groupId | null (new field) |
- * | (none) | sortOrder | 0 (new field) |
- * | pinned | isPinned | Renamed |
- * | (none) | pinnedOrder | 0 (new field) |
+ * | (none) | orderKey | placeholder; stamped globally post-stream by the migrator |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
  * ## Dropped Fields:
  * - type ('chat' | 'session'): No longer needed in new schema
+ * - prompt: Topic-level prompt removed from schema; assistant prompt is authoritative
+ * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
+ *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
-export function transformTopic(
-  oldTopic: OldTopic,
-  assistant: OldAssistant | null,
-  activeNodeId: string | null
-): NewTopic {
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, lastActivityAt?: number): NewTopic {
+  const createdAt = parseTimestamp(oldTopic.createdAt)
   return {
     id: oldTopic.id,
-    name: oldTopic.name || null,
+    name: oldTopic.name || '',
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
-    assistantMeta: assistant ? extractAssistantMeta(assistant) : null,
-    prompt: oldTopic.prompt || null,
     activeNodeId,
-    groupId: null, // New field, no migration source
-    sortOrder: 0, // New field, default value
-    isPinned: oldTopic.pinned ?? false,
-    pinnedOrder: 0, // New field, default value
-    createdAt: parseTimestamp(oldTopic.createdAt),
+    orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
+    lastActivityAt: Math.max(createdAt, lastActivityAt ?? createdAt),
+    createdAt,
     updatedAt: parseTimestamp(oldTopic.updatedAt)
-  }
-}
-
-/**
- * Extract AssistantMeta from old Assistant entity
- *
- * AssistantMeta preserves display information when the original
- * assistant is deleted, ensuring messages/topics remain readable.
- *
- * @param assistant - Source assistant entity
- * @returns AssistantMeta for storage in topic/message
- */
-export function extractAssistantMeta(assistant: OldAssistant): AssistantMeta {
-  return {
-    id: assistant.id,
-    name: assistant.name,
-    emoji: assistant.emoji,
-    type: assistant.type
   }
 }
 
@@ -471,14 +491,13 @@ export function extractAssistantMeta(assistant: OldAssistant): AssistantMeta {
  * - Status normalization
  * - Block transformation (IDs → inline data)
  * - Citation merging into references
- * - Mention conversion to references
  * - Stats merging (usage + metrics)
  *
  * @param oldMessage - Source message from Dexie
  * @param parentId - Computed parent message ID (from tree building)
  * @param siblingsGroupId - Computed siblings group ID (from multi-model detection)
  * @param blocks - Resolved block data from message_blocks table
- * @param assistant - Assistant entity for generating AssistantMeta
+
  * @param correctTopicId - The correct topic ID (from parent topic, not from message)
  * @returns New message ready for SQLite insertion
  *
@@ -493,45 +512,50 @@ export function extractAssistantMeta(assistant: OldAssistant): AssistantMeta {
  * | (extracted) | searchableText | Extracted from text blocks |
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
- * | assistantId | assistantId | Direct copy |
- * | (from Message.model) | assistantMeta | Generated if available |
- * | modelId | modelId | Direct copy |
- * | (from Message.model) | modelMeta | Generated from model entity |
- * | traceId | traceId | Direct copy |
+ * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
+ * | traceId | - | Dropped: legacy span detail files are not migrated |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
+ * ## Message Type:
+ * Legacy `type: 'clear'` is converted to a hidden `data-clear` part. Other
+ * message type values are dropped.
+ *
  * ## Dropped Fields:
- * - type ('clear' | 'text' | '@')
  * - useful (boolean)
  * - enabledMCPs (deprecated)
  * - agentSessionId (session identifier)
+ * - traceId (span detail files are outside the v1 chat migration source set)
  * - providerMetadata (raw provider data)
  * - multiModelMessageStyle (UI state)
  * - askId (replaced by parentId)
  * - foldSelected (replaced by siblingsGroupId)
  */
-export function transformMessage(
+export async function transformMessage(
   oldMessage: OldMessage,
   parentId: string | null,
   siblingsGroupId: number,
   blocks: OldBlock[],
-  assistant: OldAssistant | null,
-  correctTopicId: string
-): NewMessage {
-  // Transform blocks and merge citations/mentions into references
-  const { dataBlocks, citationReferences, searchableText } = transformBlocks(blocks)
+  correctTopicId: string,
+  deps?: ChatMappingDeps,
+  /** The topic's assistant (v1 couples topic→assistant); attached to assistant-role rows. */
+  assistantSnapshot?: { id: string; name: string; emoji: string }
+): Promise<NewMessage> {
+  // Transform blocks to AI SDK UIMessage.parts format
+  const { parts, citationReferences, searchableText } = await transformBlocksToParts(blocks, deps)
 
-  // Convert mentions to MentionReferences
-  const mentionReferences = transformMentions(oldMessage.mentions)
+  // Mentions are NOT migrated. In the new tree-based architecture, which models
+  // responded to a user message can be derived from sibling response messages'
+  // modelId + siblingsGroupId, making stored mentions redundant.
 
-  // Find the MainTextBlock and add references if any exist
-  const allReferences = [...citationReferences, ...mentionReferences]
-  if (allReferences.length > 0) {
-    const mainTextBlock = dataBlocks.find((b) => b.type === 'main_text')
-    if (mainTextBlock) {
-      mainTextBlock.references = allReferences
+  // Merge citations into the first TextUIPart's providerMetadata.cherry.references
+  if (citationReferences.length > 0) {
+    const textPartIndex = parts.findIndex((p): p is TextUIPart => p.type === 'text')
+    if (textPartIndex >= 0) {
+      parts[textPartIndex] = withCherryMeta(parts[textPartIndex] as TextUIPart, {
+        references: citationReferences
+      })
     }
   }
 
@@ -540,44 +564,66 @@ export function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { blocks: dataBlocks },
-    searchableText: searchableText || null,
+    data: {
+      parts: oldMessage.type === 'clear' ? [...parts, createClearContextPart()] : parts
+    },
+    searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
-    assistantId: oldMessage.assistantId || null,
-    assistantMeta: assistant ? extractAssistantMeta(assistant) : null,
-    modelId: oldMessage.modelId || null,
-    modelMeta: oldMessage.model ? extractModelMeta(oldMessage.model) : null,
-    traceId: oldMessage.traceId || null,
-    stats: mergeStats(oldMessage.usage, oldMessage.metrics),
+    modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
+    // Author snapshot (model nested) for historical display. The assistant is attached only to
+    // assistant-role rows; the header shows it first, the model second.
+    messageSnapshot: buildMessageSnapshot(
+      oldMessage.model,
+      oldMessage.role === 'assistant' ? assistantSnapshot : undefined
+    ),
+    stats: mergeStats(
+      oldMessage.usage,
+      oldMessage.metrics,
+      oldMessage.role === 'assistant' ? estimateLegacyRequestCount(blocks) : undefined
+    ),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
   }
 }
 
 /**
- * Extract ModelMeta from old Model entity
- *
- * ModelMeta preserves model display information when the original
- * model configuration is removed or unavailable.
- *
- * @param model - Source model entity
- * @returns ModelMeta for storage in message
+ * Build the author {@link MessageSnapshot} from a legacy v1 message: the producing assistant with
+ * the model nested inside. Returns null unless both the assistant and a valid model are present
+ * (the author owns the model — no author, no snapshot).
  */
-export function extractModelMeta(model: OldModel): ModelMeta {
+function buildMessageSnapshot(
+  model: OldMessage['model'],
+  assistant: { id: string; name: string; emoji: string } | undefined
+): MessageSnapshot | null {
+  if (!assistant) return null
+  if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
+  if (!model.id.trim() || !model.provider.trim()) return null
   return {
-    id: model.id,
-    name: model.name,
-    provider: model.provider,
-    group: model.group
+    ...assistant,
+    model: {
+      id: model.id,
+      name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
+      provider: model.provider,
+      group: typeof model.group === 'string' ? model.group : undefined
+    }
   }
+}
+
+/** Build the assistant identity (v2 id + name/emoji) from a resolved v1 assistant row. */
+export function buildAssistantSnapshot(
+  id: string,
+  assistant: OldAssistant
+): { id: string; name: string; emoji: string } {
+  return { id, name: assistant.name, emoji: assistant.emoji ?? '' }
 }
 
 /**
  * Normalize old status values to new enum
  *
  * Old system has multiple transient states that don't apply to stored messages.
- * We normalize these to the three final states in the new schema.
+ * Transient states (sending/pending/searching/processing) indicate interrupted
+ * operations and are mapped to 'error' — the message was not completed.
  *
  * @param oldStatus - Status from old message
  * @returns Normalized status for new message
@@ -586,23 +632,22 @@ export function extractModelMeta(model: OldModel): ModelMeta {
  * - 'success' → 'success'
  * - 'error' → 'error'
  * - 'paused' → 'paused'
- * - 'sending', 'pending', 'searching', 'processing' → 'success' (completed states)
+ * - 'sending', 'pending', 'searching', 'processing' → 'error' (interrupted)
  */
 export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'error' | 'paused' {
   switch (oldStatus) {
-    case 'error':
-      return 'error'
+    case 'success':
+      return 'success'
     case 'paused':
       return 'paused'
-    case 'success':
+    case 'error':
     case 'sending':
     case 'pending':
     case 'searching':
     case 'processing':
     default:
-      // All transient states are treated as success for stored messages
-      // If a message was in a transient state during export, it completed
-      return 'success'
+      // Transient states in persisted data indicate interrupted operations
+      return 'error'
   }
 }
 
@@ -619,27 +664,44 @@ export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'e
  * ## Field Mapping:
  * | Source | Target |
  * |--------|--------|
- * | usage.prompt_tokens | promptTokens |
- * | usage.completion_tokens | completionTokens |
+ * | usage.prompt_tokens | inputTokens |
+ * | usage.completion_tokens | outputTokens |
  * | usage.total_tokens | totalTokens |
- * | usage.thoughts_tokens | thoughtsTokens |
- * | usage.cost | cost |
+ * | usage.thoughts_tokens | outputTokenDetails.reasoningTokens |
+ * | usage.cost | costs[USD] (provider-reported) |
  * | metrics.time_first_token_millsec | timeFirstTokenMs |
  * | metrics.time_completion_millsec | timeCompletionMs |
  * | metrics.time_thinking_millsec | timeThinkingMs |
+ *
+ * v1 carries no cache-token breakdown. Its optional thoughts count becomes
+ * `outputTokenDetails.reasoningTokens`.
  */
-export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats | null {
+export function mergeStats(usage?: OldUsage, metrics?: OldMetrics, requestCount?: number): MessageStats | null {
   if (!usage && !metrics) return null
 
   const stats: MessageStats = {}
 
-  // Token usage
+  // Token usage (AI SDK v6 names)
   if (usage) {
-    if (usage.prompt_tokens !== undefined) stats.promptTokens = usage.prompt_tokens
-    if (usage.completion_tokens !== undefined) stats.completionTokens = usage.completion_tokens
+    if (usage.prompt_tokens !== undefined) stats.inputTokens = usage.prompt_tokens
+    if (usage.completion_tokens !== undefined) stats.outputTokens = usage.completion_tokens
     if (usage.total_tokens !== undefined) stats.totalTokens = usage.total_tokens
-    if (usage.thoughts_tokens !== undefined) stats.thoughtsTokens = usage.thoughts_tokens
-    if (usage.cost !== undefined) stats.cost = usage.cost
+    if (usage.thoughts_tokens !== undefined) stats.outputTokenDetails = { reasoningTokens: usage.thoughts_tokens }
+    // v1 `Usage.cost` was only written by OpenRouter (provider-reported actual
+    // spend); treat it as authoritative provider cost in USD.
+    if (usage.cost !== undefined) {
+      stats.costs = [
+        {
+          currency: 'USD',
+          amount: usage.cost,
+          providerReportedRequestCount: requestCount ?? 1,
+          computedRequestCount: 0
+        }
+      ]
+    }
+    stats.requestCount = requestCount ?? 1
+    stats.estimatedRequestCount = requestCount ?? 1
+    stats.unpricedRequestCount = usage.cost === undefined ? (requestCount ?? 1) : 0
   }
 
   // Performance metrics
@@ -653,253 +715,495 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
   return Object.keys(stats).length > 0 ? stats : null
 }
 
+/**
+ * v1 stored one aggregate usage object per assistant message. Estimate how
+ * many provider calls contributed to it from the raw block sequence: the
+ * initial call is one, and each tool group followed by more model output
+ * implies one continuation call. Parallel tools remain one group; reference
+ * and attachment blocks do not split it.
+ */
+export function estimateLegacyRequestCount(blocks: readonly OldBlock[]): number {
+  let requestCount = 1
+  let toolGroupOpen = false
+  for (const block of blocks) {
+    if (block.type === 'tool') {
+      toolGroupOpen = true
+      continue
+    }
+    if (
+      block.type === 'citation' ||
+      block.type === 'file' ||
+      block.type === 'source' ||
+      block.type === 'image' ||
+      block.type === 'video'
+    ) {
+      continue
+    }
+    if (
+      toolGroupOpen &&
+      (block.type === 'main_text' ||
+        block.type === 'thinking' ||
+        block.type === 'code' ||
+        block.type === 'translation' ||
+        block.type === 'compact')
+    ) {
+      requestCount += 1
+      toolGroupOpen = false
+    }
+  }
+  return requestCount
+}
+
 // ============================================================================
-// Block Transformation Functions
+// Block → UIMessage.parts Transformation (v2 target format)
 // ============================================================================
 
 /**
- * Transform old blocks to new format and extract citation references
+ * Transform old blocks to AI SDK UIMessage.parts format.
  *
- * This function:
- * 1. Converts each old block to new format (removing id, messageId, status)
- * 2. Extracts CitationMessageBlocks and converts to ContentReference[]
- * 3. Extracts searchable text from text-based blocks
- *
- * @param oldBlocks - Array of old blocks from message_blocks table
- * @returns Object containing:
- *   - dataBlocks: Transformed blocks (excluding CitationBlocks)
- *   - citationReferences: Extracted citation references
- *   - searchableText: Combined searchable text
- *
- * ## Block Type Mapping:
- * | Old Type | New Type | Notes |
- * |----------|----------|-------|
- * | main_text | MainTextBlock | Direct, references added later |
- * | thinking | ThinkingBlock | thinking_millsec → thinkingMs |
- * | translation | TranslationBlock | Direct copy |
- * | code | CodeBlock | Direct copy |
- * | image | ImageBlock | file.id → fileId |
- * | file | FileBlock | file.id → fileId |
- * | video | VideoBlock | Direct copy |
- * | tool | ToolBlock | Direct copy |
- * | citation | (removed) | Converted to MainTextBlock.references |
- * | error | ErrorBlock | Direct copy |
- * | compact | CompactBlock | Direct copy |
- * | unknown | (skipped) | Placeholder blocks are dropped |
+ * ## Block → Part Mapping:
+ * | Old Block      | New Part                | Notes                                    |
+ * |----------------|-------------------------|------------------------------------------|
+ * | main_text      | TextUIPart         | content → text, references in metadata   |
+ * | thinking       | ReasoningUIPart    | thinkingMs in providerMetadata.cherry     |
+ * | tool           | DynamicToolUIPart         | dynamic-tool with output-available state  |
+ * | image          | FileUIPart         | fileId resolved to file:// URL            |
+ * | file           | FileUIPart         | fileId resolved to file:// URL            |
+ * | error          | DataUIPart<CherryDataPartTypes>         | data-error with name/message              |
+ * | translation    | DataUIPart<CherryDataPartTypes>         | data-translation                          |
+ * | video          | DataUIPart<CherryDataPartTypes>         | data-video                                |
+ * | compact        | DataUIPart<CherryDataPartTypes>         | data-compact                              |
+ * | code           | DataUIPart<CherryDataPartTypes>         | data-code                                 |
+ * | citation (web) | SourceUrlUIPart         | Each web result → source-url part          |
+ * | citation (kb)  | (merged into TextPart)  | Knowledge/memory → providerMetadata refs  |
+ * | unknown        | (skipped)               | Placeholder blocks are dropped            |
  */
-export function transformBlocks(oldBlocks: OldBlock[]): {
-  dataBlocks: MessageDataBlock[]
+export async function transformBlocksToParts(
+  oldBlocks: OldBlock[],
+  deps?: ChatMappingDeps
+): Promise<{
+  parts: CherryMessagePart[]
   citationReferences: ContentReference[]
   searchableText: string
-} {
-  const dataBlocks: MessageDataBlock[] = []
+}> {
+  const parts: CherryMessagePart[] = []
   const citationReferences: ContentReference[] = []
   const searchableTexts: string[] = []
 
   for (const oldBlock of oldBlocks) {
-    const transformed = transformSingleBlock(oldBlock)
+    const result = await transformSingleBlockToPart(oldBlock, deps)
 
-    if (transformed.block) {
-      dataBlocks.push(transformed.block)
+    if (result.part) {
+      parts.push(result.part)
     }
 
-    if (transformed.citations) {
-      citationReferences.push(...transformed.citations)
+    if (result.extraParts) {
+      parts.push(...result.extraParts)
     }
 
-    if (transformed.searchableText) {
-      searchableTexts.push(transformed.searchableText)
+    if (result.citations) {
+      citationReferences.push(...result.citations)
+    }
+
+    if (result.searchableText) {
+      searchableTexts.push(result.searchableText)
     }
   }
 
   return {
-    dataBlocks,
+    parts,
     citationReferences,
     searchableText: searchableTexts.join('\n')
   }
 }
 
 /**
- * Transform a single old block to new format
- *
- * @param oldBlock - Single old block
- * @returns Transformed block and extracted data
+ * Transform a single old block to UIMessage part(s).
+ * Most blocks produce a single part, but citation blocks may produce multiple
+ * (SourceUrlUIPart for web results + DataUIPart for knowledge/memory).
  */
-function transformSingleBlock(oldBlock: OldBlock): {
-  block: MessageDataBlock | null
+async function transformSingleBlockToPart(
+  oldBlock: OldBlock,
+  deps?: ChatMappingDeps
+): Promise<{
+  part: CherryMessagePart | null
+  extraParts: CherryMessagePart[] | null
   citations: ContentReference[] | null
   searchableText: string | null
-} {
-  const baseFields = {
-    createdAt: parseTimestamp(oldBlock.createdAt),
-    updatedAt: oldBlock.updatedAt ? parseTimestamp(oldBlock.updatedAt) : undefined,
-    metadata: oldBlock.metadata,
-    error: oldBlock.error as MessageDataBlock['error']
-  }
-
+}> {
   switch (oldBlock.type) {
     case 'main_text': {
       const block = oldBlock as OldMainTextBlock
-      return {
-        block: {
-          type: 'main_text' as BlockType.MAIN_TEXT,
-          content: block.content,
-          ...baseFields
-          // knowledgeBaseIds and citationReferences are intentionally dropped
-          // References will be added from CitationBlocks and mentions
-        } as MainTextBlock,
-        citations: null,
-        searchableText: block.content
+      const part: TextUIPart = {
+        type: 'text',
+        text: block.content,
+        state: 'done'
       }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'thinking': {
       const block = oldBlock as OldThinkingBlock
-      return {
-        block: {
-          type: 'thinking' as BlockType.THINKING,
-          content: block.content,
-          thinkingMs: block.thinking_millsec, // Field rename
-          ...baseFields
-        } as ThinkingBlock,
-        citations: null,
-        searchableText: block.content
+      const basePart: ReasoningUIPart = {
+        type: 'reasoning',
+        text: block.content,
+        state: 'done'
       }
-    }
-
-    case 'translation': {
-      const block = oldBlock as OldTranslationBlock
-      return {
-        block: {
-          type: 'translation' as BlockType.TRANSLATION,
-          content: block.content,
-          sourceBlockId: block.sourceBlockId,
-          sourceLanguage: block.sourceLanguage,
-          targetLanguage: block.targetLanguage,
-          ...baseFields
-        } as TranslationBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'code': {
-      const block = oldBlock as OldCodeBlock
-      return {
-        block: {
-          type: 'code' as BlockType.CODE,
-          content: block.content,
-          language: block.language,
-          ...baseFields
-        } as CodeBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'image': {
-      const block = oldBlock as OldImageBlock
-      return {
-        block: {
-          type: 'image' as BlockType.IMAGE,
-          url: block.url,
-          fileId: block.file?.id, // file.id → fileId
-          ...baseFields
-        } as ImageBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'file': {
-      const block = oldBlock as OldFileBlock
-      return {
-        block: {
-          type: 'file' as BlockType.FILE,
-          fileId: block.file.id, // file.id → fileId
-          ...baseFields
-        } as FileBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'video': {
-      const block = oldBlock as OldVideoBlock
-      return {
-        block: {
-          type: 'video' as BlockType.VIDEO,
-          url: block.url,
-          filePath: block.filePath,
-          ...baseFields
-        } as VideoBlock,
-        citations: null,
-        searchableText: null
-      }
+      const part = withCherryMeta(basePart, { thinkingMs: block.thinking_millsec })
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'tool': {
       const block = oldBlock as OldToolBlock
-      return {
-        block: {
-          type: 'tool' as BlockType.TOOL,
-          toolId: block.toolId,
-          toolName: block.toolName,
-          arguments: block.arguments,
-          content: block.content,
-          ...baseFields
-        } as ToolBlock,
-        citations: null,
-        searchableText: null
+      const raw = block.metadata?.rawMcpToolResponse
+      const contentObj = typeof block.content === 'object' ? block.content : null
+
+      const rawName = block.toolName || raw?.tool?.name || 'unknown'
+      const serverName = raw?.tool?.serverName
+      const toolName = serverName ? `${serverName}: ${rawName}` : rawName
+      const toolCallId = block.toolId || raw?.toolCallId || raw?.id || block.id
+      const input = block.arguments ?? raw?.arguments ?? {}
+      const output = raw?.response ?? block.content
+      const isError = contentObj?.isError === true || raw?.status === 'error'
+      const rawToolType = raw?.tool?.type
+      const toolType =
+        rawToolType === 'mcp' || rawToolType === 'builtin' || rawToolType === 'provider' ? rawToolType : undefined
+      const toolMetadata: CherryToolMeta['tool'] | undefined = raw?.tool
+        ? {
+            ...(toolType ? { type: toolType } : {}),
+            ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+            ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+          }
+        : undefined
+      const callProviderMetadata = raw?.tool
+        ? {
+            cherry: {
+              tool: {
+                ...(toolType ? { type: toolType } : {}),
+                ...(raw.tool.name ? { name: raw.tool.name } : {}),
+                ...(raw.tool.description ? { description: raw.tool.description } : {}),
+                ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+                ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+              }
+            }
+          }
+        : undefined
+
+      const base = {
+        type: 'dynamic-tool' as const,
+        toolName,
+        toolCallId,
+        input,
+        ...(callProviderMetadata ? { callProviderMetadata } : {})
       }
+
+      const partWithoutMeta: DynamicToolUIPart = isError
+        ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
+        : { ...base, state: 'output-available', output }
+      const part =
+        toolMetadata && Object.keys(toolMetadata).length > 0
+          ? withCherryMeta(partWithoutMeta, { tool: toolMetadata })
+          : partWithoutMeta
+
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
-    case 'citation': {
-      // CitationBlocks are NOT converted to blocks
-      // Instead, their content is extracted as ContentReferences
-      const block = oldBlock as OldCitationBlock
-      const citations = extractCitationReferences(block)
-      return {
-        block: null, // No block output
-        citations,
-        searchableText: null
+    case 'image': {
+      const block = oldBlock as OldImageBlock
+      const fileParts = await collectImageFileParts(block, deps)
+      const part = fileParts[0] ?? null
+      const extraParts = fileParts.length > 1 ? fileParts.slice(1) : null
+      return { part, extraParts, citations: null, searchableText: null }
+    }
+
+    case 'file': {
+      const block = oldBlock as OldFileBlock
+      const basePart: FileUIPart = {
+        type: 'file',
+        mediaType: inferMediaType(block.file.ext, 'application/octet-stream'),
+        url: block.file.path ? `file://${block.file.path}` : '',
+        ...(block.file.origin_name ? { filename: block.file.origin_name } : {})
       }
+      const part = block.file.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'error': {
-      return {
-        block: {
-          type: 'error' as BlockType.ERROR,
-          ...baseFields
-        } as ErrorBlock,
-        citations: null,
-        searchableText: null
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-error',
+        data: {
+          name: oldBlock.error?.name ?? null,
+          message: oldBlock.error?.message ?? null
+        }
       }
+      return { part, extraParts: null, citations: null, searchableText: null }
+    }
+
+    case 'translation': {
+      const block = oldBlock as OldTranslationBlock
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-translation',
+        data: {
+          content: block.content,
+          targetLanguage: block.targetLanguage,
+          ...(block.sourceLanguage ? { sourceLanguage: block.sourceLanguage } : {}),
+          ...(block.sourceBlockId ? { sourceBlockId: block.sourceBlockId } : {})
+        }
+      }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
+    }
+
+    case 'video': {
+      const block = oldBlock as OldVideoBlock
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-video',
+        data: {
+          ...(block.url ? { url: block.url } : {}),
+          ...(block.filePath ? { filePath: block.filePath } : {})
+        }
+      }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'compact': {
       const block = oldBlock as OldCompactBlock
-      return {
-        block: {
-          type: 'compact' as BlockType.COMPACT,
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-compact',
+        data: {
           content: block.content,
-          compactedContent: block.compactedContent,
-          ...baseFields
-        } as CompactBlock,
-        citations: null,
-        searchableText: block.content
+          compactedContent: block.compactedContent
+        }
       }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
+    }
+
+    case 'code': {
+      const block = oldBlock as OldCodeBlock
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-code',
+        data: {
+          content: block.content,
+          language: block.language
+        }
+      }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
+    }
+
+    case 'citation': {
+      const block = oldBlock as OldCitationBlock
+      const citations = extractCitationReferences(block)
+      const sourceParts = extractSourceUrlParts(block)
+
+      return { part: null, extraParts: sourceParts.length > 0 ? sourceParts : null, citations, searchableText: null }
     }
 
     case 'unknown':
     default:
-      // Skip unknown/placeholder blocks
-      return {
-        block: null,
-        citations: null,
-        searchableText: null
-      }
+      return { part: null, extraParts: null, citations: null, searchableText: null }
   }
+}
+
+const BASE64_DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/
+const MIGRATED_IMAGE_NAME = 'migrated-image'
+
+/**
+ * Verify a string actually conforms to the `Base64String` template literal:
+ * `data:<mime>;base64,<payload>`. This excludes `data:text/plain,Hello`
+ * (non-base64 data URL) and `data:` with no payload.
+ */
+function isBase64DataUrl(s: string): s is Base64String {
+  return BASE64_DATA_URL_RE.test(s)
+}
+
+/** Wrap a raw base64 payload into a canonical data URL, or pass through if already one. */
+function toBase64DataUrl(raw: string, mimeFallback: string): Base64String {
+  if (isBase64DataUrl(raw)) return raw
+  return `data:${mimeFallback};base64,${raw}`
+}
+
+/** Best-effort MIME inference from a data URL prefix; falls back to image/png. */
+function mediaTypeFromDataUrl(dataUrl: Base64String): string {
+  const match = BASE64_DATA_URL_RE.exec(dataUrl)
+  return match?.[1] ?? 'image/png'
+}
+
+function base64PayloadKey(raw: string): string {
+  const match = BASE64_DATA_URL_RE.exec(raw)
+  return match?.[2] ?? raw
+}
+
+async function promoteBase64ToFileEntry(
+  db: DbType,
+  filesDataDir: string,
+  dataUrl: Base64String,
+  blockId: string
+): Promise<FileUIPart | null> {
+  const match = BASE64_DATA_URL_RE.exec(dataUrl)
+  if (!match) return null
+  const mimeType = match[1]
+  const payload = match[2]
+  const ext = mime.getExtension(mimeType)
+  const id = uuidv7()
+  const filename = ext ? `${id}.${ext}` : id
+  const physicalPath = AbsoluteFilePathSchema.parse(path.join(filesDataDir, filename))
+  const bytes = Buffer.from(payload, 'base64')
+  let physicalWritten = false
+
+  try {
+    // Write physical file first. If we crash before the DB insert lands,
+    // the file sweep can later reclaim this UUID blob because no file_entry
+    // row exists. Same risk model as the rest of
+    // FileMigrator's transform path; acceptable for a migration step.
+    await fs.mkdir(path.dirname(physicalPath), { recursive: true })
+    await fs.writeFile(physicalPath, bytes)
+    physicalWritten = true
+
+    const now = Date.now()
+    await db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: MIGRATED_IMAGE_NAME,
+      ext: ext ?? null,
+      size: bytes.length,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const basePart: FileUIPart = {
+      type: 'file',
+      mediaType: mimeType,
+      url: `file://${physicalPath}`,
+      filename: ext ? `${MIGRATED_IMAGE_NAME}.${ext}` : MIGRATED_IMAGE_NAME
+    }
+    return withCherryMeta(basePart, { fileEntryId: id })
+  } catch (error) {
+    if (physicalWritten) {
+      // Best-effort: clean up the file we just wrote so we don't leave
+      // bytes on disk that no DB row references.
+      await fs.unlink(physicalPath).catch(() => {})
+    }
+    logger.warn('Failed to promote v1 base64 image to v2 file_entry; dropping image', {
+      blockId,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return null
+  }
+}
+
+/**
+ * Collect FileUIParts for a v1 OldImageBlock. v1 stored image bytes in any of:
+ *
+ *  1. `block.file` — file already on disk; we already have a v1 FileEntryId.
+ *     v2 keeps the id and points `url` at the disk path.
+ *  2. `block.url = file://...` or `https://...` — remote / local URL; passes
+ *     through as-is (no fileEntryId because we don't own it).
+ *  3. `block.url = data:...;base64,...` — inline base64; **promoted** via
+ *     `createInternalEntry({source:'base64'})` so the bytes leave the message
+ *     JSON and gain a v2 fileEntryId. Falls back to inline data URL if no
+ *     FileManager dep is provided.
+ *  4. `block.metadata.generateImageResponse.images` with `type === 'base64'`
+ *     — array of base64 images from upgraded legacy data (`upgrades.ts:211`
+ *     created this shape when migrating older `oldMessage.metadata.generateImage`).
+ *     Each image **promoted** to its own FileUIPart.
+ *
+ * When `deps` is omitted, the base64 cases degrade gracefully (data URL on
+ * `block.url` stays inline; `generateImageResponse.images` is dropped, same
+ * as before this helper existed) so unrelated tests don't need to mock
+ * FileManager.
+ */
+async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDeps): Promise<FileUIPart[]> {
+  const parts: FileUIPart[] = []
+  const promotedPayloads = new Set<string>()
+
+  // (1) Disk-backed file (canonical for modern v1) — never has inline base64.
+  if (block.file) {
+    const basePart: FileUIPart = {
+      type: 'file',
+      mediaType: inferMediaType(block.file.ext, 'image/png'),
+      url: block.file.path ? `file://${block.file.path}` : '',
+      ...(block.file.origin_name ? { filename: block.file.origin_name } : {})
+    }
+    parts.push(block.file.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart)
+  } else if (block.url) {
+    // (2)+(3) URL-only image (no disk file).
+    if (isBase64DataUrl(block.url)) {
+      // `block.url` is now narrowed to `Base64String`; no `as` cast.
+      promotedPayloads.add(base64PayloadKey(block.url))
+      if (deps?.db) {
+        const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, block.url, block.id)
+        if (promoted) parts.push(promoted)
+      } else {
+        // No promoter → keep inline (fileProcessor passes data: through unchanged).
+        parts.push({ type: 'file', mediaType: mediaTypeFromDataUrl(block.url), url: block.url })
+      }
+    } else {
+      // Remote / file:// URL, or a non-base64 data: URL — keep as-is.
+      parts.push({ type: 'file', mediaType: 'image/png', url: block.url })
+    }
+  }
+
+  // (4) Legacy `metadata.generateImageResponse.images` (upgraded older v1).
+  const generated = (block.metadata as { generateImageResponse?: { type?: string; images?: unknown } } | undefined)
+    ?.generateImageResponse
+  const isBase64Mode = generated?.type === 'base64'
+  const rawImages = Array.isArray(generated?.images) ? generated.images.filter((x) => typeof x === 'string') : []
+  if (isBase64Mode && rawImages.length > 0) {
+    if (deps?.db) {
+      for (const raw of rawImages) {
+        const payloadKey = base64PayloadKey(raw)
+        if (promotedPayloads.has(payloadKey)) continue
+        promotedPayloads.add(payloadKey)
+        const dataUrl = toBase64DataUrl(raw, 'image/png')
+        const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, dataUrl, block.id)
+        if (promoted) parts.push(promoted)
+      }
+    } else {
+      logger.warn(
+        'OldImageBlock carries metadata.generateImageResponse.images but no db dep was provided; dropping legacy base64 images',
+        {
+          blockId: block.id,
+          imageCount: rawImages.length
+        }
+      )
+    }
+  }
+
+  return parts
+}
+
+/**
+ * Extract SourceUrlUIPart[] from web search results in a CitationBlock.
+ *
+ * Web search results that have a URL are converted to AI SDK's native
+ * SourceUrlUIPart, which useChat can render directly.
+ */
+function extractSourceUrlParts(citationBlock: OldCitationBlock): CherryMessagePart[] {
+  const parts: CherryMessagePart[] = []
+
+  if (!citationBlock.response?.results) return parts
+
+  const results = citationBlock.response.results
+  if (!Array.isArray(results)) return parts
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    if (typeof result !== 'object' || result === null) continue
+    const entry = result as Record<string, unknown>
+    const url = typeof entry.url === 'string' ? entry.url : undefined
+    if (!url) continue
+
+    const sourcePart: SourceUrlUIPart = {
+      type: 'source-url',
+      sourceId: `citation-${i}`,
+      url,
+      title: typeof entry.title === 'string' ? entry.title : undefined
+    }
+    parts.push(sourcePart)
+  }
+
+  return parts
 }
 
 /**
@@ -964,31 +1268,6 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
   return references
 }
 
-/**
- * Transform old mentions to MentionReferences
- *
- * Old system stored @mentions as a Model[] array on the message.
- * New system stores them as MentionReference[] in MainTextBlock.references.
- *
- * @param mentions - Array of mentioned models from old message
- * @returns Array of MentionReferences
- *
- * ## Transformation:
- * | Old Field | New Field |
- * |-----------|-----------|
- * | model.id | modelId |
- * | model.name | displayName |
- */
-export function transformMentions(mentions?: OldModel[]): MentionReference[] {
-  if (!mentions || mentions.length === 0) return []
-
-  return mentions.map((model) => ({
-    category: 'mention' as ReferenceCategory.MENTION,
-    modelId: model.id,
-    displayName: model.name
-  }))
-}
-
 // ============================================================================
 // Tree Building Functions
 // ============================================================================
@@ -1050,9 +1329,21 @@ export function buildMessageTree(
     }
   }
 
+  // Only references to messages already processed in chronological order are
+  // safe parent edges. Accepting an ID that appears later can create a cycle
+  // when that later user message links back to a selected response.
+  const seenMessageIds = new Set<string>()
+
+  // Track fallback parent for orphaned askId groups (user message deleted)
+  // All messages in the same orphaned group share the previousMessageId at the time
+  // the first group member is encountered, preserving sibling relationships.
+  const orphanedGroupParent = new Map<string, string | null>()
+
   // Second pass: build parent/sibling relationships
   let previousMessageId: string | null = null
   let lastNonGroupMessageId: string | null = null // Last message not in a group, for linking subsequent user messages
+  let lastGroupFallbackId: string | null = null // Last group member as fallback when no foldSelected
+  let groupHasFoldSelected = false // Whether current group has a foldSelected member
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
@@ -1060,24 +1351,42 @@ export function buildMessageTree(
     let siblingsGroupId = 0
 
     if (msg.askId && askIdToGroupId.has(msg.askId)) {
-      // This is part of a multi-model response group
-      parentId = msg.askId // Parent is the user message
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
 
-      // If this is the selected response, update lastNonGroupMessageId for subsequent user messages
+      if (seenMessageIds.has(msg.askId)) {
+        // Normal multi-model: parent is the user message
+        parentId = msg.askId
+      } else {
+        // Orphaned multi-model: user message deleted, share a common fallback parent
+        if (!orphanedGroupParent.has(msg.askId)) {
+          orphanedGroupParent.set(msg.askId, previousMessageId)
+        }
+        parentId = orphanedGroupParent.get(msg.askId) ?? null
+      }
+
+      // Track selected response or last group member for linking subsequent user messages
       if (msg.foldSelected) {
         lastNonGroupMessageId = msg.id
+        groupHasFoldSelected = true
       }
-    } else if (msg.role === 'user' && lastNonGroupMessageId) {
-      // User message after a multi-model group links to the selected response
-      parentId = lastNonGroupMessageId
+      if (!groupHasFoldSelected) {
+        lastGroupFallbackId = msg.id
+      }
+    } else if (msg.role === 'user' && (lastNonGroupMessageId || lastGroupFallbackId)) {
+      // User message after a multi-model group links to the selected (or last) response.
+      // lastGroupFallbackId takes priority: it means the group had no foldSelected,
+      // so the user message should follow the last group member, not the pre-group message.
+      parentId = lastGroupFallbackId ?? lastNonGroupMessageId
       lastNonGroupMessageId = null
+      lastGroupFallbackId = null
+      groupHasFoldSelected = false
     } else {
       // Normal sequential message - parent is previous message
       parentId = previousMessageId
     }
 
     result.set(msg.id, { parentId, siblingsGroupId })
+    seenMessageIds.add(msg.id)
 
     // Update tracking for next iteration
     previousMessageId = msg.id
@@ -1085,6 +1394,8 @@ export function buildMessageTree(
     // Update lastNonGroupMessageId for non-group messages
     if (siblingsGroupId === 0) {
       lastNonGroupMessageId = msg.id
+      lastGroupFallbackId = null
+      groupHasFoldSelected = false
     }
   }
 
@@ -1121,13 +1432,50 @@ export function findActiveNodeId(messages: OldMessage[]): string | null {
 // ============================================================================
 
 /**
+ * Infer MIME type from file extension.
+ */
+function inferMediaType(ext: string | undefined, fallback: string): string {
+  if (!ext) return fallback
+  const normalized = ext.startsWith('.') ? ext.slice(1).toLowerCase() : ext.toLowerCase()
+  const mimeMap: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    bmp: 'image/bmp',
+    ico: 'image/x-icon',
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    csv: 'text/csv',
+    json: 'application/json',
+    xml: 'application/xml',
+    zip: 'application/zip',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    mp4: 'video/mp4',
+    webm: 'video/webm'
+  }
+  return mimeMap[normalized] ?? fallback
+}
+
+/**
  * Parse ISO timestamp string to Unix timestamp (milliseconds)
  *
  * @param isoString - ISO 8601 timestamp string or undefined
  * @returns Unix timestamp in milliseconds
  */
-export function parseTimestamp(isoString: string | undefined): number {
-  if (!isoString) return Date.now()
+export function parseTimestamp(isoString: string | null | undefined): number {
+  if (isoString == null) return Date.now() // handles both null and undefined
+  if (!isoString) return Date.now() // handles empty string
 
   const parsed = new Date(isoString).getTime()
   return isNaN(parsed) ? Date.now() : parsed

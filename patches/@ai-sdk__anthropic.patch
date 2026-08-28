@@ -1,0 +1,228 @@
+diff --git a/dist/index.js b/dist/index.js
+index c180815..5dd52b3 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -108,7 +108,7 @@ var anthropicMessagesResponseSchema = (0, import_provider_utils2.lazySchema)(
+           import_v42.z.object({
+             type: import_v42.z.literal("thinking"),
+             thinking: import_v42.z.string(),
+-            signature: import_v42.z.string()
++            signature: import_v42.z.string().optional()
+           }),
+           import_v42.z.object({
+             type: import_v42.z.literal("redacted_thinking"),
+@@ -3474,7 +3474,7 @@ var AnthropicMessagesLanguageModel = class {
+       warnings.push({
+         type: "compatibility",
+         feature: "maxOutputTokens",
+-        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
+       });
+     }
+     if (rejectsSamplingParameters) {
+@@ -3567,12 +3567,12 @@ var AnthropicMessagesLanguageModel = class {
+     const sendThinking = isThinking || thinkingType === "disabled";
+     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
+     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+-    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
+     const baseArgs = {
+       // model id:
+       model: this.modelId,
+       // standardized settings:
+-      max_tokens: maxTokens,
++      ...maxTokens != null ? { max_tokens: maxTokens } : {},
+       temperature,
+       top_k: topK,
+       top_p: topP,
+@@ -3743,7 +3743,9 @@ var AnthropicMessagesLanguageModel = class {
+           details: "topP is not supported when thinking is enabled"
+         });
+       }
+-      baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      if (maxTokens != null) {
++        baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      }
+     } else {
+       if (isAnthropicModel && topP != null && temperature != null) {
+         warnings.push({
+diff --git a/dist/index.mjs b/dist/index.mjs
+index fe20f4d..22561d5 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -107,7 +107,7 @@ var anthropicMessagesResponseSchema = lazySchema2(
+           z2.object({
+             type: z2.literal("thinking"),
+             thinking: z2.string(),
+-            signature: z2.string()
++            signature: z2.string().optional()
+           }),
+           z2.object({
+             type: z2.literal("redacted_thinking"),
+@@ -3525,7 +3525,7 @@ var AnthropicMessagesLanguageModel = class {
+       warnings.push({
+         type: "compatibility",
+         feature: "maxOutputTokens",
+-        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
+       });
+     }
+     if (rejectsSamplingParameters) {
+@@ -3618,12 +3618,12 @@ var AnthropicMessagesLanguageModel = class {
+     const sendThinking = isThinking || thinkingType === "disabled";
+     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
+     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+-    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
+     const baseArgs = {
+       // model id:
+       model: this.modelId,
+       // standardized settings:
+-      max_tokens: maxTokens,
++      ...maxTokens != null ? { max_tokens: maxTokens } : {},
+       temperature,
+       top_k: topK,
+       top_p: topP,
+@@ -3794,7 +3794,9 @@ var AnthropicMessagesLanguageModel = class {
+           details: "topP is not supported when thinking is enabled"
+         });
+       }
+-      baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      if (maxTokens != null) {
++        baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      }
+     } else {
+       if (isAnthropicModel && topP != null && temperature != null) {
+         warnings.push({
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index b408db2..b778ae1 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -102,7 +102,7 @@ var anthropicMessagesResponseSchema = (0, import_provider_utils2.lazySchema)(
+           import_v42.z.object({
+             type: import_v42.z.literal("thinking"),
+             thinking: import_v42.z.string(),
+-            signature: import_v42.z.string()
++            signature: import_v42.z.string().optional()
+           }),
+           import_v42.z.object({
+             type: import_v42.z.literal("redacted_thinking"),
+@@ -1521,7 +1521,7 @@ async function prepareTools({
+         anthropicTools2.push({
+           name: tool.name,
+           description: tool.description,
+-          input_schema: tool.inputSchema,
++          input_schema: sanitizeJsonSchema(tool.inputSchema),
+           cache_control: cacheControl,
+           ...eagerInputStreaming ? { eager_input_streaming: true } : {},
+           ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
+@@ -3272,7 +3272,7 @@ function sanitizeSchema(schema) {
+         ])
+       );
+     }
+-    result.additionalProperties = false;
++    result.additionalProperties = schema.additionalProperties === true ? true : false;
+     if (schema.required != null) {
+       result.required = schema.required;
+     }
+@@ -3468,7 +3468,7 @@ var AnthropicMessagesLanguageModel = class {
+       warnings.push({
+         type: "compatibility",
+         feature: "maxOutputTokens",
+-        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
+       });
+     }
+     if (rejectsSamplingParameters) {
+@@ -3561,12 +3561,12 @@ var AnthropicMessagesLanguageModel = class {
+     const sendThinking = isThinking || thinkingType === "disabled";
+     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
+     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+-    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
+     const baseArgs = {
+       // model id:
+       model: this.modelId,
+       // standardized settings:
+-      max_tokens: maxTokens,
++      ...maxTokens != null ? { max_tokens: maxTokens } : {},
+       temperature,
+       top_k: topK,
+       top_p: topP,
+@@ -3737,7 +3737,9 @@ var AnthropicMessagesLanguageModel = class {
+           details: "topP is not supported when thinking is enabled"
+         });
+       }
+-      baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      if (maxTokens != null) {
++        baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      }
+     } else {
+       if (isAnthropicModel && topP != null && temperature != null) {
+         warnings.push({
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index 168f139..10d8eef 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -91,7 +91,7 @@ var anthropicMessagesResponseSchema = lazySchema2(
+           z2.object({
+             type: z2.literal("thinking"),
+             thinking: z2.string(),
+-            signature: z2.string()
++            signature: z2.string().optional()
+           }),
+           z2.object({
+             type: z2.literal("redacted_thinking"),
+@@ -1536,7 +1536,7 @@ async function prepareTools({
+         anthropicTools2.push({
+           name: tool.name,
+           description: tool.description,
+-          input_schema: tool.inputSchema,
++          input_schema: sanitizeJsonSchema(tool.inputSchema),
+           cache_control: cacheControl,
+           ...eagerInputStreaming ? { eager_input_streaming: true } : {},
+           ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
+@@ -3313,7 +3313,7 @@ function sanitizeSchema(schema) {
+         ])
+       );
+     }
+-    result.additionalProperties = false;
++    result.additionalProperties = schema.additionalProperties === true ? true : false;
+     if (schema.required != null) {
+       result.required = schema.required;
+     }
+@@ -3509,7 +3509,7 @@ var AnthropicMessagesLanguageModel = class {
+       warnings.push({
+         type: "compatibility",
+         feature: "maxOutputTokens",
+-        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
+       });
+     }
+     if (rejectsSamplingParameters) {
+@@ -3602,12 +3602,12 @@ var AnthropicMessagesLanguageModel = class {
+     const sendThinking = isThinking || thinkingType === "disabled";
+     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
+     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+-    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
+     const baseArgs = {
+       // model id:
+       model: this.modelId,
+       // standardized settings:
+-      max_tokens: maxTokens,
++      ...maxTokens != null ? { max_tokens: maxTokens } : {},
+       temperature,
+       top_k: topK,
+       top_p: topP,
+@@ -3778,7 +3778,9 @@ var AnthropicMessagesLanguageModel = class {
+           details: "topP is not supported when thinking is enabled"
+         });
+       }
+-      baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      if (maxTokens != null) {
++        baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      }
+     } else {
+       if (isAnthropicModel && topP != null && temperature != null) {
+         warnings.push({

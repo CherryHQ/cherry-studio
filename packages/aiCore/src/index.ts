@@ -7,45 +7,78 @@
 
 // ==================== 主要用户接口 ====================
 export {
+  createAgent,
   createExecutor,
-  createOpenAICompatibleExecutor,
+  embedMany,
   generateImage,
   generateText,
+  rerank,
+  resolveLanguageModel,
   streamText
 } from './core/runtime'
 
+// ==================== Embedding 类型 ====================
+export type {
+  CreateAgentOptions,
+  EmbedManyParams,
+  EmbedManyResult,
+  RerankParams,
+  RerankResult,
+  RuntimeProviderCallEvent,
+  RuntimeProviderCallHandler
+} from './core/runtime'
+
 // ==================== 高级API ====================
-export { isV2Model, isV3Model, globalModelResolver as modelResolver } from './core/models'
+export { isV2Model, isV3Model } from './core/models'
 
 // ==================== 插件系统 ====================
 export type {
   AiPlugin,
   AiRequestContext,
-  AiRequestMetadata,
   GenerateTextParams,
   GenerateTextResult,
-  HookResult,
-  PluginManagerConfig,
-  RecursiveCallFn,
   StreamTextParams,
   StreamTextResult
 } from './core/plugins'
-export { createContext, definePlugin, PluginManager } from './core/plugins'
+export { definePlugin } from './core/plugins'
 export { PluginEngine } from './core/runtime/pluginEngine'
 
 // ==================== 类型工具 ====================
-export type { AiSdkModel } from './core/providers'
+export type {
+  AiSdkModel,
+  ExtractToolConfig,
+  ExtractToolConfigMap,
+  ProviderId,
+  ToolCapability,
+  ToolFactory,
+  ToolFactoryMap,
+  ToolFactoryPatch,
+  WebSearchToolConfigMap
+} from './core/providers'
 
-// ==================== 选项 ====================
+// ==================== Context 模块(截断 + 历史压缩) ====================
+export type {
+  ContextLogger,
+  ContextMessage,
+  ContextMiddlewareOptions,
+  EntityToolOutputCodec,
+  HeadTailExcerpt,
+  TruncateOptions,
+  VFSStorageAdapter
+} from './core/context'
 export {
-  createAnthropicOptions,
-  createGoogleOptions,
-  createOpenAIOptions,
-  type ExtractProviderOptions,
-  mergeProviderOptions,
-  type ProviderOptionsMap,
-  type TypedProviderOptions
-} from './core/options'
+  compactModelMessages,
+  COMPRESSION_MAX_OUTPUT_TOKENS,
+  COMPRESSION_MIN_OUTPUT_TOKENS,
+  computeHeadTailExcerpt,
+  ContextPrompts,
+  createContextMiddleware,
+  groupIntoTurns,
+  Offloader,
+  PERSISTED_OUTPUT_TAG,
+  resolveCompressionOutputTokens,
+  summarizeModelMessages
+} from './core/context'
 
 // ==================== 错误处理 ====================
 export {
@@ -53,11 +86,6 @@ export {
   ModelResolutionError,
   ParameterValidationError,
   PluginExecutionError,
-  ProviderConfigError,
   RecursiveDepthError,
   TemplateLoadError
 } from './core/errors'
-
-// ==================== 包信息 ====================
-export const AI_CORE_VERSION = '1.0.0'
-export const AI_CORE_NAME = '@cherrystudio/ai-core'

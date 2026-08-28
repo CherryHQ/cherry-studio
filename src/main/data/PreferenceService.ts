@@ -1,10 +1,11 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev } from '@main/constant'
-import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import { isDev } from '@main/core/platform'
+import { validateSender } from '@main/core/security/validateSender'
 import { bootConfigService } from '@main/data/bootConfig'
-import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
   PreferenceDefaultScopeType,
@@ -16,15 +17,15 @@ import type {
 import {
   BOOT_CONFIG_PREFIX,
   isBootConfigKey,
-  isPreferenceKey,
+  isPublicBootConfigKey,
   toBootConfigKey
 } from '@shared/data/preference/preferenceUtils'
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { isEqual } from 'es-toolkit/compat'
 
 import { preferenceTable } from './db/schemas/preference'
-import type { DbType } from './db/types'
 
 const logger = loggerService.withContext('PreferenceService')
 
@@ -94,17 +95,12 @@ class PreferenceNotifier {
     const keySubscriptions = this.subscriptions.get(key)!
     keySubscriptions.add(callback)
 
-    logger.debug(`Added subscription for ${key}, total for this key: ${keySubscriptions.size}`)
-
     return () => {
       const currentKeySubscriptions = this.subscriptions.get(key)
       if (currentKeySubscriptions) {
         currentKeySubscriptions.delete(callback)
         if (currentKeySubscriptions.size === 0) {
           this.subscriptions.delete(key)
-          logger.debug(`Removed last subscription for ${key}, cleaned up key`)
-        } else {
-          logger.debug(`Removed subscription for ${key}, remaining: ${currentKeySubscriptions.size}`)
         }
       }
     }
@@ -120,7 +116,6 @@ class PreferenceNotifier {
   notify = (key: string, newValue: any, oldValue?: any): void => {
     const keySubscriptions = this.subscriptions.get(key)
     if (keySubscriptions && keySubscriptions.size > 0) {
-      logger.debug(`Notifying ${keySubscriptions.size} subscribers for preference ${key}`)
       keySubscriptions.forEach((callback) => {
         try {
           callback(key, newValue, oldValue)
@@ -178,6 +173,15 @@ class PreferenceNotifier {
 }
 
 const DefaultScope = 'default'
+
+/**
+ * A unified preference key classified to its backing store, with the
+ * 'BootConfig.' prefix already stripped for boot config keys. Produced by
+ * {@link PreferenceService.resolveKey}, which also rejects inaccessible keys.
+ */
+type ResolvedPreferenceKey =
+  | { readonly store: 'preference'; readonly key: PreferenceKeyType }
+  | { readonly store: 'bootConfig'; readonly key: BootConfigKey }
 /**
  * PreferenceService manages preference data storage and synchronization across multiple windows
  *
@@ -200,12 +204,6 @@ export class PreferenceService extends BaseService {
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
 
-  // Saves the reference to the cleanup interval
-  private cleanupInterval: NodeJS.Timeout | null = null
-
-  // Database reference, set during onInit
-  private db!: DbType
-
   constructor() {
     super()
   }
@@ -215,9 +213,8 @@ export class PreferenceService extends BaseService {
    */
   protected async onInit(): Promise<void> {
     try {
-      const dbService = application.get('DbService')
-      this.db = dbService.getDb()
-      const results = await this.db.select().from(preferenceTable).where(eq(preferenceTable.scope, DefaultScope))
+      const db = application.get('DbService').getDb()
+      const results = await db.select().from(preferenceTable).where(eq(preferenceTable.scope, DefaultScope))
 
       // Update cache with database values, keeping defaults for missing keys
       for (const result of results) {
@@ -246,11 +243,6 @@ export class PreferenceService extends BaseService {
    * Lifecycle: Cleanup resources and remove IPC handlers
    */
   protected async onStop(): Promise<void> {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval)
-      this.cleanupInterval = null
-    }
-
     this.notifier.removeAllSubscriptions()
     this.windowSubscriptions.clear()
 
@@ -262,37 +254,82 @@ export class PreferenceService extends BaseService {
    * Provides communication interface between main and renderer processes
    */
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Preference_Get, (_, key: UnifiedPreferenceKeyType) => {
+    this.ipcHandle(IpcChannel.Preference_Get, (event, key: UnifiedPreferenceKeyType) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_Get)
       return this.get(key)
     })
 
     this.ipcHandle(
       IpcChannel.Preference_Set,
-      async (_, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
+      async (event, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
+        this.assertTrustedSender(event, IpcChannel.Preference_Set)
         await this.set(key, value)
       }
     )
 
-    this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (_, keys: UnifiedPreferenceKeyType[]) => {
+    this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (event, keys: UnifiedPreferenceKeyType[]) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_GetMultipleRaw)
       return this.getMultipleRaw(keys)
     })
 
-    this.ipcHandle(IpcChannel.Preference_SetMultiple, async (_, updates: Partial<UnifiedPreferenceType>) => {
+    this.ipcHandle(IpcChannel.Preference_SetMultiple, async (event, updates: Partial<UnifiedPreferenceType>) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_SetMultiple)
       await this.setMultiple(updates)
     })
 
-    this.ipcHandle(IpcChannel.Preference_GetAll, () => {
+    this.ipcHandle(IpcChannel.Preference_GetAll, (event) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_GetAll)
       return this.getAll()
     })
 
     this.ipcHandle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_Subscribe)
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-      if (windowId) {
-        this.subscribeForWindow(windowId, keys)
+      if (windowId === undefined) {
+        // Push delivery requires a resolvable BrowserWindow — resolving here
+        // would leave the renderer marked subscribed but never receiving
+        // pushes. Load-bearing assumption: every preference reader is a
+        // BrowserWindow; a view-hosted renderer would reject on every read.
+        logger.warn('Preference subscribe rejected: sender is not attached to a BrowserWindow')
+        throw new Error('Preference subscribe requires a BrowserWindow sender')
       }
+      this.subscribeForWindow(windowId, keys)
     })
+  }
 
-    logger.info('PreferenceService IPC handlers registered')
+  /**
+   * Source-trust gate for the Preference IPC channels: only the app's own
+   * top-level renderer frames pass (see `core/security/validateSender`; the ipcHandle
+   * sugar itself does not validate senders). Rejections are logged, not
+   * throttled — same stance as `IpcApiService.handleRequest`.
+   */
+  private assertTrustedSender(event: IpcMainInvokeEvent, channel: string): void {
+    if (validateSender(event)) return
+    logger.warn(`Rejected preference request from untrusted sender: ${channel}`, {
+      senderType: event.sender?.getType(),
+      senderUrl: event.senderFrame?.url
+    })
+    throw new Error(`Rejected preference request from untrusted sender: ${channel}`)
+  }
+
+  /**
+   * Classify a unified preference key to its backing store, stripping the
+   * 'BootConfig.' prefix and rejecting boot config keys that are not public —
+   * internal `temp.*` transient state or unknown junk keys.
+   *
+   * This is the single gate for the unified API: get/set/setMultiple/subscribe
+   * all route through it, so untrusted renderer input (a raw runtime string
+   * arriving via the IPC handlers) is validated and dispatched in one step,
+   * before any read or write, instead of an assert-then-branch per method.
+   */
+  private resolveKey(key: string): ResolvedPreferenceKey {
+    if (!isBootConfigKey(key)) {
+      return { store: 'preference', key: key as PreferenceKeyType }
+    }
+    if (!isPublicBootConfigKey(key)) {
+      throw new Error(`Preference key "${key}" is not accessible via the unified preference API`)
+    }
+    return { store: 'bootConfig', key: toBootConfigKey(key) }
   }
 
   /**
@@ -302,16 +339,17 @@ export class PreferenceService extends BaseService {
    * @returns The preference value with defaults applied
    */
   public get<K extends UnifiedPreferenceKeyType>(key: K): UnifiedPreferenceType[K] {
-    if (!isPreferenceKey(key)) {
-      return bootConfigService.get(toBootConfigKey(key)) as UnifiedPreferenceType[K]
+    const route = this.resolveKey(key)
+    if (route.store === 'bootConfig') {
+      return bootConfigService.get(route.key) as UnifiedPreferenceType[K]
     }
 
     if (!this.isReady) {
       logger.warn(`Preference cache not initialized, returning default for ${key}`)
-      return DefaultPreferences.default[key] as UnifiedPreferenceType[K]
+      return DefaultPreferences.default[route.key] as UnifiedPreferenceType[K]
     }
 
-    return (this.cache[key] ?? DefaultPreferences.default[key]) as UnifiedPreferenceType[K]
+    return (this.cache[route.key] ?? DefaultPreferences.default[route.key]) as UnifiedPreferenceType[K]
   }
 
   /**
@@ -323,46 +361,47 @@ export class PreferenceService extends BaseService {
    * @returns Promise that resolves when update completes
    */
   public async set<K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> {
-    if (!isPreferenceKey(key)) {
-      const configKey = toBootConfigKey(key)
-      const oldValue = bootConfigService.get(configKey) as UnifiedPreferenceType[K]
-      if (this.isEqual(oldValue, value)) {
-        logger.debug(`BootConfig ${configKey} value unchanged, skipping write and notification`)
+    const route = this.resolveKey(key)
+
+    if (route.store === 'bootConfig') {
+      const oldValue = bootConfigService.get(route.key) as UnifiedPreferenceType[K]
+      if (isEqual(oldValue, value)) {
         return
       }
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
-      bootConfigService.set(configKey, value as any)
+      bootConfigService.set(route.key, value as any)
       await this.notifyChange(key, value, oldValue)
       return
     }
 
     try {
-      if (!(key in this.cache)) {
-        throw new Error(`Preference ${key} not found in cache`)
+      const cacheKey = route.key
+      if (!(cacheKey in this.cache)) {
+        throw new Error(`Preference ${cacheKey} not found in cache`)
       }
 
-      const oldValue = this.cache[key]
+      const oldValue = this.cache[cacheKey]
 
       // Performance optimization: skip update if value hasn't changed
-      if (this.isEqual(oldValue, value)) {
-        logger.debug(`Preference ${key} value unchanged, skipping database write and notification`)
+      if (isEqual(oldValue, value)) {
         return
       }
 
-      await this.db
+      application
+        .get('DbService')
+        .getDb()
         .update(preferenceTable)
         .set({
           value: value as any
         })
-        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
+        .run()
 
-      // Update memory cache immediately — safe after type guard + cache key check
-      ;(this.cache as Record<string, unknown>)[key] = value
+      // Update memory cache immediately — safe after resolveKey + cache key check
+      ;(this.cache as Record<string, unknown>)[cacheKey] = value
 
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
-
-      logger.debug(`Preference ${key} updated successfully`)
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
@@ -396,8 +435,8 @@ export class PreferenceService extends BaseService {
    * ```typescript
    * const preferenceService = application.get('PreferenceService')
    * const { host, port } = preferenceService.getMultiple({
-   *   host: 'feature.csaas.host',
-   *   port: 'feature.csaas.port'
+   *   host: 'feature.api_gateway.host',
+   *   port: 'feature.api_gateway.port'
    * })
    * ```
    */
@@ -424,25 +463,24 @@ export class PreferenceService extends BaseService {
    */
   public async setMultiple(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     try {
-      // Separate BootConfig updates from preference updates
-      const entries = Object.entries(updates)
-      const bootConfigUpdates = Object.fromEntries(
-        entries.filter(([key]) => isBootConfigKey(key))
-      ) as Partial<BootConfigPreferenceKeys>
-      const preferenceUpdates = Object.fromEntries(
-        entries.filter(([key]) => !isBootConfigKey(key))
-      ) as Partial<PreferenceDefaultScopeType>
+      // Resolve every key first: this routes each key to its backing store and
+      // rejects inaccessible keys before any write, so a mixed batch with an
+      // internal/unknown key is rejected atomically — the BootConfig writes and
+      // the preference transaction below are not a single atomic unit.
+      const items = Object.entries(updates).map(([key, value]) => ({ key, value, route: this.resolveKey(key) }))
 
       // Collect all changes for unified notification at the end
       const allChanges: Array<[string, unknown, unknown]> = []
 
       // Handle BootConfig updates
-      for (const [key, value] of Object.entries(bootConfigUpdates)) {
-        const configKey = toBootConfigKey(key)
-        const oldValue = bootConfigService.get(configKey)
-        if (!this.isEqual(oldValue, value)) {
+      let bootConfigKeyCount = 0
+      for (const { key, value, route } of items) {
+        if (route.store !== 'bootConfig') continue
+        bootConfigKeyCount++
+        const oldValue = bootConfigService.get(route.key)
+        if (!isEqual(oldValue, value)) {
           // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
-          bootConfigService.set(configKey, value as any)
+          bootConfigService.set(route.key, value as any)
           allChanges.push([key, value, oldValue])
         }
       }
@@ -452,17 +490,19 @@ export class PreferenceService extends BaseService {
       const oldValues: Record<string, any> = {}
       let skippedCount = 0
 
-      for (const [key, value] of Object.entries(preferenceUpdates)) {
-        if (!(key in this.cache) || value === undefined || value === null) {
-          throw new Error(`Preference ${key} not found in cache or value is undefined or null`)
+      for (const { value, route } of items) {
+        if (route.store !== 'preference') continue
+        const cacheKey = route.key
+        if (!(cacheKey in this.cache) || value === undefined || value === null) {
+          throw new Error(`Preference ${cacheKey} not found in cache or value is undefined or null`)
         }
 
-        const oldValue = this.cache[key as PreferenceKeyType]
+        const oldValue = this.cache[cacheKey]
 
         // Only include keys that actually changed
-        if (!this.isEqual(oldValue, value)) {
-          actualUpdates[key] = value
-          oldValues[key] = oldValue
+        if (!isEqual(oldValue, value)) {
+          actualUpdates[cacheKey] = value
+          oldValues[cacheKey] = oldValue
         } else {
           skippedCount++
         }
@@ -470,14 +510,14 @@ export class PreferenceService extends BaseService {
 
       // Write changed preference values to DB
       if (Object.keys(actualUpdates).length > 0) {
-        await this.db.transaction(async (tx) => {
+        application.get('DbService').withWriteTx((tx) => {
           for (const [key, value] of Object.entries(actualUpdates)) {
-            await tx
-              .update(preferenceTable)
+            tx.update(preferenceTable)
               .set({
                 value
               })
               .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+              .run()
           }
         })
 
@@ -499,7 +539,7 @@ export class PreferenceService extends BaseService {
         await Promise.all(allChanges.map(([key, value, oldValue]) => this.notifyChange(key, value, oldValue)))
       }
 
-      if (Object.keys(actualUpdates).length === 0 && Object.keys(bootConfigUpdates).length === 0) {
+      if (Object.keys(actualUpdates).length === 0 && bootConfigKeyCount === 0) {
         logger.debug(`All ${Object.keys(updates).length} preference values unchanged, skipping batch update`)
       } else {
         logger.debug(
@@ -518,14 +558,20 @@ export class PreferenceService extends BaseService {
    * @param keys Array of preference keys to subscribe to
    */
   public subscribeForWindow(windowId: number, keys: string[]): void {
+    // Reject the whole subscription if any key is inaccessible: resolveKey throws
+    // for internal/unknown BootConfig keys, so a renderer cannot register interest
+    // in (or probe the existence of) them. The resolved value is unused here —
+    // only its validation side effect matters.
+    for (const key of keys) {
+      this.resolveKey(key)
+    }
+
     if (!this.windowSubscriptions.has(windowId)) {
       this.windowSubscriptions.set(windowId, new Set())
     }
 
     const windowKeys = this.windowSubscriptions.get(windowId)!
     keys.forEach((key) => windowKeys.add(key))
-
-    logger.verbose(`Window ${windowId} subscribed to ${keys.length} preference keys: ${keys.join(', ')}`)
   }
 
   /**
@@ -534,9 +580,6 @@ export class PreferenceService extends BaseService {
    */
   public unsubscribeForWindow(windowId: number): void {
     this.windowSubscriptions.delete(windowId)
-    logger.verbose(
-      `Window ${windowId} unsubscribed from preference changes: ${Array.from(this.windowSubscriptions.keys()).join(', ')}`
-    )
   }
 
   /**
@@ -738,11 +781,14 @@ export class PreferenceService extends BaseService {
     }
 
     if (affectedWindows.length === 0) {
-      logger.debug(`Preference ${key} changed, notified main listeners only`)
       return
     }
 
-    // Send to all affected renderer windows
+    // Sender is intentionally NOT excluded from this broadcast. The sender's own
+    // echo acts as a final-state assertion that keeps its cache consistent under
+    // multi-window write races (without it, an interleaved write from another
+    // window can leave the sender's cache permanently out of sync with the DB).
+    // The receiver filters the no-op via deep equality in its onChanged listener.
     for (const windowId of affectedWindows) {
       try {
         const window = BrowserWindow.fromId(windowId)
@@ -757,7 +803,7 @@ export class PreferenceService extends BaseService {
       }
     }
 
-    logger.debug(`Preference ${key} changed, notified main listeners and ${affectedWindows.length} renderer windows`)
+    logger.debug(`Preference ${key} changed, notified ${affectedWindows.length} renderer windows`)
   }
 
   /**
@@ -780,8 +826,7 @@ export class PreferenceService extends BaseService {
     }
 
     // Run cleanup periodically (every 5 minutes)
-    this.cleanupInterval = setInterval(cleanup, 300 * 1000)
-    this.cleanupInterval.unref()
+    this.registerInterval(cleanup, 300 * 1000)
   }
 
   /**
@@ -795,9 +840,12 @@ export class PreferenceService extends BaseService {
       logger.warn('Preference cache not initialized, returning defaults')
     }
 
-    // Merge preferences with BootConfig values
+    // Merge preferences with BootConfig values, excluding internal (temp.*)
+    // keys — they must never leak to the renderer or cross-window sync.
     const bootConfigAll = bootConfigService.getAll()
-    const bootConfigEntries = Object.entries(bootConfigAll).map(([k, v]) => [`${BOOT_CONFIG_PREFIX}${k}`, v] as const)
+    const bootConfigEntries = Object.entries(bootConfigAll)
+      .map(([k, v]) => [`${BOOT_CONFIG_PREFIX}${k}`, v] as const)
+      .filter(([prefixedKey]) => isPublicBootConfigKey(prefixedKey))
 
     return { ...cachedValues, ...Object.fromEntries(bootConfigEntries) } as UnifiedPreferenceType
   }
@@ -808,46 +856,5 @@ export class PreferenceService extends BaseService {
    */
   public getSubscriptions(): Map<number, Set<string>> {
     return new Map(this.windowSubscriptions)
-  }
-
-  /**
-   * Deep equality check for preference values
-   * Handles primitives, arrays, and plain objects
-   * @param a First value to compare
-   * @param b Second value to compare
-   * @returns True if values are deeply equal, false otherwise
-   */
-  private isEqual(a: any, b: any): boolean {
-    // Handle strict equality (primitives, same reference)
-    if (a === b) return true
-
-    // Handle null/undefined
-    if (a == null || b == null) return a === b
-
-    // Handle different types
-    if (typeof a !== typeof b) return false
-
-    // Handle arrays
-    if (Array.isArray(a) && Array.isArray(b)) {
-      if (a.length !== b.length) return false
-      return a.every((item, index) => this.isEqual(item, b[index]))
-    }
-
-    // Handle objects (plain objects only)
-    if (typeof a === 'object' && typeof b === 'object') {
-      // Check if both are plain objects
-      if (Object.getPrototypeOf(a) !== Object.prototype || Object.getPrototypeOf(b) !== Object.prototype) {
-        return false
-      }
-
-      const keysA = Object.keys(a)
-      const keysB = Object.keys(b)
-
-      if (keysA.length !== keysB.length) return false
-
-      return keysA.every((key) => keysB.includes(key) && this.isEqual(a[key], b[key]))
-    }
-
-    return false
   }
 }

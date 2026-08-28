@@ -9,59 +9,42 @@
  */
 
 import { mcpServerService } from '@data/services/McpServerService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { MCPServerSchemas } from '@shared/data/api/schemas/mcpServers'
+import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
-  CreateMCPServerSchema,
-  ListMCPServersQuerySchema,
-  ReorderMCPServersSchema,
-  UpdateMCPServerSchema
+  CreateMcpServerSchema,
+  ListMcpServersQuerySchema,
+  ReorderMcpServersSchema,
+  UpdateMcpServerSchema
 } from '@shared/data/api/schemas/mcpServers'
+import type { HandlersFor } from '@shared/data/api/types'
 
-/**
- * Handler type for a specific MCP server endpoint
- */
-type MCPServerHandler<Path extends keyof MCPServerSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * MCP Server API handlers implementation
- */
-export const mcpServerHandlers: {
-  [Path in keyof MCPServerSchemas]: {
-    [Method in keyof MCPServerSchemas[Path]]: MCPServerHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
   '/mcp-servers': {
     GET: async ({ query }) => {
-      const parsed = ListMCPServersQuerySchema.parse(query ?? {})
-      return await mcpServerService.list(parsed)
+      const parsed = ListMcpServersQuerySchema.parse(query ?? {})
+      return mcpServerService.list(parsed)
     },
 
     POST: async ({ body }) => {
-      const parsed = CreateMCPServerSchema.parse(body)
-      return await mcpServerService.create(parsed)
+      const parsed = CreateMcpServerSchema.parse(body)
+      return mcpServerService.create(parsed)
     },
 
     PATCH: async ({ body }) => {
-      const parsed = ReorderMCPServersSchema.parse(body)
-      await mcpServerService.reorder(parsed.orderedIds)
+      const parsed = ReorderMcpServersSchema.parse(body)
+      mcpServerService.reorder(parsed.orderedIds)
       return undefined
     }
   },
 
   '/mcp-servers/:id': {
     GET: async ({ params }) => {
-      return await mcpServerService.getById(params.id)
+      return mcpServerService.getById(params.id)
     },
 
     PATCH: async ({ params, body }) => {
-      const parsed = UpdateMCPServerSchema.parse(body)
-      return await mcpServerService.update(params.id, parsed)
-    },
-
-    DELETE: async ({ params }) => {
-      await mcpServerService.delete(params.id)
-      return undefined
+      const parsed = UpdateMcpServerSchema.parse(body)
+      return mcpServerService.update(params.id, parsed)
     }
   }
 }

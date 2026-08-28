@@ -1,17 +1,30 @@
-import EventEmitter from 'node:events'
-
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { ChildProcessHandle } from './ChildProcessHandle'
-import type { ChildProcessOptions, ProcessHandle, ProcessManagerEvents, UtilityProcessOptions } from './types'
+import type {
+  ChildProcessOptions,
+  ProcessExitedEvent,
+  ProcessHandle,
+  ProcessLogLine,
+  ProcessStartedEvent,
+  UtilityProcessOptions
+} from './types'
 import { ProcessState } from './types'
 import { UtilityProcessHandle } from './UtilityProcessHandle'
 
 @Injectable('ProcessManager')
 @ServicePhase(Phase.WhenReady)
 export class ProcessManager extends BaseService {
-  private readonly emitter = new EventEmitter()
+  private readonly _onProcessStarted = this.registerDisposable(new Emitter<ProcessStartedEvent>())
+  readonly onProcessStarted: Event<ProcessStartedEvent> = this._onProcessStarted.event
+
+  private readonly _onProcessExited = this.registerDisposable(new Emitter<ProcessExitedEvent>())
+  readonly onProcessExited: Event<ProcessExitedEvent> = this._onProcessExited.event
+
+  private readonly _onProcessLog = this.registerDisposable(new Emitter<ProcessLogLine>())
+  readonly onProcessLog: Event<ProcessLogLine> = this._onProcessLog.event
+
   private readonly handles = new Map<string, ProcessHandle>()
   private readonly logger = loggerService.withContext('ProcessManager')
 
@@ -24,9 +37,9 @@ export class ProcessManager extends BaseService {
 
     const handle = 'modulePath' in options ? new UtilityProcessHandle(options) : new ChildProcessHandle(options)
 
-    handle.onStarted = (pid) => this.emitter.emit('process:started', options.id, pid)
-    handle.onExited = (code, signal) => this.emitter.emit('process:exited', options.id, code, signal)
-    handle.onLog = (line) => this.emitter.emit('process:log', line)
+    handle.onStarted = (pid) => this._onProcessStarted.fire({ id: options.id, pid })
+    handle.onExited = (code, signal) => this._onProcessExited.fire({ id: options.id, code, signal })
+    handle.onLog = (line) => this._onProcessLog.fire(line)
 
     this.handles.set(options.id, handle)
     return handle
@@ -42,19 +55,11 @@ export class ProcessManager extends BaseService {
       return
     }
 
-    if (handle.state === ProcessState.Running) {
-      throw new Error(`Cannot unregister process '${id}': process is currently running`)
+    if (handle.state === ProcessState.Running || handle.state === ProcessState.Stopping) {
+      throw new Error(`Cannot unregister process '${id}': process is currently active (${handle.state})`)
     }
 
     this.handles.delete(id)
-  }
-
-  on<K extends keyof ProcessManagerEvents>(event: K, listener: ProcessManagerEvents[K]): void {
-    this.emitter.on(event, listener)
-  }
-
-  off<K extends keyof ProcessManagerEvents>(event: K, listener: ProcessManagerEvents[K]): void {
-    this.emitter.off(event, listener)
   }
 
   protected async onInit(): Promise<void> {
@@ -62,14 +67,15 @@ export class ProcessManager extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    const handles = Array.from(this.handles.values()).filter((h) => !h.skipOnStop)
-    const runningHandles = handles.filter((h) => h.state === ProcessState.Running)
-    const stoppingHandles = handles.filter((h) => h.state === ProcessState.Stopping)
+    const activeHandles = Array.from(this.handles.values()).filter(
+      (handle) =>
+        !handle.skipOnStop && (handle.state === ProcessState.Running || handle.state === ProcessState.Stopping)
+    )
 
-    this.logger.info(`Stopping ${runningHandles.length} running process(es)`)
+    this.logger.info(`Stopping ${activeHandles.length} active process(es)`)
 
     await Promise.all(
-      runningHandles.map(async (handle) => {
+      activeHandles.map(async (handle) => {
         try {
           await handle.stop()
         } catch (err) {
@@ -77,10 +83,6 @@ export class ProcessManager extends BaseService {
         }
       })
     )
-
-    if (stoppingHandles.length > 0) {
-      this.logger.warn(`${stoppingHandles.length} process(es) still in Stopping state during shutdown`)
-    }
 
     this.logger.info('All processes stopped')
   }

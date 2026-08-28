@@ -1,0 +1,66 @@
+import { PageSidePanel } from '@cherrystudio/ui'
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+
+interface ProviderSettingsDrawerProps {
+  open: boolean
+  onClose: () => void
+  title: ReactNode
+  titleActions?: ReactNode
+  description?: ReactNode
+  footer?: ReactNode
+  children?: ReactNode
+  bodyClassName?: string
+  contentClassName?: string
+  headerClassName?: string
+  footerClassName?: string
+  showHeaderCloseButton?: boolean
+}
+
+// All callers follow the PageSidePanel defaults:
+// w-100, rounded-3xl, shadow-xl, bg-card,
+// backdrop bg-black/50, header px-6 pt-6 pb-3, body space-y-4 px-6 py-4, footer px-6 pt-3 pb-6.
+export default function ProviderSettingsDrawer({
+  open,
+  onClose,
+  title,
+  titleActions,
+  description,
+  footer,
+  children,
+  bodyClassName,
+  contentClassName,
+  headerClassName,
+  footerClassName,
+  showHeaderCloseButton = true
+}: ProviderSettingsDrawerProps) {
+  const { t } = useTranslation()
+
+  const header =
+    description || titleActions ? (
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="font-semibold text-base text-foreground">{title}</span>
+          {description ? <span className="text-muted-foreground text-xs leading-tight">{description}</span> : null}
+        </div>
+        {titleActions ? <div className="flex shrink-0 items-center">{titleActions}</div> : null}
+      </div>
+    ) : undefined
+
+  return (
+    <PageSidePanel
+      open={open}
+      onClose={onClose}
+      title={header ? undefined : title}
+      header={header}
+      footer={footer}
+      closeLabel={t('common.close')}
+      showCloseButton={showHeaderCloseButton}
+      contentClassName={contentClassName}
+      headerClassName={headerClassName}
+      bodyClassName={bodyClassName}
+      footerClassName={footerClassName}>
+      {children}
+    </PageSidePanel>
+  )
+}

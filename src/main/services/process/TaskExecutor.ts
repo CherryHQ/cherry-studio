@@ -214,17 +214,16 @@ export class TaskExecutor {
       this.handleWorkerMessage(workerId, message as TaskResponse)
     })
 
-    const onExited = (_id: string, code: number | null, signal: NodeJS.Signals | null) => {
-      if (_id !== workerId) {
+    const exitSubscription = this.pm.onProcessExited(({ id, code, signal }) => {
+      if (id !== workerId) {
         return
       }
       this.handleWorkerExit(workerId, code, signal)
-    }
-    this.pm.on('process:exited', onExited)
+    })
 
     const cleanup = () => {
       messageCleanup()
-      this.pm.off('process:exited', onExited)
+      exitSubscription.dispose()
     }
 
     const entry: WorkerEntry = {

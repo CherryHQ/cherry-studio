@@ -14,10 +14,7 @@ export { IpcAdapter } from './core/adapters/IpcAdapter'
 // export { HttpAdapter } from './core/adapters/HttpAdapter' // Future implementation
 
 // Handlers (new type-safe system)
-export { apiHandlers } from './handlers'
-
-// Services (still used by handlers)
-export { TestService } from '@data/services/TestService'
+export { apiHandlers } from './handlers/apiHandlers'
 
 // Re-export types for convenience
 export type {
@@ -33,5 +30,4 @@ export type {
   SearchParams,
   ServiceOptions,
   SortParams
-} from '@shared/data/api/apiTypes'
-export type { CreateTestItemDto, TestItem, UpdateTestItemDto } from '@shared/data/api/schemas/test'
+} from '@shared/data/api/types'
