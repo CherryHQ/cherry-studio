@@ -52,6 +52,26 @@ async function writeZipNamed(evil: string): Promise<string> {
   return p
 }
 
+/**
+ * A package whose `bombEntry` ships a deflate stream far bigger than the entry table
+ * admits. `streamFiles` writes every entry with a data descriptor (general-purpose bit 3),
+ * which carries the real sizes AFTER the data — the one shape node-stream-zip does not
+ * size-verify — and the central directory is then patched to claim a single byte. Every
+ * table check passes, so anything that trusts the table reads the whole inflate.
+ */
+async function writeDescriptorBomb(bombEntry: string, build: (zip: JSZip) => void): Promise<string> {
+  const zip = new JSZip()
+  build(zip)
+  const bytes = await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX', streamFiles: true })
+  // Central directory header: flags at +8, uncompressed size at +24, name at +46.
+  const header = bytes.lastIndexOf(bombEntry) - 46
+  expect(bytes.readUInt16LE(header + 8) & 0x8).toBe(0x8)
+  bytes.writeUInt32LE(1, header + 24)
+  const p = path.join(work, `bomb-${Math.random().toString(36).slice(2)}.miniapp`)
+  fs.writeFileSync(p, bytes)
+  return p
+}
+
 const dest = () => {
   const d = path.join(work, `dest-${Math.random().toString(36).slice(2)}`)
   fs.mkdirSync(d, { recursive: true })
@@ -141,24 +161,36 @@ describe('archive', () => {
   })
 
   it('caps what actually inflates, not what the entry table claims', async () => {
-    // Entries written with a data descriptor (general-purpose bit 3) carry their sizes
-    // AFTER the data, and node-stream-zip skips size verification for them: a central
-    // directory claiming 1 byte over a 100 MB deflate stream passes every table check.
-    const zip = new JSZip()
-    zip.file('manifest.json', JSON.stringify(MANIFEST))
-    zip.file('index.html', '<h1>hi</h1>')
-    zip.file('bomb.bin', 'a'.repeat(MINI_APP_MAX_EXTRACTED_BYTES + 1), { compression: 'DEFLATE' })
-    const bytes = await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX', streamFiles: true })
-    // Central directory header: flags at +8, uncompressed size at +24, name at +46.
-    const header = bytes.lastIndexOf('bomb.bin') - 46
-    expect(bytes.readUInt16LE(header + 8) & 0x8).toBe(0x8)
-    bytes.writeUInt32LE(1, header + 24)
-    const zipPath = path.join(work, 'descriptor-bomb.miniapp')
-    fs.writeFileSync(zipPath, bytes)
+    const zipPath = await writeDescriptorBomb('bomb.bin', (z) => {
+      z.file('manifest.json', JSON.stringify(MANIFEST))
+      z.file('index.html', '<h1>hi</h1>')
+      z.file('bomb.bin', 'a'.repeat(MINI_APP_MAX_EXTRACTED_BYTES + 1), { compression: 'DEFLATE' })
+    })
     const d = dest()
 
     await expect(extractMiniAppArchive(zipPath, d)).rejects.toThrow(/unpacks to/i)
     expect(fs.readdirSync(d)).toEqual([])
+  })
+
+  it('bounds the MANIFEST read at its cap when the entry table lies', async () => {
+    // Reached from `previewMiniAppArchive`, which runs BEFORE the user sees the consent
+    // card — and before `extractEntries`, whose budget is the one that already held.
+    const zipPath = await writeDescriptorBomb('manifest.json', (z) => {
+      z.file('manifest.json', 'a'.repeat(1024 * 1024), { compression: 'DEFLATE' })
+      z.file('index.html', '<h1>hi</h1>')
+    })
+
+    await expect(previewMiniAppArchive(zipPath)).rejects.toThrow(/manifest is over/i)
+  })
+
+  it('bounds the ICON read at its cap when the entry table lies', async () => {
+    const zipPath = await writeDescriptorBomb('icon.webp', (z) => {
+      z.file('manifest.json', JSON.stringify({ ...MANIFEST, icon: { path: 'icon.webp', sha256: 'a'.repeat(64) } }))
+      z.file('index.html', '<h1>hi</h1>')
+      z.file('icon.webp', 'a'.repeat(6 * 1024 * 1024), { compression: 'DEFLATE' })
+    })
+
+    await expect(previewMiniAppArchive(zipPath)).rejects.toThrow(/icon is over/i)
   })
 
   it('refuses entries that would land outside the package root', async () => {
@@ -270,8 +302,8 @@ describe('archive', () => {
   })
 
   it('refuses a manifest entry over the byte cap before reading it', async () => {
-    // The total-size cap admits one huge entry; `entryData` would buffer it whole and
-    // hand ~100 MB to JSON.parse. The gate fires on entry.size, before any allocation.
+    // The total-size cap admits one huge entry. This gate fires on the table's `size`,
+    // before anything is read; the bounded read below is what catches a table that lies.
     const zipPath = await writeZip((z) => {
       z.file('manifest.json', JSON.stringify({ ...MANIFEST, description: 'x'.repeat(300 * 1024) }))
       z.file('index.html', '<h1>hi</h1>')
@@ -291,8 +323,8 @@ describe('archive', () => {
   })
 
   it('hands the card a REAL 128x128 webp whatever the package shipped', async () => {
-    // Straight `entryData` → base64 under an `image/webp` label is a lie for a PNG and
-    // unbounded for a big one; the install pipeline's transcode makes both true.
+    // Straight entry bytes → base64 under an `image/webp` label is a lie for a PNG; the
+    // install pipeline's transcode makes the label true.
     const sharp = (await import('sharp')).default
     const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#f00' } })
       .png()

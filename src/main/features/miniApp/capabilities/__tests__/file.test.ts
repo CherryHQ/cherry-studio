@@ -257,6 +257,31 @@ describe('cherry.file', () => {
     expect(permanentDelete).toHaveBeenCalledWith(created.at(-1)!.id)
   })
 
+  it('does not let a delete slip through a save’s await gap and lose the deletion', async () => {
+    // `saveSerialized` awaits `createInternalEntry` between resolving the previous ref and
+    // inserting the new one. A delete off the queue lands inside that gap, finds nothing,
+    // reports `ok` — and the save then commits the row, so the file the guest was told was
+    // deleted is back. The delete must take the same chain and run after the insert.
+    insertApp(A)
+    let release: (entry: unknown) => void = () => {}
+    createInternalEntry.mockImplementationOnce(
+      (args: Parameters<typeof mintEntry>[0]) =>
+        new Promise((resolve) => {
+          release = () => resolve(mintEntry(args))
+        })
+    )
+
+    const saving = fileCapability.save(A, { name: 'slot1', data: 'eA==' })
+    await vi.waitFor(() => expect(createInternalEntry).toHaveBeenCalled())
+    const deleting = fileCapability.delete(A, { name: 'slot1' })
+    release(undefined)
+    await saving
+    await deleting
+
+    expect(await fileCapability.list(A)).toEqual({ names: [] })
+    expect(dbh.db.select().from(miniAppFileRefTable).all()).toHaveLength(0)
+  })
+
   it('refuses a concurrent load once the decode budget is spent', async () => {
     // The bug this guards: a per-call cap with no total. Ten concurrent 10 MB loads
     // are 100 MB resident no matter how small each one is allowed to be.
@@ -411,6 +436,34 @@ describe('cherry.file', () => {
 
       await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).rejects.toThrow(PermissionDeniedError)
       expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+    })
+
+    it('refuses to copy when the app was cleared while the dialog stood open', async () => {
+      // Taking an app offline does not wait for in-flight calls (design §2.1) and a native
+      // dialog can stand open for minutes. Without a lease held across it the copy still
+      // ran, putting a file the user had just cleared onto their disk — or, once the blob
+      // was reclaimed, failing as an unexplained `Internal`.
+      await saved()
+      vi.mocked(dialog.showSaveDialog).mockImplementation(async () => {
+        generation.value += 1
+        return { canceled: false, filePath: '/Users/u/out.txt' }
+      })
+
+      await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).rejects.toThrow(MiniAppQuiescingError)
+      expect(copyFile).not.toHaveBeenCalled()
+    })
+
+    it('refuses to copy a file the app deleted while the dialog stood open', async () => {
+      // The lease says nothing here: a `file.delete` moves no generation. The ref has to be
+      // resolved a second time, or the export copies a blob whose row is already gone.
+      await saved()
+      vi.mocked(dialog.showSaveDialog).mockImplementation(async () => {
+        await fileCapability.delete(A, { name: 'notes.txt' })
+        return { canceled: false, filePath: '/Users/u/out.txt' }
+      })
+
+      await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).rejects.toThrow(InvalidArgumentError)
+      expect(copyFile).not.toHaveBeenCalled()
     })
 
     it('rejects a name it does not have without opening a dialog', async () => {

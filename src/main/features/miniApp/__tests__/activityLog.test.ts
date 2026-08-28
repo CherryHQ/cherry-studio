@@ -184,6 +184,28 @@ describe('miniAppActivityLog', () => {
     expect(linesOf(A)).toHaveLength(1)
   })
 
+  it('refuses a call landing after forget — unlike clear — until a new install', async () => {
+    // Taking an app offline deliberately does not wait for in-flight capability calls
+    // (design §2.1), and writes are serialized per app: an append queued after `forget`
+    // therefore ran AFTER the delete and `mkdir`ed the log back for an app that is gone.
+    svc.recordGrant(A, { name: 'install', version: '1.0.0' })
+    await settle()
+    await svc.forget(A)
+
+    // Both write paths: a refusal takes the per-line branch, an `ok` count-tier call takes
+    // the counter branch that `flush` writes out separately.
+    svc.recordCall(A, 'network.fetch', 'denied', 5, { url: 'https://x.test/' }, undefined)
+    svc.recordCall(A, 'storage.set', 'ok', 1, { key: 'k' }, undefined)
+    await settle()
+    expect(fs.existsSync(dirOf(A))).toBe(false)
+
+    // The lift — and the control that stops the assertion above from passing for a log
+    // that simply never writes again, which would silently break the next install.
+    svc.recordGrant(A, { name: 'install', version: '2.0.0' })
+    await settle()
+    expect(linesOf(A)).toMatchObject([{ kind: 'grant', name: 'install', version: '2.0.0' }])
+  })
+
   it('opens the log folder, creating it first so there is always something to open', async () => {
     // The global electron mock's `shell.openPath` is a bare `vi.fn()`; Electron resolves '' on success.
     vi.mocked(shell.openPath).mockResolvedValue('')

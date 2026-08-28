@@ -85,6 +85,12 @@ const focusOn = (element: Element | null) => {
   Object.defineProperty(document, 'activeElement', { value: element, configurable: true })
 }
 
+/**
+ * Injects the relay message a SITE guest's preload sends. It proves what the host does
+ * with one — never that anything emits it: a LOCAL mini app has no relay preload at all
+ * (`WebviewService`, "yields the preload slot to a LOCAL mini app"), so every case below
+ * is scoped to `kind: 'site'` on purpose and none of them covers a local app's shortcuts.
+ */
 const sendGuestKey = (webview: Element, payload: Record<string, unknown>) => {
   act(() => {
     webview.dispatchEvent(

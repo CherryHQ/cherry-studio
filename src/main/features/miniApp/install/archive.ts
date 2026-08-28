@@ -101,6 +101,33 @@ export async function assertExtractedTree(root: string, manifest: MiniAppManifes
 }
 
 /**
+ * `zip.entryData` with a real ceiling.
+ *
+ * The entry table's `size` is what the archive CLAIMS, and node-stream-zip reconciles it
+ * against what inflates only for entries WITHOUT a data descriptor — the same gap
+ * `extractEntries` counts around, one step earlier. `entryData` buffers whatever comes
+ * out, so a manifest declaring one byte over a 200 KB deflate stream lands 200 MB in the
+ * main process — and preview reaches here before the user has seen the consent card.
+ */
+async function readEntryBounded(
+  zip: StreamZip.StreamZipAsync,
+  name: string,
+  limit: number,
+  label: string
+): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of await zip.stream(name)) {
+    total += (chunk as Buffer).length
+    // Throwing destroys the stream, so the inflate stops AT the limit instead of running
+    // to completion and being judged once the memory is already gone.
+    if (total > limit) throw new Error(`Package ${label} is over the ${limit} byte limit`)
+    chunks.push(chunk as Buffer)
+  }
+  return Buffer.concat(chunks)
+}
+
+/**
  * Every entry-table check, shared by preview and extraction: what the archive CLAIMS
  * is validated identically whether or not anything is unpacked afterwards.
  */
@@ -134,15 +161,19 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
     }
   }
 
-  // BEFORE `entryData`: the total-size cap above admits a single 100 MB entry, and
-  // `entryData` buffers the whole entry in one allocation.
+  // The FAST refusal, on what the table claims — the total-size cap above still admits a
+  // single 100 MB entry. `readEntryBounded` is what holds when the claim is a lie.
   const sizeOf = (rel: string) => entries.find((e) => e.name === `${prefix}${rel}`)?.size ?? 0
   if (sizeOf(MANIFEST_NAME) > MINI_APP_MAX_MANIFEST_BYTES) {
     throw new Error(`Package manifest is over the ${MINI_APP_MAX_MANIFEST_BYTES} byte limit`)
   }
 
   const manifest = MiniAppManifestSchema.parse(
-    JSON.parse((await zip.entryData(`${prefix}${MANIFEST_NAME}`)).toString('utf8'))
+    JSON.parse(
+      (await readEntryBounded(zip, `${prefix}${MANIFEST_NAME}`, MINI_APP_MAX_MANIFEST_BYTES, 'manifest')).toString(
+        'utf8'
+      )
+    )
   )
 
   const has = (rel: string) => names.includes(`${prefix}${rel}`)
@@ -234,7 +265,9 @@ export async function previewMiniAppArchive(zipPath: string): Promise<MiniAppArc
     const iconDataUrl = manifest.icon
       ? `data:image/webp;base64,${(
           await transcodeToEntityWebp(
-            await assertSupportedIconBytes(await zip.entryData(`${prefix}${manifest.icon.path}`))
+            await assertSupportedIconBytes(
+              await readEntryBounded(zip, `${prefix}${manifest.icon.path}`, MINI_APP_MAX_ICON_BYTES, 'icon')
+            )
           )
         ).toString('base64')}`
       : null

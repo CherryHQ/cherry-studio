@@ -80,6 +80,8 @@ const directoryBytes = (dir: string) => (fs.existsSync(dir) ? getDirectorySize(d
 /** `packages/<appId>/` is deliberately untouched: "clear data" keeps the app installed and runnable (design §11). */
 export async function clearMiniAppData(appId: string): Promise<void> {
   await application.get('MiniAppRuntimeService').withAppQuiesced(appId, () => wipeMiniAppData(appId))
+  // Reached only when BOTH stores cleared: `wipeMiniAppData` throws otherwise, and this
+  // line must never log a clear whose cookies outlived it. Do not wrap the await.
   miniAppActivityLog.recordGrant(appId, { name: 'clear_data' })
 }
 

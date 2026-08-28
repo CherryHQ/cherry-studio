@@ -74,6 +74,10 @@ Files are served with a content type derived from the extension (`.html`, `.js`,
 
 The same app can run in more than one window at once (the user can detach a tab). Each instance is a separate page with its own JavaScript state, but `cherry.storage` and `cherry.file` are shared per app — the last write wins. `callId`s for `cherry.ai` are scoped per instance.
 
+## Keyboard
+
+Every keystroke is yours. While your app has focus, Cherry's own shortcuts — print, save, the global keybindings — do not fire: the host's key relay preload is not loaded for local apps, because a sandboxed preload must be a single bundled file and the capability bridge already occupies that slot. Do not rely on the host answering any key on your behalf, and prefer not to bind the platform-standard combinations users expect Cherry to handle.
+
 ## Debugging
 
 DevTools are available on the webview from the host's mini app UI. Blocked requests appear in the Network panel as `(blocked:csp)` or cancelled; the CSP is legible in the response headers of any package file.

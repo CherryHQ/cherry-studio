@@ -14,6 +14,7 @@ import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
 import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
 import { isReasoningModel } from '@shared/utils/model'
 import { eq } from 'drizzle-orm'
@@ -163,6 +164,20 @@ function resolveModelFor(appId: string, slot: ModelSlot): UniqueModelId {
   return UniqueModelIdSchema.parse(id)
 }
 
+/**
+ * The stream manager reports failures as `SerializedError` — a plain `{ name, message,
+ * stack }`, never an `Error` — while every branch of `publicErrorOf` tests `instanceof`.
+ * Rejecting with it verbatim therefore hands the guest the frozen `Internal` for EVERY
+ * upstream failure, the `Cancelled` that `capabilities.md` promises for an abort included,
+ * and logs each one as an unexpected internal failure. Rehydrated here, at the boundary
+ * the serialization happens on, so `publicErrorOf` keeps taking exactly one shape.
+ */
+function rehydrate(error: SerializedError): Error {
+  const out = new Error(error.message ?? 'The model stream failed')
+  if (error.name) out.name = error.name
+  return out
+}
+
 export const aiCapability = {
   // `async` on purpose: the first two statements throw SYNCHRONOUSLY, and such a throw
   // out of a `Promise<unknown>` method escapes every `.catch()` the bridge puts on it.
@@ -226,7 +241,7 @@ export const aiCapability = {
               if (chunk.type === 'text-delta') emit(chunk.delta || '')
             },
             onDone: () => settle(() => resolve({ ok: true })),
-            onError: (r) => settle(() => reject(r.error)),
+            onError: (r) => settle(() => reject(rehydrate(r.error))),
             onPaused: () => settle(() => resolve({ ok: true })),
             // The guest's liveness IS this stream's reason to exist: false detaches the
             // listener, and the manager aborts once the last one goes.

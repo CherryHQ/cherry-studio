@@ -297,13 +297,19 @@ export const fileCapability = {
     // Counted BEFORE the early return: `delete` of a missing name is still a call, and
     // a loop over misses would otherwise be free.
     limiter.check(appId)
-    const ref = findRef(appId, name)
-    if (!ref) return { ok: true }
-    application
-      .get('DbService')
-      .withWriteTx((tx) => tx.delete(miniAppFileRefTable).where(eq(miniAppFileRefTable.id, ref.id)).run())
-    await reclaim(ref.fileEntryId, 'deleted save')
-    return { ok: true }
+    // On the SAME chain as `save`, for the reason `saveSerialized` already states about
+    // uninstall: its `createInternalEntry` is a real `await` between resolving the ref and
+    // inserting one. A delete running beside that gap finds nothing, reports success, and
+    // the save then commits the row — the file the guest was told was gone is back.
+    return serializePerApp(appId, async () => {
+      const ref = findRef(appId, name)
+      if (!ref) return { ok: true }
+      application
+        .get('DbService')
+        .withWriteTx((tx) => tx.delete(miniAppFileRefTable).where(eq(miniAppFileRefTable.id, ref.id)).run())
+      await reclaim(ref.fileEntryId, 'deleted save')
+      return { ok: true }
+    })
   },
 
   async usage(appId: string): Promise<QuotaUsageWithLimits> {
@@ -324,9 +330,14 @@ export const fileCapability = {
       throw new PermissionDeniedError(appId, 'file.export', 'a save dialog can only be opened while the app is visible')
     }
     const release = exportLimiter.acquire(appId)
+    // Taken BEFORE the dialog, exactly as `save` takes one before its own await: the user
+    // can sit on a native dialog for minutes, and taking an app offline deliberately does
+    // not wait for in-flight calls (design §2.1).
+    const lease = runtime.leaseFor(appId)
     try {
-      const ref = findRef(appId, name)
-      if (!ref) throw new InvalidArgumentError(`No file named "${name}"`)
+      // Fast refusal, so a name that is already gone costs no dialog. The authoritative
+      // resolution is the one after it.
+      if (!findRef(appId, name)) throw new InvalidArgumentError(`No file named "${name}"`)
       const options = {
         title: t('dialog.mini_app_export', { name: runtime.displayNameOf(appId) }),
         defaultPath: suggestedName ?? name
@@ -336,6 +347,14 @@ export const fileCapability = {
         ? await dialog.showSaveDialog(parent, options)
         : await dialog.showSaveDialog(options)
       if (canceled || !filePath) return { saved: false }
+      // BOTH re-checked, because they answer different questions. The lease catches a
+      // clear-data or an uninstall that committed while the dialog was open; the ref is
+      // resolved again because a `file.delete` in that same window moves no generation.
+      // Copying on the stale one writes a file the user just cleared onto their disk —
+      // and once the blob is reclaimed it fails as an unexplained `Internal` instead.
+      runtime.assertLeaseValid(lease)
+      const ref = findRef(appId, name)
+      if (!ref) throw new InvalidArgumentError(`No file named "${name}"`)
       await fs.promises.copyFile(application.get('FileManager').getPhysicalPath(ref.fileEntryId), filePath)
       return { saved: true }
     } finally {

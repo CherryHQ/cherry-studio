@@ -327,7 +327,9 @@ describe('attention state', () => {
     svc.noteUpdateAvailable('com.example.a', '1.1.0')
 
     dbh.db.delete(miniAppTable).run()
-    svc.forgetApp('com.example.a')
+    // `void`: the badge half runs synchronously, and the awaited half — the log removal —
+    // has its own case in `MiniAppRuntimeService.activity.test.ts`.
+    void svc.forgetApp('com.example.a')
     expect(broadcast()).toHaveBeenLastCalledWith('mini_app.runtime.attention', { apps: [] })
     seed('com.example.a', fullyConsented)
 

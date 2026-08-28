@@ -322,12 +322,21 @@ export async function wipeMiniAppData(appId: string): Promise<void> {
   // delete and nothing on disk records it.
   await reclaimEntries(orphaned)
 
-  let swept = await bestEffortCleanup('clear data tree', () =>
+  // Two INDEPENDENT attempts, never `swept &&= await ...`: that short-circuits, so a data
+  // tree which refused would skip the partition and leave a "cleared" app's cookies alive.
+  const treeSwept = await bestEffortCleanup('clear data tree', () =>
     fs.promises.rm(miniAppDataPath(appId), { recursive: true, force: true })
   )
-  swept &&= await bestEffortCleanup('clear data partition', () => clearMiniAppPartition(appId))
+  const partitionSwept = await bestEffortCleanup('clear data partition', () => clearMiniAppPartition(appId))
   // A store that would not clear stays journalled: startup recovery retries exactly it.
-  if (swept) clearPublishJournal(appId)
+  if (treeSwept && partitionSwept) {
+    clearPublishJournal(appId)
+    return
+  }
+  // And THROWS. A half-done clear must not read as done: the caller records a `clear_data`
+  // grant on the strength of this returning, and a reinstall writes its own entry over this
+  // very journal file — which would drop the retry recovery is holding.
+  throw new Error(`Mini app data for ${appId} could not be fully cleared`)
 }
 
 /**
@@ -611,7 +620,10 @@ export async function uninstallMiniApp(appId: string): Promise<void> {
       // BEFORE the journal is cleared, and counted in `swept`: this is the other store
       // recovery can redo, so clearing the journal first would make a crash in between
       // leave it alive with nothing left on disk pointing at it.
-      swept &&= await bestEffortCleanup('uninstall partition', () => clearMiniAppPartition(appId))
+      // Its own `await`, never `swept &&= await ...`: that short-circuits, so one tree
+      // refusing would skip the partition and leave cookies for the next install of this id.
+      const partitionSwept = await bestEffortCleanup('uninstall partition', () => clearMiniAppPartition(appId))
+      swept &&= partitionSwept
 
       // A store that would not clear stays journalled: startup recovery retries it.
       if (swept) clearPublishJournal(appId)
@@ -623,8 +635,9 @@ export async function uninstallMiniApp(appId: string): Promise<void> {
       // before the commit and nothing on disk records it.
       await bestEffortCleanup('uninstall file entries', () => reclaimEntries(orphaned))
 
-      // AFTER the commit: a failed uninstall must leave the badge as it was.
-      application.get('MiniAppRuntimeService').forgetApp(appId)
+      // AFTER the commit: a failed uninstall must leave the badge as it was. Awaited, so
+      // the documented "the log goes with the app" is true by the time this resolves.
+      await application.get('MiniAppRuntimeService').forgetApp(appId)
     })
   )
 }

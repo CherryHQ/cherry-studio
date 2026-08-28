@@ -102,8 +102,11 @@ export class WebviewService extends BaseService {
   }
 
   /**
-   * Install the keyboard relay into every MiniApp guest. Assigned per `<webview>` rather
-   * than on the session, which `persist:webview` OAuth login windows also share.
+   * Install the keyboard relay into every SITE mini app guest. Assigned per `<webview>`
+   * rather than on the session, which `persist:webview` OAuth login windows also share.
+   *
+   * NOT local mini apps — the filter below excludes them, deliberately. Read it before
+   * concluding that a local app missing its shortcuts is a bug to fix here.
    */
   private initKeyboardRelayPreload() {
     const preloadPath = join(__dirname, '../preload/miniApp.js')
@@ -116,10 +119,19 @@ export class WebviewService extends BaseService {
 
     const attach = (_: Electron.Event, contents: Electron.WebContents) => {
       contents.on('will-attach-webview', (_event, webPreferences, params) => {
-        // Mini apps are EXCLUDED, and by their partition rather than by which window this
-        // is: `webviewHost` gives them a different preload, both writers land on the same
-        // single `webPreferences.preload` slot, and without this filter which one survives
-        // is decided by the order two unrelated modules happened to register in.
+        // LOCAL mini apps are EXCLUDED, by their partition rather than by which window this
+        // is: `webviewHost` gives them the sandboxed bridge preload, both writers land on
+        // the same single `webPreferences.preload` slot, and without this filter which one
+        // survives is decided by the order two unrelated modules happened to register in.
+        //
+        // THE COST, written here because reviewers keep re-deriving it as a defect: a local
+        // mini app emits no `MINI_APP_KEYDOWN_CHANNEL`, so host shortcuts stop reaching the
+        // host while its guest has focus. Composing the relay INTO the bridge is blocked by
+        // Electron rather than by effort — a sandboxed preload must be ONE bundled file, so
+        // any module the two entries share becomes a rollup chunk the sandboxed one would
+        // have to `require`. Verified by building; inlining the wiring does not help either,
+        // because `@shared/utils/webviewKey` is then hoisted and the site relay breaks too.
+        // Closing it needs per-entry build machinery. Known gap, not an oversight.
         if (isMiniAppPartition(params.partition)) return
         webPreferences.preload = preloadPath
       })

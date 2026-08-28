@@ -128,7 +128,7 @@ export function expandPermissions(declared: readonly string[]): MiniAppPermissio
 export const MINI_APP_MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 export const MINI_APP_MAX_EXTRACTED_BYTES = 100 * 1024 * 1024
 export const MINI_APP_MAX_MANIFEST_BYTES = 256 * 1024
-/** Icon ENTRY cap: the total cap admits one 100 MB entry, and `entryData` buffers whole. */
+/** Icon ENTRY cap: the total cap admits one 100 MB entry, and the icon is read whole. */
 export const MINI_APP_MAX_ICON_BYTES = 5 * 1024 * 1024
 
 /**

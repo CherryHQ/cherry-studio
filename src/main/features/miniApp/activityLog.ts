@@ -167,6 +167,15 @@ export class MiniAppActivityLog {
   private readonly swept = new Map<string, string>()
   private readonly counters = new Map<string, Map<string, Counter>>()
   private readonly budgets = new Map<string, DayBudget>()
+  /**
+   * appIds whose log `forget` removed, until a new installation records itself.
+   *
+   * Taking an app offline deliberately does NOT wait for in-flight capability calls
+   * (design §2.1), so a `network.fetch` that resolves after the uninstall still reaches
+   * `recordCall` — and because writes are serialized per app, its append runs AFTER the
+   * delete and `mkdir`s the directory back. An uninstalled app with a live log.
+   */
+  private readonly forgotten = new Set<string>()
 
   /** Called by the bridge for EVERY call. Never throws: a logging failure is not the app's failure. */
   recordCall(
@@ -177,6 +186,9 @@ export class MiniAppActivityLog {
     params: unknown,
     result: unknown
   ): void {
+    // Gated HERE as well as in `append`: the count tier returns before ever reaching it,
+    // and a stale call would leave a counter for the next `flush` to write out.
+    if (this.forgotten.has(appId)) return
     const p = params && typeof params === 'object' ? (params as Record<string, unknown>) : undefined
     if (TIER[method] === 'count' && outcome === 'ok') {
       const perApp = this.counters.get(appId) ?? new Map<string, Counter>()
@@ -200,6 +212,9 @@ export class MiniAppActivityLog {
   }
 
   recordGrant(appId: string, entry: Omit<MiniAppActivityGrant, 'v' | 'ts' | 'kind'>): void {
+    // A new installation of a forgotten id starts logging again. Keyed on the `install`
+    // record rather than a separate call every install path would have to remember.
+    if (entry.name === 'install') this.forgotten.delete(appId)
     this.append(appId, { v: 1, ts: Date.now(), kind: 'grant', ...entry })
   }
 
@@ -258,8 +273,11 @@ export class MiniAppActivityLog {
     if (failure) throw new Error(failure)
   }
 
-  /** Uninstall: the log goes with the app. */
+  /** Uninstall: the log goes with the app. Unlike `clear`, nothing may recreate it. */
   async forget(appId: string): Promise<void> {
+    // BEFORE the queue, and synchronously: an in-flight call landing from here on must be
+    // refused rather than race the delete below.
+    this.forgotten.add(appId)
     await this.serialize(appId, async () => {
       this.counters.delete(appId)
       this.budgets.delete(appId)
@@ -269,6 +287,9 @@ export class MiniAppActivityLog {
   }
 
   private append(appId: string, entry: MiniAppActivityEntry): void {
+    // Enqueue-time is enough: `forget` raises the mark synchronously, so anything queued
+    // before it already runs ahead of the delete and anything after it is refused here.
+    if (this.forgotten.has(appId)) return
     void this.serialize(appId, async () => {
       const dir = miniAppLogsPath(appId)
       const day = localDay(entry.ts)

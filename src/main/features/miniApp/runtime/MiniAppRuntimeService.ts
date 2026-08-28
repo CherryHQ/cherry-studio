@@ -205,6 +205,11 @@ export class MiniAppRuntimeService extends BaseService {
    *   2. A privileged main-process path has no business in a renderer. Main owns
    *      this decision; handing it out and validating what comes back is a round
    *      trip whose only product is a chance to disagree.
+   *
+   * It is also the ONLY preload a local guest gets: `WebviewService` skips mini-app
+   * partitions, so the keyboard relay in `preload/miniApp.ts` never loads for one and host
+   * shortcuts do not reach the host while a local guest has focus. Known gap; why it cannot
+   * simply be composed in is written at that filter.
    */
   // `.js`, not `.mjs` — `will-attach-webview` compares this string for equality, so a
   // wrong extension is a webview that silently refuses to attach.
@@ -599,14 +604,19 @@ export class MiniAppRuntimeService extends BaseService {
    * it inside the uninstall's quiesce would let the trailing bump land back on 1 — equal
    * to a lease taken after one earlier quiesce, which would then pass its check.
    */
-  forgetApp(appId: string): void {
-    void miniAppActivityLog
-      .forget(appId)
-      .catch((error) => logger.warn('Could not remove a mini app activity log', { appId, error }))
+  async forgetApp(appId: string): Promise<void> {
+    // The in-memory facts go FIRST and synchronously: the row is already deleted, so a
+    // badge for it must not survive even as long as a filesystem delete takes.
     this.updateAvailable.delete(appId)
     this.snoozedPending.delete(appId)
     this.updating.delete(appId)
     this.broadcastAttentionState()
+    // AWAITED, unlike before: fired and forgotten, the uninstall resolved — or the process
+    // exited — with the log still on disk. Only logged on failure, never rethrown: the rows
+    // are committed by now, so a log that will not delete is not a failed uninstall.
+    await miniAppActivityLog
+      .forget(appId)
+      .catch((error) => logger.warn('Could not remove a mini app activity log', { appId, error }))
   }
 
   private installedAppIds(): string[] {

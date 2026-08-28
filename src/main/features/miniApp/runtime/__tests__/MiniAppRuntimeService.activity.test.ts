@@ -85,11 +85,25 @@ describe('the runtime as the activity log’s clock', () => {
     expect(flush).toHaveBeenCalledWith(A)
   })
 
-  it('forgets the log with the app', () => {
+  it('does not resolve until the log removal has finished', async () => {
+    // What this replaces asserted `toHaveBeenCalledWith(A)` — which `void forget(...)`
+    // satisfies just as well, so uninstall resolved (and the process could exit) with the
+    // log still on disk. The contract is that this AWAITS the removal.
     const svc = new MiniAppRuntimeService()
+    let release = () => {}
+    forget.mockImplementationOnce(() => new Promise<void>((resolve) => (release = resolve)))
+    let settled = false
 
-    svc.forgetApp(A)
+    const pending = svc.forgetApp(A).then(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
 
     expect(forget).toHaveBeenCalledWith(A)
+    expect(settled).toBe(false)
+
+    release()
+    await pending
+    expect(settled).toBe(true)
   })
 })

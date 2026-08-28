@@ -131,7 +131,7 @@ A flat namespace of named blobs, separate from `storage`, for larger payloads. N
 | `list()` | `file.list` | `{ names: string[] }`, sorted |
 | `delete(name)` | `file.delete` | `{ ok: true }` — idempotent |
 | `usage()` | sibling of `file.*` | `{ bytes, count, bytesLimit, countLimit }` — decoded bytes |
-| `export(name, { suggestedName? }?)` | `file.export` | `{ saved: boolean }` — `false` when the user cancels the save dialog |
+| `export(name, { suggestedName? }?)` | `file.export` | `{ saved: boolean }` — `false` when the user cancels the save dialog. Nothing is copied if the world moved while that dialog stood open: rejects `InvalidArgument` when the file was deleted meanwhile, `Unavailable` when the app's data was cleared or it was uninstalled |
 
 | Limit | Value |
 |---|---|

@@ -32,18 +32,25 @@ vi.mock('@application', async () => {
   return mockMiniAppApplication({
     MiniAppRuntimeService: {
       withAppQuiesced: (_appId: string, mutate: () => Promise<unknown>) => mutate(),
-      forgetApp: vi.fn()
+      forgetApp: vi.fn(),
+      // Reached at the END of a reinstall. Without it the reinstall cases die there, which
+      // silently turns "the journal was buried" into "something else threw first".
+      noteUpdateAvailable: vi.fn()
     }
   })
 })
 
 // The global electron mock has no `session.fromPartition`, and uninstall clears the
 // app's partition; `app.getLocale` is what `getAppLanguage` reads on install.
+// `clearStorageData` is hoisted rather than built inside the factory: `fromPartition`
+// hands back a fresh object per call, so a spy on that object is unreachable from a test —
+// and whether the partition sweep RAN is exactly what the cases below assert.
+const clearStorageData = vi.hoisted(() => vi.fn(async () => undefined))
 vi.mock('electron', () => ({
   app: { getLocale: vi.fn(() => 'en-US') },
   session: {
     fromPartition: vi.fn(() => ({
-      clearStorageData: vi.fn().mockResolvedValue(undefined),
+      clearStorageData,
       clearCache: vi.fn().mockResolvedValue(undefined),
       clearCodeCaches: vi.fn().mockResolvedValue(undefined)
     }))
@@ -56,7 +63,8 @@ const {
   createStagingDir,
   stageMiniAppFromFile,
   sweepAbandonedStaging,
-  uninstallMiniApp
+  uninstallMiniApp,
+  wipeMiniAppData
 } = await import('../installer')
 const { miniAppDataPath, miniAppInstallPath, miniAppStorageFile } = await import('../../paths')
 const { MINI_APP_OFFICIAL_ORIGINS } = await import('@shared/types/miniAppManifest')
@@ -329,6 +337,7 @@ describe('installMiniAppFromFile', () => {
       .mockImplementation((target, opts) =>
         String(target) === installPath ? Promise.reject(new Error('EPERM')) : realRm(target, opts)
       )
+    clearStorageData.mockClear()
     try {
       await expect(uninstallMiniApp(APP_ID)).resolves.toBeUndefined()
     } finally {
@@ -337,6 +346,65 @@ describe('installMiniAppFromFile', () => {
 
     expect(dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, APP_ID)).all()).toHaveLength(0)
     expect(notifyDataApiDataChange).toHaveBeenCalledWith([{ endpoint: '/mini-apps', kind: 'membership' }])
+    // The partition is swept even though a tree refused. `swept &&= await clear()` used to
+    // short-circuit here, so one EPERM left the uninstalled app's cookies for the next
+    // install of the same id — the one leak a fresh install must never have.
+    expect(clearStorageData).toHaveBeenCalled()
+  })
+
+  it('clears the partition even when the data tree refuses, and reports the clear as failed', async () => {
+    // Two defects in one line. `swept &&= await clearPartition()` short-circuited, so a
+    // data tree that threw skipped the partition entirely; and the call resolved anyway,
+    // so `clearMiniAppData` recorded a `clear_data` grant for a clear that never happened.
+    await installMiniAppFromFile(await makePackage())
+    const data = miniAppDataPath(APP_ID)
+    const realRm = fs.promises.rm.bind(fs.promises)
+    const rm = vi
+      .spyOn(fs.promises, 'rm')
+      .mockImplementation((target, opts) =>
+        String(target) === data ? Promise.reject(new Error('EBUSY')) : realRm(target, opts)
+      )
+    clearStorageData.mockClear()
+    try {
+      await expect(wipeMiniAppData(APP_ID)).rejects.toThrow(/could not be fully cleared/i)
+    } finally {
+      rm.mockRestore()
+    }
+
+    expect(clearStorageData).toHaveBeenCalled()
+  })
+
+  it('leaves a failed clear armed in the journal instead of letting a reinstall bury it', async () => {
+    // There is ONE journal file per app and `writePublishJournal` overwrites it, so a
+    // reinstall that carried on past a failed wipe replaced the pending `clear-data` with
+    // its own `reinstall` entry — whose roll-forward touches neither the save file nor the
+    // partition. The retry recovery was holding simply disappeared.
+    await installMiniAppFromFile(await makePackage())
+    const journal = path.join(work, '.publish-journal', `${APP_ID}.json`)
+    const data = miniAppDataPath(APP_ID)
+    const realRm = fs.promises.rm.bind(fs.promises)
+    const rm = vi
+      .spyOn(fs.promises, 'rm')
+      .mockImplementation((target, opts) =>
+        String(target) === data ? Promise.reject(new Error('EBUSY')) : realRm(target, opts)
+      )
+    const staging = await createStagingDir()
+    const manifest = await extractMiniAppArchive(await makePackage(), staging)
+    // Captured rather than `rejects.toThrow`, so BOTH assertions below run: when the
+    // reinstall wrongly succeeds, the journal one is the half that names the damage.
+    const failure = await installExtracted(manifest, staging, { source: 'file' }, {}, { clearData: true }).then(
+      () => null,
+      (error: Error) => error
+    )
+    rm.mockRestore()
+
+    expect(failure?.message).toMatch(/could not be fully cleared/i)
+    // `null` here means a `reinstall` entry landed on top and its own commit then cleared
+    // the file — carrying the pending clear away with it.
+    expect(fs.existsSync(journal) ? JSON.parse(fs.readFileSync(journal, 'utf8')) : null).toMatchObject({
+      kind: 'clear-data',
+      appId: APP_ID
+    })
   })
 
   it("gives a reinstalled appId an empty save file, not the previous owner's", async () => {

@@ -24,7 +24,10 @@ const drive = {
   chunk: (text: string, i?: number) => callAt(i).listener.onChunk({ type: 'text-delta', delta: text }),
   other: (type: string, i?: number) => callAt(i).listener.onChunk({ type }),
   done: (i?: number) => callAt(i).listener.onDone({ status: 'success' }),
-  error: (e: Error, i?: number) => callAt(i).listener.onError({ status: 'error', error: e })
+  // A plain `SerializedError`, which is what the manager actually delivers — never an
+  // `Error`. Typing this parameter as `Error` is what kept the mapping bug invisible.
+  error: (error: { name: string; message: string; stack: null }, i?: number) =>
+    callAt(i).listener.onError({ status: 'error', error })
 }
 
 const lastCall = () => callAt()
@@ -65,6 +68,9 @@ const { aiCapability, MINI_APP_MAX_CONCURRENT_CALLS, resetBurstForTest } = await
 const { QuotaExceededError } = await import('../quota')
 // After the mock, like everything above: a static import would hoist past the factory's consts.
 const { application } = await import('@application')
+// The mapping is the guest-facing half of this contract: rehydrating only matters if it
+// changes what `publicErrorOf` produces.
+const { publicErrorOf } = await import('../../runtime/bridge')
 
 const A = 'com.example.a'
 const GUEST = 7
@@ -302,8 +308,22 @@ describe('cherry.ai.chat — streaming', () => {
 
   it('rejects when the stream errors', async () => {
     const call = chat()
-    drive.error(new Error('provider exploded'))
+    drive.error({ name: 'Error', message: 'provider exploded', stack: null })
     await expect(call).rejects.toThrow(/provider exploded/)
+    // The control for the case below: rehydrating must not promote EVERY stream failure
+    // into a named public error — an upstream blow-up is still `Internal` to the guest.
+    expect(publicErrorOf(await call.catch((e: unknown) => e))).toMatchObject({ name: 'Internal' })
+  })
+
+  it('surfaces an aborted stream as Cancelled, not the frozen Internal', async () => {
+    // `capabilities.md` promises `Cancelled` "when the abort surfaces as an error". The
+    // manager reports a PLAIN `SerializedError` and every `publicErrorOf` branch tests
+    // `instanceof`, so without rehydration this — and every other upstream failure with
+    // it — reached the guest as `{ name: 'Internal', message: 'Internal error' }`.
+    const call = chat()
+    drive.error({ name: 'AbortError', message: 'aborted', stack: null })
+
+    expect(publicErrorOf(await call.catch((e: unknown) => e))).toEqual({ name: 'Cancelled', message: 'Cancelled' })
   })
 
   it('sets no output cap — the model limit is the ceiling', async () => {
@@ -351,7 +371,7 @@ describe('cherry.ai.chat — concurrency and liveness', () => {
     // would then wedge the app out of AI for the rest of the session.
     for (let i = 0; i < MINI_APP_MAX_CONCURRENT_CALLS; i++) {
       const call = chat()
-      drive.error(new Error('nope'))
+      drive.error({ name: 'Error', message: 'nope', stack: null })
       await expect(call).rejects.toThrow()
     }
     const call = chat()
