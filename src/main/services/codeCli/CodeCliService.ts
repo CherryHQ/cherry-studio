@@ -3,14 +3,27 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { skillService } from '@main/ai/skills/SkillService'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
-import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import {
+  CODE_CLI_TOOL_PRESET_BY_EXECUTABLE,
+  CODE_CLI_TOOL_PRESET_MAP,
+  CODE_CLI_TOOL_PRESETS,
+  type CodeCliToolPreset
+} from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type {
+  BinaryInstallByNameRequest,
+  BinaryRemoveRequest,
+  BinaryRemoveResult,
+  BinaryToolSnapshot
+} from '@shared/types/binary'
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
@@ -23,6 +36,7 @@ import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED, redactRecord } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
+import { app } from 'electron'
 import { promisify } from 'util'
 
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
@@ -63,6 +77,7 @@ const MACOS_APPLICATION_LOOKUP_SCRIPT = [
 
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
+@DependsOn(['BinaryManager'])
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
@@ -77,6 +92,75 @@ export class CodeCliService extends BaseService {
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
       void this.preloadTerminals()
+    }
+  }
+
+  protected override async onAllReady(): Promise<void> {
+    await this.reconcileCliSkills().catch((error) => {
+      logger.error('Failed to reconcile Code CLI skills', error as Error)
+    })
+  }
+
+  async installCli(request: BinaryInstallByNameRequest): Promise<void> {
+    const preset = this.requirePreset(request.name)
+    await application.get('BinaryManager').installByName(request)
+    const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+    if (!snapshot || snapshot.availability.source === 'none') {
+      throw new Error(`${preset.executable} is unavailable after installation`)
+    }
+    await this.installCliSkill(preset)
+  }
+
+  async removeCli(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
+    const preset = this.requirePreset(request.name)
+    const result = await application.get('BinaryManager').removeTool(request)
+    if (result.status === 'cleanup_blocked') return result
+
+    const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+    if (snapshot) await this.reconcileCliSkill(preset, snapshot)
+    return result
+  }
+
+  async reconcileCliSkills(): Promise<void> {
+    const snapshots = await application
+      .get('BinaryManager')
+      .getToolSnapshots(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
+
+    for (const preset of CODE_CLI_TOOL_PRESETS) {
+      const snapshot = snapshots[preset.executable]
+      if (!snapshot) continue
+      try {
+        await this.reconcileCliSkill(preset, snapshot)
+      } catch (error) {
+        logger.warn('Failed to reconcile Code CLI skill', {
+          cliTool: preset.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+  }
+
+  private requirePreset(executable: string): CodeCliToolPreset {
+    const preset = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[executable]
+    if (!preset) throw new Error(`Unknown Code CLI: ${executable}`)
+    return preset
+  }
+
+  private async installCliSkill(preset: CodeCliToolPreset): Promise<void> {
+    const sourcePath = path.join(
+      toAsarUnpackedPath(application.getPath('feature.code_cli.skills.builtin')),
+      preset.skillFolderName
+    )
+    await skillService.syncBuiltinSkill(preset.skillFolderName, sourcePath, app.getVersion(), preset.skillNamespace)
+  }
+
+  private async reconcileCliSkill(preset: CodeCliToolPreset, snapshot: BinaryToolSnapshot): Promise<void> {
+    if (snapshot.availability.source !== 'none') {
+      await this.installCliSkill(preset)
+      return
+    }
+    if (snapshot.application?.status === 'absent') {
+      await skillService.uninstallBuiltinSkill(preset.skillFolderName, preset.skillNamespace)
     }
   }
 
@@ -429,7 +513,7 @@ export class CodeCliService extends BaseService {
         // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
         // recipe itself and writes no Preference — the CLI is a code-owned tool,
         // not a user-added custom one.
-        await binaryManager.installByName({ name: executableName })
+        await this.installCli({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -443,6 +527,15 @@ export class CodeCliService extends BaseService {
         const message = `${cliTool} is not available after install`
         logger.error(message)
         return { success: false, message }
+      }
+    } else {
+      try {
+        await this.installCliSkill(preset)
+      } catch (error) {
+        logger.warn('Failed to sync an available Code CLI skill before launch', {
+          cliTool,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
 

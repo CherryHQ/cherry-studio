@@ -318,7 +318,7 @@ beforeEach(() => {
           .filter((skill: { isEnabled: boolean }) => skill.isEnabled)
           .map((skill: { folderName: string }) => mocks.getSkillDirectory(skill.folderName)),
         mcpServerSnapshots: new Map((agent.mcps ?? []).map((id: string) => [id, { id }])),
-        linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
+        linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
         signature: JSON.stringify({
           agent: {
             ...agent,
@@ -1662,7 +1662,7 @@ describe('PiRuntimeConnection', () => {
     it('scopes cron/notify default delivery to the channel linked to this session', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
-      mocks.findChannelBySessionId.mockReturnValue({ id: 'chan-1', agentId: 'agent-1' })
+      mocks.findChannelBySessionId.mockReturnValue({ id: 'chan-1', type: 'telegram', agentId: 'agent-1' })
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
@@ -1670,7 +1670,7 @@ describe('PiRuntimeConnection', () => {
         expect.objectContaining({ id: 'agent-1' }),
         new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
-        { id: 'chan-1' },
+        { id: 'chan-1', type: 'telegram' },
         AGENT_DATA_PATH,
         undefined
       )
