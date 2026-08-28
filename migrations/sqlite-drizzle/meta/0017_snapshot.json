@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "65a76bfe-d004-4157-9ae2-8cc88fa78dff",
+  "id": "8ff8a4d7-9096-4eb1-ae10-40460dad64a0",
   "prevId": "e3ff492a-485e-4a7b-80cb-7bbbb067d0b5",
   "tables": {
     "agent": {
@@ -834,6 +834,11 @@
         "agent_session_message_session_created_id_idx": {
           "name": "agent_session_message_session_created_id_idx",
           "columns": ["session_id", "created_at", "id"],
+          "isUnique": false
+        },
+        "agent_session_message_created_at_id_idx": {
+          "name": "agent_session_message_created_at_id_idx",
+          "columns": ["\"created_at\" desc", "\"id\" asc"],
           "isUnique": false
         },
         "agent_session_message_status_idx": {
@@ -2904,13 +2909,6 @@
           "autoincrement": false,
           "default": false
         },
-        "cancel_requested_at": {
-          "name": "cancel_requested_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "metadata": {
           "name": "metadata",
           "type": "text",
@@ -3683,6 +3681,11 @@
         "message_topic_created_idx": {
           "name": "message_topic_created_idx",
           "columns": ["topic_id", "created_at"],
+          "isUnique": false
+        },
+        "message_created_at_id_idx": {
+          "name": "message_created_at_id_idx",
+          "columns": ["\"created_at\" desc", "\"id\" asc"],
           "isUnique": false
         },
         "message_status_idx": {
@@ -5026,9 +5029,29 @@
   },
   "internal": {
     "indexes": {
+      "agent_session_message_created_at_id_idx": {
+        "columns": {
+          "\"created_at\" desc": {
+            "isExpression": true
+          },
+          "\"id\" asc": {
+            "isExpression": true
+          }
+        }
+      },
       "fe_external_path_lower_unique_idx": {
         "columns": {
           "lower(\"external_path\")": {
+            "isExpression": true
+          }
+        }
+      },
+      "message_created_at_id_idx": {
+        "columns": {
+          "\"created_at\" desc": {
+            "isExpression": true
+          },
+          "\"id\" asc": {
             "isExpression": true
           }
         }

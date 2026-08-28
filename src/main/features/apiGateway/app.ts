@@ -3,6 +3,7 @@ import { cors } from '@elysia/cors'
 import { node } from '@elysia/node'
 import { loggerService } from '@logger'
 import { DataApiError } from '@shared/data/api/errors'
+import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -126,7 +127,8 @@ export function buildApp({
     // from the spec it serves: the docs routes are not part of the API.
     .get(
       `${OPENAPI_PATH}/json`,
-      ({ request }) => buildOpenApiDocument(app, resolveDocsLanguage(new URL(request.url)), `http://${host}:${port}`),
+      ({ request }) =>
+        buildOpenApiDocument(app, resolveDocsLanguage(new URL(request.url)), gatewayClientOrigin(host, port)),
       { detail: { hide: true } }
     )
     // OpenAPI docs UI (Scalar), pointed at the spec for the same language.

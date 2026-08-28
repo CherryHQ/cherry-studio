@@ -121,6 +121,24 @@ export default defineConfig({
           }
         }
       },
+      // preload 单元测试配置
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('src/shared')
+          }
+        },
+        test: {
+          name: 'preload',
+          environment: 'node',
+          // vitest shards per (groupOrder, pool) bucket and rejects buckets smaller
+          // than the shard count; preload's single test file must share main's forks
+          // pool (CI always runs it alongside main) instead of crashing --shard=i/3.
+          pool: 'forks',
+          include: ['src/preload/**/*.{test,spec}.ts', 'src/preload/**/__tests__/**/*.{test,spec}.ts']
+        }
+      },
       // provider-registry 包单元测试配置
       {
         extends: true,
