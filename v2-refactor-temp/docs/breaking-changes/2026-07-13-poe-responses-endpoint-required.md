@@ -9,29 +9,32 @@ date: 2026-07-13
 ## What changed
 
 Poe now serves chat through the OpenAI Responses API by default (Poe supports
-it natively at `api.poe.com/v1`). Fresh installs get the Responses endpoint;
-the legacy chat-completions endpoint remains available as a fallback and keeps
-its per-model reasoning contracts (GPT, Gemini, Claude bots) and web search.
+it natively at `api.poe.com/v1`). Provider rows inherit the registry default,
+so fresh installs and existing installs alike move to the Responses endpoint
+unless the user has explicitly picked one. The legacy chat-completions endpoint
+remains available and keeps its per-model reasoning contracts and web search.
+Official Claude bots are unaffected by the default: they are pinned to Poe's
+Anthropic-compatible endpoint (`anthropic-messages`) at the model level.
 
 ## Why this matters to the user
 
-Users migrating from v1 (and existing v2 pre-release installs) keep Poe on the
-chat-completions endpoint, where reasoning control only works for the model
-families with audited parameter contracts and unknown/community bots stay
-fail-closed. On the Responses endpoint, reasoning-effort control and built-in
-web search work for all bots via the standard OpenAI pipeline.
+On the Responses endpoint, reasoning-effort control and built-in web search
+work for all bots via the standard OpenAI pipeline; on chat-completions,
+reasoning only worked for the model families with audited parameter contracts
+and unknown/community bots stayed fail-closed. Users who never changed Poe's
+endpoint will see their requests move to `/v1/responses` after upgrading.
 
 ## What the user should do
 
-Nothing — automatic; existing behavior is unchanged. Optionally open
-Settings → Model Providers → Poe and switch the API endpoint to
-`openai-responses` to get reasoning control on bots without a chat-endpoint
-contract.
+Nothing — automatic. To stay on chat-completions, open Settings → Model
+Providers → Poe and select `openai-chat-completions` explicitly; an explicit
+choice always wins over the registry default.
 
 ## Notes for release manager
 
-Affected cohorts: v1-migrated users (migration preserves the v1 endpoint by
-design) and pre-release v2 installs (preset seeder is insert-only) — both stay
-on chat-completions until they switch manually. Consider whether release-time
-migration should force-switch Poe's default endpoint instead — see PR #14144
-discussion.
+Endpoint inheritance is by design (sparse provider rows, #17096): seeded and
+v1-migrated rows keep a NULL default endpoint and follow the current registry
+preset, so this switch reaches existing v2 installs and v1-migrated users —
+not only fresh installs. Pinning legacy rows to the old endpoint was
+considered and rejected: it fights the sparse-row delegation design and the
+Responses path is the better default for every bot family.
