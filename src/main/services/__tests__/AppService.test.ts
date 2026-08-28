@@ -2,14 +2,16 @@ import { BaseService } from '@main/core/lifecycle'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { setLoginItemSettingsMock, platform, mkdirMock, writeFileMock, rmMock, loggerErrorMock } = vi.hoisted(() => ({
-  setLoginItemSettingsMock: vi.fn(),
-  platform: { isDev: false, isLinux: false, isMac: false, isPortable: false, isWin: true },
-  mkdirMock: vi.fn(),
-  writeFileMock: vi.fn(),
-  rmMock: vi.fn(),
-  loggerErrorMock: vi.fn()
-}))
+const { setLoginItemSettingsMock, platform, mkdirMock, atomicWriteFileMock, rmMock, loggerErrorMock } = vi.hoisted(
+  () => ({
+    setLoginItemSettingsMock: vi.fn(),
+    platform: { isDev: false, isLinux: false, isMac: false, isPortable: false, isWin: true },
+    mkdirMock: vi.fn(),
+    atomicWriteFileMock: vi.fn(),
+    rmMock: vi.fn(),
+    loggerErrorMock: vi.fn()
+  })
+)
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -24,11 +26,12 @@ vi.mock('@application', async () => {
 
 vi.mock('@main/core/platform', () => platform)
 
+vi.mock('@main/utils/file', () => ({ atomicWriteFile: atomicWriteFileMock }))
+
 vi.mock('fs', () => ({
   default: {
     promises: {
       mkdir: mkdirMock,
-      writeFile: writeFileMock,
       rm: rmMock
     }
   }
@@ -66,11 +69,11 @@ describe('AppService', () => {
     linuxFiles.clear()
     setLoginItemSettingsMock.mockReset()
     mkdirMock.mockReset()
-    writeFileMock.mockReset()
+    atomicWriteFileMock.mockReset()
     rmMock.mockReset()
     loggerErrorMock.mockReset()
     mkdirMock.mockResolvedValue(undefined)
-    writeFileMock.mockImplementation(async (target: string) => {
+    atomicWriteFileMock.mockImplementation(async (target: string) => {
       linuxFiles.add(target)
     })
     rmMock.mockImplementation(async (target: string) => {
@@ -127,7 +130,7 @@ describe('AppService', () => {
     const writeStartedPromise = new Promise<void>((resolve) => {
       writeStarted = resolve
     })
-    writeFileMock.mockImplementation(async (target: string) => {
+    atomicWriteFileMock.mockImplementation(async (target: string) => {
       writeStarted()
       await writeGate.promise
       linuxFiles.add(target)
@@ -156,7 +159,7 @@ describe('AppService', () => {
     const writeStartedPromise = new Promise<void>((resolve) => {
       writeStarted = resolve
     })
-    writeFileMock.mockImplementation(async (target: string) => {
+    atomicWriteFileMock.mockImplementation(async (target: string) => {
       writeStarted()
       await writeGate.promise
       linuxFiles.add(target)
@@ -194,7 +197,7 @@ describe('AppService', () => {
     const writeStartedPromise = new Promise<void>((resolve) => {
       writeStarted = resolve
     })
-    writeFileMock.mockImplementation(async (target: string) => {
+    atomicWriteFileMock.mockImplementation(async (target: string) => {
       writeStarted()
       await writeGate.promise
       linuxFiles.add(target)
@@ -222,7 +225,7 @@ describe('AppService', () => {
     await expect(service._doInit()).resolves.toBeUndefined()
     await vi.waitFor(() => expect(loggerErrorMock).toHaveBeenCalledWith('Failed to reconcile launch on boot:', error))
 
-    expect(writeFileMock).not.toHaveBeenCalled()
+    expect(atomicWriteFileMock).not.toHaveBeenCalled()
   })
 
   describe('setAppLaunchOnBoot', () => {
@@ -234,14 +237,14 @@ describe('AppService', () => {
 
       await expect(new AppService().setAppLaunchOnBoot(true)).rejects.toBe(error)
 
-      expect(writeFileMock).not.toHaveBeenCalled()
+      expect(atomicWriteFileMock).not.toHaveBeenCalled()
     })
 
-    it('propagates Linux desktop file write errors', async () => {
+    it('propagates Linux atomic desktop file write errors', async () => {
       platform.isLinux = true
       platform.isWin = false
       const error = Object.assign(new Error('read-only file system'), { code: 'EROFS' })
-      writeFileMock.mockRejectedValueOnce(error)
+      atomicWriteFileMock.mockRejectedValueOnce(error)
 
       await expect(new AppService().setAppLaunchOnBoot(true)).rejects.toBe(error)
     })

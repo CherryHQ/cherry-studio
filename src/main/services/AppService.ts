@@ -3,6 +3,8 @@ import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { atomicWriteFile } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -91,8 +93,7 @@ export class AppService extends BaseService {
   X-GNOME-Autostart-enabled=true
   Hidden=false`
 
-        // Write desktop file
-        await fs.promises.writeFile(desktopFile, desktopContent)
+        await atomicWriteFile(AbsoluteFilePathSchema.parse(desktopFile), desktopContent)
         logger.info('Created autostart desktop file for Linux')
       } else {
         await fs.promises.rm(desktopFile, { force: true })
