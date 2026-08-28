@@ -10,6 +10,7 @@ import AddMcpServerModal from '../AddMcpServerModal'
 
 const mocks = vi.hoisted(() => ({
   checkConnectivity: vi.fn().mockResolvedValue(false),
+  getPathForFile: vi.fn((file: File) => `/tmp/${file.name}`),
   patch: vi.fn().mockResolvedValue(undefined),
   toastError: vi.fn()
 }))
@@ -81,6 +82,7 @@ const toCreatedServers = (dtos: CreateMcpServerDto[]): McpServer[] =>
 describe('AddMcpServerModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.api.file.getPathForFile = mocks.getPathForFile
   })
 
   it('imports every server from a multi-server JSON config', async () => {
@@ -160,6 +162,36 @@ describe('AddMcpServerModal', () => {
     expect(mocks.toastError).toHaveBeenCalledWith('settings.mcp.addServer.importFrom.packageTooLarge')
     expect(arrayBuffer).not.toHaveBeenCalled()
     expect(mocks.checkConnectivity).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+  })
+
+  it('sends only the native path for an accepted package', async () => {
+    const onSuccess = vi.fn(async (dtos: CreateMcpServerDto[]) => toCreatedServers(dtos))
+    const packageFile = new File(['package'], 'server.dxt', { type: 'application/octet-stream' })
+    const arrayBuffer = vi.fn()
+    Object.defineProperty(packageFile, 'arrayBuffer', { value: arrayBuffer })
+    mocks.checkConnectivity.mockResolvedValueOnce({ success: false, error: 'test stop' })
+
+    render(
+      <AddMcpServerModal
+        visible
+        onClose={vi.fn()}
+        onSuccess={onSuccess}
+        existingServers={[]}
+        initialImportMethod="dxt"
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('package upload'), { target: { files: [packageFile] } })
+    await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() =>
+      expect(mocks.checkConnectivity).toHaveBeenCalledWith('mcp.package.upload_dxt', {
+        filePath: '/tmp/server.dxt'
+      })
+    )
+    expect(mocks.getPathForFile).toHaveBeenCalledWith(packageFile)
+    expect(arrayBuffer).not.toHaveBeenCalled()
     expect(onSuccess).not.toHaveBeenCalled()
   })
 

@@ -16,8 +16,9 @@ Users importing an unusually large MCP package will now see a size-limit error i
 
 ## What the user should do
 
-Reduce the package below 50 MiB, for example by removing unnecessary bundled assets, and import it again.
+Reduce the package to 50 MiB or smaller, for example by removing unnecessary bundled assets, and import it again.
 
 ## Notes for release manager
 
-The renderer, IPC validation, and main-process validation all enforce the same shared limit.
+The renderer performs an early size check. Only the selected native path crosses IPC; the main process independently
+validates the file and copies at most 50 MiB through a bounded stream before installation.

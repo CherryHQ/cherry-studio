@@ -1,3 +1,4 @@
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -61,13 +62,14 @@ describe('mcpHandlers', () => {
     expect(await mcpHandlers['mcp.server.get_version']({ serverId: 's' }, ctx)).toBeNull()
   })
 
-  it('upload_dxt / upload_mcpb delegate to McpPackageService with the buffer + fileName', async () => {
-    const buffer = new ArrayBuffer(4)
+  it('upload_dxt / upload_mcpb delegate the selected path without transferring package bytes', async () => {
+    const dxtPath = AbsoluteFilePathSchema.parse('/tmp/a.dxt')
+    const mcpbPath = AbsoluteFilePathSchema.parse('/tmp/b.mcpb')
     pkg.uploadDxt.mockResolvedValue({ success: true })
     pkg.uploadMcpb.mockResolvedValue({ success: true })
-    await mcpHandlers['mcp.package.upload_dxt']({ buffer, fileName: 'a.dxt' }, ctx)
-    await mcpHandlers['mcp.package.upload_mcpb']({ buffer, fileName: 'b.mcpb' }, ctx)
-    expect(pkg.uploadDxt).toHaveBeenCalledWith(buffer, 'a.dxt')
-    expect(pkg.uploadMcpb).toHaveBeenCalledWith(buffer, 'b.mcpb')
+    await mcpHandlers['mcp.package.upload_dxt']({ filePath: dxtPath }, ctx)
+    await mcpHandlers['mcp.package.upload_mcpb']({ filePath: mcpbPath }, ctx)
+    expect(pkg.uploadDxt).toHaveBeenCalledWith(dxtPath)
+    expect(pkg.uploadMcpb).toHaveBeenCalledWith(mcpbPath)
   })
 })

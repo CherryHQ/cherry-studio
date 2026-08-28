@@ -1,3 +1,6 @@
+import { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -256,51 +259,53 @@ export function buildResolvedEnv(
   return resolvedEnv
 }
 
-export function validatePackageUploadPayload(
-  fileBuffer: ArrayBuffer | NodeJS.ArrayBufferView,
-  fileName: string,
+export function validatePackageUploadSource(
+  filePath: string,
+  fileSize: number,
   packageFormat: McpPackageFormat
-): Buffer {
-  if (typeof fileName !== 'string') {
-    throw new Error('Invalid MCP package upload: file name must be a string')
+): string {
+  if (!path.isAbsolute(filePath) || filePath.includes('\0')) {
+    throw new Error('Invalid MCP package upload: source must be an absolute file path')
   }
 
-  const trimmedFileName = fileName.trim()
-  if (!trimmedFileName) {
-    throw new Error('Invalid MCP package upload: file name cannot be empty')
-  }
-  if (trimmedFileName !== fileName) {
-    throw new Error('Invalid MCP package upload: file name cannot contain leading or trailing whitespace')
-  }
-  if (trimmedFileName.includes('\0') || /[/\\]/.test(trimmedFileName)) {
-    throw new Error('Invalid MCP package upload: file name cannot contain path separators')
-  }
-  if (!/^[A-Za-z0-9._ ()@+-]+$/.test(trimmedFileName)) {
-    throw new Error('Invalid MCP package upload: file name contains unsupported characters')
-  }
-  if (path.extname(trimmedFileName).toLowerCase() !== `.${packageFormat}`) {
+  const fileName = path.basename(filePath)
+  if (path.extname(fileName).toLowerCase() !== `.${packageFormat}`) {
     throw new Error(`Invalid MCP package upload: expected a .${packageFormat} file`)
   }
 
-  let buffer: Buffer
-  if (fileBuffer instanceof ArrayBuffer) {
-    buffer = Buffer.from(fileBuffer)
-  } else if (ArrayBuffer.isView(fileBuffer)) {
-    buffer = Buffer.from(fileBuffer.buffer, fileBuffer.byteOffset, fileBuffer.byteLength)
-  } else {
-    throw new Error('Invalid MCP package upload: file buffer must be an ArrayBuffer')
+  if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
+    throw new Error('Invalid MCP package upload: file cannot be empty')
   }
-
-  if (buffer.byteLength === 0) {
-    throw new Error('Invalid MCP package upload: file buffer cannot be empty')
-  }
-  if (buffer.byteLength > MAX_MCP_PACKAGE_BYTES) {
+  if (fileSize > MAX_MCP_PACKAGE_BYTES) {
     throw new Error(
       `Invalid MCP package upload: file exceeds the ${MAX_MCP_PACKAGE_BYTES / 1024 / 1024} MiB size limit`
     )
   }
 
-  return buffer
+  return fileName
+}
+
+async function copyPackageWithinLimit(sourcePath: string, destinationPath: string): Promise<void> {
+  let copiedBytes = 0
+  const limiter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      copiedBytes += chunk.byteLength
+      if (copiedBytes > MAX_MCP_PACKAGE_BYTES) {
+        callback(
+          new Error(
+            `Invalid MCP package upload: file exceeds the ${MAX_MCP_PACKAGE_BYTES / 1024 / 1024} MiB size limit`
+          )
+        )
+        return
+      }
+      callback(null, chunk)
+    }
+  })
+
+  await pipeline(fs.createReadStream(sourcePath), limiter, fs.createWriteStream(destinationPath, { flags: 'wx' }))
+  if (copiedBytes === 0) {
+    throw new Error('Invalid MCP package upload: file cannot be empty')
+  }
 }
 
 export function applyPlatformOverrides(mcpConfig: any, extractDir: string, userConfig?: Record<string, any>): any {
@@ -451,31 +456,29 @@ export class McpPackageService extends BaseService {
     this.cleanup()
   }
 
-  /**
-   * Stage an uploaded package buffer to a temp file and install it. The renderer sends the
-   * file as an ArrayBuffer over IpcApi; this writes it under the service temp dir and hands
-   * off to the shared extract/install path.
-   */
-  public async uploadDxt(fileBuffer: ArrayBuffer, fileName: string): Promise<McpPackageUploadResult> {
-    return this.uploadFromBuffer(fileBuffer, fileName, 'dxt')
+  /** Stage a user-selected package path through a bounded stream before installation. */
+  public async uploadDxt(filePath: string): Promise<McpPackageUploadResult> {
+    return this.uploadFromPath(filePath, 'dxt')
   }
 
-  public async uploadMcpb(fileBuffer: ArrayBuffer, fileName: string): Promise<McpPackageUploadResult> {
-    return this.uploadFromBuffer(fileBuffer, fileName, 'mcpb')
+  public async uploadMcpb(filePath: string): Promise<McpPackageUploadResult> {
+    return this.uploadFromPath(filePath, 'mcpb')
   }
 
-  private async uploadFromBuffer(
-    fileBuffer: ArrayBuffer,
-    fileName: string,
-    packageFormat: McpPackageFormat
-  ): Promise<McpPackageUploadResult> {
+  private async uploadFromPath(filePath: string, packageFormat: McpPackageFormat): Promise<McpPackageUploadResult> {
     const packageLabel = packageFormat === 'mcpb' ? 'MCPB' : 'DXT'
+    let tempPath: string | undefined
     try {
-      const fileData = validatePackageUploadPayload(fileBuffer, fileName, packageFormat)
+      // Reject malformed paths and extensions before touching the filesystem.
+      validatePackageUploadSource(filePath, 1, packageFormat)
+      const sourceStat = await fs.promises.stat(filePath)
+      if (!sourceStat.isFile()) {
+        throw new Error('Invalid MCP package upload: source must be a regular file')
+      }
+      const fileName = validatePackageUploadSource(filePath, sourceStat.size, packageFormat)
       await fs.promises.mkdir(this.tempDir, { recursive: true })
-      // `fileName` is renderer-supplied; basename it so a value like `../../evil` can't escape tempDir.
-      const tempPath = path.join(this.tempDir, `temp_file_${uuidv4()}_${path.basename(fileName)}`)
-      await fs.promises.writeFile(tempPath, fileData)
+      tempPath = path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
+      await copyPackageWithinLimit(filePath, tempPath)
       return await this.uploadPackage(tempPath, packageFormat)
     } catch (error) {
       logger.error(`${packageLabel} upload error:`, error as Error)
@@ -483,6 +486,8 @@ export class McpPackageService extends BaseService {
         success: false,
         error: error instanceof Error ? error.message : `Failed to upload ${packageLabel} file`
       }
+    } finally {
+      if (tempPath) await fs.promises.rm(tempPath, { force: true })
     }
   }
 
