@@ -8,6 +8,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
@@ -29,7 +30,6 @@ import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
-import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import { vertexAiService } from './VertexAiService'
@@ -1130,8 +1130,9 @@ export class OpenClawService extends BaseService {
       throw new Error('Selected OpenClaw model must support chat')
     }
 
-    const endpointType = this.getModelEndpointType(primaryModel, provider)
-    const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
+    const resolvedEndpoint = resolveEffectiveEndpoint(provider, primaryModel)
+    const endpointType = resolvedEndpoint.endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const apiHost = resolvedEndpoint.baseUrl
 
     if (!apiHost) {
       throw new Error(`Provider ${provider.id} has no API host configured for ${endpointType}`)
@@ -1146,10 +1147,7 @@ export class OpenClawService extends BaseService {
         name: provider.name,
         apiKey,
         apiHost,
-        anthropicApiHost:
-          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-            ? provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-            : undefined,
+        anthropicApiHost: endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? apiHost : undefined,
         models: models
           .filter(
             (model) =>
@@ -1177,7 +1175,7 @@ export class OpenClawService extends BaseService {
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
-    return getModelPreferredEndpoint(model, provider) ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    return resolveEffectiveEndpoint(provider, model).endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   }
 
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {
@@ -1218,7 +1216,7 @@ export class OpenClawService extends BaseService {
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
-      endpoint_type: this.toOpenClawEndpointType(getModelPreferredEndpoint(model, provider)),
+      endpoint_type: this.toOpenClawEndpointType(this.getModelEndpointType(model, provider)),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
