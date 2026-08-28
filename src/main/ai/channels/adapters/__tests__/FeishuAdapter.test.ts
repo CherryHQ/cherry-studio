@@ -27,6 +27,10 @@ vi.mock('../feishu/FeishuAppRegistration', () => ({
   registrationPoll: registrationMocks.poll
 }))
 
+vi.mock('@main/i18n', () => ({
+  t: (key: string) => key
+}))
+
 const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()
 const mockSend = vi.fn()
@@ -605,5 +609,80 @@ describe('FeishuAdapter', () => {
   it('keeps notification chat ids from configuration', () => {
     const adapter = createAdapter({ allowed_chat_ids: ['oc_a', 'oc_b'] })
     expect(adapter.notifyChatIds).toEqual(['oc_a', 'oc_b'])
+  })
+
+  it('notifies the user with throttled drop messages for unauthorized chats', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2025-01-01T00:00:00Z'))
+    const adapter = createAdapter({ allowed_chat_ids: ['oc_allowed'] })
+    await adapter.connect()
+    mockSend.mockClear()
+    loggerMocks.warn.mockClear()
+    loggerMocks.debug.mockClear()
+
+    await channelHandlers.message(incomingMessage({ chatId: 'oc_blocked', content: 'Hi' }))
+
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      'Dropping message from unauthorized chat',
+      expect.objectContaining({ chatId: 'oc_blocked' })
+    )
+    expect(mockSend).toHaveBeenCalledWith('oc_blocked', { markdown: 'common.channel_message_dropped' }, undefined)
+
+    // Second message within cooldown is throttled
+    mockSend.mockClear()
+    await channelHandlers.message(incomingMessage({ chatId: 'oc_blocked', messageId: 'msg-in-2', content: 'Hi again' }))
+    expect(mockSend).not.toHaveBeenCalled()
+    expect(loggerMocks.debug).toHaveBeenCalledWith(
+      'Suppressing duplicate drop notification',
+      expect.objectContaining({ chatId: 'oc_blocked' })
+    )
+
+    // After cooldown, notification is sent again
+    vi.setSystemTime(new Date('2025-01-01T00:06:00Z'))
+    await channelHandlers.message(
+      incomingMessage({ chatId: 'oc_blocked', messageId: 'msg-in-3', content: 'Hi after cooldown' })
+    )
+    expect(mockSend).toHaveBeenCalledWith('oc_blocked', { markdown: 'common.channel_message_dropped' }, undefined)
+
+    vi.useRealTimers()
+  })
+
+  it('notifies on Feishu policy rejections and throttles duplicates', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2025-01-01T00:00:00Z'))
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockSend.mockClear()
+    loggerMocks.warn.mockClear()
+
+    channelHandlers.reject({ chatId: 'oc_123', reason: 'require_mention' })
+    await Promise.resolve()
+
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      'Feishu message rejected',
+      expect.objectContaining({ chatId: 'oc_123', reason: 'require_mention' })
+    )
+    expect(mockSend).toHaveBeenCalledWith('oc_123', { markdown: 'common.channel_message_dropped' }, undefined)
+
+    mockSend.mockClear()
+    channelHandlers.reject({ chatId: 'oc_123', reason: 'require_mention' })
+    await Promise.resolve()
+    expect(mockSend).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+
+  it('logs at debug level when drop notification delivery fails', async () => {
+    const adapter = createAdapter({ allowed_chat_ids: ['oc_allowed'] })
+    await adapter.connect()
+    mockSend.mockRejectedValueOnce(new Error('send failed'))
+
+    await channelHandlers.message(incomingMessage({ chatId: 'oc_blocked', content: 'Hi' }))
+    await vi.waitFor(() =>
+      expect(loggerMocks.debug).toHaveBeenCalledWith(
+        'Failed to send drop notification to channel',
+        expect.objectContaining({ chatId: 'oc_blocked', error: 'send failed' })
+      )
+    )
   })
 })
