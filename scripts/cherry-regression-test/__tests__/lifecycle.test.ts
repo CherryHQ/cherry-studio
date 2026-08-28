@@ -117,7 +117,8 @@ describe('owned application lifecycle', () => {
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
       const script = String(args.at(-1))
       if (file === 'taskkill.exe') {
-        alive.delete(Number(args[1]))
+        if (Number(args[1]) === runnerPid) alive.clear()
+        else alive.delete(Number(args[1]))
         return ''
       }
       if (script.includes('Get-NetTCPConnection')) return String(electronPid)
@@ -128,7 +129,7 @@ describe('owned application lifecycle', () => {
 
     try {
       await stopOwnedApp(paths)
-      expect(execFileSyncMock).toHaveBeenCalledWith(
+      expect(execFileSyncMock).not.toHaveBeenCalledWith(
         'taskkill.exe',
         ['/PID', String(electronPid), '/T', '/F'],
         expect.anything()
@@ -182,7 +183,8 @@ describe('owned application lifecycle', () => {
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
       const script = String(args.at(-1))
       if (file === 'taskkill.exe') {
-        alive.delete(Number(args[1]))
+        if (Number(args[1]) === runnerPid) alive.clear()
+        else alive.delete(Number(args[1]))
         return ''
       }
       if (script.includes('Get-NetTCPConnection')) return String(currentElectronPid)
@@ -202,12 +204,12 @@ describe('owned application lifecycle', () => {
       await stopOwnedApp(paths)
       expect(execFileSyncMock).toHaveBeenCalledWith(
         'taskkill.exe',
-        ['/PID', String(currentElectronPid), '/T', '/F'],
+        ['/PID', String(runnerPid), '/T', '/F'],
         expect.anything()
       )
-      expect(execFileSyncMock).toHaveBeenCalledWith(
+      expect(execFileSyncMock).not.toHaveBeenCalledWith(
         'taskkill.exe',
-        ['/PID', String(runnerPid), '/T', '/F'],
+        ['/PID', String(currentElectronPid), '/T', '/F'],
         expect.anything()
       )
     } finally {

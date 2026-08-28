@@ -98,10 +98,10 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
           }
         ],
         'feature.selection.enabled': true,
-        'feature.selection.trigger_mode': 'shortcut',
+        'feature.selection.trigger_mode': platform === 'windows' ? 'selected' : 'shortcut',
         'shortcut.selection.capture_text': {
-          binding: platform === 'windows' ? ['F8'] : ['CommandOrControl', 'Shift', 'K'],
-          enabled: true
+          binding: ['CommandOrControl', 'Shift', 'K'],
+          enabled: platform !== 'windows'
         }
       })
     },
@@ -127,10 +127,10 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await expect
     .poll(
       async () => {
-        sendSystemHotkey(app.record.platform, [
-          ...(app.record.platform === 'macos' ? ['Meta', 'Shift'] : []),
-          app.record.platform === 'windows' ? 'F8' : 'k'
-        ])
+        sendSystemHotkey(
+          app.record.platform,
+          app.record.platform === 'macos' ? ['Meta', 'Shift', 'k'] : ['Control', 'a']
+        )
         await selection.waitForTimeout(1_000)
         return selection.locator('body').getAttribute('data-selected-text')
       },

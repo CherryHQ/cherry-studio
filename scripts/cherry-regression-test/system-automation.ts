@@ -7,7 +7,7 @@ import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
 import type { Platform } from './types'
 
-const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'F8', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
+const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
 let activeWindowsExternalTextPid: number | undefined
 
 function escapePowerShell(value: string): string {
@@ -48,7 +48,6 @@ function runWindowsHotkey(keys: string[]): void {
     Control: 0x11,
     Enter: 0x0d,
     Escape: 0x1b,
-    F8: 0x77,
     Meta: 0x5b,
     Shift: 0x10,
     Space: 0x20

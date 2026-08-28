@@ -566,7 +566,8 @@ export async function stopOwnedApp(paths: RunPaths): Promise<void> {
       throw new Error('Refusing cleanup because the recorded Electron process is no longer owned by its runner')
     }
   }
-  for (const pid of ownedPids) {
+  const terminationPids = record.platform === 'windows' ? [record.runnerPid, ...ownedPids] : ownedPids
+  for (const pid of new Set(terminationPids)) {
     if (!isAlive(pid)) continue
     try {
       terminateExactProcess(pid, record.platform)
