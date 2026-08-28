@@ -536,14 +536,14 @@ describe('app Sidebar', () => {
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('files')])
   })
 
-  it('keeps required sidebar favorites protected in the context menu', () => {
+  it('allows removing the chat assistant from the sidebar', () => {
     render(<Sidebar />)
 
-    expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants')).toBeDisabled()
+    expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants')).not.toBeDisabled()
 
     fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants'))
 
-    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([])
   })
 
   it('opens the launchpad in a new tab from the manage sidebar context menu', async () => {

@@ -3548,7 +3548,6 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-        { type: 'app', id: 'assistants' },
         { type: 'agent', id: 'agent-a' }
       ])
     )
@@ -3578,11 +3577,7 @@ describe('Sessions', () => {
 
     fireEvent.click(unpinMenuItem as HTMLElement)
 
-    await vi.waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-        { type: 'app', id: 'assistants' }
-      ])
-    )
+    await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', []))
   })
 
   it('deletes an agent from the agent group menu', async () => {
