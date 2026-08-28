@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MiniAppUnavailableError } from '../../errors'
+import { resetHiddenBudgets } from '../quota'
 
 // `vi.mocked(x)` is a TYPE cast and replaces nothing: without this `vi.mock` the real
 // `getByKey` runs and `.mockReturnValue(...)` throws. `vi.mock` also hoists it.
@@ -38,6 +39,8 @@ const managerLike = {
 }
 
 const guests = new Set<number>([7])
+/** Guests are visible unless a test says otherwise — the pool mounts a pane to show it. */
+const visibility = { visible: new Map<number, boolean>() }
 const streamsOfGuest = new Map<number, string[]>()
 import { mockMiniAppApplication } from '../../__tests__/applicationMock'
 
@@ -47,6 +50,7 @@ vi.mock('@application', () =>
     MiniAppRuntimeService: {
       displayNameOf: (id: string) => id,
       isGuestAlive: (id: number) => guests.has(id),
+      isGuestVisible: (id: number) => visibility.visible.get(id) ?? true,
       rememberStream: (id: number, s: string) => streamsOfGuest.set(id, [...(streamsOfGuest.get(id) ?? []), s]),
       forgetStream: (id: number, s: string) =>
         streamsOfGuest.set(
@@ -121,6 +125,9 @@ const insertApp = (appId: string) => {
 
 beforeEach(() => {
   resetBurstForTest()
+  // Module singletons: without this a budget case leaves its spend for whatever runs next.
+  resetHiddenBudgets(GUEST)
+  visibility.visible.clear()
   streamPrompt.mockReset()
   abort.mockReset()
   // REAL members of `MODEL_CAPABILITY`, not invented ones: `capabilities` is a zod
@@ -577,5 +584,47 @@ describe('cherry.ai.getCapabilities', () => {
     // The one case that must not soften into `available: false`: answering a typo with a
     // plausible value sends the author auditing the user's settings instead of their code.
     await expect(aiCapability.getCapabilities(A, { model: 'cheap' })).rejects.toThrow()
+  })
+})
+
+describe('cherry.ai.chat — background budget', () => {
+  const runOne = async () => {
+    const call = chat()
+    drive.done()
+    return call
+  }
+
+  it('cuts a hidden guest off after its allowance', async () => {
+    // The reason this is a budget and not a slower rate: `ai.chat` spends the user's money,
+    // there is deliberately no daily cap (the ledger cannot support one — see ai.ts), and a
+    // pooled tab keeps running unthrottled while it is TOLD nobody is watching.
+    visibility.visible.set(GUEST, false)
+    for (let i = 0; i < 5; i++) await runOne()
+
+    await expect(chat()).rejects.toThrow(/background budget exhausted/)
+  })
+
+  it('never touches a call already in flight', async () => {
+    // Admission only. A user switching tabs mid-answer must not lose the answer, or every
+    // app has to defend against its own state being torn in half.
+    visibility.visible.set(GUEST, false)
+    for (let i = 0; i < 4; i++) await runOne()
+    const inFlight = chat()
+
+    await expect(chat()).rejects.toThrow(/background budget exhausted/)
+
+    // The LAST streamPrompt call, which is the in-flight one: the refused call never
+    // reached the manager, so index 0 is the first already-settled warm-up instead.
+    drive.done()
+    await expect(inFlight).resolves.toBeDefined()
+  })
+
+  it('spends nothing while the guest is visible', async () => {
+    // Counting visible calls would cut an app off seconds after it is hidden, purely for
+    // having been used — the allowance is about the unwatched stretch, not about the app.
+    for (let i = 0; i < 10; i++) await runOne()
+
+    visibility.visible.set(GUEST, false)
+    for (let i = 0; i < 5; i++) await expect(runOne()).resolves.toBeDefined()
   })
 })

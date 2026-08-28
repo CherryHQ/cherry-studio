@@ -12,6 +12,7 @@ import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { markSelfHardenedSession } from '@main/core/security/selfHardenedSessions'
 import { getAppLanguage } from '@main/i18n'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { MINI_APP_BRIDGE_CHANNEL, MINI_APP_STREAM_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
@@ -22,6 +23,7 @@ import { session, webContents } from 'electron'
 import { ACTIVITY_COUNT_FLUSH_MS, miniAppActivityLog } from '../activityLog'
 import { aiCapability } from '../capabilities/ai'
 import { networkCapability } from '../capabilities/network'
+import { resetHiddenBudgets } from '../capabilities/quota'
 import { pendingDeclaredAdditions } from '../grants'
 import { sweepAbandonedStaging } from '../install/installer'
 import { recoverInterruptedPublishes } from '../install/publishJournal'
@@ -29,38 +31,15 @@ import { miniAppInstallPath } from '../paths'
 import { handleBridgeRequest } from './bridge'
 import { emitToApp, emitToGuest } from './events'
 import { installNetworkPolicy } from './network'
+import { miniAppPartition } from './partition'
 import { createMiniAppProtocolHandler } from './protocol'
+import { installMiniAppWebviewGate } from './webviewHost'
 
 const logger = loggerService.withContext('MiniAppRuntimeService')
 
 /** How long to wait for guests to unmount after the eviction broadcast. */
 export const QUIESCE_TIMEOUT_MS = 2000
 const GUEST_POLL_INTERVAL_MS = 25
-
-/**
- * Everything Chromium stored for this app that no table knows about.
- *
- * The CSP `sandbox` (design §4.2.1) stops the PAGE from writing Web Storage, but once
- * the app is allowed a network domain, cookies and the HTTP cache accumulate in its
- * session anyway — and they are attached to the partition, not to the `mini_app` row,
- * so nothing cascades them. Skipping this makes "reset" and "uninstall" untrue: the
- * server's tracking cookie survives, and a reinstall of the same appId resumes the
- * old identity.
- *
- * Callers must already be inside `withAppQuiesced`: a live guest would write straight
- * back into what this just cleared.
- */
-export async function clearMiniAppPartition(appId: string): Promise<void> {
-  const sess = session.fromPartition(miniAppPartition(appId))
-  await sess.clearStorageData()
-  await sess.clearCache()
-  // `clearCodeCaches`, plural — the singular does not exist on Session.
-  await sess.clearCodeCaches({ urls: [] })
-}
-
-export function miniAppPartition(appId: string): string {
-  return `persist:miniapp:${appId}`
-}
 
 /**
  * A capability call's claim on the world it started in. `generation` changes every time
@@ -143,10 +122,15 @@ export class MiniAppRuntimeService extends BaseService {
     //    wildcard. Reconcile at startup; the answer is DERIVED, not stored.
     this.broadcastAttentionState()
 
-    // 4. One registration for a timer that starts and stops many times over — see `flushTimer`.
+    // 4. The webview gate, on every host that exists or will exist. Not per window type:
+    //    installing it window by window is what left `QuickAssistant` — which declares
+    //    `webviewTag` with `sandbox: false` and `webSecurity: false` — with no veto at all.
+    this.registerDisposable(installMiniAppWebviewGate())
+
+    // 5. One registration for a timer that starts and stops many times over — see `flushTimer`.
     this.registerDisposable(() => this.stopFlushTimer())
 
-    // 5. Repair anything a crash left mid-publish, then drop staging trees — in a
+    // 6. Repair anything a crash left mid-publish, then drop staging trees — in a
     //    freshly started process every `.staging-*` is by definition abandoned.
     await recoverInterruptedPublishes()
     await sweepAbandonedStaging()
@@ -175,6 +159,9 @@ export class MiniAppRuntimeService extends BaseService {
 
     const run = (async () => {
       const sess = session.fromPartition(partition)
+      // BEFORE any policy is installed: from here on a generic session-wide pass must
+      // leave this session alone, or it replaces what the next lines put on it.
+      markSelfHardenedSession(sess)
       try {
         // Everything failable runs FIRST: `protocol.handle` is irreversible per
         // session, so a later failure would leave the app permanently unloadable.
@@ -269,6 +256,11 @@ export class MiniAppRuntimeService extends BaseService {
       if (webContents.fromId(guestId)?.hostWebContents?.id !== hostWebContentsId) continue
       if (this.guestVisible.get(guestId) === visible) continue
       this.guestVisible.set(guestId, visible)
+      // The ONE refill: coming back into view is the user's own act, so it is the only
+      // event that may hand a background budget back. Reset on the transition, not on the
+      // next call, or an app that returns and makes none carries its old count into the
+      // next hidden stretch.
+      if (visible) resetHiddenBudgets(guestId)
       emitToGuest(guestId, 'app.visibilityChange', { visible })
     }
   }
@@ -306,6 +298,7 @@ export class MiniAppRuntimeService extends BaseService {
     this.guestStreams.delete(webContentsId)
     this.guestAppIds.delete(webContentsId)
     this.guestVisible.delete(webContentsId)
+    resetHiddenBudgets(webContentsId)
     // The abort above never reaches a dead listener, so the calls settle here or never.
     aiCapability.forgetGuest(webContentsId)
     networkCapability.forgetGuest(webContentsId)

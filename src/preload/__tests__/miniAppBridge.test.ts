@@ -211,3 +211,19 @@ describe('the guest bridge', () => {
     expect(payload.params.body).toHaveLength(MINI_APP_GUEST_LIMITS.notificationBodyChars)
   })
 })
+
+describe('null arguments', () => {
+  // A default parameter fills in for `undefined` ALONE, so every one of these used to reach
+  // a property read on `null` and reject with a native TypeError — outside the seven names
+  // `cherry.d.ts` promises, and undetectable by the `catch (e) { e.name }` it tells authors
+  // to write. `ai.chat` was already safe because `gateChat` coerced; now all of them do.
+  it.each([
+    ['ai.getCapabilities', () => cherry.ai.getCapabilities(null as never)],
+    ['network.fetch', () => cherry.network.fetch(null as never)],
+    ['clipboard.write', () => cherry.clipboard.write(null as never)],
+    ['notification.show', () => cherry.notification.show(null as never)],
+    ['ai.chat', () => cherry.ai.chat(null as never, {})]
+  ])('%s treats null like an absent argument', async (_name, call) => {
+    await expect(call()).resolves.toBeDefined()
+  })
+})

@@ -5,7 +5,6 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
-import { installMiniAppWebviewHost } from '@main/features/miniApp/runtime/webviewHost'
 import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { WindowId } from '@shared/ipc/types'
@@ -56,13 +55,6 @@ export class SubWindowService extends BaseService {
 
   protected async onInit() {
     this.registerIpcHandlers()
-    // Sub windows render `MiniAppTabsPool` too; pooled instances only pass through here
-    // on fresh create, so the gate must be attached at creation, never after `open()`.
-    this.registerDisposable(
-      application
-        .get('WindowManager')
-        .onWindowCreatedByType(WindowType.SubWindow, ({ window }) => installMiniAppWebviewHost(window.webContents))
-    )
   }
 
   private registerIpcHandlers() {

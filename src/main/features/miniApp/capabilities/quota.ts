@@ -160,3 +160,62 @@ export class ConcurrentRateLimiter {
 
 /** Design §9 freezes both numbers: 60 calls per minute, 4 in flight, per app. */
 export const networkLimiter = new ConcurrentRateLimiter('network.fetch', 60, 4)
+
+/**
+ * A budget that does NOT refill while the app is hidden.
+ *
+ * A reduced RATE would bound intensity and not total: one call a minute is still 480 over
+ * an eight-hour evening. What needs bounding is what an app can do across a stretch nobody
+ * is watching, so this refills on ONE event — the user bringing the app back. That trigger
+ * is the user's own attention, and an app cannot forge it: it is told when it goes hidden
+ * and has no way to make itself visible.
+ *
+ * Keyed by GUEST, not by app. Visibility belongs to one pane, so the same app open in a
+ * detached window is a separate guest with a budget of its own.
+ *
+ * Admission only. A stream or request started while visible runs to completion — switching
+ * tabs mid-answer must not corrupt what the app was doing.
+ */
+export class HiddenBudget {
+  private readonly used = new Map<number, number>()
+
+  constructor(
+    private readonly label: string,
+    private readonly allowance: number
+  ) {}
+
+  /** `visible` comes from the host's ledger, never from anything the guest reports. */
+  check(guestId: number, visible: boolean): void {
+    if (visible) return
+    const used = this.used.get(guestId) ?? 0
+    if (used >= this.allowance) {
+      // Worded apart from the per-minute cutoffs on purpose: both land in the activity log
+      // as refusals, and "wait a minute" and "the user has to come back" are different facts.
+      throw new RateLimitedError(
+        `${this.label} background budget exhausted: ${this.allowance} calls while hidden, refilled when the user opens the app again`
+      )
+    }
+    this.used.set(guestId, used + 1)
+  }
+
+  reset(guestId: number): void {
+    this.used.delete(guestId)
+  }
+}
+
+/** Design §6.1: the two capabilities whose cost survives the user looking away. */
+export const aiHiddenBudget = new HiddenBudget('ai.chat', 5)
+export const networkHiddenBudget = new HiddenBudget('network.fetch', 10)
+
+/**
+ * Both budgets, from the one place that sees a guest become visible or go away.
+ *
+ * `storage`, `file` and `notification` are deliberately absent: the first two cost the user
+ * nothing and are already bounded by their quotas and write limiter — and saving state as
+ * the user switches away is the most legitimate hidden behaviour there is — while telling
+ * someone about something they are not looking at is what a notification is FOR.
+ */
+export function resetHiddenBudgets(guestId: number): void {
+  aiHiddenBudget.reset(guestId)
+  networkHiddenBudget.reset(guestId)
+}

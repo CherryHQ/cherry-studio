@@ -6,6 +6,7 @@ import { app, dialog, session, shell, webContents } from 'electron'
 import { existsSync, promises as fs } from 'fs'
 import { join } from 'path'
 
+import { isMiniAppPartition } from '../features/miniApp/runtime/partition'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
 const logger = loggerService.withContext('WebviewService')
@@ -114,7 +115,12 @@ export class WebviewService extends BaseService {
     }
 
     const attach = (_: Electron.Event, contents: Electron.WebContents) => {
-      contents.on('will-attach-webview', (_event, webPreferences) => {
+      contents.on('will-attach-webview', (_event, webPreferences, params) => {
+        // Mini apps are EXCLUDED, and by their partition rather than by which window this
+        // is: `webviewHost` gives them a different preload, both writers land on the same
+        // single `webPreferences.preload` slot, and without this filter which one survives
+        // is decided by the order two unrelated modules happened to register in.
+        if (isMiniAppPartition(params.partition)) return
         webPreferences.preload = preloadPath
       })
     }

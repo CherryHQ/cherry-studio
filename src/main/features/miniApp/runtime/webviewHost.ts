@@ -1,9 +1,9 @@
 import { application } from '@application'
+import { app, webContents } from 'electron'
 
 import { installNavigationPolicy } from './navigation'
 import { installWebRtcPolicy } from './network'
-
-const MINI_APP_PARTITION_PREFIX = 'persist:miniapp:'
+import { isMiniAppPartition, miniAppIdOfPartition } from './partition'
 
 /**
  * The host renderer runs with `webSecurity: false`, so anything achieving script
@@ -16,9 +16,9 @@ export function applyMiniAppWebviewPolicy(
   params: Record<string, string>,
   bridgePreloadPath: string
 ): void {
-  if (!params.partition.startsWith(MINI_APP_PARTITION_PREFIX)) return
+  if (!isMiniAppPartition(params.partition)) return
 
-  const appId = params.partition.slice(MINI_APP_PARTITION_PREFIX.length)
+  const appId = miniAppIdOfPartition(params.partition)
   if (!params.src.startsWith(`cherry-miniapp://${appId}/`)) {
     event.preventDefault()
     return
@@ -49,20 +49,29 @@ export function applyMiniAppWebviewPolicy(
   webPreferences.sandbox = true
   webPreferences.webSecurity = true
   webPreferences.allowRunningInsecureContent = false
+  // The OTHER way in, and the one the note above describes without closing: refusing the
+  // `webpreferences` attribute shuts the attribute path, but the host runs `webviewTag: true`
+  // and Electron's inheritance clamp does not cover `webviewTag`, so a guest inherits it and
+  // can attach a NESTED webview on any partition — outside this app's origin check, its PAC,
+  // its request filter and its CSP alike. Denied explicitly, not left to a default.
+  webPreferences.webviewTag = false
 }
+
+const gated = new WeakSet<Electron.WebContents>()
 
 /**
  * Installs the mini app webview gate on ONE host window.
  *
- * Must be called for every window that can render `MiniAppTabsPool` — today the
- * main window and detached sub-windows. A gate that exists on only one of them is
- * not a weaker gate, it is an absent one: the unguarded host attaches the guest
- * with default webPreferences and never registers it.
+ * Idempotent: `installMiniAppWebviewGate` may reach the same contents from both its
+ * sweep and its event, and two copies of these listeners would register the guest twice.
  */
 export function installMiniAppWebviewHost(hostContents: Electron.WebContents): void {
+  if (gated.has(hostContents)) return
+  gated.add(hostContents)
+
   hostContents.on('will-attach-webview', (event, webPreferences, params) => {
-    if (!params.partition.startsWith(MINI_APP_PARTITION_PREFIX)) return
-    const appId = params.partition.slice(MINI_APP_PARTITION_PREFIX.length)
+    if (!isMiniAppPartition(params.partition)) return
+    const appId = miniAppIdOfPartition(params.partition)
 
     // The partition must ALREADY be prepared: `ensurePartition` is async and this
     // handler is not, so it can only veto. The renderer awaits `mini_app.runtime.prepare`.
@@ -96,4 +105,26 @@ export function installMiniAppWebviewHost(hostContents: Electron.WebContents): v
     installWebRtcPolicy(contents)
     contents.once('destroyed', () => runtime.unregisterGuest(contents.id))
   })
+}
+
+/**
+ * Arms the gate on EVERY web contents, current and future.
+ *
+ * Per-window installation was the bug: three window types declare `webviewTag` and only
+ * two called this, so a synthesised `<webview partition="persist:miniapp:X">` on the
+ * third had no main-process veto at all — and, as the note above says, a gate present on
+ * some hosts is not a weaker gate but an absent one.
+ *
+ * Blanket rather than by window type, because `applyMiniAppWebviewPolicy` already returns
+ * for any partition that is not a mini app's: nothing else can be affected, and a window
+ * type added later is covered without anyone remembering to come back here. The sweep is
+ * what makes it whole — this runs in `onReady`, and windows created by an earlier service
+ * in the same phase already exist by then.
+ */
+export function installMiniAppWebviewGate(): () => void {
+  const install = (contents: Electron.WebContents) => installMiniAppWebviewHost(contents)
+  webContents.getAllWebContents().forEach(install)
+  const onCreated = (_event: Electron.Event, contents: Electron.WebContents) => install(contents)
+  app.on('web-contents-created', onCreated)
+  return () => app.removeListener('web-contents-created', onCreated)
 }

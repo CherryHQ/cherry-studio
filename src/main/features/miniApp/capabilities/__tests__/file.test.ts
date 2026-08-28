@@ -13,8 +13,8 @@ import { base64CharCap, MINI_APP_QUOTAS } from '../quota'
 
 // Hoisted: the static `MiniAppRuntimeService` import above pulls `@application` in and
 // runs the mock factory before any top-level `const` of this file is initialised.
-const { created, mintEntry, createInternalEntry, readEntry, read, permanentDelete, generation, visible } = vi.hoisted(
-  () => {
+const { created, mintEntry, createInternalEntry, readEntry, read, permanentDelete, generation, visible, leaseFor } =
+  vi.hoisted(() => {
     const created: { id: string; data: Uint8Array }[] = []
     // Faithful to FileManager where the capability depends on it: a real entry is a
     // `file_entry` ROW (the ref table FK-points at it and usage sums its `size`).
@@ -43,6 +43,7 @@ const { created, mintEntry, createInternalEntry, readEntry, read, permanentDelet
     const permanentDelete = vi.fn(async (id: string) => {
       dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
     })
+    const generation = { value: 1 }
     return {
       created,
       mintEntry,
@@ -50,11 +51,11 @@ const { created, mintEntry, createInternalEntry, readEntry, read, permanentDelet
       readEntry,
       read,
       permanentDelete,
-      generation: { value: 1 },
-      visible: { value: true }
+      generation,
+      visible: { value: true },
+      leaseFor: vi.fn((appId: string) => ({ appId, generation: generation.value }))
     }
-  }
-)
+  })
 
 // `save` takes a lease and re-checks it after the await, so the runtime service must
 // be mounted here too or every case throws before its first assertion.
@@ -63,7 +64,7 @@ vi.mock('@application', async () => {
   return mockMiniAppApplication({
     FileManager: { createInternalEntry, read, permanentDelete, getPhysicalPath: (id: string) => `/blobs/${id}.bin` },
     MiniAppRuntimeService: {
-      leaseFor: (appId: string) => ({ appId, generation: generation.value }),
+      leaseFor,
       assertLeaseValid: (lease: CallLease) => {
         if (lease.generation !== generation.value) throw new MiniAppQuiescingError(lease.appId)
       },
@@ -159,6 +160,31 @@ describe('cherry.file', () => {
 
     expect(dbh.db.select().from(miniAppFileRefTable).all()).toHaveLength(1)
     expect(await fileCapability.load(A, { name: 'slot1' })).toEqual({ data: 'd29ybGQ=' })
+  })
+
+  it('refuses a save before it reaches the queue at all', async () => {
+    // The bug: `save` handed the RAW params to the per-app queue and parsed, decoded and
+    // rate-limited them only inside it, so every queued call held the guest's whole base64
+    // string in main-process memory while it waited — the exact allocation the limiter
+    // exists to refuse. `leaseFor` is the observable: it is taken on the way INTO the
+    // queue, so a refusal that never took one never got that far.
+    insertApp(A)
+    leaseFor.mockClear()
+
+    await expect(fileCapability.save(A, { name: 'bad/name', data: 'AAAA' })).rejects.toThrow()
+
+    expect(leaseFor).not.toHaveBeenCalled()
+  })
+
+  it('still takes a lease for a save it accepts', async () => {
+    // The negative control: without it the case above passes just as well if `save` stopped
+    // leasing altogether, which would silently drop the quiesce check it exists for.
+    insertApp(A)
+    leaseFor.mockClear()
+
+    await fileCapability.save(A, { name: 'fine', data: 'AAAA' })
+
+    expect(leaseFor).toHaveBeenCalled()
   })
 
   it('refuses a burst that is under the call limit but over the byte limit', async () => {

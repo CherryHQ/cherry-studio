@@ -102,7 +102,7 @@ An available update lights a dot on the app's tile; hovering the icon says which
 
 | Rule | Detail |
 |---|---|
-| Version | Only a strictly greater semver is an update. Same version with different content is "already up to date" — bump the version |
+| Version | Only a strictly greater semver is an update. Same version with different content is "already up to date" — bump the version. **Builtin apps are the exception**: their tree ships inside the signed Cherry release rather than arriving from a server, so the tree hash is the signal and changed bytes are applied whatever the version says. Bump it anyway — the host logs an error when you do not |
 | Origins | An update cannot add, remove or change the **origin of** `update.url` / `update.urlCn`; a different path on the same origin is followed. Changing hosts, or adding a mirror later, means installing over the app from the new address (see above) |
 | Manifest consistency | The distribution manifest and the manifest inside the downloaded archive must agree on every shared field, including both `update` URLs |
 | Permission growth | Newly required leaves — including an optional leaf promoted to required — and newly declared hosts are shown and need consent. Newly optional leaves are shown ticked, may be unticked, and never block |

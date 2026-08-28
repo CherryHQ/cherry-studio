@@ -92,7 +92,8 @@ const gateChat = (params: unknown) => {
  * into the main process in full before Zod ever sees it — which is the one thing these
  * guest-side gates exist to prevent (design §9).
  */
-const gateFetch = (params: { url?: unknown; method?: unknown; headers?: unknown; body?: unknown }) => {
+const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; body?: unknown } | null) => {
+  const params = raw ?? {}
   assertPayloadSize(String(params.url ?? ''), MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
   const headers = (params.headers ?? {}) as Record<string, unknown>
   if (Object.keys(headers).length > MINI_APP_GUEST_LIMITS.fetchHeaderCount) {
@@ -170,8 +171,13 @@ contextBridge.exposeInMainWorld('cherry', {
     chat: async (params: unknown, opts: { onChunk?: (c: string) => void; callId?: string } = {}) =>
       callStreaming('ai.chat', gateChat(params), opts.onChunk ?? (() => {}), gateCallId(opts.callId)),
     cancel: async (callId: string) => call('ai.cancel', { callId: gateCallId(callId) }),
-    getCapabilities: async (params?: { model?: unknown }) =>
-      call('ai.getCapabilities', params === undefined ? undefined : { model: str(params.model)?.slice(0, 16) })
+    getCapabilities: async (params?: { model?: unknown } | null) => {
+      // `?? {}`, not a default parameter or an `=== undefined` test: a default fills in for
+      // `undefined` ALONE, so `cherry.ai.getCapabilities(null)` reaches the property read and
+      // rejects with a native TypeError — outside the seven names `cherry.d.ts` promises.
+      const { model } = params ?? {}
+      return call('ai.getCapabilities', model === undefined ? undefined : { model: str(model)?.slice(0, 16) })
+    }
   },
   storage: {
     get: async (key: string) => call('storage.get', { key: gateKey(key) }),
@@ -204,24 +210,27 @@ contextBridge.exposeInMainWorld('cherry', {
   },
   network: {
     /** One object parameter, matching `cherry.d.ts` — NOT `fetch(url, init)`. */
-    fetch: async (params: { url?: unknown; method?: unknown; headers?: unknown; body?: unknown } = {}) =>
-      call('network.fetch', gateFetch(params))
+    fetch: async (params?: { url?: unknown; method?: unknown; headers?: unknown; body?: unknown } | null) =>
+      call('network.fetch', gateFetch(params ?? {}))
   },
   clipboard: {
     read: async () => call('clipboard.read'),
-    write: async (params: { text?: unknown } = {}) => {
-      assertPayloadSize(String(params.text ?? ''), MINI_APP_GUEST_LIMITS.clipboardTextChars, 'clipboard text')
-      return call('clipboard.write', { text: str(params.text) })
+    write: async (params?: { text?: unknown } | null) => {
+      const { text } = params ?? {}
+      assertPayloadSize(String(text ?? ''), MINI_APP_GUEST_LIMITS.clipboardTextChars, 'clipboard text')
+      return call('clipboard.write', { text: str(text) })
     }
   },
   notification: {
     // TRUNCATES rather than rejects, alone among these gates (§6.5); main truncates
     // again as the authority. One public behaviour per field, not one per layer.
-    show: async (params: { title?: unknown; body?: unknown } = {}) =>
-      call('notification.show', {
-        title: clip(String(params.title ?? ''), MINI_APP_GUEST_LIMITS.notificationTitleChars),
-        body: clip(String(params.body ?? ''), MINI_APP_GUEST_LIMITS.notificationBodyChars)
+    show: async (params?: { title?: unknown; body?: unknown } | null) => {
+      const { title, body } = params ?? {}
+      return call('notification.show', {
+        title: clip(String(title ?? ''), MINI_APP_GUEST_LIMITS.notificationTitleChars),
+        body: clip(String(body ?? ''), MINI_APP_GUEST_LIMITS.notificationBodyChars)
       })
+    }
   },
   // NOT async: it returns the unsubscribe function itself, and `cherry.d.ts` types it
   // that way. An author writes `const off = cherry.on(...)`, not `await`.

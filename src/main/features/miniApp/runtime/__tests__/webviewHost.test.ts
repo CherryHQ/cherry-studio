@@ -1,8 +1,7 @@
-import { readFileSync } from 'node:fs'
-
+import { app, webContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { applyMiniAppWebviewPolicy, installMiniAppWebviewHost } from '../webviewHost'
+import { applyMiniAppWebviewPolicy, installMiniAppWebviewGate, installMiniAppWebviewHost } from '../webviewHost'
 
 // The gate consults the runtime service; this stub is the world it reads. `vi.hoisted`
 // so the mock factory below can reach it, and each case sets the state it needs.
@@ -114,6 +113,14 @@ describe('applyMiniAppWebviewPolicy', () => {
       ).toHaveBeenCalled()
     }
   })
+
+  it('denies the guest `webviewTag` outright, not only through the attribute', () => {
+    // The attribute path above is one of TWO. The host runs `webviewTag: true` and
+    // Electron's inheritance clamp does not cover `webviewTag`, so a guest that names it
+    // nowhere still inherits it — and a nested webview attaches on any partition, outside
+    // this app's origin check, PAC, request filter and CSP alike.
+    expect(run(attachParams).webPreferences.webviewTag).toBe(false)
+  })
 })
 
 /** A host window: captures both hooks so a case can fire them like Electron would. */
@@ -214,13 +221,60 @@ describe('installMiniAppWebviewHost', () => {
 
     expect(registered).toEqual([])
   })
+})
 
-  it('is wired from both window services', () => {
-    // The bug this guards: `MiniAppTabsPool` also renders in SubWindowAppShell, so a
-    // main-window-only gate leaves detached tabs unguarded and unregistered.
-    for (const service of ['MainWindowService', 'SubWindowService']) {
-      const source = readFileSync(new URL(`../../../../services/${service}.ts`, import.meta.url), 'utf8')
-      expect(source).toMatch(/installMiniAppWebviewHost\(/)
-    }
+describe('installMiniAppWebviewGate', () => {
+  const fakeContents = () => ({ on: vi.fn(), once: vi.fn(), id: Math.floor(Math.random() * 1e6) })
+  /** `app.on` is overloaded per event name, so TS narrows the recorded calls to the first one. */
+  const subscriber = () =>
+    (vi.mocked(app.on).mock.calls as unknown as Array<[string, (e: unknown, c: unknown) => void]>).find(
+      ([event]) => event === 'web-contents-created'
+    )![1]
+
+  beforeEach(() => {
+    vi.mocked(app.on).mockReset()
+    vi.mocked(app.removeListener).mockReset()
+    vi.mocked(webContents.getAllWebContents).mockReset().mockReturnValue([])
+  })
+
+  it('arms the contents that already exist when it runs', () => {
+    // The sweep is not decoration: this is called from a `WhenReady` service, and the main
+    // window is built by another service in the same phase — so it can already be there.
+    const existing = fakeContents()
+    vi.mocked(webContents.getAllWebContents).mockReturnValue([existing] as never)
+
+    installMiniAppWebviewGate()
+
+    expect(existing.on).toHaveBeenCalledWith('will-attach-webview', expect.any(Function))
+  })
+
+  it('arms contents created after it runs', () => {
+    // The regression this replaces a source-grep with: the gate used to be installed window
+    // by window, so a window type nobody remembered — `QuickAssistant`, which declares
+    // `webviewTag` with `sandbox: false` — had no main-process veto at all.
+    installMiniAppWebviewGate()
+    const later = fakeContents()
+
+    subscriber()(undefined, later)
+
+    expect(later.on).toHaveBeenCalledWith('will-attach-webview', expect.any(Function))
+  })
+
+  it('arms one contents once, however many times it is reached', () => {
+    // The sweep and the event overlap by construction, and a second copy of these listeners
+    // would register the same guest twice.
+    const both = fakeContents()
+    vi.mocked(webContents.getAllWebContents).mockReturnValue([both] as never)
+
+    installMiniAppWebviewGate()
+    subscriber()(undefined, both)
+
+    expect(both.on.mock.calls.filter(([event]) => event === 'will-attach-webview')).toHaveLength(1)
+  })
+
+  it('stops arming new contents once disposed', () => {
+    installMiniAppWebviewGate()()
+
+    expect(app.removeListener).toHaveBeenCalledWith('web-contents-created', expect.any(Function))
   })
 })

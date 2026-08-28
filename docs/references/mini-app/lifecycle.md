@@ -45,6 +45,26 @@ Opened apps stay alive in a bounded pool. A hidden app is still running — it i
 
 Pause on `app.visibilityChange`, not on Page Visibility.
 
+## While you are hidden
+
+Staying alive is not permission to keep spending. Two capabilities carry a cost the user cannot see while they are looking elsewhere — `ai.chat` spends their money, `network.fetch` sends their data — so each has a small allowance that applies **only** while you are hidden:
+
+| Capability | Allowance while hidden |
+|---|---|
+| `ai.chat` | 5 calls |
+| `network.fetch` | 10 requests |
+
+Four things to know about it:
+
+- **It does not refill with time.** One call a minute for an evening is still hundreds of calls. The allowance comes back when the user opens your app again, and at no other moment — so `RateLimited` here is not something to retry on a timer.
+- **Visible calls do not spend it.** It is whole every time you are hidden, however busy you were before.
+- **Work already started finishes.** Only new calls are refused; a stream or request in flight when the user switches away runs to completion. Do not tear your own state in half on `visible: false`.
+- **`storage`, `file` and `notification` are untouched.** Saving state as the user leaves is the most useful thing you can do while hidden, and a notification exists precisely to reach someone who is not looking.
+
+Each pane has its own allowance, as it has its own visibility: the same app in a detached window is budgeted separately. Refusals are recorded in the app's activity log, which the user can read from its detail panel.
+
+Design for it rather than against it: finish or checkpoint on `visible: false`, and resume on `visible: true`.
+
 ## Events
 
 Subscribe with `cherry.on(event, handler)`; it returns an unsubscribe function. Both events are fire-and-forget — the host does not await handlers, and a rejected or throwing handler is ignored.

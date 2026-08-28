@@ -389,6 +389,17 @@ async function confirmFromFile(
 ): Promise<LocalMiniApp> {
   // HONESTY gate: the user's file changed since the card was shown — say so, plainly,
   // never install silently past it (design §10.2).
+  //
+  // Reading the path AGAIN below is reported as a TOCTOU every review round, and the answer
+  // is `assertManifestUnchanged` — read its doc before acting on such a report. It compares
+  // the EXTRACTED manifest, so the envelope is verified against the bytes that get installed,
+  // not against the ones that were hashed here. A swap inside the window is therefore either
+  // refused there or carries the identical envelope, and what is left is a different
+  // implementation inside a capability set the user did consent to — placed by something
+  // already executing as the user, which owns this process and any private copy it could
+  // make. Sealing the archive first moves the bytes to a path with the same owner and the
+  // same permissions: it narrows a window without raising a bar, and it costs this plain
+  // error, silently installing stale bytes whenever the swap lands after the copy.
   if ((await sha256File(payload.zipPath)) !== payload.zipSha256) {
     throw new Error('Package file changed since preview; pick it again')
   }

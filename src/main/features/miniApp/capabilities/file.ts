@@ -182,18 +182,27 @@ export async function reclaimEntries(ids: readonly string[]): Promise<void> {
 }
 
 export const fileCapability = {
-  save(appId: string, params: unknown) {
+  // `async`, because the checks below now run HERE: a synchronous throw out of a method the
+  // bridge awaits escapes its `.catch` entirely, which is the same trap `miniAppBridge.ts`
+  // documents on the guest side.
+  async save(appId: string, params: unknown) {
+    // Parsed, decoded and rate-limited BEFORE the queue, not inside it. Handing the raw
+    // params to `serializePerApp` parks the guest's whole base64 string in main-process
+    // memory for as long as the queue is busy — and the limiter that exists to refuse it
+    // only ran after the wait, so an app could hold as many payloads as it cared to send.
+    // The decoded buffer is also the smaller of the two things to be holding.
+    const { name, data } = SaveParams.parse(params)
+    const bytes = Buffer.from(data, 'base64')
+    limiter.check(appId, bytes.byteLength)
     // Lease taken BEFORE the queue wait and checked after it — the whole reason this
     // is not a plain "is quiescing now?" check is that time passes in between.
     const lease = application.get('MiniAppRuntimeService').leaseFor(appId)
-    return serializePerApp(appId, () => this.saveSerialized(appId, params, lease))
+    return serializePerApp(appId, () => this.saveSerialized(appId, { name, bytes }, lease))
   },
 
-  async saveSerialized(appId: string, params: unknown, lease: CallLease) {
-    const { name, data } = SaveParams.parse(params)
+  async saveSerialized(appId: string, params: { name: string; bytes: Buffer }, lease: CallLease) {
+    const { name, bytes } = params
 
-    const bytes = Buffer.from(data, 'base64')
-    limiter.check(appId, bytes.byteLength)
     const previous = findRef(appId, name)
     const previousSize = previous
       ? Number(

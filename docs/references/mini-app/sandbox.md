@@ -33,6 +33,7 @@ Read this before anything else. A mini app is a web page, but it does not run wh
 | `<script src="https://cdn...">`, `<link href="https://...">`, `<img src="https://...">` | Blocked | Bundle the asset into the package |
 | `new Worker(...)`, `SharedWorker`, `navigator.serviceWorker.register` | Blocked | Run on the main thread, or inline the work |
 | `<iframe>`, `<embed>`, `<object>` | Blocked (`frame-src 'none'`, `object-src 'none'`) | Render in the page |
+| `<webview>` | Denied by the main process, and `webviewTag` is off for your page whatever the host window enables. Not a CSP matter — an Electron `<webview>` is not a browsing context `frame-src` governs, so it would carry neither this page's CSP nor its request filter | Nothing |
 | `window.open`, `<a target="_blank">` | Denied — no popup is created | Nothing. There is no "open in browser" in this release |
 | `<a download>`, `URL.createObjectURL(blob)` + click, navigating to a download | Cancelled — no save dialog appears | `cherry.file.export` |
 | `showOpenFilePicker`, `showSaveFilePicker`, `showDirectoryPicker` | Reject — the File System Access permission is denied | `<input type="file">` to read, `cherry.file.export` to write |

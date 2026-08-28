@@ -34,7 +34,7 @@ import { miniAppActivityLog } from '../activityLog'
 import { ownedFileEntryIds, reclaimEntries } from '../capabilities/file'
 import { grantMiniAppPermissionsTx, replaceGrantsTx } from '../grants'
 import { miniAppBackupPath, miniAppDataPath, miniAppInstallPath, miniAppRollingPath } from '../paths'
-import { clearMiniAppPartition } from '../runtime/MiniAppRuntimeService'
+import { clearMiniAppPartition } from '../runtime/partition'
 import { assertExtractedTree, extractMiniAppArchive } from './archive'
 import { bestEffortCleanup } from './cleanup'
 import { applyPackagedIcon } from './icon'
@@ -310,13 +310,24 @@ export async function installExtracted(
 export async function wipeMiniAppData(appId: string): Promise<void> {
   // Collected BEFORE the delete: afterwards there is no ref row left to join through.
   const orphaned = ownedFileEntryIds(appId, application.get('DbService').getDb())
+  // Journalled for the same reason an uninstall is: the rows go first and the stores after,
+  // so a crash in between leaves the files unlisted while `storage.json` and the partition
+  // survive — a "clear data" the app reads its old state straight back out of.
+  writePublishJournal({ kind: 'clear-data', appId })
   application.get('DbService').withWriteTx((tx) => {
     // `sourceId`, not `appId` — that is the column name on this table.
     tx.delete(miniAppFileRefTable).where(eq(miniAppFileRefTable.sourceId, appId)).run()
   })
+  // NOT counted below: recovery cannot redo it, because the orphan list is read before the
+  // delete and nothing on disk records it.
   await reclaimEntries(orphaned)
-  await fs.promises.rm(miniAppDataPath(appId), { recursive: true, force: true })
-  await clearMiniAppPartition(appId)
+
+  let swept = await bestEffortCleanup('clear data tree', () =>
+    fs.promises.rm(miniAppDataPath(appId), { recursive: true, force: true })
+  )
+  swept &&= await bestEffortCleanup('clear data partition', () => clearMiniAppPartition(appId))
+  // A store that would not clear stays journalled: startup recovery retries exactly it.
+  if (swept) clearPublishJournal(appId)
 }
 
 /**
@@ -595,17 +606,22 @@ export async function uninstallMiniApp(appId: string): Promise<void> {
         )
         swept &&= removed
       }
-      // A tree that would not delete stays journalled: startup recovery retries it.
+      // Cookies and the HTTP cache live on the partition, not on the `mini_app` row —
+      // nothing cascades them, and a reinstall would resume the old server identity.
+      // BEFORE the journal is cleared, and counted in `swept`: this is the other store
+      // recovery can redo, so clearing the journal first would make a crash in between
+      // leave it alive with nothing left on disk pointing at it.
+      swept &&= await bestEffortCleanup('uninstall partition', () => clearMiniAppPartition(appId))
+
+      // A store that would not clear stays journalled: startup recovery retries it.
       if (swept) clearPublishJournal(appId)
       logger.info('Uninstalled mini app', { id: appId })
 
       // The blobs are the user's data too: an "uninstall" that leaves them listed on the
       // files page for the grace hour is the same unkept promise as "clear data".
+      // NOT counted in `swept`: recovery cannot redo it — the orphan list is computed
+      // before the commit and nothing on disk records it.
       await bestEffortCleanup('uninstall file entries', () => reclaimEntries(orphaned))
-
-      // Cookies and the HTTP cache live on the partition, not on the `mini_app` row —
-      // nothing cascades them, and a reinstall would resume the old server identity.
-      await bestEffortCleanup('uninstall partition', () => clearMiniAppPartition(appId))
 
       // AFTER the commit: a failed uninstall must leave the badge as it was.
       application.get('MiniAppRuntimeService').forgetApp(appId)

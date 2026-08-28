@@ -28,8 +28,8 @@ Everything the host offers is on `window.cherry`. Types are in [`cherry.d.ts`](.
 |---|---|
 | `PermissionDenied` | The method is not granted, or `network.fetch` was given a URL outside the declared hosts |
 | `QuotaExceeded` | A byte or item budget would be exceeded (storage file, file sandbox, request or response body) |
-| `RateLimited` | Too many writes, notifications, AI calls or requests in the window; too many in flight. Wait, then retry |
-| `Unavailable` | The host cannot serve the call right now: the app is being updated, rolled back, reinstalled, cleared or uninstalled, a remote request timed out or failed, or `ai.*` found no model configured for the requested slot and no global default |
+| `RateLimited` | Too many writes, notifications, AI calls or requests in the window; too many in flight. Wait, then retry — **except** when the message says a background budget is exhausted, which waiting never refills: that one comes back when the user opens your app again |
+| `Unavailable` | The host cannot serve the call right now: the app is being updated, rolled back, reinstalled, cleared or uninstalled, a remote request timed out or failed, `ai.*` found no model configured for the requested slot and no global default, or your save file exists but could not be read |
 | `InvalidArgument` | Argument validation failed, an unknown method, or `ai.chat` reused a `callId` that is still in flight |
 | `Cancelled` | An `ai.chat` stream was aborted and the abort surfaced as an error |
 | `Internal` | Anything else. The message is always `Internal error` |
@@ -39,6 +39,7 @@ try {
   await cherry.storage.set('save', data)
 } catch (e) {
   if (e.name === 'QuotaExceeded') showStorageFullDialog()
+  // Back off rather than loop: a background budget does not refill on a timer.
   else if (e.name === 'RateLimited') retryLater()
   else throw e
 }
@@ -84,9 +85,10 @@ Which model answers is the user's choice, never yours: every app has a **default
 | Output | Not capped by Cherry — the model's own limit applies |
 | In flight per app | 2 |
 | Calls per minute per app | 60 |
+| Calls while hidden | 5 per hidden stretch — see [lifecycle](./lifecycle.md#while-you-are-hidden) |
 | `callId` | ≤ 64 characters |
 
-There is no spending budget. Every completed call is attributed to your app in the user's usage ledger; the concurrency and burst limits are the only throttle.
+There is no spending budget in tokens or money. Every completed call is attributed to your app in the user's usage ledger; the concurrency and burst limits throttle you while the user is watching, and the background allowance bounds what you can spend while they are not.
 
 ```js
 let out = ''
@@ -102,11 +104,11 @@ A single JSON save file per app: string keys, string values, persistent, never e
 
 | Method | Gate | Returns |
 |---|---|---|
-| `get(key)` | `storage.get` | `{ value: string \| null }` — `null` when absent |
+| `get(key)` | `storage.get` | `{ value: string \| null }` — `null` when absent. A save file that exists but cannot be read rejects `Unavailable` rather than reading as empty, so a retry cannot overwrite it |
 | `set(key, value)` | `storage.set` | `{ ok: true }` |
 | `delete(key)` | `storage.delete` | `{ ok: true }` — idempotent |
 | `keys()` | `storage.keys` | `{ keys: string[] }`, sorted |
-| `usage()` | sibling of `storage.*` | `{ bytes, count, bytesLimit, countLimit }` |
+| `usage()` | sibling of `storage.*` | `{ bytes, count, bytesLimit, countLimit }`. Unlike `get`, it never rejects: a save file it cannot read is reported at its size on disk with `count: 0`, so a damaged file reads as bytes-without-items rather than as nothing |
 
 | Limit | Value |
 |---|---|
@@ -213,7 +215,7 @@ The request is made by the host, not by the page, so it is not subject to CORS. 
 | Redirects | Refused — the call rejects `Unavailable` |
 | Timeout | 30 s for the whole exchange, then `Unavailable` |
 | Credentials | Never sent. The host's cookies and sessions are not yours |
-| Rate | 60 per minute per app, 4 in flight |
+| Rate | 60 per minute per app, 4 in flight. While hidden, 10 requests per hidden stretch — see [lifecycle](./lifecycle.md#while-you-are-hidden) |
 
 ```js
 const { status, body } = await cherry.network.fetch({

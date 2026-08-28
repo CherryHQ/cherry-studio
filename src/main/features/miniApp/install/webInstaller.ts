@@ -429,6 +429,21 @@ async function checkBuiltinUpdate(appId: string, row: MiniAppInstallationRow, ro
   // The same check the url path does. A `resources/` directory holding the wrong app's
   // manifest would otherwise write that manifest onto THIS appId's installation row.
   if (shipped.id !== appId) throw new Error(`Builtin tree for ${appId} declares id ${shipped.id}`)
+  // NO `semverGt` gate here, unlike the url path, and the difference is deliberate: that
+  // gate refuses a SERVER-pushed downgrade or a same-version replay, and a builtin tree
+  // arrives inside the signed Cherry the user already installed — there is no such pusher.
+  // The shipped bytes are what this release means to run, so the hash is the signal.
+  //
+  // Which leaves one real mistake it cannot defend against, and this is where it surfaces:
+  // shipping changed bytes without bumping the version. Loud, because the update then
+  // offers a version the user already has, and only a log can say why.
+  if (!semverGt(shipped.version, row.version)) {
+    logger.error('Builtin mini app tree changed without a version bump', {
+      appId,
+      installed: row.version,
+      shipped: shipped.version
+    })
+  }
   return reviewUpdate(appId, row, shipped, { kind: 'builtin', root }, { announce: true })
 }
 

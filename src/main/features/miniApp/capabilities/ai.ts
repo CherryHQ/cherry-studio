@@ -20,7 +20,7 @@ import { eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { InvalidArgumentError, MiniAppUnavailableError } from '../errors'
-import { RateLimitedError } from './quota'
+import { aiHiddenBudget, RateLimitedError } from './quota'
 
 /**
  * Concurrency and burst are the ONLY things bounding how fast an app can spend.
@@ -184,6 +184,11 @@ export const aiCapability = {
     // `inflight`, so a throw in between leaks a slot for the life of the process.
     const uniqueModelId = resolveModelFor(appId, parsed.model ?? 'default')
     const messages = parsed.messages.map(toCherryUIMessage)
+
+    // BEFORE `admit`, which is where the slot becomes the caller's to release: a throw
+    // after it leaks one for the life of the process. Read from the host's own visibility
+    // ledger, never from anything the guest claims about itself.
+    aiHiddenBudget.check(guestId, application.get('MiniAppRuntimeService').isGuestVisible(guestId))
 
     const release = admit(appId)
     const streamId = `miniapp:${appId}:${++streamSeq}`

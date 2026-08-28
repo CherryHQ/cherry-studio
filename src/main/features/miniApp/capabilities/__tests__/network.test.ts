@@ -3,6 +3,7 @@ import dns from 'node:dns'
 import { net } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mockMiniAppApplication } from '../../__tests__/applicationMock'
 import { MiniAppUnavailableError } from '../../errors'
 import { PermissionDeniedError } from '../../grants'
 import {
@@ -12,7 +13,7 @@ import {
   MINI_APP_FETCH_TIMEOUT_MS,
   networkCapability
 } from '../network'
-import { QuotaExceededError } from '../quota'
+import { QuotaExceededError, resetHiddenBudgets } from '../quota'
 
 const APP = 'com.example.mygame'
 const HOSTS = ['api.mygame.com']
@@ -21,12 +22,22 @@ const fetchAs = (params: unknown) => networkCapability.fetch(APP, params, SENDER
 
 vi.mock('node:dns', () => ({ default: { promises: { lookup: vi.fn() } } }))
 const lookup = vi.mocked(dns.promises.lookup)
+
+/** Visible unless a test says otherwise: the pool mounts a pane in order to show it. */
+const visibility = { visible: true }
+vi.mock('@application', () =>
+  mockMiniAppApplication({ MiniAppRuntimeService: { isGuestVisible: () => visibility.visible } })
+)
 const PUBLIC = [{ address: '93.184.216.34', family: 4 }]
 const PRIVATE = [{ address: '169.254.169.254', family: 4 }]
 
 beforeEach(() => {
   lookup.mockReset()
   lookup.mockResolvedValue(PUBLIC as never)
+  // Module singletons, so a hidden-budget case would otherwise leave its spend behind for
+  // every later test that happens to run with the same sender.
+  visibility.visible = true
+  resetHiddenBudgets(SENDER)
 })
 
 // `installationOf` is a plain row read already covered by the installer tests; here the
@@ -342,5 +353,40 @@ describe('networkCapability.fetch', () => {
     )
     const r = await fetchAs({ url: 'https://api.mygame.com/v1' })
     expect(r.headers).toEqual({ 'content-type': 'text/plain' })
+  })
+})
+
+describe('cherry.network.fetch — background budget', () => {
+  const ok = () => vi.spyOn(net, 'fetch').mockResolvedValue(new Response('', { status: 200 }))
+  // Its OWN appId per case: the 60-a-minute limiter is a module singleton keyed by app, so
+  // cases sharing one would fail on each other's spend rather than on what they assert.
+  const fetchApp = (appId: string) => () => networkCapability.fetch(appId, { url: 'https://api.mygame.com/v1' }, SENDER)
+
+  it('cuts a hidden app off after its allowance and leaves a visible one alone', async () => {
+    // What this bounds: the manifest says which hosts an app may reach, and a user reads
+    // that as "while I am using it". Nothing enforced the second half — a pooled tab keeps
+    // its guest alive, unthrottled, and is even TOLD when it stops being watched.
+    ok()
+    const call = fetchApp('com.example.hidden')
+    visibility.visible = false
+    for (let i = 0; i < 10; i++) await call()
+
+    await expect(call()).rejects.toThrow(/background budget exhausted/)
+
+    // The same guest, now on screen: the allowance is about attention, not about the app.
+    visibility.visible = true
+    await expect(call()).resolves.toMatchObject({ status: 200 })
+  })
+
+  it('spends nothing while visible, so the allowance is whole when the user looks away', async () => {
+    // The bug the ordering guards: counting visible calls would cut an app off seconds
+    // after it is hidden, purely because it had been in use.
+    ok()
+    const call = fetchApp('com.example.visible')
+    // More than the allowance, so a budget that counted these would already be spent.
+    for (let i = 0; i < 15; i++) await call()
+
+    visibility.visible = false
+    for (let i = 0; i < 10; i++) await expect(call()).resolves.toMatchObject({ status: 200 })
   })
 })

@@ -68,7 +68,7 @@ vi.mock('@application', () =>
   })
 )
 
-const { MiniAppRuntimeService, miniAppPartition } = await import('../MiniAppRuntimeService')
+const { MiniAppRuntimeService } = await import('../MiniAppRuntimeService')
 // After the mock: a static import would evaluate the hoisted factory before `mockMiniAppApplication` exists.
 const { application } = await import('@application')
 const { aiCapability } = await import('../../capabilities/ai')
@@ -81,13 +81,6 @@ beforeEach(() => {
   sessions.clear()
   handle.mockClear()
   abort.mockClear()
-})
-
-describe('miniAppPartition', () => {
-  it('namespaces each app', () => {
-    expect(miniAppPartition('com.example.a')).toBe('persist:miniapp:com.example.a')
-    expect(miniAppPartition('com.example.a')).not.toBe(miniAppPartition('com.example.b'))
-  })
 })
 
 describe('MiniAppRuntimeService', () => {

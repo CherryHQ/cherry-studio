@@ -3,9 +3,12 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import type { MiniAppManifest } from '@shared/types/miniAppManifest'
 import { setupTestDatabase } from '@test-helpers/db'
+import { session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { clearPublishJournal, recoverInterruptedPublishes, writePublishJournal } from '../publishJournal'
@@ -28,6 +31,16 @@ const manifestOf = (appId: string): MiniAppManifest => ({
 describe('publish journal', () => {
   const dbh = setupTestDatabase()
   let root: string
+
+  /**
+   * One owned file reference, plus the rows its foreign keys need. This is the witness a
+   * clear-data commits by, so a case about the UNcommitted side has to be able to leave one.
+   */
+  const insertFileRef = (appId: string) => {
+    const entryId = '11111111-1111-7111-8111-111111111111'
+    dbh.db.insert(fileEntryTable).values({ id: entryId, origin: 'internal', name: 'blob', ext: 'bin', size: 4 }).run()
+    dbh.db.insert(miniAppFileRefTable).values({ fileEntryId: entryId, sourceId: appId, logicalName: 'save.bin' }).run()
+  }
 
   /** `previousContentHash` is what an UPDATE records and a reinstall deliberately does not. */
   const seedCommitted = (appId: string, contentHash: string, previousContentHash?: string) => {
@@ -255,6 +268,52 @@ describe('publish journal', () => {
 
     expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
     expect(fs.existsSync(data)).toBe(false)
+  })
+
+  it('finishes a clear-data that was interrupted after its rows committed', async () => {
+    // "Clear data" deletes the reference rows first and the stores after, so a crash in
+    // between leaves the files unlisted while `storage.json` and the partition survive —
+    // the app reads its old state straight back out of a clear the user watched succeed.
+    const data = path.join(root, 'data', A)
+    fs.mkdirSync(data, { recursive: true })
+    fs.writeFileSync(path.join(data, 'storage.json'), '{"score":"9000"}')
+    makeDir(A)
+    writePublishJournal({ kind: 'clear-data', appId: A })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(fs.existsSync(data)).toBe(false)
+    expect(session.fromPartition(`persist:miniapp:${A}`).clearStorageData).toHaveBeenCalled()
+    // The package tree is NOT a store the app wrote: clearing data leaves it installed.
+    expect(fs.existsSync(path.join(root, A))).toBe(true)
+  })
+
+  it('leaves a clear-data alone when its reference delete never committed', async () => {
+    // The witness matters precisely here: the journal is armed BEFORE the delete, so a crash
+    // in between must repair to "nothing happened". Clearing anyway would strand the app
+    // with its file refs listed on the files page and its save data gone.
+    const data = path.join(root, 'data', A)
+    fs.mkdirSync(data, { recursive: true })
+    fs.writeFileSync(path.join(data, 'storage.json'), '{"score":"9000"}')
+    // Still installed — clearing data never removes the app, which is why the installation
+    // row cannot be the witness and the reference rows are.
+    seedCommitted(A, 'sha256:x')
+    insertFileRef(A)
+    writePublishJournal({ kind: 'clear-data', appId: A })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-back' }])
+    expect(fs.existsSync(data)).toBe(true)
+  })
+
+  it('clears the session partition of an uninstall whose rows are already gone', async () => {
+    // The OTHER store nothing cascades. Cookies and the HTTP cache live on the partition,
+    // not under `packages/` or `data/`, so a recovery that reclaims only directories leaves
+    // an uninstalled app's server identity intact for the next install of the same id.
+    makeDir(A)
+    writePublishJournal({ kind: 'uninstall', appId: A })
+
+    expect(await recoverInterruptedPublishes()).toEqual([{ appId: A, action: 'rolled-forward' }])
+    expect(vi.mocked(session.fromPartition)).toHaveBeenCalledWith(`persist:miniapp:${A}`)
+    expect(session.fromPartition(`persist:miniapp:${A}`).clearStorageData).toHaveBeenCalled()
   })
 
   it('leaves the files alone when an uninstall never committed', async () => {

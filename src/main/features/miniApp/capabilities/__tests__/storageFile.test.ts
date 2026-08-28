@@ -68,6 +68,31 @@ describe('mini app storage file', () => {
     expect(readStorage(APP)).toEqual({ keep: 'me' })
   })
 
+  it('refuses to answer "empty" when the save file cannot be READ', async () => {
+    // The bug: `set` is a read-modify-write and `writeStorage` renames atomically, so a
+    // read failure answered as `{}` does not degrade the save — it replaces it with the
+    // single key being written, permanently and successfully. A directory in the file's
+    // place is the portable way to make the read fail for a reason that is not ENOENT.
+    const { readStorage } = await import('../storageFile')
+    const { MiniAppUnavailableError } = await import('../../errors')
+    fs.mkdirSync(miniAppStorageFile(APP), { recursive: true })
+
+    // `Unavailable`, not the `Internal` a bare fs error would become: this is transient and
+    // an app can back off, which it cannot do behind a name that means "the host is broken".
+    expect(() => readStorage(APP)).toThrow(MiniAppUnavailableError)
+  })
+
+  it('still starts over when the file is READ but unparseable', async () => {
+    // The other half, and the reason this is a triage rather than a blanket throw: bytes
+    // that parse into nothing are already unusable, so refusing to start would strand the
+    // app for good over damage that has already happened.
+    const { readStorage } = await import('../storageFile')
+    fs.mkdirSync(path.dirname(miniAppStorageFile(APP)), { recursive: true })
+    fs.writeFileSync(miniAppStorageFile(APP), '{ not json', 'utf8')
+
+    expect(readStorage(APP)).toEqual({})
+  })
+
   it('counts keys as well as values', async () => {
     const { writeStorage, storageUsage } = await import('../storageFile')
     writeStorage(APP, { 'a-long-key-name': 'v' })

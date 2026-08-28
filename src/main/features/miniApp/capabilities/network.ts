@@ -1,6 +1,7 @@
 import dns from 'node:dns'
 import { BlockList, isIP } from 'node:net'
 
+import { application } from '@application'
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 import { net } from 'electron'
 import * as z from 'zod'
@@ -8,7 +9,7 @@ import * as z from 'zod'
 import { MiniAppUnavailableError } from '../errors'
 import { PermissionDeniedError } from '../grants'
 import { installationOf } from '../install/installer'
-import { networkLimiter, QuotaExceededError } from './quota'
+import { networkHiddenBudget, networkLimiter, QuotaExceededError } from './quota'
 
 export const MINI_APP_FETCH_MAX_BODY_BYTES = 5 * 1024 * 1024
 
@@ -155,6 +156,9 @@ export const networkCapability = {
     if (requestBody && requestBody.byteLength > MINI_APP_FETCH_MAX_REQUEST_BYTES) {
       throw new QuotaExceededError(`Request body exceeds ${MINI_APP_FETCH_MAX_REQUEST_BYTES} bytes`)
     }
+
+    // Before the slot, for the same reason `acquire` is last: a throw after it leaks one.
+    networkHiddenBudget.check(senderId, application.get('MiniAppRuntimeService').isGuestVisible(senderId))
 
     // Acquired LAST, right before the `try` that releases it: anything that throws between
     // `acquire` and `try` leaks a slot for good, and four leaks kill this app's networking.

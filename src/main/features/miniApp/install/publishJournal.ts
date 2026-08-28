@@ -20,6 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { MiniAppIdSchema } from '@shared/types/miniAppManifest'
@@ -27,6 +28,7 @@ import { eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { miniAppBackupPath, miniAppDataPath, miniAppInstallPath, miniAppRollingPath } from '../paths'
+import { clearMiniAppPartition } from '../runtime/partition'
 
 const logger = loggerService.withContext('miniAppPublishJournal')
 
@@ -53,7 +55,12 @@ const PublishEntrySchema = z.discriminatedUnion('kind', [
     previousContentHash: z.string().min(1)
   }),
   z.strictObject({ kind: z.literal('rollback'), appId: MiniAppIdSchema, contentHash: z.string().min(1) }),
-  z.strictObject({ kind: z.literal('uninstall'), appId: MiniAppIdSchema })
+  z.strictObject({ kind: z.literal('uninstall'), appId: MiniAppIdSchema }),
+  /**
+   * "Clear data" — the same broken promise as a half-finished uninstall, one tree smaller.
+   * No contentHash: the package is untouched, so there is nothing for a hash to witness.
+   */
+  z.strictObject({ kind: z.literal('clear-data'), appId: MiniAppIdSchema })
 ])
 
 export type PublishEntry = z.infer<typeof PublishEntrySchema>
@@ -153,10 +160,30 @@ function installedRow(appId: string) {
 }
 
 /** Did the transaction this entry was opened for actually commit? */
+/** How many file references the app still owns — the witness a clear-data commits by. */
+function ownedRefCount(appId: string): number {
+  return application
+    .get('DbService')
+    .getDb()
+    .select({ id: miniAppFileRefTable.id })
+    .from(miniAppFileRefTable)
+    .where(eq(miniAppFileRefTable.sourceId, appId))
+    .all().length
+}
+
 function isCommitted(entry: PublishEntry): boolean {
   const hash = installedRow(entry.appId)?.contentHash
   // An uninstall commits by REMOVING the row, so its witness is absence.
   if (entry.kind === 'uninstall') return hash === undefined
+  // A clear witnesses itself in the REFERENCE rows, not in the installation row — the app
+  // stays installed and its hash never moves. Answering "always committed" here would look
+  // harmless (clearing twice is a no-op) but the journal is armed BEFORE the delete, so a
+  // crash in between would clear the stores while the refs survive: the files page still
+  // lists blobs whose save file is gone, which is worse than either end of the operation.
+  //
+  // The degenerate case is benign, unlike `reinstall` below: an app that owned no files
+  // reads "committed" because its delete WAS a no-op, so rolling forward is right anyway.
+  if (entry.kind === 'clear-data') return ownedRefCount(entry.appId) === 0
   // A same-version reinstall writes back the hash the row ALREADY held, so the row answers
   // "committed" from the moment the journal is written — and nothing else the transaction
   // touches is guaranteed to differ either. Treated as uncommitted, which repairs correctly
@@ -186,10 +213,23 @@ async function rollForward(entry: PublishEntry): Promise<void> {
     await rm(t.rolling)
     // The save data too, as the in-process path does: a reinstall must not read it back.
     await rm(miniAppDataPath(entry.appId))
+    // And the partition, which is the OTHER store nothing cascades: cookies and the HTTP
+    // cache live on it, so a crash between the commit and the in-process sweep would leave
+    // an uninstalled app's server identity intact for the next install of the same id.
+    // `reclaimEntries` has no counterpart here on purpose — it needs the orphan list
+    // computed before the commit, and nothing on disk records it.
+    await clearMiniAppPartition(entry.appId)
   }
   // A reinstall retains nothing, so its parked tree is one nothing can roll back to —
   // dropped here exactly as the in-process path drops it right after its own commit.
   if (entry.kind === 'reinstall') return rm(t.backup)
+  if (entry.kind === 'clear-data') {
+    // The two stores the in-process path clears after its commit, and the two a crash
+    // in between leaves behind: the save file the app would read straight back, and the
+    // partition still holding its cookies. The package tree stays — the app is installed.
+    await rm(miniAppDataPath(entry.appId))
+    return clearMiniAppPartition(entry.appId)
+  }
   // install / update: the files already are what the committed rows describe, and
   // `update` deliberately keeps `.backup` — it is the user-facing rollback entry.
 }
@@ -216,6 +256,10 @@ async function rollBack(entry: PublishEntry): Promise<void> {
       return await fs.promises.rename(t.rolling, t.install)
     case 'uninstall':
       // The delete never committed — the app is still installed, files included.
+      return
+    case 'clear-data':
+      // The reference delete never committed, so nothing was cleared and nothing is owed:
+      // the app keeps its files, its save data and its partition, exactly as it was.
       return
   }
 }
