@@ -1,6 +1,6 @@
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
-import { defaultAppHeaders } from '@main/utils/http'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -74,11 +74,11 @@ export function getProviderAppHeaders(provider: Provider): Record<string, string
 
 export function defaultHeaders(provider: Provider): Record<string, string> {
   const apiKey = providerService.getRotatedApiKey(provider.id)
-  return {
-    ...getProviderAppHeaders(provider),
-    ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
-    ...getExtraHeaders(provider)
-  }
+  return mergeHeaders(
+    getProviderAppHeaders(provider),
+    apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : undefined,
+    getExtraHeaders(provider)
+  )
 }
 
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {

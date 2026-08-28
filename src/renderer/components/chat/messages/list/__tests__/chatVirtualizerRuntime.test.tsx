@@ -23,6 +23,7 @@ interface RuntimeProbeProps {
 }
 
 interface RuntimeDomProbeProps extends RuntimeProbeProps {
+  content?: string
   nonce?: number
 }
 
@@ -54,6 +55,7 @@ function RuntimeProbe({
 }
 
 function RuntimeDomProbe({
+  content,
   items,
   handleRef,
   hasMoreTop = false,
@@ -84,7 +86,7 @@ function RuntimeDomProbe({
       ref={(element) => {
         runtime.scrollerRef.current = element
       }}>
-      <div ref={runtime.contentRef} />
+      <div ref={runtime.contentRef}>{content}</div>
       <div ref={runtime.freezeSpacerRef} />
     </div>
   )
@@ -1444,6 +1446,49 @@ describe('useChatVirtualizerRuntime', () => {
       restoreResizeObserver()
       raf.restore()
     }
+  })
+
+  it('follows streaming text mutations before resize measurement catches up', async () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    let scrollTop = 0
+    let scrollHeight = 1000
+    const view = render(
+      <RuntimeDomProbe
+        content=""
+        items={['message-a']}
+        handleRef={handleRef}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+    const scroller = runtime!.scrollerRef.current!
+    Object.defineProperty(scroller, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value) => {
+        scrollTop = value
+      }
+    })
+    setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
+    setElementMetric(scroller, 'clientHeight', () => 400)
+
+    act(() => handle!.scrollToBottom())
+    expect(scrollTop).toBe(600)
+
+    scrollHeight = 1023
+    view.rerender(
+      <RuntimeDomProbe
+        content="streamed frame"
+        items={['message-a']}
+        handleRef={handleRef}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    await vi.waitFor(() => expect(scrollTop).toBe(623))
   })
 
   it('keeps following when a message is appended at the live bottom', () => {

@@ -3,6 +3,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 export type DiagnosticSourceKind = 'logs' | 'traces'
 export type DiagnosticWarning =
   | 'malformed_lines'
+  | 'scan_failed'
   | 'size_limit_reached'
   | 'source_changed'
   | 'source_unreadable'

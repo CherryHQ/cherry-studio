@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
-import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -13,6 +12,11 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
+import {
+  type AgentNotificationContext,
+  resolveAgentNotificationContext,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -119,7 +123,7 @@ interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
   skills: string[]
-  linkedChannelId: string | null
+  notificationContext: AgentNotificationContext
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
@@ -306,7 +310,8 @@ export async function deriveConnectionConfig(
         connectionModelId ?? agent.model,
         reasoningEffort,
         fastMode,
-        selectedKnowledgeBaseIds
+        selectedKnowledgeBaseIds,
+        undefined
       )
     }
   } catch (error) {
@@ -369,9 +374,7 @@ async function deriveConnectionConfigFromSnapshot(
     )
   }
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
-  const linkedChannelId = materialized
-    ? materialized.linkedChannelId
-    : (agentChannelService.findBySessionId(session.id)?.id ?? null)
+  const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
@@ -398,7 +401,7 @@ async function deriveConnectionConfigFromSnapshot(
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
-    linkedChannelId
+    notificationContext
   }
   const rebuildFactFingerprints = Object.fromEntries(
     Object.entries(rebuildFacts).map(([name, value]) => [
@@ -468,7 +471,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
-  const linkedChannelSnapshot = agentChannelService.findBySessionId(session.id)
+  const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
+  const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
   const uniqueModelId = connectionModelId ?? agent.model
@@ -520,6 +524,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
+        notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
@@ -544,7 +549,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
-      linkedChannelId: linkedChannelSnapshot?.id ?? null,
+      notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
@@ -568,6 +573,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
+    notificationContext,
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
@@ -939,6 +945,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     initializeTimeoutMs: request.initializeTimeoutMs,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
-    knowledgeBaseIds: request.knowledgeBaseIds
+    knowledgeBaseIds: request.knowledgeBaseIds,
+    notificationContext: request.notificationContext
   }
 }

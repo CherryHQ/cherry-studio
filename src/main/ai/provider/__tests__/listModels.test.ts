@@ -226,7 +226,7 @@ describe('listModels — geminiFetcher API key transport', () => {
     expect(call.headers['x-goog-api-key']).toBe('AIza-secret-key')
   })
 
-  it('forwards provider extraHeaders alongside x-goog-api-key', async () => {
+  it('merges provider extraHeaders over application defaults case-insensitively', async () => {
     const provider = makeProvider({
       id: 'gemini',
       defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
@@ -235,14 +235,19 @@ describe('listModels — geminiFetcher API key transport', () => {
           baseUrl: 'https://generativelanguage.googleapis.com/v1beta'
         }
       },
-      settings: { extraHeaders: { 'X-Custom': 'on' } } as never
+      settings: {
+        extraHeaders: { 'http-referer': 'https://provider.example', 'X-Custom': 'on' }
+      } as never
     })
 
     await listModels(provider)
 
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { headers: Record<string, string> }
-    expect(call.headers['x-goog-api-key']).toBe('AIza-secret-key')
-    expect(call.headers['X-Custom']).toBe('on')
+    const headers = new Headers(call.headers)
+    expect(headers.get('x-goog-api-key')).toBe('AIza-secret-key')
+    expect(headers.get('x-custom')).toBe('on')
+    expect(headers.get('http-referer')).toBe('https://provider.example')
+    expect(Object.keys(call.headers).filter((name) => name.toLowerCase() === 'http-referer')).toHaveLength(1)
   })
 
   it('maps the listed models, stripping the models/ prefix from the id', async () => {
@@ -604,8 +609,8 @@ describe('listModels — Radeon Cloud source header', () => {
     const radeonCall = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
     const otherCall = aiSdkGetFromApiMock.mock.calls[1][0] as { url: string; headers: Record<string, string> }
     expect(radeonCall.url).toBe('https://developer.amd.com.cn/radeon/api/v1/models')
-    expect(radeonCall.headers['X-Source']).toBe('cherry-studio')
-    expect(otherCall.headers).not.toHaveProperty('X-Source')
+    expect(new Headers(radeonCall.headers).get('x-source')).toBe('cherry-studio')
+    expect(new Headers(otherCall.headers).has('x-source')).toBe(false)
   })
 })
 
