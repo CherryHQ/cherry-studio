@@ -602,10 +602,13 @@ export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   return new Blob([svgData], { type: 'image/svg+xml' })
 }
 
-const ABSOLUTE_SVG_LENGTH = /^\s*(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?(?:px|pt|pc|mm|cm|in|q)?\s*$/i
+const INTRINSIC_SVG_LENGTH = /^\s*\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:px|pt|pc|mm|cm|in|q|em|ex)?\s*$/i
 
-const hasPositiveAbsoluteSvgLength = (value: string | null): boolean =>
-  value !== null && ABSOLUTE_SVG_LENGTH.test(value) && Number.parseFloat(value) > 0
+const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
+  if (value === null || !INTRINSIC_SVG_LENGTH.test(value)) return false
+  const length = Number.parseFloat(value)
+  return Number.isFinite(length) && length > 0
+}
 
 /**
  * An SVG embedded in the conversation is responsive (`width="100%"`, usually no
@@ -617,8 +620,8 @@ const hasPositiveAbsoluteSvgLength = (value: string | null): boolean =>
 const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
   const clone = svgElement.cloneNode(true) as SVGElement
   if (
-    hasPositiveAbsoluteSvgLength(clone.getAttribute('width')) &&
-    hasPositiveAbsoluteSvgLength(clone.getAttribute('height'))
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
   ) {
     return clone
   }
