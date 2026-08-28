@@ -451,6 +451,7 @@ const AppearanceSettings: FC = () => {
             value={topicListPosition}
             onValueChange={setTopicListPosition}
             options={listPositionOptions}
+            aria-label={t('settings.display.list_position.chat')}
             size="sm"
           />
         </SettingRow>
@@ -461,6 +462,7 @@ const AppearanceSettings: FC = () => {
             value={sessionListPosition}
             onValueChange={setSessionListPosition}
             options={listPositionOptions}
+            aria-label={t('settings.display.list_position.work')}
             size="sm"
           />
         </SettingRow>

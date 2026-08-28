@@ -1,9 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
-import { getProviderLabelKey } from '@renderer/i18n/label'
-import i18n from '@renderer/i18n/resolver'
-import { isSystemProviderId } from '@renderer/types/provider'
+import { getProviderDisplayName } from '@renderer/utils/naming'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
@@ -53,7 +51,7 @@ export function useProviders(
         }
       : undefined
 
-  const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
+  const { data, isLoading, error, refetch } = useQuery('/providers', queryOptions)
 
   const {
     trigger: createTrigger,
@@ -79,7 +77,9 @@ export function useProviders(
 
   return {
     providers,
+    hasLoaded: data !== undefined,
     isLoading,
+    error,
     createProvider,
     isCreating,
     createError,
@@ -278,15 +278,7 @@ export function useProviderPreset(providerId: string | null | undefined, fields:
   return query
 }
 
-/**
- * Pure resolver for a provider's display name. System providers get the
- * i18n label; custom providers use their user-set name. Returns empty
- * string when the provider is missing.
- */
-export function getProviderDisplayName(provider: Provider | undefined): string {
-  if (!provider) return ''
-  return isSystemProviderId(provider.id) ? i18n.t(getProviderLabelKey(provider.id)) : provider.name
-}
+export { getProviderDisplayName }
 
 /**
  * Hook variant of {@link getProviderDisplayName} for callers that have a

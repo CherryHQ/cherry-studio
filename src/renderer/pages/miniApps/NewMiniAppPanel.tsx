@@ -180,7 +180,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
                 className="rounded-md outline-none transition-opacity focus-visible:opacity-80"
                 onClick={() => fileInputRef.current?.click()}
                 aria-label={t('settings.miniApps.custom.logo_upload_label')}>
-                <MiniAppLogoAvatar logo={logoValue} size={64} />
+                <MiniAppLogoAvatar logo={logoValue} size={64} alt="" />
               </button>
               <div className="flex flex-wrap gap-2">
                 <Button
