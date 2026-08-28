@@ -334,6 +334,9 @@ describe('applyMigrations over a populated database', () => {
     const legacyReferenced = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     const legacyUnreferenced = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     const recentReferenced = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    const legacyChat = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
+    const legacyPainting = 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee'
+    const legacyMiniApp = 'ffffffff-ffff-7fff-8fff-ffffffffffff'
     const insertEntry = sqlite.prepare(
       `INSERT INTO file_entry
         (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
@@ -342,6 +345,9 @@ describe('applyMigrations over a populated database', () => {
     insertEntry.run(legacyReferenced, 'legacy-referenced', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
     insertEntry.run(legacyUnreferenced, 'legacy-unreferenced', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
     insertEntry.run(recentReferenced, 'recent-referenced', cleanupPolicyRollout + 1, cleanupPolicyRollout + 1)
+    insertEntry.run(legacyChat, 'legacy-chat', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    insertEntry.run(legacyPainting, 'legacy-painting', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    insertEntry.run(legacyMiniApp, 'legacy-mini-app', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
 
     const insertProvider = sqlite.prepare(
       `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
@@ -354,23 +360,78 @@ describe('applyMigrations over a populated database', () => {
        VALUES (?, ?, ?, ?, ?)`
     )
     insertRef.run(
-      'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      '11111111-1111-7111-8111-111111111111',
       legacyReferenced,
       'legacy-provider',
       cleanupPolicyRollout - 1,
       cleanupPolicyRollout - 1
     )
     insertRef.run(
-      'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      '22222222-2222-7222-8222-222222222222',
       recentReferenced,
       'recent-provider',
       cleanupPolicyRollout + 1,
       cleanupPolicyRollout + 1
     )
 
+    sqlite
+      .prepare(
+        `INSERT INTO topic (id, name, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('33333333-3333-7333-8333-333333333333', 'Legacy topic', 'a0', ?, ?, ?)`
+      )
+      .run(cleanupPolicyRollout - 1, cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO message
+          (id, parent_id, topic_id, role, data, status, created_at, updated_at)
+         VALUES
+          ('44444444-4444-7444-8444-444444444444', NULL, '33333333-3333-7333-8333-333333333333',
+           'root', '{"parts":[]}', 'success', ?, ?),
+          ('55555555-5555-7555-8555-555555555555', '44444444-4444-7444-8444-444444444444',
+           '33333333-3333-7333-8333-333333333333', 'user', '{"parts":[]}', 'success', ?, ?)`
+      )
+      .run(cleanupPolicyRollout - 1, cleanupPolicyRollout - 1, cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO chat_message_file_ref (id, file_entry_id, source_id, role, created_at, updated_at)
+         VALUES ('66666666-6666-7666-8666-666666666666', ?, '55555555-5555-7555-8555-555555555555',
+                 'attachment', ?, ?)`
+      )
+      .run(legacyChat, cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+
+    sqlite
+      .prepare(
+        `INSERT INTO painting (id, provider_id, prompt, order_key, created_at, updated_at)
+         VALUES ('77777777-7777-7777-8777-777777777777', 'legacy-provider', 'Legacy painting', 'a0', ?, ?)`
+      )
+      .run(cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO painting_file_ref (id, file_entry_id, source_id, role, created_at, updated_at)
+         VALUES ('88888888-8888-7888-8888-888888888888', ?, '77777777-7777-7777-8777-777777777777',
+                 'output', ?, ?)`
+      )
+      .run(legacyPainting, cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+
+    sqlite
+      .prepare(
+        `INSERT INTO mini_app (app_id, name, url, status, order_key, created_at, updated_at)
+         VALUES ('legacy-mini-app', 'Legacy mini app', 'https://example.com', 'enabled', 'a0', ?, ?)`
+      )
+      .run(cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO mini_app_logo_file_ref (id, file_entry_id, source_id, created_at, updated_at)
+         VALUES ('99999999-9999-7999-8999-999999999999', ?, 'legacy-mini-app', ?, ?)`
+      )
+      .run(legacyMiniApp, cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+
     applyMigrations(db, resolveMigrationsPath())
 
     expect(sqlite.prepare(`SELECT name, cleanup_policy FROM file_entry ORDER BY name`).all()).toEqual([
+      { name: 'legacy-chat', cleanup_policy: 'delete_when_unreferenced' },
+      { name: 'legacy-mini-app', cleanup_policy: 'delete_when_unreferenced' },
+      { name: 'legacy-painting', cleanup_policy: 'delete_when_unreferenced' },
       { name: 'legacy-referenced', cleanup_policy: 'delete_when_unreferenced' },
       { name: 'legacy-unreferenced', cleanup_policy: 'manual' },
       { name: 'recent-referenced', cleanup_policy: 'manual' }
