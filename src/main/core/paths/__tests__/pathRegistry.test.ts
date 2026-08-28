@@ -124,7 +124,7 @@ describe('buildPathRegistry', () => {
     const registry = buildPathRegistry()
 
     expect(registry['feature.agents.assistant.manifest.file']).toBe(
-      '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
+      path.join('/mock/app', 'resources', 'builtin-agents', 'cherry-assistant', 'product-manifest.json')
     )
   })
 
