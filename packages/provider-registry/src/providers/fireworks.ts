@@ -53,13 +53,18 @@ const override = (modelId: string, support: ReasoningSupport): Partial<ProviderM
   reasoningContracts: reasoningContracts(support)
 })
 
-const toggleModels = [
-  'glm-5-1',
-  'kimi-k2-6',
-  'kimi-k2-6-fast',
-  'kimi-k2-6-turbo',
-  'kimi-k2-7-code',
-  'kimi-k2-7-code-fast'
+const toggleModels = ['glm-5-1', 'kimi-k2-6', 'kimi-k2-7-code']
+
+// models.dev de-listed Fireworks' kimi router SKUs (2026-08); pin their router
+// API ids and names so the overrides stay resolvable as standalone rows.
+const kimiRouterModels = [
+  { modelId: 'kimi-k2-6-fast', apiModelId: 'accounts/fireworks/routers/kimi-k2p6-fast', name: 'Kimi K2.6 Fast' },
+  { modelId: 'kimi-k2-6-turbo', apiModelId: 'accounts/fireworks/routers/kimi-k2p6-turbo', name: 'Kimi K2.6 Turbo' },
+  {
+    modelId: 'kimi-k2-7-code-fast',
+    apiModelId: 'accounts/fireworks/routers/kimi-k2p7-code-fast',
+    name: 'Kimi K2.7 Code Fast'
+  }
 ]
 
 const effortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
@@ -110,6 +115,11 @@ export default defineProvider({
   overrides: [
     ...toggleModels.map((modelId) => override(modelId, toggleSupport)),
     { ...override('glm-5-1-fast', toggleSupport), name: 'GLM 5.1 Fast' },
+    ...kimiRouterModels.map(({ modelId, apiModelId, name }) => ({
+      ...override(modelId, toggleSupport),
+      apiModelId,
+      name
+    })),
     ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
     ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))
   ]

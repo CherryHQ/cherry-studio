@@ -10972,8 +10972,10 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p6-fast",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "kimi-k2-6-fast",
+      "name": "Kimi K2.6 Fast",
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11006,8 +11008,10 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p6-turbo",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "kimi-k2-6-turbo",
+      "name": "Kimi K2.6 Turbo",
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11089,8 +11093,10 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p7-code-fast",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "kimi-k2-7-code-fast",
+      "name": "Kimi K2.7 Code Fast",
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -37665,5 +37671,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c6ce9258239628a6"
+  "version": "07a2e72538229531"
 }
