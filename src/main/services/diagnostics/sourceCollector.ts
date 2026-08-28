@@ -27,10 +27,10 @@ import type {
 } from './types'
 
 const logger = loggerService.withContext('DiagnosticSourceCollector')
-const LOG_NAME = /^app(?:-error)?\.(\d{4}-\d{2}-\d{2})\.log(?:\.\d+)?$/
+export const LOG_NAME = /^app(?:-error)?\.(\d{4}-\d{2}-\d{2})\.log(?:\.\d+)?$/
 const MAX_JSON_LINE_BYTES = 16 * 1024 * 1024
 
-interface RawLine {
+export interface RawLine {
   readonly data?: Buffer
   readonly tooLarge: boolean
 }
@@ -80,7 +80,10 @@ function hasSameIdentity(snapshot: ReadableFileSnapshot, identity: SourceIdentit
   )
 }
 
-async function* readRawLines(snapshot: ReadableFileSnapshot, snapshotBytes = snapshot.size): AsyncGenerator<RawLine> {
+export async function* readRawLines(
+  snapshot: ReadableFileSnapshot,
+  snapshotBytes = snapshot.size
+): AsyncGenerator<RawLine> {
   const parts: Buffer[] = []
   let lineBytes = 0
   let bytesRead = 0
@@ -123,6 +126,12 @@ async function* readRawLines(snapshot: ReadableFileSnapshot, snapshotBytes = sna
   }
 }
 
+/** Parses LoggerService's `YYYY-MM-DD HH:mm:ss` timestamps (also accepts ISO strings). */
+export function parseLogTimestampString(value: string): number | undefined {
+  const timestamp = Date.parse(value.includes('T') ? value : value.replace(' ', 'T'))
+  return Number.isFinite(timestamp) ? timestamp : undefined
+}
+
 function parseLineTimestamp(line: Buffer, kind: DiagnosticSourceKind): number | 'empty' | undefined {
   const text = line.toString('utf8').trim()
   if (!text) return 'empty'
@@ -133,8 +142,7 @@ function parseLineTimestamp(line: Buffer, kind: DiagnosticSourceKind): number | 
       return typeof value.startTime === 'number' && Number.isFinite(value.startTime) ? value.startTime : undefined
     }
     if (typeof value.timestamp !== 'string') return undefined
-    const timestamp = Date.parse(value.timestamp.includes('T') ? value.timestamp : value.timestamp.replace(' ', 'T'))
-    return Number.isFinite(timestamp) ? timestamp : undefined
+    return parseLogTimestampString(value.timestamp)
   } catch {
     return undefined
   }
@@ -153,7 +161,7 @@ function classifyLine(line: RawLine, kind: DiagnosticSourceKind, range: Diagnost
   return { data: line.data, timestamp }
 }
 
-function logMayOverlapRange(fileName: string, range: DiagnosticTimeRange): boolean {
+export function logMayOverlapRange(fileName: string, range: DiagnosticTimeRange): boolean {
   const match = LOG_NAME.exec(fileName)
   if (!match) return false
 

@@ -63,36 +63,43 @@ export async function resolveLaunchCommand({
   loginShellEnv: Record<string, string>
   logger: LoggerService
 }): Promise<LaunchCommand> {
-  const runner = RUNNERS[command]
+  const normalizedCommand = command.trim()
+  if (!normalizedCommand) {
+    throw new Error('MCP stdio command cannot be empty')
+  }
+
+  const runner = RUNNERS[normalizedCommand]
   const env = runner?.registryEnv && registryUrl ? runner.registryEnv(registryUrl) : {}
 
   if (!runner) {
-    const resolved = await findCommandInShellEnv(command, loginShellEnv)
+    const resolved = await findCommandInShellEnv(normalizedCommand, loginShellEnv)
     if (!resolved) {
       logger.warn(
-        `Could not resolve command '${command}' to a full path. ` +
+        `Could not resolve command '${normalizedCommand}' to a full path. ` +
           `If the server fails to start, try providing the full path in the command field.`
       )
-      return { command, args, env }
+      return { command: normalizedCommand, args, env }
     }
     logger.debug(`Resolved command to full path`, { command: resolved })
     return { command: resolved, args, env }
   }
 
-  const systemPath = await findExecutableInEnv(command)
+  const systemPath = await findExecutableInEnv(normalizedCommand)
   if (systemPath) {
-    logger.debug(`Using system ${command}`, { command: systemPath })
+    logger.debug(`Using system ${normalizedCommand}`, { command: systemPath })
     return { command: systemPath, args, env }
   }
 
-  const bundled = runner.bundled ?? command
-  logger.debug(`System ${command} not found, checking for bundled ${bundled}`)
+  const bundled = runner.bundled ?? normalizedCommand
+  logger.debug(`System ${normalizedCommand} not found, checking for bundled ${bundled}`)
   if (!(await isBinaryExists(bundled))) {
-    throw new Error(runner.notFound(command))
+    throw new Error(runner.notFound(normalizedCommand))
   }
 
   const bundledPath = await getBinaryPath(bundled)
-  logger.info(`Using bundled ${bundled} as fallback (${command} not found in PATH)`, { command: bundledPath })
+  logger.info(`Using bundled ${bundled} as fallback (${normalizedCommand} not found in PATH)`, {
+    command: bundledPath
+  })
   return { command: bundledPath, args: runner.transformArgs?.(args) ?? args, env }
 }
 
