@@ -68,7 +68,7 @@ import {
   resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
-import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { filterReasoningForProviderOptions, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
@@ -593,6 +593,23 @@ function buildAgentOptions(
   // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
   // can't diverge. Assistant-less callers (translate, prompt streams) carry no capabilities;
   // they opt into reasoning by setting `request.reasoningEffort` explicitly.
+  // `chat_template_kwargs` body fields (self-hosted) bypass the closed Responses
+  // providerOptions schema — they are extracted so providerOptions stays
+  // request-body-free. Body injection happens later at the lowest priority
+  // (profile < customParameters < callOverrides), after the custom body wrapper.
+  const reasoningBodyParams = (() => {
+    const body: Record<string, unknown> = {}
+    for (const emission of reasoning.emissions) {
+      if (emission.target.startsWith('chat_template_kwargs.')) {
+        const key = emission.target.slice('chat_template_kwargs.'.length)
+        const bag = ((body.chat_template_kwargs ??= {}) as Record<string, unknown>)
+        bag[key] = emission.value
+      }
+    }
+    return body
+  })()
+  const hasReasoningBody = Object.keys(reasoningBodyParams).length > 0
+  const reasoningForProviderOptions = hasReasoningBody ? filterReasoningForProviderOptions(reasoning) : reasoning
   let providerOptions = buildCapabilityProviderOptions(
     model,
     provider,
@@ -606,7 +623,7 @@ function buildAgentOptions(
       runtimeProviderId: sdkConfig.providerId,
       providerOptionsKey: sdkConfig.providerOptionsKey,
       endpointType,
-      reasoning
+      reasoning: reasoningForProviderOptions
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}
@@ -651,6 +668,15 @@ function buildAgentOptions(
         )
       })
     }
+  }
+
+  // Self-hosted reasoning body fields at lowest priority (outermost wrapper) so
+  // customParameters (above) and SDK-serialized fields win over it.
+  if (hasReasoningBody) {
+    sdkConfig.providerSettings.fetch = createCustomParamsFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      reasoningBodyParams
+    )
   }
 
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).

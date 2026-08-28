@@ -86,32 +86,28 @@ describe('resolveReasoningInvocation budget constraints', () => {
     expect(encodeReasoningInvocation(disabled)).toEqual({ think: false })
   })
 
-  it('encodes the self-hosted chat_template_kwargs wire for toggle models', () => {
+  it('encodes the self-hosted chat_template_kwargs toggle', () => {
     const toggleModel = makeModel({
       reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
     })
     const profile = REASONING_FORMAT_PROFILES['self-hosted'].wire
 
     const enabled = resolveReasoningInvocation({ selection: 'auto', model: toggleModel, profile })
-    expect(enabled.kind).toBe('budget')
+    expect(enabled.kind).toBe('auto')
     expect(encodeReasoningInvocation(enabled)).toEqual({
-      chat_template_kwargs: { enable_thinking: true, thinking_budget: 4096 }
+      chat_template_kwargs: { enable_thinking: true }
     })
 
     const disabled = resolveReasoningInvocation({ selection: 'none', model: toggleModel, profile })
     expect(encodeReasoningInvocation(disabled)).toEqual({ chat_template_kwargs: { enable_thinking: false } })
   })
 
-  it('encodes the self-hosted chat_template_kwargs wire with a model-declared budget', () => {
+  it('encodes self-hosted with no budget even when model declares a budget', () => {
     const profile = REASONING_FORMAT_PROFILES['self-hosted'].wire
 
     const enabled = resolveReasoningInvocation({ selection: 'high', model, profile })
-    expect(enabled.kind).toBe('budget')
-    const encoded = encodeReasoningInvocation(enabled) as {
-      chat_template_kwargs: { enable_thinking: boolean; thinking_budget: number }
-    }
-    expect(encoded.chat_template_kwargs.enable_thinking).toBe(true)
-    expect(encoded.chat_template_kwargs.thinking_budget).toBeGreaterThanOrEqual(1024)
+    expect(enabled.kind).toBe('effort')
+    expect(encodeReasoningInvocation(enabled)).toEqual({ chat_template_kwargs: { enable_thinking: true } })
   })
 })
 

@@ -81,26 +81,16 @@ const anthropicBudgetWire: ReasoningWireProfile = {
 }
 
 /**
- * Self-hosted (vLLM / SGLang) reasoning dialect. Chat-template servers like
- * Qwen3 and Hunyuan T1/A13B gate thinking through `chat_template_kwargs`:
- * `enable_thinking` turns it on/off and `thinking_budget` caps the thinking
- * tokens. The wire is endpoint-wide and static, so it cannot distinguish the
- * always-think Qwen SKUs the legacy path special-cased — modern vLLM treats a
- * redundant `enable_thinking: true` as a no-op and tolerates an unused
- * `thinking_budget`, so one wire covers both families.
+ * Self-hosted (vLLM / SGLang) reasoning wire. Chat-template servers gate
+ * thinking through `chat_template_kwargs.enable_thinking` only; different
+ * templates accept different budget fields, so a shared `thinking_budget`
+ * with a 4096 fallback would send invalid or truncating params. Only the
+ * toggle is generic — budget caps belong to a narrower format when needed.
  */
-const selfHostedThinkingMode = {
-  operations: [
-    literal('chat_template_kwargs.enable_thinking', true),
-    budgetTokens('chat_template_kwargs.thinking_budget')
-  ],
-  budget: { missing: { type: 'fallback' as const, value: 4096 } }
-}
-
 const selfHostedWire: ReasoningWireProfile = {
   off: mode([literal('chat_template_kwargs.enable_thinking', false)]),
-  auto: selfHostedThinkingMode,
-  effort: selfHostedThinkingMode
+  auto: mode([literal('chat_template_kwargs.enable_thinking', true)]),
+  effort: mode([literal('chat_template_kwargs.enable_thinking', true)])
 }
 
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {

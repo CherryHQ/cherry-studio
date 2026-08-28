@@ -195,3 +195,11 @@ function encodeEmissions(invocation: ResolvedReasoningInvocation): Record<string
 export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
   return encodeEmissions(invocation)
 }
+
+/** Return a reasoning invocation with body-routed emissions removed (for providerOptions-only paths). */
+export function filterReasoningForProviderOptions(
+  invocation: ResolvedReasoningInvocation
+): ResolvedReasoningInvocation {
+  const kept = invocation.emissions.filter((emission) => emission.target.split('.')[0] !== 'chat_template_kwargs')
+  return { ...invocation, emissions: kept }
+}
