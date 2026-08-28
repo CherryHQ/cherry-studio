@@ -64,7 +64,7 @@ const ScreenshotSettings: FC = () => {
   const [screenshotEnabled, setScreenshotEnabled] = usePreference('feature.screenshot.enabled')
   const [autoOcr, setAutoOcr] = usePreference('feature.screenshot.auto_ocr')
   const [ocrProcessorId] = usePreference('feature.file_processing.default_image_to_text')
-  const [defaultOcrProcessorId, setDefaultOcrProcessorId] = useState<FileProcessorId | null>(null)
+  const [effectiveOcrProcessorId, setEffectiveOcrProcessorId] = useState<FileProcessorId | null>(null)
   const [captureBinding] = usePreference('shortcut.screenshot.capture')
   const ocrModel = useLocalModel('ocr')
 
@@ -104,17 +104,16 @@ const ScreenshotSettings: FC = () => {
   }, [])
 
   useEffect(() => {
-    if (ocrProcessorId !== null) return
-
     let mounted = true
+    setEffectiveOcrProcessorId(null)
     ipcApi
       .request('file_processing.configured_processor.get', { feature: 'image_to_text' })
       .then((processorId) => {
-        if (mounted) setDefaultOcrProcessorId(processorId)
+        if (mounted) setEffectiveOcrProcessorId(processorId)
       })
       .catch((error) => {
-        if (mounted) setDefaultOcrProcessorId(null)
-        logger.warn('Failed to resolve the default OCR processor', error as Error)
+        if (mounted) setEffectiveOcrProcessorId(null)
+        logger.warn('Failed to resolve the configured OCR processor', error as Error)
       })
     return () => {
       mounted = false
@@ -144,7 +143,6 @@ const ScreenshotSettings: FC = () => {
   }
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)
-  const effectiveOcrProcessorId = ocrProcessorId ?? defaultOcrProcessorId
   const requiresLocalOcrModel =
     effectiveOcrProcessorId !== null && FILE_PROCESSOR_LOCAL_MODEL[effectiveOcrProcessorId] === 'ocr'
   const ocrReady = effectiveOcrProcessorId !== null && (!requiresLocalOcrModel || ocrModel.status === 'ready')

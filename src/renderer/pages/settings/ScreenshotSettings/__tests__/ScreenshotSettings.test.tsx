@@ -54,13 +54,15 @@ interface IpcStub {
   afterRequest?: ScreenCaptureStatus
   ocrStatus?: string
   defaultOcrProcessorId?: FileProcessorId
+  processorResolutionError?: Error
 }
 
 function stubIpc({
   permission = 'authorized',
   afterRequest = 'authorized',
   ocrStatus = 'not_downloaded',
-  defaultOcrProcessorId = 'system'
+  defaultOcrProcessorId,
+  processorResolutionError
 }: IpcStub) {
   mockRequest.mockImplementation((route: string) => {
     switch (route) {
@@ -71,7 +73,13 @@ function stubIpc({
       case 'local_model.get_status':
         return Promise.resolve({ status: ocrStatus })
       case 'file_processing.configured_processor.get':
-        return Promise.resolve(defaultOcrProcessorId)
+        return processorResolutionError
+          ? Promise.reject(processorResolutionError)
+          : Promise.resolve(
+              defaultOcrProcessorId ??
+                MockUsePreferenceUtils.getPreferenceValue('feature.file_processing.default_image_to_text') ??
+                'system'
+            )
       default:
         return Promise.resolve()
     }
@@ -155,6 +163,17 @@ describe('ScreenshotSettings', () => {
 
     await user.click(autoOcrSwitch())
     await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('feature.screenshot.auto_ocr')).toBe(false))
+  })
+
+  it('keeps auto OCR disabled when main rejects the configured processor capability', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', 'local-document')
+    stubIpc({ processorResolutionError: new Error('processor does not support image_to_text') })
+
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
+    expect(requestedRoutes()).toContain('file_processing.configured_processor.get')
+    expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
   })
 
   it('offers System Settings rather than an authorize button once the permission is denied', async () => {

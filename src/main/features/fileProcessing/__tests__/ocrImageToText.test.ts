@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  assertFileTypeSupported: vi.fn(),
+  execute: vi.fn(),
   get: vi.fn(() => ({})),
+  getCapabilityHandler: vi.fn(),
   getPath: vi.fn(() => '/tmp/cherry-ocr-test.png'),
+  prepare: vi.fn(),
+  resolveFileInfo: vi.fn(),
   resolveProcessor: vi.fn(),
   rm: vi.fn(),
   writeFile: vi.fn()
@@ -21,6 +26,12 @@ vi.mock('../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: mocks.resolveProcessor
 }))
 
+vi.mock('../tasks/jobExecution', () => ({
+  assertFileTypeSupported: mocks.assertFileTypeSupported,
+  getCapabilityHandler: mocks.getCapabilityHandler,
+  resolveFileProcessingFileInfo: mocks.resolveFileInfo
+}))
+
 const { ocrImageBytes } = await import('../ocrImageToText')
 
 describe('ocrImageBytes', () => {
@@ -28,6 +39,10 @@ describe('ocrImageBytes', () => {
     vi.clearAllMocks()
     mocks.rm.mockResolvedValue(undefined)
     mocks.writeFile.mockResolvedValue(undefined)
+    mocks.resolveFileInfo.mockResolvedValue({ path: '/tmp/cherry-ocr-test.png', ext: '.png', type: 'image', size: 3 })
+    mocks.getCapabilityHandler.mockReturnValue({ prepare: mocks.prepare })
+    mocks.prepare.mockResolvedValue({ mode: 'background', execute: mocks.execute })
+    mocks.execute.mockResolvedValue({ kind: 'text', text: 'recognized text' })
     mocks.resolveProcessor.mockImplementation(() => {
       throw new Error('OCR failed')
     })
@@ -52,5 +67,27 @@ describe('ocrImageBytes', () => {
 
     expect(mocks.rm).toHaveBeenCalledWith('/tmp/cherry-ocr-test.png', { force: true })
     expect(mocks.resolveProcessor).not.toHaveBeenCalled()
+  })
+
+  it('resolves and executes the configured processor for transient image bytes', async () => {
+    const config = { id: 'system', capabilities: [{ feature: 'image_to_text', inputs: ['image'] }] }
+    mocks.resolveProcessor.mockReturnValue(config)
+
+    await expect(ocrImageBytes(new Uint8Array([4, 5, 6]))).resolves.toBe('recognized text')
+
+    expect(mocks.resolveProcessor).toHaveBeenCalledWith('image_to_text')
+    expect(mocks.getCapabilityHandler).toHaveBeenCalledWith('system', 'image_to_text')
+    expect(mocks.resolveFileInfo).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/cherry-ocr-test.png' })
+    expect(mocks.assertFileTypeSupported).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/tmp/cherry-ocr-test.png', type: 'image' }),
+      'image_to_text',
+      config
+    )
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.any(Object), config, undefined)
+    expect(mocks.execute).toHaveBeenCalledWith({
+      signal: expect.any(AbortSignal),
+      reportProgress: expect.any(Function)
+    })
+    expect(mocks.rm).toHaveBeenCalledWith('/tmp/cherry-ocr-test.png', { force: true })
   })
 })
