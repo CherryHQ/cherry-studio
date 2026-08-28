@@ -141,6 +141,21 @@ describe('TopicNamingService', () => {
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic.auto_renamed', { topicId: 'topic-1' })
   })
 
+  it('requests a title in the language selected in system settings', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Chinese (Simplified)')
+      })
+    )
+  })
+
   it('sends a naming-failed toast event to the main window when summary generation throws', async () => {
     mocks.generateText.mockRejectedValue(new Error('Invalid signature'))
 

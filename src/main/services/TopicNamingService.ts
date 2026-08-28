@@ -17,6 +17,7 @@ import {
   sanitizeConversationTitle,
   truncateFirstUserMessageTitleSource
 } from '@shared/utils/conversationTitle'
+import { defaultLanguage, languageEnglishNameMap } from '@shared/utils/languages'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('TopicNamingService')
@@ -388,7 +389,8 @@ export class TopicNamingService {
   private resolveNamingPrompt(): string {
     const preferenceService = application.get('PreferenceService')
     const configuredPrompt = preferenceService.get('topic.naming_prompt')
-    const language = preferenceService.get('app.language') || 'en-us'
+    const locale = preferenceService.get('app.language') || defaultLanguage
+    const language = languageEnglishNameMap[locale]
     return (configuredPrompt || FALLBACK_PROMPT).replaceAll('{{language}}', language)
   }
 
