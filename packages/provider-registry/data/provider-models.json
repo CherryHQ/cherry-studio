@@ -13660,6 +13660,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "tencent/hy4-preview",
+      "modelId": "hy4-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.042
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "thinkingmachines/inkling",
       "modelId": "inkling",
       "pricing": {
@@ -20283,6 +20302,25 @@
       }
     },
     {
+      "apiModelId": "hy4-preview",
+      "modelId": "hy4-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.042
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
+        }
+      },
+      "providerId": "opencode"
+    },
+    {
       "apiModelId": "kimi-k2.5",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "kimi-k2-5",
@@ -22161,15 +22199,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.1345
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.269
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.38
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "openrouter",
@@ -22214,15 +22252,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.017721
+          "perMillionTokens": 0.01736
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.088606
+          "perMillionTokens": 0.0868
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.177212
+          "perMillionTokens": 0.1736
         }
       },
       "providerId": "openrouter",
@@ -22282,15 +22320,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.014
+          "perMillionTokens": 0.007
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.44
+          "perMillionTokens": 0.22
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.32
+          "perMillionTokens": 0.66
         }
       },
       "providerId": "openrouter",
@@ -22316,15 +22354,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.044
+          "perMillionTokens": 0.022
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.32
+          "perMillionTokens": 0.66
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.96
+          "perMillionTokens": 1.98
         }
       },
       "providerId": "openrouter",
@@ -24485,7 +24523,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.025
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
@@ -26634,15 +26672,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.033
+          "perMillionTokens": 0.020625
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.132
+          "perMillionTokens": 0.0825
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.528
+          "perMillionTokens": 0.33
         }
       },
       "providerId": "openrouter",
@@ -29334,11 +29372,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.29
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.08
+          "perMillionTokens": 2.4
         }
       },
       "providerId": "openrouter",
@@ -37722,5 +37760,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c7fb1c4f61949246"
+  "version": "3d3b32de8dd4e3ef"
 }
