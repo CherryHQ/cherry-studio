@@ -50,11 +50,12 @@ export interface NativeFileRouting {
  */
 const NATIVE_FILE_PROVIDER_IDS = new Set<AppProviderId>([
   // The resolver emits the base `openai` id only for the Responses endpoint
-  // (chat-completions resolves to `openai-chat`/`openai-compatible`).
+  // (chat-completions resolves to `openai-chat`/`openai-compatible`). Same for
+  // Azure: only `azure-responses` qualifies — the base `azure` id is the
+  // Chat Completions deployment, which rejects `file` content parts.
   'openai',
   'anthropic',
   'google',
-  'azure',
   'azure-responses',
   'google-vertex',
   'bedrock',
@@ -142,7 +143,7 @@ function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProvid
  */
 export function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
   if (!isFirstPartyFileProvider(provider, aiSdkProviderId)) return false
-  if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
+  if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure-responses') {
     return isOpenAILLMModel(model)
   }
   if (aiSdkProviderId === 'anthropic' || aiSdkProviderId === 'anthropic-vertex' || aiSdkProviderId === 'bedrock') {

@@ -314,6 +314,25 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.supportsPdf).toBe(false)
   })
 
+  it('denies native PDF support on Azure Chat Completions gateway targets', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://azure.example.com', adapterFamily: 'azure' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-4o',
+      endpointTypes: ['openai-chat-completions']
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.supportsPdf).toBe(false)
+    expect(request?.guardSupportsPdf).toBe(false)
+  })
+
   it('grants native PDF support on gateway routes whose target takes native file parts', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',

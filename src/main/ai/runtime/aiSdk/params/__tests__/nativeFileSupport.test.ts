@@ -25,6 +25,18 @@ describe('resolveNativeFileSupport', () => {
     expect(ns.pdf).toBe(true)
   })
 
+  it('no native PDF on the Azure Chat Completions deployment; Responses keeps it', () => {
+    const provider = makeProvider({ id: 'azure' })
+    const model = makeModel({ id: 'azure::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' })
+    const chat = resolveNativeFileSupport(provider, model, { aiSdkProviderId: 'azure', runtimeProviderId: 'azure' })
+    const responses = resolveNativeFileSupport(provider, model, {
+      aiSdkProviderId: 'azure-responses',
+      runtimeProviderId: 'azure-responses'
+    })
+    expect(chat.pdf).toBe(false)
+    expect(responses.pdf).toBe(true)
+  })
+
   it('no native PDF on an openai-compatible aggregator', () => {
     const ns = resolveNativeFileSupport(
       makeProvider({ id: 'somehub' }),
