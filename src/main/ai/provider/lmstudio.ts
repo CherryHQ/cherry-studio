@@ -1,3 +1,5 @@
+import { parseDataUrl } from '@shared/utils/dataUrl'
+
 /**
  * LM Studio's OpenAI-compatible endpoint expects image data as bare base64 when
  * more than one image is present in a message, while the OpenAI format uses a
@@ -19,12 +21,12 @@ export function transformLmStudioRequestBody(args: Record<string, any>): Record<
       const url = part?.image_url?.url
       if (part?.type !== 'image_url' || typeof url !== 'string') return part
 
-      const match = url.match(/^data:image\/[^;,]+;base64,(.*)$/is)
-      if (!match) return part
+      const parsed = parseDataUrl(url)
+      if (!parsed?.isBase64 || !parsed.mediaType?.toLowerCase().startsWith('image/')) return part
 
       messageChanged = true
       changed = true
-      return { ...part, image_url: { ...part.image_url, url: match[1] } }
+      return { ...part, image_url: { ...part.image_url, url: parsed.data } }
     })
 
     return messageChanged ? { ...message, content } : message
