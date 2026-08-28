@@ -18,7 +18,12 @@ const overrideOf = (providerId: string, modelId: string) => {
 }
 
 describe('moonshot parameter support', () => {
-  it.each(['kimi-k2-5', 'kimi-k3'])('omits the fixed top_p parameter for %s', (modelId) => {
-    expect(overrideOf('moonshot', modelId).parameterSupport?.topP).toEqual({ supported: false })
-  })
+  it.each(['kimi-k2-5', 'kimi-k2-6', 'kimi-k3'])(
+    'omits the fixed temperature and top_p parameters for %s',
+    (modelId) => {
+      const { parameterSupport } = overrideOf('moonshot', modelId)
+      expect(parameterSupport?.temperature).toEqual({ supported: false })
+      expect(parameterSupport?.topP).toEqual({ supported: false })
+    }
+  )
 })

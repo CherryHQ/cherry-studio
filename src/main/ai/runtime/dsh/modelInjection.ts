@@ -18,7 +18,6 @@ import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import {
   type DshApi,
   hasDshTextInput,
-  hasKnownDshContextWindow,
   mapEndpointToDshApi,
   resolveDshEndpointType
 } from '@shared/ai/dshModelCompatibility'
@@ -32,6 +31,8 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { resolveAgentContextWindow } from '../agentContextWindow'
+import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 
 // dsh-llm-pi-ai uses maxTokens as a per-request output cap. Keep pi's
@@ -57,17 +58,6 @@ export class DshMissingApiKeyError extends Error {
     super(`Provider "${providerId}" has no API key configured for dsh agents`)
     this.name = 'DshMissingApiKeyError'
     this.providerId = providerId
-  }
-}
-
-/** Thrown when dsh cannot safely drive a model without its real context window. */
-export class DshMissingContextWindowError extends Error {
-  readonly modelId: string
-
-  constructor(modelId: string) {
-    super(`Model "${modelId}" has no context window configured; set it in model settings before using dsh`)
-    this.name = 'DshMissingContextWindowError'
-    this.modelId = modelId
   }
 }
 
@@ -212,12 +202,11 @@ export function buildDshProviderInjection(
     throw new DshUnsupportedProviderError(provider.id)
   }
   if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-  if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
   if (!apiKey.trim()) throw new DshMissingApiKeyError(provider.id)
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = provider.settings?.extraHeaders
+  const headers = toAgentProviderHeaders(provider.settings?.extraHeaders)
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
@@ -232,7 +221,7 @@ export function buildDshProviderInjection(
     modelConfig: {
       id: modelId,
       ...(model.name ? { name: model.name } : {}),
-      contextWindow: model.contextWindow,
+      contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
       reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
@@ -274,7 +263,6 @@ export function buildDshGatewayInjection(
 ): DshProviderInjection {
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
   if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-  if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
@@ -289,7 +277,7 @@ export function buildDshGatewayInjection(
     modelConfig: {
       id: modelId,
       ...(model.name ? { name: model.name } : {}),
-      contextWindow: model.contextWindow,
+      contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
       reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
@@ -357,13 +345,11 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
   if (resolveDshInjectionApi(provider, model) === undefined) {
     if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
     if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-    if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
     // Consent only (persisted intent) — no ensureRunning/ensureValidApiKey side effects here.
     if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
   if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-  if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
 
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
   if (!apiKeys.some((entry) => entry.key.trim())) throw new DshMissingApiKeyError(providerId)
