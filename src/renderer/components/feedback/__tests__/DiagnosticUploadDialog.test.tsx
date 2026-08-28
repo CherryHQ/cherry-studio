@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
     'settings.about.diagnostics.ranges.3d': 'Last 3 days',
+    'settings.about.diagnostics.sources.chat_records.title': 'Chat history',
     'settings.about.diagnostics.sources.logs.title': 'App logs',
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
     'settings.about.diagnostics.upload.actions.consent_upload': 'Submit diagnostic report',
@@ -79,6 +80,7 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
   sourceLimitBytes: 50 * 1024 * 1024,
   sources: {
+    chatRecords: { available: true, estimatedBytes: 4_096, messageCount: 4 },
     crashDumps: { fileCount: 1 },
     logs: { available: true, estimatedBytes: 1_024, fileCount: 2 },
     traces: { available: true, estimatedBytes: 2_048, fileCount: 3 }
@@ -242,6 +244,7 @@ describe('DiagnosticUploadDialog', () => {
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
         description: 'App freezes on launch.   Please investigate.',
+        includeChatRecords: false,
         includeLogs: true,
         includeTraces: true,
         range: '24h'
@@ -267,6 +270,101 @@ describe('DiagnosticUploadDialog', () => {
     await user.click(acknowledgement)
     await user.click(screen.getByRole('switch', { name: 'Detailed activity records' }))
     expect(acknowledgement).not.toBeChecked()
+
+    await user.click(acknowledgement)
+    await user.click(screen.getByRole('switch', { name: 'Chat history' }))
+    expect(acknowledgement).not.toBeChecked()
+  })
+
+  it('submits chat history only after the user explicitly enables it', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    const chatRecords = await screen.findByRole('switch', { name: 'Chat history' })
+    expect(chatRecords).not.toBeChecked()
+    await user.click(chatRecords)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+        description: 'App freezes on launch.',
+        includeChatRecords: true,
+        includeLogs: true,
+        includeTraces: true,
+        range: '24h'
+      })
+    )
+  })
+
+  it('excludes selected chat history when it is unavailable for the new range', async () => {
+    mocks.request.mockImplementation(async (route: string, input?: { range?: string }) => {
+      if (route === 'diagnostics.bundle.inspect') {
+        if (input?.range === '3d') {
+          return {
+            ...inspectResult,
+            sources: {
+              ...inspectResult.sources,
+              chatRecords: { available: false, estimatedBytes: 0, messageCount: 0 }
+            }
+          }
+        }
+        return inspectResult
+      }
+      if (route === 'diagnostics.bundle.upload') return uploadedResult
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    const chatRecords = await screen.findByRole('switch', { name: 'Chat history' })
+    await user.click(chatRecords)
+    await user.click(screen.getByRole('radio', { name: 'Last 3 days' }))
+    await waitFor(() => expect(chatRecords).toBeDisabled())
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+        description: 'App freezes on launch.',
+        includeChatRecords: false,
+        includeLogs: true,
+        includeTraces: true,
+        range: '3d'
+      })
+    )
+  })
+
+  it('keeps range inspection feedback out of the dialog layout', async () => {
+    let resolveRangeInspection: (result: typeof inspectResult) => void = () => undefined
+    mocks.request.mockImplementation((route: string, input?: { range?: string }) => {
+      if (route === 'diagnostics.bundle.inspect' && input?.range === '3d') {
+        return new Promise((resolve) => {
+          resolveRangeInspection = resolve
+        })
+      }
+      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
+      if (route === 'diagnostics.bundle.upload') return Promise.resolve(uploadedResult)
+      return Promise.resolve(undefined)
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    await screen.findByRole('switch', { name: 'Chat history' })
+    const inspectionStatus = screen.getByRole('status')
+    expect(inspectionStatus).toHaveClass('sr-only')
+    expect(inspectionStatus).toBeEmptyDOMElement()
+
+    await user.click(screen.getByRole('radio', { name: 'Last 3 days' }))
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
+    expect(screen.getAllByText('settings.about.diagnostics.sources.inspecting')).toHaveLength(3)
+    expect(screen.getByRole('status')).toBe(inspectionStatus)
+    expect(inspectionStatus).toHaveTextContent('Inspecting diagnostic data…')
+
+    resolveRangeInspection(inspectResult)
+    await waitFor(() => expect(inspectionStatus).toBeEmptyDOMElement())
+    expect(screen.getByRole('status')).toBe(inspectionStatus)
   })
 
   it('locks every dismissal path while submitting and shows only the API feedback ID on success', async () => {

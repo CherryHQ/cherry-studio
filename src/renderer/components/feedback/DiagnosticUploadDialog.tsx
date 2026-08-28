@@ -17,6 +17,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { describeDiagnosticChatSource, describeDiagnosticFileSource } from '@renderer/utils/diagnosticSourceSummary'
 import type { DiagnosticRange, DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import {
@@ -25,7 +26,6 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import { LoaderCircle } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,20 +48,13 @@ interface DiagnosticUploadDialogProps {
   readonly open: boolean
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** unitIndex
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
-}
-
 export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open }: DiagnosticUploadDialogProps) {
   const { t } = useTranslation()
   const uploadFormId = useId()
   const [range, setRange] = useState<DiagnosticRange>('24h')
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
+  const [includeChatRecords, setIncludeChatRecords] = useState(false)
   const [description, setDescription] = useState(initialDescription ?? '')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
@@ -108,8 +101,10 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
+  const chatRecordsAvailable = inspectResult?.sources.chatRecords.available ?? false
   const effectiveIncludeLogs = includeLogs && logsAvailable
   const effectiveIncludeTraces = includeTraces && tracesAvailable
+  const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
   const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
   const normalizedDescription = description.trim()
   const descriptionValid =
@@ -170,6 +165,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
         description: normalizedDescription,
+        includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
         range
@@ -243,6 +239,9 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
           </DialogHeader>
 
           <Scrollbar className="min-h-0 px-6 py-2">
+            <span className="sr-only" role="status" aria-live="polite">
+              {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+            </span>
             {result ? (
               <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
             ) : (
@@ -297,7 +296,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   />
                   <SourceRow
                     title={t('settings.about.diagnostics.sources.logs.title')}
-                    description={sourceDescription(t, inspectResult?.sources.logs, isInspectionPending)}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
                     checked={effectiveIncludeLogs}
                     disabled={isBusy || isInspectionPending || !logsAvailable}
                     onCheckedChange={(checked) => {
@@ -307,7 +306,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   />
                   <SourceRow
                     title={t('settings.about.diagnostics.sources.traces.title')}
-                    description={sourceDescription(t, inspectResult?.sources.traces, isInspectionPending)}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
                     checked={effectiveIncludeTraces}
                     disabled={isBusy || isInspectionPending || !tracesAvailable}
                     onCheckedChange={(checked) => {
@@ -315,14 +314,22 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                       setAcknowledged(false)
                     }}
                   />
+                  <SourceRow
+                    title={t('settings.about.diagnostics.sources.chat_records.title')}
+                    description={describeDiagnosticChatSource(
+                      t,
+                      inspectResult?.sources.chatRecords,
+                      isInspectionPending
+                    )}
+                    checked={effectiveIncludeChatRecords}
+                    disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
+                    onCheckedChange={(checked) => {
+                      setIncludeChatRecords(checked)
+                      setAcknowledged(false)
+                    }}
+                  />
                 </section>
 
-                {isInspectionPending ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm" role="status">
-                    <LoaderCircle className="size-4 animate-spin" />
-                    {t('settings.about.diagnostics.inspecting')}
-                  </div>
-                ) : null}
                 {inspectError ? (
                   <p className="text-error text-sm" role="alert">
                     {t('settings.about.diagnostics.errors.inspect_failed')}
@@ -483,19 +490,6 @@ function failureReasonText(t: ReturnType<typeof useTranslation>['t'], reason: Di
     submission_rejected: 'settings.about.diagnostics.report.failure_reasons.submission_rejected'
   }
   return t(keys[reason])
-}
-
-function sourceDescription(
-  t: ReturnType<typeof useTranslation>['t'],
-  source: InspectResult['sources']['logs'] | undefined,
-  isInspectionPending: boolean
-): string {
-  if (isInspectionPending) return t('settings.about.diagnostics.sources.inspecting')
-  if (!source?.available) return t('settings.about.diagnostics.sources.unavailable')
-  return t('settings.about.diagnostics.sources.summary', {
-    count: source.fileCount,
-    size: formatBytes(source.estimatedBytes)
-  })
 }
 
 function SourceRow({
