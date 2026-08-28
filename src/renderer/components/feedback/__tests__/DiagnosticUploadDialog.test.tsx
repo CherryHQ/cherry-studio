@@ -6,7 +6,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.errors.busy': 'Another diagnostic bundle operation is already in progress',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
-      'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.',
+      'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
     'settings.about.diagnostics.report.description_label': 'Problem description',
     'settings.about.diagnostics.report.description_required': 'A problem description is required',
@@ -33,15 +33,15 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.open_location': 'Open location',
     'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
     'settings.about.diagnostics.report.retry': 'Retry',
-    'settings.about.diagnostics.report.retry_unknown_description':
-      'The previous submission may already have succeeded. Retrying can create a duplicate report.',
-    'settings.about.diagnostics.report.retry_unknown_title': 'Retry diagnostic report?',
     'settings.about.diagnostics.report.save_locally': 'Save locally',
     'settings.about.diagnostics.report.saving': 'Saving diagnostic report…',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
+    'settings.about.diagnostics.range_title': 'Time range',
+    'settings.about.diagnostics.ranges.24h': 'Last 24 hours',
     'settings.about.diagnostics.ranges.3d': 'Last 3 days',
+    'settings.about.diagnostics.ranges.7d': 'Last 7 days',
     'settings.about.diagnostics.sources.chat_records.title': 'Chat history',
     'settings.about.diagnostics.sources.logs.title': 'App logs',
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
@@ -49,6 +49,8 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.upload.dialog.title': 'Upload diagnostic bundle',
     'settings.about.diagnostics.upload.errors.save_failed': 'Could not save the diagnostic report',
     'settings.about.diagnostics.upload.manual.title': 'Diagnostic report was not submitted',
+    'settings.about.diagnostics.upload.unknown.description':
+      'Could not confirm whether this submission succeeded. Save the diagnostic file locally, then contact the Cherry Studio support team or upload it through the Feishu form via Manual feedback. Retrying may submit the same diagnostic report again.',
     'settings.about.diagnostics.upload.unknown.title': 'Submission result is unknown'
   } as Record<string, string>
 }))
@@ -120,7 +122,7 @@ async function completeReview(user: ReturnType<typeof userEvent.setup>, descript
   await user.type(screen.getByRole('textbox', { name: 'Problem description' }), description)
   await user.click(
     screen.getByRole('checkbox', {
-      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
+      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
     })
   )
   await waitFor(() => expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeEnabled())
@@ -168,6 +170,59 @@ describe('DiagnosticUploadDialog', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
   })
 
+  it('requires acknowledgement covering a provider response-derived draft before upload', async () => {
+    const user = userEvent.setup()
+    render(
+      <DiagnosticUploadDialog
+        initialDescription="Provider rejected request for private-account@example.com"
+        open
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    const description = screen.getByRole('textbox', { name: 'Problem description' })
+    expect(description).toHaveValue('Provider rejected request for private-account@example.com')
+    await user.clear(description)
+    await user.type(description, 'Reviewed provider rejection')
+
+    await waitFor(() => expect(screen.queryByText('Inspecting diagnostic data…')).not.toBeInTheDocument())
+    const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
+    expect(submit).toBeDisabled()
+    await user.click(submit)
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
+      })
+    )
+    await waitFor(() => expect(submit).toBeEnabled())
+    await user.click(submit)
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith(
+        'diagnostics.bundle.upload',
+        expect.objectContaining({ description: 'Reviewed provider rejection' })
+      )
+    )
+  })
+
+  it('uses a fixed range without rendering range controls', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog fixedRange="24h" open onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByText('Time range')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Last 3 days' })).not.toBeInTheDocument()
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
+
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', expect.objectContaining({ range: '24h' }))
+    )
+  })
+
   it('validates an empty description on submit and keeps the error current while editing', async () => {
     const user = userEvent.setup()
     const { rerender } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
@@ -175,7 +230,7 @@ describe('DiagnosticUploadDialog', () => {
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
+      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
     })
 
     await user.click(acknowledgement)
@@ -215,7 +270,7 @@ describe('DiagnosticUploadDialog', () => {
     await user.paste('x'.repeat(4097))
     await user.click(
       screen.getByRole('checkbox', {
-        name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
+        name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
       })
     )
 
@@ -234,7 +289,7 @@ describe('DiagnosticUploadDialog', () => {
     await completeReview(user)
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
+      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
     })
 
     await user.type(description, ' Please investigate. ')
@@ -258,7 +313,7 @@ describe('DiagnosticUploadDialog', () => {
     await completeReview(user)
 
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.'
+      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
     })
     await user.click(screen.getByRole('radio', { name: 'Last 3 days' }))
     expect(acknowledgement).not.toBeChecked()
@@ -488,6 +543,50 @@ describe('DiagnosticUploadDialog', () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
+  it('discards a retained upload when its owning dialog unmounts', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'diagnostics.bundle.discard_upload') return { status: 'discarded' }
+      return undefined
+    })
+    const user = userEvent.setup()
+    const { unmount } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    expect(await screen.findByText('Diagnostic report was not submitted')).toBeInTheDocument()
+
+    unmount()
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.discard_upload', { bundleId }))
+  })
+
+  it('discards a retained upload that finishes after its owning dialog unmounts', async () => {
+    let resolveUpload: (result: typeof submissionUnknownResult) => void = () => undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
+      if (route === 'diagnostics.bundle.upload') {
+        return new Promise((resolve) => {
+          resolveUpload = resolve
+        })
+      }
+      if (route === 'diagnostics.bundle.discard_upload') return Promise.resolve({ status: 'discarded' })
+      return Promise.resolve(undefined)
+    })
+    const user = userEvent.setup()
+    const { unmount } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.some(([route]) => route === 'diagnostics.bundle.upload')).toBe(true)
+    )
+
+    unmount()
+    await act(async () => resolveUpload(submissionUnknownResult))
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.discard_upload', { bundleId }))
+  })
+
   it('keeps a retained upload accessible when discard is busy', async () => {
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
@@ -510,7 +609,7 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 
-  it('requires duplicate-risk confirmation before retrying an unknown submission and keeps retry locked', async () => {
+  it('retries an unknown submission directly and keeps retry locked', async () => {
     let resolveRetry: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
       if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
@@ -529,23 +628,22 @@ describe('DiagnosticUploadDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
     expect(await screen.findByText('Submission result is unknown')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manual feedback' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Could not confirm whether this submission succeeded. Save the diagnostic file locally, then contact the Cherry Studio support team or upload it through the Feishu form via Manual feedback. Retrying may submit the same diagnostic report again.'
+      )
+    ).toBeInTheDocument()
+    const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
     expect(screen.queryByRole('region', { name: 'Saved locally' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show in folder' })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
-    let confirmation = screen.getByRole('dialog', { name: 'Retry diagnostic report?' })
-    expect(confirmation).toHaveTextContent(
-      'The previous submission may already have succeeded. Retrying can create a duplicate report.'
-    )
-    await user.click(within(confirmation).getByRole('button', { name: 'Cancel' }))
-    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.retry_upload')).toHaveLength(0)
+    await user.click(manualFeedback)
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
-    confirmation = screen.getByRole('dialog', { name: 'Retry diagnostic report?' })
-    await user.click(within(confirmation).getByRole('button', { name: 'Retry' }))
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.retry_upload', { bundleId })
+    expect(screen.queryByRole('dialog', { name: 'Retry diagnostic report?' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submitting diagnostic report…' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')

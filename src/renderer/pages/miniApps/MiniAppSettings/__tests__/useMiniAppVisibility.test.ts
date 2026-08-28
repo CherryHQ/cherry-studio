@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMiniAppVisibility } from '../useMiniAppVisibility'
 
 const stubApp = (id: string): MiniApp => ({
+  kind: 'site',
   appId: id,
   name: id,
   url: `https://${id}.example.com`,

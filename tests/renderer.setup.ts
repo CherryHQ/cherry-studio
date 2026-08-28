@@ -1006,6 +1006,14 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('button', { ...props, role: 'tab', type: 'button', 'data-value': value }, children),
     TabsContent: ({ children, value, ...props }) =>
       React.createElement('div', { ...props, role: 'tabpanel', 'data-value': value }, children),
+    // InputGroup primitives — flattened: the input and its addons render side by side
+    InputGroup: ({ children, ...props }) => React.createElement('div', { ...props, role: 'group' }, children),
+    InputGroupInput: (props) => React.createElement('input', props),
+    InputGroupAddon: ({ children, align, ...props }) =>
+      React.createElement('div', { ...props, 'data-align': align }, children),
+    InputGroupButton: ({ children, variant, size, ...props }) =>
+      React.createElement('button', { ...props, type: 'button' }, children),
+    InputGroupText: ({ children, ...props }) => React.createElement('span', props, children),
     // Popover primitives — Radix-style trigger / content split
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>
