@@ -60,14 +60,32 @@ type ExportResult = OutputFor<'diagnostics.bundle.export'>
 type SavedBundle = Extract<ExportResult, { status: 'saved' }>
 type UploadInput = InputFor<'diagnostics.bundle.upload'>
 type UploadResult = OutputFor<'diagnostics.bundle.upload'>
-type UploadFallback = Omit<Extract<UploadResult, { status: 'submission_unknown' }>, 'status'>
 type RetryUploadInput = InputFor<'diagnostics.bundle.retry_upload'>
 type RetryUploadResult = OutputFor<'diagnostics.bundle.retry_upload'>
+type SaveUploadInput = InputFor<'diagnostics.bundle.save_upload'>
+type SaveUploadResult = OutputFor<'diagnostics.bundle.save_upload'>
+type DiscardUploadInput = InputFor<'diagnostics.bundle.discard_upload'>
+type DiscardUploadResult = OutputFor<'diagnostics.bundle.discard_upload'>
 
-interface RetryableUpload {
-  readonly bundle: UploadFallback
+type RetainedUploadBundle =
+  | {
+      readonly bundleId: string
+      readonly fileName: string
+      readonly filePath: AbsoluteFilePath
+      readonly location: 'saved'
+    }
+  | {
+      readonly bundleId: string
+      readonly fileName: string
+      readonly filePath: AbsoluteFilePath
+      readonly location: 'temporary'
+      readonly tempRoot: AbsoluteFilePath
+    }
+
+interface RetainedUpload {
+  bundle: RetainedUploadBundle
   readonly description: string
-  readonly fileSha256: string
+  readonly fileSha256?: string
 }
 
 type DestinationIdentity = { readonly status: 'missing' } | ({ readonly status: 'present' } & SourceIdentity)
@@ -236,7 +254,7 @@ async function assertDestinationOutsideSources(destination: AbsoluteFilePath): P
 export class DiagnosticBundleService {
   private readonly inspectionMutex = new Mutex()
   private inFlightOperation: Promise<unknown> | null = null
-  private readonly retryableUploads = new Map<string, RetryableUpload>()
+  private readonly retainedUploads = new Map<string, RetainedUpload>()
 
   async inspect(rangeName: DiagnosticRange): Promise<InspectResult> {
     return this.inspectionMutex.runExclusive(() => this.performInspection(rangeName))
@@ -291,6 +309,28 @@ export class DiagnosticBundleService {
   async retryUpload(input: RetryUploadInput): Promise<RetryUploadResult> {
     if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performRetryUpload(input)
+    this.inFlightOperation = operation
+    try {
+      return await operation
+    } finally {
+      if (this.inFlightOperation === operation) this.inFlightOperation = null
+    }
+  }
+
+  async saveUploadBundle(input: SaveUploadInput, senderId: WindowId | null): Promise<SaveUploadResult> {
+    if (this.inFlightOperation) return { status: 'busy' }
+    const operation = this.performSaveUpload(input, senderId)
+    this.inFlightOperation = operation
+    try {
+      return await operation
+    } finally {
+      if (this.inFlightOperation === operation) this.inFlightOperation = null
+    }
+  }
+
+  async discardUpload(input: DiscardUploadInput): Promise<DiscardUploadResult> {
+    if (this.inFlightOperation) return { status: 'busy' }
+    const operation = this.performDiscardUpload(input)
     this.inFlightOperation = operation
     try {
       return await operation
@@ -365,6 +405,7 @@ export class DiagnosticBundleService {
       throw new IpcError(diagnosticsErrorCodes.BUNDLE_BUILD_FAILED, 'Failed to build diagnostic bundle')
     }
     const destination = AbsoluteFilePathSchema.parse(path.join(tempRoot, fileName))
+    let retainTempRoot = false
 
     try {
       let bundle: SavedBundle
@@ -399,54 +440,48 @@ export class DiagnosticBundleService {
         return { reportId: uploadResult.reportId, status: 'uploaded' }
       }
 
-      let savedBundle: UploadFallback
-      try {
-        savedBundle = await this.saveUploadFallback(bundle)
-      } catch (error) {
-        if (uploadResult.status === 'submission_unknown') {
-          throw new IpcError(
-            diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED,
-            'Diagnostic submission may have succeeded, but its fallback could not be preserved'
-          )
-        }
-        throw error
+      const retainedBundle: RetainedUploadBundle = {
+        bundleId: bundle.bundleId,
+        fileName: bundle.fileName,
+        filePath: bundle.filePath,
+        location: 'temporary',
+        tempRoot
       }
-      if (uploadResult.fileSha256) {
-        this.retryableUploads.set(savedBundle.bundleId, {
-          bundle: savedBundle,
-          description,
-          fileSha256: uploadResult.fileSha256
-        })
-      }
+      this.retainedUploads.set(bundle.bundleId, {
+        bundle: retainedBundle,
+        description,
+        ...(uploadResult.fileSha256 ? { fileSha256: uploadResult.fileSha256 } : {})
+      })
+      retainTempRoot = true
       if (uploadResult.status === 'submission_unknown') {
         logger.warn('Diagnostic bundle submission result is unknown')
         return {
-          bundleId: savedBundle.bundleId,
-          fileName: savedBundle.fileName,
-          filePath: savedBundle.filePath,
+          bundleId: bundle.bundleId,
+          fileName: bundle.fileName,
           status: 'submission_unknown'
         }
       }
       logger.warn('Diagnostic bundle submission failed', { reason: uploadResult.reason })
       return {
-        bundleId: savedBundle.bundleId,
-        fileName: savedBundle.fileName,
-        filePath: savedBundle.filePath,
+        bundleId: bundle.bundleId,
+        fileName: bundle.fileName,
         reason: uploadResult.reason,
         status: 'submission_failed'
       }
     } finally {
-      await removeDir(tempRoot).catch((error) => {
-        logger.warn('Failed to clean diagnostic upload temporary files', {
-          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      if (!retainTempRoot) {
+        await removeDir(tempRoot).catch((error) => {
+          logger.warn('Failed to clean diagnostic upload temporary files', {
+            code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+          })
         })
-      })
+      }
     }
   }
 
   private async performRetryUpload(input: RetryUploadInput): Promise<RetryUploadResult> {
-    const retryable = this.retryableUploads.get(input.bundleId)
-    if (!retryable) {
+    const retained = this.retainedUploads.get(input.bundleId)
+    if (!retained) {
       throw new IpcError(
         diagnosticsErrorCodes.RETRY_NOT_AVAILABLE,
         'Diagnostic bundle is not available for retry in this process'
@@ -454,45 +489,83 @@ export class DiagnosticBundleService {
     }
 
     const uploadResult = await cherryDiagnosticUploadClient.upload({
-      description: retryable.description,
-      expectedFileSha256: retryable.fileSha256,
-      fileName: retryable.bundle.fileName,
-      filePath: retryable.bundle.filePath
+      description: retained.description,
+      ...(retained.fileSha256 ? { expectedFileSha256: retained.fileSha256 } : {}),
+      fileName: retained.bundle.fileName,
+      filePath: retained.bundle.filePath
     })
     if (uploadResult.status === 'uploaded') {
-      this.retryableUploads.delete(input.bundleId)
+      this.retainedUploads.delete(input.bundleId)
+      await this.cleanupTemporaryUpload(retained.bundle)
       return { reportId: uploadResult.reportId, status: 'uploaded' }
     }
     if (uploadResult.status === 'submission_unknown') {
       logger.warn('Diagnostic bundle retry result is unknown')
       return {
-        bundleId: retryable.bundle.bundleId,
-        fileName: retryable.bundle.fileName,
-        filePath: retryable.bundle.filePath,
+        bundleId: retained.bundle.bundleId,
+        fileName: retained.bundle.fileName,
         status: 'submission_unknown'
       }
     }
     logger.warn('Diagnostic bundle retry failed', { reason: uploadResult.reason })
     return {
-      bundleId: retryable.bundle.bundleId,
-      fileName: retryable.bundle.fileName,
-      filePath: retryable.bundle.filePath,
+      bundleId: retained.bundle.bundleId,
+      fileName: retained.bundle.fileName,
       reason: uploadResult.reason,
       status: 'submission_failed'
     }
   }
 
-  private async saveUploadFallback(bundle: SavedBundle): Promise<UploadFallback> {
-    const destination = AbsoluteFilePathSchema.parse(application.getPath('sys.downloads', bundle.fileName))
-    try {
-      if ((await probeDestination(destination)).status !== 'missing') {
-        throw new Error('Fallback destination already exists')
-      }
-      await move(bundle.filePath, destination)
+  private async performSaveUpload(input: SaveUploadInput, senderId: WindowId | null): Promise<SaveUploadResult> {
+    const retained = this.retainedUploads.get(input.bundleId)
+    if (!retained) {
+      throw new IpcError(
+        diagnosticsErrorCodes.RETRY_NOT_AVAILABLE,
+        'Diagnostic bundle is not available in this process'
+      )
+    }
+    if (retained.bundle.location === 'saved') {
       return {
-        bundleId: bundle.bundleId,
-        fileName: bundle.fileName,
-        filePath: destination
+        bundleId: retained.bundle.bundleId,
+        fileName: retained.bundle.fileName,
+        filePath: retained.bundle.filePath,
+        status: 'saved'
+      }
+    }
+    const temporaryBundle = retained.bundle
+    if (!senderId) throw new Error('Saving a diagnostic upload requires a managed window')
+    const parent = application.get('WindowManager').getWindow(senderId)
+    if (!parent) throw new Error('Diagnostic upload window is no longer available')
+
+    const { canceled, filePath } = await dialog.showSaveDialog(parent, {
+      defaultPath: retained.bundle.fileName,
+      filters: [{ name: t('dialog.diagnostic_bundle.zip_filter'), extensions: ['zip'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+      title: t('dialog.diagnostic_bundle.title')
+    })
+    if (canceled || !filePath) return { status: 'canceled' }
+
+    const destination = AbsoluteFilePathSchema.parse(filePath)
+    try {
+      await assertDestinationOutsideSources(destination)
+      const resolvedDestination = await resolveThroughExistingAncestor(destination)
+      const resolvedTempRoot = await realpath(temporaryBundle.tempRoot)
+      if (resolvedDestination === resolvedTempRoot || isPathInside(resolvedDestination, resolvedTempRoot)) {
+        throw new Error('Diagnostic upload cannot be saved inside its temporary directory')
+      }
+      await move(temporaryBundle.filePath, destination)
+      retained.bundle = {
+        bundleId: temporaryBundle.bundleId,
+        fileName: path.basename(destination),
+        filePath: destination,
+        location: 'saved'
+      }
+      await this.cleanupTemporaryUpload(temporaryBundle)
+      return {
+        bundleId: retained.bundle.bundleId,
+        fileName: retained.bundle.fileName,
+        filePath: destination,
+        status: 'saved'
       }
     } catch {
       throw new IpcError(
@@ -500,6 +573,23 @@ export class DiagnosticBundleService {
         'Failed to preserve diagnostic bundle for manual upload'
       )
     }
+  }
+
+  private async performDiscardUpload(input: DiscardUploadInput): Promise<DiscardUploadResult> {
+    const retained = this.retainedUploads.get(input.bundleId)
+    if (!retained) return { status: 'not_found' }
+    this.retainedUploads.delete(input.bundleId)
+    await this.cleanupTemporaryUpload(retained.bundle)
+    return { status: 'discarded' }
+  }
+
+  private async cleanupTemporaryUpload(bundle: RetainedUploadBundle): Promise<void> {
+    if (bundle.location !== 'temporary') return
+    await removeDir(bundle.tempRoot).catch((error) => {
+      logger.warn('Failed to clean retained diagnostic upload temporary files', {
+        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      })
+    })
   }
 
   private async buildBundle({

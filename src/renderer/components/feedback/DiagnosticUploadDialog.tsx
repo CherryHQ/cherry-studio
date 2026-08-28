@@ -17,8 +17,6 @@ import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange, DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import {
@@ -41,7 +39,8 @@ const RANGE_OPTIONS = [
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
 type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
-type SubmissionStatus = 'idle' | 'submitting' | 'submission_unknown_fallback_save_failed'
+type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
+type OperationStatus = 'idle' | 'saving' | 'submitting'
 
 interface DiagnosticUploadDialogProps {
   readonly initialDescription?: string
@@ -69,8 +68,9 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
   const [inspectError, setInspectError] = useState(false)
   const [isInspecting, setIsInspecting] = useState(false)
-  const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle')
+  const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
+  const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
   const [retryConfirmationOpen, setRetryConfirmationOpen] = useState(false)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
 
@@ -99,8 +99,8 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
   }, [open, range])
 
   useEffect(() => {
-    if (result || submissionStatus === 'submission_unknown_fallback_save_failed') primaryActionRef.current?.focus()
-  }, [result, submissionStatus])
+    if (result) primaryActionRef.current?.focus()
+  }, [result])
 
   useEffect(() => {
     if (!open) setHasAttemptedSubmit(false)
@@ -116,12 +116,24 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     normalizedDescription.length > 0 &&
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
   const showDescriptionError = hasAttemptedSubmit && !descriptionValid
-  const isSubmitting = submissionStatus === 'submitting'
+  const isBusy = operationStatus !== 'idle'
   const canAttemptUpload =
-    inspectResult !== null && !isInspectionPending && !inspectError && submissionStatus === 'idle' && acknowledged
+    inspectResult !== null && !isInspectionPending && !inspectError && operationStatus === 'idle' && acknowledged
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && isSubmitting) return
+  const handleOpenChange = async (nextOpen: boolean) => {
+    if (!nextOpen && isBusy) return
+    if (!nextOpen && result && result.status !== 'uploaded') {
+      try {
+        const discardResult = await ipcApi.request('diagnostics.bundle.discard_upload', { bundleId: result.bundleId })
+        if (discardResult.status === 'busy') {
+          toast.error(t('settings.about.diagnostics.errors.busy'))
+          return
+        }
+      } catch (error) {
+        logger.error('Failed to discard retained diagnostic upload', error as Error)
+        return
+      }
+    }
     onOpenChange(nextOpen)
   }
 
@@ -135,9 +147,9 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
   }
 
   const revealBundle = async () => {
-    if (!result || result.status === 'uploaded') return
+    if (!savedUpload) return
     try {
-      await ipcApi.request('file.show_in_folder', createFilePathHandle(result.filePath))
+      await ipcApi.request('file.show_in_folder', createFilePathHandle(savedUpload.filePath))
     } catch (error) {
       logger.error('Failed to reveal diagnostic upload fallback', error as Error)
       toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
@@ -154,7 +166,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
 
   const uploadBundle = async () => {
     if (!canAttemptUpload || !descriptionValid) return
-    setSubmissionStatus('submitting')
+    setOperationStatus('submitting')
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
         description: normalizedDescription,
@@ -163,15 +175,11 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
         range
       })
       acceptSubmissionResult(uploadResult)
-      setSubmissionStatus('idle')
     } catch (error) {
       logger.error('Failed to upload diagnostic bundle', error as Error)
-      if (error instanceof IpcError && error.code === diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED) {
-        setSubmissionStatus('submission_unknown_fallback_save_failed')
-        return
-      }
-      setSubmissionStatus('idle')
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
+    } finally {
+      setOperationStatus('idle')
     }
   }
 
@@ -183,8 +191,8 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
   }
 
   const retryUpload = async () => {
-    if (!result || result.status === 'uploaded' || isSubmitting) return
-    setSubmissionStatus('submitting')
+    if (!result || result.status === 'uploaded' || isBusy) return
+    setOperationStatus('submitting')
     try {
       const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: result.bundleId })
       acceptSubmissionResult(retryResult)
@@ -192,7 +200,25 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
       logger.error('Failed to retry diagnostic upload', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
-      setSubmissionStatus('idle')
+      setOperationStatus('idle')
+    }
+  }
+
+  const saveUpload = async () => {
+    if (!result || result.status === 'uploaded' || savedUpload || isBusy) return
+    setOperationStatus('saving')
+    try {
+      const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: result.bundleId })
+      if (saveResult.status === 'busy') {
+        toast.error(t('settings.about.diagnostics.errors.busy'))
+      } else if (saveResult.status === 'saved') {
+        setSavedUpload(saveResult)
+      }
+    } catch (error) {
+      logger.error('Failed to save retained diagnostic upload', error as Error)
+      toast.error(t('settings.about.diagnostics.upload.errors.save_failed'))
+    } finally {
+      setOperationStatus('idle')
     }
   }
 
@@ -207,10 +233,10 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
         <DialogContent
           size="xl"
           className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
-          closeOnOverlayClick={!isSubmitting}
-          showCloseButton={!isSubmitting}
+          closeOnOverlayClick={!isBusy}
+          showCloseButton={!isBusy}
           onEscapeKeyDown={(event) => {
-            if (isSubmitting) event.preventDefault()
+            if (isBusy) event.preventDefault()
           }}>
           <DialogHeader className="px-6 pt-6 pr-12 pb-4">
             <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
@@ -218,9 +244,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
 
           <Scrollbar className="min-h-0 px-6 py-2">
             {result ? (
-              <UploadResultContent result={result} onReveal={revealBundle} />
-            ) : submissionStatus === 'submission_unknown_fallback_save_failed' ? (
-              <SubmissionUnknownFallbackSaveFailedContent />
+              <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
             ) : (
               <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
                 <section className="space-y-2">
@@ -233,7 +257,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                     onValueChange={setDescription}
                     placeholder={t('settings.about.diagnostics.report.description_placeholder')}
                     rows={4}
-                    disabled={isSubmitting}
+                    disabled={isBusy}
                     hasError={showDescriptionError}
                     aria-describedby={showDescriptionError ? 'diagnostic-description-error' : undefined}
                   />
@@ -258,7 +282,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                       setAcknowledged(false)
                     }}
                     options={rangeOptions}
-                    disabled={isSubmitting}
+                    disabled={isBusy}
                   />
                 </section>
 
@@ -275,7 +299,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                     title={t('settings.about.diagnostics.sources.logs.title')}
                     description={sourceDescription(t, inspectResult?.sources.logs, isInspectionPending)}
                     checked={effectiveIncludeLogs}
-                    disabled={isSubmitting || isInspectionPending || !logsAvailable}
+                    disabled={isBusy || isInspectionPending || !logsAvailable}
                     onCheckedChange={(checked) => {
                       setIncludeLogs(checked)
                       setAcknowledged(false)
@@ -285,7 +309,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                     title={t('settings.about.diagnostics.sources.traces.title')}
                     description={sourceDescription(t, inspectResult?.sources.traces, isInspectionPending)}
                     checked={effectiveIncludeTraces}
-                    disabled={isSubmitting || isInspectionPending || !tracesAvailable}
+                    disabled={isBusy || isInspectionPending || !tracesAvailable}
                     onCheckedChange={(checked) => {
                       setIncludeTraces(checked)
                       setAcknowledged(false)
@@ -311,7 +335,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   <Checkbox
                     id="diagnostic-acknowledgement"
                     checked={acknowledged}
-                    disabled={isSubmitting}
+                    disabled={isBusy}
                     onCheckedChange={(checked) => setAcknowledged(checked === true)}
                   />
                   <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
@@ -321,13 +345,13 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
           </Scrollbar>
 
           <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-            {isSubmitting ? (
+            {isBusy ? (
               <Button variant="emphasis" loading disabled>
-                {t('settings.about.diagnostics.report.submitting')}
-              </Button>
-            ) : submissionStatus === 'submission_unknown_fallback_save_failed' ? (
-              <Button ref={primaryActionRef} variant="outline" onClick={() => handleOpenChange(false)}>
-                {t('settings.about.diagnostics.actions.close')}
+                {t(
+                  operationStatus === 'saving'
+                    ? 'settings.about.diagnostics.report.saving'
+                    : 'settings.about.diagnostics.report.submitting'
+                )}
               </Button>
             ) : result ? (
               <>
@@ -340,6 +364,11 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                 {result.status === 'submission_failed' ? (
                   <Button variant="outline" onClick={() => void openManualForm()}>
                     {t('settings.about.diagnostics.report.open_manual_form')}
+                  </Button>
+                ) : null}
+                {result.status !== 'uploaded' && !savedUpload ? (
+                  <Button variant="outline" onClick={() => void saveUpload()}>
+                    {t('settings.about.diagnostics.report.save_locally')}
                   </Button>
                 ) : null}
                 {result.status !== 'uploaded' ? (
@@ -387,23 +416,13 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
   )
 }
 
-function SubmissionUnknownFallbackSaveFailedContent() {
-  const { t } = useTranslation()
-  return (
-    <Alert
-      type="warning"
-      showIcon
-      message={t('settings.about.diagnostics.upload.unknown_without_copy.title')}
-      description={t('settings.about.diagnostics.upload.unknown_without_copy.description')}
-    />
-  )
-}
-
 function UploadResultContent({
   result,
+  savedUpload,
   onReveal
 }: {
   readonly result: UploadResult
+  readonly savedUpload: SavedUploadResult | null
   readonly onReveal: () => Promise<void>
 }) {
   const { t } = useTranslation()
@@ -437,17 +456,19 @@ function UploadResultContent({
           isUnknown ? t('settings.about.diagnostics.upload.unknown.description') : failureReasonText(t, result.reason)
         }
       />
-      <section
-        aria-label={t('settings.about.diagnostics.report.saved_locally')}
-        className="flex items-center justify-between gap-4">
-        <div className="min-w-0 space-y-1">
-          <p className="break-all text-sm">{result.fileName}</p>
-          <p className="text-muted-foreground text-xs">{t('settings.about.diagnostics.report.saved_locally')}</p>
-        </div>
-        <Button variant="link" className="h-auto shrink-0 px-0 py-0" onClick={() => void onReveal()}>
-          {t('settings.about.diagnostics.report.open_location')}
-        </Button>
-      </section>
+      {savedUpload ? (
+        <section
+          aria-label={t('settings.about.diagnostics.report.saved_locally')}
+          className="flex items-center justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <p className="break-all text-sm">{savedUpload.fileName}</p>
+            <p className="text-muted-foreground text-xs">{t('settings.about.diagnostics.report.saved_locally')}</p>
+          </div>
+          <Button variant="link" className="h-auto shrink-0 px-0 py-0" onClick={() => void onReveal()}>
+            {t('settings.about.diagnostics.report.open_location')}
+          </Button>
+        </section>
+      ) : null}
     </div>
   )
 }

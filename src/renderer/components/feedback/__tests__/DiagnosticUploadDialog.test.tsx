@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.actions.cancel': 'Cancel',
     'settings.about.diagnostics.actions.close': 'Close',
     'settings.about.diagnostics.actions.reveal': 'Show in folder',
+    'settings.about.diagnostics.errors.busy': 'Another diagnostic bundle operation is already in progress',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
       'I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.',
@@ -35,6 +36,8 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.retry_unknown_description':
       'The previous submission may already have succeeded. Retrying can create a duplicate report.',
     'settings.about.diagnostics.report.retry_unknown_title': 'Retry diagnostic report?',
+    'settings.about.diagnostics.report.save_locally': 'Save locally',
+    'settings.about.diagnostics.report.saving': 'Saving diagnostic report…',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
@@ -43,6 +46,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
     'settings.about.diagnostics.upload.actions.consent_upload': 'Submit diagnostic report',
     'settings.about.diagnostics.upload.dialog.title': 'Upload diagnostic bundle',
+    'settings.about.diagnostics.upload.errors.save_failed': 'Could not save the diagnostic report',
     'settings.about.diagnostics.upload.manual.title': 'Diagnostic report was not submitted',
     'settings.about.diagnostics.upload.unknown.title': 'Submission result is unknown'
   } as Record<string, string>
@@ -93,7 +97,6 @@ const uploadedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 
 const submissionFailedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'submission_failed' }> = {
   bundleId,
   fileName: 'cherry-studio-diagnostics.zip',
-  filePath: fallbackPath,
   reason: 'service_unavailable',
   status: 'submission_failed'
 }
@@ -101,8 +104,14 @@ const submissionFailedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { 
 const submissionUnknownResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'submission_unknown' }> = {
   bundleId,
   fileName: 'cherry-studio-diagnostics.zip',
-  filePath: fallbackPath,
   status: 'submission_unknown'
+}
+
+const savedUploadResult: Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }> = {
+  bundleId,
+  fileName: 'saved-diagnostics.zip',
+  filePath: fallbackPath,
+  status: 'saved'
 }
 
 async function completeReview(user: ReturnType<typeof userEvent.setup>, description = '  App freezes on launch.  ') {
@@ -113,6 +122,14 @@ async function completeReview(user: ReturnType<typeof userEvent.setup>, descript
     })
   )
   await waitFor(() => expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeEnabled())
+}
+
+async function closeResultDialog(user: ReturnType<typeof userEvent.setup>) {
+  const closeButton = (await screen.findAllByRole('button', { name: 'Close' })).find(
+    (button) => button.textContent === 'Close'
+  )
+  expect(closeButton).toBeDefined()
+  await user.click(closeButton!)
 }
 
 describe('DiagnosticUploadDialog', () => {
@@ -310,11 +327,8 @@ describe('DiagnosticUploadDialog', () => {
     ).toBeInTheDocument()
     expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
 
-    const savedBundle = screen.getByRole('region', { name: 'Saved locally' })
-    expect(within(savedBundle).getByText('cherry-studio-diagnostics.zip')).toBeInTheDocument()
-    expect(within(savedBundle).getByText('Saved locally')).toBeInTheDocument()
-    await user.click(within(savedBundle).getByRole('button', { name: 'Open location' }))
-    expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path: fallbackPath })
+    expect(screen.queryByRole('region', { name: 'Saved locally' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
     const retry = screen.getByRole('button', { name: 'Retry' })
     expect(manualFeedback.compareDocumentPosition(retry)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -324,6 +338,78 @@ describe('DiagnosticUploadDialog', () => {
     await user.click(retry)
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.retry_upload', { bundleId })
     expect(await screen.findByText(reportId)).toBeInTheDocument()
+  })
+
+  it('saves a retained upload on demand and then exposes its selected filename and location', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'diagnostics.bundle.save_upload') return savedUploadResult
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await user.click(await screen.findByRole('button', { name: 'Save locally' }))
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.save_upload', { bundleId })
+    const savedBundle = await screen.findByRole('region', { name: 'Saved locally' })
+    expect(within(savedBundle).getByText('saved-diagnostics.zip')).toBeInTheDocument()
+    expect(within(savedBundle).getByText('Saved locally')).toBeInTheDocument()
+    await user.click(within(savedBundle).getByRole('button', { name: 'Open location' }))
+    expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path: fallbackPath })
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save locally' })).not.toBeInTheDocument()
+  })
+
+  it.each(['discarded', 'not_found'] as const)('waits for a %s retained upload before closing', async (status) => {
+    let resolveDiscard: (result: OutputFor<'diagnostics.bundle.discard_upload'>) => void = () => undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
+      if (route === 'diagnostics.bundle.upload') return Promise.resolve(submissionFailedResult)
+      if (route === 'diagnostics.bundle.discard_upload') {
+        return new Promise<OutputFor<'diagnostics.bundle.discard_upload'>>((resolve) => {
+          resolveDiscard = resolve
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const onOpenChange = vi.fn()
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={onOpenChange} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await closeResultDialog(user)
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.discard_upload', { bundleId })
+    expect(onOpenChange).not.toHaveBeenCalled()
+    resolveDiscard({ status })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it('keeps a retained upload accessible when discard is busy', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'diagnostics.bundle.discard_upload') return { status: 'busy' }
+      return undefined
+    })
+    const onOpenChange = vi.fn()
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={onOpenChange} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await closeResultDialog(user)
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith('Another diagnostic bundle operation is already in progress')
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 
   it('requires duplicate-risk confirmation before retrying an unknown submission and keeps retry locked', async () => {
@@ -346,8 +432,8 @@ describe('DiagnosticUploadDialog', () => {
 
     expect(await screen.findByText('Submission result is unknown')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manual feedback' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Saved locally' })).toHaveTextContent('cherry-studio-diagnostics.zip')
-    expect(screen.getByRole('button', { name: 'Open location' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Saved locally' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show in folder' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
@@ -371,22 +457,22 @@ describe('DiagnosticUploadDialog', () => {
     expect(await screen.findByText(reportId)).toBeInTheDocument()
   })
 
-  it.each([
-    [diagnosticsErrorCodes.FALLBACK_SAVE_FAILED, 'Submit diagnostic report'],
-    [diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED, 'Close']
-  ])('does not report success when preserving a failed upload throws %s', async (errorCode, recoveryAction) => {
+  it('keeps retry available when manually saving a retained upload fails', async () => {
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
-      if (route === 'diagnostics.bundle.upload') throw new IpcError(errorCode)
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'diagnostics.bundle.save_upload') throw new IpcError(diagnosticsErrorCodes.FALLBACK_SAVE_FAILED)
       return undefined
     })
     const user = userEvent.setup()
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
     await completeReview(user)
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await user.click(await screen.findByRole('button', { name: 'Save locally' }))
 
-    await waitFor(() => expect(screen.getAllByRole('button', { name: recoveryAction }).length).toBeGreaterThan(0))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Could not save the diagnostic report'))
+    expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByText('Diagnostic report submitted')).not.toBeInTheDocument()
-    expect(screen.queryByText(reportId)).not.toBeInTheDocument()
   })
 })

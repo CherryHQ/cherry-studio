@@ -41,20 +41,19 @@ const diagnosticUploadInputSchema = diagnosticBundleInputSchema.extend({ descrip
 
 const nonblankStringSchema = z.string().refine((value) => value.trim().length > 0)
 
-const diagnosticUploadFallbackSchema = z.object({
-  bundleId: z.string(),
-  fileName: z.string(),
-  filePath: AbsoluteFilePathSchema
+const diagnosticRetainedUploadSchema = z.object({
+  bundleId: z.string().uuid(),
+  fileName: z.string()
 })
 
 const diagnosticUploadResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('busy') }),
   z.object({ reportId: nonblankStringSchema, status: z.literal('uploaded') }),
-  diagnosticUploadFallbackSchema.extend({
+  diagnosticRetainedUploadSchema.extend({
     reason: diagnosticUploadFailureReasonSchema,
     status: z.literal('submission_failed')
   }),
-  diagnosticUploadFallbackSchema.extend({ status: z.literal('submission_unknown') })
+  diagnosticRetainedUploadSchema.extend({ status: z.literal('submission_unknown') })
 ])
 
 export const diagnosticsRequestSchemas = {
@@ -94,5 +93,20 @@ export const diagnosticsRequestSchemas = {
   'diagnostics.bundle.retry_upload': defineRoute({
     input: z.object({ bundleId: z.string().uuid() }).strict(),
     output: diagnosticUploadResultSchema
+  }),
+  'diagnostics.bundle.save_upload': defineRoute({
+    input: z.object({ bundleId: z.string().uuid() }).strict(),
+    output: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('busy') }),
+      z.object({ status: z.literal('canceled') }),
+      diagnosticRetainedUploadSchema.extend({
+        filePath: AbsoluteFilePathSchema,
+        status: z.literal('saved')
+      })
+    ])
+  }),
+  'diagnostics.bundle.discard_upload': defineRoute({
+    input: z.object({ bundleId: z.string().uuid() }).strict(),
+    output: z.object({ status: z.enum(['busy', 'discarded', 'not_found']) })
   })
 }
