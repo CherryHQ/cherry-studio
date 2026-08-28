@@ -6,8 +6,6 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type * as HooksTabModule from '../../../hooks/tab'
-import type * as MiniAppKeepAliveModule from '@renderer/utils/miniAppKeepAlive'
 
 const mocks = vi.hoisted(() => ({
   closeTab: vi.fn(),
@@ -75,9 +73,9 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
 }))
 
 vi.mock('../../../hooks/tab', async () => {
-  const actual = await vi.importActual<HooksTabModule>('../../../hooks/tab')
+  const actual = (await vi.importActual('../../../hooks/tab')) as Record<string, unknown>
   return {
-    ...actual,
+    ...(actual as object),
     useMainWindowNavigation: vi.fn(),
     useTabs: () => ({
       activeTabId: mocks.activeTabId,
@@ -130,10 +128,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 
 vi.mock('@renderer/utils/miniAppKeepAlive', async () => {
-  const actual = await vi.importActual<MiniAppKeepAliveModule>(
-    '@renderer/utils/miniAppKeepAlive'
-  )
-  return actual
+  const actual = await vi.importActual('@renderer/utils/miniAppKeepAlive')
+  return actual as object
 })
 
 vi.mock('@renderer/utils/webviewStateManager', () => ({
