@@ -7,6 +7,7 @@ import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -897,6 +898,41 @@ describe('FilesPage file operations', () => {
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id, secondEntry.id] })
     })
+  })
+
+  it('selects the visible range when Shift-clicking a file checkbox', async () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' } as unknown as FileEntry
+    renderFilesPage([entry, secondEntry, thirdEntry])
+    const user = userEvent.setup()
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
+
+    await user.click(checkboxes[0])
+    await user.keyboard('{Shift>}')
+    await user.click(checkboxes[2])
+    await user.keyboard('{/Shift}')
+
+    for (const checkbox of checkboxes) {
+      expect(checkbox).toBeChecked()
+    }
+  })
+
+  it('starts a new selection anchor after clearing the previous selection', async () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' } as unknown as FileEntry
+    renderFilesPage([entry, secondEntry, thirdEntry])
+    const user = userEvent.setup()
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
+
+    await user.click(checkboxes[0])
+    await user.click(checkboxes[0])
+    await user.keyboard('{Shift>}')
+    await user.click(checkboxes[2])
+    await user.keyboard('{/Shift}')
+
+    expect(checkboxes[0]).not.toBeChecked()
+    expect(checkboxes[1]).not.toBeChecked()
+    expect(checkboxes[2]).toBeChecked()
   })
 
   it('does not change selection when opening a row context menu', () => {

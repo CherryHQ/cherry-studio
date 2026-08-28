@@ -32,6 +32,7 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
+import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 
 // dsh-llm-pi-ai uses maxTokens as a per-request output cap. Keep pi's
@@ -205,7 +206,7 @@ export function buildDshProviderInjection(
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = provider.settings?.extraHeaders
+  const headers = toAgentProviderHeaders(provider.settings?.extraHeaders)
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {

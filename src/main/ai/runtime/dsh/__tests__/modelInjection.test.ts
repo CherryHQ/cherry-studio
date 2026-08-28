@@ -38,6 +38,7 @@ import { buildDshCompositionYaml } from '../compositionBuilder'
 import {
   assertDshProviderUsable,
   buildDshGatewayInjection,
+  buildDshProviderInjection,
   DshUnsupportedProviderError,
   resolveDshProviderInjectionFromSnapshot
 } from '../modelInjection'
@@ -141,6 +142,20 @@ describe('buildDshGatewayInjection', () => {
 
     const windowless = makeModel({ contextWindow: undefined })
     expect(buildDshGatewayInjection(vertexProvider, windowless, GATEWAY).modelConfig.contextWindow).toBe(256_000)
+  })
+})
+
+describe('buildDshProviderInjection', () => {
+  it('coerces user headers to the strings the dsh route schema accepts', () => {
+    const provider = {
+      ...nativeProvider,
+      settings: { extraHeaders: { 'x-trace': 'on', 'x-legacy': 42, 'x-broken': { a: 1 } } }
+    } as unknown as Provider
+    const model = makeModel({ id: 'deepseek::deepseek-chat', providerId: 'deepseek', apiModelId: 'deepseek-chat' })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
   })
 })
 
