@@ -9,7 +9,18 @@ import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Code,
+  Columns2,
+  ExternalLink,
+  LayoutGrid,
+  Link,
+  RotateCcw,
+  RotateCw,
+  X
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +43,7 @@ interface Props {
   webviewRef: React.RefObject<WebviewTag | null>
   currentUrl: string | null
   onReload: () => void
+  onRestart: () => void
   onOpenDevTools: () => void
   splitMode: SplitMode
   /** Whether the view is currently split, so the control reads as engaged. */
@@ -44,6 +56,7 @@ const MinimalToolbar: FC<Props> = ({
   webviewRef,
   currentUrl,
   onReload,
+  onRestart,
   onOpenDevTools,
   splitMode,
   splitActive = false,
@@ -284,6 +297,18 @@ const MinimalToolbar: FC<Props> = ({
               className={toolbarButtonClassName()}
               aria-label={t('miniApp.popup.refresh')}>
               <RotateCw size={14} />
+            </Button>
+          </Tooltip>
+
+          <Tooltip content={t('miniApp.popup.restart')} placement="bottom">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onRestart}
+              className={toolbarButtonClassName()}
+              aria-label={t('miniApp.popup.restart')}>
+              <RotateCcw size={14} />
             </Button>
           </Tooltip>
         </div>

@@ -9,6 +9,11 @@ const globalWebviewStates = new Map<string, boolean>()
 type WebviewStateListener = (loaded: boolean) => void
 const appListeners = new Map<string, Set<WebviewStateListener>>()
 
+// MiniAppPane owns the toolbar while the global pool owns the <webview> nodes.
+// This channel requests replacement without relying on a potentially missing ref.
+type WebviewRecreateListener = (appId: string) => void
+const recreateListeners = new Set<WebviewRecreateListener>()
+
 const emitState = (appId: string, loaded: boolean) => {
   const listeners = appListeners.get(appId)
   if (listeners && listeners.size) {
@@ -66,6 +71,7 @@ export const clearAllWebviewStates = () => {
   globalWebviewStates.clear()
   logger.debug(`Cleared all WebView states (${count} apps)`)
   appListeners.clear()
+  recreateListeners.clear()
 }
 
 /**
@@ -92,6 +98,29 @@ export const onWebviewStateChange = (appId: string, listener: WebviewStateListen
   return () => {
     listeners.delete(listener)
     if (listeners.size === 0) appListeners.delete(appId)
+  }
+}
+
+/**
+ * Request that the global pool recreate one mini-app WebView after clearing
+ * its loaded state.
+ */
+export const requestWebviewRecreate = (appId: string) => {
+  setWebviewLoaded(appId, false)
+  recreateListeners.forEach((listener) => {
+    try {
+      listener(appId)
+    } catch (e) {
+      logger.debug(`Recreate listener error for ${appId}: ${(e as Error).message}`)
+    }
+  })
+}
+
+/** Subscribe to full WebView recreation requests from mini-app panes. */
+export const onWebviewRecreateRequest = (listener: WebviewRecreateListener): (() => void) => {
+  recreateListeners.add(listener)
+  return () => {
+    recreateListeners.delete(listener)
   }
 }
 

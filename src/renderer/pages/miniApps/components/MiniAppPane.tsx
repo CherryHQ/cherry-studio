@@ -1,6 +1,11 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
-import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import {
+  getWebviewLoaded,
+  onWebviewStateChange,
+  requestWebviewRecreate,
+  setWebviewLoaded
+} from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
@@ -123,6 +128,11 @@ const MiniAppPane: FC<Props> = ({
     webview.reload()
   }, [app.appId, isReady])
 
+  const handleRestart = useCallback(() => {
+    setCurrentUrl(app.url)
+    requestWebviewRecreate(app.appId)
+  }, [app.appId, app.url])
+
   const handleOpenDevTools = useCallback(() => {
     webviewRef.current?.openDevTools()
   }, [])
@@ -138,6 +148,7 @@ const MiniAppPane: FC<Props> = ({
           // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
           onReload={handleReload}
+          onRestart={handleRestart}
           onOpenDevTools={handleOpenDevTools}
           splitMode={splitMode}
           splitActive={splitActive}
