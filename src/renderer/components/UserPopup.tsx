@@ -263,18 +263,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
               </Button>
             </ColFlex>
           ) : cloudStatus?.phase === 'signed-in' ? (
-            <ColFlex className="w-full gap-2">
-              <div
-                role="status"
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-success-border bg-success-subtle px-3 py-2 text-success-subtle-foreground text-xs">
-                <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-success" />
-                <ColFlex className="min-w-0 items-center leading-tight">
-                  {cloudStatus.displayName ? (
-                    <span className="max-w-full truncate font-medium">{cloudStatus.displayName}</span>
-                  ) : null}
-                  <span>{t('settings.provider.cherry_cloud.logged_in')}</span>
-                </ColFlex>
-              </div>
+            <ColFlex className="w-full items-center gap-1.5">
               <Button
                 className="w-full"
                 loading={isRevokingSession}
@@ -282,6 +271,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                 variant="outline">
                 {t('settings.provider.cherry_cloud.logout')}
               </Button>
+              {cloudStatus.displayName ? (
+                <div role="status" className="max-w-full truncate text-foreground-tertiary text-xs leading-tight">
+                  {cloudStatus.displayName}
+                </div>
+              ) : null}
             </ColFlex>
           ) : (
             <ColFlex className="w-full gap-2">

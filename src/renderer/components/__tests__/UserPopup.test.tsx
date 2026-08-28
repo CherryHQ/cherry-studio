@@ -352,7 +352,7 @@ describe('UserPopup', () => {
     showUserPopup()
 
     expect(await screen.findByRole('status')).toHaveTextContent('Sora')
-    expect(screen.getByRole('status')).toHaveTextContent('settings.provider.cherry_cloud.logged_in')
+    expect(screen.getByRole('status')).not.toHaveTextContent('settings.provider.cherry_cloud.logged_in')
     expect(screen.queryByRole('button', { name: 'settings.provider.cherry_cloud.login' })).not.toBeInTheDocument()
 
     act(() => {
