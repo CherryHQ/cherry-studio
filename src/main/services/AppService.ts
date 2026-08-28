@@ -3,10 +3,9 @@ import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
-import { atomicWriteFile } from '@main/utils/file'
+import { atomicWriteFile, ensureDir, remove } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { app } from 'electron'
-import fs from 'fs'
 import path from 'path'
 
 const logger = loggerService.withContext('AppService')
@@ -67,11 +66,13 @@ export class AppService extends BaseService {
 
       app.setLoginItemSettings(settings)
     } else if (isLinux) {
-      const autostartDir = application.getPath('sys.appdata.autostart')
-      const desktopFile = path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
+      const autostartDir = AbsoluteFilePathSchema.parse(application.getPath('sys.appdata.autostart'))
+      const desktopFile = AbsoluteFilePathSchema.parse(
+        path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
+      )
 
       if (isLaunchOnBoot) {
-        await fs.promises.mkdir(autostartDir, { recursive: true })
+        await ensureDir(autostartDir)
 
         // Get executable path
         let executablePath = application.getPath('app.exe_file')
@@ -93,10 +94,10 @@ export class AppService extends BaseService {
   X-GNOME-Autostart-enabled=true
   Hidden=false`
 
-        await atomicWriteFile(AbsoluteFilePathSchema.parse(desktopFile), desktopContent)
+        await atomicWriteFile(desktopFile, desktopContent)
         logger.info('Created autostart desktop file for Linux')
       } else {
-        await fs.promises.rm(desktopFile, { force: true })
+        await remove(desktopFile)
         logger.info('Removed autostart desktop file for Linux')
       }
     }

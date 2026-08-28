@@ -2,16 +2,15 @@ import { BaseService } from '@main/core/lifecycle'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { setLoginItemSettingsMock, platform, mkdirMock, atomicWriteFileMock, rmMock, loggerErrorMock } = vi.hoisted(
-  () => ({
+const { setLoginItemSettingsMock, platform, ensureDirMock, atomicWriteFileMock, removeMock, loggerErrorMock } =
+  vi.hoisted(() => ({
     setLoginItemSettingsMock: vi.fn(),
     platform: { isDev: false, isLinux: false, isMac: false, isPortable: false, isWin: true },
-    mkdirMock: vi.fn(),
+    ensureDirMock: vi.fn(),
     atomicWriteFileMock: vi.fn(),
-    rmMock: vi.fn(),
+    removeMock: vi.fn(),
     loggerErrorMock: vi.fn()
-  })
-)
+  }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -26,15 +25,10 @@ vi.mock('@application', async () => {
 
 vi.mock('@main/core/platform', () => platform)
 
-vi.mock('@main/utils/file', () => ({ atomicWriteFile: atomicWriteFileMock }))
-
-vi.mock('fs', () => ({
-  default: {
-    promises: {
-      mkdir: mkdirMock,
-      rm: rmMock
-    }
-  }
+vi.mock('@main/utils/file', () => ({
+  atomicWriteFile: atomicWriteFileMock,
+  ensureDir: ensureDirMock,
+  remove: removeMock
 }))
 
 vi.mock('electron', () => ({
@@ -68,15 +62,15 @@ describe('AppService', () => {
     platform.isWin = true
     linuxFiles.clear()
     setLoginItemSettingsMock.mockReset()
-    mkdirMock.mockReset()
+    ensureDirMock.mockReset()
     atomicWriteFileMock.mockReset()
-    rmMock.mockReset()
+    removeMock.mockReset()
     loggerErrorMock.mockReset()
-    mkdirMock.mockResolvedValue(undefined)
+    ensureDirMock.mockResolvedValue(undefined)
     atomicWriteFileMock.mockImplementation(async (target: string) => {
       linuxFiles.add(target)
     })
-    rmMock.mockImplementation(async (target: string) => {
+    removeMock.mockImplementation(async (target: string) => {
       linuxFiles.delete(target)
     })
     MockMainPreferenceServiceUtils.resetMocks()
@@ -122,8 +116,8 @@ describe('AppService', () => {
     const service = new AppService()
     activeServices.push(service)
     await service._doInit()
-    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
-    rmMock.mockClear()
+    await vi.waitFor(() => expect(removeMock).toHaveBeenCalledOnce())
+    removeMock.mockClear()
 
     const writeGate = deferred()
     let writeStarted!: () => void
@@ -141,7 +135,7 @@ describe('AppService', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', false)
     writeGate.resolve()
 
-    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(removeMock).toHaveBeenCalledOnce())
     expect(linuxFiles.has(desktopFile)).toBe(false)
   })
 
@@ -151,8 +145,8 @@ describe('AppService', () => {
     const service = new AppService()
     activeServices.push(service)
     await service._doInit()
-    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
-    rmMock.mockClear()
+    await vi.waitFor(() => expect(removeMock).toHaveBeenCalledOnce())
+    removeMock.mockClear()
 
     const writeGate = deferred()
     let writeStarted!: () => void
@@ -180,11 +174,11 @@ describe('AppService', () => {
 
     MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', false)
     await new Promise<void>((resolve) => setImmediate(resolve))
-    expect(rmMock).not.toHaveBeenCalled()
+    expect(removeMock).not.toHaveBeenCalled()
     expect(linuxFiles.has(desktopFile)).toBe(true)
 
     await service._doInit()
-    await vi.waitFor(() => expect(rmMock).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(removeMock).toHaveBeenCalledOnce())
     expect(linuxFiles.has(desktopFile)).toBe(false)
   })
 
@@ -218,7 +212,7 @@ describe('AppService', () => {
     platform.isWin = false
     MockMainPreferenceServiceUtils.setPreferenceValue('app.launch_on_boot', true)
     const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
-    mkdirMock.mockRejectedValueOnce(error)
+    ensureDirMock.mockRejectedValueOnce(error)
     const service = new AppService()
     activeServices.push(service)
 
@@ -233,7 +227,7 @@ describe('AppService', () => {
       platform.isLinux = true
       platform.isWin = false
       const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
-      mkdirMock.mockRejectedValueOnce(error)
+      ensureDirMock.mockRejectedValueOnce(error)
 
       await expect(new AppService().setAppLaunchOnBoot(true)).rejects.toBe(error)
 
@@ -249,15 +243,42 @@ describe('AppService', () => {
       await expect(new AppService().setAppLaunchOnBoot(true)).rejects.toBe(error)
     })
 
-    it('uses forceful removal while propagating other Linux removal errors', async () => {
+    it('writes the required Linux desktop entry using the application executable', async () => {
+      platform.isLinux = true
+      platform.isWin = false
+
+      await new AppService().setAppLaunchOnBoot(true)
+
+      expect(ensureDirMock).toHaveBeenCalledWith(autostartDir)
+      expect(atomicWriteFileMock).toHaveBeenCalledWith(desktopFile, expect.any(String))
+      const desktopContent = atomicWriteFileMock.mock.calls[0][1]
+      expect(desktopContent).toContain('Type=Application')
+      expect(desktopContent).toContain('Exec=/mock/app.exe_file')
+      expect(desktopContent).toContain('X-GNOME-Autostart-enabled=true')
+      expect(desktopContent).toContain('Hidden=false')
+    })
+
+    it('uses the stable AppImage path in the Linux desktop entry', async () => {
+      platform.isLinux = true
+      platform.isWin = false
+      vi.stubEnv('APPIMAGE', '/opt/CherryStudio.AppImage')
+
+      await new AppService().setAppLaunchOnBoot(true)
+
+      const desktopContent = atomicWriteFileMock.mock.calls[0][1]
+      expect(desktopContent).toContain('Exec=/opt/CherryStudio.AppImage')
+      expect(desktopContent).not.toContain('Exec=/mock/app.exe_file')
+    })
+
+    it('propagates Linux removal errors', async () => {
       platform.isLinux = true
       platform.isWin = false
       const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
-      rmMock.mockRejectedValueOnce(error)
+      removeMock.mockRejectedValueOnce(error)
 
       await expect(new AppService().setAppLaunchOnBoot(false)).rejects.toBe(error)
 
-      expect(rmMock).toHaveBeenCalledWith(desktopFile, { force: true })
+      expect(removeMock).toHaveBeenCalledWith(desktopFile)
     })
 
     it('registers the stable launcher for Windows portable builds', async () => {
