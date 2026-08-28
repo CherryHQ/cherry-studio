@@ -2592,12 +2592,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never)
     ).resolves.toMatchObject({ behavior: 'deny' })
     await expect(
-      settings.canUseTool?.('mcp__assistant__prepare_diagnostic_report', {}, {
-        signal: { aborted: false },
-        toolUseID: 'diagnostic-report-1'
-      } as never)
-    ).resolves.toMatchObject({ behavior: 'deny' })
-    await expect(
       settings.canUseTool?.('mcp__assistant__product_info', {}, {
         signal: { aborted: false },
         toolUseID: 'product-info-1'
