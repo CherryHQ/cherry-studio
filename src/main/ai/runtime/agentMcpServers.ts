@@ -101,13 +101,13 @@ export function buildAgentMcpServers(
     }
   }
 
-  if (hostTools && mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
+  if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      instance: new AssistantServer(agent.model ?? undefined, hostTools.tools).mcpServer
+      instance: new AssistantServer(agent.model ?? undefined, hostTools?.tools).mcpServer
     }
   }
-  if (hostTools && mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
+  if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
     servers['assistant-files'] = {
       name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
       instance: new AssistantFileToolsServer({
