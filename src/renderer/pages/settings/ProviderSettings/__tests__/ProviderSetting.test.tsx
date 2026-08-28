@@ -6,7 +6,6 @@ import ProviderSetting from '../ProviderSetting'
 
 const useProviderMock = vi.fn()
 const useProviderApiKeyMock = vi.fn()
-const updateProviderMock = vi.fn()
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -68,8 +67,7 @@ describe('ProviderSetting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', isEnabled: false, name: 'openai' },
-      updateProvider: updateProviderMock
+      provider: { id: 'openai', isEnabled: false, name: 'openai' }
     })
     useProviderApiKeyMock.mockReturnValue({
       serverApiKey: 'server-key',
@@ -89,7 +87,6 @@ describe('ProviderSetting', () => {
     expect(screen.getByText('model-list-openai-shared-draft-key')).toBeInTheDocument()
     expect(useProviderApiKeyMock).toHaveBeenCalledTimes(1)
     expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
-    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
   it('opens the requested setup step when a newly created provider is selected', () => {

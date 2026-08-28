@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "Schlüssel bearbeiten",
   "settings.provider.api_setup.enable_failed": "Die Modellprüfung war erfolgreich, aber der Anbieter konnte nicht aktiviert werden",
   "settings.provider.api_setup.keys_placeholder": "API-Schlüssel eingeben",
-  "settings.provider.api_setup.manual_description": "Die ausgewählten Modelle unterstützen nur kostenintensive oder nicht unterstützte Prüfungen. Sie wurden hinzugefügt, der Anbieter bleibt jedoch deaktiviert. Führen Sie eine Modellprüfung aus und aktivieren Sie den Anbieter nach erfolgreicher Bestätigung manuell.",
+  "settings.provider.api_setup.manual_description": "Für die ausgewählten Modelle ist keine automatische Prüfung verfügbar. Die Modelle wurden hinzugefügt, der Anbieter bleibt jedoch deaktiviert. Aktivieren Sie den Anbieter manuell, nachdem Sie die Konfiguration überprüft haben.",
   "settings.provider.api_setup.models_empty_hint": "Ihr API-Schlüssel ist gespeichert. Wählen Sie mindestens ein Modell aus, um die Einrichtung abzuschließen.",
   "settings.provider.api_setup.models_title": "Modelle auswählen",
   "settings.provider.api_setup.next": "Nächster",

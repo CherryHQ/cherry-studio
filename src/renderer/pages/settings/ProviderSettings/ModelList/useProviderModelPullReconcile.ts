@@ -31,7 +31,7 @@ function uniqueById(models: Model[]): Model[] {
   return Array.from(result.values())
 }
 
-export interface ProviderModelLoadResult {
+interface ProviderModelLoadResult {
   models: Model[]
   error: unknown | null
 }

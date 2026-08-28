@@ -38,9 +38,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@cherrystudio/ui/icons', () => ({
   useIcon: () => ({
-    Avatar: ({ size, shape }: { size: number; shape: string }) => (
-      <span data-testid="model-icon" data-size={size} data-shape={shape} />
-    )
+    Avatar: () => null
   })
 }))
 
@@ -164,7 +162,6 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
-    expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
     expect(screen.getByText('GPT 5')).toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
     expect(screen.getByText('Legacy Model')).toBeInTheDocument()

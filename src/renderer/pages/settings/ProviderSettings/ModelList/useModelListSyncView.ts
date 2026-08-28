@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ModelGroups, ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 import { applyModelFilters, getCapabilityModelCounts, groupModels } from './modelListDerivedState'
 
-export type ModelListSyncFilter = ModelListCapabilityFilter | 'stale'
+type ModelListSyncFilter = ModelListCapabilityFilter | 'stale'
 
 interface UseModelListSyncViewOptions {
   models: Model[]

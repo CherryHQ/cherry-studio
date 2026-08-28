@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "Chỉnh sửa khóa",
   "settings.provider.api_setup.enable_failed": "Kiểm tra mô hình đã thành công nhưng không thể bật nhà cung cấp",
   "settings.provider.api_setup.keys_placeholder": "Nhập khóa API",
-  "settings.provider.api_setup.manual_description": "Các mô hình đã chọn chỉ hỗ trợ kiểm tra chi phí cao hoặc chưa được hỗ trợ. Chúng đã được thêm nhưng nhà cung cấp vẫn tắt. Hãy chạy kiểm tra mô hình và bật nhà cung cấp theo cách thủ công sau khi xác nhận mô hình hoạt động.",
+  "settings.provider.api_setup.manual_description": "Không thể tự động kiểm tra các mô hình đã chọn. Các mô hình đã được thêm nhưng nhà cung cấp vẫn tắt. Hãy bật nhà cung cấp theo cách thủ công sau khi xác nhận cấu hình chính xác.",
   "settings.provider.api_setup.models_empty_hint": "Khóa API của bạn đã được lưu. Chọn ít nhất một mô hình để hoàn tất thiết lập.",
   "settings.provider.api_setup.models_title": "Chọn mô hình",
   "settings.provider.api_setup.next": "Tiếp theo",

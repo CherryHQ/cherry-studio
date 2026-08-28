@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "修改金鑰",
   "settings.provider.api_setup.enable_failed": "模型驗證已通過，但無法啟用服務商",
   "settings.provider.api_setup.keys_placeholder": "輸入 API 金鑰",
-  "settings.provider.api_setup.manual_description": "所選模型僅支援高成本檢測，或暫不支援自動檢測。模型已新增，但服務商仍保持關閉。請手動執行模型檢測，確認可用後再啟用服務商。",
+  "settings.provider.api_setup.manual_description": "所選模型無法自動檢測。模型已新增，但服務商仍保持關閉。確認設定無誤後，請手動啟用服務商。",
   "settings.provider.api_setup.models_empty_hint": "API 金鑰已儲存。請選擇至少一個模型以完成設定。",
   "settings.provider.api_setup.models_title": "選擇模型",
   "settings.provider.api_setup.next": "下一步",

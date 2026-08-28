@@ -69,7 +69,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
   const enabledCount = apiKeys.filter((item) => item.isEnabled).length
 
   const persist = useCallback(
-    async (mutation: () => Promise<unknown>) => {
+    async (mutation: () => Promise<void>) => {
       if (savingRef.current) {
         return false
       }

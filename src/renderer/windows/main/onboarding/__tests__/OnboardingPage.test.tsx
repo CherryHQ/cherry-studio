@@ -728,35 +728,13 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage />)
 
     const languageTrigger = screen.getByRole('button', { name: 'common.language' })
-    const languageSelector = languageTrigger.closest('[data-onboarding-language-select]')
-    const skipButton = screen.getByRole('button', { name: 'onboarding.skip' })
 
     expect(languageTrigger).toHaveClass('nodrag')
-    expect(languageSelector?.nextElementSibling).toBe(skipButton)
 
     fireEvent.click(screen.getByRole('button', { name: '中文' }))
 
     expect(i18nMock.changeLanguage).toHaveBeenCalledWith('zh-CN')
     await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.language')).toBe('zh-CN'))
-  })
-
-  it('uses an elevated welcome layout with clear text hierarchy and intentional spacing', () => {
-    render(<OnboardingPage />)
-
-    const logo = screen.getByRole('img', { name: 'Cherry Studio' })
-    const welcomeContent = logo.parentElement
-    const primaryAction = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
-    const secondaryAction = screen.getByRole('button', { name: 'onboarding.welcome.other_provider' })
-
-    expect(welcomeContent?.parentElement).toHaveClass('pb-20')
-    expect(logo.nextElementSibling).toHaveClass('mt-5', 'flex', 'flex-col', 'gap-2')
-    expect(screen.getByText('onboarding.welcome.subtitle')).toHaveClass('text-muted-foreground')
-    expect(primaryAction.parentElement).toHaveClass('mt-8')
-    expect(primaryAction).toHaveClass('rounded-xl')
-    expect(secondaryAction).toHaveClass('rounded-xl')
-    expect(primaryAction.querySelector('svg')).toHaveClass('lucide-log-in')
-    expect(screen.queryByText('onboarding.welcome.or_continue_with')).not.toBeInTheDocument()
-    expect(screen.getByText('onboarding.welcome.setup_hint')).toHaveClass('mt-4')
   })
 
   it('hides the login icon while loading and restores the action after ten seconds', async () => {

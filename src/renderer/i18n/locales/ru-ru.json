@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "Изменить ключ",
   "settings.provider.api_setup.enable_failed": "Проверка модели прошла успешно, но включить провайдера не удалось",
   "settings.provider.api_setup.keys_placeholder": "Введите API-ключ",
-  "settings.provider.api_setup.manual_description": "Выбранные модели поддерживают только дорогостоящие или неподдерживаемые проверки. Они добавлены, но провайдер остаётся выключенным. Запустите проверку модели и включите провайдера вручную после подтверждения его работы.",
+  "settings.provider.api_setup.manual_description": "Автоматическая проверка недоступна для выбранных моделей. Модели добавлены, но провайдер остаётся выключенным. Включите провайдера вручную после проверки правильности конфигурации.",
   "settings.provider.api_setup.models_empty_hint": "API-ключ сохранён. Выберите хотя бы одну модель, чтобы завершить настройку.",
   "settings.provider.api_setup.models_title": "Выберите модели",
   "settings.provider.api_setup.next": "Далее",

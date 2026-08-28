@@ -25,7 +25,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
   const showContinueApiSetup =
     providerMeta.isApiKeyFieldVisible &&
     providerMeta.provider?.authOptional !== true &&
-    (providerMeta.provider?.apiKeys.length ?? 0) > 0
+    providerMeta.provider?.apiKeys.some((entry) => entry.isEnabled) === true
   const toolbarDisabled = disabled
   const toggleGroupsExpanded = useCallback(() => {
     setGroupExpansionCommand((current) => ({

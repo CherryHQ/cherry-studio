@@ -27,10 +27,7 @@ interface UseProviderEditorParams {
   onProviderCreated: (providerId: string, context: ProviderCreationContext) => void
 }
 
-export interface ProviderCreationContext {
-  kind: 'custom' | 'duplicate'
-  hasApiKey: boolean
-}
+export type ProviderCreationContext = { kind: 'custom'; hasApiKey: boolean } | { kind: 'duplicate' }
 
 /**
  * Discriminated by `mode` so the type system enforces per-mode field
@@ -162,10 +159,15 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         submitTokenRef.current === submitToken &&
         (creationMode === 'create-custom' || creationMode === 'duplicate')
       ) {
-        onProviderCreated(provider.id, {
-          kind: creationMode === 'create-custom' ? 'custom' : 'duplicate',
-          hasApiKey: params.apiKeys?.some((entry) => entry.isEnabled && Boolean(entry.key.trim())) ?? false
-        })
+        onProviderCreated(
+          provider.id,
+          creationMode === 'create-custom'
+            ? {
+                kind: 'custom',
+                hasApiKey: params.apiKeys?.some((entry) => entry.isEnabled && Boolean(entry.key.trim())) ?? false
+              }
+            : { kind: 'duplicate' }
+        )
         cancel()
       }
     },

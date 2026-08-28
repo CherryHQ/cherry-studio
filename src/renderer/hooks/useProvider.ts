@@ -190,7 +190,7 @@ export function useProviderMutations(providerId: string) {
   const addApiKey = useCallback(
     async (key: string, label?: string) => {
       try {
-        return await addApiKeyTrigger({ params: { providerId }, body: { key, label } })
+        await addApiKeyTrigger({ params: { providerId }, body: { key, label } })
       } catch (error) {
         logger.error('Failed to add API key', { providerId, errorType: getErrorType(error) })
         throw error

@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "キーを編集",
   "settings.provider.api_setup.enable_failed": "モデルのチェックには成功しましたが、プロバイダーを有効にできませんでした",
   "settings.provider.api_setup.keys_placeholder": "APIキーを入力",
-  "settings.provider.api_setup.manual_description": "選択したモデルは、高コストまたは未対応のチェックのみをサポートしています。モデルは追加されましたが、プロバイダーは無効のままです。モデルチェックを実行し、動作を確認してからプロバイダーを手動で有効にしてください。",
+  "settings.provider.api_setup.manual_description": "選択したモデルでは自動チェックを利用できません。モデルは追加されましたが、プロバイダーは無効のままです。設定が正しいことを確認してから、プロバイダーを手動で有効にしてください。",
   "settings.provider.api_setup.models_empty_hint": "API キーは保存されています。セットアップを完了するには、少なくとも 1 つのモデルを選択してください。",
   "settings.provider.api_setup.models_title": "モデルを選択",
   "settings.provider.api_setup.next": "次へ",

@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "Edit key",
   "settings.provider.api_setup.enable_failed": "The model check passed, but the provider could not be enabled",
   "settings.provider.api_setup.keys_placeholder": "Enter API key",
-  "settings.provider.api_setup.manual_description": "The selected models only support high-cost or unsupported checks. They were added, but the provider remains off. Run a model check and enable the provider manually after confirming it works.",
+  "settings.provider.api_setup.manual_description": "Automatic checking is unavailable for the selected models. The models were added, but the provider remains off. Enable the provider manually after confirming the configuration is correct.",
   "settings.provider.api_setup.models_empty_hint": "Your API key is saved. Choose at least one model to finish setup.",
   "settings.provider.api_setup.models_title": "Choose models",
   "settings.provider.api_setup.next": "Next",

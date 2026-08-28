@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "Editează cheia",
   "settings.provider.api_setup.enable_failed": "Verificarea modelului a reușit, dar furnizorul nu a putut fi activat",
   "settings.provider.api_setup.keys_placeholder": "Introdu cheia API",
-  "settings.provider.api_setup.manual_description": "Modelele selectate acceptă doar verificări costisitoare sau neacceptate. Au fost adăugate, dar furnizorul rămâne dezactivat. Rulează o verificare a modelului și activează manual furnizorul după ce confirmi că funcționează.",
+  "settings.provider.api_setup.manual_description": "Verificarea automată nu este disponibilă pentru modelele selectate. Modelele au fost adăugate, dar furnizorul rămâne dezactivat. Activează manual furnizorul după ce confirmi că configurația este corectă.",
   "settings.provider.api_setup.models_empty_hint": "Cheia API este salvată. Alege cel puțin un model pentru a finaliza configurarea.",
   "settings.provider.api_setup.models_title": "Alege modelele",
   "settings.provider.api_setup.next": "Următorul",

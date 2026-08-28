@@ -135,9 +135,11 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     () => savedApiKeyEntries ?? apiKeysData?.keys ?? [],
     [apiKeysData?.keys, savedApiKeyEntries]
   )
-  const storedApiKey = storedApiKeyEntries.find((entry) => entry.isEnabled) ?? storedApiKeyEntries[0]
-  const hasStoredApiKey = storedApiKeyEntries.length > 0
+  const storedApiKey = storedApiKeyEntries.find((entry) => entry.isEnabled)
+  const hasStoredApiKey = storedApiKey !== undefined
+  const hasOnlyDisabledApiKeys = storedApiKeyEntries.length > 0 && !hasStoredApiKey
   const verificationApiKey = parseProviderApiKeys(apiKey)[0] || storedApiKey?.key || ''
+  const hasBlockingModelError = error?.kind === 'models' && availableModels.length === 0
   const activeVerificationStep: VerificationStep | null =
     busyState === 'checking' ? 'check' : busyState === 'enabling' ? 'enable' : null
   const failedVerificationStep: VerificationStep | null =
@@ -260,8 +262,12 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     }
 
     initializedRef.current = true
+    if (hasOnlyDisabledApiKeys) {
+      setStep('api-key')
+      return
+    }
     void loadModels()
-  }, [initialStep, isLoadingApiKeys, loadModels])
+  }, [hasOnlyDisabledApiKeys, initialStep, isLoadingApiKeys, loadModels])
 
   const saveApiKey = useCallback(
     async (action: 'close' | 'next') => {
@@ -497,7 +503,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
             'gap-5 transition-[height] duration-150 ease-out [interpolate-size:allow-keywords] motion-reduce:transition-none [&_[data-slot=dialog-close]]:top-7',
             step === 'models' &&
               !isModelListLoading &&
-              error?.kind !== 'models' &&
+              !hasBlockingModelError &&
               availableModels.length > 0 &&
               'h-[min(720px,calc(100vh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]'
           )}>
@@ -600,7 +606,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                   <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
                   {t('common.loading')}
                 </div>
-              ) : error?.kind === 'models' ? (
+              ) : hasBlockingModelError ? (
                 <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 px-1">
                   <Button
                     type="button"
@@ -638,7 +644,16 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                 />
               )}
 
-              {error?.kind !== 'models' && error ? <SetupErrorMessage message={error.message} /> : null}
+              {error && !hasBlockingModelError ? (
+                <SetupErrorMessage
+                  message={error.message}
+                  className={
+                    error.kind === 'models'
+                      ? 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
+                      : undefined
+                  }
+                />
+              ) : null}
             </div>
           ) : (
             <ol className="space-y-1 px-1">
@@ -742,7 +757,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                     <Button type="button" variant="outline" disabled={!canDismissDialog} onClick={requestClose}>
                       {t('common.cancel')}
                     </Button>
-                    {error?.kind === 'models' ? (
+                    {hasBlockingModelError ? (
                       <Button type="button" disabled={isBusy} onClick={() => void loadModels()}>
                         {t('common.retry')}
                       </Button>

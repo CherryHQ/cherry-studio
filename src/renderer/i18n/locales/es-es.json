@@ -4287,7 +4287,7 @@
   "settings.provider.api_setup.edit_key": "Editar clave",
   "settings.provider.api_setup.enable_failed": "La comprobación del modelo se completó, pero no se pudo activar el proveedor",
   "settings.provider.api_setup.keys_placeholder": "Introduzca la clave API",
-  "settings.provider.api_setup.manual_description": "Los modelos seleccionados solo admiten comprobaciones de alto coste o no compatibles. Se han añadido, pero el proveedor sigue desactivado. Ejecuta una comprobación del modelo y activa el proveedor manualmente después de confirmar que funciona.",
+  "settings.provider.api_setup.manual_description": "La comprobación automática no está disponible para los modelos seleccionados. Los modelos se han añadido, pero el proveedor sigue desactivado. Activa el proveedor manualmente después de confirmar que la configuración es correcta.",
   "settings.provider.api_setup.models_empty_hint": "Tu clave API está guardada. Elige al menos un modelo para finalizar la configuración.",
   "settings.provider.api_setup.models_title": "Elegir modelos",
   "settings.provider.api_setup.next": "Siguiente",
