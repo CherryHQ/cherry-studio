@@ -7,7 +7,7 @@ export interface CodeCliToolPreset {
   skillFolderName: string
   skillNamespace: `code-cli:${CodeCli}`
   packageName: string
-  install: 'registry' | 'npm' | 'pipx'
+  install: 'registry' | 'npm' | 'pipx' | 'aqua'
   miseTool: string
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
@@ -62,6 +62,13 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     skillFolderName: 'code-mate-opencode',
     packageName: 'opencode-ai',
     install: 'registry'
+  }),
+  defineCodeCliTool({
+    id: CodeCli.ANTIGRAVITY_CLI,
+    executable: 'agy',
+    skillFolderName: 'code-mate-antigravity',
+    packageName: 'google-antigravity/antigravity-cli',
+    install: 'aqua'
   }),
   defineCodeCliTool({
     id: CodeCli.OPENCLAW,
