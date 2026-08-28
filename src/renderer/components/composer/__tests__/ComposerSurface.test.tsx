@@ -4387,6 +4387,34 @@ describe('ComposerSurface', () => {
     expect(mocks.deleteSelection).not.toHaveBeenCalled()
   })
 
+  it('preserves the selected draft when the composer becomes read-only before deferred file preparation', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    mocks.selection = { empty: false, from: 2, to: 6, $to: {} }
+    let prepareFiles: (() => void) | undefined
+    mocks.pasteHandler.mockImplementation((_event, options) => {
+      prepareFiles = options?.beforeAddFiles
+      return Promise.resolve(true)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        files: [{ name: 'new-image.png', type: 'image/png' }],
+        items: [{ kind: 'file', type: 'image/png' }]
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
+    mocks.currentView.dom.editor.isEditable = false
+    prepareFiles?.()
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.deleteSelection).not.toHaveBeenCalled()
+  })
+
   it('preserves a selected draft when a clipboard file cannot be attached', async () => {
     const onTokensChange = vi.fn()
     const fileToken = {

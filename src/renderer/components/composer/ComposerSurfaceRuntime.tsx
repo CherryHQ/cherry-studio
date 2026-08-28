@@ -1625,7 +1625,7 @@ export default function ComposerSurfaceRuntime({
         selection && !selection.empty ? { from: selection.from, to: selection.to } : undefined
       const filePasteLifecycle = {
         beforeAddFiles: () => {
-          if (!editor || editor.isDestroyed || !replacementSelection) return
+          if (!editor || editor.isDestroyed || !editor.isEditable || !replacementSelection) return
           const currentSelection = editor.state.selection
           if (
             currentSelection.empty ||
