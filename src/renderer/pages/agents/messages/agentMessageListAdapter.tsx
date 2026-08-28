@@ -23,6 +23,7 @@ import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -97,6 +98,7 @@ interface AgentMessageListParams {
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
@@ -152,6 +154,7 @@ export function useAgentMessageListProviderValue({
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  diagnosticReport,
   deleteMessage,
   respondToolApproval,
   imageActionConsumer,
@@ -234,10 +237,6 @@ export function useAgentMessageListProviderValue({
       })
     },
     [sessionId]
-  )
-  const diagnosticReport = useMemo(
-    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.agent') } : undefined),
-    [normalInteractionsEnabled, t]
   )
   const {
     errorActions,

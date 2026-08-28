@@ -407,15 +407,18 @@ describe('useAgentMessageListProviderValue', () => {
     dataApiMocks.get.mockResolvedValue({
       data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }] }
     })
+    const diagnosticReport = { location: 'Interactive Agent conversation' }
 
     const Probe = () => {
-      useAgentMessageListProviderValue({
+      const params = {
         topic,
         messages: [],
         partsByMessageId: {},
+        diagnosticReport,
         isLoading: false,
         messageNavigation: 'anchor'
-      })
+      }
+      useAgentMessageListProviderValue(params)
       return null
     }
     render(<Probe />)
@@ -424,7 +427,7 @@ describe('useAgentMessageListProviderValue', () => {
       diagnosticReport: { location: string }
       persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
     }
-    expect(options.diagnosticReport).toEqual({ location: 'error.diagnostic_report.locations.agent' })
+    expect(options.diagnosticReport).toEqual(diagnosticReport)
     await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
 
     expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
@@ -441,6 +444,34 @@ describe('useAgentMessageListProviderValue', () => {
         }
       }
     })
+  })
+
+  it('omits diagnostic-report actions when the consumer does not provide that capability', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Read-only Agent tool flow',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+
+    const Probe = () => {
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
+    )
   })
 
   it('renders terminal fallbacks in both current and sealed history layers', () => {
