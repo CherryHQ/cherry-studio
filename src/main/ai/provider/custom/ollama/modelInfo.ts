@@ -4,12 +4,11 @@ import {
   postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
-import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
 import { formatOllamaApiHost } from '@shared/utils/api'
 import * as z from 'zod'
 
-import { getBaseUrl, getExtraHeaders } from '../../../utils/provider'
+import { buildProviderHeaders, getBaseUrl } from '../../../utils/provider'
 import { OllamaShowResponseSchema } from '../../listModelsSchemas'
 
 const OllamaErrorSchema = z.looseObject({
@@ -51,9 +50,9 @@ export function extractOllamaContextWindow(modelInfo: Record<string, unknown> | 
 export async function resolveOllamaModelContextWindow(
   provider: Provider,
   modelApiId: string,
-  options?: { signal?: AbortSignal; apiKey?: string }
+  options?: { signal?: AbortSignal; apiKey?: string; baseUrl?: string }
 ): Promise<number | undefined> {
-  const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
+  const baseUrl = formatOllamaApiHost(options?.baseUrl ?? getBaseUrl(provider))
   const cacheKey = `${baseUrl}\n${modelApiId}`
   pruneExpiredContextWindows(Date.now())
   const cached = contextWindowCache.get(cacheKey)
@@ -73,17 +72,11 @@ async function fetchOllamaModelContextWindow(
   provider: Provider,
   modelApiId: string,
   baseUrl: string,
-  options?: { signal?: AbortSignal; apiKey?: string }
+  options?: { signal?: AbortSignal; apiKey?: string; baseUrl?: string }
 ): Promise<number | undefined> {
-  const apiKey = options?.apiKey
-  const headers = {
-    ...defaultAppHeaders(),
-    ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
-    ...getExtraHeaders(provider)
-  }
   const { value } = await postJsonToApi({
     url: `${baseUrl}/show`,
-    headers,
+    headers: buildProviderHeaders(provider, options?.apiKey),
     body: { model: modelApiId, verbose: false },
     successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
     failedResponseHandler: createJsonErrorResponseHandler({

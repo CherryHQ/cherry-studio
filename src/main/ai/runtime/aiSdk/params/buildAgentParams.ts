@@ -142,7 +142,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride,
     request.chatId
   )
-  const model = await resolveRuntimeModel(provider, configuredModel, signal, getSdkApiKey(sdkConfig))
+  const model = await resolveRuntimeModel(
+    provider,
+    configuredModel,
+    signal,
+    getSdkApiKey(sdkConfig),
+    resolvedEndpoint.baseUrl
+  )
   applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
@@ -327,14 +333,16 @@ async function resolveRuntimeModel(
   provider: Provider,
   model: Model,
   signal: AbortSignal | undefined,
-  apiKey: string | undefined
+  apiKey: string | undefined,
+  baseUrl: string
 ): Promise<Model> {
   if (!isOllamaProvider(provider) || model.contextWindow || !model.apiModelId) return model
 
   try {
     const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId, {
       signal,
-      apiKey
+      apiKey,
+      baseUrl
     })
     return contextWindow ? { ...model, contextWindow } : model
   } catch (error) {

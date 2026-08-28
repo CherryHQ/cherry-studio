@@ -139,7 +139,8 @@ describe('buildAgentParams provider resolution', () => {
 
     expect(resolveOllamaModelContextWindowMock).toHaveBeenCalledWith(provider, 'custom-gemma:12b', {
       signal: undefined,
-      apiKey: 'selected-secret-key'
+      apiKey: 'selected-secret-key',
+      baseUrl: 'http://ollama.test:11434'
     })
     expect(result.options.providerOptions).toMatchObject({
       ollama: { options: { num_ctx: 131_072 } }

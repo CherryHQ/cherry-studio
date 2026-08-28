@@ -35,7 +35,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
+import { buildProviderHeaders, defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { resolveOllamaModelContextWindow } from './custom/ollama/modelInfo'
 import {
@@ -182,11 +182,7 @@ const ollamaFetcher: ModelFetcher = {
       .replace(/\/api$/, '')
     const response = await getFromApi({
       url: `${baseUrl}/api/tags`,
-      headers: {
-        ...defaultAppHeaders(),
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
-        ...getExtraHeaders(provider)
-      },
+      headers: buildProviderHeaders(provider, apiKey),
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
@@ -202,7 +198,8 @@ const ollamaFetcher: ModelFetcher = {
         try {
           const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId ?? '', {
             signal,
-            apiKey
+            apiKey,
+            baseUrl
           })
           return contextWindow ? { ...model, contextWindow } : model
         } catch (error) {

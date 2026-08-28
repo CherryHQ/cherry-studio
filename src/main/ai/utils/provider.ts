@@ -56,13 +56,16 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   return { ...headers, 'X-Source': 'cherry-studio' }
 }
 
-export function defaultHeaders(provider: Provider): Record<string, string> {
-  const apiKey = providerService.getRotatedApiKey(provider.id)
+export function buildProviderHeaders(provider: Provider, apiKey: string | undefined): Record<string, string> {
   return {
     ...defaultAppHeaders(),
     ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
     ...getExtraHeaders(provider)
   }
+}
+
+export function defaultHeaders(provider: Provider): Record<string, string> {
+  return buildProviderHeaders(provider, providerService.getRotatedApiKey(provider.id))
 }
 
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
