@@ -23,6 +23,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -348,9 +349,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.bridge.listen()
 
       const sdk = await loadDshSdk()
-      const binaryExecutionEnv = mergeBinaryExecutionEnv(
-        process.env.PATH !== undefined ? { PATH: process.env.PATH } : {}
-      )
+      const loginShellEnv = await getShellEnv()
+      const loginPath = getPathFromEnvironment(loginShellEnv)
+      const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
@@ -359,7 +360,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         cwd: workspacePath,
         env: {
           ...binaryExecutionEnv,
-          ...(process.env.HOME !== undefined ? { HOME: process.env.HOME } : {}),
+          ...(loginShellEnv.HOME !== undefined
+            ? { HOME: loginShellEnv.HOME }
+            : process.env.HOME !== undefined
+              ? { HOME: process.env.HOME }
+              : {}),
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,

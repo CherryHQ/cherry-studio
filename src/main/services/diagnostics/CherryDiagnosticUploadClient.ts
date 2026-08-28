@@ -146,7 +146,7 @@ function rejectedResult(response: Response, fileSha256: string, body?: Buffer): 
 
 export class CherryDiagnosticUploadClient {
   async upload(input: CherryDiagnosticUploadInput): Promise<CherryDiagnosticUploadResult> {
-    if (!isZipPath(input.fileName) || !isZipPath(input.filePath)) return rejected('invalid_archive')
+    if (!isZipPath(input.fileName)) return rejected('invalid_archive')
 
     let snapshot: ReadableFileSnapshot | undefined
     try {

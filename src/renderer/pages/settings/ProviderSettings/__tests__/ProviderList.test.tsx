@@ -1,7 +1,8 @@
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProviderList } from '../ProviderList'
@@ -298,6 +299,38 @@ describe('ProviderList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
     expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
+  })
+
+  it('reports a newly created custom provider so model setup can continue automatically', async () => {
+    const user = userEvent.setup()
+    const createProvider = vi.fn().mockResolvedValue({ id: 'custom-provider', name: 'Custom Provider' })
+    const onSelectProvider = vi.fn()
+    const onCustomProviderCreated = vi.fn()
+    useProvidersMock.mockReturnValue({ providers, createProvider })
+
+    render(
+      <ProviderList
+        selectedProviderId="openai"
+        onSelectProvider={onSelectProvider}
+        onCustomProviderCreated={onCustomProviderCreated}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+    const submit = providerEditorDrawerSpy.mock.calls.at(-1)?.[0].onSubmit
+
+    await act(async () => {
+      await submit({
+        mode: 'create',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        authConfig: { type: 'api-key' },
+        apiKeys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }]
+      })
+    })
+
+    expect(onSelectProvider).toHaveBeenCalledWith('custom-provider')
+    expect(onCustomProviderCreated).toHaveBeenCalledWith('custom-provider', true)
   })
 
   it('does not scroll back to the selected provider after drag reorder changes provider order', () => {

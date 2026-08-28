@@ -14,7 +14,9 @@ vi.mock('path')
 vi.mock('which')
 vi.mock('@main/core/platform', () => ({ isWin: true }))
 vi.mock('../shellEnv', () => ({
-  getShellEnv: vi.fn()
+  getShellEnv: vi.fn(),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))
 vi.mock('../bundledGit', () => ({
   getBundledGitPath: vi.fn(() => null)

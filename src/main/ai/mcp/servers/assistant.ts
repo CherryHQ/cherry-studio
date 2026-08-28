@@ -8,13 +8,18 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
-import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
+import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import {
+  DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
+  diagnosticDescriptionByteLength,
+  normalizeDiagnosticDescription
+} from '@shared/utils/diagnostics'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { redactUrlToOrigin } from '@shared/utils/redaction'
 import { app } from 'electron'
@@ -237,12 +242,39 @@ ${Object.values(APPLY_SETTING_REGISTRY)
   }
 }
 
+const PREPARE_DIAGNOSTIC_REPORT_TOOL: Tool = {
+  name: 'prepare_diagnostic_report',
+  description:
+    'Prepare an editable diagnostic report description for Cherry Studio to present as a user-clickable review action. This tool only prepares draft data; it DOES NOT open UI, acknowledge user consent, collect diagnostics, write files, or submit a report.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      description: {
+        type: 'string',
+        description: 'Editable report description. Maximum 4096 UTF-8 bytes after line endings are normalized to CRLF.'
+      }
+    },
+    required: ['description'],
+    additionalProperties: false
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      ok: { type: 'boolean', const: true },
+      description: { type: 'string' }
+    },
+    required: ['ok', 'description'],
+    additionalProperties: false
+  }
+}
+
 const ASSISTANT_TOOLS = {
   navigate: NAVIGATE_TOOL,
   diagnose: DIAGNOSE_TOOL,
   product_info: PRODUCT_INFO_TOOL,
   apply_setting: APPLY_SETTING_TOOL,
-  create_agent: CREATE_AGENT_TOOL
+  create_agent: CREATE_AGENT_TOOL,
+  prepare_diagnostic_report: PREPARE_DIAGNOSTIC_REPORT_TOOL
 } as const satisfies Record<AssistantToolName, Tool>
 
 // Health check cache: { providerId -> { result, timestamp } }
@@ -256,7 +288,7 @@ class AssistantServer {
 
   constructor(
     private readonly defaultModel?: UniqueModelId,
-    enabledToolNames: readonly AssistantToolName[] = ASSISTANT_TOOL_NAMES
+    enabledToolNames: readonly AssistantToolName[] = DEFAULT_ASSISTANT_TOOL_NAMES
   ) {
     this.enabledToolNames = new Set(enabledToolNames)
     this.mcpServer = new McpServer(
@@ -297,6 +329,8 @@ class AssistantServer {
             return await this.applySetting(args as Record<string, string | undefined>)
           case 'create_agent':
             return await this.createAgent(args as Record<string, string | undefined>)
+          case 'prepare_diagnostic_report':
+            return this.prepareDiagnosticReport(args)
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
@@ -309,6 +343,32 @@ class AssistantServer {
         }
       }
     })
+  }
+
+  private prepareDiagnosticReport(args: Record<string, unknown>) {
+    if (Object.keys(args).length !== 1 || !Object.hasOwn(args, 'description')) {
+      throw new McpError(ErrorCode.InvalidParams, 'prepare_diagnostic_report accepts only description')
+    }
+    if (typeof args.description !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, 'description must be a string')
+    }
+
+    const description = normalizeDiagnosticDescription(args.description.trim())
+    if (!description) {
+      throw new McpError(ErrorCode.InvalidParams, 'description must not be blank')
+    }
+    if (diagnosticDescriptionByteLength(description) > DIAGNOSTIC_DESCRIPTION_MAX_BYTES) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `description must not exceed ${DIAGNOSTIC_DESCRIPTION_MAX_BYTES} UTF-8 bytes after CRLF normalization`
+      )
+    }
+
+    const output = { ok: true as const, description }
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(output) }],
+      structuredContent: output
+    }
   }
 
   private readProductManifest(): Record<string, unknown> {
