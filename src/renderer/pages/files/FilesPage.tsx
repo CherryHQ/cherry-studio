@@ -340,7 +340,15 @@ function FilesPage() {
   // renders a friendly format label derived from `ext` (e.g. `md` → Markdown).
   // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
-  const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
+  const activeFileType = filter.kind === 'type' ? filter.value : undefined
+  const activeFilesQuery = useMemo(
+    () => ({
+      sortBy: serverSortKey,
+      sortOrder: sortDir,
+      ...(activeFileType && { fileType: activeFileType })
+    }),
+    [activeFileType, serverSortKey, sortDir]
+  )
   const trashedFilesQuery = useMemo(
     () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
     [serverSortKey, sortDir]
@@ -527,31 +535,6 @@ function FilesPage() {
     requestLoadMore
   ])
 
-  const maybeFillClientFilteredViewport = useCallback(() => {
-    // Type filters are applied client-side over the loaded active pages.
-    // If the filtered rows do not make the container scrollable, scroll-load
-    // cannot fire, so proactively fetch another active page until scrolling can engage.
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el || !hasMoreActiveFiles || isLoadingMoreActiveFiles || pendingLoadMoreRef.current) return
-    if (el.scrollHeight > el.clientHeight) return
-
-    requestLoadMore(loadMoreActiveFiles)
-  }, [filter.kind, hasMoreActiveFiles, isLoadingMoreActiveFiles, loadMoreActiveFiles, requestLoadMore])
-
-  useEffect(() => {
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el) return
-
-    maybeFillClientFilteredViewport()
-    if (typeof ResizeObserver === 'undefined') return
-
-    const resizeObserver = new ResizeObserver(() => maybeFillClientFilteredViewport())
-    resizeObserver.observe(el)
-    return () => resizeObserver.disconnect()
-  }, [filter.kind, maybeFillClientFilteredViewport])
-
   const handleOpen = useCallback(
     (file: FileItem) => {
       const requestToken = ++openRequestTokenRef.current
@@ -637,10 +620,6 @@ function FilesPage() {
 
     return result
   }, [files, filter])
-
-  useEffect(() => {
-    maybeFillClientFilteredViewport()
-  }, [maybeFillClientFilteredViewport, filteredFiles.length, files.length])
 
   const fileCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -1043,7 +1022,6 @@ function FilesPage() {
                   <FileGrid
                     files={filteredFiles}
                     scrollRef={contentScrollRef}
-                    onLayoutChange={maybeFillClientFilteredViewport}
                     onOpen={handleOpen}
                     onDelete={(id) => handleDelete(new Set([id]))}
                     isTrash={isTrash}
