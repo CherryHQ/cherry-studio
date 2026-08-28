@@ -180,7 +180,7 @@ export function useEntityReferenceMentionItems({
                       : ({ entityType, id: hit.id, name: title, agentId: hit.agentId } as const)
                   const promptText =
                     target.entityType === 'session'
-                      ? await fetchAgentSessionReferencePointer(target)
+                      ? await fetchAgentSessionReferencePointer(target, { maxTotalChars: remainingChars })
                       : await fetchEntityReferencePromptText(target, { maxTotalChars: remainingChars })
                   settlePendingReferenceToken(editor, tokenId, promptText)
                 } catch {

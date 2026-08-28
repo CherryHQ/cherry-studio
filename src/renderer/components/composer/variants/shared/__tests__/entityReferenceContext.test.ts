@@ -132,4 +132,18 @@ describe('buildAgentSessionReferencePointer', () => {
 
     expect(JSON.parse(promptText.split('\n').at(-1)!).priorConversation).toBeNull()
   })
+
+  it('keeps a session pointer within the remaining composer budget without breaking its JSON', () => {
+    const maxTotalChars = 1000
+    const promptText = buildAgentSessionReferencePointer(
+      { entityType: 'session', id: 'session-1', name: 'Prior task', agentId: 'agent-1' },
+      'quoted "conversation"\n'.repeat(200),
+      maxTotalChars
+    )
+
+    expect(promptText.length).toBeLessThanOrEqual(maxTotalChars)
+    const reference = JSON.parse(promptText.split('\n').at(-1)!)
+    expect(reference.sessionId).toBe('session-1')
+    expect(reference.priorConversation.length).toBeGreaterThan(0)
+  })
 })

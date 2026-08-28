@@ -161,9 +161,11 @@ enters the runtime's process-local follow-up queue.
 ### Tool contract
 
 Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
-and exposes five tools:
+and exposes six tools:
 
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
+- `session_read` — page through one visible Session's turns, newest page first, using an opaque
+  cursor to continue into older history;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
   filters are applied before either search limit. The final limit counts distinct Sessions, each

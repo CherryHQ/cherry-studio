@@ -29,12 +29,19 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+const projectSessionMessageText = (message: Pick<AgentSessionMessageEntity, 'data'>): string =>
+  (message.data.parts ?? [])
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
 
 /** Per-session agent context the autonomy tools act on behalf of. */
 export interface CherryAgentContext {
@@ -521,10 +528,7 @@ export class CherryAutonomyTools {
     const turns = page.items.toReversed().map((message) => ({
       id: message.id,
       role: message.role,
-      content: (message.data.parts ?? [])
-        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-        .map((part) => part.text)
-        .join('\n'),
+      content: projectSessionMessageText(message),
       createdAt: message.createdAt
     }))
     return {
@@ -622,10 +626,7 @@ export class CherryAutonomyTools {
               {
                 id: message.id,
                 envelope: message.delivery,
-                content: (message.data.parts ?? [])
-                  .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-                  .map((part) => part.text)
-                  .join('\n')
+                content: projectSessionMessageText(message)
               }
             ]
           : []
