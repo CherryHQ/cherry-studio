@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { useOptionalDiagnosticReportLauncher } from '@renderer/components/feedback/DiagnosticReportLauncherContext'
+import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import { Check, FilePenLine } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +7,7 @@ import type { PrepareDiagnosticReportResult } from './prepareDiagnosticReportRes
 
 export function PrepareDiagnosticReportTool({ result }: { readonly result: PrepareDiagnosticReportResult }) {
   const { t } = useTranslation()
-  const openReport = useOptionalDiagnosticReportLauncher()
+  const openReport = useOptionalMessageListActions()?.openDiagnosticReport
 
   return (
     <div className="my-1 flex min-h-12 max-w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">

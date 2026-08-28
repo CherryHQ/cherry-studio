@@ -1,5 +1,4 @@
 import type * as CherryUi from '@cherrystudio/ui'
-import { DiagnosticReportLauncherProvider } from '@renderer/components/feedback/DiagnosticReportLauncherContext'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -949,13 +948,9 @@ describe('AgentToolRenderer', () => {
       const user = userEvent.setup()
       const openReport = vi.fn()
       const navigateToRoute = vi.fn()
-      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      mockMessageListActions.mockReturnValue({ navigateToRoute, openDiagnosticReport: openReport })
 
-      render(
-        <DiagnosticReportLauncherProvider openReport={openReport}>
-          <MessageTools toolResponse={preparedResponse} />
-        </DiagnosticReportLauncherProvider>
-      )
+      render(<MessageTools toolResponse={preparedResponse} />)
 
       expect(screen.getByText('Cherry Support prepared an editable description.')).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Review diagnostic report' }))

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -126,21 +126,33 @@ describe('ErrorDetailContent diagnostic report', () => {
     expect(description).toContain('Error message: failed')
   })
 
-  it('replaces error details with report review instead of stacking dialogs', async () => {
-    const user = userEvent.setup()
+  it('waits for error details to finish closing before opening report review', async () => {
+    vi.useFakeTimers()
     render(<PopupHost />)
 
-    await act(async () => {
+    act(() => {
       showErrorDetailPopup({
         diagnosticReport: { location: 'Home conversation' },
         error: { name: 'ProviderError', message: 'failed', stack: null }
       })
     })
-    await user.click(await screen.findByRole('button', { name: 'Submit diagnostic report' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await act(async () => {})
 
-    const report = await screen.findByRole('dialog', { name: 'Diagnostic report review' })
+    expect(screen.queryByRole('dialog', { name: 'Diagnostic report review' })).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(POPUP_EXIT_MS - 1)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Diagnostic report review' })).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    await act(async () => {})
+    const report = screen.getByRole('dialog', { name: 'Diagnostic report review' })
     expect(report).toHaveTextContent('Location: Home conversation')
-    await waitFor(() => expect(screen.getAllByRole('dialog')).toEqual([report]))
+    expect(screen.getAllByRole('dialog')).toEqual([report])
   })
 
   it('keeps AI diagnosis visible in error details but out of the diagnostic-report prefill', async () => {

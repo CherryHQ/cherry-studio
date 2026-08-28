@@ -23,7 +23,6 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
-import { DiagnosticReportLauncherProvider } from '@renderer/components/feedback/DiagnosticReportLauncherContext'
 import DiagnosticUploadDialog from '@renderer/components/feedback/DiagnosticUploadDialog'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
@@ -66,6 +65,11 @@ interface ModelSwitchTarget {
 interface CitationPanelState {
   sessionId: string
   citations: Citation[]
+}
+
+interface DiagnosticReportDraft {
+  sessionId: string
+  description: string
 }
 
 function getNewSessionWorkspaceDefaults(
@@ -190,7 +194,7 @@ const AgentChat = ({
   const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
-  const [diagnosticReportDescription, setDiagnosticReportDescription] = useState<string | null>(null)
+  const [diagnosticReportDraft, setDiagnosticReportDraft] = useState<DiagnosticReportDraft | null>(null)
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -208,6 +212,8 @@ const AgentChat = ({
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
+  const activeDiagnosticReportDraft =
+    diagnosticReportDraft?.sessionId === currentSessionId ? diagnosticReportDraft : null
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -217,6 +223,9 @@ const AgentChat = ({
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
   useEffect(() => {
     setCitationPanelState(null)
+  }, [currentSessionId])
+  useEffect(() => {
+    setDiagnosticReportDraft((current) => (current?.sessionId === currentSessionId ? current : null))
   }, [currentSessionId])
 
   const handleOpenCitationsPanel = useCallback(
@@ -253,9 +262,13 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
-  const openDiagnosticReport = useCallback((description = '') => {
-    setDiagnosticReportDescription(description)
-  }, [])
+  const openDiagnosticReport = useCallback(
+    (description = '') => {
+      if (!currentSessionId) return
+      setDiagnosticReportDraft({ sessionId: currentSessionId, description })
+    },
+    [currentSessionId]
+  )
   const isEmptyConversation = Boolean(
     sessionSnapshot &&
       sessionMessagesEnabled &&
@@ -514,12 +527,16 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
-      {isSupportAgent && diagnosticReportDescription !== null ? (
+      {isSupportAgent && activeDiagnosticReportDraft ? (
         <DiagnosticUploadDialog
-          initialDescription={diagnosticReportDescription}
+          key={activeDiagnosticReportDraft.sessionId}
+          initialDescription={activeDiagnosticReportDraft.description}
           open
           onOpenChange={(nextOpen) => {
-            if (!nextOpen) setDiagnosticReportDescription(null)
+            if (nextOpen) return
+            setDiagnosticReportDraft((current) =>
+              current?.sessionId === activeDiagnosticReportDraft.sessionId ? null : current
+            )
           }}
         />
       ) : null}
@@ -638,6 +655,7 @@ const AgentChatSessionCenter = ({
       hasOlder={runtime.hasOlder}
       loadOlder={runtime.loadOlder}
       onOpenCitationsPanel={onOpenCitationsPanel}
+      openDiagnosticReport={openDiagnosticReport}
       deleteMessage={runtime.deleteMessage}
       respondToolApproval={runtime.respondToolApproval}
     />
@@ -652,13 +670,7 @@ const AgentChatSessionCenter = ({
           />
         </div>
       )}
-      {openDiagnosticReport ? (
-        <DiagnosticReportLauncherProvider openReport={openDiagnosticReport}>
-          {messageList}
-        </DiagnosticReportLauncherProvider>
-      ) : (
-        messageList
-      )}
+      {messageList}
       <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )

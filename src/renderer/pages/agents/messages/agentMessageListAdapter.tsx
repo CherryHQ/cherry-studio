@@ -98,6 +98,7 @@ interface AgentMessageListParams {
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
@@ -154,6 +155,7 @@ export function useAgentMessageListProviderValue({
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
   respondToolApproval,
@@ -405,6 +407,7 @@ export function useAgentMessageListProviderValue({
       resolvePath,
       openPath,
       openArtifactFile,
+      openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
       openAgentToolFlow,
       abortTool,
@@ -429,8 +432,10 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       locateMessage,
       messageUiStateCache.updateMessageUiState,
+      normalInteractionsEnabled,
       openCitationsPanel,
       openArtifactFile,
+      openDiagnosticReport,
       openAgentToolFlow,
       openPath,
       respondToolApproval,

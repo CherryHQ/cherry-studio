@@ -4,7 +4,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
@@ -675,7 +675,9 @@ export function showErrorDetailPopup(params: ErrorDetailContentProps) {
         {...params}
         onOpenDiagnosticReport={(initialDescription) => {
           ContentPopup.hide()
-          void DiagnosticUploadPopup.show({ initialDescription })
+          setTimeout(() => {
+            void DiagnosticUploadPopup.show({ initialDescription })
+          }, POPUP_EXIT_MS)
         }}
       />
     ),
