@@ -37,6 +37,7 @@ const { syncMcpToolsToRegistry } = await import('../mcpTools')
 function mcpTool(serverId: string, name: string, description = '') {
   return {
     id: `mcp__${serverId}__${name}`,
+    runtimeName: `mcp__${serverId}__${name}`,
     serverId,
     serverName: serverId,
     name,
@@ -81,6 +82,7 @@ describe('syncMcpToolsToRegistry', () => {
       {
         ...mcpTool('ocr-server', '识别发票', '识别票据中的结构化字段'),
         id: 'mcp__ocr__tool_1234567890abcdef1234',
+        runtimeName: 'mcp__ocr__tool_1234567890abcdef1234',
         serverName: '票据 OCR'
       }
     ])
@@ -189,6 +191,23 @@ describe('syncMcpToolsToRegistry', () => {
     expect(searchEntry.applies!({ mcpToolIds: new Set() })).toBe(false)
   })
 
+  it('selects by identity key while registering the runtime name', async () => {
+    const reg = new ToolRegistry()
+    const tool = {
+      ...mcpTool('server-a', 'query'),
+      id: 'a'.repeat(64),
+      runtimeName: 'mcp__mysql_a79b8498a1fb__query__0123456789ab'
+    }
+    list.mockReturnValue({ items: [activeServer('server-a')] })
+    listTools.mockReturnValue([tool])
+
+    await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set([tool.id]) })
+
+    expect(reg.getByName(tool.runtimeName)?.identityKey).toBe(tool.id)
+    expect(reg.getByName(tool.runtimeName)?.applies?.({ mcpToolIds: new Set([tool.id]) })).toBe(true)
+    expect(reg.getByName(tool.id)).toBeUndefined()
+  })
+
   it('exposes the server display name to the model while keeping serverId ownership', async () => {
     const reg = new ToolRegistry()
     list.mockReturnValue({ items: [{ ...activeServer('server-a'), name: '票据 OCR' }] })
@@ -239,8 +258,16 @@ describe('syncMcpToolsToRegistry', () => {
 
     it('matches selected ids against catalog entries instead of normalized server names', async () => {
       const reg = new ToolRegistry()
-      const reimbursement = { ...mcpTool('server-a', 'executeSql'), id: 'mcp__mysql__executeSql_a' }
-      const elevator = { ...mcpTool('server-b', 'executeSql'), id: 'mcp__mysql__executeSql_b' }
+      const reimbursement = {
+        ...mcpTool('server-a', 'executeSql'),
+        id: 'mcp__mysql__executeSql_a',
+        runtimeName: 'mcp__mysql__executeSql_a'
+      }
+      const elevator = {
+        ...mcpTool('server-b', 'executeSql'),
+        id: 'mcp__mysql__executeSql_b',
+        runtimeName: 'mcp__mysql__executeSql_b'
+      }
       list.mockReturnValue({
         items: [
           { ...activeServer('server-a'), name: 'mysql_报销' },
@@ -328,6 +355,7 @@ describe('syncMcpToolsToRegistry', () => {
       listTools.mockReturnValue([
         {
           id: 'mcp__myServer__t',
+          runtimeName: 'mcp__myServer__t',
           serverId: 'srv',
           serverName: 'my-server',
           name: 't',

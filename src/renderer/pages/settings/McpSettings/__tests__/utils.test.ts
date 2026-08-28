@@ -10,6 +10,7 @@ describe('McpSettings utils', () => {
     const existing: McpServer = {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Fetch',
+      serverWireName: 'fetch_server',
       type: 'streamableHttp',
       baseUrl: 'https://example.com/mcp',
       provider: 'ModelScope',
@@ -29,6 +30,7 @@ describe('McpSettings utils', () => {
     const existing: McpServer = {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Fetch',
+      serverWireName: 'fetch_server',
       type: 'streamableHttp',
       baseUrl: 'https://example.com/mcp',
       isActive: true

@@ -113,6 +113,7 @@ describe('McpSettings', () => {
     currentServer = {
       id: 'protocol-server-id',
       name: 'protocol-server',
+      serverWireName: 'protocol_server',
       type: 'stdio',
       command: 'printf',
       args: ['deeplink-test'],
@@ -154,6 +155,7 @@ describe('McpSettings', () => {
     currentServer = {
       id: 'server-a',
       name: 'Server A',
+      serverWireName: 'server_a',
       type: 'stdio',
       command: 'server-a',
       isActive: false
@@ -173,6 +175,7 @@ describe('McpSettings', () => {
     currentServer = {
       id: 'server-b',
       name: 'Server B',
+      serverWireName: 'server_b',
       type: 'stdio',
       command: 'server-b',
       isActive: false
@@ -187,6 +190,7 @@ describe('McpSettings', () => {
     currentServer = {
       id: 'server-a',
       name: 'Server A',
+      serverWireName: 'server_a',
       type: 'stdio',
       command: 'server-a',
       isActive: true
@@ -240,6 +244,7 @@ describe('McpSettings', () => {
     currentServer = {
       id: 'server-a',
       name: 'Server A',
+      serverWireName: 'server_a',
       type: 'stdio',
       command: 'server-a',
       isActive: true
@@ -295,6 +300,7 @@ describe('McpSettings', () => {
     currentServer = {
       id: 'server-a',
       name: 'Server A',
+      serverWireName: 'server_a',
       type: 'stdio',
       command: 'server-a',
       isActive: true
@@ -331,7 +337,14 @@ describe('McpSettings', () => {
 
   it('deletes via the mcp.server.remove IPC channel, refreshes the cache, and navigates back', async () => {
     currentSearch = {}
-    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      serverWireName: 'server_a',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: false
+    }
     mocks.confirm.mockResolvedValue(true)
     mocks.request.mockResolvedValue(undefined)
 
@@ -348,7 +361,14 @@ describe('McpSettings', () => {
 
   it('surfaces an IPC removal failure without refreshing, reporting success, or navigating', async () => {
     currentSearch = {}
-    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      serverWireName: 'server_a',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: false
+    }
     mocks.confirm.mockResolvedValue(true)
     mocks.request.mockImplementation((channel: string) =>
       channel === 'mcp.server.remove' ? Promise.reject(new Error('close failed')) : Promise.resolve([])
@@ -366,7 +386,14 @@ describe('McpSettings', () => {
 
   it('does not report a committed delete as failed when the cache refresh rejects', async () => {
     currentSearch = {}
-    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      serverWireName: 'server_a',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: false
+    }
     mocks.confirm.mockResolvedValue(true)
     mocks.request.mockResolvedValue(undefined)
     mocks.invalidate.mockRejectedValue(new Error('refetch failed'))

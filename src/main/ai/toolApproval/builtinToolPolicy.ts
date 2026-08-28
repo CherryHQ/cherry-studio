@@ -36,6 +36,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { getBuiltinMcpRuntimeNameFromLegacyName } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 
 export type BuiltinToolApproval = 'auto' | 'required' | 'runtime'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
@@ -145,9 +146,11 @@ export function findBuiltinToolPolicy(
   return entry && mountedServers.has(entry.serverName) ? entry : undefined
 }
 
-/** Standard MCP runtime name used by Claude Code and by safe DSH bridged identities. */
+/** Canonical provider-facing name for a Cherry-owned MCP tool. */
 export function toMcpRuntimeName(ref: Pick<BuiltinToolPolicyEntry, 'serverName' | 'toolName'>): string {
-  return `mcp__${ref.serverName}__${ref.toolName}`
+  const runtimeName = getBuiltinMcpRuntimeNameFromLegacyName(`mcp__${ref.serverName}__${ref.toolName}`)
+  if (!runtimeName) throw new Error(`Missing canonical MCP identity for ${ref.serverName}/${ref.toolName}`)
+  return runtimeName
 }
 
 /** Convenience for the non-policy citation call site. */

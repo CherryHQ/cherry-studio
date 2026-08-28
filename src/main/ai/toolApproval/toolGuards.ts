@@ -27,6 +27,8 @@ export interface ToolGuardInteractionState {
 /** Read-only per-invocation snapshot; every field is resolved at fire-time by the caller. */
 export interface ToolGuardContext {
   readonly toolName: string
+  /** Catalog-bound source name for an MCP runtime name; absent when the identity is unresolved. */
+  readonly originalToolName?: string
   readonly input: Readonly<Record<string, unknown>> | undefined
   readonly permissionMode: AgentPermissionMode | undefined
   readonly builtinRole: string | undefined

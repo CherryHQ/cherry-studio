@@ -127,16 +127,16 @@ describe('PromptBuilder', () => {
     expect(result).not.toContain('## Autonomy Tools')
     expect(result).not.toContain('## Agent Memory')
     expect(result).not.toContain('## Web Search Strategy')
-    expect(result).not.toContain('mcp__cherry-tools__cron')
-    expect(result).not.toContain('mcp__cherry-tools__notify')
-    expect(result).not.toContain('mcp__cherry-tools__web_search')
-    expect(result).not.toContain('mcp__cherry-tools__web_fetch')
+    expect(result).not.toContain('mcp__cherry_tools__cron__ceb5bf2c5e21')
+    expect(result).not.toContain('mcp__cherry_tools__notify__2484dc7ba152')
+    expect(result).not.toContain('mcp__cherry_tools__webSearch__a26653c54bd6')
+    expect(result).not.toContain('mcp__cherry_tools__webFetch__0d46b7903981')
 
     // The runtime storage contract stays: the Memories section and its memory
     // safety boundaries must survive the handbook removal.
     expect(result).toContain('## Memories')
-    expect(result).toContain('mcp__agent-memory__memory')
-    expect(result).toContain('Update it only through `mcp__agent-memory__memory` (action: update)')
+    expect(result).toContain('mcp__agent_memory__memory__b472a1250bce')
+    expect(result).toContain('Update it only through `mcp__agent_memory__memory__b472a1250bce` (action: update)')
     expect(result).toContain('Never read or write the file directly')
     expect(result).toContain('append-only log')
   })
@@ -523,7 +523,7 @@ Always cite primary sources.`
       expect(result).toContain('Build tool: pnpm + electron-vite')
       expect(result).toContain('</facts>')
       // The agent should also be told to keep updating FACT.md
-      expect(result).toContain('mcp__agent-memory__memory')
+      expect(result).toContain('mcp__agent_memory__memory__b472a1250bce')
       expect(result).toContain('action="update"')
     })
 

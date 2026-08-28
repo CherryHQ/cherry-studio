@@ -7,7 +7,7 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
-import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
+import { DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
 import { DshRuntimeConnection } from './DshRuntimeConnection'
 import { assertDshProviderUsable } from './modelInjection'
 
@@ -46,7 +46,7 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
       const server = mcpServerService.findByIdOrName(idOrName)
       if (!server) return []
       return catalog.listTools(server.id, { includeDisabled: false }).map((tool) => {
-        const id = buildDshCherryToolName(server.name, tool.name)
+        const id = tool.runtimeName
         return {
           id,
           name: tool.name,

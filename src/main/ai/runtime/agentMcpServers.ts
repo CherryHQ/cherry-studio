@@ -3,7 +3,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
+import { createMcpBridgeServer, type McpBridgeOptions } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
@@ -13,6 +13,7 @@ import SkillsServer from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { MCP_BUILTIN_SERVER_IDS, MCP_BUILTIN_SERVER_WIRE_NAMES } from '@shared/ai/tools/mcpToolIdentity'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -38,6 +39,8 @@ export interface AgentNotificationContext {
 
 export interface AgentMcpServer {
   name: string
+  serverId?: string
+  serverWireName?: string
   instance: McpServer
 }
 
@@ -50,10 +53,21 @@ export function buildAgentMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
+  bridgeNamingMode: McpBridgeOptions['namingMode'] = 'raw'
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
   const capabilities = resolveAgentCapabilities(agent)
+  const builtin = (serverId: string, serverWireName: string, name: string, instance: McpServer): AgentMcpServer => {
+    const bridge =
+      bridgeNamingMode === 'runtime'
+        ? createMcpBridgeServer(name, undefined, {
+            namingMode: 'runtime',
+            sourceServer: { server: instance, serverId, serverName: name, serverWireName }
+          })
+        : undefined
+    return { name, serverId, serverWireName, instance: bridge ?? instance }
+  }
 
   for (const mcpId of agent.mcps ?? []) {
     try {
@@ -61,16 +75,23 @@ export function buildAgentMcpServers(
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
-      servers[mcpId] = { name: mcpId, instance: createMcpBridgeServer(mcpId, serverSnapshot) }
+      servers[mcpId] = {
+        name: serverSnapshot?.name ?? mcpId,
+        serverId: serverSnapshot?.id,
+        serverWireName: serverSnapshot?.serverWireName,
+        instance: createMcpBridgeServer(mcpId, serverSnapshot, { namingMode: bridgeNamingMode })
+      }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }
   }
 
   const workspaceSource = toWorkspaceSource(session)
-  servers['cherry-tools'] = {
-    name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
-    instance: new CherryBuiltinToolsServer({
+  servers['cherry-tools'] = builtin(
+    MCP_BUILTIN_SERVER_IDS.cherryTools,
+    MCP_BUILTIN_SERVER_WIRE_NAMES.cherryTools,
+    CHERRY_MCP_SERVER.CHERRY_TOOLS,
+    new CherryBuiltinToolsServer({
       agentId: agent.id,
       agentDataPath,
       sessionId: session.id,
@@ -84,35 +105,48 @@ export function buildAgentMcpServers(
         return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
       }
     }).mcpServer
-  }
-  servers['agent-memory'] = {
-    name: CHERRY_MCP_SERVER.AGENT_MEMORY,
-    instance: new AgentMemoryServer(agent.id, agentDataPath).mcpServer
-  }
+  )
+  servers['agent-memory'] = builtin(
+    MCP_BUILTIN_SERVER_IDS.agentMemory,
+    MCP_BUILTIN_SERVER_WIRE_NAMES.agentMemory,
+    CHERRY_MCP_SERVER.AGENT_MEMORY,
+    new AgentMemoryServer(agent.id, agentDataPath).mcpServer
+  )
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
-    servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsServer(agent.id).mcpServer }
+    servers.skills = builtin(
+      MCP_BUILTIN_SERVER_IDS.skills,
+      MCP_BUILTIN_SERVER_WIRE_NAMES.skills,
+      CHERRY_MCP_SERVER.SKILLS,
+      new SkillsServer(agent.id).mcpServer
+    )
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
-    servers['mcp-manager'] = {
-      name: CHERRY_MCP_SERVER.MCP_MANAGER,
-      instance: new McpManagerServer(agent.id).mcpServer
-    }
+    servers['mcp-manager'] = builtin(
+      MCP_BUILTIN_SERVER_IDS.mcpManager,
+      MCP_BUILTIN_SERVER_WIRE_NAMES.mcpManager,
+      CHERRY_MCP_SERVER.MCP_MANAGER,
+      new McpManagerServer(agent.id).mcpServer
+    )
   }
 
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
-    servers.assistant = {
-      name: CHERRY_MCP_SERVER.ASSISTANT,
-      instance: new AssistantServer(agent.model ?? undefined, capabilities.hostTools?.tools).mcpServer
-    }
+    servers.assistant = builtin(
+      MCP_BUILTIN_SERVER_IDS.assistant,
+      MCP_BUILTIN_SERVER_WIRE_NAMES.assistant,
+      CHERRY_MCP_SERVER.ASSISTANT,
+      new AssistantServer(agent.model ?? undefined, capabilities.hostTools?.tools).mcpServer
+    )
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
-    servers['assistant-files'] = {
-      name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
-      instance: new AssistantFileToolsServer({
+    servers['assistant-files'] = builtin(
+      MCP_BUILTIN_SERVER_IDS.assistantFiles,
+      MCP_BUILTIN_SERVER_WIRE_NAMES.assistantFiles,
+      CHERRY_MCP_SERVER.ASSISTANT_FILES,
+      new AssistantFileToolsServer({
         sessionId: session.id,
         workspacePath: session.workspace.path
       }).mcpServer
-    }
+    )
   }
 
   return servers

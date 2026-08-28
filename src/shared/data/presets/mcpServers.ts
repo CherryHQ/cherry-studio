@@ -13,7 +13,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
-export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & { name: BuiltinMcpServerName }
+export type McpServerPreset = Omit<McpServer, 'id' | 'name' | 'serverWireName'> & { name: BuiltinMcpServerName }
 
 /** Frozen because both the renderer catalog and the seeder read these objects live. */
 const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerPreset>[] =>

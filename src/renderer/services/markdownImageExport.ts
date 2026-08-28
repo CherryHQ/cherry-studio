@@ -20,6 +20,7 @@ import { getRenderableTextContent } from '@renderer/utils/message/find'
 import { extractOutputMetadata } from '@renderer/utils/message/toolOutput'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -35,7 +36,8 @@ export type ImageExportMode = 'embed' | 'folder' | 'none'
 /** Base64 inline payloads beyond this size bloat the .md past ~13 MiB of text. */
 const MAX_EMBED_IMAGE_BYTES = 10 * 1024 * 1024
 
-const AGENT_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
+const LEGACY_AGENT_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
+const AGENT_GENERATE_IMAGE_TOOL_NAME = MCP_BUILTIN_RUNTIME_NAMES.cherryTools.generateImage
 
 export type ExportableImageRef = {
   /** Dedup key: fileEntryId when known, else the part url. */
@@ -123,7 +125,11 @@ function isGenerateImageToolPart(part: unknown): boolean {
   const toolPart = part as { state?: string }
   if (toolPart.state !== 'output-available') return false
   const toolName = getToolName(part as never).trim()
-  return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === AGENT_GENERATE_IMAGE_TOOL_NAME
+  return (
+    toolName === GENERATE_IMAGE_TOOL_NAME ||
+    toolName === LEGACY_AGENT_GENERATE_IMAGE_TOOL_NAME ||
+    toolName === AGENT_GENERATE_IMAGE_TOOL_NAME
+  )
 }
 
 /**

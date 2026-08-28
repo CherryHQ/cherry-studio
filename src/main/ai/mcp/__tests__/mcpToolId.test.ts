@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildMcpToolWireId } from '../mcpToolId'
+import {
+  buildMcpServerWireName,
+  buildMcpToolIdentityKey,
+  buildMcpToolRuntimeName,
+  buildMcpToolWireId,
+  buildMcpToolWireName
+} from '../mcpToolId'
 
 describe('buildMcpToolWireId', () => {
   it('pins the 80-bit SHA-256 identity suffix', () => {
@@ -66,5 +72,48 @@ describe('buildMcpToolWireId', () => {
 
     expect(before).not.toBe(after)
     expect(before.slice(-20)).toBe(after.slice(-20))
+  })
+})
+
+describe('canonical MCP identity and runtime names', () => {
+  it('builds the full identity separately from the provider-visible name', () => {
+    const serverWireName = buildMcpServerWireName({ serverId: 'server-a', serverName: 'mysql' })
+
+    expect(buildMcpToolIdentityKey({ serverId: 'server-a', toolName: 'query' })).toBe(
+      '306d76332fabbe783838cb296a98183cac2594360eb91e09cc525977115eb5ac'
+    )
+    expect(serverWireName).toBe('mysql_a79b8498a1fb')
+    expect(buildMcpToolWireName({ serverId: 'server-a', toolName: 'query' })).toBe('query__306d76332fab')
+    expect(buildMcpToolRuntimeName({ serverId: 'server-a', serverWireName, toolName: 'query' })).toBe(
+      'mcp__mysql_a79b8498a1fb__query__306d76332fab'
+    )
+  })
+
+  it('keeps a persisted server wire name stable when the display name changes', () => {
+    const serverWireName = buildMcpServerWireName({ serverId: 'server-a', serverName: 'old-name' })
+
+    expect(buildMcpToolRuntimeName({ serverId: 'server-a', serverWireName, toolName: 'query' })).toBe(
+      'mcp__oldName_a79b8498a1fb__query__306d76332fab'
+    )
+    expect(buildMcpServerWireName({ serverId: 'server-a', serverName: 'new-name' })).not.toBe(serverWireName)
+  })
+
+  it('caps every readable part and the final runtime name at the provider budget', () => {
+    const serverWireName = buildMcpServerWireName({ serverId: 'server-a', serverName: 's'.repeat(100) })
+    const runtimeName = buildMcpToolRuntimeName({
+      serverId: 'server-a',
+      serverWireName,
+      toolName: 'tool-name-'.repeat(100)
+    })
+
+    expect(serverWireName).toHaveLength(21)
+    expect(runtimeName).toHaveLength(60)
+    expect(runtimeName).toMatch(/^mcp__[a-zA-Z0-9_]+__[a-zA-Z0-9_]+__[0-9a-f]{12}$/)
+  })
+
+  it('keeps identical display names unique across server identities', () => {
+    expect(buildMcpServerWireName({ serverId: 'server-a', serverName: 'mysql' })).not.toBe(
+      buildMcpServerWireName({ serverId: 'server-b', serverName: 'mysql' })
+    )
   })
 })

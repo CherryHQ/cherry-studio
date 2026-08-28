@@ -5,6 +5,7 @@
  */
 
 import type { InsertMcpServerRow } from '@data/db/schemas/mcpServer'
+import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
 import { v4 as uuidv4 } from 'uuid'
 
 function toNullable<T>(value: unknown): T | null {
@@ -51,6 +52,7 @@ export function transformMcpServer(source: Record<string, unknown>, index: numbe
     row: {
       id: newId,
       name: toRequiredString(source.name, newId),
+      serverWireName: buildMcpServerWireName({ serverId: newId, serverName: toRequiredString(source.name, newId) }),
       type: toMcpServerType(source.type),
       description: toNullable(source.description),
       baseUrl: toNullable(source.baseUrl ?? source.url),

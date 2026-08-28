@@ -7,7 +7,11 @@ import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import {
+  buildMcpWireToolId,
+  isMcpToolDisabledBySource,
+  isMcpToolForcePromptBySource
+} from '@shared/ai/tools/mcpSourcePolicy'
 import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
@@ -75,6 +79,43 @@ export function isMcpResourceAccessDisabled(server: McpServer): boolean {
 
 export function isMcpResourceReadForcePrompt(server: McpServer): boolean {
   return isMcpToolForcePromptBySource(server, RESOURCE_POLICY_SUBJECT)
+}
+
+/**
+ * Resolve request-carried MCP ids against the current catalog. New requests use the durable
+ * identity key directly; old provider-visible ids are accepted only on an exact server/tool match.
+ * Unknown values are dropped rather than broadened into a server or raw-name selection.
+ */
+export function resolveMcpToolIds(toolIds: readonly string[]): string[] {
+  if (toolIds.length === 0) return []
+
+  const requested = new Set(toolIds)
+  const resolved = new Set<string>()
+  const legacyCandidates = new Map<string, Set<string>>()
+  const { items: activeServers } = mcpServerService.list({ isActive: true })
+  const catalog = application.get('McpCatalogService')
+
+  for (const server of activeServers) {
+    for (const tool of catalog.listTools(server.id, { includeDisabled: true })) {
+      if (requested.has(tool.id) || requested.has(tool.runtimeName)) {
+        resolved.add(tool.id)
+      }
+
+      const legacyId = buildMcpWireToolId(server.name, tool.name)
+      if (!requested.has(legacyId)) continue
+      const candidates = legacyCandidates.get(legacyId) ?? new Set<string>()
+      candidates.add(tool.id)
+      legacyCandidates.set(legacyId, candidates)
+    }
+  }
+
+  for (const candidates of legacyCandidates.values()) {
+    if (candidates.size !== 1) continue
+    const [candidate] = candidates
+    if (candidate) resolved.add(candidate)
+  }
+
+  return [...resolved]
 }
 
 /**

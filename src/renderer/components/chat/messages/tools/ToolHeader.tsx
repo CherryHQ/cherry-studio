@@ -3,6 +3,7 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import type { McpTool } from '@renderer/types/tool'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import {
   Bot,
   DoorOpen,
@@ -32,7 +33,7 @@ import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from './shared/agentToo
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
-const SESSION_CREATE_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
+const SESSION_CREATE_RUNTIME_TOOL_NAME = MCP_BUILTIN_RUNTIME_NAMES.cherryTools.sessionCreate
 export interface ToolActivity {
   label: string
   description?: string

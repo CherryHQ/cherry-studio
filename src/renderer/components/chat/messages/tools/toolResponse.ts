@@ -3,6 +3,7 @@ import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
@@ -147,7 +148,7 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (metadata?.type) return metadata.type
-  if (parseFunctionCallToolName(toolName)) return 'mcp'
+  if (getBuiltinMcpToolIdentity(toolName) || parseFunctionCallToolName(toolName)) return 'mcp'
   if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
   if (toolPartWasProviderExecuted(part)) return 'provider'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
@@ -163,12 +164,14 @@ function toolPartWasProviderExecuted(part: ToolResponsePart): boolean {
 }
 
 function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): McpTool {
-  const parsed = parseFunctionCallToolName(toolName)
-  const serverId = metadata?.serverId ?? parsed?.serverPart ?? 'unknown'
-  const serverName = metadata?.serverName ?? parsed?.serverPart ?? 'MCP'
-  const displayName = metadata?.name ?? parsed?.toolPart ?? toolName
+  const builtin = getBuiltinMcpToolIdentity(toolName)
+  const parsed = builtin ? undefined : parseFunctionCallToolName(toolName)
+  const serverId = metadata?.serverId ?? builtin?.serverId ?? parsed?.serverPart ?? 'unknown'
+  const serverName = metadata?.serverName ?? builtin?.serverName ?? parsed?.serverPart ?? 'MCP'
+  const displayName = metadata?.name ?? builtin?.name ?? parsed?.toolPart ?? toolName
   return {
     id: `${serverId}__${toolName}`,
+    runtimeName: toolName,
     name: displayName,
     description: metadata?.description,
     type: 'mcp',

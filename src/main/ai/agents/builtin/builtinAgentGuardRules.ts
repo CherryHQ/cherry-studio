@@ -13,6 +13,7 @@
 
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 
 import {
   detectDestructiveAssistantCommand,
@@ -30,7 +31,12 @@ const destructiveBuiltinOperation = (ctx: ToolGuardContext): GuardHit | null => 
     const reason = typeof command === 'string' ? detectDestructiveAssistantCommand(command) : undefined
     return reason ? { evidence: reason } : null
   }
-  return isPermanentDeletionToolName(ctx.toolName) ? { evidence: 'permanent deletion tool' } : null
+  if (isPermanentDeletionToolName(ctx.toolName, ctx.originalToolName)) {
+    return { evidence: 'permanent deletion tool' }
+  }
+  return ctx.toolName.startsWith('mcp__') && ctx.originalToolName === undefined
+    ? { evidence: 'MCP tool with an unresolved identity' }
+    : null
 }
 
 const feedbackSubmissionCommand = (ctx: ToolGuardContext): GuardHit | null => {
@@ -50,7 +56,7 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `This built-in Agent blocked ${hit.evidence}. It must never permanently delete data or bypass this safeguard. ` +
-      'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
+      `For a confirmed file or directory inside the session workspace, use ${MCP_BUILTIN_RUNTIME_NAMES.assistantFiles.moveToTrash}; protected paths cannot be deleted.`
   },
   {
     // Feedback skills submit through Bash under the user's identity (Lark form / GitHub issue).

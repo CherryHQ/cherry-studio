@@ -1,6 +1,6 @@
 import type { McpConfigSample } from '@shared/data/types/mcpServer'
 import { sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -16,6 +16,7 @@ export const mcpServerTable = sqliteTable(
   {
     id: uuidPrimaryKey(),
     name: text().notNull(),
+    serverWireName: text('server_wire_name').notNull(),
     type: text(),
     description: text(),
     baseUrl: text(),
@@ -49,6 +50,10 @@ export const mcpServerTable = sqliteTable(
   },
   (t) => [
     index('mcp_server_name_idx').on(t.name),
+    index('mcp_server_wire_name_idx').on(t.serverWireName),
+    // A persisted wire name is part of the cross-runtime identity contract.
+    // The suffix makes accidental collisions unlikely; the unique index remains the gate.
+    uniqueIndex('mcp_server_wire_name_unique').on(t.serverWireName),
     index('mcp_server_is_active_idx').on(t.isActive),
     index('mcp_server_sort_order_idx').on(t.sortOrder),
     check(
@@ -58,7 +63,8 @@ export const mcpServerTable = sqliteTable(
     check(
       'mcp_server_install_source_check',
       sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'ai_assisted', 'protocol', 'unknown')`
-    )
+    ),
+    check('mcp_server_wire_name_nonempty_check', sql`length(trim(${t.serverWireName})) > 0`)
   ]
 )
 

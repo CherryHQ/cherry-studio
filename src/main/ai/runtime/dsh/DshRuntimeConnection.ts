@@ -20,6 +20,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
@@ -49,7 +50,6 @@ import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './composition
 import { DshBridgeServer } from './DshBridgeServer'
 import {
   buildDshCherryToolBridge,
-  buildDshCherryToolName,
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS,
   DSH_AUTO_APPROVED_BRIDGED_TOOLS,
   DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS,
@@ -269,7 +269,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
     const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
     const isToolEnabled = (serverName: string, toolName: string) =>
-      !this.disabledTools.has(buildDshCherryToolName(serverName, toolName))
+      !this.disabledTools.has(toMcpRuntimeName({ serverName, toolName }))
     const citationsGuidance = buildCitationsGuidance({
       web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
       kb:
@@ -326,6 +326,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         { agentsDataRoot, toolResultRoot }
       )
       this.toolBridge = toolBridge
+      this.adapter.setMcpToolMetadata(toolBridge.mcpToolMetadata)
       const finalSnapshot = await captureDshConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,

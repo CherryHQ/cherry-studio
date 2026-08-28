@@ -21,7 +21,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { listBuiltinToolPolicies, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -59,12 +59,7 @@ import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExt
 import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
-import {
-  buildMcpToolDefinitions,
-  buildPiMcpToolName,
-  type PiMcpToolBridge,
-  warmMcpToolCatalogs
-} from './piMcpToolAdapter'
+import { buildMcpToolDefinitions, type PiMcpToolBridge, warmMcpToolCatalogs } from './piMcpToolAdapter'
 import { loadPiAiCompat, loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
@@ -72,21 +67,13 @@ import { createPiProviderExtension } from './providerExtension'
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
-const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
-  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
-)
+const PI_AUTO_APPROVED_MCP_TOOLS = new Set(listBuiltinToolPolicies({ approval: 'auto' }).map(toMcpRuntimeName))
 const PI_APPROVAL_REQUIRED_TOOLS = new Set([
   PI_TOOL_EXEC_TOOL_NAME,
-  ...listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
+  ...listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
 ])
 const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
-  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(toMcpRuntimeName)
 )
 
 function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
@@ -240,7 +227,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const linkedChannel = initialSnapshot.linkedChannel
       const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
       const isToolEnabled = (serverName: string, toolName: string) =>
-        !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
+        !this.disabledTools.has(toMcpRuntimeName({ serverName, toolName }))
       const citationsGuidance = buildCitationsGuidance({
         web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
         kb:

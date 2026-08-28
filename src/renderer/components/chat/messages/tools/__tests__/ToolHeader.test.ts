@@ -1,5 +1,6 @@
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -230,7 +231,7 @@ describe('getReadableToolActivity', () => {
       label: 'Started a new session',
       description: 'Research pricing'
     })
-    expect(getReadableToolActivity(`mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`, {}, true, t)).toEqual({
+    expect(getReadableToolActivity(MCP_BUILTIN_RUNTIME_NAMES.cherryTools.sessionCreate, {}, true, t)).toEqual({
       label: 'Starting a new session',
       description: 'Untitled session'
     })

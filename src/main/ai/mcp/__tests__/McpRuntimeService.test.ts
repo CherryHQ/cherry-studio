@@ -219,6 +219,7 @@ describe('McpRuntimeService stdio environment', () => {
     const server = {
       id: 'stdio-server',
       name: 'stdio-server',
+      serverWireName: 'stdio_server',
       command: 'npx',
       args: ['-y', 'example-mcp'],
       isActive: true
@@ -240,6 +241,7 @@ describe('McpRuntimeService stdio environment', () => {
     const server = {
       id: 'stdio-server',
       name: 'stdio-server',
+      serverWireName: 'stdio_server',
       command: 'npx',
       args: ['-y', 'example-mcp'],
       env: { Path: 'server-metadata' },
@@ -270,6 +272,7 @@ describe('McpRuntimeService QVeris hosted transport', () => {
     const server = {
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
+      serverWireName: 'qveris_server',
       type: 'streamableHttp',
       baseUrl: 'https://mcp.qveris.ai/mcp',
       installSource: 'builtin',
@@ -297,6 +300,7 @@ describe('McpRuntimeService QVeris hosted transport', () => {
     const server = {
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
+      serverWireName: 'qveris_server',
       type: 'streamableHttp',
       baseUrl: 'https://mcp.qveris.ai/mcp',
       installSource: 'builtin',
@@ -315,12 +319,14 @@ describe('McpRuntimeService QVeris hosted transport', () => {
     const first = service.getServerKey({
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
+      serverWireName: 'qveris_server',
       env: { QVERIS_API_KEY: 'first-key' },
       isActive: true
     } as McpServer)
     const second = service.getServerKey({
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
+      serverWireName: 'qveris_server',
       env: { QVERIS_API_KEY: 'second-key' },
       isActive: true
     } as McpServer)

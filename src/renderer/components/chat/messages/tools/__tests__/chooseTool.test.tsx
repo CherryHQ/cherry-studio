@@ -1,4 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -62,6 +63,7 @@ describe('chooseTool', () => {
     expect(await testIdOf(chooseTool(resp('generate_image')))).toBe('image-card')
     expect(await testIdOf(chooseTool(resp('generate_image', 'mcp')))).toBe('image-card')
     expect(await testIdOf(chooseTool(resp('mcp__cherry-tools__generate_image')))).toBe('image-card')
+    expect(await testIdOf(chooseTool(resp(MCP_BUILTIN_RUNTIME_NAMES.cherryTools.generateImage)))).toBe('image-card')
   })
 
   it('keeps an AI SDK dynamic generate_image part on the builtin image-card path', async () => {

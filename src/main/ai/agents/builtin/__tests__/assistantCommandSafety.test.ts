@@ -63,12 +63,19 @@ describe('isPermanentDeletionToolName', () => {
     expect(isPermanentDeletionToolName(toolName)).toBe(true)
   })
 
-  it.each(['Bash', 'mcp__assistant-files__move_to_trash', 'mcp__cherry-tools__kb_manage'])(
-    'does not misclassify %s',
-    (toolName) => {
-      expect(isPermanentDeletionToolName(toolName)).toBe(false)
-    }
-  )
+  it.each([
+    ['Bash', undefined],
+    ['mcp__assistant__diagnose__7461c4bedfe3', 'diagnose'],
+    ['mcp__cherry_tools__config__7ebbe6253854', 'config'],
+    ['mcp__assistant_files__moveToTrash__b1ffadb33d56', 'move_to_trash'],
+    ['mcp__cherry_tools__kbManage__d21480aca963', 'kb_manage']
+  ])('does not misclassify %s', (toolName, originalToolName) => {
+    expect(isPermanentDeletionToolName(toolName, originalToolName)).toBe(false)
+  })
+
+  it('uses the catalog-bound source name for opaque canonical external tools', () => {
+    expect(isPermanentDeletionToolName('mcp__files_123456789abc__deleteFile__abcdef123456', 'delete_file')).toBe(true)
+  })
 })
 
 describe('isLarkFormSubmissionCommand', () => {

@@ -1,6 +1,7 @@
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -29,7 +30,9 @@ describe('builtinToolPolicy', () => {
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_LIST_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval).toBe(
       'auto'
     )
-    expect(findBuiltinToolPolicy('mcp__skills__install_skill', WITHOUT_HOST_TOOLS)?.approval).toBe('runtime')
+    expect(findBuiltinToolPolicy(MCP_BUILTIN_RUNTIME_NAMES.skills.installSkill, WITHOUT_HOST_TOOLS)?.approval).toBe(
+      'runtime'
+    )
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME), WITHOUT_HOST_TOOLS)).toMatchObject(
       {
         approval: 'required',
@@ -39,8 +42,10 @@ describe('builtinToolPolicy', () => {
   })
 
   it('filters Assistant-only entries when their MCP servers are not mounted', () => {
-    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', WITHOUT_HOST_TOOLS)).toBeUndefined()
-    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', WITH_HOST_TOOLS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy(MCP_BUILTIN_RUNTIME_NAMES.assistant.diagnose, WITHOUT_HOST_TOOLS)).toBeUndefined()
+    expect(findBuiltinToolPolicy(MCP_BUILTIN_RUNTIME_NAMES.assistant.diagnose, WITH_HOST_TOOLS)?.approval).toBe(
+      'required'
+    )
     expect(
       listBuiltinToolPolicies({ mountedServers: WITHOUT_HOST_TOOLS }).every((entry) =>
         WITHOUT_HOST_TOOLS.has(entry.serverName)

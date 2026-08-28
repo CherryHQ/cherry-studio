@@ -82,11 +82,11 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
 
   it('honors disabledTools for notify and config autonomy tools', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(
-      makeAgent(['mcp__cherry-tools__notify', 'mcp__cherry-tools__config'])
+      makeAgent(['mcp__cherry_tools__notify__2484dc7ba152', 'mcp__cherry_tools__config__7ebbe6253854'])
     )
-    expect(snapshot.isDisabled('mcp__cherry-tools__notify')).toBe(true)
-    expect(snapshot.isDisabled('mcp__cherry-tools__config')).toBe(true)
-    expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
+    expect(snapshot.isDisabled('mcp__cherry_tools__notify__2484dc7ba152')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry_tools__config__7ebbe6253854')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry_tools__cron__ceb5bf2c5e21')).toBe(false)
   })
 
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
@@ -121,6 +121,26 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
 
     expect(mocks.findMcpServer).toHaveBeenCalledWith('server')
     expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
+  })
+
+  it('resolves a canonical external MCP runtime name to its force-prompt policy', async () => {
+    const runtimeName = 'mcp__files_123456789abc__deleteFile__abcdef123456'
+    mocks.findMcpServer.mockReturnValue({
+      id: 'mcp-1',
+      name: 'Files',
+      serverWireName: 'files_123456789abc',
+      disabledAutoApproveTools: ['delete_file']
+    })
+    mocks.listMcpTools.mockReturnValue([{ name: 'delete_file', runtimeName, description: 'Delete a file' }])
+
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+
+    expect(snapshot.resolve(runtimeName)).toMatchObject({
+      id: runtimeName,
+      name: 'delete_file',
+      approval: 'prompt',
+      sourceApproval: 'prompt'
+    })
   })
 
   it('drops a server that becomes unknown on a later update instead of carrying it forward', async () => {
@@ -195,33 +215,33 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
 
   it('auto-approves an injected tool matching an auto-allow prefix', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
-      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__']
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry_tools__']
     })
-    expect(snapshot.resolve('mcp__cherry-tools__kb_search')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbSearch__7fb1469c1b2d')).toMatchObject({ approval: 'auto' })
   })
 
   it('requires approval for an excepted tool even though it matches the auto-allow prefix', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
-      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
-      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry_tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry_tools__kbManage__d21480aca963']
     })
     // kb_manage mutates the knowledge base — it must prompt, not auto-approve, despite the prefix.
-    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbManage__d21480aca963')).toMatchObject({ approval: 'prompt' })
     // A sibling read tool under the same prefix is still auto-approved.
-    expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbRead__01a3c9c066e6')).toMatchObject({ approval: 'auto' })
   })
 
   it('auto-approves the merged autonomy tools while kb_manage still prompts', async () => {
     // The former standalone `cherry` server's cron/notify/config now live under cherry-tools and
     // must stay auto-approved; the mutating kb_manage carve-out must survive the merge.
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
-      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
-      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry_tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry_tools__kbManage__d21480aca963']
     })
-    expect(snapshot.resolve('mcp__cherry-tools__cron')).toMatchObject({ approval: 'auto' })
-    expect(snapshot.resolve('mcp__cherry-tools__notify')).toMatchObject({ approval: 'auto' })
-    expect(snapshot.resolve('mcp__cherry-tools__config')).toMatchObject({ approval: 'auto' })
-    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
+    expect(snapshot.resolve('mcp__cherry_tools__cron__ceb5bf2c5e21')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__notify__2484dc7ba152')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__config__7ebbe6253854')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbManage__d21480aca963')).toMatchObject({ approval: 'prompt' })
   })
 })
 
@@ -270,14 +290,40 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
   })
 
   it('keeps Assistant read-only and sensitive tools classified on their own entries', () => {
-    expect(findBuiltinToolPolicy('mcp__assistant__navigate', HOST_SERVERS)?.approval).toBe('auto')
-    expect(findBuiltinToolPolicy('mcp__assistant__product_info', HOST_SERVERS)?.approval).toBe('auto')
-    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', HOST_SERVERS)?.approval).toBe('required')
-    expect(findBuiltinToolPolicy('mcp__assistant__apply_setting', HOST_SERVERS)?.approval).toBe('required')
-    expect(findBuiltinToolPolicy('mcp__assistant__create_agent', HOST_SERVERS)?.approval).toBe('required')
-    expect(findBuiltinToolPolicy('mcp__assistant-files__read_file', HOST_SERVERS)?.approval).toBe('auto')
-    expect(findBuiltinToolPolicy('mcp__assistant-files__move_to_trash', HOST_SERVERS)?.approval).toBe('required')
-    expect(findBuiltinToolPolicy('mcp__assistant-files__save_attachment', HOST_SERVERS)?.approval).toBe('required')
+    expect(
+      findBuiltinToolPolicy(toMcpRuntimeName({ serverName: 'assistant', toolName: 'navigate' }), HOST_SERVERS)?.approval
+    ).toBe('auto')
+    expect(
+      findBuiltinToolPolicy(toMcpRuntimeName({ serverName: 'assistant', toolName: 'product_info' }), HOST_SERVERS)
+        ?.approval
+    ).toBe('auto')
+    expect(
+      findBuiltinToolPolicy(toMcpRuntimeName({ serverName: 'assistant', toolName: 'diagnose' }), HOST_SERVERS)?.approval
+    ).toBe('required')
+    expect(
+      findBuiltinToolPolicy(toMcpRuntimeName({ serverName: 'assistant', toolName: 'apply_setting' }), HOST_SERVERS)
+        ?.approval
+    ).toBe('required')
+    expect(
+      findBuiltinToolPolicy(toMcpRuntimeName({ serverName: 'assistant', toolName: 'create_agent' }), HOST_SERVERS)
+        ?.approval
+    ).toBe('required')
+    expect(
+      findBuiltinToolPolicy(toMcpRuntimeName({ serverName: 'assistant-files', toolName: 'read_file' }), HOST_SERVERS)
+        ?.approval
+    ).toBe('auto')
+    expect(
+      findBuiltinToolPolicy(
+        toMcpRuntimeName({ serverName: 'assistant-files', toolName: 'move_to_trash' }),
+        HOST_SERVERS
+      )?.approval
+    ).toBe('required')
+    expect(
+      findBuiltinToolPolicy(
+        toMcpRuntimeName({ serverName: 'assistant-files', toolName: 'save_attachment' }),
+        HOST_SERVERS
+      )?.approval
+    ).toBe('required')
   })
 
   it('applies every derived Cherry policy entry under the real wiring', async () => {

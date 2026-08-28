@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 import { applyMigrations } from '@data/db/applyMigrations'
 import type { DbType } from '@data/db/types'
+import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -106,8 +108,75 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
-  it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
+  it('backfills immutable MCP server wire names on populated databases', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO mcp_server (id, name, is_active, created_at, updated_at)
+         VALUES (?, ?, false, ?, ?), (?, ?, false, ?, ?)`
+      )
+      .run('mcp-server-a', 'Same Display Name', now, now, 'mcp-server-b', 'Same Display Name', now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, disabled_tools, order_key, created_at, updated_at)
+         VALUES (?, 'claude-code', 'Agent', '', ?, 'a0', ?, ?)`
+      )
+      .run(
+        'agent-mcp-disabled-tools',
+        JSON.stringify([
+          'mcp__cherry-tools__web_search',
+          'mcp__cherry-tools__web_search',
+          'mcp__assistant-files__move_to_trash',
+          'mcp__skills__install_skill',
+          'Bash'
+        ]),
+        now,
+        now
+      )
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite.prepare('SELECT id, name, server_wire_name FROM mcp_server ORDER BY id').all() as Array<{
+      id: string
+      name: string
+      server_wire_name: string
+    }>
+    expect(rows).toEqual([
+      {
+        id: 'mcp-server-a',
+        name: 'Same Display Name',
+        server_wire_name: buildMcpServerWireName({ serverId: 'mcp-server-a', serverName: 'Same Display Name' })
+      },
+      {
+        id: 'mcp-server-b',
+        name: 'Same Display Name',
+        server_wire_name: buildMcpServerWireName({ serverId: 'mcp-server-b', serverName: 'Same Display Name' })
+      }
+    ])
+
+    sqlite.prepare('UPDATE mcp_server SET name = ? WHERE id = ?').run('Renamed', 'mcp-server-a')
+    expect(sqlite.prepare('SELECT server_wire_name FROM mcp_server WHERE id = ?').get('mcp-server-a')).toEqual({
+      server_wire_name: rows[0].server_wire_name
+    })
+    expect(sqlite.pragma('table_info(mcp_server)')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'server_wire_name', notnull: 1 })])
+    )
+    expect(sqlite.pragma('index_list(mcp_server)')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'mcp_server_wire_name_unique', unique: 1 })])
+    )
+    expect(sqlite.prepare('SELECT disabled_tools FROM agent WHERE id = ?').get('agent-mcp-disabled-tools')).toEqual({
+      disabled_tools: JSON.stringify([
+        'Bash',
+        MCP_BUILTIN_RUNTIME_NAMES.assistantFiles.moveToTrash,
+        MCP_BUILTIN_RUNTIME_NAMES.cherryTools.webSearch,
+        MCP_BUILTIN_RUNTIME_NAMES.skills.installSkill
+      ])
+    })
+  })
+
+  it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0013_graceful_bloodstrike'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
@@ -124,10 +193,34 @@ describe('applyMigrations over a populated database', () => {
     ])
     // The whole point of the migration: install_mcp_server writes this value, so
     // without it every AI-assisted install fails at insert time.
+    const insertAfterMigration = sqlite.prepare(
+      `INSERT INTO mcp_server
+        (id, name, server_wire_name, type, command, install_source, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, 'stdio', 'npx', ?, 1, ?, ?)`
+    )
     expect(() =>
-      insert.run('77777777-7777-7777-8777-777777777777', 'ai-installed', 'ai_assisted', now, now)
+      insertAfterMigration.run(
+        '77777777-7777-7777-8777-777777777777',
+        'ai-installed',
+        buildMcpServerWireName({
+          serverId: '77777777-7777-7777-8777-777777777777',
+          serverName: 'ai-installed'
+        }),
+        'ai_assisted',
+        now,
+        now
+      )
     ).not.toThrow()
-    expect(() => insert.run('88888888-8888-7888-8888-888888888888', 'bogus', 'whatever', now, now)).toThrow()
+    expect(() =>
+      insertAfterMigration.run(
+        '88888888-8888-7888-8888-888888888888',
+        'bogus',
+        buildMcpServerWireName({ serverId: '88888888-8888-7888-8888-888888888888', serverName: 'bogus' }),
+        'whatever',
+        now,
+        now
+      )
+    ).toThrow()
   })
 
   it('moves provider dialect overrides to their endpoints before dropping api_features', () => {

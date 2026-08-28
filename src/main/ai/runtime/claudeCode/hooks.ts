@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { rtkRewrite } from '@main/utils/rtk'
+import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
@@ -61,6 +62,8 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
+  /** External MCP identities captured from the catalog after its bounded warm. */
+  mcpToolMetadata: Readonly<Record<string, { name: string }>> | undefined
   agentsMdLoader: AgentsMdLoader
 }
 
@@ -74,6 +77,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!toolName) return {}
+    const originalToolName = ctx.mcpToolMetadata?.[toolName]?.name ?? getBuiltinMcpToolIdentity(toolName)?.name
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
@@ -81,6 +85,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
       toolName,
+      originalToolName,
       input: toolInput,
       permissionMode: snapshot?.getPermissionMode(),
       builtinRole: ctx.builtinRole,

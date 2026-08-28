@@ -180,6 +180,8 @@ export async function buildClaudeCodeSessionSettings(
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
+  let mcpToolMetadata = await buildMcpToolMetadata(agent)
+  if (agent.mcps?.length) mcpToolMetadata ??= {}
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
   const localPlugin = (pluginPath: string) => ({ type: 'local' as const, path: pluginPath, skipMcpDiscovery: true })
   const plugins =
@@ -213,7 +215,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     agentsMdLoader,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    mcpToolMetadata
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -240,9 +243,6 @@ export async function buildClaudeCodeSessionSettings(
     options?.knowledgeBaseIds,
     notificationContext
   )
-  let mcpToolMetadata = await buildMcpToolMetadata(agent)
-  if (agent.mcps?.length) mcpToolMetadata ??= {}
-
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
   // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed
   // tools moments later (the landing refresh fires `onToolsCacheUpdated` → `tools/list_changed` →
@@ -426,7 +426,8 @@ async function buildToolPermissions(
   agentDataPath: string,
   agentsMdLoader: AgentsMdLoader,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  mcpToolMetadata: Record<string, McpToolDisplayMetadata> | undefined
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -481,12 +482,14 @@ async function buildToolPermissions(
     const approvalHoldsInThisMode =
       policy?.approval === 'required' &&
       !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
-    const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
+    const access = snapshot.resolve(toolName, input)
+    const sourceApprovalRequired = access?.sourceApproval === 'prompt'
+    const requiresInteractiveResponder =
+      claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode || sourceApprovalRequired
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
-    const access = snapshot.resolve(toolName, input)
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
@@ -566,6 +569,7 @@ async function buildToolPermissions(
     mountedServers,
     pluginDirectories,
     supportsImages,
+    mcpToolMetadata,
     agentsMdLoader
   })
 

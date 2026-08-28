@@ -42,11 +42,24 @@ export function buildMcpServers(
     linkedChannelSnapshot,
     agentDataPath,
     selectedKnowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    'runtime'
   )
-  return Object.fromEntries(
-    Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])
+  const result = Object.fromEntries(
+    Object.entries(servers).map(([id, server]) => [
+      server.serverWireName ?? id,
+      { type: 'sdk', ...server } satisfies McpServerConfig
+    ])
   )
+  for (const [id, server] of Object.entries(servers)) {
+    if (!server.serverWireName || server.serverWireName === id) continue
+    Object.defineProperty(result, id, {
+      configurable: true,
+      enumerable: false,
+      value: result[server.serverWireName]
+    })
+  }
+  return result
 }
 
 function addMcpToolMetadataAlias(
@@ -72,6 +85,7 @@ function addMcpToolMetadataAliases(
   }
 
   addMcpToolMetadataAlias(metadataByName, tool.id, metadata)
+  addMcpToolMetadataAlias(metadataByName, tool.runtimeName, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${tool.name}`, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${toCamelCase(tool.name)}`, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.name}__${tool.name}`, metadata)

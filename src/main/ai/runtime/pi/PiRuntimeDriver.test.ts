@@ -68,7 +68,9 @@ describe('PiRuntimeDriver.listAvailableTools', () => {
 
   it('appends bridged MCP tools (prompt-gated) after the builtins', async () => {
     mocks.findByIdOrName.mockReturnValue({ id: 'srv-1', name: 'github' } as McpServer)
-    mocks.listTools.mockReturnValue([{ name: 'search_issues', description: 'Search issues' } as McpTool])
+    mocks.listTools.mockReturnValue([
+      { name: 'search_issues', runtimeName: 'mcp__github__search_issues', description: 'Search issues' } as McpTool
+    ])
 
     const tools = await new PiRuntimeDriver().listAvailableTools(['srv-1'])
     const mcpTools = tools.filter((tool) => tool.origin === 'mcp')

@@ -20,7 +20,7 @@ const GENERATED_IMAGE_RESULTS: ReadonlyArray<[string, string, unknown]> = [
   ['Home image output', 'generate_image', [{ id: 'file-1', name: 'sunset.png' }]],
   [
     'inline Agent image output',
-    'mcp__cherry-tools__generate_image',
+    'mcp__cherry_tools__generateImage__d51e7b5767c3',
     {
       content: [{ type: 'image', data: 'BASE64', mimeType: 'image/png' }],
       metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
@@ -28,7 +28,7 @@ const GENERATED_IMAGE_RESULTS: ReadonlyArray<[string, string, unknown]> = [
   ],
   [
     'deferred Agent image output',
-    'mcp__cherry-tools__generate_image',
+    'mcp__cherry_tools__generateImage__d51e7b5767c3',
     {
       $deferredToolResult: {
         topicId: 'agent-session:session-1',
@@ -237,7 +237,7 @@ describe('projectLiveMessageParts', () => {
         {
           type: 'dynamic-tool',
           toolCallId: 'channel-auth',
-          toolName: 'mcp__cherry-tools__config',
+          toolName: 'mcp__cherry_tools__config__7ebbe6253854',
           state: 'output-available',
           input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
           output: {
@@ -271,7 +271,7 @@ describe('projectLiveMessageParts', () => {
     ])
   })
 
-  it.each(['generate_image', 'mcp__cherry-tools__generate_image'])(
+  it.each(['generate_image', 'mcp__cherry_tools__generateImage__d51e7b5767c3'])(
     'keeps approval-requested %s calls inside the live process',
     (toolName) => {
       const layout = projectLiveMessageParts(
@@ -302,7 +302,7 @@ describe('projectLiveMessageParts', () => {
     ],
     [
       'a text-only Agent result',
-      generateImagePart('mcp__cherry-tools__generate_image', {
+      generateImagePart('mcp__cherry_tools__generateImage__d51e7b5767c3', {
         output: {
           content: [{ type: 'text', text: 'Image generation returned no images.' }],
           metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
@@ -311,7 +311,7 @@ describe('projectLiveMessageParts', () => {
     ],
     [
       'an errored Agent result',
-      generateImagePart('mcp__cherry-tools__generate_image', {
+      generateImagePart('mcp__cherry_tools__generateImage__d51e7b5767c3', {
         output: {
           isError: true,
           content: [{ type: 'text', text: 'Image generation failed' }],
@@ -559,7 +559,7 @@ describe('projectCompletedMessageParts', () => {
         {
           type: 'dynamic-tool',
           toolCallId: 'channel-auth',
-          toolName: 'mcp__cherry-tools__config',
+          toolName: 'mcp__cherry_tools__config__7ebbe6253854',
           state: 'output-available',
           input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
           output: {
@@ -584,7 +584,7 @@ describe('projectCompletedMessageParts', () => {
         {
           type: 'dynamic-tool',
           toolCallId: 'channel-auth',
-          toolName: 'mcp__cherry-tools__config',
+          toolName: 'mcp__cherry_tools__config__7ebbe6253854',
           state: 'output-available',
           input: { action: 'add_channel', type: 'feishu', auth_mode: 'qr' },
           output: {

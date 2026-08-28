@@ -79,8 +79,26 @@ export function isGitHubIssueCreationCommand(command: string): boolean {
   return GITHUB_ISSUE_CREATION_PATTERN.test(normalized)
 }
 
-export function isPermanentDeletionToolName(toolName: string): boolean {
-  if (!toolName.startsWith('mcp__')) return false
-  const sourceToolName = toolName.split('__').at(-1)?.toLowerCase()
-  return ['delete', 'delete_file', 'delete_directory', 'remove_file', 'remove_directory'].includes(sourceToolName ?? '')
+export function isPermanentDeletionToolName(toolName: string, originalToolName?: string): boolean {
+  return (
+    PERMANENT_DELETION_RUNTIME_NAMES.has(toolName) ||
+    (originalToolName !== undefined && PERMANENT_DELETION_ORIGINAL_TOOL_NAMES.has(originalToolName))
+  )
 }
+
+const PERMANENT_DELETION_RUNTIME_NAMES = new Set([
+  // Legacy external alias retained until external destructive-tool metadata reaches this hook.
+  'mcp__filesystem__delete',
+  'mcp__files__delete_file',
+  'mcp__files__delete_directory',
+  'mcp__files__remove_file',
+  'mcp__files__remove_directory'
+])
+
+const PERMANENT_DELETION_ORIGINAL_TOOL_NAMES = new Set([
+  'delete',
+  'delete_file',
+  'delete_directory',
+  'remove_file',
+  'remove_directory'
+])

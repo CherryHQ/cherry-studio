@@ -25,6 +25,7 @@ import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { imageExts } from '@shared/utils/file'
 
 import { isPathWithinAllowedRoots } from './pathContainment'
@@ -155,7 +156,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // Installing third-party skill code needs a responder — except under bypassPermissions, the
     // user's explicit opt-in to unattended installation.
     id: 'skill-install',
-    match: { tool: 'mcp__skills__install_skill' },
+    match: { tool: MCP_BUILTIN_RUNTIME_NAMES.skills.installSkill },
     headless: {
       predicate: 'turn-headless',
       reason:

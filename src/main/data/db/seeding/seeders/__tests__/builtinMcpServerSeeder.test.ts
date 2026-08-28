@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto'
+
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { hashObject } from '@data/db/seeding/hashObject'
 import { BuiltinMcpServerSeeder } from '@data/db/seeding/seeders/builtinMcpServerSeeder'
+import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -10,8 +13,14 @@ import { describe, expect, it } from 'vitest'
 describe('BuiltinMcpServerSeeder', () => {
   const dbh = setupTestDatabase()
 
-  const insert = (values: Partial<typeof mcpServerTable.$inferInsert> & { name: string }) =>
-    dbh.db.insert(mcpServerTable).values(values)
+  const insert = (values: Partial<typeof mcpServerTable.$inferInsert> & { name: string }) => {
+    const id = values.id ?? randomUUID()
+    return dbh.db.insert(mcpServerTable).values({
+      ...values,
+      id,
+      serverWireName: values.serverWireName ?? buildMcpServerWireName({ serverId: id, serverName: values.name })
+    })
+  }
 
   const rowFor = async (name: string) => {
     const [row] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.name, name))

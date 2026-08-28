@@ -38,6 +38,7 @@ import {
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
 import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -97,6 +98,10 @@ function sourceIdToNumber(sourceId: unknown): number | undefined {
 
 /** `mcp__cherry-tools__web_search` → `web_search`; null for any other server or tool. */
 function citableCherryToolName(wireName: string): string | null {
+  const builtin = getBuiltinMcpToolIdentity(wireName)
+  if (builtin?.serverId === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(builtin.name)) {
+    return builtin.name
+  }
   const parsed = parseFunctionCallToolName(wireName)
   if (!parsed || parsed.serverPart !== CHERRY_TOOLS_MCP_SERVER) return null
   return CITABLE_TOOL_NAMES.has(parsed.toolPart) ? parsed.toolPart : null

@@ -10,6 +10,7 @@ import {
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -255,7 +256,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   })
 
   describe('skill-install', () => {
-    const install = 'mcp__skills__install_skill'
+    const install = MCP_BUILTIN_RUNTIME_NAMES.skills.installSkill
 
     it('denies headless installation outside bypass', async () => {
       const decision = await evaluate(

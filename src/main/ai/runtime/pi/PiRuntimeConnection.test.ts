@@ -17,10 +17,10 @@ const PI_BUILTIN_TOOL_NAMES = ['read', 'bash', 'edit', 'write']
 const MANAGED_BASH_TOOL = { name: 'bash' }
 const CODE_MODE_TOOL_NAMES = ['tool_search', 'tool_describe', 'tool_call', 'tool_exec']
 const AUTONOMY_TOOL_NAMES = [
-  'mcp__cherry-tools__cron',
-  'mcp__cherry-tools__notify',
-  'mcp__cherry-tools__config',
-  'mcp__agent-memory__memory'
+  'mcp__cherry_tools__cron__ceb5bf2c5e21',
+  'mcp__cherry_tools__notify__2484dc7ba152',
+  'mcp__cherry_tools__config__7ebbe6253854',
+  'mcp__agent_memory__memory__b472a1250bce'
 ]
 
 interface FakeSpan {
@@ -1535,7 +1535,12 @@ describe('PiRuntimeConnection', () => {
       const handler = gateHandler()
       await expect(
         handler(
-          { type: 'tool_call', toolName: 'mcp__agent-memory__memory', toolCallId: 't-autonomy', input: {} },
+          {
+            type: 'tool_call',
+            toolName: 'mcp__agent_memory__memory__b472a1250bce',
+            toolCallId: 't-autonomy',
+            input: {}
+          },
           { signal: undefined }
         )
       ).resolves.toBeUndefined()
@@ -1680,13 +1685,13 @@ describe('PiRuntimeConnection', () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         model: 'p::m',
-        disabledTools: ['mcp__agent-memory__memory'],
+        disabledTools: ['mcp__agent_memory__memory__b472a1250bce'],
         configuration: {}
       })
       mocks.getById.mockReturnValue(agentSession)
       const conn = await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.excludeTools).toEqual(['mcp__agent-memory__memory'])
+      expect(mocks.createOpts?.excludeTools).toEqual(['mcp__agent_memory__memory__b472a1250bce'])
 
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
       let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
@@ -1697,7 +1702,7 @@ describe('PiRuntimeConnection', () => {
       })
       await expect(
         handler(
-          { type: 'tool_call', toolName: 'mcp__agent-memory__memory', toolCallId: 'tc1', input: {} },
+          { type: 'tool_call', toolName: 'mcp__agent_memory__memory__b472a1250bce', toolCallId: 'tc1', input: {} },
           { signal: undefined }
         )
       ).resolves.toMatchObject({ block: true })

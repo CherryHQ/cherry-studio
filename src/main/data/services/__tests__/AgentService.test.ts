@@ -149,7 +149,7 @@ describe('AgentService', () => {
   async function insertMcpServer(id: string, name?: string): Promise<void> {
     await dbh.db
       .insert(mcpServerTable)
-      .values({ id, name: name ?? id, sortOrder: 0, isActive: false })
+      .values({ id, name: name ?? id, serverWireName: `test_${id}`, sortOrder: 0, isActive: false })
       .onConflictDoNothing()
   }
 

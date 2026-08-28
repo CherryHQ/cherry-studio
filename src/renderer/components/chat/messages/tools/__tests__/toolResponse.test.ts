@@ -142,13 +142,13 @@ describe('toolResponse adapter', () => {
 
   it('parses the cherry-tools wire name into server + tool (no metadata path)', () => {
     // Real production shape (from the agent_session_message table): a dynamic-tool part whose
-    // toolName is the full `mcp__cherry-tools__web_search`, with NO output metadata. The single-
+    // toolName is the full `mcp__cherry_tools__webSearch__a26653c54bd6`, with NO output metadata. The single-
     // underscore wire name splits cleanly on the last `__` into server `cherry-tools` / tool
     // `web_search`.
     const part = {
       type: 'dynamic-tool',
       toolCallId: 'call-cherry',
-      toolName: 'mcp__cherry-tools__web_search',
+      toolName: 'mcp__cherry_tools__webSearch__a26653c54bd6',
       state: 'output-available',
       input: { query: 'latest news' },
       output: { content: '[]' }

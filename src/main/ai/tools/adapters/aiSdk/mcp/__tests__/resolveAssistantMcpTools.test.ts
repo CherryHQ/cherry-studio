@@ -17,12 +17,14 @@ vi.mock('@application', () => ({
   application: { get: () => ({ warmToolsCache: warmMock, listTools: listToolsMock }) }
 }))
 
-import { getEffectiveMcpMode, resolveAssistantMcpToolIds } from '../resolveAssistantMcpTools'
+import { buildMcpWireToolId } from '@shared/ai/tools/mcpSourcePolicy'
+
+import { getEffectiveMcpMode, resolveAssistantMcpToolIds, resolveMcpToolIds } from '../resolveAssistantMcpTools'
 
 const SERVER = { id: 'srv-1', name: '@cherry/filesystem', isActive: true }
 const TOOLS = [
-  { id: 'mcp__fs__read', name: 'read' },
-  { id: 'mcp__fs__ls', name: 'ls' }
+  { id: 'identity-read', runtimeName: 'mcp__fs__read__runtime', name: 'read' },
+  { id: 'identity-ls', runtimeName: 'mcp__fs__ls__runtime', name: 'ls' }
 ]
 
 function assistant(overrides: Record<string, unknown> = {}) {
@@ -49,7 +51,7 @@ describe('resolveAssistantMcpToolIds', () => {
 
     expect(warmMock).toHaveBeenCalledWith('srv-1')
     expect(warmMock.mock.invocationCallOrder[0]).toBeLessThan(listToolsMock.mock.invocationCallOrder.at(-1)!)
-    expect(ids).toEqual(['mcp__fs__read', 'mcp__fs__ls'])
+    expect(ids).toEqual(['identity-read', 'identity-ls'])
   })
 
   it('caps the warm wait: a hung warm does not block, degrades to the current cache, and warns', async () => {
@@ -77,7 +79,7 @@ describe('resolveAssistantMcpToolIds', () => {
   it('does not warn when the warm resolves within the cap', async () => {
     getByIdMock.mockReturnValue(assistant())
 
-    expect(await resolveAssistantMcpToolIds('a1')).toEqual(['mcp__fs__read', 'mcp__fs__ls'])
+    expect(await resolveAssistantMcpToolIds('a1')).toEqual(['identity-read', 'identity-ls'])
     expect(warnMock).not.toHaveBeenCalled()
   })
 
@@ -95,7 +97,7 @@ describe('resolveAssistantMcpToolIds', () => {
 
   it('explicit auto resolves all active servers', async () => {
     getByIdMock.mockReturnValue(assistant({ mcpServerIds: [], settings: { mcpMode: 'auto' } }))
-    expect(await resolveAssistantMcpToolIds('a1')).toEqual(['mcp__fs__read', 'mcp__fs__ls'])
+    expect(await resolveAssistantMcpToolIds('a1')).toEqual(['identity-read', 'identity-ls'])
   })
 })
 
@@ -104,5 +106,23 @@ describe('getEffectiveMcpMode', () => {
     expect(getEffectiveMcpMode(assistant() as never)).toBe('manual')
     expect(getEffectiveMcpMode(assistant({ mcpServerIds: [] }) as never)).toBe('manual')
     expect(getEffectiveMcpMode(assistant({ settings: { mcpMode: 'auto' } }) as never)).toBe('auto')
+  })
+})
+
+describe('resolveMcpToolIds', () => {
+  it('resolves exact legacy ids and runtime names without widening selection', () => {
+    expect(resolveMcpToolIds([buildMcpWireToolId(SERVER.name, 'read'), 'unknown'])).toEqual(['identity-read'])
+    expect(resolveMcpToolIds(['mcp__fs__ls__runtime'])).toEqual(['identity-ls'])
+  })
+
+  it('fails closed when a legacy display-name id matches more than one catalog tool', () => {
+    const duplicateServer = { id: 'srv-2', name: SERVER.name, isActive: true }
+    listServersMock.mockReturnValue({ items: [SERVER, duplicateServer] })
+    listToolsMock.mockImplementation((serverId: string) =>
+      serverId === SERVER.id ? TOOLS : [{ id: 'identity-read-2', runtimeName: 'mcp__fs2__read__runtime', name: 'read' }]
+    )
+
+    expect(resolveMcpToolIds([buildMcpWireToolId(SERVER.name, 'read')])).toEqual([])
+    expect(resolveMcpToolIds(['identity-read-2'])).toEqual(['identity-read-2'])
   })
 })

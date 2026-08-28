@@ -95,7 +95,9 @@ describe('remapAgentPrefixIds', () => {
   it('rewrites agent_mcp_server.agentId when the agent id is remapped', async () => {
     const agentId = 'agent_mcp01_abc'
     await insertAgent(dbh.db, agentId)
-    await dbh.db.insert(mcpServerTable).values({ id: 'mcp-server-1', name: 'Test MCP' })
+    await dbh.db
+      .insert(mcpServerTable)
+      .values({ id: 'mcp-server-1', name: 'Test MCP', serverWireName: 'test_mcp_server_1' })
     await dbh.db.insert(agentMcpServerTable).values({ agentId, mcpServerId: 'mcp-server-1' })
 
     remapAgentPrefixIds(dbh.db)

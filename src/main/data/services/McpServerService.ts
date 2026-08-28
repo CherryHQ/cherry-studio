@@ -10,11 +10,13 @@ import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -87,10 +89,13 @@ export class McpServerService {
     this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
 
     const { sortOrder, isActive, ...rest } = dto
+    const id = uuidv4()
 
     const [row] = this.db
       .insert(mcpServerTable)
       .values({
+        id,
+        serverWireName: buildMcpServerWireName({ serverId: id, serverName: dto.name }),
         ...rest,
         sortOrder: sortOrder ?? 0,
         isActive: isActive ?? false
@@ -125,9 +130,12 @@ export class McpServerService {
       }
 
       return dtos.map(({ sortOrder, isActive, ...rest }) => {
+        const id = uuidv4()
         const [row] = tx
           .insert(mcpServerTable)
           .values({
+            id,
+            serverWireName: buildMcpServerWireName({ serverId: id, serverName: rest.name }),
             ...rest,
             sortOrder: sortOrder ?? 0,
             isActive: isActive ?? false

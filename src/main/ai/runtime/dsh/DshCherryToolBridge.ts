@@ -5,12 +5,13 @@ import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/d
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
-import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { listBuiltinToolPolicies, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
+import { createMcpToolBinding } from '../mcpToolBinding'
 import { dshToolResultErrorText, projectDshToolResult } from './dshToolResultProjection'
 
 const logger = loggerService.withContext('DshCherryToolBridge')
@@ -24,8 +25,15 @@ interface DshToolBinding {
 
 export interface DshCherryToolBridge {
   tools: BridgeToolDescriptor[]
+  mcpToolMetadata: Readonly<Record<string, DshMcpToolMetadata>>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
   close(): Promise<void>
+}
+
+export interface DshMcpToolMetadata {
+  serverId: string
+  serverName: string
+  name: string
 }
 
 export interface DshCherryToolBridgeOptions {
@@ -45,21 +53,15 @@ export function buildDshCherryToolName(serverName: string, toolName: string): st
 }
 
 export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
-  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
-    buildDshCherryToolName(serverName, toolName)
-  )
+  listBuiltinToolPolicies({ approval: 'auto' }).map(toMcpRuntimeName)
 )
 
 export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
-  listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
-    buildDshCherryToolName(serverName, toolName)
-  )
+  listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
 )
 
 export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
-  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
-    buildDshCherryToolName(serverName, toolName)
-  )
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(toMcpRuntimeName)
 )
 
 /** Warm user-configured catalogs before the connection snapshot captures their tool schemas. */
@@ -85,6 +87,7 @@ export async function buildDshCherryToolBridge(
   const clients: Client[] = []
   const tools: BridgeToolDescriptor[] = []
   const bindings = new Map<string, DshToolBinding>()
+  const mcpToolMetadata: Record<string, DshMcpToolMetadata> = {}
 
   for (const [serverId, server] of Object.entries(servers)) {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -95,7 +98,7 @@ export async function buildDshCherryToolBridge(
       const result = await client.listTools()
       const serverNames = new Set<string>()
       const serverTools = result.tools.map((tool) => ({
-        descriptor: toBridgeDescriptor(server.name, tool),
+        descriptor: toBridgeDescriptor(server, tool),
         rawName: tool.name
       }))
       for (const { descriptor } of serverTools) {
@@ -108,6 +111,11 @@ export async function buildDshCherryToolBridge(
       for (const { descriptor, rawName } of serverTools) {
         tools.push(descriptor)
         bindings.set(descriptor.name, { client, rawName })
+        mcpToolMetadata[descriptor.name] = {
+          serverId: server.serverId ?? serverId,
+          serverName: server.name,
+          name: rawName
+        }
       }
     } catch (error) {
       await client.close().catch(() => undefined)
@@ -121,6 +129,7 @@ export async function buildDshCherryToolBridge(
 
   return {
     tools,
+    mcpToolMetadata,
     async callTool(name, args, signal) {
       const binding = bindings.get(name)
       if (!binding) throw new Error(`Unknown dsh Cherry tool: ${name}`)
@@ -142,9 +151,16 @@ export async function buildDshCherryToolBridge(
   }
 }
 
-function toBridgeDescriptor(serverName: string, tool: Tool): BridgeToolDescriptor {
+function toBridgeDescriptor(server: AgentMcpServer, tool: Tool): BridgeToolDescriptor {
   return {
-    name: buildDshCherryToolName(serverName, tool.name),
+    name:
+      server.serverId && server.serverWireName
+        ? createMcpToolBinding({
+            serverId: server.serverId,
+            serverWireName: server.serverWireName,
+            originalToolName: tool.name
+          }).runtimeName
+        : buildDshCherryToolName(server.name, tool.name),
     description: tool.description ?? '',
     inputSchema: tool.inputSchema as Record<string, unknown>
   }

@@ -895,6 +895,7 @@ describe('AgentToolRenderer', () => {
         id: 'call-create-agent',
         tool: {
           id: 'assistant__mcp__assistant__create_agent',
+          runtimeName: 'mcp__assistant__createAgent__2a307a1740c0',
           name: 'create_agent',
           description: 'Create Agent',
           type: 'mcp',

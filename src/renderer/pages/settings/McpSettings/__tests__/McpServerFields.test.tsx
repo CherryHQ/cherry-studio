@@ -65,6 +65,7 @@ describe('toMcpFormDefaultValues', () => {
     const server = {
       id: '6559f6b3-0f0e-4dc7-aab8-8f0906a9eaa3',
       name: 'Remote server',
+      serverWireName: 'remote_server',
       type: 'streamableHttp',
       baseUrl: 'https://example.com/mcp',
       isActive: false
@@ -81,6 +82,7 @@ describe('toMcpFormDefaultValues', () => {
     const server = {
       id: '756b5a35-63f0-43d5-ab5f-163619d8798b',
       name: 'Legacy remote server',
+      serverWireName: 'legacy_remote_server',
       baseUrl: 'https://example.com/sse',
       isActive: false
     } satisfies McpServer
@@ -92,6 +94,7 @@ describe('toMcpFormDefaultValues', () => {
     const server = {
       id: '7676dffa-53d7-4c35-abbb-e30cd9b27169',
       name: '@cherry/mcp-auto-install',
+      serverWireName: 'mcp_auto_install',
       type: 'inMemory',
       command: 'npx',
       isActive: false
