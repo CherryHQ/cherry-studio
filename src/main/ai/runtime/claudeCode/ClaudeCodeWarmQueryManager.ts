@@ -8,6 +8,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
+import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
@@ -43,6 +44,8 @@ export interface WarmQueryRequest {
    * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
    */
   knowledgeBaseIds?: readonly string[]
+  /** Notification authority is baked into Cherry's in-process MCP server at startup. */
+  notificationContext?: AgentNotificationContext
   /**
    * PDF capability baked into the PreToolUse guard hook closure. Hook functions are stripped from
    * the signature source, so the value participates explicitly — a capability flip (e.g. a provider
@@ -137,6 +140,7 @@ export function createClaudeCodeWarmQuerySignature(
   options: Options,
   credentialsFingerprint?: string,
   knowledgeBaseIds: readonly string[] = [],
+  notificationContext?: AgentNotificationContext,
   guardSupportsPdf?: boolean
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
@@ -147,6 +151,7 @@ export function createClaudeCodeWarmQuerySignature(
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
     knowledgeBaseIds: [...knowledgeBaseIds].sort(),
+    notificationContext: notificationContext ?? null,
     guardSupportsPdf: guardSupportsPdf ?? null
   })
 }
@@ -214,6 +219,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       warmOptions,
       request.credentialsFingerprint,
       request.knowledgeBaseIds,
+      request.notificationContext,
       request.guardSupportsPdf
     )
     const existing = this.entries.get(request.key)
@@ -248,6 +254,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       warmOptions,
       request.credentialsFingerprint,
       request.knowledgeBaseIds,
+      request.notificationContext,
       request.guardSupportsPdf
     )
     const entry = this.entries.get(request.key)

@@ -223,7 +223,8 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type FixedToolDefinition = { name: string; tool: string }
+type FixedToolDefinition = { name: string; tool: string; npmAllowBuilds?: readonly string[] }
+type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -239,16 +240,39 @@ type IsolatedEnvSnapshot = {
 // Derived from the two preset sources so their names and recipes stay the single
 // source of truth. Fixed definitions carry no requestedVersion — a version pin is
 // a per-install / runtime fact, never part of the canonical identity.
-const normalizeToolIdentity = (tool: string): string => (tool.startsWith('core:') ? tool.slice('core:'.length) : tool)
+// `mise ls --json` reports a backend's canonical key without bracketed tool
+// options (for example `pipx:hermes-agent` instead of
+// `pipx:hermes-agent[extras=web]`). Options affect installation but not the
+// installed package identity, so every comparison goes through this normalizer.
+// The normalized application fact does not prove bracketed install options such as
+// Hermes's `extras=web`; those options are not observable in the mise listing.
+const normalizeToolIdentity = (tool: string): string =>
+  (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
+
+function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): string {
+  if (!packages?.length) return tool
+  // mise 2026.7.14 splits ToolArg on `@` before parsing options, so scoped values use TOML Unicode escapes.
+  const allowBuilds = JSON.stringify(packages).replaceAll('@', '\\u0040')
+  const option = `allow_builds=${allowBuilds}`
+  return tool.endsWith(']') ? `${tool.slice(0, -1)},${option}]` : `${tool}[${option}]`
+}
 
 const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, FixedToolDefinition>([
   ...PRESETS_BINARY_TOOLS.map((preset): [string, FixedToolDefinition] => [
     preset.name,
-    { name: preset.name, tool: preset.tool }
+    {
+      name: preset.name,
+      tool: preset.tool,
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+    }
   ]),
   ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => [
     preset.executable,
-    { name: preset.executable, tool: preset.miseTool }
+    {
+      name: preset.executable,
+      tool: preset.miseTool,
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+    }
   ])
 ])
 // Re-exported for main-process callers and tests.
@@ -502,9 +526,10 @@ export class BinaryManager extends BaseService {
     const bundled = this.probeBundled()
     const shimsDir = getBinaryShimsDir()
 
-    // The exact-application fact is independent of runnable availability. When the
+    // The application fact is independent of runnable availability. When the
     // backend cannot answer, every name is `unknown` with the reason — never a
-    // misleading `absent` inferred from an empty query.
+    // misleading `absent` inferred from an empty query. For backends that omit
+    // recipe options, `applied` proves package identity, not optional capabilities.
     const backendUnknown: BinaryApplication | null = !this.miseBin
       ? { status: 'unknown', reason: 'backend_unavailable' }
       : queryFailed
@@ -1274,7 +1299,7 @@ export class BinaryManager extends BaseService {
   }
 
   private async installWithMise(
-    definition: CustomToolDefinition,
+    definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
   ): Promise<string> {
@@ -1296,7 +1321,7 @@ export class BinaryManager extends BaseService {
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
-    const toolSpec = `${definition.tool}@${requested}`
+    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
@@ -1485,7 +1510,7 @@ export class BinaryManager extends BaseService {
    * version, so there is no pin to hand back.
    */
   private async applyDefinition(
-    definition: CustomToolDefinition,
+    definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
   ): Promise<void> {
@@ -2001,11 +2026,15 @@ export class BinaryManager extends BaseService {
       throw new Error('mise returned invalid installed-tool state')
     }
 
-    const nameForSpec = (spec: string): string =>
-      definitions.find((entry) => entry.tool === spec)?.name ??
-      PRESETS_BINARY_TOOLS.find((preset) => preset.tool === spec)?.name ??
-      CODE_CLI_TOOL_PRESETS.find((preset) => preset.miseTool === spec)?.executable ??
-      spec
+    const nameForSpec = (spec: string): string => {
+      const identity = normalizeToolIdentity(spec)
+      return (
+        definitions.find((entry) => normalizeToolIdentity(entry.tool) === identity)?.name ??
+        PRESETS_BINARY_TOOLS.find((preset) => normalizeToolIdentity(preset.tool) === identity)?.name ??
+        CODE_CLI_TOOL_PRESETS.find((preset) => normalizeToolIdentity(preset.miseTool) === identity)?.executable ??
+        spec
+      )
+    }
 
     const dependents = new Set<string>()
     for (const [spec, entries] of Object.entries(installed)) {

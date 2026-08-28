@@ -412,6 +412,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,
       knowledgeBaseIds: request.knowledgeBaseIds,
+      notificationContext: request.notificationContext,
       guardSupportsPdf: request.guardSupportsPdf
     })
 
