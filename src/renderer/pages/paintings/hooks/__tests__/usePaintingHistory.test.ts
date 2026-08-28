@@ -111,6 +111,7 @@ describe('usePaintingHistory', () => {
     const { result, rerender } = renderHook(() => usePaintingHistory())
 
     await waitFor(() => expect(result.current.items).toHaveLength(2))
+    const initialItems = result.current.items
     expect(mockRecordsToPaintingDataList).toHaveBeenCalledOnce()
 
     const refreshedRecords = initialRecords.map((record) => ({
@@ -121,10 +122,13 @@ describe('usePaintingHistory', () => {
     rerender()
 
     await waitFor(() => expect(result.current.isLoading).toBe(false))
-    expect(mockRecordsToPaintingDataList).toHaveBeenCalledOnce()
+    expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2)
+    expect(result.current.items).toEqual(initialItems)
+    expect(result.current.items[0]).toBe(initialItems[0])
+    expect(result.current.items[1]).toBe(initialItems[1])
   })
 
-  it('rehydrates only records whose file references changed', async () => {
+  it('returns updated items when file references change', async () => {
     const initialRecords = [
       { ...createRecord('painting-1'), files: { input: [], output: ['output-1'] } },
       createRecord('painting-2')
@@ -143,7 +147,34 @@ describe('usePaintingHistory', () => {
     rerender()
 
     await waitFor(() => expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2))
-    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith([refreshedRecords[0]])
+    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith(refreshedRecords)
+    await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['painting-1', 'painting-2']))
+  })
+
+  it('invalidates cached items when resolved FileEntry data or physical paths change', async () => {
+    const record = { ...createRecord('painting-1'), files: { input: ['input-1'], output: ['output-1'] } }
+    const initialItem = {
+      ...toStripEntry(record),
+      files: [{ id: 'output-1', origin_name: 'old.png', path: '/old/output.png' }],
+      inputFiles: [{ id: 'input-1', name: 'old-input', externalPath: '/old/input.png' }]
+    } as PaintingStripEntry
+    const updatedItem = {
+      ...initialItem,
+      files: [{ id: 'output-1', origin_name: 'renamed.png', path: '/new/output.png' }],
+      inputFiles: [{ id: 'input-1', name: 'renamed-input', externalPath: '/new/input.png' }]
+    } as PaintingStripEntry
+    mockRecordsToPaintingDataList.mockResolvedValueOnce([initialItem]).mockResolvedValueOnce([updatedItem])
+    mockQueryRecords([record])
+
+    const { result, rerender } = renderHook(() => usePaintingHistory())
+
+    await waitFor(() => expect(result.current.items).toEqual([initialItem]))
+
+    mockQueryRecords([{ ...record, files: { input: ['input-1'], output: ['output-1'] } }])
+    rerender()
+
+    await waitFor(() => expect(result.current.items).toEqual([updatedItem]))
+    expect(result.current.items[0]).toBe(updatedItem)
   })
 
   it('preserves query order and prunes records removed from the cache', async () => {
@@ -162,14 +193,14 @@ describe('usePaintingHistory', () => {
     rerender()
 
     await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['painting-3', 'painting-1']))
-    expect(mockRecordsToPaintingDataList).toHaveBeenCalledOnce()
+    expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2)
 
     const restoredRecords = [reducedRecords[0], { ...initialRecords[1] }, reducedRecords[1]]
     mockQueryRecords(restoredRecords)
     rerender()
 
-    await waitFor(() => expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(2))
-    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith([restoredRecords[1]])
+    await waitFor(() => expect(mockRecordsToPaintingDataList).toHaveBeenCalledTimes(3))
+    expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith(restoredRecords)
     await waitFor(() =>
       expect(result.current.items.map((item) => item.id)).toEqual(['painting-3', 'painting-2', 'painting-1'])
     )
