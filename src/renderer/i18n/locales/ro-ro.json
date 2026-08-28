@@ -3230,7 +3230,7 @@
   "settings.about.diagnostics.ranges.24h": "Ultimele 24 de ore",
   "settings.about.diagnostics.ranges.3d": "Ultimele 3 zile",
   "settings.about.diagnostics.ranges.7d": "Ultimele 7 zile",
-  "settings.about.diagnostics.report.acknowledgement": "Înțeleg că datele de diagnostic pot conține informații sensibile și sunt de acord să trimit acest conținut către Cherry Studio pentru investigarea problemelor.",
+  "settings.about.diagnostics.report.acknowledgement": "Înțeleg că descrierea problemei și datele de diagnostic selectate pot conține informații sensibile și sunt de acord să trimit acest conținut către Cherry Studio pentru investigarea problemelor.",
   "settings.about.diagnostics.report.copy_id": "Copiază ID-ul feedbackului",
   "settings.about.diagnostics.report.description_label": "Descrierea problemei",
   "settings.about.diagnostics.report.description_placeholder": "Descrie ce s-a întâmplat, ce te așteptai să se întâmple și cum poate fi reprodusă problema.",

@@ -18,16 +18,16 @@ const labels: DiagnosticReportDescriptionLabels = {
 }
 
 describe('buildDiagnosticReportDescription', () => {
-  it('includes approved error context and excludes sensitive payload fields', () => {
+  it('keeps provider-returned text already present in the message without copying payload fields', () => {
     const error = {
       name: 'AI_APICallError',
-      message: 'Rate limit exceeded',
+      message: 'Rate limit exceeded for private-account@example.com',
       stack: 'secret stack',
       cause: 'secret cause',
       statusCode: 429,
       url: 'https://provider.example/private',
       requestBodyValues: { prompt: 'secret prompt' },
-      responseBody: 'secret response',
+      responseBody: 'secret response payload',
       toolInput: 'secret tool input'
     } as SerializedError
 
@@ -45,10 +45,10 @@ describe('buildDiagnosticReportDescription', () => {
         'Model: gpt-5',
         'Error name: AI_APICallError',
         'Status code: 429',
-        'Error message: Rate limit exceeded'
+        'Error message: Rate limit exceeded for private-account@example.com'
       ].join('\r\n')
     )
-    expect(description).not.toContain('secret')
+    expect(description).not.toContain('secret response payload')
   })
 
   it('omits unavailable context', () => {

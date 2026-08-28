@@ -3230,7 +3230,7 @@
   "settings.about.diagnostics.ranges.24h": "Last 24 hours",
   "settings.about.diagnostics.ranges.3d": "Last 3 days",
   "settings.about.diagnostics.ranges.7d": "Last 7 days",
-  "settings.about.diagnostics.report.acknowledgement": "I understand that diagnostic data may contain sensitive information and agree to send this content to Cherry Studio for troubleshooting.",
+  "settings.about.diagnostics.report.acknowledgement": "I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.",
   "settings.about.diagnostics.report.copy_id": "Copy feedback ID",
   "settings.about.diagnostics.report.description_label": "Problem description",
   "settings.about.diagnostics.report.description_placeholder": "Describe what happened, what you expected, and how to reproduce it.",

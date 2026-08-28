@@ -3230,7 +3230,7 @@
   "settings.about.diagnostics.ranges.24h": "最近 24 小時",
   "settings.about.diagnostics.ranges.3d": "最近 3 天",
   "settings.about.diagnostics.ranges.7d": "最近 7 天",
-  "settings.about.diagnostics.report.acknowledgement": "我已瞭解診斷資料可能包含敏感資訊，並同意將這些內容傳送給 Cherry Studio 以進行問題排查。",
+  "settings.about.diagnostics.report.acknowledgement": "我已瞭解問題描述和所選診斷資料可能包含敏感資訊，並同意將這些內容傳送給 Cherry Studio 以進行問題排查。",
   "settings.about.diagnostics.report.copy_id": "複製回饋 ID",
   "settings.about.diagnostics.report.description_label": "問題描述",
   "settings.about.diagnostics.report.description_placeholder": "請描述發生了什麼、預期結果，以及如何重現問題。",

@@ -3230,7 +3230,7 @@
   "settings.about.diagnostics.ranges.24h": "過去24時間",
   "settings.about.diagnostics.ranges.3d": "過去3日間",
   "settings.about.diagnostics.ranges.7d": "過去7日間",
-  "settings.about.diagnostics.report.acknowledgement": "診断データに機密情報が含まれる可能性があることを理解し、問題調査のためにこれらの内容を Cherry Studio に送信することに同意します。",
+  "settings.about.diagnostics.report.acknowledgement": "問題の説明と選択した診断データに機密情報が含まれる可能性があることを理解し、問題調査のためにこれらの内容を Cherry Studio に送信することに同意します。",
   "settings.about.diagnostics.report.copy_id": "フィードバック ID をコピー",
   "settings.about.diagnostics.report.description_label": "問題の説明",
   "settings.about.diagnostics.report.description_placeholder": "発生したこと、期待していた結果、再現手順を入力してください。",

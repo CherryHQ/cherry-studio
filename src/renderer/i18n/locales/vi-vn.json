@@ -3230,7 +3230,7 @@
   "settings.about.diagnostics.ranges.24h": "24 giờ qua",
   "settings.about.diagnostics.ranges.3d": "3 ngày qua",
   "settings.about.diagnostics.ranges.7d": "7 ngày qua",
-  "settings.about.diagnostics.report.acknowledgement": "Tôi hiểu rằng dữ liệu chẩn đoán có thể chứa thông tin nhạy cảm và đồng ý gửi nội dung này đến Cherry Studio để điều tra sự cố.",
+  "settings.about.diagnostics.report.acknowledgement": "Tôi hiểu rằng mô tả vấn đề và dữ liệu chẩn đoán đã chọn có thể chứa thông tin nhạy cảm, và đồng ý gửi nội dung này đến Cherry Studio để điều tra sự cố.",
   "settings.about.diagnostics.report.copy_id": "Sao chép mã phản hồi",
   "settings.about.diagnostics.report.description_label": "Mô tả sự cố",
   "settings.about.diagnostics.report.description_placeholder": "Mô tả điều đã xảy ra, kết quả bạn mong đợi và cách tái hiện sự cố.",

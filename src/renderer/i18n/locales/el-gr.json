@@ -3230,7 +3230,7 @@
   "settings.about.diagnostics.ranges.24h": "Τελευταίες 24 ώρες",
   "settings.about.diagnostics.ranges.3d": "Τελευταίες 3 ημέρες",
   "settings.about.diagnostics.ranges.7d": "Τελευταίες 7 ημέρες",
-  "settings.about.diagnostics.report.acknowledgement": "Κατανοώ ότι τα διαγνωστικά δεδομένα ενδέχεται να περιέχουν ευαίσθητες πληροφορίες και συμφωνώ να στείλω αυτό το περιεχόμενο στο Cherry Studio για τη διερεύνηση προβλημάτων.",
+  "settings.about.diagnostics.report.acknowledgement": "Κατανοώ ότι η περιγραφή του προβλήματος και τα επιλεγμένα διαγνωστικά δεδομένα ενδέχεται να περιέχουν ευαίσθητες πληροφορίες και συμφωνώ να στείλω αυτό το περιεχόμενο στο Cherry Studio για τη διερεύνηση προβλημάτων.",
   "settings.about.diagnostics.report.copy_id": "Αντιγραφή αναγνωριστικού σχολίων",
   "settings.about.diagnostics.report.description_label": "Περιγραφή προβλήματος",
   "settings.about.diagnostics.report.description_placeholder": "Περιγράψτε τι συνέβη, τι περιμένατε και πώς μπορεί να αναπαραχθεί.",
