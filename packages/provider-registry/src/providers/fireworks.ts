@@ -67,10 +67,12 @@ const kimiRouterModels = [
   }
 ]
 
-const effortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
+// models.dev de-listed gpt-oss-20b and minimax-m2p7 (2026-08) while Fireworks still serves
+// them; pin their wire ids since the canonical modelId is not a valid Fireworks model path.
+const effortModels: Array<{ modelId: string; apiModelId?: string; values: ReasoningEffort[] }> = [
   { modelId: 'gpt-oss-120b', values: ['low', 'medium', 'high'] },
-  { modelId: 'gpt-oss-20b', values: ['low', 'medium', 'high'] },
-  { modelId: 'minimax-m2-7', values: ['low', 'medium', 'high'] },
+  { modelId: 'gpt-oss-20b', apiModelId: 'accounts/fireworks/models/gpt-oss-20b', values: ['low', 'medium', 'high'] },
+  { modelId: 'minimax-m2-7', apiModelId: 'accounts/fireworks/models/minimax-m2p7', values: ['low', 'medium', 'high'] },
   { modelId: 'minimax-m3', values: ['low', 'medium', 'high'] }
 ]
 
@@ -120,7 +122,10 @@ export default defineProvider({
       apiModelId,
       name
     })),
-    ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
+    ...effortModels.map(({ modelId, apiModelId, values }) => ({
+      ...override(modelId, effortSupport(values)),
+      ...(apiModelId ? { apiModelId } : {})
+    })),
     ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))
   ]
 })

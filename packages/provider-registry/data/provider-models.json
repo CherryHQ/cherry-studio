@@ -10867,6 +10867,7 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/models/gpt-oss-20b",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "gpt-oss-20b",
       "providerId": "fireworks",
@@ -11167,6 +11168,7 @@
       "providerId": "fireworks"
     },
     {
+      "apiModelId": "accounts/fireworks/models/minimax-m2p7",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "minimax-m2-7",
       "providerId": "fireworks",
@@ -32077,6 +32079,90 @@
       }
     },
     {
+      "apiModelId": "claude-haiku-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-haiku-4-5",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "claude-opus-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-5",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "Claude-Opus-4.6",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
       "modelId": "claude-opus-4-6",
@@ -32164,6 +32250,48 @@
       "apiModelId": "Claude-Opus-4.8",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
       "modelId": "claude-opus-4-8",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "claude-sonnet-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-sonnet-4-5",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -37671,5 +37799,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "07a2e72538229531"
+  "version": "973c88ebf15851a8"
 }

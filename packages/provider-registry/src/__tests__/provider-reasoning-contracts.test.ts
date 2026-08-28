@@ -178,6 +178,29 @@ describe('provider reasoning contracts', () => {
     expect(poe.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire).toEqual({ disabled: true })
   })
 
+  // Poe's Responses emulation for Claude (LiteLLM→Vertex) breaks streams, so
+  // every official Claude bot must pin anthropic-messages first. The expected
+  // set is explicit so a dropped or forgotten override fails, not just a
+  // mis-ordered one.
+  it('pins every official Poe Claude bot to anthropic-messages first', () => {
+    const expected = [
+      'claude-fable-5',
+      'claude-haiku-4-5',
+      'claude-opus-4-5',
+      'claude-opus-4-6',
+      'claude-opus-4-7',
+      'claude-opus-4-8',
+      'claude-sonnet-4-5',
+      'claude-sonnet-4-6',
+      'claude-sonnet-5'
+    ]
+    const claudeOverrides = provider('poe').overrides?.filter(({ modelId }) => modelId?.startsWith('claude-')) ?? []
+    expect(claudeOverrides.map(({ modelId }) => modelId).sort()).toEqual(expected)
+    for (const entry of claudeOverrides) {
+      expect(entry.endpointTypes?.[0], entry.modelId).toBe('anthropic-messages')
+    }
+  })
+
   it('nests Poe custom reasoning parameters under extra_body', () => {
     expect(
       override('poe', 'gpt-5-4').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
