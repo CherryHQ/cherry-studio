@@ -4,6 +4,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
@@ -49,8 +50,28 @@ interface ErrorDetailContentProps {
   diagnosticReport?: DiagnosticReportConfig
   blockId?: string
   onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
+  onOpenDiagnosticReport?: (description: string) => void
   cachedDiagnosis?: DiagnosisResult
 }
+
+interface DiagnosticUploadPopupProps {
+  initialDescription: string
+}
+
+const DiagnosticUploadPopup = createPopup<DiagnosticUploadPopupProps, void>(
+  ({ initialDescription, open, resolve }: DiagnosticUploadPopupProps & PopupInjectedProps<void>) => (
+    <Suspense fallback={null}>
+      <DiagnosticUploadDialog
+        fixedRange="24h"
+        initialDescription={initialDescription}
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) resolve()
+        }}
+      />
+    </Suspense>
+  )
+)
 
 const truncateLargeData = (
   data: string,
@@ -502,11 +523,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   diagnosticReport,
   blockId,
   onDiagnosisComplete,
+  onOpenDiagnosticReport,
   cachedDiagnosis
 }) => {
   const { t } = useTranslation()
   const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
-  const [reportDescription, setReportDescription] = useState<string | null>(null)
   const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isInitialRenderRef = useRef(true)
@@ -551,8 +572,8 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   )
 
   const openDiagnosticReport = useCallback(() => {
-    if (!diagnosticReport) return
-    setReportDescription(
+    if (!diagnosticReport || !onOpenDiagnosticReport) return
+    onOpenDiagnosticReport(
       buildDiagnosticReportDescription({
         diagnosisContext,
         error,
@@ -567,7 +588,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
         location: diagnosticReport.location
       })
     )
-  }, [diagnosticReport, diagnosisContext, error, t])
+  }, [diagnosticReport, diagnosisContext, error, onOpenDiagnosticReport, t])
 
   const renderErrorDetails = (error?: SerializedError) => {
     if (!error) {
@@ -625,7 +646,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
           <Copy size={14} />
           {t('common.copy')}
         </Button>
-        {diagnosticReport ? (
+        {diagnosticReport && onOpenDiagnosticReport ? (
           <Button variant="outline" onClick={openDiagnosticReport}>
             <FileUp size={14} />
             {t('error.diagnostic_report.action')}
@@ -642,18 +663,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
           {getDiagButtonText()}
         </Button>
       </div>
-      {reportDescription !== null ? (
-        <Suspense fallback={null}>
-          <DiagnosticUploadDialog
-            fixedRange="24h"
-            initialDescription={reportDescription}
-            open
-            onOpenChange={(nextOpen) => {
-              if (!nextOpen) setReportDescription(null)
-            }}
-          />
-        </Suspense>
-      ) : null}
     </>
   )
 }
@@ -661,7 +670,15 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 export function showErrorDetailPopup(params: ErrorDetailContentProps) {
   void ContentPopup.show({
     title: i18n.t('error.detail'),
-    content: <ErrorDetailContent {...params} />,
+    content: (
+      <ErrorDetailContent
+        {...params}
+        onOpenDiagnosticReport={(initialDescription) => {
+          ContentPopup.hide()
+          void DiagnosticUploadPopup.show({ initialDescription })
+        }}
+      />
+    ),
     width: '60vw',
     styles: { content: { maxWidth: '1200px', minWidth: '600px' } }
   })

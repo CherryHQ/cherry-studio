@@ -1,10 +1,21 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
+
+vi.mock('@renderer/components/popups/ContentPopup', async () => {
+  const React = await import('react')
+  const { createPopup } = await import('@renderer/services/popup')
+  const ContentPopup = createPopup<{ content: ReactNode; title?: ReactNode }, void>(({ content, open, title }) =>
+    open ? React.createElement('div', { role: 'dialog' }, title, content) : null
+  )
+  return { default: ContentPopup }
+})
 
 const mocks = vi.hoisted(() => ({
-  diagnoseError: vi.fn(),
-  diagnosticUploadModuleEvaluated: vi.fn()
+  diagnoseError: vi.fn()
 }))
 
 const translations: Record<string, string> = {
@@ -40,7 +51,6 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => {
-  mocks.diagnosticUploadModuleEvaluated()
   return {
     default: ({
       fixedRange,
@@ -64,7 +74,10 @@ vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => {
   }
 })
 
-const { ErrorDetailContent } = await import('../ErrorDetailModal')
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+
+const { ErrorDetailContent, showErrorDetailPopup } = await import('../ErrorDetailModal')
 
 Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() })
 
@@ -73,19 +86,31 @@ describe('ErrorDetailContent diagnostic report', () => {
     vi.clearAllMocks()
   })
 
-  it('shows the report action only with configuration and returns to the preserved detail after closing', async () => {
+  afterEach(async () => {
+    vi.useFakeTimers()
+    await act(async () => {
+      for (const entry of [...popupService.getSnapshot()]) {
+        popupService.settle(entry.instanceId, undefined)
+      }
+      vi.advanceTimersByTime(POPUP_EXIT_MS)
+    })
+    vi.useRealTimers()
+  })
+
+  it('shows the report action only with a configured handoff and passes the reviewed description to its owner', async () => {
     const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
     const { rerender } = render(
       <ErrorDetailContent error={{ name: 'ProviderError', message: 'failed', stack: null }} />
     )
 
     expect(screen.queryByRole('button', { name: 'Submit diagnostic report' })).not.toBeInTheDocument()
-    expect(mocks.diagnosticUploadModuleEvaluated).not.toHaveBeenCalled()
 
     rerender(
       <ErrorDetailContent
         diagnosticReport={{ location: 'Home conversation' }}
         error={{ name: 'ProviderError', message: 'failed', stack: null }}
+        onOpenDiagnosticReport={onOpenDiagnosticReport}
       />
     )
 
@@ -95,18 +120,32 @@ describe('ErrorDetailContent diagnostic report', () => {
       'AI diagnosis'
     ])
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    const description = onOpenDiagnosticReport.mock.calls[0][0]
+    expect(description).toContain('Location: Home conversation')
+    expect(description).toContain('Error name: ProviderError')
+    expect(description).toContain('Error message: failed')
+  })
+
+  it('replaces error details with report review instead of stacking dialogs', async () => {
+    const user = userEvent.setup()
+    render(<PopupHost />)
+
+    await act(async () => {
+      showErrorDetailPopup({
+        diagnosticReport: { location: 'Home conversation' },
+        error: { name: 'ProviderError', message: 'failed', stack: null }
+      })
+    })
+    await user.click(await screen.findByRole('button', { name: 'Submit diagnostic report' }))
+
     const report = await screen.findByRole('dialog', { name: 'Diagnostic report review' })
     expect(report).toHaveTextContent('Location: Home conversation')
-    expect(report).toHaveAttribute('data-fixed-range', '24h')
-    expect(mocks.diagnosticUploadModuleEvaluated).toHaveBeenCalledOnce()
-
-    await user.click(screen.getByRole('button', { name: 'Cancel report' }))
-    expect(screen.queryByRole('dialog', { name: 'Diagnostic report review' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByRole('dialog')).toEqual([report]))
   })
 
   it('keeps AI diagnosis visible in error details but out of the diagnostic-report prefill', async () => {
     const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
     mocks.diagnoseError.mockResolvedValueOnce({
       category: 'runtime',
       explanation: 'Leaked prompt: private diagnosis payload.',
@@ -120,14 +159,15 @@ describe('ErrorDetailContent diagnostic report', () => {
         diagnosticReport={{ location: 'Agent conversation' }}
         error={{ name: 'ProviderError', message: 'failed', stack: null }}
         onDiagnosisComplete={vi.fn()}
+        onOpenDiagnosticReport={onOpenDiagnosticReport}
       />
     )
 
     await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
     expect(await screen.findByText('Leaked prompt: private diagnosis payload.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
-    const report = screen.getByRole('dialog', { name: 'Diagnostic report review' })
-    expect(report).toHaveTextContent('Error message: failed')
-    expect(report).not.toHaveTextContent('private diagnosis payload')
+    const description = onOpenDiagnosticReport.mock.calls[0][0]
+    expect(description).toContain('Error message: failed')
+    expect(description).not.toContain('private diagnosis payload')
   })
 })
