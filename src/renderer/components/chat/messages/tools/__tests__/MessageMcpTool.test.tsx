@@ -33,7 +33,12 @@ vi.mock('@renderer/components/icons/CopyIcon', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => (typeof fallback === 'string' ? fallback : key) }),
+  useTranslation: () => ({
+    t: (key: string, fallback?: string) => {
+      if (key === 'agent.toolPermission.decisionDenied') return 'Denied'
+      return typeof fallback === 'string' ? fallback : key
+    }
+  }),
   initReactI18next: { type: '3rdParty', init: vi.fn() }
 }))
 
@@ -148,7 +153,7 @@ describe('MessageMcpTool', () => {
       />
     )
 
-    expect(screen.getByText('agent.toolPermission.decisionDenied')).toBeInTheDocument()
+    expect(screen.getByText('Denied')).toBeInTheDocument()
     expect(screen.getByText('Use the read-only endpoint instead')).toBeInTheDocument()
   })
 

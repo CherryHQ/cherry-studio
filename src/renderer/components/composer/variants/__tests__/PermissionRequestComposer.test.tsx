@@ -312,6 +312,34 @@ describe('PermissionRequestComposer', () => {
     expect(reason).toHaveValue('use a copy instead')
   })
 
+  it('approves when Enter is pressed inside an empty rejection reason', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
+    await user.click(reason)
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: true
+    })
+  })
+
+  it('keeps Escape inside the rejection reason from triggering the global deny shortcut', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
+    await user.click(reason)
+    await user.keyboard('{Escape}')
+
+    expect(onRespond).not.toHaveBeenCalled()
+  })
+
   it('keeps Shift+Enter as a newline inside the rejection reason', async () => {
     const user = userEvent.setup()
     const onRespond = vi.fn().mockResolvedValue(undefined)

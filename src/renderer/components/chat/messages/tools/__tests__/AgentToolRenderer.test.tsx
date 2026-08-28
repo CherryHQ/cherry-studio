@@ -778,6 +778,32 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('Choose logger')).toBeInTheDocument()
     })
 
+    it('shows the denied outcome instead of an unanswered AskUserQuestion card', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'cancelled',
+        toolCallId: 'call-ask-denied',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        },
+        approval: { approved: false, reason: 'Need more context first' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Denied')).toBeInTheDocument()
+      expect(screen.getByText('Need more context first')).toBeInTheDocument()
+      expect(screen.queryByText('Questions from Agent')).not.toBeInTheDocument()
+      expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
+    })
+
     it('shows AskUserQuestion answers from tool output when input only has questions', () => {
       const questions = [
         {

@@ -265,7 +265,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
               event.preventDefault()
-              void deny()
+              void (hasRejectionReason ? deny() : approve())
             }}
           />
         </label>

@@ -33,6 +33,9 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   }
 
   if (isAskUserQuestionToolName(tool?.name)) {
+    if (toolResponse.approval?.approved === false) {
+      return <ToolApprovalOutcome approval={toolResponse.approval} />
+    }
     const isLoading = status === 'streaming' || status === 'invoking'
     return (
       <StreamingContext value={isLoading}>
