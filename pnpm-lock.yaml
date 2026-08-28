@@ -84,6 +84,7 @@ patchedDependencies:
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
+  sherpa-onnx-node@1.13.6: 18484960da7830f17de1d22b6e746e178adb3317051375460c6ada68110ed810
   streamdown@2.5.0: e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
 
@@ -196,6 +197,9 @@ importers:
       sharp:
         specifier: 0.35.3
         version: 0.35.3(@types/node@24.10.4)
+      sherpa-onnx-node:
+        specifier: 1.13.6
+        version: 1.13.6(patch_hash=18484960da7830f17de1d22b6e746e178adb3317051375460c6ada68110ed810)
       smol-toml:
         specifier: ^1.7.0
         version: 1.7.0
@@ -14616,6 +14620,39 @@ packages:
   shell-quote@1.8.4:
     resolution: {integrity: sha512-VsC6n6vz1ihYYyZZwX7YZSF5l5x36ca17OC+a69h94YqB7X6XLwf+5MOgynYir2SLFUbl8gIYvBo8K8RoNQ6bQ==}
     engines: {node: '>= 0.4'}
+
+  sherpa-onnx-darwin-arm64@1.13.6:
+    resolution: {integrity: sha512-m3QMOGUHVPUl7bAOPc7oJtmzOVdzQVQPsCuTjNuQ2N6zlYuXDZu9NdUR3Er3rxbhHa6SmWa94flUwmUsO1atow==}
+    cpu: [arm64]
+    os: [darwin]
+
+  sherpa-onnx-darwin-x64@1.13.6:
+    resolution: {integrity: sha512-3X5FQ9PpwlBmxLqtb2/uvl7/W2HXXzXHT0MLmB9c0TRMANLujzvIF7YbT6VW3k92ClL/1q9sbIOul0rHgxCTmw==}
+    cpu: [x64]
+    os: [darwin]
+
+  sherpa-onnx-linux-arm64@1.13.6:
+    resolution: {integrity: sha512-xSzhqrGFbBrykpbEFt5dLXB3Sp3a8idNzjhf92uylDgUhupBSRHj3ISeYaL9ZZWTNSzszNXBKlM+xH36dHQjPg==}
+    cpu: [arm64]
+    os: [linux]
+
+  sherpa-onnx-linux-x64@1.13.6:
+    resolution: {integrity: sha512-HiR3yolQDl3WoU1zSXn8L0MSXzF9PXLQpMv+Ptozg1y/DJU8HuvoXBasOarX4cer5d9kGimnOUGm0dl47PCN1A==}
+    cpu: [x64]
+    os: [linux]
+
+  sherpa-onnx-node@1.13.6:
+    resolution: {integrity: sha512-FjUSQSStTi/wcLqlScGFmNA7ySjW3QwquJcMRJ1yDkDpBp0BmWXkXoirDuEj8/v2/Cs4wLYJp2BKaMD9+1lDGA==}
+
+  sherpa-onnx-win-ia32@1.13.6:
+    resolution: {integrity: sha512-CN6rNQqn0wzdSp3XRHxdmNaLUMhP+BgsWVbaASU+V9CYBdx74uutoA/43ThUfh3S3CiArpp8OJtn8dJrPeGHnw==}
+    cpu: [ia32]
+    os: [win32]
+
+  sherpa-onnx-win-x64@1.13.6:
+    resolution: {integrity: sha512-bPMdURD1XCu1Zr3eYYlYx2obc5CMSQhEnd1GQuv7FXjdyOeMJ8jNbQEKFEIAyQdC481FgZvPBb2oSJXaLOOeVw==}
+    cpu: [x64]
+    os: [win32]
 
   shiki@3.20.0:
     resolution: {integrity: sha512-kgCOlsnyWb+p0WU+01RjkCH+eBVsjL1jOwUYWv0YDWkM2/A46+LDKVs5yZCUXjJG6bj4ndFoAg5iLIIue6dulg==}
@@ -30531,6 +30568,33 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   shell-quote@1.8.4: {}
+
+  sherpa-onnx-darwin-arm64@1.13.6:
+    optional: true
+
+  sherpa-onnx-darwin-x64@1.13.6:
+    optional: true
+
+  sherpa-onnx-linux-arm64@1.13.6:
+    optional: true
+
+  sherpa-onnx-linux-x64@1.13.6:
+    optional: true
+
+  sherpa-onnx-node@1.13.6(patch_hash=18484960da7830f17de1d22b6e746e178adb3317051375460c6ada68110ed810):
+    optionalDependencies:
+      sherpa-onnx-darwin-arm64: 1.13.6
+      sherpa-onnx-darwin-x64: 1.13.6
+      sherpa-onnx-linux-arm64: 1.13.6
+      sherpa-onnx-linux-x64: 1.13.6
+      sherpa-onnx-win-ia32: 1.13.6
+      sherpa-onnx-win-x64: 1.13.6
+
+  sherpa-onnx-win-ia32@1.13.6:
+    optional: true
+
+  sherpa-onnx-win-x64@1.13.6:
+    optional: true
 
   shiki@3.20.0:
     dependencies:

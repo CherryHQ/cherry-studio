@@ -1,6 +1,6 @@
 /**
  * Text-embedding requests (transformers.js / Qwen3-Embedding) and what each answers with.
- * Paired with `./worker.ts`, which implements them.
+ * Implemented by the embedding utility-process handler.
  */
 
 /**

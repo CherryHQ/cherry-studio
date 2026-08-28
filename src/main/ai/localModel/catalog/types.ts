@@ -15,29 +15,33 @@ export function currentPlatformKey(): PlatformKey {
 }
 
 /**
- * A native runtime shipped as an npm package, shared by every bundle that declares it
- * in {@link ModelBundle.requires} — today onnxruntime-node, later a second inference
- * runtime. Fetched as the whole npm tarball and verified as a whole, so the extracted
- * platform files need no checksum of their own.
+ * A native runtime shipped on npm, shared by every bundle that declares it in
+ * {@link ModelBundle.requires} — onnxruntime-node and sherpa-onnx today. Fetched as a
+ * whole npm tarball and verified as a whole, so the extracted platform files need no
+ * checksum of their own.
  */
 export interface SharedArtifact {
   id: SharedArtifactId
-  packageName: string
   version: string
-  /** sha256 of the whole npm tarball. Regenerate with:
-   * `curl -sL <registry>/<pkg>/-/<pkg>-<version>.tgz | shasum -a 256` */
-  tarballSha256: string
   installDirKey: PathKey
-  /** Platforms this artifact ships binaries for. A missing entry means *unsupported*:
+  /** Platforms this artifact can be installed on. A missing entry means *unsupported*:
    * every bundle requiring it reads as `unsupported` there rather than offering a
-   * download that could only fail (today darwin-x64, which onnxruntime-node skips). */
+   * download that could only fail (for example, onnxruntime-node on darwin-x64). */
   platforms: Partial<Record<PlatformKey, ArtifactPlatformFiles>>
 }
 
-export type SharedArtifactId = 'onnxruntime-node'
+export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx'
 
-/** The files one platform needs, and where they sit inside the tarball. */
+/**
+ * The files one platform needs, where they sit inside the tarball, and which npm
+ * package publishes them. The package is per platform because both layouts exist:
+ * onnxruntime-node ships every platform in one tarball, sherpa-onnx one tarball each.
+ */
 export interface ArtifactPlatformFiles {
+  packageName: string
+  /** sha256 of the whole npm tarball. Regenerate with:
+   * `curl -sL <registry>/<pkg>/-/<pkg>-<version>.tgz | shasum -a 256` */
+  tarballSha256: string
   /** Tarball path prefix holding this platform's files, e.g. `package/bin/napi-v6/darwin/arm64/`.
    * Entries are flattened onto the install dir, so its depth is also the strip count. */
   tarballPrefix: string

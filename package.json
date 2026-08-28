@@ -149,6 +149,7 @@
     "registry-js": "1.16.1",
     "selection-hook": "2.1.1",
     "sharp": "0.35.3",
+    "sherpa-onnx-node": "1.13.6",
     "smol-toml": "^1.7.0",
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
     "tar": "^7.5.11",

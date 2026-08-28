@@ -9,6 +9,7 @@ import type { InstallState } from '../catalog/types'
 
 const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
+const ASR = 'funasr-nano-int8'
 
 const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDownloads } = vi.hoisted(() => ({
   scanBundleFiles: vi.fn(),
@@ -79,7 +80,7 @@ describe('lifecycle', () => {
     await expect(localModelService._doInit()).resolves.toBeUndefined()
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
-    expect(swept).toEqual([EMBEDDING, OCR].sort())
+    expect(swept).toEqual([EMBEDDING, OCR, ASR].sort())
   })
 
   it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {
@@ -161,7 +162,7 @@ describe('shared artifact cleanup', () => {
 
     await localModelService.remove(OCR)
 
-    expect(removeArtifactIfUnused).not.toHaveBeenCalled()
+    expect(removeArtifactIfUnused).not.toHaveBeenCalledWith('onnxruntime-node')
   })
 
   it('does not let a locked runtime turn cleanup into a failure', async () => {
@@ -190,7 +191,7 @@ describe('removing the OCR model', () => {
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('system')
   })
 
-  it('releases the inference worker before deleting model files', async () => {
+  it('releases the inference process before deleting model files', async () => {
     await localModelService.remove(OCR)
 
     expect(terminateOcrRuntime).toHaveBeenCalledOnce()

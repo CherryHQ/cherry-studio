@@ -1,5 +1,5 @@
 ---
-description: Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models
+description: Local model subsystem — the bundle catalog, verified acquisition, on-disk state, and utility-process inference over installed models
 sources:
   - src/main/ai/localModel
   - src/renderer/hooks/useLocalModel.ts
@@ -10,9 +10,10 @@ sources:
 
 # Local Models
 
-Cherry Studio can run two models on the user's own machine: the knowledge-base
-embedding model and the PaddleOCR text recognizer. Neither ships in the installer —
-both are fetched on demand, together with the native onnxruntime binary they share.
+Cherry Studio can run three models on the user's own machine: the knowledge-base
+embedding model, the PaddleOCR text recognizer, and the Fun-ASR-Nano speech recognizer.
+None ships in the installer — all are fetched on demand, together with the native runtime
+each one needs.
 
 One module owns the whole path: what can be installed, how bytes get onto disk safely,
 how they come off again, and how inference runs over them once they are there.
@@ -36,14 +37,16 @@ src/main/ai/localModel/
 │   ├── LocalModelStorageService.ts ← disk state, installed paths, shared artifacts
 │   └── BundleInstaller.ts          ← one bundle's download/cancel/remove lifecycle
 ├── runtime/
-│   ├── InferenceServiceBase.ts    ← the worker host: spawn, queue, idle release, teardown
+│   ├── InferenceServiceBase.ts    ← typed process client, request queue, config restarts
+│   ├── inferenceProcess.ts        ← contracts, definitions, per-generation init data
 │   ├── inferenceAcceleration.ts   ← platform → execution provider
-│   ├── protocol.ts                ← generic init/request/result/error envelopes
-│   └── worker/                    ← generic core, runtime initializers, source builder
+│   ├── protocol.ts                ← structured-clone-safe runtime profile and init data
+│   └── utilityEntries/            ← standalone entries, handlers, shared child runtime
 └── capabilities/
     ├── capabilityHooks.ts         ← removal behavior keyed by capability
-    ├── embedding/                 ← facade, protocol, pooling, worker module, limits
-    └── ocr/                       ← facade, protocol, model paths, worker module
+    ├── embedding/                 ← facade, protocol, pooling, limits
+    ├── ocr/                       ← facade, protocol, model paths
+    └── asr/                       ← facade, protocol, model paths
 ```
 
 ## The catalog is the only per-model code
@@ -56,8 +59,8 @@ from adding a third or fourth copy of the download machinery.
 
 A **bundle** is what a user installs: one capability's files, fetched, verified, reported
 and removed as a unit. It is the first-class citizen rather than a single file because a
-capability rarely is one file — OCR already needs detection weights, recognition weights
-and a character dictionary, and a speech model would need its own acoustic model plus a
+capability rarely is one file — OCR needs detection weights, recognition weights and a
+character dictionary; speech needs an encoder, an LLM decoder, its tokenizer and a
 voice-activity detector.
 
 Each `BundleFile` carries:
@@ -94,27 +97,37 @@ alternatives requires an explicit model-selection contract rather than relying o
 
 ### Shared artifacts
 
-A **shared artifact** is a native runtime published as an npm package — today only
-`onnxruntime-node`. Bundles declare what they need in `requires`, and that declaration is
-what makes the runtime removable: it outlives a bundle exactly as long as another
-*installed* bundle still requires it.
+A **shared artifact** is a native runtime published on npm — `onnxruntime-node` for
+embedding and OCR, `sherpa-onnx` for speech. Bundles declare what they need in `requires`,
+and that declaration is what makes a runtime removable: it outlives a bundle exactly as
+long as another *installed* bundle still requires it.
+
+npm coordinates live on the **platform** entry, not on the artifact, because both layouts
+exist: onnxruntime-node ships every platform in one tarball, sherpa-onnx one package per
+platform. The utility process receives each installed entry path as init data and exports it
+through the environment variable read by the package patch under `patches/`.
 
 `platforms` is a support matrix, not just a path table. A missing entry means the artifact
-ships nothing there, so every bundle requiring it reads as `unsupported` rather than
-offering a download that could only fail — which is how Intel Macs are handled, since
-onnxruntime-node has no darwin-x64 build.
+cannot be installed there, so every bundle requiring it reads as `unsupported` rather than
+offering a download that could only fail. Current omissions are:
+
+- **darwin-x64** for onnxruntime-node — no such build exists, so embedding and OCR are
+  unavailable on Intel Macs.
+- **win32-arm64** for sherpa-onnx — the package is not published. Windows x64 is supported;
+  its private onnxruntime is isolated from onnxruntime-node in the ASR utility process.
 
 ### Obtaining a checksum
 
-Both mirrors publish digests, so adding a model needs no download:
+The mirrors publish digests, so adding a model needs no download:
 
 - HuggingFace — `GET /api/models/<repo>/tree/main?recursive=true`, read `lfs.oid`
-  (LFS files only; small files report a git blob SHA-1 instead)
+  (LFS files only; a small file reports a git blob SHA-1 instead and has to be hashed by
+  hand, as the speech bundle's `merges.txt` was)
 - ModelScope — `GET /api/v1/models/<repo>/repo/files?Revision=master`, read `Sha256`
 
-Compare the two before committing an entry. One digest can only serve a download that
-falls back between mirrors if the file is byte-identical on both — true for every file in
-the catalog today, and worth re-checking per file rather than assuming.
+Compare them before committing an entry. One digest can only serve a download that falls
+back between mirrors if the file is byte-identical on each — true for every file in the
+catalog today, and worth re-checking per file rather than assuming.
 
 ## Acquisition
 
@@ -125,7 +138,11 @@ acquisition never depend on `RegionService` or geography.
 
 One path is then used by model files and runtime tarballs alike:
 
-1. **Mirror fallback** (`withMirrorFallback`) — try each mirror in region order.
+1. **Mirror fallback** (`withMirrorFallback`) — try each mirror in region order. Model
+   files have three: ModelScope, hf-mirror and HuggingFace, the region default first.
+   hf-mirror is a caching proxy of HuggingFace, so it serves the same paths byte for byte —
+   which is what lets one digest cover both, and what keeps a repo ModelScope never
+   mirrored (the speech model's) reachable from China.
 2. **Stream and verify** (`streamToFileVerified`) — hash while the bytes stream by.
 3. **Atomic install** — write `${dest}.tmp-<uuid>`, rename only after the digest matches.
    A writer that is aborted unlinks its own tmp file; one that dies with the process cannot,
@@ -168,7 +185,7 @@ A bundle may declare a `legacyInstallSubdir` alongside its current one. `resolve
 prefers the current layout, falls back to the legacy directory, and — when only the legacy
 copy exists — tries once to move the files into place.
 
-That move is best-effort on purpose: a live inference worker can hold the files open, and
+That move is best-effort on purpose: a live inference process can hold the files open, and
 the fallback (keep loading them where they are, retry on a later run) costs nothing, while
 treating a failed move as "not installed" would re-download hundreds of MB that are already
 on disk.
@@ -201,7 +218,7 @@ weighted progress scale. Two consequences worth keeping:
   of a complete ~614MB model.
 
 What a capability contributes is narrow, and only what the generic installation layer cannot know:
-refusing removal while the model is still referenced, releasing the inference worker around
+refusing removal while the model is still referenced, releasing the inference process around
 the delete, and any housekeeping once the files are gone.
 
 ## Removal
@@ -214,7 +231,7 @@ Removing a bundle has two independent questions, and they are answered in differ
 - **Is a shared artifact still needed?** A structural question answered from `requires`:
   the artifact goes when no other installed bundle declares it.
 
-Both cases must release the inference worker before deleting files. The worker caches
+Both cases must release the inference process before deleting files. The process caches
 native sessions with the weight files open, so on Windows an open handle makes the unlink
 fail outright.
 
@@ -226,65 +243,65 @@ either makes GC skip the artifact or waits for an already-started removal before
 
 ## Runtime
 
-Inference runs in a `worker_threads` worker, **one per capability**. Sharing a single
-worker would mean that cancelling an OCR download — which must release the file handles on
-its weights — also evicts the 600MB embedding pipeline an unrelated knowledge-base index is
-mid-way through. Separate workers make that impossible by construction: no shared thread,
-no shared pending map, no shared `terminate()`.
+Inference runs in an Electron UtilityProcess, **one OS process per capability**. Native
+runtime crashes and same-named libraries are therefore isolated: embedding/OCR load
+onnxruntime-node in their own processes, while speech loads sherpa's private onnxruntime in
+another. Releasing OCR for model removal cannot evict an embedding request in progress.
 
-Each host is a lifecycle service (`EmbeddingInferenceService`, `OcrInferenceService`) over
-`InferenceServiceBase`, which owns everything that is not capability-specific:
+Each capability has a lifecycle service (`EmbeddingInferenceService`,
+`OcrInferenceService`, `AsrInferenceService`) over `InferenceServiceBase`. The service checks
+platform support, serializes native calls through a `concurrency: 1` queue, and restarts its
+process when the proxy route or applicable acceleration profile changes. It exposes
+`terminateThen()` as the maintenance barrier used before replacing or deleting model files.
 
-- **Lazy spawn** on the first request, and respawn when the acceleration profile or the
-  proxy routing changes — a worker's execution provider is fixed at session creation.
-- **One request at a time** through a `concurrency: 1` queue. A single CPU onnxruntime
-  session gains nothing from concurrent calls, and this lets several callers reach the same
-  instance with no other coordination.
-- **Idle release** after 60s, because a loaded model holds hundreds of MB.
-- **Teardown** on stop/destroy — the worker is a real OS thread that must not outlive
-  shutdown.
+`core/utilityProcess` owns lazy spawn, request correlation, cancellation, idle release after
+60 seconds, crash classification, and shutdown. See [Utility Process Reference](../utility-process/README.md).
 
 ### Protocol
 
-`runtime/protocol.ts` owns the structured-clone-safe envelope only: init carries the
-capability and an artifact-path map; requests carry `capability`, `type`, `requestId`, and
-`payload`; responses carry a result, error, or log. Capability payload/result maps live
-beside their facade under `capabilities/<name>/protocol.ts`, so the common runtime never
-imports a union of every supported capability.
+`runtime/inferenceProcess.ts` declares one `UtilityProcessContract` and process definition per
+capability. Each method pairs one input with one output, so callers and handlers share exact
+types without a union of optional result fields. Capability payload types stay beside their
+facades under `capabilities/<name>/protocol.ts`.
 
-Results are typed **per request type** rather than merged into one struct of optional fields,
-so a caller gets exactly its own payload. Each capability declares its own result keys, and
-the host checks them on arrival: a handler that drops a field fails the request instead of
-resolving a caller with `undefined` where it declared a value.
+At process handshake, `InferenceInitData` supplies the app root, installed artifact entry
+paths, runtime profile, and a proxy-routing snapshot. The child applies those before lazily
+loading a native package. Requests and responses use the generic UtilityProcess wire
+protocol; remote handler errors are unwrapped by `InferenceServiceBase` for callers.
 
-### Worker source
+### Utility-process entries
 
-Each worker script is a **string**, assembled at import time from `workerCore`, one runtime
-initializer and one capability module, then run with `eval: true`. It is not a separate entry
-file because electron-vite bundles the main process with `inlineDynamicImports`, which cannot
-emit the extra chunk a `new Worker(path)` would need.
+Each capability has a standalone entry and a separately testable handler under
+`runtime/utilityEntries/`. The entry calls `serveUtilityProcess()`, initializes the shared
+child runtime, and disposes cached native resources on exit. It is registered in both the
+application manifest and `electron.vite.entries.config.ts`; `pnpm build:utility-process`
+emits one bundle per fresh Node runtime.
 
-`workerCore` knows nothing about a concrete runtime, embedding or OCR. The runtime initializer
-owns runtime-specific setup such as the onnxruntime binding path; the selected capability
-module registers its request types in a `REQUEST_HANDLERS` table:
-
-| Hook | When it runs |
-|---|---|
-| `handle(msg, prepared)` | Answers the request; retried once on CPU if the hardware provider fails |
-| `prepare(msg)` | Setup that must **not** be retried — reading the image file, say, so a bad path is never blamed on the GPU |
-| `dispose()` | Releases that capability's cached sessions when a provider is abandoned |
-
-Adding a capability is therefore a new module, not another branch in a dispatch chain. Its
-production worker cannot load another capability's dependencies because that module is not
-part of its source string.
+The shared child runtime resolves native packages off the app root only after setting their
+downloaded binding paths. Its build boundary forbids lifecycle, database, and main-process
+service imports, keeping the process environment explicit and independently loadable.
 
 ### Hardware fallback
 
-A worker started on DirectML/CoreML that fails mid-request disposes its cached sessions,
+A process started on DirectML/CoreML that fails mid-request disposes its cached sessions,
 drops to CPU **for the rest of its life**, and retries once. Staying on CPU matters: a
 provider that failed once will fail again on the next cache miss, and re-discovering that
 per request would pay the fallback cost every time. If CPU fails too, the error names both
 failures, since "CoreML crashed" and "the model is corrupt" need different fixes.
+
+Speech is explicitly CPU-only: sherpa-onnx names its providers itself, and CoreML measured
+slower than CPU for this decoder. `AsrInferenceService` and its process init both pin the CPU
+profile, so changing the acceleration preference neither changes its actual provider nor
+restarts its process.
+
+### Speech is decoded in segments
+
+Fun-ASR-Nano's decoder holds a little under 30 seconds of audio and answers anything longer
+with the empty string, so the ASR handler never hands it a whole recording. Silero VAD cuts
+the audio into speech runs, each run is split again if it still exceeds the window, and the
+transcript is the pieces joined back together — which is also where the segment timings a
+caller gets come from. Audio that arrives at another sample rate is resampled first; a
+16kHz model fed 8kHz audio does not fail, it transcribes the wrong thing.
 
 ## Management plane
 
@@ -316,15 +333,18 @@ or handler, but does require the catalog, shared vocabulary and presentation des
    (see [Obtaining a checksum](#obtaining-a-checksum)) and a `minBytes` floor.
 2. Add its install directory to the path registry as a `feature.*` key
    (see [paths/README](../../../src/main/core/paths/README.md)).
-3. If it needs a native runtime that is not already a `SharedArtifact`, add one and list
-   every platform it ships binaries for — omissions are what make a platform unsupported.
+3. If it needs a native runtime that is not already a `SharedArtifact`, add one: the npm
+   package and digest per platform it can be installed on (omissions are what make a
+   platform unsupported), a patch making the package load its entry file from an
+   environment variable, and child-runtime setup that sets it before loading the package.
 4. Add its id — and, for a new capability, that capability and its bundle mapping — to
    `src/shared/data/presets/localModel.ts`.
 5. Add its removal hooks in `capabilities/capabilityHooks.ts`.
 6. For a new capability, add its card icon in `LocalModelsSection` and its `name`/`subtitle`
    i18n keys.
 7. For a new capability, add a directory under `capabilities/` containing its request/result
-   maps, worker module, and facade service over `InferenceServiceBase`.
+   types and facade service over `InferenceServiceBase`; add its contract, definition,
+   utility-process entry and handler; then register the service, manifest entry, and build entry.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
@@ -335,8 +355,10 @@ rather than on a user's machine.
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
-- No streaming inference. Every request is one round trip with a complete result; a
-  transcription capability that wants partial output would add a response frame type.
-- onnxruntime is the only runtime. The worker host accepts a separate runtime initializer,
-  but a second runtime (llama.cpp, sherpa-onnx) still needs its own profile and capability
-  integration.
+- No streaming inference. Every request is one round trip with a complete result, so a
+  transcript arrives only once the whole recording is decoded; live captioning would add a
+  response frame type and a streaming model.
+- Speech inference is CPU-only on every platform; the global hardware-acceleration toggle
+  currently applies to embedding and OCR only.
+- Speech has no consumer yet. `AsrInferenceService.transcribe` is callable and the model
+  installs from the settings cards, but no feature calls it.

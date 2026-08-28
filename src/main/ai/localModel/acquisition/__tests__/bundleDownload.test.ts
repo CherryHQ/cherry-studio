@@ -55,7 +55,7 @@ const INSTALL_DIR = '/install'
 
 function options(overrides: Partial<Parameters<typeof downloadBundleFiles>[2]> = {}) {
   return {
-    sourceOrder: ['huggingface', 'modelscope'] as const,
+    sourceOrder: ['huggingface', 'hf-mirror', 'modelscope'] as const,
     signal: new AbortController().signal,
     installDir: INSTALL_DIR,
     ...overrides
@@ -88,12 +88,17 @@ describe('downloadBundleFiles', () => {
     expect(streamToFileVerified.mock.calls[0][0]).toContain('modelscope.cn')
   })
 
-  it('falls back to the next requested source when the first is unreachable', async () => {
+  it('walks every remaining mirror when the first requested source is unreachable', async () => {
+    // The region signal is a guess — a proxied China user reads as overseas and gets
+    // HuggingFace, which they often cannot reach. The China-hosted mirrors must still get
+    // their turn, and a repo only one of them carries must still be reachable.
+    streamToFileVerified.mockRejectedValueOnce(new Error('fetch failed'))
     streamToFileVerified.mockRejectedValueOnce(new Error('fetch failed'))
 
     await downloadBundleFiles(BUNDLE, [WEIGHTS], options())
 
-    expect(streamToFileVerified.mock.calls[1][0]).toContain('modelscope.cn')
+    expect(streamToFileVerified.mock.calls[1][0]).toContain('hf-mirror.com')
+    expect(streamToFileVerified.mock.calls[2][0]).toContain('modelscope.cn')
   })
 
   it('writes a derived file from its transformed bytes, not the fetched ones', async () => {

@@ -78,8 +78,31 @@ describe('local model catalog', () => {
       expect(files.supportFiles).not.toContain(files.entryFile)
       // Flattening relies on the prefix ending at a directory boundary.
       expect(files.tarballPrefix.endsWith('/')).toBe(true)
+      // Same reason bundle files carry one: an unverified tarball is a native binary
+      // installed from whatever the mirror happened to serve.
+      expect(files.tarballSha256, `${artifact.id}/${platform} has no tarball digest`).toMatch(/^[0-9a-f]{64}$/)
     }
-    expect(artifact.tarballSha256).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it.each(artifacts)('$id installs each platform into its own directory', (artifact) => {
+    // Platforms sharing one install dir would overwrite each other's binaries, which is
+    // reachable in practice: an arm64 Mac runs the x64 build under Rosetta.
+    const subdirs = Object.values(artifact.platforms).map((files) => files.installSubdir)
+
+    expect(new Set(subdirs).size).toBe(subdirs.length)
+  })
+
+  it('ships the complete sherpa runtime on Windows x64', () => {
+    expect(SHARED_ARTIFACTS['sherpa-onnx'].platforms['win32-x64']).toMatchObject({
+      packageName: 'sherpa-onnx-win-x64',
+      entryFile: 'sherpa-onnx.node',
+      supportFiles: expect.arrayContaining([
+        'onnxruntime_providers_shared.dll',
+        'onnxruntime.dll',
+        'sherpa-onnx-c-api.dll',
+        'sherpa-onnx-cxx-api.dll'
+      ])
+    })
   })
 
   it('throws on an unknown file key rather than yielding an undefined path', () => {

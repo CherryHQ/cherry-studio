@@ -103,7 +103,7 @@ export class LocalModelStorageService {
    *
    * Finding only the legacy copy also triggers a one-shot attempt to lift it into place.
    * That attempt is best-effort by design: the files may be held open by a live inference
-   * worker, and the fallback — keep loading them where they are — costs nothing.
+   * process, and the fallback — keep loading them where they are — costs nothing.
    */
   resolveInstalledDir(bundle: ModelBundle): string | null {
     const installDir = this.bundleInstallDir(bundle)
@@ -121,7 +121,7 @@ export class LocalModelStorageService {
   }
 
   /** Move a legacy-layout install into the current one, or leave it exactly as it was.
-   * Best-effort — a live worker can hold the files open — but never half-done: whatever
+   * Best-effort — a live process can hold the files open — but never half-done: whatever
    * already moved is put back, because an install split across both layouts leaves
    * neither complete and re-downloads a model that is entirely on disk. */
   private liftLegacyInstall(bundle: ModelBundle, legacyDir: string, installDir: string): void {

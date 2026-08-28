@@ -20,7 +20,7 @@ The design rationale, the rejected alternatives, and the experiment evidence liv
 
 ## What V1 is not
 
-No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. Two processes are registered today — `inference.embedding` and `inference.ocr` (local embedding and OCR).
+No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. Three processes are registered today — `inference.embedding`, `inference.ocr` and `inference.asr` (local embedding, OCR and speech recognition).
 
 ## Declaring a process
 

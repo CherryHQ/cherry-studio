@@ -42,9 +42,8 @@ export interface CapabilityHooks {
    */
   acquireRemovalGuard?: () => (() => void) | undefined
   /**
-   * Release the inference worker, run `after`, then allow it to respawn. Deleting weights
-   * while a worker holds them open fails outright on Windows, and a request queued behind
-   * the delete would otherwise respawn a worker onto files that are being removed.
+   * Release the inference process, run `after`, then allow it to respawn. Windows cannot
+   * delete open weights, and the maintenance barrier blocks requests during removal.
    */
   terminateRuntimeThen: <T>(after: () => Promise<T>) => Promise<T>
   /** Housekeeping once the files are gone — e.g. clearing a preference that points at

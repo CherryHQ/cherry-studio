@@ -6,9 +6,9 @@
 
 /**
  * Download/availability state of a local model, shared by the settings model
- * cards. `unsupported` means the current platform/arch can't run inference at
- * all (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding); the
- * cards hide rather than offering a download that would fail.
+ * cards. `unsupported` means *this* model's runtime has no usable build for the
+ * current platform/arch, so the card states that instead of offering a download
+ * that could only fail. Models can differ: support is per runtime, not per platform.
  */
 export const LOCAL_MODEL_STATUSES = ['not_downloaded', 'downloading', 'ready', 'error', 'unsupported'] as const
 export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
@@ -35,7 +35,7 @@ export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[num
  * needs the ocr model"), never for a specific bundle. Each capability has exactly one
  * bundle; the catalog test enforces that contract.
  */
-export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr'] as const
+export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr', 'asr'] as const
 export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
 
 /**
@@ -46,7 +46,7 @@ export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
  * Kept in sync with `src/main/ai/localModel/catalog/catalog.ts` by construction: the
  * catalog's own bundle-id type is this one, so an unlisted id fails to typecheck.
  */
-export const LOCAL_MODEL_BUNDLE_IDS = ['qwen3-embedding-0.6b', 'pp-ocrv6-medium'] as const
+export const LOCAL_MODEL_BUNDLE_IDS = ['qwen3-embedding-0.6b', 'pp-ocrv6-medium', 'funasr-nano-int8'] as const
 export type LocalModelBundleId = (typeof LOCAL_MODEL_BUNDLE_IDS)[number]
 
 export type LocalModelStatusSnapshots = Partial<Record<LocalModelBundleId, LocalModelStatusSnapshot>>
@@ -61,5 +61,6 @@ export const LOCAL_MODEL_STATUS_CACHE_KEY = 'local_model.statuses' as const
  */
 export const LOCAL_MODEL_BUNDLE_BY_CAPABILITY = {
   embedding: 'qwen3-embedding-0.6b',
-  ocr: 'pp-ocrv6-medium'
+  ocr: 'pp-ocrv6-medium',
+  asr: 'funasr-nano-int8'
 } as const satisfies Record<LocalModelCapability, LocalModelBundleId>

@@ -5,7 +5,7 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelBundleId, LocalModelCapability, LocalModelStatus } from '@shared/data/presets/localModel'
-import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
+import { AudioLines, Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +16,8 @@ const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
   incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
   removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
-  inUse: 'settings.dependencies.localModels.notice.inUse'
+  inUse: 'settings.dependencies.localModels.notice.inUse',
+  unsupported: 'settings.dependencies.localModels.notice.unsupported'
 } as const
 
 type CardNotice = keyof typeof CARD_NOTICE_KEYS
@@ -32,6 +33,11 @@ const CAPABILITY_CARDS = {
     icon: <ScanText className="size-5" />,
     nameKey: 'settings.dependencies.localModels.ocr.name',
     subtitleKey: 'settings.dependencies.localModels.ocr.subtitle'
+  },
+  asr: {
+    icon: <AudioLines className="size-5" />,
+    nameKey: 'settings.dependencies.localModels.asr.name',
+    subtitleKey: 'settings.dependencies.localModels.asr.subtitle'
   }
 } as const satisfies Record<LocalModelCapability, { icon: ReactNode; nameKey: string; subtitleKey: string }>
 
@@ -73,12 +79,14 @@ function useLocalModelCard(id: LocalModelBundleId) {
   return {
     ...localModel,
     notice:
-      notice ??
-      (localModel.status === 'error'
-        ? localModel.errorCode === 'incomplete_cache'
-          ? 'incompleteCache'
-          : 'downloadFailed'
-        : null),
+      localModel.status === 'unsupported'
+        ? 'unsupported'
+        : (notice ??
+          (localModel.status === 'error'
+            ? localModel.errorCode === 'incomplete_cache'
+              ? 'incompleteCache'
+              : 'downloadFailed'
+            : null)),
     download,
     remove
   }
@@ -102,6 +110,8 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   const ready = status === 'ready'
   const downloading = status === 'downloading'
   const retrying = status === 'error'
+  // Its runtime has no build here, so the card states that instead of offering a download.
+  const unsupported = status === 'unsupported'
 
   return (
     <div
@@ -139,7 +149,11 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
       </div>
 
       {notice && (
-        <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
+        <p
+          className={cn(
+            'mt-2 text-xs leading-4',
+            notice === 'inUse' || notice === 'unsupported' ? 'text-muted-foreground' : 'text-destructive'
+          )}>
           {t(CARD_NOTICE_KEYS[notice])}
         </p>
       )}
@@ -156,7 +170,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
         </div>
       )}
 
-      {!ready && (
+      {!ready && !unsupported && (
         <div className="mt-3 border-border border-t pt-3">
           {downloading ? (
             <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void cancel()}>
@@ -213,7 +227,9 @@ const LocalModelsSection: FC = () => {
     }
   }, [])
 
-  // The current models share onnxruntime, so they are unsupported together on Intel Mac.
+  // Models are unsupported per runtime, not per platform — an Intel Mac has no
+  // onnxruntime-node binding, Windows gets no sherpa-onnx — so the whole section collapses
+  // into one notice only when nothing at all can run here; otherwise each card says so itself.
   const unsupported = models.length > 0 && models.every((model) => statuses[model.id] === 'unsupported')
 
   return (

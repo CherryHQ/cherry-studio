@@ -62,8 +62,10 @@ let childStates: EchoChildState[]
 let definition: UtilityProcessDefinition<EchoContract, InferenceInitData>
 
 class TestInferenceService extends InferenceServiceBase<EchoContract> {
-  constructor() {
-    super(definition, 'embedding')
+  // The container constructs services with no arguments, so the parameter stays as wide as
+  // ServiceConstructor demands; only this suite passes anything.
+  constructor(cpuOnly: unknown = false) {
+    super(definition, 'embedding', cpuOnly === true)
   }
 
   ping(signal?: AbortSignal) {
@@ -83,7 +85,7 @@ class TestInferenceService extends InferenceServiceBase<EchoContract> {
   }
 }
 
-async function createService(): Promise<{
+async function createService(cpuOnly = false): Promise<{
   service: TestInferenceService
   adapter: ReturnType<typeof createMemoryProcessAdapter>
 }> {
@@ -106,7 +108,7 @@ async function createService(): Promise<{
   })
   await manager._doInit()
   utilityProcessManager.current = manager
-  const service = new TestInferenceService()
+  const service = new TestInferenceService(cpuOnly)
   await service._doInit()
   return { service, adapter }
 }
@@ -165,8 +167,7 @@ describe('InferenceServiceBase dispatch', () => {
   it('resolves a method whose output is void instead of reading it as a failure', async () => {
     const { service } = await createService()
 
-    // `load` (the embedding download) returns void; a sentinel on the queue's own
-    // `T | void` result type would reject every completed download.
+    // A sentinel on the queue's own `T | void` result type would reject valid void methods.
     await expect(service.nothing()).resolves.toBeUndefined()
   })
 
@@ -203,6 +204,16 @@ describe('InferenceServiceBase runtime staleness', () => {
     const { resolveLocalInferenceProfile } = await import('../inferenceAcceleration')
     const expected = resolveLocalInferenceProfile(true).id === 'cpu' ? 1 : 2
     expect(adapter.spawns).toHaveLength(expected)
+  })
+
+  it('does not relaunch a CPU-only runtime when the acceleration preference changes', async () => {
+    const { service, adapter } = await createService(true)
+    await service.ping()
+
+    MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
+    await service.ping()
+
+    expect(adapter.spawns).toHaveLength(1)
   })
 })
 

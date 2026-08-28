@@ -86,6 +86,7 @@ patchedDependencies:
   '@tiptap/markdown@3.26.1': patches/@tiptap__markdown@3.26.1.patch
   '@openrouter/ai-sdk-provider@2.10.0': patches/@openrouter__ai-sdk-provider@2.10.0.patch
   onnxruntime-node@1.25.1: patches/onnxruntime-node@1.25.1.patch
+  sherpa-onnx-node@1.13.6: patches/sherpa-onnx-node@1.13.6.patch
   emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
   '@ai-sdk/openai-compatible@2.0.72': patches/@ai-sdk__openai-compatible@2.0.72.patch
   '@ai-sdk/open-responses@1.0.34': patches/@ai-sdk__open-responses@1.0.34.patch

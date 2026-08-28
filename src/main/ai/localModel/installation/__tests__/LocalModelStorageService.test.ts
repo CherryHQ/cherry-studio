@@ -161,7 +161,7 @@ describe('resolveInstalledDir', () => {
   })
 
   it('serves the legacy install in place when the lift cannot complete', () => {
-    // Something is occupying the destination path (a live worker's open handle does the
+    // Something is occupying the destination path (a live process's open handle does the
     // same on Windows). Losing a complete model over a failed move would be the worse
     // outcome, so the legacy copy stays usable and a later run retries.
     writeBundleFile('model/master/a.onnx', 20)

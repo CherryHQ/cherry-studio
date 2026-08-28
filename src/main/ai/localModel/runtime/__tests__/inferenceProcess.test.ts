@@ -7,10 +7,10 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('../../installation/LocalModelStorageService', () => ({
-  localModelStorageService: { artifactPath: () => '/bindings/onnxruntime.node' }
+  localModelStorageService: { artifactPath: (id: string) => `/bindings/${id}.node` }
 }))
 
-const { embeddingInferenceProcess, ocrInferenceProcess } = await import('../inferenceProcess')
+const { asrInferenceProcess, embeddingInferenceProcess, ocrInferenceProcess } = await import('../inferenceProcess')
 
 const HARDWARE_KEY = 'feature.local_model.hardware_acceleration.enabled'
 
@@ -32,7 +32,7 @@ describe('inference process definitions', () => {
       // policy, a token) would be a secret handed to a process that has no use for it.
       expect(Object.keys(initData).sort()).toEqual(['appPath', 'artifactPaths', 'runtimeProfile'])
       // The binding path must arrive before the first require of transformers/ppu.
-      expect(initData.artifactPaths['onnxruntime-node']).toBe('/bindings/onnxruntime.node')
+      expect(initData.artifactPaths['onnxruntime-node']).toBe('/bindings/onnxruntime-node.node')
       expect(initData.runtimeProfile.id).toBe('cpu')
     }
   })
@@ -44,5 +44,14 @@ describe('inference process definitions', () => {
     const initData = await embeddingInferenceProcess.createInitData!()
 
     expect(initData.runtimeProfile).toEqual(resolveLocalInferenceProfile(true))
+  })
+
+  it('pins ASR to CPU even when hardware acceleration is enabled', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
+
+    const initData = await asrInferenceProcess.createInitData!()
+
+    expect(initData.artifactPaths['sherpa-onnx']).toBe('/bindings/sherpa-onnx.node')
+    expect(initData.runtimeProfile.id).toBe('cpu')
   })
 })

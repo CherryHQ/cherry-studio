@@ -378,7 +378,7 @@ describe('remove', () => {
 
     await expect(manager.remove()).resolves.toEqual({ removed: true })
 
-    // The worker holds the weights open — release it first or the unlink fails on Windows.
+    // The inference process holds the weights open; release it before unlinking on Windows.
     expect(terminateRuntimeThen).toHaveBeenCalledOnce()
     expect(afterRemove).toHaveBeenCalledOnce()
     // The whole root, so no empty `org/` parent chain survives the removal.

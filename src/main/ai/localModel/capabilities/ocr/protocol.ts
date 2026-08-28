@@ -1,6 +1,6 @@
 /**
  * Text-recognition requests (PaddleOCR via ppu-paddle-ocr) and what they answer with.
- * Paired with `./worker.ts`, which implements them.
+ * Implemented by the OCR utility-process handler.
  */
 
 /** Absolute paths to the PaddleOCR model files (installed by the main process). */

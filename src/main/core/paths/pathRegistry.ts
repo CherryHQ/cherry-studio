@@ -115,6 +115,13 @@ export function buildPathRegistry() {
     // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
+    // sherpa-onnx native binary (napi addon + its own onnxruntime), downloaded on
+    // first use of local speech recognition — see ai/localModel's shared artifacts.
+    'feature.sherpa_onnx.binary': path.join(appUserDataToolchain, 'sherpa-onnx'),
+
+    // Local speech-recognition model files (Fun-ASR-Nano + Silero VAD, downloaded on demand)
+    'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
+
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
 

@@ -74,6 +74,7 @@ files:
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # same: the speech runtime's binaries land in Toolchain/sherpa-onnx; only the sherpa-onnx-node JS wrapper ships
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development

@@ -7,7 +7,7 @@
  * Download-time only. Inference never consults it: models load by absolute path, which is
  * what keeps them off the network entirely.
  */
-export type ModelSourceId = 'huggingface' | 'modelscope'
+export type ModelSourceId = 'huggingface' | 'hf-mirror' | 'modelscope'
 export type DownloadSourcePreference = 'china-first' | 'global-first'
 
 interface ModelSource {
@@ -22,6 +22,14 @@ interface ModelSource {
 const SOURCES: Record<ModelSourceId, ModelSource> = {
   huggingface: {
     remoteHost: 'https://huggingface.co',
+    remotePathTemplate: '{model}/resolve/{revision}',
+    revision: 'main'
+  },
+  // A caching proxy of HuggingFace, so it serves the same paths byte for byte — which is
+  // what lets one sha256 cover both. It is the only route from China to a repo ModelScope
+  // does not carry, as the speech model's does not.
+  'hf-mirror': {
+    remoteHost: 'https://hf-mirror.com',
     remotePathTemplate: '{model}/resolve/{revision}',
     revision: 'main'
   },
@@ -40,11 +48,16 @@ export function defaultModelSourceId(preference: DownloadSourcePreference): Mode
   return preference === 'china-first' ? 'modelscope' : 'huggingface'
 }
 
-/** A permutation of {@link ALL_MODEL_SOURCE_IDS}: the region default first, the other as fallback. */
+/**
+ * Every source, the region default first. `hf-mirror` sits in the middle either way: it
+ * carries whatever HuggingFace does, so it is the fallback that can serve a repo the
+ * other two cannot — from China when HuggingFace is unreachable, and elsewhere when it
+ * is a repo ModelScope never mirrored.
+ */
 export function modelSourceOrder(preference: DownloadSourcePreference): [ModelSourceId, ...ModelSourceId[]] {
   return defaultModelSourceId(preference) === 'modelscope'
-    ? ['modelscope', 'huggingface']
-    : ['huggingface', 'modelscope']
+    ? ['modelscope', 'hf-mirror', 'huggingface']
+    : ['huggingface', 'hf-mirror', 'modelscope']
 }
 
 /**

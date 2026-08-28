@@ -47,10 +47,10 @@ function artifactInstallDir(artifact: SharedArtifact, platform: ArtifactPlatform
 }
 
 /**
- * Absolute path to the artifact's loadable entry file — for onnxruntime-node, what the
- * inference worker exports as `CHERRY_ONNXRUNTIME_BINDING_PATH` before its first lazy
- * require. Returns a path even on an unsupported platform (callers are gated earlier by
- * the bundle's `unsupported` status), so it never has to be null-checked at the use site.
+ * Absolute path to the artifact's loadable entry file — what the inference utility process
+ * exports into the environment its loader patch reads, before the first lazy require.
+ * Returns a path even on an unsupported platform (callers are gated earlier by the
+ * bundle's `unsupported` status), so it never has to be null-checked at the use site.
  */
 export function artifactEntryPath(artifact: SharedArtifact): string {
   const platform = artifactPlatformFiles(artifact)
@@ -70,9 +70,13 @@ export function isArtifactInstalled(artifact: SharedArtifact): boolean {
   return [platform.entryFile, ...platform.supportFiles].every((file) => fs.existsSync(path.join(dir, file)))
 }
 
-function tarballUrls(artifact: SharedArtifact, registryOrder: readonly ArtifactRegistryId[]): string[] {
-  const { packageName, version } = artifact
-  return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${version}.tgz`)
+function tarballUrls(
+  artifact: SharedArtifact,
+  platform: ArtifactPlatformFiles,
+  registryOrder: readonly ArtifactRegistryId[]
+): string[] {
+  const { packageName } = platform
+  return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${artifact.version}.tgz`)
 }
 
 /**
@@ -91,12 +95,12 @@ export async function installArtifact(
 
   const tmpDir = artifactStagingDir(artifact)
   await fs.promises.mkdir(tmpDir, { recursive: true })
-  const tarballPath = path.join(tmpDir, `${artifact.packageName}-${artifact.version}.tgz`)
+  const tarballPath = path.join(tmpDir, `${platform.packageName}-${artifact.version}.tgz`)
   const extractDir = path.join(tmpDir, `extract-${currentPlatformKey()}`)
 
   try {
-    await withMirrorFallback(tarballUrls(artifact, registryOrder), signal, artifact.id, (url) =>
-      streamToFileVerified(url, tarballPath, { sha256: artifact.tarballSha256, signal, onProgress })
+    await withMirrorFallback(tarballUrls(artifact, platform, registryOrder), signal, artifact.id, (url) =>
+      streamToFileVerified(url, tarballPath, { sha256: platform.tarballSha256, signal, onProgress })
     )
     signal.throwIfAborted()
     await extractPlatformFiles(tarballPath, extractDir, platform)
