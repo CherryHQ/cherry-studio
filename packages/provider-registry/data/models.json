@@ -2270,7 +2270,7 @@
       "family": "qwen",
       "id": "qwen3-8-2-4t-a95b",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 131072,
+      "maxOutputTokens": 128000,
       "metadata": {},
       "name": "Qwen3.8 2.4T A95B",
       "openWeights": true,
@@ -2279,7 +2279,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.25
         },
         "input": {
           "currency": "USD",
@@ -2374,31 +2374,35 @@
       "family": "qwen",
       "id": "qwen3-8-flash",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 128000,
+      "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "Qwen 3.8 Flash",
+      "name": "Qwen3.8 Flash",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.016
+          "perMillionTokens": 0.01187
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.14844
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 0.11875
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.47
+          "perMillionTokens": 0.40073
         }
       },
       "reasoning": {
         "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "xhigh"]
+          },
           {
             "kind": "toggle"
           },
@@ -2408,7 +2412,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"],
+        "supportedEfforts": ["low", "medium", "xhigh", "none"],
         "thinkingTokenLimits": {
           "max": 38912,
           "min": 1024
@@ -3173,11 +3177,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       }
     },
@@ -5165,6 +5169,36 @@
           "currency": "USD",
           "perMillionTokens": 0.18
         }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "ling",
+      "id": "ling-3-0-flash-fin",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Ling 3.0 Flash Fin (Free)",
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -9600,7 +9634,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 262144,
+      "contextWindow": 202752,
       "family": "gemma",
       "id": "gemma-3-27b-it",
       "inputModalities": ["text", "image"],
@@ -13563,7 +13597,7 @@
     },
     {
       "capabilities": ["function-call", "audio-recognition", "structured-output", "file-input"],
-      "contextWindow": 32000,
+      "contextWindow": 32768,
       "family": "mistral",
       "id": "voxtral-small-24b",
       "inputModalities": ["text", "audio"],
@@ -14638,7 +14672,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.01
         },
         "input": {
           "currency": "USD",
@@ -14646,7 +14680,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.2
         }
       },
       "reasoning": {
@@ -16138,6 +16172,76 @@
       }
     },
     {
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
+      "family": "gpt-image",
+      "id": "gpt-5-3-image",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GPT-5.3 Image",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "openai"
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt",
@@ -16173,13 +16277,112 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
-      "contextWindow": 272000,
-      "id": "gpt-5-4-image-2",
-      "inputModalities": ["image", "text"],
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
+      "family": "gpt-image",
+      "id": "gpt-5-4-image",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "OpenAI: GPT-5.4 Image 2",
-      "outputModalities": ["image", "text"],
+      "name": "GPT-5.4 Image",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "openai"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
+      "contextWindow": 272000,
+      "family": "gpt-image",
+      "id": "gpt-5-4-image-2",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GPT-5.4 Image 2",
+      "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
         "input": {
@@ -16190,15 +16393,6 @@
           "currency": "USD",
           "perMillionTokens": 15
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -18398,7 +18592,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
-      "contextWindow": 256000,
+      "contextWindow": 262144,
       "family": "kat-coder",
       "id": "kat-coder-pro-v2-5",
       "inputModalities": ["text", "image"],
@@ -18744,15 +18938,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.033
+          "perMillionTokens": 0.035
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.132
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.528
+          "perMillionTokens": 0.58
         }
       },
       "reasoning": {
@@ -18785,6 +18979,42 @@
           "currency": "USD",
           "perMillionTokens": 0.6
         }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "Hy",
+      "id": "hy4-preview",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 64000,
+      "metadata": {},
+      "name": "Tencent Hy4 Preview",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.042
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "high"]
       }
     },
     {
@@ -19466,6 +19696,16 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Wan v3.0 Video",
+      "outputModalities": ["video"],
+      "ownedBy": "vercel"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "family": "o",
+      "id": "wan-v3-0-video-prime",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Wan v3.0 Video Prime",
       "outputModalities": ["video"],
       "ownedBy": "vercel"
     },
@@ -21396,11 +21636,11 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
+      "contextWindow": 1310720,
       "family": "glm",
       "id": "glm-5-3",
       "inputModalities": ["text"],
-      "maxOutputTokens": 131072,
+      "maxOutputTokens": 1000000,
       "metadata": {},
       "name": "GLM-5.3",
       "outputModalities": ["text"],
@@ -21626,7 +21866,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
+      "contextWindow": 1310720,
       "id": "glm-latest",
       "inputModalities": ["text"],
       "metadata": {},
@@ -21636,7 +21876,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 1.25
         },
         "output": {
           "currency": "USD",
@@ -21677,5 +21917,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "acf8223fb645bb72"
+  "version": "d6d68a623f8af1c4"
 }

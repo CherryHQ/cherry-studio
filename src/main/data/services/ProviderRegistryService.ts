@@ -37,6 +37,7 @@ import {
   inferReasoningControls,
   inferReasoningMembership,
   inferReasoningOwnedBy,
+  isImageGenerationId,
   MODEL_CAPABILITY,
   REASONING_EFFORT,
   REASONING_FORMAT_PROFILES,
@@ -329,6 +330,16 @@ export function inferCustomModelReasoning(
   return projectRuntimeReasoning(proto, profile)
 }
 
+/**
+ * Image-generation ingest heuristic — mirrors legacy DEDICATED_IMAGE_MODELS regex
+ * `gpt-[\d.]+-image(?:-[\w-]+)?` from PR #15684. Used for custom models
+ * that have no catalog entry (e.g. user-added `gpt-5.4-image-2`). Returns the
+ * capability array to add, or empty.
+ */
+export function inferCustomModelImageGeneration(modelId: string): ModelCapability[] {
+  return isImageGenerationId(modelId) ? [MODEL_CAPABILITY.IMAGE_GENERATION] : []
+}
+
 /** Tokens that must stay upper-cased when a raw id is prettified (a lowercase word would mis-title-case). */
 const MODEL_NAME_ACRONYMS: Record<string, string> = {
   api: 'API',
@@ -412,14 +423,21 @@ export function createCustomModel(
   // Ingest-time heuristics: an unmatched model still gets its reasoning
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
   // are descriptor-driven like catalog rows (#16598).
+  // Also handle versioned GPT image SKUs (gpt-5.4-image-2 etc.) via
+  // isImageGenerationId — mirrors legacy regex gpt-[\d.]+-image from PR #15684.
   const reasoning = inferCustomModelReasoning(modelId, profile)
+  const imageGenCaps = inferCustomModelImageGeneration(modelId)
+  const isImageGen = imageGenCaps.length > 0
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
     apiModelId: modelId,
     name: modelId,
     ownedBy: inferReasoningOwnedBy(modelId),
-    capabilities: [],
+    capabilities: imageGenCaps,
+    ...(isImageGen
+      ? { inputModalities: ['text', 'image'] as Modality[], outputModalities: ['text', 'image'] as Modality[] }
+      : {}),
     reasoning,
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
     supportsStreaming: true,
