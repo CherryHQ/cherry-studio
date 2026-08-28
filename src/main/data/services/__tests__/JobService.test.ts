@@ -203,7 +203,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
     )
   })
 
-  it('projects cancel-requested non-terminal rows as cancelled at their updatedAt', () => {
+  it('projects cancel-requested non-terminal rows as cancelled at their cancelRequestedAt', () => {
     const now = Date.now()
     const schedules = (['running', 'pending', 'delayed'] as const).map((status) => {
       const schedule = createSchedule(`cancel-requested-${status}`)
@@ -214,7 +214,10 @@ describe('JobService.getRunStatesByScheduleIds', () => {
           scheduleId: schedule.id,
           startedAt: status === 'running' ? now - 5_000 : null,
           cancelRequested: true,
-          updatedAt: now - 1_000
+          cancelRequestedAt: now - 1_000,
+          // Later than cancelRequestedAt — proves the projection reads the
+          // immutable request time, not whatever bumped the row last.
+          updatedAt: now - 200
         })
       )
       return schedule
@@ -243,7 +246,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         scheduleId: newerCancel.id,
         startedAt: now - 3_000,
         cancelRequested: true,
-        updatedAt: now - 1_000
+        cancelRequestedAt: now - 1_000
       })
     )
 
@@ -254,7 +257,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         status: 'pending',
         scheduleId: newerTerminal.id,
         cancelRequested: true,
-        updatedAt: now - 5_000
+        cancelRequestedAt: now - 5_000
       })
     )
     jobService.create(
@@ -265,14 +268,14 @@ describe('JobService.getRunStatesByScheduleIds', () => {
     jobService.create(
       baseRow({ type: 'agent.task', status: 'completed', scheduleId: tied.id, finishedAt: now - 2_000 })
     )
-    jobService.create(
+    const tiedLeftover = jobService.create(
       baseRow({
         type: 'agent.task',
         status: 'running',
         scheduleId: tied.id,
         startedAt: now - 3_000,
         cancelRequested: true,
-        updatedAt: now - 2_000
+        cancelRequestedAt: now - 2_000
       })
     )
 
@@ -282,6 +285,13 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         [newerTerminal.id, { kind: 'terminal', status: 'failed', finishedAt: now - 1_000 }],
         [tied.id, { kind: 'terminal', status: 'completed', finishedAt: now - 2_000 }]
       ])
+    )
+
+    // The tie must resolve the same way after recovery settles the leftover:
+    // both rows are then terminal and the real outcome still wins.
+    jobService.cancelByIds([tiedLeftover.id], null)
+    expect(jobService.getRunStatesByScheduleIds('agent.task', [tied.id])).toEqual(
+      new Map([[tied.id, { kind: 'terminal', status: 'completed', finishedAt: now - 2_000 }]])
     )
   })
 
@@ -296,7 +306,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         scheduleId: runningSchedule.id,
         startedAt: now - 1_000,
         cancelRequested: true,
-        updatedAt: now
+        cancelRequestedAt: now
       })
     )
     jobService.create(
@@ -311,7 +321,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         scheduleId: queuedSchedule.id,
         startedAt: now - 1_000,
         cancelRequested: true,
-        updatedAt: now
+        cancelRequestedAt: now
       })
     )
     jobService.create(baseRow({ type: 'agent.task', status: 'pending', scheduleId: queuedSchedule.id }))
@@ -334,7 +344,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         scheduleId: schedule.id,
         startedAt: now - 8_000,
         cancelRequested: true,
-        updatedAt: now - 5_000
+        cancelRequestedAt: now - 5_000
       })
     )
     jobService.create(
@@ -344,12 +354,39 @@ describe('JobService.getRunStatesByScheduleIds', () => {
     const before = jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])
     expect(before.get(schedule.id)).toEqual({ kind: 'terminal', status: 'completed', finishedAt: now - 2_000 })
 
-    jobService.cancelByIdsAtRequestTime([leftover.id], null)
+    jobService.cancelByIds([leftover.id], null)
 
     const settled = jobService.getById(leftover.id)
     expect(settled?.status).toBe('cancelled')
-    expect(settled && Date.parse(settled.finishedAt!)).toBe(now - 5_000)
+    // finishedAt keeps real terminal-transition semantics (settle time, not the
+    // request time) — GC / retention / recent-terminal ordering depend on it.
+    expect(settled && Date.parse(settled.finishedAt!)).toBeGreaterThanOrEqual(now)
+    expect(settled?.cancelRequestedAt).toBe(leftover.cancelRequestedAt)
     expect(jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])).toEqual(before)
+  })
+
+  it('projects a settled cancelled row at its cancelRequestedAt, not its late finishedAt', () => {
+    const now = Date.now()
+    const schedule = createSchedule('settled-cancel-projection')
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'cancelled',
+        scheduleId: schedule.id,
+        startedAt: now - 90_000,
+        cancelRequested: true,
+        cancelRequestedAt: now - 80_000,
+        // Recovery settled the row a process lifetime after the request.
+        finishedAt: now - 1_000
+      })
+    )
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'completed', scheduleId: schedule.id, finishedAt: now - 60_000 })
+    )
+
+    expect(jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])).toEqual(
+      new Map([[schedule.id, { kind: 'terminal', status: 'completed', finishedAt: now - 60_000 }]])
+    )
   })
 
   it('reports the real status for a terminal row that still carries cancelRequested', () => {
@@ -363,13 +400,66 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         startedAt: now - 2_000,
         finishedAt: now - 1_000,
         cancelRequested: true,
-        updatedAt: now - 1_000
+        cancelRequestedAt: now - 1_500
       })
     )
 
     expect(jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])).toEqual(
       new Map([[schedule.id, { kind: 'terminal', status: 'completed', finishedAt: now - 1_000 }]])
     )
+  })
+})
+
+describe('JobService.setCancelRequestedTx', () => {
+  setupTestDatabase()
+
+  it('records cancelRequestedAt once — a repeated cancel does not move it', async () => {
+    const job = jobService.create(baseRow({ status: 'running', startedAt: Date.now() }))
+    const db = application.get('DbService').getDb()
+
+    jobService.setCancelRequestedTx(db, job.id)
+    const first = jobService.getById(job.id)
+    expect(first?.cancelRequested).toBe(true)
+    expect(first?.cancelRequestedAt).not.toBeNull()
+
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    jobService.setCancelRequestedTx(db, job.id)
+    expect(jobService.getById(job.id)?.cancelRequestedAt).toBe(first?.cancelRequestedAt)
+  })
+
+  it('cancelManyTx stamps running rows once and leaves direct-cancelled rows unstamped', async () => {
+    const now = Date.now()
+    const running = jobService.create(baseRow({ status: 'running', queue: 'batch-q', startedAt: now }))
+    const pending = jobService.create(baseRow({ status: 'pending', queue: 'batch-q' }))
+    const db = application.get('DbService').getDb()
+
+    const first = jobService.cancelManyTx(db, { queue: 'batch-q' }, null)
+    expect(first.runningIds).toEqual([running.id])
+    expect(first.transitioned).toBe(1)
+
+    const stamped = jobService.getById(running.id)
+    expect(stamped?.cancelRequested).toBe(true)
+    expect(stamped?.cancelRequestedAt).not.toBeNull()
+    // The pending row went straight to cancelled — no request, no timestamp.
+    expect(jobService.getById(pending.id)).toMatchObject({ status: 'cancelled', cancelRequestedAt: null })
+
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    jobService.cancelManyTx(db, { queue: 'batch-q' }, null)
+    expect(jobService.getById(running.id)?.cancelRequestedAt).toBe(stamped?.cancelRequestedAt)
+  })
+
+  it('does not stamp cancelRequestedAt when cancelling an already-terminal row', () => {
+    const now = Date.now()
+    const job = jobService.create(baseRow({ status: 'cancelled', startedAt: now - 5_000, finishedAt: now - 4_000 }))
+    const db = application.get('DbService').getDb()
+
+    jobService.setCancelRequestedTx(db, job.id)
+
+    const after = jobService.getById(job.id)
+    // Terminal no-op keeps the documented flag behavior but must not invent a
+    // cancel time — read models would resurface this run as the newest.
+    expect(after?.cancelRequested).toBe(true)
+    expect(after?.cancelRequestedAt).toBeNull()
   })
 })
 

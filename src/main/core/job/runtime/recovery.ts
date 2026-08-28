@@ -70,14 +70,13 @@ export function runStartupRecovery(
     //    next dispatch tick (the WHERE in claimNextPendingTx now excludes
     //    cancelRequested=true rows from being claimed, but a leftover row
     //    must still be reduced to a terminal state here).
-    //    Settled at the row's updatedAt (≈ request time): a sweep-time
-    //    finishedAt could outrank later-finished runs and silently reorder
-    //    projected "latest run" results.
+    //    finishedAt gets sweep time (the real transition); read models order
+    //    cancelled runs by cancelRequestedAt, so the late settle reorders nothing.
     const cancelRequestedIds = active
       .filter((r) => r.cancelRequested && (r.status === 'running' || r.status === 'delayed' || r.status === 'pending'))
       .map((r) => r.id)
     if (cancelRequestedIds.length) {
-      jobService.cancelByIdsAtRequestTime(cancelRequestedIds, cancelledByRecovery)
+      jobService.cancelByIds(cancelRequestedIds, cancelledByRecovery)
       stats.cancelled += cancelRequestedIds.length
       logger.info('Cancelled jobs with cancelRequested=true', { type, count: cancelRequestedIds.length })
     }

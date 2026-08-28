@@ -227,7 +227,7 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
-    it('cancelRequested: settles the leftover at its request time so a newer finished run keeps the projection', async () => {
+    it('cancelRequested: settles the leftover without disturbing a newer finished run in the projection', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
 
       // Disabled so recovery's overdue catch-up cannot dispatch a fresh run
@@ -258,7 +258,7 @@ describe('JobManager integration', () => {
             maxAttempts: 1,
             input: { message: 'leftover' },
             cancelRequested: true,
-            updatedAt: cancelRequestedAt,
+            cancelRequestedAt,
             metadata: {}
           },
           {
@@ -289,7 +289,10 @@ describe('JobManager integration', () => {
       const settled = jobService.getById(leftoverId)
       expect(settled?.status).toBe('cancelled')
       expect(settled?.error?.code).toBe('JOB_CANCELLED')
-      expect(settled && Date.parse(settled.finishedAt!)).toBe(cancelRequestedAt)
+      // finishedAt is the real settle time; the projection stays put because it
+      // orders cancelled runs by the immutable cancelRequestedAt instead.
+      expect(settled && Date.parse(settled.finishedAt!)).toBeGreaterThanOrEqual(now)
+      expect(settled && Date.parse(settled.cancelRequestedAt!)).toBe(cancelRequestedAt)
       expect(jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])).toEqual(before)
 
       await teardownManager(scheduler, jobManager)
