@@ -121,6 +121,8 @@ export interface DshModelConfig {
   maxTokens: number
   input: DshInputModality[]
   reasoningEfforts: false | DshReasoningEfforts
+  /** OpenAI-compatible protocol overrides owned by Cherry's provider settings. */
+  compat?: { supportsDeveloperRole: boolean }
 }
 
 export interface DshProviderInjection {
@@ -207,7 +209,17 @@ export function buildDshProviderInjection(
       contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
-      reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
+      reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
+      ...(api === 'openai-completions' || api === 'openai-responses'
+        ? {
+            compat: {
+              supportsDeveloperRole:
+                (resolvedEndpoint.endpointType
+                  ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.dialect?.developerRole
+                  : undefined) ?? false
+            }
+          }
+        : {})
     },
     usageCapture: {
       owner: 'agent-sdk',
@@ -261,7 +273,8 @@ export function buildDshGatewayInjection(
       contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
-      reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
+      reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
+      compat: { supportsDeveloperRole: true }
     },
     // The gateway middleware records provider usage; agent-sdk capture would double-count.
     usageCapture: { owner: 'provider-calls' }
