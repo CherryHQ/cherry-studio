@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ImageBlock from '../../blocks/ImageBlock'
+import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { parseGeneratedImageOutput } from './generateImageTool'
 
 /**
@@ -74,6 +75,10 @@ export const MessageGenerateImageToolTitle = ({
   const { inlineUrls, items } = useMemo(() => parseGeneratedImageOutput(toolResponse.response), [toolResponse.response])
   const { urls: resolvedUrls, failed: resolveFailed } = useGeneratedImageUrls(items.map((item) => item.id))
   const urls = inlineUrls.length > 0 ? inlineUrls : resolvedUrls
+
+  if (toolResponse.approval?.approved === false) {
+    return <ToolApprovalOutcome approval={toolResponse.approval} />
+  }
 
   // Still running (pending / streaming / invoking).
   if (toolResponse.status !== 'done' && toolResponse.status !== 'error') {

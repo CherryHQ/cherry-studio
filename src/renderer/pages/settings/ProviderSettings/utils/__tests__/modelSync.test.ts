@@ -1,4 +1,5 @@
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -31,14 +32,25 @@ beforeEach(() => {
 
 describe('fetchResolvedProviderModels', () => {
   it('throws when upstream model listing fails instead of returning an empty list', async () => {
-    listModelsMock.mockRejectedValueOnce(new Error('upstream failed'))
+    const apiKey = 'sk-should-not-reach-logs'
+    const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    listModelsMock.mockRejectedValueOnce(new Error(`upstream failed for ${apiKey}`))
 
-    await expect(fetchResolvedProviderModels('openai')).rejects.toThrow('upstream failed')
+    try {
+      await expect(fetchResolvedProviderModels('openai')).rejects.toThrow(`upstream failed for ${apiKey}`)
 
-    expect(listModelsMock).toHaveBeenCalledWith({
-      providerId: 'openai',
-      throwOnError: true
-    })
+      expect(listModelsMock).toHaveBeenCalledWith({
+        providerId: 'openai',
+        throwOnError: true
+      })
+      expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to fetch and resolve provider models', {
+        providerId: 'openai',
+        errorType: 'Error'
+      })
+      expect(JSON.stringify(loggerErrorSpy.mock.calls)).not.toContain(apiKey)
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
   })
 
   it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {

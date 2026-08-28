@@ -6,9 +6,12 @@ import { app, dialog, session, shell, webContents } from 'electron'
 import { existsSync, promises as fs } from 'fs'
 import { join } from 'path'
 
+import { isMiniAppPartition } from '../features/miniApp/runtime/partition'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
 const logger = loggerService.withContext('WebviewService')
+/** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
+const WEBVIEW_PARTITION = 'persist:webview'
 
 /**
  * init the useragent of the webview session
@@ -34,10 +37,19 @@ export function initSessionUserAgent() {
 /**
  * WebviewService handles the behavior of links opened from webview elements
  * It controls whether links should be opened within the application or in an external browser
+ *
+ * Site webviews only. A mini app guest (`persist:miniapp:*`) carries its own deny-all
+ * popup policy, and `setWindowOpenHandler` REPLACES whatever was installed before —
+ * a call here would hand the guest `shell.openExternal`, an exit from a sandbox that
+ * promises none. Decided on the session, never on what the renderer claims.
  */
 export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
   const webview = webContents.fromId(webviewId)
   if (!webview) return
+  if (webview.session !== session.fromPartition(WEBVIEW_PARTITION)) {
+    logger.warn('Refused to change the popup policy of a webview outside the site partition', { webviewId })
+    return
+  }
 
   webview.setWindowOpenHandler(({ url }) => {
     if (isExternal) {
@@ -72,7 +84,7 @@ export class WebviewService extends BaseService {
    * Removes CherryStudio and Electron from the useragent.
    */
   private initSessionUserAgent() {
-    const wvSession = session.fromPartition('persist:webview')
+    const wvSession = session.fromPartition(WEBVIEW_PARTITION)
     const originUA = wvSession.getUserAgent()
     const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
@@ -90,8 +102,11 @@ export class WebviewService extends BaseService {
   }
 
   /**
-   * Install the keyboard relay into every MiniApp guest. Assigned per `<webview>` rather
-   * than on the session, which `persist:webview` OAuth login windows also share.
+   * Install the keyboard relay into every SITE mini app guest. Assigned per `<webview>`
+   * rather than on the session, which `persist:webview` OAuth login windows also share.
+   *
+   * NOT local mini apps — the filter below excludes them, deliberately. Read it before
+   * concluding that a local app missing its shortcuts is a bug to fix here.
    */
   private initKeyboardRelayPreload() {
     const preloadPath = join(__dirname, '../preload/miniApp.js')
@@ -103,7 +118,21 @@ export class WebviewService extends BaseService {
     }
 
     const attach = (_: Electron.Event, contents: Electron.WebContents) => {
-      contents.on('will-attach-webview', (_event, webPreferences) => {
+      contents.on('will-attach-webview', (_event, webPreferences, params) => {
+        // LOCAL mini apps are EXCLUDED, by their partition rather than by which window this
+        // is: `webviewHost` gives them the sandboxed bridge preload, both writers land on
+        // the same single `webPreferences.preload` slot, and without this filter which one
+        // survives is decided by the order two unrelated modules happened to register in.
+        //
+        // THE COST, written here because reviewers keep re-deriving it as a defect: a local
+        // mini app emits no `MINI_APP_KEYDOWN_CHANNEL`, so host shortcuts stop reaching the
+        // host while its guest has focus. Composing the relay INTO the bridge is blocked by
+        // Electron rather than by effort — a sandboxed preload must be ONE bundled file, so
+        // any module the two entries share becomes a rollup chunk the sandboxed one would
+        // have to `require`. Verified by building; inlining the wiring does not help either,
+        // because `@shared/utils/webviewKey` is then hoisted and the site relay breaks too.
+        // Closing it needs per-entry build machinery. Known gap, not an oversight.
+        if (isMiniAppPartition(params.partition)) return
         webPreferences.preload = preloadPath
       })
     }

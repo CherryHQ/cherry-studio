@@ -16,7 +16,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
@@ -35,6 +35,8 @@ import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/prov
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
+import { resolveAgentContextWindow } from '../agentContextWindow'
+import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
@@ -70,17 +72,6 @@ export class PiMissingApiKeyError extends Error {
     super(`Provider "${providerId}" has no API key configured for pi agents`)
     this.name = 'PiMissingApiKeyError'
     this.providerId = providerId
-  }
-}
-
-/** Thrown when Pi cannot safely drive a model without its real compaction boundary. */
-export class PiMissingContextWindowError extends Error {
-  readonly modelId: string
-
-  constructor(modelId: string) {
-    super(`Model "${modelId}" has no context window configured; set it in model settings before using Pi`)
-    this.name = 'PiMissingContextWindowError'
-    this.modelId = modelId
   }
 }
 
@@ -158,7 +149,6 @@ export function buildPiProviderInjection(
   if (!api) {
     throw new PiUnsupportedProviderError(provider.id)
   }
-  if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
   // Transport-adapter (app-managed-OAuth) providers authenticate per stream call
   // via the adapter; the connect-time `apiKey` is only the placeholder, so the
   // empty-key guard does not apply to them.
@@ -176,7 +166,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: provider.settings?.extraHeaders,
+    headers: toPiHeaders(provider.settings?.extraHeaders),
     models: [modelConfig]
   }
 
@@ -208,6 +198,18 @@ export function buildPiProviderInjection(
       ? { requestEnvironment: { AZURE_OPENAI_API_VERSION: provider.settings.apiVersion.trim() } }
       : {})
   }
+}
+
+/**
+ * Cherry header values are literals, but pi resolves each one as a `$ENV` / `!command`
+ * template — the same interpolation the `apiKey` placeholder dodges.
+ */
+function toPiHeaders(headers: Record<string, string> | undefined): Record<string, string> | undefined {
+  const coerced = toAgentProviderHeaders(headers)
+  if (!coerced) return undefined
+  return Object.fromEntries(
+    Object.entries(coerced).map(([name, value]) => [name, value.replaceAll('$', '$$$$').replace(/^!/, '$!')])
+  )
 }
 
 function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
@@ -287,8 +289,6 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   ) {
     throw new PiUnsupportedProviderError(providerId)
   }
-  if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
-
   // Transport-adapter providers validate the OAuth session (cheap `hasToken`),
   // not app-side keys; a signed-out provider is surfaced as a missing credential.
   if (getProviderTransportAdapter(providerId)) {
@@ -303,7 +303,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
 
 function buildPiModelConfig(
   provider: Provider,
-  model: Model & { contextWindow: number },
+  model: Model,
   id: string,
   api: PiApi,
   endpointType: EndpointType | undefined
@@ -325,7 +325,7 @@ function buildPiModelConfig(
     // pi tracks per-token cost for its own UI; Cherry owns cost accounting, so
     // leave zeros — pi's tracking is unused here.
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: model.contextWindow,
+    contextWindow: resolveAgentContextWindow(model),
     maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
     // Cherry's provider capability is the source of truth; pi otherwise infers
     // developer-role support from the endpoint URL.
