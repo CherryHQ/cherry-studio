@@ -67,23 +67,11 @@ function isPrepareDiagnosticReportToolResponse(toolResponse: McpToolResponse | N
   )
 }
 
-function resultFromToolResponse(
+export function getPrepareDiagnosticReportResult(
   toolResponse: McpToolResponse | NormalToolResponse
 ): PrepareDiagnosticReportResult | undefined {
   if (toolResponse.status !== 'done' || !isPrepareDiagnosticReportToolResponse(toolResponse)) return undefined
   return parsePrepareDiagnosticReportResult(toolResponse.response)
-}
-
-export function getPrepareDiagnosticReportResult(
-  value: CherryMessagePart | McpToolResponse | NormalToolResponse
-): PrepareDiagnosticReportResult | undefined {
-  if ('tool' in value) return resultFromToolResponse(value)
-  if (isToolUIPart(value)) {
-    if (value.state !== 'output-available') return undefined
-    const toolResponse = buildToolResponseFromPart(value)
-    return toolResponse ? resultFromToolResponse(toolResponse) : undefined
-  }
-  return undefined
 }
 
 export function isPrepareDiagnosticReportResultPart(part: CherryMessagePart): boolean {
@@ -91,5 +79,5 @@ export function isPrepareDiagnosticReportResultPart(part: CherryMessagePart): bo
 
   const toolResponse = buildToolResponseFromPart(part)
   if (!toolResponse || !isPrepareDiagnosticReportToolResponse(toolResponse)) return false
-  return isDeferredToolOutput(toolResponse.response) || resultFromToolResponse(toolResponse) !== undefined
+  return isDeferredToolOutput(toolResponse.response) || getPrepareDiagnosticReportResult(toolResponse) !== undefined
 }

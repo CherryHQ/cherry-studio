@@ -8,14 +8,7 @@ import { useMemo } from 'react'
 
 import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 import { useOptionalMessageListTopicId } from '../MessageListProvider'
-import {
-  CreateAgentToolInline,
-  getCreateAgentResult,
-  getPrepareDiagnosticReportResult,
-  isReportArtifactsToolResponse,
-  MessageChannelConfigTool,
-  PrepareDiagnosticReportTool
-} from './agent'
+import { agentInlineResultPresentationRegistry, isReportArtifactsToolResponse, MessageChannelConfigTool } from './agent'
 import { isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
@@ -94,10 +87,8 @@ export default function MessageTools({ toolResponse }: Props) {
     return { ...toolResponse, response: normalizeToolOutputResponse(output) }
   }, [deferredOutput, error, isLoading, output, toolResponse])
 
-  const prepareDiagnosticReportResult = getPrepareDiagnosticReportResult(resolvedToolResponse)
-  if (prepareDiagnosticReportResult) return <PrepareDiagnosticReportTool result={prepareDiagnosticReportResult} />
-  const createAgentResult = getCreateAgentResult(resolvedToolResponse)
-  if (createAgentResult) return <CreateAgentToolInline result={createAgentResult} />
+  const agentInlineResult = agentInlineResultPresentationRegistry.renderResult(resolvedToolResponse)
+  if (agentInlineResult) return agentInlineResult
   if (isReportArtifactsToolResponse(resolvedToolResponse)) return null
   if (isChannelAuthQrToolResponse(resolvedToolResponse)) {
     return <MessageChannelConfigTool toolResponse={resolvedToolResponse} />

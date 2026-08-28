@@ -1,16 +1,10 @@
 export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from '../shared/terminalOutputHelpers'
 export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimeline'
+export { agentInlineResultPresentationRegistry } from './agentInlineResultPresentationRegistry'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'
-export { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResult'
-export { CreateAgentToolInline } from './CreateAgentTool'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
-export {
-  getPrepareDiagnosticReportResult,
-  isPrepareDiagnosticReportResultPart
-} from './prepareDiagnosticReportResult'
-export { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
 export { SessionResultCards } from './SessionResultCards'
 export { getSessionToolTarget, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'

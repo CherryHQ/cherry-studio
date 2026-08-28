@@ -2,7 +2,7 @@ import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_TYPES, type AgentType } from '@shared/data/api/schemas/agents'
 import { describe, expect, it } from 'vitest'
 
-import { hostToolsEnabled, resolveAgentCapabilities } from '../builtinAgentCapabilities'
+import { hostToolsEnabled, resolveAgentCapabilities, resolveHostTools } from '../builtinAgentCapabilities'
 
 const agentOf = (type: AgentType, builtinRole?: string) =>
   ({ type, configuration: builtinRole ? { builtin_role: builtinRole } : {} }) as never
@@ -35,18 +35,16 @@ describe('resolveAgentCapabilities', () => {
     expect(assistant.hostTools?.tools).toBeUndefined()
   })
 
-  it('grants diagnostic draft preparation only through the explicit Support tool set', () => {
+  it('keeps diagnostic draft preparation in the reusable channel-linked Support tool set', () => {
     const support = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT } })
     const assistant = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })
+    const channelLinkedSupportTools = resolveHostTools(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), {
+      channelLinked: true
+    })
+    const expectedSupportTools = ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report']
 
-    expect(support.hostTools?.tools).toEqual([
-      'navigate',
-      'diagnose',
-      'product_info',
-      'apply_setting',
-      'prepare_diagnostic_report'
-    ])
-    expect(support.hostTools?.toolsInChannelSessions).toEqual(['navigate', 'diagnose', 'product_info', 'apply_setting'])
+    expect(support.hostTools?.tools).toEqual(expectedSupportTools)
+    expect(channelLinkedSupportTools?.tools).toEqual(expectedSupportTools)
     expect(assistant.hostTools?.tools).toBeUndefined()
   })
 })

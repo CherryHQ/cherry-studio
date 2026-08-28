@@ -56,11 +56,11 @@ const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
   [BUILTIN_AGENT_ROLE.SUPPORT]: {
     environment: 'sealed',
     allKnowledgeBases: false,
-    // Product-support capabilities intentionally exclude creation of arbitrary Agents. Support keeps
-    // product lookups on channel-linked sessions; UI-backed drafts stay local to Cherry Studio.
+    // Product-support capabilities intentionally exclude creation of arbitrary Agents. Reusable
+    // channel-linked sessions keep the full surface; per-turn guards deny UI-backed tools headlessly.
     hostTools: {
       tools: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
-      toolsInChannelSessions: ['navigate', 'diagnose', 'product_info', 'apply_setting'],
+      toolsInChannelSessions: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
       runtimes: ['claude-code']
     }
   }

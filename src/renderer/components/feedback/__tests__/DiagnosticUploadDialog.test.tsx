@@ -6,7 +6,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -541,6 +541,50 @@ describe('DiagnosticUploadDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
     resolveDiscard({ status })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it('discards a retained upload when its owning dialog unmounts', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'diagnostics.bundle.discard_upload') return { status: 'discarded' }
+      return undefined
+    })
+    const user = userEvent.setup()
+    const { unmount } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    expect(await screen.findByText('Diagnostic report was not submitted')).toBeInTheDocument()
+
+    unmount()
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.discard_upload', { bundleId }))
+  })
+
+  it('discards a retained upload that finishes after its owning dialog unmounts', async () => {
+    let resolveUpload: (result: typeof submissionUnknownResult) => void = () => undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
+      if (route === 'diagnostics.bundle.upload') {
+        return new Promise((resolve) => {
+          resolveUpload = resolve
+        })
+      }
+      if (route === 'diagnostics.bundle.discard_upload') return Promise.resolve({ status: 'discarded' })
+      return Promise.resolve(undefined)
+    })
+    const user = userEvent.setup()
+    const { unmount } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.some(([route]) => route === 'diagnostics.bundle.upload')).toBe(true)
+    )
+
+    unmount()
+    await act(async () => resolveUpload(submissionUnknownResult))
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.discard_upload', { bundleId }))
   })
 
   it('keeps a retained upload accessible when discard is busy', async () => {

@@ -667,7 +667,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   )
 }
 
-export function showErrorDetailPopup(params: ErrorDetailContentProps) {
+export function showErrorDetailPopup(params: Omit<ErrorDetailContentProps, 'onOpenDiagnosticReport'>) {
   void ContentPopup.show({
     title: i18n.t('error.detail'),
     content: (

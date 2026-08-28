@@ -41,6 +41,10 @@ type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'b
 type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
 type OperationStatus = 'idle' | 'saving' | 'submitting'
 
+function discardRetainedUpload(bundleId: string) {
+  return ipcApi.request('diagnostics.bundle.discard_upload', { bundleId })
+}
+
 interface DiagnosticUploadDialogProps {
   readonly fixedRange?: DiagnosticRange
   readonly initialDescription?: string
@@ -71,6 +75,21 @@ export function DiagnosticUploadDialog({
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
+  const retainedBundleIdRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      const retainedBundleId = retainedBundleIdRef.current
+      if (!retainedBundleId) return
+      retainedBundleIdRef.current = null
+      void discardRetainedUpload(retainedBundleId).catch((error) =>
+        logger.error('Failed to discard retained diagnostic upload on unmount', error as Error)
+      )
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -124,11 +143,12 @@ export function DiagnosticUploadDialog({
     if (!nextOpen && isBusy) return
     if (!nextOpen && result && result.status !== 'uploaded') {
       try {
-        const discardResult = await ipcApi.request('diagnostics.bundle.discard_upload', { bundleId: result.bundleId })
+        const discardResult = await discardRetainedUpload(result.bundleId)
         if (discardResult.status === 'busy') {
           toast.error(t('settings.about.diagnostics.errors.busy'))
           return
         }
+        retainedBundleIdRef.current = null
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
         return
@@ -157,10 +177,19 @@ export function DiagnosticUploadDialog({
   }
 
   const acceptSubmissionResult = (uploadResult: OutputFor<'diagnostics.bundle.upload'>) => {
+    if (!mountedRef.current) {
+      if (uploadResult.status !== 'busy' && uploadResult.status !== 'uploaded') {
+        void discardRetainedUpload(uploadResult.bundleId).catch((error) =>
+          logger.error('Failed to discard retained diagnostic upload after unmount', error as Error)
+        )
+      }
+      return
+    }
     if (uploadResult.status === 'busy') {
       toast.error(t('settings.about.diagnostics.errors.busy'))
       return
     }
+    retainedBundleIdRef.current = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
     setResult(uploadResult)
   }
 
@@ -180,7 +209,7 @@ export function DiagnosticUploadDialog({
       logger.error('Failed to upload diagnostic bundle', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
-      setOperationStatus('idle')
+      if (mountedRef.current) setOperationStatus('idle')
     }
   }
 
@@ -201,7 +230,7 @@ export function DiagnosticUploadDialog({
       logger.error('Failed to retry diagnostic upload', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
-      setOperationStatus('idle')
+      if (mountedRef.current) setOperationStatus('idle')
     }
   }
 
@@ -219,7 +248,7 @@ export function DiagnosticUploadDialog({
       logger.error('Failed to save retained diagnostic upload', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.save_failed'))
     } finally {
-      setOperationStatus('idle')
+      if (mountedRef.current) setOperationStatus('idle')
     }
   }
 
