@@ -600,15 +600,19 @@ PARAGRAPH_ALLOWED = {
     (WORDPROCESSING_NS, "proofErr"),  # spell/grammar marker, no semantics, Word regenerates it
 }
 
-# Inside the run: the text and its typographic separators. These ARE the old text, so losing them is
-# the edit's intent rather than collateral damage — and reject_break_characters is what makes that
-# true rather than merely hoped for. An extract shows a tab as \t and a break as \n, so the caller
-# sees them; trying to write one back is refused outright. Either it looked and left them out, or it
-# was told it cannot keep them. lastRenderedPageBreak is a layout cache Word redoes.
+# Inside the run: the text and its typographic separators. tab, br, cr and ptab are the old text and
+# losing them is the edit's intent — reject_break_characters is what makes that true rather than
+# merely hoped for, since an extract shows them as \t or \n and writing one back is refused outright.
+# lastRenderedPageBreak needs no such argument: Word discards and recomputes it on open.
 #
-# w:sym is deliberately not here, and the contrast is the whole reason: that argument needs the
-# caller to have seen what it is dropping, and a symbol's glyph lives in w:font/w:char rather than in
-# text — an extract reads exactly as if it were absent, so no choice about it was ever offered.
+# softHyphen and noBreakHyphen are the honest exceptions. Neither reaches the caller intact — a soft
+# hyphen leaves no mark in the extracted text at all, and a no-break hyphen reads as a plain "-" that
+# writing back downgrades it to — so their loss is not chosen, it is accepted. What is lost is where
+# a line may break, never a character. Refusing them instead would strand the paragraph: the run-level
+# recipe cannot rebuild them either, so both routes this skill offers would be closed.
+#
+# w:sym is where that trade stops. Its glyph lives in w:font/w:char and vanishes from the extract the
+# same way, but what goes missing is a character the reader can see, not a hyphenation hint.
 RUN_ALLOWED = {
     (WORDPROCESSING_NS, name)
     for name in ("rPr", "t", "tab", "br", "cr", "ptab", "softHyphen", "noBreakHyphen", "lastRenderedPageBreak")
