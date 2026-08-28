@@ -7630,47 +7630,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.44
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "high", "max", "low", "xhigh"]
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "high", "max", "low", "xhigh"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1310720,
-      "id": "deepseek-v4-flash-latest",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "DeepSeek V4 Flash Latest",
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.09999999999999999
+          "perMillionTokens": 1.32
         }
       },
       "reasoning": {
@@ -7698,28 +7666,25 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.44
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 1.32
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "high", "max", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["low", "high", "max", "xhigh", "none"]
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -7737,28 +7702,25 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.003625
+          "perMillionTokens": 0.044
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 1.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 3.96
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -21715,5 +21677,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "9735d06648aee6dd"
+  "version": "acf8223fb645bb72"
 }

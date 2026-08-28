@@ -307,7 +307,9 @@ jobs:
             exit 0
           fi
 
-          projects=(--project main)
+          # `preload` rides with `main`: the two share one paths-filter (`src/preload/**` is
+          # listed under `main:`), so a preload change triggers this job and must run its tests.
+          projects=(--project main --project preload)
 
           if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
             projects+=(--project aiCore)

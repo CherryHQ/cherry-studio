@@ -48,6 +48,8 @@ export interface PreferenceSchemas {
     'app.notification.backup.enabled': boolean
     // redux/settings/notification.knowledge
     'app.notification.knowledge.enabled': boolean
+    // Enable notifications emitted by mini apps
+    'app.notification.mini_app.enabled': boolean
     // Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)
     'app.notification.update.enabled': boolean
     // Status of the main-window first-run provider setup onboarding flow
@@ -356,6 +358,8 @@ export interface PreferenceSchemas {
     'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)
     'feature.local_model.hardware_acceleration.enabled': boolean
+    // Check installed mini apps for updates when the catalog opens
+    'feature.mini_app.check_updates_on_open': boolean
     // redux/settings/maxKeepAliveMinapps
     'feature.mini_app.max_keep_alive': number
     // redux/settings/minappsOpenLinkExternal
@@ -552,6 +556,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.notification.assistant.enabled': false,
     'app.notification.backup.enabled': false,
     'app.notification.knowledge.enabled': false,
+    'app.notification.mini_app.enabled': true,
     'app.notification.update.enabled': false,
     'app.onboarding.provider_setup.status': 'pending',
     'app.power.prevent_sleep_when_busy': false,
@@ -712,6 +717,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.file_processing.default_image_to_text': null,
     'feature.file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
     'feature.local_model.hardware_acceleration.enabled': true,
+    'feature.mini_app.check_updates_on_open': true,
     'feature.mini_app.max_keep_alive': 3,
     'feature.mini_app.open_link_external': false,
     'feature.mini_app.region': 'auto',

@@ -86,6 +86,8 @@ const mocks = vi.hoisted(() => ({
   bashToolOptions: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
+  setShellCommandPrefix: vi.fn(),
+  getShellEnv: vi.fn(),
   isStreaming: false,
   steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
   sessionId: 'sess-1' as string | undefined,
@@ -156,10 +158,15 @@ vi.mock('./piSdk', () => ({
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: mocks.getShellEnv,
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
-const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
@@ -202,7 +209,7 @@ const fakePi = {
   SettingsManager: {
     inMemory: (...args: unknown[]) => {
       mocks.settingsArgs = args
-      return {}
+      return { setShellCommandPrefix: mocks.setShellCommandPrefix }
     }
   },
   SessionManager: { create: mocks.sessionCreate, open: mocks.sessionOpen },
@@ -281,6 +288,7 @@ beforeEach(() => {
   mocks.bashToolOptions = undefined
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
+  mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
   mocks.sessionId = SESSION_ID
@@ -417,6 +425,34 @@ afterEach(() => {
 })
 
 describe('PiRuntimeConnection', () => {
+  it('appends the login-shell PATH without replacing pi runtime prefixes', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    if (process.platform === 'win32') {
+      expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+    } else {
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
+    }
+    expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin", 'darwin')).toBe(
+      "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
+    )
+    expect(buildPiLoginPathPrefix('C:\\Users\\tester\\bin', 'win32')).toBeUndefined()
+  })
+
+  it('reads a mixed-case Windows Path key', async () => {
+    mocks.getShellEnv.mockResolvedValueOnce({ Path: 'C:\\Users\\tester\\bin;C:\\Windows' })
+
+    await new PiRuntimeConnection(input).start()
+
+    if (process.platform === 'win32') {
+      expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+    } else {
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(
+        'export PATH="$PATH":\'C:\\Users\\tester\\bin;C:\\Windows\''
+      )
+    }
+  })
+
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
 
@@ -499,7 +535,7 @@ describe('PiRuntimeConnection', () => {
     expect(result.env).toMatchObject({
       PI_ONLY: 'preserved',
       MISE_DATA_DIR: '/cherry/Toolchain/mise',
-      MISE_SHIMS_DIR: '/cherry/Toolchain/mise/shims'
+      MISE_SHIMS_DIR: path.join('/cherry/Toolchain/mise', 'shims')
     })
   })
 
@@ -689,7 +725,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
-      `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_sess-1.jsonl`,
+      path.join(PI_SESSIONS, '2026-07-06T00-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )
@@ -704,7 +740,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
-      `${PI_SESSIONS}/2026-07-06T01-00-00-000Z_sess-1.jsonl`,
+      path.join(PI_SESSIONS, '2026-07-06T01-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )

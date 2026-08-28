@@ -67,7 +67,7 @@ function normalizeToolName(part: ToolResponsePart): string {
   return getCanonicalToolName(part as unknown as CherryMessagePart) ?? 'unknown'
 }
 
-function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus {
+function mapPartStateToStatus(state: string | undefined, approved?: boolean): McpToolResponseStatus {
   switch (state) {
     case 'output-available':
       return 'done'
@@ -80,8 +80,9 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
       return 'streaming'
     case 'input-available':
       return 'invoking'
-    case 'approval-requested':
     case 'approval-responded':
+      return approved === false ? 'cancelled' : 'pending'
+    case 'approval-requested':
       return 'pending'
     default:
       return 'pending'
@@ -206,7 +207,14 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
-  const status = mapPartStateToStatus(toolPart.state)
+  const approval =
+    typeof toolPart.approval?.approved === 'boolean'
+      ? {
+          approved: toolPart.approval.approved,
+          ...(typeof toolPart.approval.reason === 'string' ? { reason: toolPart.approval.reason } : {})
+        }
+      : undefined
+  const status = mapPartStateToStatus(toolPart.state, approval?.approved)
 
   const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)
@@ -226,6 +234,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       arguments: toolPart.input as McpToolResponse['arguments'],
       status,
       response,
+      ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
       ...(partialArguments ? { partialArguments } : {})
@@ -240,6 +249,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     arguments: toolPart.input as NormalToolResponse['arguments'],
     status,
     response,
+    ...(approval ? { approval } : {}),
     toolCallId,
     ...(parentToolUseId ? { parentToolUseId } : {}),
     ...(partialArguments ? { partialArguments } : {})

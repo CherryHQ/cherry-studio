@@ -86,6 +86,12 @@
       "type": "boolean"
     },
     {
+      "defaultValue": true,
+      "description": "Enable notifications emitted by mini apps",
+      "key": "app.notification.mini_app.enabled",
+      "type": "boolean"
+    },
+    {
       "defaultValue": false,
       "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)",
       "key": "app.notification.update.enabled",
@@ -1013,6 +1019,12 @@
       "defaultValue": true,
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)",
       "key": "feature.local_model.hardware_acceleration.enabled",
+      "type": "boolean"
+    },
+    {
+      "defaultValue": true,
+      "description": "Check installed mini apps for updates when the catalog opens",
+      "key": "feature.mini_app.check_updates_on_open",
       "type": "boolean"
     },
     {

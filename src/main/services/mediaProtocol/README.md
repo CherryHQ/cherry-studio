@@ -20,7 +20,7 @@ An unknown kind is a 400, not a fallthrough to another kind's store — ids are 
 | File | Role |
 |---|---|
 | `types.ts` | `CHERRY_MEDIA_SCHEME`, `MediaKind` + `MEDIA_KINDS`, the internal `MediaEntry` shape |
-| `registerSchemes.ts` | `registerMediaSchemes()` — the pre-ready privilege declaration |
+| `registerSchemes.ts` | `CHERRY_MEDIA_SCHEME_DECLARATION` — the pre-ready privilege declaration; `main.ts` passes it to the process's single `registerSchemesAsPrivileged` call together with the mini-app scheme |
 | `MediaProtocolService.ts` | the store and the `protocol.handle` responder |
 | `index.ts` | barrel — the only import surface for code outside this directory |
 
@@ -33,7 +33,7 @@ Electron splits this in two, and the halves have opposite timing constraints:
 | Declare privileges | `protocol.registerSchemesAsPrivileged` | before the app is ready — throws afterwards | `main.ts` preboot sequence |
 | Install the responder | `protocol.handle` | app-ready only | `MediaProtocolService.onInit` (`Phase.WhenReady`) |
 
-`registerMediaSchemes()` therefore lives in the **top-level synchronous section** of `main.ts`, not inside `startApp()` — `runV2MigrationGate()` awaits `app.whenReady()`, so anything after it is already too late.
+The `registerSchemesAsPrivileged([...])` call that consumes `CHERRY_MEDIA_SCHEME_DECLARATION` therefore lives in the **top-level synchronous section** of `main.ts`, not inside `startApp()` — `runV2MigrationGate()` awaits `app.whenReady()`, so anything after it is already too late.
 
 Per `core/preboot/README.md` membership criterion 2, this module is *not* in `core/preboot/`: screenshots are a removable capability, so it lives in its nature-home and is invoked from `main.ts` at the right point in the sequence.
 

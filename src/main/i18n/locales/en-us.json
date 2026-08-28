@@ -80,6 +80,7 @@
   "dialog.diagnostic_bundle.title": "Save diagnostic bundle",
   "dialog.diagnostic_bundle.zip_filter": "ZIP archive",
   "dialog.html_files": "HTML Files",
+  "dialog.mini_app_export": "Export from {{name}}",
   "dialog.open_file": "Open File",
   "dialog.pdf_files": "PDF Files",
   "dialog.png_image": "PNG Image",
