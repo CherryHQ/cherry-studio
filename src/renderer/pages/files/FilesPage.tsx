@@ -714,9 +714,8 @@ function FilesPage() {
     [files, isTrash, refetchFiles, t]
   )
 
-  const handleDelete = useCallback(
-    (ids?: Set<string>) => {
-      const targetIds = ids ?? selectedIds
+  const requestDelete = useCallback(
+    (targetIds: Set<string>) => {
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
@@ -727,7 +726,12 @@ function FilesPage() {
 
       void performDelete(new Set(targets.map((file) => file.id)))
     },
-    [files, isTrash, performDelete, selectedIds]
+    [files, isTrash, performDelete]
+  )
+
+  const handleDelete = useCallback(
+    (ids?: Set<string>) => requestDelete(ids ?? selectedIds),
+    [requestDelete, selectedIds]
   )
 
   const emptyTrash = useCallback(async () => {
@@ -809,7 +813,7 @@ function FilesPage() {
     setRenamingId(id)
   }, [])
 
-  const handleDeleteOne = useCallback((id: string) => handleDelete(new Set([id])), [handleDelete])
+  const handleDeleteOne = useCallback((id: string) => requestDelete(new Set([id])), [requestDelete])
   const handleRestoreOne = useCallback((id: string) => void handleRestore(new Set([id])), [handleRestore])
   const handleRenameConfirm = useCallback((id: string, name: string) => void handleRename(id, name), [handleRename])
   const handleRenameCancel = useCallback(() => setRenamingId(null), [])
