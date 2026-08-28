@@ -468,16 +468,15 @@ describe('prepare_diagnostic_report', () => {
 
   it('returns an editable normalized draft without performing submission', async () => {
     const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+    const output = { ok: true, description: 'first\r\nsecond\r\nthird' }
 
     const result = await client.callTool({
       name: 'prepare_diagnostic_report',
       arguments: { description: '  first\nsecond\rthird  ' }
     })
 
-    expect(result).toMatchObject({
-      content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
-      structuredContent: { ok: true, description: 'first\r\nsecond\r\nthird' }
-    })
+    expect(result.structuredContent).toEqual(output)
+    expect(result.content).toEqual([{ type: 'text', text: JSON.stringify(output) }])
     expect(result.isError).not.toBe(true)
     await client.close()
   })

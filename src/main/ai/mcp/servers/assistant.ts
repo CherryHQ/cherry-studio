@@ -364,9 +364,10 @@ class AssistantServer {
       )
     }
 
+    const output = { ok: true as const, description }
     return {
-      content: [{ type: 'text' as const, text: 'Diagnostic report draft prepared.' }],
-      structuredContent: { ok: true as const, description }
+      content: [{ type: 'text' as const, text: JSON.stringify(output) }],
+      structuredContent: output
     }
   }
 
