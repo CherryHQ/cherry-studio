@@ -229,15 +229,34 @@ const filePath = '/tmp/workspace/paper.pdf' as AbsoluteFilePath
 let initialDataTheme: string | null
 let themeBackground: string
 
-function renderPreview(refreshKey = 0, size = 1024) {
+function renderPreview(refreshKey = 0, size = 1024, onSelectionReference?: (reference: unknown) => void) {
   return render(
     <PdfFilePreview
       filePath={filePath}
       fileName="paper.pdf"
       metadata={{ size, modifiedAt: 1 }}
       refreshKey={refreshKey}
+      onSelectionReference={onSelectionReference as never}
     />
   )
+}
+
+/** Selects text inside a rendered pdf.js page, which carries pdf.js's own 1-based page marker. */
+function selectInPage(pageNumber: string | null, text: string) {
+  const container = screen.getByTestId('pdfjs-viewer-container')
+  const page = document.createElement('div')
+  if (pageNumber !== null) page.setAttribute('data-page-number', pageNumber)
+  const textNode = document.createTextNode(text)
+  page.appendChild(textNode)
+  container.appendChild(page)
+
+  const range = document.createRange()
+  range.setStart(textNode, 0)
+  range.setEnd(textNode, textNode.length)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  document.dispatchEvent(new Event('selectionchange'))
 }
 
 async function flushPdfEffects() {
@@ -247,6 +266,34 @@ async function flushPdfEffects() {
 }
 
 describe('PdfFilePreview', () => {
+  it('turns a page selection into a reference for the host', async () => {
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await flushPdfEffects()
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+
+    selectInPage('3', 'results were reproduced')
+
+    await waitFor(() => expect(onSelectionReference).toHaveBeenCalled())
+    expect(onSelectionReference).toHaveBeenLastCalledWith({
+      path: filePath,
+      anchor: { format: 'pdf', page: 3 },
+      excerpt: 'results were reproduced',
+      fileStamp: { size: 1024, mtimeMs: 1 }
+    })
+  })
+
+  it('reports null when the selection is not inside a rendered page', async () => {
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await flushPdfEffects()
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+
+    selectInPage(null, 'text with no page marker')
+
+    await waitFor(() => expect(onSelectionReference).toHaveBeenLastCalledWith(null))
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.pdfViewerPageNumbers.length = 0

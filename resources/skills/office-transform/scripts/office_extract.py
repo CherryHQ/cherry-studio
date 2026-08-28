@@ -260,6 +260,30 @@ def extract_docx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
     paragraphs = document.paragraphs
     if paragraph_index >= len(paragraphs):
         fail(f"paragraph {paragraph_index} out of range (document has {len(paragraphs)} body paragraphs)")
+
+    para_id = anchor.get("paraId")
+    if para_id:
+        def p_para_id(paragraph):
+            for key, value in paragraph._p.attrib.items():
+                if key.rsplit("}", 1)[-1] == "paraId":
+                    return value
+            return None
+
+        matches = [i for i, p in enumerate(paragraphs) if p_para_id(p) == para_id]
+        if len(matches) > 1:
+            fail(f"paraId {para_id!r} matches {len(matches)} paragraphs; refusing an ambiguous anchor")
+        # No match means the paragraph was deleted or its id changed. Falling back to the
+        # ordinal here would extract whatever text now sits at that position.
+        if not matches:
+            fail(
+                f"paraId {para_id!r} matches no body paragraph — the document changed since the "
+                "anchor was captured; re-select instead of falling back to the ordinal"
+            )
+        if matches[0] != paragraph_index:
+            fail(
+                f"paraId {para_id!r} resolves to paragraph {matches[0]} but the anchor says {paragraph_index} — "
+                "the document changed since the anchor was captured; re-select"
+            )
     text = slice_char_range(paragraphs[paragraph_index].text, anchor.get("charRange"))
 
     if out_format in ("txt", "md"):

@@ -188,6 +188,7 @@
         "title": "ここでは {{extension}} ファイルを開くことはまだサポートされていません"
       },
       "preview": "プレビュー",
+      "quote_selection": "選択範囲を引用",
       "refresh": "リフレッシュ",
       "search_placeholder": "ファイルを検索...",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "参照された会話の読み込みに失敗しました",
         "no_room": "メッセージにこの会話を追加する余地が残っていません",
+        "no_room_selection": "メッセージの残り文字数が不足しているため、この選択範囲を挿入できません",
         "session": {
           "no_results": {
             "description": "検索条件に一致するセッションはありません",
@@ -1090,6 +1092,10 @@
         "title": "リソース"
       },
       "restore": "復元",
+      "selection_reference": {
+        "page": "{{page}} ページ",
+        "slide": "スライド {{slide}}"
+      },
       "send": "送信",
       "send_failed": "メッセージの送信に失敗しました",
       "slash_commands": {

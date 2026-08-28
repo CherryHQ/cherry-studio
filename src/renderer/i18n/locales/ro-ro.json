@@ -188,6 +188,7 @@
         "title": "Deschiderea fișierelor {{extension}} aici nu este încă acceptată"
       },
       "preview": "Previzualizare",
+      "quote_selection": "Citează selecția",
       "refresh": "Reîmprospătare",
       "search_placeholder": "Căutare fișiere...",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "Nu s-a putut încărca conversația referențiată",
         "no_room": "Nu mai este suficient spațiu în mesaj pentru a adăuga această conversație",
+        "no_room_selection": "Nu mai este suficient spațiu în mesaj pentru a adăuga această selecție",
         "session": {
           "no_results": {
             "description": "Nicio sesiune nu corespunde căutării tale",
@@ -1090,6 +1092,10 @@
         "title": "Fișiere și sesiuni"
       },
       "restore": "Restaurare",
+      "selection_reference": {
+        "page": "p. {{page}}",
+        "slide": "diapozitivul {{slide}}"
+      },
       "send": "Trimite",
       "send_failed": "Nu s-a putut trimite mesajul",
       "slash_commands": {

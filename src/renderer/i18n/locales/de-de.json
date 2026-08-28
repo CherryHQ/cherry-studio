@@ -188,6 +188,7 @@
         "title": "Das Öffnen von {{extension}}-Dateien wird hier noch nicht unterstützt"
       },
       "preview": "Vorschau",
+      "quote_selection": "Auswahl zitieren",
       "refresh": "Aktualisieren",
       "search_placeholder": "Dateien suchen…",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "Fehler beim Laden der referenzierten Konversation",
         "no_room": "Nicht genug Platz in der Nachricht, um diese Konversation hinzuzufügen",
+        "no_room_selection": "Nicht genügend Platz in der Nachricht, um diese Auswahl einzufügen",
         "session": {
           "no_results": {
             "description": "Keine Sitzungen entsprechen Ihrer Suche",
@@ -1090,6 +1092,10 @@
         "title": "Ressourcen"
       },
       "restore": "Wiederherstellen",
+      "selection_reference": {
+        "page": "S. {{page}}",
+        "slide": "Folie {{slide}}"
+      },
       "send": "Senden",
       "send_failed": "Nachricht konnte nicht gesendet werden",
       "slash_commands": {

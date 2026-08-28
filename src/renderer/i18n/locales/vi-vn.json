@@ -188,6 +188,7 @@
         "title": "Mở tệp {{extension}} ở đây hiện chưa được hỗ trợ"
       },
       "preview": "Xem trước",
+      "quote_selection": "Trích dẫn vùng chọn",
       "refresh": "Làm mới",
       "search_placeholder": "Tìm kiếm tệp...",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "Không thể tải cuộc trò chuyện được tham chiếu",
         "no_room": "Không còn đủ chỗ trong tin nhắn để thêm cuộc trò chuyện này",
+        "no_room_selection": "Không còn đủ chỗ trong tin nhắn để thêm vùng chọn này",
         "session": {
           "no_results": {
             "description": "Không có phiên nào khớp với tìm kiếm của bạn",
@@ -1090,6 +1092,10 @@
         "title": "Tài nguyên"
       },
       "restore": "Khôi phục",
+      "selection_reference": {
+        "page": "tr. {{page}}",
+        "slide": "trang chiếu {{slide}}"
+      },
       "send": "Gửi",
       "send_failed": "Không gửi được tin nhắn",
       "slash_commands": {

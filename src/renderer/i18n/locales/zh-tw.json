@@ -188,6 +188,7 @@
         "title": "在此處開啟 {{extension}} 檔案尚不支援"
       },
       "preview": "預覽",
+      "quote_selection": "引用選取範圍",
       "refresh": "重新整理",
       "search_placeholder": "搜尋檔案...",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "無法載入引用的對話",
         "no_room": "訊息中沒有足夠的空間來新增此對話",
+        "no_room_selection": "輸入框剩餘長度不足，無法插入該選取範圍",
         "session": {
           "no_results": {
             "description": "沒有符合您搜尋條件的工作階段",
@@ -1090,6 +1092,10 @@
         "title": "檔案與工作階段"
       },
       "restore": "還原",
+      "selection_reference": {
+        "page": "第 {{page}} 頁",
+        "slide": "第 {{slide}} 張投影片"
+      },
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "slash_commands": {

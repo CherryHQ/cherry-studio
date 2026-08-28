@@ -188,6 +188,7 @@
         "title": "暂不支持在此打开 {{extension}} 文件"
       },
       "preview": "预览",
+      "quote_selection": "引用选区",
       "refresh": "刷新",
       "search_placeholder": "搜索文件",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "加载引用内容失败",
         "no_room": "输入框剩余长度不足，无法插入该会话",
+        "no_room_selection": "输入框剩余长度不足，无法插入该选区",
         "session": {
           "no_results": {
             "description": "没有名称匹配的会话",
@@ -1090,6 +1092,10 @@
         "title": "资源与会话"
       },
       "restore": "还原",
+      "selection_reference": {
+        "page": "第 {{page}} 页",
+        "slide": "第 {{slide}} 张幻灯片"
+      },
       "send": "发送",
       "send_failed": "消息发送失败",
       "slash_commands": {

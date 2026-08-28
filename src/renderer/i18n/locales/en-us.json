@@ -188,6 +188,7 @@
         "title": "Opening {{extension}} files here is not supported yet"
       },
       "preview": "Preview",
+      "quote_selection": "Quote selection",
       "refresh": "Refresh",
       "search_placeholder": "Search files...",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "Failed to load the referenced conversation",
         "no_room": "Not enough room left in the message to add this conversation",
+        "no_room_selection": "Not enough room left in the message to add this selection",
         "session": {
           "no_results": {
             "description": "No sessions match your search",
@@ -1090,6 +1092,10 @@
         "title": "Resources & Sessions"
       },
       "restore": "Restore",
+      "selection_reference": {
+        "page": "p.{{page}}",
+        "slide": "slide {{slide}}"
+      },
       "send": "Send",
       "send_failed": "Failed to send message",
       "slash_commands": {

@@ -188,6 +188,7 @@
         "title": "Abrir ficheiros {{extension}} aqui ainda não é suportado"
       },
       "preview": "Pré-visualização",
+      "quote_selection": "Citar seleção",
       "refresh": "Atualizar",
       "search_placeholder": "Pesquisar ficheiros...",
       "too_large": {
@@ -1062,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "Falha ao carregar a conversa referenciada",
         "no_room": "Não há espaço suficiente na mensagem para adicionar esta conversa",
+        "no_room_selection": "Não há espaço suficiente na mensagem para adicionar esta seleção",
         "session": {
           "no_results": {
             "description": "Nenhuma sessão corresponde à sua pesquisa",
@@ -1090,6 +1092,10 @@
         "title": "Recursos"
       },
       "restore": "Restaurar",
+      "selection_reference": {
+        "page": "p. {{page}}",
+        "slide": "diapositivo {{slide}}"
+      },
       "send": "Enviar",
       "send_failed": "Falha ao enviar mensagem",
       "slash_commands": {

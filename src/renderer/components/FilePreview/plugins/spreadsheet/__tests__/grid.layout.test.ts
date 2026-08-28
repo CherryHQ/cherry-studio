@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  axisIndexAt,
   axisOffset,
   buildAxisLayout,
   DEFAULT_FONT_SIZE_PX,
   DEFAULT_ROW_HEIGHT_PX,
+  expandRangeToMerges,
   findCoveringMerge,
   mergeRectPx,
   mergesInView,
+  rangeAddress,
   WRAP_LINE_HEIGHT,
   wrapClampLines
 } from '../gridLayout'
@@ -65,6 +68,107 @@ describe('axisOffset', () => {
   it('clamps an out-of-range index to the total size (one-past-the-end lookup)', () => {
     expect(axisOffset(layout, 3)).toBe(60)
     expect(axisOffset(layout, 100)).toBe(60)
+  })
+})
+
+describe('axisIndexAt', () => {
+  const layout = buildAxisLayout(3, 20, {}, 1)
+
+  it('resolves a pixel inside an item to that item', () => {
+    expect(axisIndexAt(layout, 5)).toBe(0)
+    expect(axisIndexAt(layout, 25)).toBe(1)
+    expect(axisIndexAt(layout, 59)).toBe(2)
+  })
+
+  it('assigns a boundary pixel to the item that starts there', () => {
+    expect(axisIndexAt(layout, 20)).toBe(1)
+    expect(axisIndexAt(layout, 40)).toBe(2)
+  })
+
+  it('clamps positions outside the layout to the first and last item', () => {
+    expect(axisIndexAt(layout, -100)).toBe(0)
+    expect(axisIndexAt(layout, 0)).toBe(0)
+    // The end offset is one past the last item; a pointer there still belongs to the last item, not to nothing.
+    expect(axisIndexAt(layout, 60)).toBe(2)
+    expect(axisIndexAt(layout, 10_000)).toBe(2)
+  })
+
+  it('skips hidden leading items at the origin too, not just mid-layout', () => {
+    // Hidden first tracks all sit at offset 0, so px 0 and px 0+ε must agree — a short-circuit at the
+    // origin would hand back the hidden track that the rest of this function is careful to skip.
+    const leadingHidden = buildAxisLayout(3, 20, { 1: 0 }, 1)
+    expect(axisIndexAt(leadingHidden, 0)).toBe(1)
+    expect(axisIndexAt(leadingHidden, -50)).toBe(1)
+
+    const twoLeadingHidden = buildAxisLayout(4, 20, { 1: 0, 2: 0 }, 1)
+    expect(axisIndexAt(twoLeadingHidden, 0)).toBe(2)
+  })
+
+  it('never lands on a hidden (zero-size) item, which occupies no pixels', () => {
+    const withHidden = buildAxisLayout(4, 20, { 2: 0 }, 1)
+    // Item 1 (0-based) is hidden, so items 1 and 2 share offset 20 and the pixel belongs to the visible one.
+    expect(axisIndexAt(withHidden, 20)).toBe(2)
+    expect(axisIndexAt(withHidden, 39)).toBe(2)
+  })
+
+  it('inverts axisOffset for every item, including a zoomed layout', () => {
+    const zoomed = buildAxisLayout(5, 20, { 3: 50 }, 2)
+    for (let index = 0; index < 5; index++) {
+      expect(axisIndexAt(zoomed, axisOffset(zoomed, index))).toBe(index)
+    }
+  })
+})
+
+describe('expandRangeToMerges', () => {
+  it('leaves a range that touches no merge untouched', () => {
+    const merges = [{ top: 5, left: 5, bottom: 6, right: 6 }]
+    expect(expandRangeToMerges({ top: 1, left: 1, bottom: 2, right: 2 }, merges)).toEqual({
+      top: 1,
+      left: 1,
+      bottom: 2,
+      right: 2
+    })
+  })
+
+  it('grows a range that clips a merge so the whole merged range is covered', () => {
+    // A1:B2 clips the B2:C3 merge; extracting the range without growing it would drop C2/C3 from the selection.
+    const merges = [{ top: 2, left: 2, bottom: 3, right: 3 }]
+    const rect = expandRangeToMerges({ top: 1, left: 1, bottom: 2, right: 2 }, merges)
+    expect(rangeAddress(rect)).toBe('A1:C3')
+  })
+
+  it('keeps growing until no merge is clipped, not just for one pass', () => {
+    // C1:F1 does not touch A1:B2, but it does touch the A1:C3 that the B2:C3 merge forces — ordered so a
+    // single pass over the merges would stop one merge short.
+    const merges = [
+      { top: 1, left: 3, bottom: 1, right: 6 },
+      { top: 2, left: 2, bottom: 3, right: 3 }
+    ]
+    expect(rangeAddress(expandRangeToMerges({ top: 1, left: 1, bottom: 2, right: 2 }, merges))).toBe('A1:F3')
+  })
+
+  it('expands a single cell inside a merge to the whole merged range', () => {
+    const merges = [{ top: 2, left: 2, bottom: 3, right: 3 }]
+    expect(expandRangeToMerges({ top: 3, left: 3, bottom: 3, right: 3 }, merges)).toEqual({
+      top: 2,
+      left: 2,
+      bottom: 3,
+      right: 3
+    })
+  })
+})
+
+describe('rangeAddress', () => {
+  it('renders a multi-cell range as top-left:bottom-right', () => {
+    expect(rangeAddress({ top: 2, left: 2, bottom: 8, right: 4 })).toBe('B2:D8')
+  })
+
+  it('renders a single cell without a colon', () => {
+    expect(rangeAddress({ top: 2, left: 2, bottom: 2, right: 2 })).toBe('B2')
+  })
+
+  it('normalizes corners given bottom-right to top-left', () => {
+    expect(rangeAddress({ top: 8, left: 4, bottom: 2, right: 2 })).toBe('B2:D8')
   })
 })
 

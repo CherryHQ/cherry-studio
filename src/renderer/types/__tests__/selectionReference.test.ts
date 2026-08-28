@@ -25,6 +25,15 @@ describe('SelectionReferenceSchema', () => {
         anchor: { format: 'docx', paragraph: 0, charRange: [0, 12] }
       })
     ).not.toBeNull()
+    // Asserted on the parsed value, not just non-null: zod strips unknown keys silently, so a schema that
+    // dropped paraId would still parse and quietly disable the identity check the skill resolves first.
+    expect(
+      parseSelectionReference({
+        ...validReference,
+        path: '/workspace/spec.docx',
+        anchor: { format: 'docx', paragraph: 3, paraId: '502E8D33' }
+      })?.anchor
+    ).toEqual({ format: 'docx', paragraph: 3, paraId: '502E8D33' })
     expect(
       parseSelectionReference({
         ...validReference,
