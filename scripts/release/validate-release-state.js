@@ -1,6 +1,15 @@
+const fs = require('node:fs')
+
 function validateReleaseBranchHead({ branchSha, workflowSha }) {
   if (branchSha !== workflowSha) {
     throw new Error(`Release branch moved away from selected workflow commit ${workflowSha}`)
+  }
+}
+
+function validatePreparationState({ releasePages, tag }) {
+  const matchingReleases = releasePages.flat().filter((release) => release.tag_name === tag)
+  if (matchingReleases.length > 0) {
+    throw new Error(`Release ${tag} already exists; delete or rename it before preparing this version`)
   }
 }
 
@@ -84,6 +93,13 @@ function main() {
   const release = parseOptionalJson(process.env.RELEASE_JSON, 'RELEASE_JSON')
   const tag = requiredEnvironment('TAG')
 
+  if (phase === 'prepare') {
+    validatePreparationState({
+      releasePages: parseOptionalJson(fs.readFileSync(0, 'utf8'), 'release list'),
+      tag
+    })
+    return
+  }
   if (phase === 'build-start') {
     validateBuildStart({
       branchSha: requiredEnvironment('BRANCH_SHA'),
@@ -131,4 +147,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { validateBuildCompletion, validateBuildStart, validatePublishState }
+module.exports = { validateBuildCompletion, validateBuildStart, validatePreparationState, validatePublishState }
