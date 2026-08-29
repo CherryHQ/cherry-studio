@@ -349,16 +349,13 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
-    // The Windows minimize-to-tray trick zeroes opacity to suppress the minimize
-    // animation (see the close handler in setupWindowLifecycleEvents and
-    // toggleMainWindow). Restore it on window-level events — not only in
-    // showMainWindow(): clicking the taskbar entry or Alt-Tabbing restores the
-    // natively-minimized window without ever passing through showMainWindow(),
-    // which would leave a restored-but-invisible window. 'show' additionally
-    // covers generic WindowManager paths that call window.show() directly.
+    // Windows: opacity is zeroed by minimize-to-tray; restore on show/restore for taskbar/Alt-Tab paths bypassing showMainWindow.
     if (isWin) {
       const restoreOpacity = () => {
-        if (!mainWindow.isDestroyed()) mainWindow.setOpacity(1)
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.setOpacity(1)
+          mainWindow.setSkipTaskbar(false)
+        }
       }
       mainWindow.on('restore', restoreOpacity)
       mainWindow.on('show', restoreOpacity)
@@ -485,14 +482,9 @@ export class MainWindowService extends BaseService {
         application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       }
 
-      // On Windows, hide() does not cause the OS to refocus the previously active
-      // window. minimize() does — it triggers the standard Windows behavior of
-      // returning focus to the next window in the Z-order. setOpacity(0) suppresses
-      // the minimize animation for a smoother experience (same pattern as
-      // QuickAssistantService.hideQuickAssistant on Windows).
+      // Windows: minimize() refocuses previous window unlike hide(); opacity 0 suppresses animation.
       if (isWin) {
-        mainWindow.setOpacity(0)
-        mainWindow.minimize()
+        this.minimizeToTrayOnWindows(mainWindow)
         return
       }
 
@@ -510,12 +502,10 @@ export class MainWindowService extends BaseService {
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
-        // Restore the opacity zeroed by the Windows minimize-to-tray trick BEFORE
-        // restore() so no transparent frame flashes during the transition. The
-        // 'restore'/'show' listeners in setupWindowEvents cover restore paths that
-        // bypass this method entirely (taskbar click, Alt-Tab).
+        // Windows: restore opacity before restore() to avoid flash; listeners cover out-of-band restores.
         if (isWin) {
           mainWindow.setOpacity(1)
+          mainWindow.setSkipTaskbar(false)
         }
         mainWindow.restore()
         this.pushMainWindowInitData(initData)
@@ -597,9 +587,7 @@ export class MainWindowService extends BaseService {
       return
     }
 
-    // isVisible() is true for minimized windows, but focus() cannot bring a
-    // minimized window back (and on Windows it would be opacity-0 from the tray
-    // trick) — treat minimized like hidden and fall through to showMainWindow().
+    // isVisible() true for minimized; focus() can't restore it (opacity 0 on Windows) — treat as hidden.
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
       if (mainWindow.isFocused()) {
         // Same pattern as the close handler when the user opted into tray-close:
@@ -608,11 +596,9 @@ export class MainWindowService extends BaseService {
           application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
 
-        // On Windows, minimize() instead of hide() so the OS refocuses the
-        // previously active window. setOpacity(0) suppresses the animation.
+        // Windows: minimize() refocuses previous window; opacity 0 suppresses animation.
         if (isWin) {
-          mainWindow.setOpacity(0)
-          mainWindow.minimize()
+          this.minimizeToTrayOnWindows(mainWindow)
         } else {
           mainWindow.hide()
         }
@@ -623,6 +609,12 @@ export class MainWindowService extends BaseService {
     }
 
     this.showMainWindow()
+  }
+
+  private minimizeToTrayOnWindows(win: BrowserWindow) {
+    win.setOpacity(0)
+    win.setSkipTaskbar(true)
+    win.minimize()
   }
 
   /**

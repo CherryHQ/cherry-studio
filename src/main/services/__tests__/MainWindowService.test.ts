@@ -144,6 +144,7 @@ interface MockBrowserWindow extends EventEmitter {
   minimize: ReturnType<typeof vi.fn>
   maximize: ReturnType<typeof vi.fn>
   setOpacity: ReturnType<typeof vi.fn>
+  setSkipTaskbar: ReturnType<typeof vi.fn>
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
@@ -168,6 +169,7 @@ function createMockWindow(): MockBrowserWindow {
   win.minimize = vi.fn()
   win.maximize = vi.fn()
   win.setOpacity = vi.fn()
+  win.setSkipTaskbar = vi.fn()
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
@@ -407,6 +409,7 @@ describe('MainWindowService', () => {
       // Windows minimize-to-tray: setOpacity(0) + minimize() so the OS refocuses
       // the previously active window (hide() leaves nothing focused).
       expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
       expect(win.hide).not.toHaveBeenCalled()
     })
@@ -494,6 +497,7 @@ describe('MainWindowService', () => {
       // Same Windows minimize-to-tray trick as the close handler: minimize() so the
       // OS refocuses the previously active window, with setOpacity(0) to hide the animation.
       expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
       expect(win.hide).not.toHaveBeenCalled()
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
@@ -522,6 +526,7 @@ describe('MainWindowService', () => {
 
       expect(win.restore).toHaveBeenCalledTimes(1)
       expect(win.setOpacity).toHaveBeenCalledWith(1)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
       expect(win.focus).not.toHaveBeenCalled()
       expect(win.minimize).not.toHaveBeenCalled()
       expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', true)
@@ -551,6 +556,7 @@ describe('MainWindowService', () => {
       win.emit('restore')
 
       expect(win.setOpacity).toHaveBeenCalledWith(1)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
     })
 
     it('restores opacity on generic show paths (WindowManager window.show())', () => {
@@ -560,6 +566,7 @@ describe('MainWindowService', () => {
       win.emit('show')
 
       expect(win.setOpacity).toHaveBeenCalledWith(1)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
     })
 
     it('does not touch opacity off Windows', () => {
@@ -581,6 +588,7 @@ describe('MainWindowService', () => {
       const opacityCallOrder = win.setOpacity.mock.invocationCallOrder[0]
       const restoreCallOrder = win.restore.mock.invocationCallOrder[0]
       expect(win.setOpacity).toHaveBeenCalledWith(1)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
       expect(opacityCallOrder).toBeLessThan(restoreCallOrder)
     })
   })
