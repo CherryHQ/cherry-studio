@@ -21,10 +21,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
-  jobScheduleService: { getById: vi.fn(), listAll: vi.fn() }
+  jobScheduleService: { getById: vi.fn(), listAll: vi.fn(), listAllTx: vi.fn(), updateTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { list: vi.fn() }
+  jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn() }
 }))
 
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -96,6 +96,8 @@ describe('AgentTaskService (read side)', () => {
     vi.mocked(agentSessionService.getTaskSessionIdsByScheduleIds).mockReturnValue(new Map())
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(jobScheduleService.listAll).mockReset()
+    vi.mocked(jobService.getRunStatesByScheduleIds).mockReset()
+    vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValue(new Map())
     vi.mocked(jobService.list).mockReset()
   })
 
@@ -218,6 +220,7 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks).toHaveLength(1)
       expect(result.total).toBe(1)
       expect(result.tasks[0].id).toBe('s1')
+      expect(result.tasks[0]).not.toHaveProperty('runSummary')
     })
 
     it('returns heartbeat tasks when includeHeartbeat=true', () => {
@@ -249,6 +252,41 @@ describe('AgentTaskService (read side)', () => {
       expect(result.total).toBe(2)
       expect(result.tasks).toHaveLength(1)
       expect(result.tasks[0]).toMatchObject({ id: 'newer', agentId: 'other' })
+    })
+
+    it('projects running and unfinished Job states for task cards', () => {
+      const running = makeSnapshot({ id: 'running-task', name: 'running-task' })
+      const unfinished = makeSnapshot({ id: 'unfinished-task', name: 'unfinished-task' })
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([running, unfinished])
+      vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValueOnce(
+        new Map([
+          [running.id, { kind: 'running' }],
+          [unfinished.id, { kind: 'unfinished' }]
+        ])
+      )
+
+      const result = agentTaskService.listAllTasks()
+
+      expect(result.tasks.find((task) => task.id === running.id)?.runSummary).toEqual({ status: 'running' })
+      expect(result.tasks.find((task) => task.id === unfinished.id)?.runSummary).toEqual({ status: 'queued' })
+    })
+
+    it('projects the newest terminal run and leaves tasks without jobs empty', () => {
+      const withJobs = makeSnapshot({ id: 'terminal-task', name: 'terminal-task' })
+      const withoutJobs = makeSnapshot({ id: 'empty-task', name: 'empty-task' })
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([withJobs, withoutJobs])
+      const now = Date.now()
+      vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValueOnce(
+        new Map([[withJobs.id, { kind: 'terminal', status: 'cancelled', finishedAt: now - 100 }]])
+      )
+
+      const result = agentTaskService.listAllTasks()
+
+      expect(result.tasks.find((task) => task.id === withJobs.id)?.runSummary).toEqual({
+        status: 'cancelled',
+        finishedAt: new Date(now - 100).toISOString()
+      })
+      expect(result.tasks.find((task) => task.id === withoutJobs.id)?.runSummary).toBeNull()
     })
   })
 

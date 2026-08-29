@@ -1,13 +1,16 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+const hermesConfigPath = resolvedSpecPath('hermes-config')
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
@@ -88,27 +91,24 @@ describe('writeCliConfigDraft', () => {
     written = null
     writes = []
     existing = {}
-    // Draft building still reads config files renderer-side; the mock keeps
-    // resolving `~/…` spec paths to `/resolved~/…` for the `existing` fixture.
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-        file: {
-          readExternal: vi.fn(async (absPath: string) => {
-            if (absPath in existing) return existing[absPath]
-            throw new Error(`File does not exist: ${absPath}`)
+    // Draft building still reads on-disk config files renderer-side
+    // (`code_cli.read_config`); the mock maps declarative spec paths to
+    // deterministic `/resolved…` entries for the `existing` fixture.
+    mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+      if (route === 'code_cli.read_config') {
+        return {
+          files: (input.targets as CliConfigTarget[]).map((target) => {
+            const resolvedPath = resolvedSpecPath(target)
+            return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
           })
         }
       }
-    })
-    // The disk mutation is main-process now (`code_cli.write_config` carries
-    // a target, never a path). Translate each write target back to the
-    // same `/resolved~/…` path so the content fixtures stay unchanged.
-    mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
-      for (const file of input.files) {
+      // The disk mutation is main-process now (`code_cli.write_config` carries
+      // a target, never a path). Translate each write target back to the
+      // same deterministic path so the content fixtures stay unchanged.
+      for (const file of input.files as CliConfigWriteFile[]) {
         if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
-        const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        const nextWrite = { path: resolvedSpecPath(file.target), content: file.content }
         written = nextWrite
         writes.push(nextWrite)
       }
@@ -131,6 +131,110 @@ describe('writeCliConfigDraft', () => {
     mockGet({ '/providers/ghost': () => undefined })
     await expect(writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
       /Provider not found/
+    )
+  })
+
+  it('writes Hermes custom-runtime metadata separately from the API key', async () => {
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.HERMES,
+      files: [
+        { target: 'hermes-config', content: expect.any(String) },
+        { target: 'hermes-env', content: expect.any(String) }
+      ]
+    })
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    const env = files.find((file) => file.target === 'hermes-env')
+    if (!config || typeof config.content !== 'string' || !env || typeof env.content !== 'string') {
+      throw new Error('Expected Hermes config and environment files')
+    }
+
+    expect(parseYaml(config.content)).toEqual({
+      model: {
+        provider: 'custom',
+        default: 'hermes-3',
+        base_url: 'https://api.deepseek.com/v1',
+        api_key: '${CHERRY_HERMES_API_KEY}',
+        api_mode: 'chat_completions'
+      }
+    })
+    expect(config.content).not.toContain('sk-secret')
+    expect(env.content).toContain('CHERRY_HERMES_API_KEY=sk-secret')
+  })
+
+  it('preserves user-owned YAML presentation while updating the Hermes model', async () => {
+    existing[hermesConfigPath] = [
+      '# user-owned comment',
+      'model:',
+      '  context_length: 200000 # keep inline comment',
+      '  label: "keep quoted"',
+      '  tags: [one, two]',
+      'shared: &shared { enabled: true }',
+      'reuse: *shared',
+      ''
+    ].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(config.content).toContain('# user-owned comment')
+    expect(config.content).toContain('context_length: 200000 # keep inline comment')
+    expect(config.content).toContain('label: "keep quoted"')
+    expect(config.content).toContain('tags: [ one, two ]')
+    expect(config.content).toContain('shared: &shared { enabled: true }')
+    expect(config.content).toContain('reuse: *shared')
+    expect(parseYaml(config.content).model).toMatchObject({
+      provider: 'custom',
+      default: 'hermes-3',
+      api_key: '${CHERRY_HERMES_API_KEY}'
+    })
+  })
+
+  it('fills in an empty Hermes model section instead of rejecting it', async () => {
+    existing[hermesConfigPath] = ['# user-owned comment', 'model:', 'telemetry: false', ''].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(parseYaml(config.content)).toMatchObject({
+      telemetry: false,
+      model: { provider: 'custom', default: 'hermes-3', api_key: '${CHERRY_HERMES_API_KEY}' }
+    })
+    expect(config.content).toContain('# user-owned comment')
+  })
+
+  it('names the Hermes config file and path when it cannot be parsed', async () => {
+    existing[hermesConfigPath] = 'model: [unclosed\n'
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await expect(writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })).rejects.toThrow(
+      /Failed to parse .+ at \/resolvedconfig\.yaml:/
     )
   })
 
@@ -1293,6 +1397,44 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env.ANTHROPIC_BASE_URL).toBe(GATEWAY_BASE_URL)
       expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
     })
+
+    it('rebuilds purely from a complete draft when every on-disk read fails', async () => {
+      // A complete in-memory draft must not depend on the disk: a transient read
+      // failure (EACCES/EBUSY) must not block a rebuild the draft already covers.
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({ theme: 'dark', env: { KEEP: '1' } })
+      }
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+      mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        for (const file of input.files as CliConfigWriteFile[]) {
+          // This path asserts writes only; delete entries never reach it (the suite pins that).
+          const nextWrite = {
+            path: resolvedSpecPath(file.target),
+            content: (file as { content: string }).content
+          }
+          written = nextWrite
+          writes.push(nextWrite)
+        }
+        return { success: true }
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        files: [editedDraft],
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
+    })
   })
 
   describe('clear on disable deletes Cherry-managed keys', () => {
@@ -1483,8 +1625,9 @@ describe('writeCliConfigDraft', () => {
       // Before the fix this was swallowed and treated as "file doesn't exist
       // yet", which would silently wipe every unmanaged key from the real file.
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({ hooks: { foo: 'bar' } })
-      vi.mocked(window.api.file.readExternal).mockImplementationOnce(async () => {
-        throw new Error('EACCES: permission denied')
+      mocks.request.mockImplementation(async (route: string) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        return { success: true }
       })
       mockGet({
         '/providers/anthropic': () => anthropicProvider,
@@ -1498,7 +1641,7 @@ describe('writeCliConfigDraft', () => {
       // Nothing was sent to the main-process writer — the real file (and its
       // unmanaged keys) is untouched. (Snapshot/rollback safety around the
       // write itself is a main-side property, pinned in configWriter tests.)
-      expect(mocks.request).not.toHaveBeenCalled()
+      expect(mocks.request.mock.calls.some(([route]) => route === 'code_cli.write_config')).toBe(false)
     })
   })
 })

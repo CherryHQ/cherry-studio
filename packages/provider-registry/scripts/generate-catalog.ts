@@ -306,7 +306,16 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
       consider(id, parseMdEntry(m), p)
     }
   }
-  for (const m of or.data ?? []) consider(m.id, parseOrEntry(m), 'openrouter')
+  const openRouterStandalones = new Set(
+    PROVIDERS.find((provider) => provider.id === 'openrouter')?.overrides?.flatMap((override) =>
+      override.name && override.modelId ? [override.modelId] : []
+    )
+  )
+  for (const m of or.data ?? []) {
+    // A named `~vendor/*` override is an OpenRouter-owned moving alias, not a creator model.
+    if (m.id.startsWith('~') && openRouterStandalones.has(canonOf(m.id))) continue
+    consider(m.id, parseOrEntry(m), 'openrouter')
+  }
 
   // Fold host/org re-prefixes WITHOUT a hand-list (stripHostReprefix uses the index as the oracle):
   // databricks-gemini-3-flash → gemini-3-flash, cerebras-llama-4-scout → llama-4-scout, etc. Brands like
@@ -521,9 +530,7 @@ function buildProviderModels(
     seen.add(k)
     rows.push(o)
   }
-  // md-derived rows key on `modelId` only — upstream date snapshots that canonicalize to one id collapse to
-  // a single row. Providers may also declare model-id reasoning templates; the template is expanded into
-  // each matching upstream row while its upstream pricing/apiModelId remain intact.
+  // md-derived rows key on `modelId`; templates expand into matching rows without replacing upstream identity.
   const addModel = (o: any): void => {
     const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
     if (seen.has(k)) return
@@ -533,7 +540,12 @@ function buildProviderModels(
   for (const p of PROVIDERS) {
     const modelTemplates = (p.overrides ?? []).filter(
       (override) =>
-        p.modelsDevProvider && !override.apiModelId && (override.reasoningContracts || override.requestControls)
+        p.modelsDevProvider &&
+        !override.apiModelId &&
+        (override.endpointTypes ||
+          override.reasoningContracts ||
+          override.requestControls ||
+          Object.hasOwn(override, 'pricing'))
     )
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
     for (const override of p.overrides ?? []) {

@@ -1,4 +1,8 @@
-import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListActions,
+  MessageStreamingLayers,
+  MessageToolApprovalInput
+} from '@renderer/components/chat/messages/types'
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
@@ -22,6 +26,7 @@ interface AgentChatMainProps {
   hasOlder?: boolean
   loadOlder?: () => void
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
 }
@@ -40,6 +45,7 @@ export default function AgentChatMain({
   hasOlder,
   loadOlder,
   onOpenCitationsPanel,
+  openDiagnosticReport,
   deleteMessage,
   respondToolApproval
 }: AgentChatMainProps) {
@@ -62,6 +68,7 @@ export default function AgentChatMain({
           hasOlder={hasOlder}
           loadOlder={loadOlder}
           onOpenCitationsPanel={onOpenCitationsPanel}
+          openDiagnosticReport={openDiagnosticReport}
           deleteMessage={agentId ? deleteMessage : undefined}
           respondToolApproval={agentId ? respondToolApproval : undefined}
         />

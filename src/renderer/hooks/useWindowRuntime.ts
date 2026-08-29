@@ -5,6 +5,8 @@ import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { useMiniAppAttentionSync } from '@renderer/hooks/useMiniAppAttention'
+import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -101,4 +103,9 @@ export function useWindowRuntime(): void {
   // Each BrowserWindow has its own SWR cache, so both keep their own invalidation.
   useTopicAutoRenameSync()
   useAgentSessionAutoRenameSync()
+
+  // Mini app attention badge (pull + subscribe) and launcher-list convergence after
+  // IPC-side writes: exactly once per window, and outside every `<Activity>`.
+  useMiniAppAttentionSync()
+  useMiniAppListSync()
 }

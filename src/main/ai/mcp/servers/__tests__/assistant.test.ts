@@ -436,6 +436,76 @@ describe('create_agent', () => {
   })
 })
 
+describe('prepare_diagnostic_report', () => {
+  it('is exposed only by the explicit Cherry Support capability set', async () => {
+    const assistantClient = await connectAssistantClient()
+    const supportClient = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+
+    expect((await assistantClient.listTools()).tools.map((tool) => tool.name)).toEqual([
+      'navigate',
+      'diagnose',
+      'product_info',
+      'apply_setting',
+      'create_agent'
+    ])
+
+    const supportTools = (await supportClient.listTools()).tools
+    const draftTool = supportTools.find((tool) => tool.name === 'prepare_diagnostic_report')
+    expect(draftTool).toMatchObject({
+      inputSchema: {
+        required: ['description'],
+        additionalProperties: false
+      },
+      outputSchema: {
+        required: ['ok', 'description'],
+        additionalProperties: false
+      }
+    })
+
+    await assistantClient.close()
+    await supportClient.close()
+  })
+
+  it('returns an editable normalized draft without performing submission', async () => {
+    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+    const output = { ok: true, description: 'first\r\nsecond\r\nthird' }
+
+    const result = await client.callTool({
+      name: 'prepare_diagnostic_report',
+      arguments: { description: '  first\nsecond\rthird  ' }
+    })
+
+    expect(result.structuredContent).toEqual(output)
+    expect(result.content).toEqual([{ type: 'text', text: JSON.stringify(output) }])
+    expect(result.isError).not.toBe(true)
+    await client.close()
+  })
+
+  it('accepts a description at the normalized UTF-8 byte limit', async () => {
+    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+    const description = 'a'.repeat(4096)
+
+    const result = await client.callTool({ name: 'prepare_diagnostic_report', arguments: { description } })
+
+    expect(result.structuredContent).toEqual({ ok: true, description })
+    await client.close()
+  })
+
+  it.each([
+    ['blank description', { description: '  \r\n  ' }],
+    ['description above the normalized UTF-8 byte limit', { description: `${'a'.repeat(4094)}\na` }],
+    ['non-string description', { description: 42 }],
+    ['unexpected input property', { description: 'details', submit: true }]
+  ])('rejects %s', async (_case, args) => {
+    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+
+    const result = await client.callTool({ name: 'prepare_diagnostic_report', arguments: args })
+
+    expect(result.isError).toBe(true)
+    await client.close()
+  })
+})
+
 describe('isBlockedSourceFile', () => {
   it('blocks every dotenv variant (except the .env.example template)', () => {
     for (const name of ['.env', '.env.local', '.env.production', '.env.development.local', '.ENV', '.Env.Staging']) {

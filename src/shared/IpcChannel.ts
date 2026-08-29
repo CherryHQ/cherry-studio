@@ -5,8 +5,6 @@
  * LAN transfer, and a handful of micro-domains.
  */
 export enum IpcChannel {
-  App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',

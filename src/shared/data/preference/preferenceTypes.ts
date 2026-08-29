@@ -234,7 +234,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'querit',
   'fetch',
   'jina',
-  'firecrawl'
+  'firecrawl',
+  'parallel'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
@@ -305,11 +306,13 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openclaw',
   'deepseek-harness',
   'gemini-cli',
+  'antigravity-cli',
   'qwen-code',
   'kimi-code',
   'qoder-cli',
   'github-copilot-cli',
-  'pi'
+  'pi',
+  'hermes'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
