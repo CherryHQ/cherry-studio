@@ -225,8 +225,7 @@ export function isModelEndpointTypeAvailable(
   endpointType: EndpointType
 ): boolean {
   if (!hasEndpointConfig(provider, endpointType)) return false
-  if (!model.endpointTypes?.length || model.endpointTypes.includes(endpointType)) return true
-  return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType === endpointType
+  return !model.endpointTypes?.length || model.endpointTypes.includes(endpointType)
 }
 
 /**
@@ -389,6 +388,9 @@ export function resolveWebToolRoutes(
     options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider, options.endpointType) : false
   const serverFetchEligible =
     options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider, options.endpointType) : false
+  const effectiveEndpoint = provider
+    ? resolveServerToolEndpoint(model, provider, options.endpointType)
+    : options.endpointType
 
   const googleToolConflict =
     options.hasFunctionToolSignals === true &&
@@ -400,7 +402,8 @@ export function resolveWebToolRoutes(
   const openaiMinimalConflict =
     options.reasoningEffort !== undefined &&
     provider !== undefined &&
-    (isOpenAIProvider(provider) || isOpenAIChatProvider(provider) || isAzureOpenAIProvider(provider)) &&
+    (effectiveEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ||
+      effectiveEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) &&
     isWebSearchEffortUnsupported(getRawModelId(model), options.reasoningEffort)
 
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict

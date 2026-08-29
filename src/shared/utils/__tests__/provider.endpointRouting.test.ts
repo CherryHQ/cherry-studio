@@ -137,4 +137,23 @@ describe('isModelEndpointTypeAvailable', () => {
 
     expect(isModelEndpointTypeAvailable(model, makeProvider(), ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(true)
   })
+
+  it('does not restore a gateway route excluded by an explicit model endpoint list', () => {
+    const provider = makeProvider({
+      id: 'aihubmix',
+      presetProviderId: 'aihubmix',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://aihubmix.example.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://aihubmix.example.com' }
+      }
+    })
+    const model: RoutingModel = {
+      ...makeModel([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS], ENDPOINT_TYPE.ANTHROPIC_MESSAGES),
+      id: 'aihubmix::claude-opus-4-6',
+      apiModelId: 'claude-opus-4-6'
+    }
+
+    expect(isModelEndpointTypeAvailable(model, provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(false)
+    expect(getModelPreferredEndpoint(model, provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
 })

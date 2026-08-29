@@ -14,6 +14,21 @@ const updateModelMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
 
+const newApiProvider = {
+  id: 'new-api',
+  name: 'New API',
+  sharedEndpointHost: true,
+  endpointConfigs: {
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+      adapterFamily: 'newapi',
+      baseUrl: 'http://localhost:3000'
+    },
+    [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' },
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' },
+    [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+  }
+}
+
 const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
 
@@ -207,7 +222,7 @@ describe('Model drawers', () => {
   it('clears a chosen endpoint when the add form removes it from the supported set', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'new-api', name: 'New API' }
+      provider: newApiProvider
     })
 
     render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
@@ -1017,7 +1032,7 @@ describe('Model drawers', () => {
   it('offers only the endpoints the aggregator reported for this model', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'new-api', name: 'New API' }
+      provider: newApiProvider
     })
 
     render(
@@ -1074,7 +1089,16 @@ describe('Model drawers', () => {
 
   it('keeps a single-endpoint aggregator model showing which protocol it speaks', () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            adapterFamily: 'cherryin',
+            baseUrl: 'https://open.cherryin.net'
+          }
+        }
+      }
     })
 
     render(

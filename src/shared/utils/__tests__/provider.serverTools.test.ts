@@ -315,6 +315,45 @@ describe('conflict-aware routing', () => {
       })
     ).toMatchObject({ webSearch: 'server' })
   })
+
+  it('uses the effective endpoint for minimal-reasoning conflicts on an aggregator', () => {
+    const gpt5 = model('gpt-5', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING] })
+    const newApiProvider = {
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://new-api.example.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://new-api.example.com' }
+      },
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+    } as Provider
+    const options = {
+      webSearchEnabled: true,
+      clientSearchAvailable: false,
+      clientFetchAvailable: false,
+      clientToolsPreferred: false,
+      reasoningEffort: 'minimal'
+    }
+
+    expect(
+      resolveWebToolRoutes(gpt5, newApiProvider, {
+        ...options,
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      })
+    ).toMatchObject({ webSearch: 'server' })
+    expect(
+      resolveWebToolRoutes(
+        gpt5,
+        { ...newApiProvider, defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+        { ...options, endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES }
+      )
+    ).toEqual({
+      webSearch: 'none',
+      webFetch: 'none',
+      reasons: { webSearch: 'openai-minimal-reasoning', webFetch: 'no-backend' }
+    })
+  })
 })
 
 describe('finalizeWebToolRoutes', () => {
