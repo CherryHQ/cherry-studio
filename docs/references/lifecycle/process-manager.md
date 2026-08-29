@@ -2,11 +2,15 @@
 description: Lifecycle-managed child and utility processes, typed events, shutdown ownership, and pooled task execution
 sources:
   - src/main/services/process/
+  - src/main/services/OpenClawService.ts
+  - src/main/services/OvmsManager.ts
+  - src/main/services/HermesDashboardService.ts
+  - src/main/services/deepSeekHarness/DeepSeekHarnessService.ts
 ---
 
 # Process Manager
 
-Unified process management for Cherry Studio's main process. Manages child processes (external binaries) and Electron utility processes (isolated Node.js workloads). Also provides `TaskExecutor`, a higher-level abstraction for parallel task execution built on top of utility processes.
+Lifecycle ownership for processes started by Cherry Studio's main process. `ChildProcessHandle` is used by the current managed external-binary consumers. `UtilityProcessHandle` and `TaskExecutor` provide the implemented foundation for isolated and parallel Node.js workloads, including planned local-model inference; they do not yet have production consumers.
 
 ## Quick Navigation
 
@@ -18,7 +22,7 @@ Unified process management for Cherry Studio's main process. Manages child proce
 - [Child Process Usage](#child-process-usage) - Managing external binaries
 - [Utility Process Usage](#utility-process-usage) - Isolated Node.js processes
 - [TaskExecutor Usage](#taskexecutor-usage) - Parallel task execution
-- [AI SDK Streaming Integration](#integration-with-ai-sdk-streaming) - useChat + ProcessManager
+- [Planned AI and Local-Model Integration](#planned-ai-and-local-model-integration) - Future utility-process patterns
 
 ### Reference Guides (Standards)
 - [Process Type Decision Guide](#choosing-the-right-process-type) - Which process type to use
@@ -29,19 +33,21 @@ Unified process management for Cherry Studio's main process. Manages child proce
 
 ### Motivation
 
-Cherry Studio currently manages child processes in a fragmented way:
+Process ownership depends on who controls the process lifecycle:
 
-| Service | How It Manages Processes |
-|---------|------------------------|
-| `MCPService` | Delegates to MCP SDK's `StdioClientTransport` |
-| `OpenClawService` | Detached `spawn()` + PID-based kill via `pkill`/`taskkill` |
-| `OvmsManager` | `exec()` + PowerShell tree kill |
-| `CodeCliService` | Direct `spawn()` with manual cleanup |
-| `FileStorage` | Per-query `spawn()` for ripgrep |
+| Owner | Process contract |
+|-------|------------------|
+| `OpenClawService` | ProcessManager-owned gateway; external-process discovery is only a fallback for gateways Cherry did not start |
+| `OvmsManager` | ProcessManager-owned OVMS server; Windows process discovery remains a fallback for externally started instances |
+| `HermesDashboardService` | ProcessManager-owned dashboard with service-owned health and configuration-home checks |
+| `DeepSeekHarnessService` | ProcessManager-owned web process with service-owned readiness and configuration rollback |
+| `McpRuntimeService` | MCP SDK transport owns stdio child lifecycle |
+| `ClaudeCodeProcessManager` | Claude Agent SDK owns its spawn and abort contract |
+| `CodeCliService` | Launches user-owned external terminal sessions rather than app-owned daemons |
 
-Each service independently handles spawning, logging, error recovery, and shutdown cleanup. There is no unified tracking, no consistent graceful shutdown, and no reusable abstraction for common patterns.
+ProcessManager centralizes spawn-state tracking, process events, and shutdown for the processes Cherry owns directly. Health checks, readiness parsing, configuration rollback, and externally started process discovery remain with the business service because those contracts are process-specific.
 
-Additionally, **aiCore is moving to a backend process** in v2. This requires:
+The utility-process surface supports future isolated workloads such as local-model inference:
 - Running Node.js workloads in isolated Electron `utilityProcess` instances
 - Task executor support for parallel AI task execution (multi-conversation, batch embedding)
 - Crash isolation so a failing AI task doesn't bring down the main process
@@ -51,7 +57,7 @@ Additionally, **aiCore is moving to a backend process** in v2. This requires:
 ```
 Primitive Layer — ProcessManager (lifecycle service)
   |
-  |-- ChildProcessHandle         External binaries (ollama, MCP, rg)
+  |-- ChildProcessHandle         App-owned external binaries
   |     spawn(), stdio communication
   |
   |-- UtilityProcessHandle       Isolated Node.js (aiCore, heavy computation)
@@ -67,11 +73,12 @@ Both process handle types implement a shared `ProcessHandle` interface for consi
 
 ### Design Principles
 
-1. **Unified interface** - `start()` / `stop()` / `restart()` / `status` across both process types
+1. **Unified interface** - `start()` / `stop()` / `restart()` / `state` across both process types
 2. **Explicit registration** - Imperative API, no hidden magic, easy to trace
 3. **Lifecycle integration** - Extends `BaseService`, graceful shutdown on `onStop()`
 4. **Fault isolation** - Process crashes don't affect the main process
-5. **Layered abstraction** - Primitives (ProcessHandle) for single processes, composites (TaskExecutor) for parallel workloads
+5. **Explicit ownership** - Business services stop and unregister their handles; ProcessManager is the shutdown safety net
+6. **Layered abstraction** - Primitives (ProcessHandle) for single processes, composites (TaskExecutor) for parallel workloads
 
 ---
 
@@ -110,8 +117,10 @@ Both process handle types implement a shared `ProcessHandle` interface for consi
 
 | Scenario | Use Instead |
 |----------|-------------|
-| One-shot command execution (`git --version`) | `executeCommand()` from `src/main/utils/process.ts` |
+| One-shot command execution (`git --version`) | `executeCommand()` from `src/main/utils/processRunner.ts` |
 | In-memory MCP servers | `InMemoryTransport` (no process needed) |
+| SDK-owned subprocess lifecycle | Keep ownership with the SDK adapter |
+| User-owned external terminal session | Launch through `CodeCliService` |
 | Simple async I/O work | Just use `async/await` in the main process |
 | CPU work < 50ms | Not worth the IPC overhead |
 
@@ -127,8 +136,8 @@ Both process handle types implement a shared `ProcessHandle` interface for consi
  */
 enum ProcessState {
   Idle      = 'idle',        // Registered, not started
-  Starting  = 'starting',   // Spawn in progress
-  Running   = 'running',    // Alive and healthy
+  Starting  = 'starting',   // Environment resolution or spawn is in progress
+  Running   = 'running',    // The process emitted spawn; business health is separate
   Stopping  = 'stopping',   // Graceful shutdown in progress
   Stopped   = 'stopped',    // Exited cleanly
   Crashed   = 'crashed',    // Exited with error
@@ -182,6 +191,11 @@ interface ChildProcessOptions {
   cwd?: string
   /** Merged with shell environment */
   env?: Record<string, string>
+  /** Spawn in a detached process group */
+  detached?: boolean
+  stdio?: StdioOptions
+  /** Exclude this handle from ProcessManager shutdown */
+  skipOnStop?: boolean
   /** Total graceful + forced shutdown budget in ms. Default: 4000 */
   killTimeoutMs?: number
 }
@@ -223,6 +237,8 @@ interface TaskExecutorOptions {
   max: number
   /** Kill idle workers after this duration (ms). Default: 30000 */
   idleTimeoutMs?: number
+  /** Reject a task after this duration; 0 disables it. Default: 0 */
+  taskTimeoutMs?: number
   env?: Record<string, string>
   killTimeoutMs?: number
 }
@@ -253,35 +269,61 @@ class TaskExecutor {
 
 All process registration uses an explicit, imperative API. No decorators, no hidden scanning — call `pm.register()` and get a typed handle back.
 
+| API | Contract |
+|-----|----------|
+| `register(options)` | Creates an idle child or utility handle and rejects a duplicate ID |
+| `get(id)` | Returns the tracked handle, including terminal `Stopped` or `Crashed` handles |
+| `unregister(id)` | Removes a terminal handle; joins an in-flight start, then rejects if the handle is still active |
+| `onProcessStarted` | Fires only after the underlying process emits `spawn` and supplies a PID |
+| `onProcessExited` | Fires after the handle has entered `Stopped` or `Crashed` |
+| `onProcessLog` | Emits child-process stdout/stderr chunks |
+
+`stop()` and `unregister()` are deliberately separate. A service that owns a process must stop it and then unregister it on normal stop and failed startup. If the process exits by itself, its terminal handle remains tracked until the service unregisters it; this must happen before the ID is registered again. `ProcessManager.onStop()` stops active handles as a lifecycle safety net, but it does not remove registrations.
+
+Both handle implementations expose a joinable `Starting` transition. Concurrent `start()` calls share the same in-flight promise, and `stop()` waits for that transition before stopping the spawned process. `start()` resolves on the process `spawn` event, not on application-level readiness; consumers remain responsible for protocol or health checks.
+
 ### Registering a Child Process
 
 ```typescript
 import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { ProcessHandle } from '@main/services/process'
+import type { ChildProcessHandle } from '@main/services/process'
 
 @Injectable('OllamaService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['ProcessManager'])
 export class OllamaService extends BaseService {
-  private ollama!: ProcessHandle
+  private ollama: ChildProcessHandle | undefined
 
   protected async onInit(): Promise<void> {
     const pm = application.get('ProcessManager')
 
-    this.ollama = pm.register({
+    const handle = pm.register({
       id: 'ollama',
       command: '/usr/local/bin/ollama',
       args: ['serve'],
       env: { OLLAMA_HOST: '127.0.0.1:11434' },
       killTimeoutMs: 8000,
     })
+    this.ollama = handle
 
-    await this.ollama.start()
+    try {
+      await handle.start()
+      await waitUntilHealthy()
+    } catch (error) {
+      await handle.stop()
+      await pm.unregister(handle.id)
+      this.ollama = undefined
+      throw error
+    }
   }
 
   protected async onStop(): Promise<void> {
+    if (!this.ollama) return
+    const pm = application.get('ProcessManager')
     await this.ollama.stop()
+    await pm.unregister(this.ollama.id)
+    this.ollama = undefined
   }
 }
 ```
@@ -294,6 +336,7 @@ export class OllamaService extends BaseService {
 @DependsOn(['ProcessManager'])
 export class AiCoreBackendService extends BaseService {
   private aicore!: UtilityProcessHandle
+  private disposeMessageHandler: (() => void) | undefined
 
   protected async onInit(): Promise<void> {
     const pm = application.get('ProcessManager')
@@ -305,7 +348,7 @@ export class AiCoreBackendService extends BaseService {
 
     await this.aicore.start()
 
-    this.aicore.onMessage((msg) => {
+    this.disposeMessageHandler = this.aicore.onMessage((msg) => {
       if (msg.type === 'stream-chunk') {
         this.handleStreamChunk(msg.data)
       }
@@ -313,7 +356,9 @@ export class AiCoreBackendService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
+    this.disposeMessageHandler?.()
     await this.aicore.stop()
+    await application.get('ProcessManager').unregister(this.aicore.id)
   }
 }
 ```
@@ -352,7 +397,7 @@ export class KnowledgeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     await this.executor.shutdown()
-    // Workers are registered with PM, so PM.onStop() also cleans them up as a safety net
+    // shutdown() stops and unregisters every worker. ProcessManager remains the safety net.
   }
 }
 ```
@@ -414,23 +459,28 @@ const pm = application.get('ProcessManager')
 
 pm.onProcessLog((line) => {
   if (line.processId === 'ollama' && line.stream === 'stderr') {
-    // Forward error output to renderer
-    mainWindow.webContents.send(IpcChannel.Process_Log, line)
+    logger.warn(line.data.trimEnd())
   }
 })
 ```
 
+The event function returns a `Disposable`. Lifecycle services should pass it to `registerDisposable()` or dispose it explicitly.
+
 ### Graceful Shutdown Sequence
 
-When `ProcessManager.onStop()` is called (app shutdown):
+When `ProcessManager.onStop()` is called, it stops all non-`skipOnStop` handles that are `Starting`, `Running`, or `Stopping`. Handles are stopped concurrently. A handle still starting first joins its start transition. Individual stop failures are logged so shutdown can continue with the remaining handles.
+
+For each active child process, `killTimeoutMs` is one total deadline:
 
 ```
-For each running process:
+For each active child process:
   1. Send SIGTERM
-  2. Wait through the graceful portion of killTimeoutMs
+  2. Reserve 75% of killTimeoutMs for graceful exit
   3. If still alive, send SIGKILL
   4. Wait for process exit within the remaining total budget (default: 4000ms)
 ```
+
+Detached processes and Windows children are terminated as process trees. A non-detached POSIX child receives the signal directly. Failure to confirm exit within the total deadline rejects `stop()`; callers must not treat that process as successfully stopped.
 
 ---
 
@@ -457,6 +507,8 @@ aicore.onMessage((msg) => {
 // Send a request to the utility process
 aicore.postMessage({ type: 'request', data: request })
 ```
+
+`UtilityProcessHandle.stop()` calls Electron's `utilityProcess.kill()` and waits up to `killTimeoutMs` for `exit`. If Electron never reports an exit, the handle clears its tracked state and resolves at the deadline; unlike `ChildProcessHandle`, it does not perform or confirm process-tree escalation. `postMessage()` also accepts transferable `MessagePortMain` instances, and `onMessage()` returns a cleanup function.
 
 ### Worker Module Entry Point
 
@@ -557,7 +609,9 @@ process.parentPort.on('message', async (event) => {
 
 ---
 
-## Integration with AI SDK Streaming
+## Planned AI and Local-Model Integration
+
+> **Status:** This section is architectural guidance for future UtilityProcess consumers. The current production consumers use `ChildProcessHandle`; aiCore and local-model inference are not yet wired through this surface.
 
 ### The Problem
 
@@ -793,8 +847,7 @@ export class ProcessManager extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    // 1. Stop all utility processes (includes TaskExecutor workers)
-    // 2. Stop all child processes (SIGTERM → wait → SIGKILL)
+    // Concurrently stop active non-skip handles; Starting handles join startup first.
   }
 }
 ```
@@ -802,7 +855,7 @@ export class ProcessManager extends BaseService {
 ### Registration in serviceRegistry.ts
 
 ```typescript
-import { ProcessManager } from '@main/services/process/ProcessManager'
+import { ProcessManager } from '@main/services/process'
 
 export const services = {
   DbService,
@@ -819,19 +872,24 @@ export const services = {
 ```typescript
 const pm = application.get('ProcessManager')
 
-pm.onProcessStarted(({ id, pid }) => {
+const startedSubscription = pm.onProcessStarted(({ id, pid }) => {
   logger.info(`Process ${id} started with pid ${pid}`)
 })
 
-pm.onProcessExited(({ id, code, signal }) => {
+const exitedSubscription = pm.onProcessExited(({ id, code, signal }) => {
   if (code !== 0) {
     logger.error(`Process ${id} crashed: code=${code}, signal=${signal}`)
   }
 })
 
-pm.onProcessLog((line) => {
+const logSubscription = pm.onProcessLog((line) => {
   // Route to UI, external logging, etc.
 })
+
+// Lifecycle services normally register these Disposables with BaseService.
+this.registerDisposable(startedSubscription)
+this.registerDisposable(exitedSubscription)
+this.registerDisposable(logSubscription)
 ```
 
 ---
@@ -855,9 +913,9 @@ src/main/services/process/
 
 ---
 
-## Implementation Phases
+## Implementation Status
 
-### Phase 1: Core + ChildProcess
+### Core + ChildProcess — in production
 
 - `ProcessHandle` interface, `ProcessState` enum, and typed process event payloads
 - `ChildProcessHandle` using `crossPlatformSpawn`
@@ -865,24 +923,22 @@ src/main/services/process/
 - Graceful shutdown in `onStop()`
 - Unit tests
 
-### Phase 2: UtilityProcess
+Current production consumers are `OpenClawService`, `OvmsManager`, `HermesDashboardService`, and `DeepSeekHarnessService`.
+
+### UtilityProcess — implemented, awaiting a production consumer
 
 - `UtilityProcessHandle` wrapping Electron `utilityProcess`
 - `UtilityProcessHandle` extends `ProcessHandle` with MessagePort communication
 - Unit tests
 
-### Phase 3: TaskExecutor
+This surface is retained for planned local-model inference and other isolated Node.js workloads.
+
+### TaskExecutor — implemented, awaiting a production consumer
 
 - `TaskExecutor` with task dispatch and auto-scaling
 - Unit tests
 
-### Phase 4: Initial Migrations
-
-The initial ProcessManager consumers are:
-- `OpenClawService` gateway process
-- `OvmsManager` server process
-- `HermesDashboardService` dashboard process
-- `DeepSeekHarnessService` web process
+It remains a composite over UtilityProcess handles and should be adopted only when a concrete parallel workload needs its queue and worker-pool contract.
 
 ---
 
@@ -893,7 +949,8 @@ The initial ProcessManager consumers are:
 | Using ChildProcess for aiCore | Loses structured IPC, higher startup cost | **UtilityProcess** |
 | Using UtilityProcess for ollama | External binary, not a Node.js module | **ChildProcess** |
 | Using TaskExecutor for a single long-lived server | TaskExecutor is for task dispatch, not daemon management | **UtilityProcess** (single) |
-| Spawning processes outside ProcessManager | Bypasses tracking, no graceful shutdown | **Register with ProcessManager** |
+| Directly spawning an app-owned daemon | Bypasses tracking and lifecycle shutdown | **Register with ProcessManager** |
+| Moving an SDK-owned or user-owned process into ProcessManager | Breaks the existing ownership contract | **Keep lifecycle with the SDK or external launcher** |
 | Using worker_threads for I/O-bound work | Async I/O already non-blocking, threads add complexity | **Single UtilityProcess** with async |
 | Pre-spawning workers at startup | Wastes memory; spawn on demand, let idle timeout reclaim | **Let TaskExecutor spawn on first exec()** |
 
