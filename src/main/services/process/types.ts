@@ -2,6 +2,7 @@ import type { StdioOptions } from 'child_process'
 
 export enum ProcessState {
   Idle = 'idle',
+  Starting = 'starting',
   Running = 'running',
   Stopping = 'stopping',
   Stopped = 'stopped',
@@ -36,7 +37,7 @@ export interface ProcessExitedEvent {
   signal: NodeJS.Signals | null
 }
 
-export const DEFAULT_KILL_TIMEOUT_MS = 5000
+export const DEFAULT_KILL_TIMEOUT_MS = 4000
 
 export interface ProcessOptions {
   id: string

@@ -14,6 +14,7 @@ export class ChildProcessHandle implements ProcessHandle {
   private _pid: number | undefined = undefined
   private _process: ChildProcess | undefined = undefined
   private _exited = false
+  private _startPromise: Promise<void> | undefined = undefined
   private _stopPromise: Promise<void> | undefined = undefined
   private readonly def: ChildProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
@@ -41,135 +42,163 @@ export class ChildProcessHandle implements ProcessHandle {
   }
 
   async start(): Promise<void> {
+    if (this._state === ProcessState.Starting) {
+      return this._startPromise!
+    }
     if (this._state === ProcessState.Running || this._state === ProcessState.Stopping) {
       throw new Error(`Process ${this.id} is already running (state: ${this._state})`)
     }
 
     this.logger.info(`Starting process: ${this.def.command}`)
-
-    const shellEnv = await getShellEnv()
-    const env = this.def.env ? { ...shellEnv, ...this.def.env } : shellEnv
-
+    this._state = ProcessState.Starting
     this._exited = false
 
+    const startPromise = this.startProcess()
+    this._startPromise = startPromise
+    try {
+      await startPromise
+    } finally {
+      if (this._startPromise === startPromise) this._startPromise = undefined
+    }
+  }
+
+  private async startProcess(): Promise<void> {
     let child: ChildProcess
     try {
+      const shellEnv = await getShellEnv()
+      const env = this.def.env ? { ...shellEnv, ...this.def.env } : shellEnv
       child = crossPlatformSpawn(this.def.command, this.def.args ?? [], {
         cwd: this.def.cwd,
         env,
         detached: this.def.detached,
         stdio: this.def.stdio
       })
+      if (this.def.detached) child.unref()
+
+      this._process = child
+      this.registerProcessListeners(child)
+      await this.waitForSpawn(child)
     } catch (err) {
-      this._state = ProcessState.Crashed
-      this.logger.error(`Failed to spawn process: ${(err as Error).message}`, err as Error)
-      this.onExited?.(null, null)
+      if (!this._exited) this.handleProcessError(err as Error)
       throw err
     }
+  }
 
-    if (this.def.detached) {
-      child.unref()
-    }
-
-    this._process = child
-    this._state = ProcessState.Running
-    this._pid = child.pid
-
-    if (child.pid !== undefined) {
-      this.logger.info(`Process started with pid ${child.pid}`)
-      this.onStarted?.(child.pid)
-    }
-
-    child.stdout?.on('data', (data: Buffer) => {
-      const line: ProcessLogLine = {
-        processId: this.id,
-        stream: 'stdout',
-        data: data.toString(),
-        timestamp: Date.now()
+  private waitForSpawn(child: ChildProcess): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const onSpawn = () => {
+        child.off('error', onStartupError)
+        this._state = ProcessState.Running
+        this._pid = child.pid
+        if (child.pid !== undefined) {
+          this.logger.info(`Process started with pid ${child.pid}`)
+          this.onStarted?.(child.pid)
+        }
+        resolve()
       }
-      this.logger.debug(line.data.trimEnd())
-      this.onLog?.(line)
-    })
-
-    child.stderr?.on('data', (data: Buffer) => {
-      const line: ProcessLogLine = {
-        processId: this.id,
-        stream: 'stderr',
-        data: data.toString(),
-        timestamp: Date.now()
+      const onStartupError = (err: Error) => {
+        child.off('spawn', onSpawn)
+        reject(err)
       }
-      this.logger.warn(line.data.trimEnd())
-      this.onLog?.(line)
-    })
-
-    child.on('close', (code, signal) => {
-      if (this._exited) return
-      this._exited = true
-
-      this._pid = undefined
-      this._process = undefined
-      this._stopPromise = undefined
-
-      if (this._state === ProcessState.Stopping) {
-        this._state = ProcessState.Stopped
-        this.logger.info(`Process stopped (code=${code}, signal=${signal})`)
-      } else if (code !== 0) {
-        this._state = ProcessState.Crashed
-        this.logger.warn(`Process crashed (code=${code}, signal=${signal})`)
-      } else {
-        this._state = ProcessState.Stopped
-        this.logger.info(`Process exited cleanly (code=${code})`)
-      }
-
-      this.onExited?.(code, signal)
-    })
-
-    child.on('error', (err) => {
-      if (this._exited) return
-      this._exited = true
-
-      this._state = ProcessState.Crashed
-      this._pid = undefined
-      this._process = undefined
-      this._stopPromise = undefined
-      this.logger.error(`Process error: ${err.message}`, err)
-      this.onExited?.(null, null)
+      child.once('spawn', onSpawn)
+      child.once('error', onStartupError)
     })
   }
 
-  stop(): Promise<void> {
+  private registerProcessListeners(child: ChildProcess): void {
+    child.stdout?.on('data', (data: Buffer) => this.handleLog('stdout', data))
+    child.stderr?.on('data', (data: Buffer) => this.handleLog('stderr', data))
+    child.on('close', (code, signal) => this.handleProcessClose(code, signal))
+    child.on('error', (err) => this.handleProcessError(err))
+  }
+
+  private handleLog(stream: ProcessLogLine['stream'], data: Buffer): void {
+    const line: ProcessLogLine = { processId: this.id, stream, data: data.toString(), timestamp: Date.now() }
+    if (stream === 'stdout') this.logger.debug(line.data.trimEnd())
+    else this.logger.warn(line.data.trimEnd())
+    this.onLog?.(line)
+  }
+
+  private handleProcessClose(code: number | null, signal: NodeJS.Signals | null): void {
+    if (this._exited) return
+    this._exited = true
+    this._pid = undefined
+    this._process = undefined
+
     if (this._state === ProcessState.Stopping) {
-      return this._stopPromise ?? Promise.resolve()
-    }
-    if (this._state !== ProcessState.Running) {
-      return Promise.resolve()
+      this._state = ProcessState.Stopped
+      this.logger.info(`Process stopped (code=${code}, signal=${signal})`)
+    } else if (code !== 0) {
+      this._state = ProcessState.Crashed
+      this.logger.warn(`Process crashed (code=${code}, signal=${signal})`)
+    } else {
+      this._state = ProcessState.Stopped
+      this.logger.info(`Process exited cleanly (code=${code})`)
     }
 
-    this._state = ProcessState.Stopping
-    this.logger.info(`Stopping process (pid=${this._pid})`)
+    this.onExited?.(code, signal)
+  }
+
+  private handleProcessError(err: Error): void {
+    if (this._exited) return
+    this._exited = true
+    this._state = ProcessState.Crashed
+    this._pid = undefined
+    this._process = undefined
+    this.logger.error(`Process error: ${err.message}`, err)
+    this.onExited?.(null, null)
+  }
+
+  stop(): Promise<void> {
+    if (this._stopPromise) return this._stopPromise
+
+    const stopPromise = this._state === ProcessState.Starting ? this.stopAfterStart() : this.stopRunningProcess()
+    const trackedPromise = stopPromise.finally(() => {
+      if (this._stopPromise === trackedPromise) this._stopPromise = undefined
+    })
+    this._stopPromise = trackedPromise
+    return trackedPromise
+  }
+
+  private async stopAfterStart(): Promise<void> {
+    try {
+      await this._startPromise
+    } catch {
+      return
+    }
+    await this.stopRunningProcess()
+  }
+
+  private async stopRunningProcess(): Promise<void> {
+    if (this._state !== ProcessState.Running && this._state !== ProcessState.Stopping) return
+
+    if (this._state === ProcessState.Running) {
+      this._state = ProcessState.Stopping
+      this.logger.info(`Stopping process (pid=${this._pid})`)
+    }
 
     const child = this._process
     if (!child) {
       this._state = ProcessState.Stopped
-      return Promise.resolve()
+      return
     }
 
-    const stopPromise = this.stopProcess(child)
-    this._stopPromise = stopPromise
-    return stopPromise
+    await this.stopProcess(child)
   }
 
   private async stopProcess(child: ChildProcess): Promise<void> {
     const killTimeoutMs = this.def.killTimeoutMs ?? DEFAULT_KILL_TIMEOUT_MS
+    const deadline = Date.now() + killTimeoutMs
+    const gracefulTimeoutMs = Math.floor(killTimeoutMs * 0.75)
 
-    const gracefulExit = waitForProcessExit(child, killTimeoutMs)
+    const gracefulExit = waitForProcessExit(child, gracefulTimeoutMs)
     await this.signalProcess(child, false)
     if (await gracefulExit) {
       return
     }
 
     this.logger.warn(`Kill timeout reached, sending SIGKILL to pid=${this._pid ?? child.pid}`)
-    const forcedExit = waitForProcessExit(child, killTimeoutMs)
+    const forcedExit = waitForProcessExit(child, Math.max(0, deadline - Date.now()))
     await this.signalProcess(child, true)
     if (!(await forcedExit)) {
       throw new Error(`Process ${this.id} did not exit after forced termination`)

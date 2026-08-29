@@ -8,7 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appGet: vi.fn(),
+  broadcast: vi.fn(),
   getHermesHome: vi.fn(),
+  getToolSnapshots: vi.fn(),
   getRawShellEnv: vi.fn(),
   isWin: false,
   realpath: vi.fn(),
@@ -23,7 +25,7 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
 
 vi.mock('@application', () => ({ application: { get: mocks.appGet } }))
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
+  loggerService: { withContext: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
 vi.mock('@main/core/platform', () => ({
   get isWin() {
@@ -36,11 +38,13 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => ({
   crossPlatformSpawn: mocks.spawn
 }))
 vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn(async () => ({})),
   getRawShellEnv: mocks.getRawShellEnv,
   refreshShellEnv: mocks.refreshShellEnv
 }))
 
 const { HermesDashboardService } = await import('../HermesDashboardService')
+const { ProcessManager } = await import('../process')
 
 class FakeChild extends EventEmitter {
   pid = 43001
@@ -48,6 +52,8 @@ class FakeChild extends EventEmitter {
   signalCode: NodeJS.Signals | null = null
   stdout = Object.assign(new EventEmitter(), { resume: vi.fn() })
   stderr = Object.assign(new EventEmitter(), { resume: vi.fn() })
+  kill = vi.fn()
+  unref = vi.fn()
 
   close(signal: NodeJS.Signals | null = null): void {
     if (this.exitCode !== null || this.signalCode !== null) return
@@ -58,22 +64,31 @@ class FakeChild extends EventEmitter {
 
 describe('HermesDashboardService', () => {
   let child: FakeChild
+  let processManager: InstanceType<typeof ProcessManager>
 
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     mocks.isWin = false
     child = new FakeChild()
-    mocks.appGet.mockReturnValue({
-      getToolSnapshots: vi.fn(async () => ({
-        hermes: { availability: { source: 'system', path: '/usr/local/bin/hermes' } }
-      }))
+    processManager = new ProcessManager()
+    mocks.appGet.mockImplementation((name: string) => {
+      if (name === 'BinaryManager') return { getToolSnapshots: mocks.getToolSnapshots }
+      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      if (name === 'ProcessManager') return processManager
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.getToolSnapshots.mockResolvedValue({
+      hermes: { availability: { source: 'system', path: '/usr/local/bin/hermes' } }
     })
     mocks.getHermesHome.mockResolvedValue('/home/test/.hermes')
     mocks.getRawShellEnv.mockResolvedValue({ PATH: '/system/bin' })
     mocks.realpath.mockRejectedValue(new Error('ENOENT'))
     mocks.refreshShellEnv.mockResolvedValue({ PATH: '/managed/bin' })
-    mocks.spawn.mockReturnValue(child as unknown as NodeChildProcess.ChildProcess)
+    mocks.spawn.mockImplementation(() => {
+      queueMicrotask(() => child.emit('spawn'))
+      return child as unknown as NodeChildProcess.ChildProcess
+    })
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -109,6 +124,7 @@ describe('HermesDashboardService', () => {
       })
     )
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/status$/), expect.anything())
+    expect(processManager.get('hermes-dashboard')?.state).toBe('running')
   })
 
   it('reuses its healthy child instead of starting another dashboard', async () => {
@@ -152,10 +168,8 @@ describe('HermesDashboardService', () => {
   })
 
   it('pins the spawned Dashboard to the session Hermes home, replacing inherited variants', async () => {
-    mocks.appGet.mockReturnValue({
-      getToolSnapshots: vi.fn(async () => ({
-        hermes: { availability: { source: 'mise', path: '/managed/bin/hermes' } }
-      }))
+    mocks.getToolSnapshots.mockResolvedValue({
+      hermes: { availability: { source: 'mise', path: '/managed/bin/hermes' } }
     })
     mocks.refreshShellEnv.mockResolvedValue({ PATH: '/managed/bin', hermes_home: '/changed/hermes' })
     mocks.getHermesHome.mockResolvedValue('/custom/hermes')
@@ -214,9 +228,7 @@ describe('HermesDashboardService', () => {
   })
 
   it('reports a missing Hermes binary without spawning a process', async () => {
-    mocks.appGet.mockReturnValue({
-      getToolSnapshots: vi.fn(async () => ({ hermes: { availability: { source: 'none' } } }))
-    })
+    mocks.getToolSnapshots.mockResolvedValue({ hermes: { availability: { source: 'none' } } })
 
     await expect(new HermesDashboardService().start()).resolves.toEqual({
       success: false,
@@ -274,7 +286,7 @@ describe('HermesDashboardService', () => {
           resolveSnapshots = resolve
         })
     )
-    mocks.appGet.mockReturnValue({ getToolSnapshots })
+    mocks.getToolSnapshots.mockImplementation(getToolSnapshots)
     const service = new HermesDashboardService()
 
     const starting = service.start()
@@ -312,6 +324,7 @@ describe('HermesDashboardService', () => {
 
     expect(process.kill).toHaveBeenCalledWith(-child.pid, 'SIGTERM')
     expect(service.getStatus()).toEqual({ status: 'stopped' })
+    expect(processManager.get('hermes-dashboard')).toBeUndefined()
   })
 
   it('signals nothing once its child has already exited on its own', async () => {
@@ -329,16 +342,19 @@ describe('HermesDashboardService', () => {
 
   // A pid-less child would make the process-group signal `process.kill(-0)`, which
   // targets Cherry's own group instead of the Dashboard's.
-  it('signals nothing when its child carries no pid', async () => {
+  it('signals nothing and reports an unconfirmed stop when its child carries no pid', async () => {
     const service = new HermesDashboardService()
     await service.start()
     child.pid = 0
     vi.mocked(process.kill).mockClear()
+    vi.useFakeTimers()
 
-    await service.stop()
+    const stopping = expect(service.stop()).rejects.toThrow('did not exit after forced termination')
+    await vi.advanceTimersByTimeAsync(4000)
+    await stopping
 
     expect(process.kill).not.toHaveBeenCalled()
-    expect(service.getStatus()).toEqual({ status: 'stopped' })
+    expect(service.getStatus()).toEqual({ status: 'error' })
   })
 
   it('times out a startup whose health probe never passes and terminates the child it spawned', async () => {
@@ -352,6 +368,7 @@ describe('HermesDashboardService', () => {
     await expect(starting).resolves.toMatchObject({ success: false, reason: 'startup_failed' })
     expect(process.kill).toHaveBeenCalledWith(-child.pid, 'SIGTERM')
     expect(service.getStatus()).toEqual({ status: 'error' })
+    expect(processManager.get('hermes-dashboard')).toBeUndefined()
   })
 
   it('rejects a foreign 200 on the port whose body is not a Hermes status document', async () => {

@@ -81,7 +81,7 @@ Both process handle types implement a shared `ProcessHandle` interface for consi
 
 | Type | Layer | Use Case | Communication | Isolation | Examples |
 |------|-------|----------|--------------|-----------|----------|
-| **ChildProcess** | Primitive | External binaries, non-Node programs | stdio (stdin/stdout/stderr) | OS process | ollama, MCP stdio servers, ripgrep |
+| **ChildProcess** | Primitive | External binaries, non-Node programs | stdio (stdin/stdout/stderr) | OS process | OpenClaw, OVMS, Hermes Dashboard, DeepSeek Harness |
 | **UtilityProcess** | Primitive | Isolated Node.js workloads | MessagePort (structured clone) | Electron process | aiCore backend, heavy computation |
 | **TaskExecutor** | Composite | Parallel Node.js tasks | MessagePort per worker | N x Electron process | Batch embedding, knowledge indexing |
 
@@ -182,7 +182,7 @@ interface ChildProcessOptions {
   cwd?: string
   /** Merged with shell environment */
   env?: Record<string, string>
-  /** ms to wait for SIGTERM before SIGKILL. Default: 5000 */
+  /** Total graceful + forced shutdown budget in ms. Default: 4000 */
   killTimeoutMs?: number
 }
 ```
@@ -204,9 +204,9 @@ interface UtilityProcessOptions {
  */
 interface UtilityProcessHandle extends ProcessHandle {
   /** Send a message to the utility process */
-  postMessage(message: unknown): void
+  postMessage(message: unknown, transfer?: MessagePortMain[]): void
   /** Listen for messages from the utility process */
-  onMessage(handler: (message: unknown) => void): void
+  onMessage(handler: (message: unknown) => void): () => void
 }
 ```
 
@@ -219,7 +219,7 @@ interface TaskExecutorOptions {
   id: string
   /** Path to the worker module entry point */
   modulePath: string
-  /** Maximum concurrent workers. Default: number of CPU cores */
+  /** Maximum concurrent workers */
   max: number
   /** Kill idle workers after this duration (ms). Default: 30000 */
   idleTimeoutMs?: number
@@ -427,9 +427,9 @@ When `ProcessManager.onStop()` is called (app shutdown):
 ```
 For each running process:
   1. Send SIGTERM
-  2. Wait up to killTimeoutMs (default: 5000ms)
+  2. Wait through the graceful portion of killTimeoutMs
   3. If still alive, send SIGKILL
-  4. Wait for process exit
+  4. Wait for process exit within the remaining total budget (default: 4000ms)
 ```
 
 ---
@@ -876,12 +876,13 @@ src/main/services/process/
 - `TaskExecutor` with task dispatch and auto-scaling
 - Unit tests
 
-### Phase 4: Migration (Optional)
+### Phase 4: Initial Migrations
 
-Gradually migrate existing services to use ProcessManager:
-- `MCPService` stdio processes
+The initial ProcessManager consumers are:
 - `OpenClawService` gateway process
-- `CodeCliService` CLI tool processes
+- `OvmsManager` server process
+- `HermesDashboardService` dashboard process
+- `DeepSeekHarnessService` web process
 
 ---
 
@@ -901,14 +902,19 @@ Gradually migrate existing services to use ProcessManager:
 ## Related Source Code
 
 ### Existing Process Utilities
-- `src/main/utils/process.ts` - `crossPlatformSpawn`, `executeCommand`, `findExecutableInEnv`
-- `src/main/utils/shell-env.ts` - Login shell environment for process spawning
+- `src/main/utils/processRunner.ts` - `crossPlatformSpawn`, `executeCommand`, `findExecutableInEnv`
+- `src/main/utils/shellEnv.ts` - Login shell environment for process spawning
 
-### Existing Process Management (Pre-ProcessManager)
-- `src/main/services/MCPService.ts` - MCP stdio server lifecycle
-- `src/main/services/OpenClawService.ts` - Detached gateway process
-- `src/main/services/CodeCliService.ts` - CLI tool process management
+### ProcessManager Consumers
+- `src/main/services/OpenClawService.ts` - ProcessManager-owned gateway process
 - `src/main/services/OvmsManager.ts` - Windows OVMS process management
+- `src/main/services/HermesDashboardService.ts` - Hermes dashboard process management
+- `src/main/services/deepSeekHarness/DeepSeekHarnessService.ts` - DeepSeek Harness process management
+
+### Specialized Process Owners
+- `src/main/ai/mcp/McpRuntimeService.ts` - MCP SDK transport lifecycle
+- `src/main/ai/runtime/claudeCode/ClaudeCodeProcessManager.ts` - Claude Agent SDK spawn contract
+- `src/main/services/CodeCliService.ts` - User-owned external terminal launches
 
 ### Lifecycle System
 - `src/main/core/lifecycle/` - BaseService, decorators, IoC container

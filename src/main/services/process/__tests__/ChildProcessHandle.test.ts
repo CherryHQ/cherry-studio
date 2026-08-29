@@ -21,19 +21,27 @@ vi.mock('@main/utils/shellEnv', () => ({
 }))
 
 import { crossPlatformSpawn, terminateProcessTree } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 
 import { ChildProcessHandle } from '../ChildProcessHandle'
 
 const mockSpawn = crossPlatformSpawn as unknown as ReturnType<typeof vi.fn>
 const mockTerminateProcessTree = terminateProcessTree as unknown as ReturnType<typeof vi.fn>
+const mockGetShellEnv = getShellEnv as unknown as ReturnType<typeof vi.fn>
 
-function createMockChildProcess(pid = 1234) {
+function createMockChildProcess(pid = 1234, autoSpawn = true) {
   const cp = new EventEmitter() as any
   cp.pid = pid
   cp.stdout = new EventEmitter()
   cp.stderr = new EventEmitter()
   cp.kill = vi.fn().mockReturnValue(true)
   cp.unref = vi.fn()
+  const once = cp.once.bind(cp)
+  cp.once = (event: string, listener: (...args: unknown[]) => void) => {
+    const result = once(event, listener)
+    if (event === 'spawn' && autoSpawn) queueMicrotask(() => cp.emit('spawn'))
+    return result
+  }
   return cp
 }
 
@@ -66,6 +74,44 @@ describe('ChildProcessHandle', () => {
       await handle.start()
 
       await expect(handle.start()).rejects.toThrow(/already running/)
+    })
+
+    it('joins concurrent starts while shell environment resolution is in flight', async () => {
+      let resolveEnv!: (env: Record<string, string>) => void
+      mockGetShellEnv.mockReturnValueOnce(
+        new Promise<Record<string, string>>((resolve) => {
+          resolveEnv = resolve
+        })
+      )
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'concurrent-start', command: 'node' })
+
+      const firstStart = handle.start()
+      const secondStart = handle.start()
+
+      expect(handle.state).toBe('starting')
+      expect(mockSpawn).not.toHaveBeenCalled()
+
+      resolveEnv({ PATH: '/usr/bin' })
+      await expect(Promise.all([firstStart, secondStart])).resolves.toEqual([undefined, undefined])
+      expect(mockSpawn).toHaveBeenCalledOnce()
+    })
+
+    it('rejects startup when the child emits error before spawn', async () => {
+      const mockCp = createMockChildProcess(1234, false)
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'async-spawn-error', command: 'missing' })
+      const onExited = vi.fn()
+      handle.onExited = onExited
+
+      const startPromise = handle.start()
+      await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledOnce())
+      mockCp.emit('error', new Error('ENOENT'))
+
+      await expect(startPromise).rejects.toThrow('ENOENT')
+      expect(handle.state).toBe('crashed')
+      expect(onExited).toHaveBeenCalledOnce()
     })
   })
 
@@ -151,6 +197,27 @@ describe('ChildProcessHandle', () => {
       expect(handle.state).toBe('idle')
     })
 
+    it('joins an in-flight start before stopping the spawned process', async () => {
+      const mockCp = createMockChildProcess(1234, false)
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'starting-stop', command: 'node' })
+
+      const startPromise = handle.start()
+      await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledOnce())
+      const stopPromise = handle.stop()
+
+      expect(handle.state).toBe('starting')
+      expect(mockCp.kill).not.toHaveBeenCalled()
+
+      mockCp.emit('spawn')
+      await startPromise
+      await vi.waitFor(() => expect(mockCp.kill).toHaveBeenCalledWith('SIGTERM'))
+      mockCp.emit('close', 0, null)
+
+      await expect(stopPromise).resolves.toBeUndefined()
+      expect(handle.state).toBe('stopped')
+    })
+
     it('terminates the process tree for detached children', async () => {
       const mockCp = createMockChildProcess()
       mockSpawn.mockReturnValue(mockCp)
@@ -183,8 +250,8 @@ describe('ChildProcessHandle', () => {
       expect(mockCp.kill).toHaveBeenCalledWith('SIGTERM')
       expect(mockCp.kill).toHaveBeenCalledTimes(1)
 
-      // Advance time past the killTimeoutMs
-      await vi.advanceTimersByTimeAsync(1001)
+      // The graceful phase receives part of the total timeout budget.
+      await vi.advanceTimersByTimeAsync(750)
 
       expect(mockCp.kill).toHaveBeenCalledWith('SIGKILL')
       expect(mockCp.kill).toHaveBeenCalledTimes(2)
@@ -192,6 +259,22 @@ describe('ChildProcessHandle', () => {
       // Simulate process close after SIGKILL
       mockCp.emit('close', null, 'SIGKILL')
       await stopPromise
+    })
+
+    it('uses killTimeoutMs as the total graceful and forced termination budget', async () => {
+      vi.useFakeTimers()
+
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'deadline-proc', command: 'sleep', killTimeoutMs: 1000 })
+      await handle.start()
+
+      const stopped = expect(handle.stop()).rejects.toThrow('did not exit after forced termination')
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await stopped
+      expect(mockCp.kill).toHaveBeenNthCalledWith(1, 'SIGTERM')
+      expect(mockCp.kill).toHaveBeenNthCalledWith(2, 'SIGKILL')
     })
 
     it('does not send SIGKILL if process exits before timeout', async () => {

@@ -124,10 +124,17 @@ export class OvmsManager extends BaseService {
       const pm = application.get('ProcessManager')
       const handle = pm.get('ovms-server')
 
-      if (handle && handle.state === ProcessState.Running) {
+      const managedWasActive =
+        handle !== undefined &&
+        (handle.state === ProcessState.Starting ||
+          handle.state === ProcessState.Running ||
+          handle.state === ProcessState.Stopping)
+
+      if (handle) {
         await handle.stop()
-        pm.unregister('ovms-server')
-      } else {
+        await pm.unregister('ovms-server')
+      }
+      if (!managedWasActive) {
         // Fallback: kill externally-started OVMS processes by name (existing behavior)
         await execAsync(
           `powershell -Command "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like 'ovms.exe*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`
@@ -181,11 +188,15 @@ export class OvmsManager extends BaseService {
       // Clean up previous handle if it's not running
       const existing = pm.get('ovms-server')
       if (existing) {
+        if (existing.state === ProcessState.Starting) {
+          await existing.start()
+        }
         if (existing.state === ProcessState.Running) {
           logger.info('OVMS is already running')
           return { success: true, message: 'OVMS is already running' }
         }
-        pm.unregister('ovms-server')
+        await existing.stop()
+        await pm.unregister('ovms-server')
       }
 
       // Register and start via ProcessManager
@@ -193,10 +204,14 @@ export class OvmsManager extends BaseService {
       const handle = pm.register({
         id: 'ovms-server',
         command: runBatPath,
-        cwd: ovmsDir,
-        killTimeoutMs: 5000
+        cwd: ovmsDir
       })
-      await handle.start()
+      try {
+        await handle.start()
+      } catch (error) {
+        await pm.unregister('ovms-server')
+        throw error
+      }
 
       logger.info('OVMS started successfully')
       return { success: true }

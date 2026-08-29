@@ -42,6 +42,7 @@ const openclawConfigPath = (): AbsoluteFilePath =>
 const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
+const OPENCLAW_GATEWAY_PROCESS_ID = 'openclaw-gateway'
 const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
@@ -806,8 +807,7 @@ export class OpenClawService extends BaseService {
 
   /**
    * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
-   * Registers the gateway with ProcessManager using skipOnStop: true so it survives app exit.
-   * Uses process termination to stop it later (killAllOpenClawProcesses).
+   * The ProcessManager owns gateways started by this service.
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
     const args = ['gateway', 'run', '--force']
@@ -816,16 +816,10 @@ export class OpenClawService extends BaseService {
 
     const pm = application.get('ProcessManager')
 
-    // Clean up previous handle if not running
-    const existing = pm.get('openclaw-gateway')
-    if (existing) {
-      if (existing.state !== ProcessState.Running) {
-        pm.unregister('openclaw-gateway')
-      }
-    }
+    if (pm.get(OPENCLAW_GATEWAY_PROCESS_ID)) await this.stopManagedGateway()
 
     const handle = pm.register({
-      id: 'openclaw-gateway',
+      id: OPENCLAW_GATEWAY_PROCESS_ID,
       command: openclawPath,
       args,
       // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
@@ -837,9 +831,7 @@ export class OpenClawService extends BaseService {
         OPENCLAW_NO_AUTO_UPDATE: '1'
       },
       detached: !isWin,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      skipOnStop: true,
-      killTimeoutMs: 5000
+      stdio: ['ignore', 'pipe', 'pipe']
     })
 
     // Set up callback chain BEFORE start() to avoid missing early events
@@ -871,51 +863,75 @@ export class OpenClawService extends BaseService {
       }
     }
 
-    await handle.start()
+    try {
+      await handle.start()
 
-    // Wait for gateway to become ready (max 30 seconds)
-    const maxWaitMs = 30000
-    const pollIntervalMs = 1000
-    const startTime = Date.now()
-    let pollCount = 0
-    let lastError = ''
+      // Wait for gateway to become ready (max 30 seconds)
+      const maxWaitMs = 30000
+      const pollIntervalMs = 1000
+      const startTime = Date.now()
+      let pollCount = 0
+      let lastError = ''
 
-    while (Date.now() - startTime < maxWaitMs) {
-      await new Promise((r) => setTimeout(r, pollIntervalMs))
-      pollCount++
+      while (Date.now() - startTime < maxWaitMs) {
+        await new Promise((r) => setTimeout(r, pollIntervalMs))
+        pollCount++
 
-      if (earlyExitError) {
-        throw new Error(earlyExitError)
+        if (earlyExitError) {
+          throw new Error(earlyExitError)
+        }
+
+        logger.debug(`Polling gateway health (attempt ${pollCount})...`)
+        const healthResult = await this.checkGatewayHealthWithError()
+        if (healthResult.status === 'healthy') {
+          logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
+          return
+        }
+        lastError = healthResult.error
       }
 
-      logger.debug(`Polling gateway health (attempt ${pollCount})...`)
-      const healthResult = await this.checkGatewayHealthWithError()
-      if (healthResult.status === 'healthy') {
-        logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
-        return
+      const diagnostics = [
+        lastError ? `health: ${lastError}` : '',
+        stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
+        stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n')
+      const detail = diagnostics ? `\n${diagnostics}` : ''
+      throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+    } catch (error) {
+      try {
+        await this.stopManagedGateway()
+      } catch (cleanupError) {
+        logger.error('Failed to clean up gateway after startup failure', cleanupError as Error)
       }
-      lastError = healthResult.error
+      throw error
     }
+  }
 
-    const diagnostics = [
-      lastError ? `health: ${lastError}` : '',
-      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
-      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
-    ]
-      .filter(Boolean)
-      .join('\n')
-    const detail = diagnostics ? `\n${diagnostics}` : ''
-    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+  private async stopManagedGateway(): Promise<boolean> {
+    const pm = application.get('ProcessManager')
+    const handle = pm.get(OPENCLAW_GATEWAY_PROCESS_ID)
+    if (!handle) return false
+
+    const wasActive =
+      handle.state === ProcessState.Starting ||
+      handle.state === ProcessState.Running ||
+      handle.state === ProcessState.Stopping
+    await handle.stop()
+    await pm.unregister(OPENCLAW_GATEWAY_PROCESS_ID)
+    return wasActive
   }
 
   /**
    * Stop the OpenClaw Gateway.
-   * Kills all openclaw processes to ensure clean shutdown.
+   * Uses the managed handle when available, otherwise falls back to external process discovery.
    */
   public async stopGateway(): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
     try {
-      this.killAllOpenClawProcesses()
+      const stoppedManagedGateway = await this.stopManagedGateway()
+      if (!stoppedManagedGateway) this.killAllOpenClawProcesses()
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {

@@ -86,7 +86,7 @@ function createMockPM(autoRespond = false): MockPM {
       handles.set(def.id, proc)
       return proc
     }),
-    unregister: vi.fn(),
+    unregister: vi.fn().mockResolvedValue(undefined),
     handles
   }
 }
@@ -368,9 +368,7 @@ describe('TaskExecutor', () => {
 
     it('handles unregister failure for crashed worker', async () => {
       const pm = createMockPM()
-      pm.unregister.mockImplementation(() => {
-        throw new Error('unregister boom')
-      })
+      pm.unregister.mockRejectedValue(new Error('unregister boom'))
       const executor = new TaskExecutor(pm as any, { id: 'crash-unreg-fail', modulePath: './w.js', max: 1 })
 
       const p = executor.exec<string>('task', 'data')
@@ -478,9 +476,7 @@ describe('TaskExecutor', () => {
 
     it('handles unregister() failure during shutdown', async () => {
       const pm = createMockPM(true)
-      pm.unregister.mockImplementation(() => {
-        throw new Error('unregister boom')
-      })
+      pm.unregister.mockRejectedValue(new Error('unregister boom'))
       const executor = new TaskExecutor(pm as any, { id: 'shut-unreg-fail', modulePath: './w.js', max: 1 })
 
       await executor.exec<string>('task', 'a')

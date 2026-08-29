@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { loggerService } from '@logger'
 
 import type { ProcessManager } from './ProcessManager'
+import { DEFAULT_KILL_TIMEOUT_MS } from './types'
 import type { UtilityProcessHandle } from './UtilityProcessHandle'
 
 export interface TaskExecutorOptions {
@@ -71,7 +72,7 @@ export class TaskExecutor {
       idleTimeoutMs: 30_000,
       taskTimeoutMs: 0,
       env: {},
-      killTimeoutMs: 5_000,
+      killTimeoutMs: DEFAULT_KILL_TIMEOUT_MS,
       ...options
     }
     this.logger = loggerService.withContext(`TaskExecutor:${options.id}`)
@@ -133,7 +134,7 @@ export class TaskExecutor {
           this.logger.error(`Failed to stop worker '${workerId}'`, err as Error)
         }
         try {
-          this.pm.unregister(workerId)
+          await this.pm.unregister(workerId)
         } catch (err) {
           this.logger.error(`Failed to unregister worker '${workerId}'`, err as Error)
         }
@@ -308,11 +309,9 @@ export class TaskExecutor {
     entry.cleanup()
     this.workers.delete(workerId)
 
-    try {
-      this.pm.unregister(workerId)
-    } catch (err) {
-      this.logger.error(`Failed to unregister crashed worker '${workerId}'`, err as Error)
-    }
+    void this.pm
+      .unregister(workerId)
+      .catch((err: unknown) => this.logger.error(`Failed to unregister crashed worker '${workerId}'`, err as Error))
 
     // Dispatch queued tasks to remaining or new workers
     this.dispatch()
@@ -338,9 +337,9 @@ export class TaskExecutor {
         .catch((err: unknown) => {
           this.logger.error(`Failed to stop idle worker '${workerId}'`, err as Error)
         })
-        .finally(() => {
+        .finally(async () => {
           try {
-            this.pm.unregister(workerId)
+            await this.pm.unregister(workerId)
           } catch (err) {
             this.logger.error(`Failed to unregister idle worker '${workerId}'`, err as Error)
           }

@@ -49,13 +49,25 @@ export class ProcessManager extends BaseService {
     return this.handles.get(id)
   }
 
-  unregister(id: string): void {
+  async unregister(id: string): Promise<void> {
     const handle = this.handles.get(id)
     if (!handle) {
       return
     }
 
-    if (handle.state === ProcessState.Running || handle.state === ProcessState.Stopping) {
+    if (handle.state === ProcessState.Starting) {
+      try {
+        await handle.start()
+      } catch {
+        // A failed start is terminal and safe to unregister.
+      }
+    }
+
+    if (
+      handle.state === ProcessState.Starting ||
+      handle.state === ProcessState.Running ||
+      handle.state === ProcessState.Stopping
+    ) {
       throw new Error(`Cannot unregister process '${id}': process is currently active (${handle.state})`)
     }
 
@@ -69,7 +81,10 @@ export class ProcessManager extends BaseService {
   protected async onStop(): Promise<void> {
     const activeHandles = Array.from(this.handles.values()).filter(
       (handle) =>
-        !handle.skipOnStop && (handle.state === ProcessState.Running || handle.state === ProcessState.Stopping)
+        !handle.skipOnStop &&
+        (handle.state === ProcessState.Starting ||
+          handle.state === ProcessState.Running ||
+          handle.state === ProcessState.Stopping)
     )
 
     this.logger.info(`Stopping ${activeHandles.length} active process(es)`)

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { utilityProcess } from 'electron'
+import { type MessagePortMain, utilityProcess } from 'electron'
 
 import type { ProcessHandle, ProcessLogLine, UtilityProcessOptions } from './types'
 import { DEFAULT_KILL_TIMEOUT_MS, ProcessState } from './types'
@@ -11,6 +11,7 @@ export class UtilityProcessHandle implements ProcessHandle {
   private _pid: number | undefined = undefined
   private _process: Electron.UtilityProcess | undefined = undefined
   private _exited = false
+  private _startPromise: Promise<void> | undefined = undefined
   private _stopPromise: Promise<void> | undefined = undefined
   private readonly def: UtilityProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
@@ -39,71 +40,125 @@ export class UtilityProcessHandle implements ProcessHandle {
   }
 
   async start(): Promise<void> {
+    if (this._state === ProcessState.Starting) {
+      return this._startPromise!
+    }
     if (this._state === ProcessState.Running || this._state === ProcessState.Stopping) {
       throw new Error(`Process ${this.id} is already running (state: ${this._state})`)
     }
 
     this.logger.info(`Starting utility process: ${this.def.modulePath}`)
-
+    this._state = ProcessState.Starting
     this._exited = false
 
+    const startPromise = this.startProcess()
+    this._startPromise = startPromise
+    try {
+      await startPromise
+    } finally {
+      if (this._startPromise === startPromise) this._startPromise = undefined
+    }
+  }
+
+  private async startProcess(): Promise<void> {
     let proc: Electron.UtilityProcess
     try {
       proc = utilityProcess.fork(this.def.modulePath, this.def.args, {
         env: this.def.env
       })
+      this._process = proc
+      this.registerProcessListeners(proc)
+      await this.waitForSpawn(proc)
     } catch (err) {
-      this._state = ProcessState.Crashed
-      this.logger.error(`Failed to fork utility process: ${(err as Error).message}`, err as Error)
-      this.onExited?.(null, null)
+      if (!this._exited) this.handleProcessError(err as Error)
       throw err
     }
+  }
 
-    this._process = proc
-    this._state = ProcessState.Running
-    this._pid = proc.pid
-
-    if (proc.pid !== undefined) {
-      this.logger.info(`Utility process started with pid ${proc.pid}`)
-      this.onStarted?.(proc.pid)
-    }
-
+  private registerProcessListeners(proc: Electron.UtilityProcess): void {
     proc.on('message', (message: unknown) => {
       for (const handler of this.messageHandlers) {
         handler(message)
       }
     })
 
-    proc.on('exit', (code: number) => {
-      if (this._exited) return
-      this._exited = true
+    proc.on('exit', (code) => this.handleProcessExit(code))
+    proc.on('error', (type, location) => this.handleProcessError(new Error(`${type} at ${location}`)))
+  }
 
-      this._pid = undefined
-      this._process = undefined
-      this._stopPromise = undefined
-
-      if (this._state === ProcessState.Stopping) {
-        this._state = ProcessState.Stopped
-        this.logger.info(`Utility process stopped (code=${code})`)
-      } else if (code !== 0) {
-        this._state = ProcessState.Crashed
-        this.logger.warn(`Utility process crashed (code=${code})`)
-      } else {
-        this._state = ProcessState.Stopped
-        this.logger.info(`Utility process exited cleanly (code=${code})`)
+  private waitForSpawn(proc: Electron.UtilityProcess): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const onSpawn = () => {
+        proc.off('error', onStartupError)
+        this._state = ProcessState.Running
+        this._pid = proc.pid
+        if (proc.pid !== undefined) {
+          this.logger.info(`Utility process started with pid ${proc.pid}`)
+          this.onStarted?.(proc.pid)
+        }
+        resolve()
       }
-
-      this.onExited?.(code, null)
+      const onStartupError = (type: string, location: string) => {
+        proc.off('spawn', onSpawn)
+        reject(new Error(`${type} at ${location}`))
+      }
+      proc.once('spawn', onSpawn)
+      proc.once('error', onStartupError)
     })
   }
 
-  stop(): Promise<void> {
+  private handleProcessExit(code: number): void {
+    if (this._exited) return
+    this._exited = true
+    this._pid = undefined
+    this._process = undefined
+
     if (this._state === ProcessState.Stopping) {
-      return this._stopPromise ?? Promise.resolve()
+      this._state = ProcessState.Stopped
+      this.logger.info(`Utility process stopped (code=${code})`)
+    } else if (code !== 0) {
+      this._state = ProcessState.Crashed
+      this.logger.warn(`Utility process crashed (code=${code})`)
+    } else {
+      this._state = ProcessState.Stopped
+      this.logger.info(`Utility process exited cleanly (code=${code})`)
     }
-    if (this._state !== ProcessState.Running) {
-      return Promise.resolve()
+
+    this.onExited?.(code, null)
+  }
+
+  private handleProcessError(err: Error): void {
+    if (this._exited) return
+    this._exited = true
+    this._state = ProcessState.Crashed
+    this._pid = undefined
+    this._process = undefined
+    this.logger.error(`Utility process error: ${err.message}`, err)
+    this.onExited?.(null, null)
+  }
+
+  stop(): Promise<void> {
+    if (this._stopPromise) return this._stopPromise
+
+    const stopPromise = this._state === ProcessState.Starting ? this.stopAfterStart() : this.stopRunningProcess()
+    const trackedPromise = stopPromise.finally(() => {
+      if (this._stopPromise === trackedPromise) this._stopPromise = undefined
+    })
+    this._stopPromise = trackedPromise
+    return trackedPromise
+  }
+
+  private async stopAfterStart(): Promise<void> {
+    try {
+      await this._startPromise
+    } catch {
+      return
     }
+    await this.stopRunningProcess()
+  }
+
+  private async stopRunningProcess(): Promise<void> {
+    if (this._state !== ProcessState.Running) return
 
     this._state = ProcessState.Stopping
     this.logger.info(`Stopping utility process (pid=${this._pid})`)
@@ -111,10 +166,10 @@ export class UtilityProcessHandle implements ProcessHandle {
     const proc = this._process
     if (!proc) {
       this._state = ProcessState.Stopped
-      return Promise.resolve()
+      return
     }
 
-    const stopPromise = new Promise<void>((resolve) => {
+    await new Promise<void>((resolve) => {
       const killTimeoutMs = this.def.killTimeoutMs ?? DEFAULT_KILL_TIMEOUT_MS
 
       const killTimer = setTimeout(() => {
@@ -133,8 +188,6 @@ export class UtilityProcessHandle implements ProcessHandle {
 
       proc.kill()
     })
-    this._stopPromise = stopPromise
-    return stopPromise
   }
 
   async restart(): Promise<void> {
@@ -142,11 +195,11 @@ export class UtilityProcessHandle implements ProcessHandle {
     await this.start()
   }
 
-  postMessage(message: unknown): void {
+  postMessage(message: unknown, transfer?: MessagePortMain[]): void {
     if (!this._process) {
       throw new Error(`Process ${this.id} is not running`)
     }
-    this._process.postMessage(message)
+    this._process.postMessage(message, transfer)
   }
 
   onMessage(handler: (message: unknown) => void): () => void {

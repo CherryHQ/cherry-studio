@@ -8,11 +8,17 @@ vi.mock('electron', () => ({ utilityProcess: mockUtilityProcess }))
 
 import { UtilityProcessHandle } from '../UtilityProcessHandle'
 
-function createMockUtilityProcess(pid = 9876) {
+function createMockUtilityProcess(pid = 9876, autoSpawn = true) {
   const proc = new EventEmitter() as any
   proc.pid = pid
   proc.postMessage = vi.fn()
   proc.kill = vi.fn()
+  const once = proc.once.bind(proc)
+  proc.once = (event: string, listener: (...args: unknown[]) => void) => {
+    const result = once(event, listener)
+    if (event === 'spawn' && autoSpawn) queueMicrotask(() => proc.emit('spawn'))
+    return result
+  }
   return proc
 }
 
@@ -46,6 +52,37 @@ describe('UtilityProcessHandle', () => {
 
       await expect(handle.start()).rejects.toThrow(/already running/)
     })
+
+    it('joins concurrent starts until the utility process emits spawn', async () => {
+      const mockProc = createMockUtilityProcess(9876, false)
+      mockUtilityProcess.fork.mockReturnValue(mockProc)
+      const handle = new UtilityProcessHandle({ id: 'concurrent-start', modulePath: '/module.js' })
+
+      const firstStart = handle.start()
+      const secondStart = handle.start()
+
+      expect(handle.state).toBe('starting')
+      expect(mockUtilityProcess.fork).toHaveBeenCalledOnce()
+
+      mockProc.emit('spawn')
+      await expect(Promise.all([firstStart, secondStart])).resolves.toEqual([undefined, undefined])
+      expect(handle.state).toBe('running')
+    })
+
+    it('rejects startup when the utility process emits error before spawn', async () => {
+      const mockProc = createMockUtilityProcess(9876, false)
+      mockUtilityProcess.fork.mockReturnValue(mockProc)
+      const handle = new UtilityProcessHandle({ id: 'async-spawn-error', modulePath: '/module.js' })
+      const onExited = vi.fn()
+      handle.onExited = onExited
+
+      const startPromise = handle.start()
+      mockProc.emit('error', 'FatalError', '/module.js', 'fork failed')
+
+      await expect(startPromise).rejects.toThrow('FatalError at /module.js')
+      expect(handle.state).toBe('crashed')
+      expect(onExited).toHaveBeenCalledOnce()
+    })
   })
 
   describe('postMessage()', () => {
@@ -53,6 +90,18 @@ describe('UtilityProcessHandle', () => {
       const handle = new UtilityProcessHandle({ id: 'idle-msg', modulePath: '/module.js' })
 
       expect(() => handle.postMessage('hello')).toThrow(/not running/)
+    })
+
+    it('forwards transferable message ports', async () => {
+      const mockProc = createMockUtilityProcess()
+      mockUtilityProcess.fork.mockReturnValue(mockProc)
+      const handle = new UtilityProcessHandle({ id: 'transfer-msg', modulePath: '/module.js' })
+      const transfer = [{}] as Electron.MessagePortMain[]
+      await handle.start()
+
+      handle.postMessage({ type: 'port' }, transfer)
+
+      expect(mockProc.postMessage).toHaveBeenCalledWith({ type: 'port' }, transfer)
     })
   })
 
@@ -115,6 +164,26 @@ describe('UtilityProcessHandle', () => {
 
       await expect(handle.stop()).resolves.toBeUndefined()
       expect(handle.state).toBe('idle')
+    })
+
+    it('joins an in-flight start before stopping the utility process', async () => {
+      const mockProc = createMockUtilityProcess(9876, false)
+      mockUtilityProcess.fork.mockReturnValue(mockProc)
+      const handle = new UtilityProcessHandle({ id: 'starting-stop', modulePath: '/module.js' })
+
+      const startPromise = handle.start()
+      const stopPromise = handle.stop()
+
+      expect(handle.state).toBe('starting')
+      expect(mockProc.kill).not.toHaveBeenCalled()
+
+      mockProc.emit('spawn')
+      await startPromise
+      await vi.waitFor(() => expect(mockProc.kill).toHaveBeenCalledOnce())
+      mockProc.emit('exit', 0)
+
+      await expect(stopPromise).resolves.toBeUndefined()
+      expect(handle.state).toBe('stopped')
     })
 
     it('resolves after killTimeoutMs if process does not exit', async () => {

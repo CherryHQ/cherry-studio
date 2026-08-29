@@ -17,7 +17,8 @@ const processHandleMock = vi.hoisted(() => ({
   state: 'idle',
   onLog: undefined as ((line: { stream: 'stdout' | 'stderr'; data: string }) => void) | undefined,
   onExited: undefined as ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined,
-  start: vi.fn()
+  start: vi.fn(),
+  stop: vi.fn()
 }))
 const processManagerMock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -223,8 +224,10 @@ describe('OpenClawService gateway status state machine', () => {
     processHandleMock.onLog = undefined
     processHandleMock.onExited = undefined
     processHandleMock.start.mockResolvedValue(undefined)
+    processHandleMock.stop.mockResolvedValue(undefined)
     processManagerMock.get.mockReturnValue(undefined)
     processManagerMock.register.mockReturnValue(processHandleMock)
+    processManagerMock.unregister.mockResolvedValue(undefined)
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
     })
@@ -835,9 +838,7 @@ describe('OpenClawService gateway status state machine', () => {
           OPENCLAW_NO_AUTO_UPDATE: '1'
         },
         detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        skipOnStop: true,
-        killTimeoutMs: 5000
+        stdio: ['ignore', 'pipe', 'pipe']
       })
       expect(processHandleMock.start).toHaveBeenCalledOnce()
     })
@@ -867,9 +868,7 @@ describe('OpenClawService gateway status state machine', () => {
           OPENCLAW_NO_AUTO_UPDATE: '1'
         },
         detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        skipOnStop: true,
-        killTimeoutMs: 5000
+        stdio: ['ignore', 'pipe', 'pipe']
       })
       expect(processHandleMock.start).toHaveBeenCalledOnce()
     })
@@ -898,11 +897,29 @@ describe('OpenClawService gateway status state machine', () => {
           OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
           OPENCLAW_NO_AUTO_UPDATE: '1'
         },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        skipOnStop: true,
-        killTimeoutMs: 5000
+        stdio: ['ignore', 'pipe', 'pipe']
       })
       expect(processHandleMock.start).toHaveBeenCalledOnce()
+    })
+
+    it('stops and unregisters a managed gateway when the health check times out', async () => {
+      startAndWaitSpy.mockRestore()
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'unhealthy',
+        gatewayPort: 18790,
+        error: 'connection refused'
+      })
+      processManagerMock.get.mockReturnValueOnce(undefined).mockReturnValue(processHandleMock)
+      processHandleMock.state = 'running'
+      vi.useFakeTimers()
+
+      const started = (service as any).startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
+      const failed = expect(started).rejects.toThrow('Gateway failed to start within 30000ms')
+      await vi.advanceTimersByTimeAsync(30000)
+
+      await failed
+      expect(processHandleMock.stop).toHaveBeenCalledOnce()
+      expect(processManagerMock.unregister).toHaveBeenCalledWith('openclaw-gateway')
     })
 
     it('stops stale gateway and restarts when port is in use by our gateway', async () => {
@@ -990,6 +1007,19 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── stopGateway ─────────────────────────────────────────────
 
   describe('stopGateway', () => {
+    it('stops a managed gateway through ProcessManager without process-name fallback', async () => {
+      processHandleMock.state = 'running'
+      processManagerMock.get.mockReturnValue(processHandleMock)
+      const killAllSpy = vi.spyOn(service as any, 'killAllOpenClawProcesses')
+      checkPortOpenSpy.mockResolvedValue(false)
+
+      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+
+      expect(processHandleMock.stop).toHaveBeenCalledOnce()
+      expect(processManagerMock.unregister).toHaveBeenCalledWith('openclaw-gateway')
+      expect(killAllSpy).not.toHaveBeenCalled()
+    })
+
     it('transitions to stopped on successful stop', async () => {
       ;(service as any).gatewayStatus = 'running'
       checkPortOpenSpy.mockResolvedValue(false)

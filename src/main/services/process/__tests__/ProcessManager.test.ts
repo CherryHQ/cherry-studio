@@ -23,13 +23,19 @@ vi.mock('@main/utils/shellEnv', () => ({
 const mockUtilityProcessFork = vi.fn()
 vi.mock('electron', () => ({ utilityProcess: { fork: mockUtilityProcessFork } }))
 
-function createMockChildProcess(pid = 1234) {
+function createMockChildProcess(pid = 1234, autoSpawn = true) {
   const cp = new EventEmitter() as any
   cp.pid = pid
   cp.stdout = new EventEmitter()
   cp.stderr = new EventEmitter()
   cp.kill = vi.fn().mockReturnValue(true)
   cp.unref = vi.fn()
+  const once = cp.once.bind(cp)
+  cp.once = (event: string, listener: (...args: unknown[]) => void) => {
+    const result = once(event, listener)
+    if (event === 'spawn' && autoSpawn) queueMicrotask(() => cp.emit('spawn'))
+    return result
+  }
   return cp
 }
 
@@ -226,6 +232,26 @@ describe('ProcessManager', () => {
       expect(mockCp.kill).toHaveBeenCalledTimes(1)
     })
 
+    it('joins processes that are still starting when shutdown begins', async () => {
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
+      const mockCp = createMockChildProcess(1111, false)
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const manager = new ProcessManager()
+      const handle = manager.register({ id: 'starting-proc', command: 'sleep' })
+      const handleStart = handle.start()
+      await vi.waitFor(() => expect(crossPlatformSpawn).toHaveBeenCalledOnce())
+
+      const managerStop = manager._doStop()
+      mockCp.emit('spawn')
+      await handleStart
+      await vi.waitFor(() => expect(mockCp.kill).toHaveBeenCalledWith('SIGTERM'))
+      mockCp.emit('close', 0, null)
+
+      await expect(managerStop).resolves.toBeUndefined()
+      expect(handle.state).toBe('stopped')
+    })
+
     it('continues stopping other processes if one fails', async () => {
       const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp1 = createMockChildProcess(1111)
@@ -265,7 +291,7 @@ describe('ProcessManager', () => {
       await manager.get('unreg-proc')!.start()
       mockCp.emit('close', 0, null)
 
-      manager.unregister('unreg-proc')
+      await manager.unregister('unreg-proc')
       expect(manager.get('unreg-proc')).toBeUndefined()
     })
 
@@ -274,7 +300,7 @@ describe('ProcessManager', () => {
       const manager = new ProcessManager()
 
       manager.register({ id: 'idle-unreg', command: 'echo' })
-      manager.unregister('idle-unreg')
+      await manager.unregister('idle-unreg')
 
       expect(manager.get('idle-unreg')).toBeUndefined()
     })
@@ -289,7 +315,7 @@ describe('ProcessManager', () => {
 
       await manager.get('running-unreg')!.start()
 
-      expect(() => manager.unregister('running-unreg')).toThrow(
+      await expect(manager.unregister('running-unreg')).rejects.toThrow(
         "Cannot unregister process 'running-unreg': process is currently active (running)"
       )
     })
@@ -304,11 +330,35 @@ describe('ProcessManager', () => {
       await handle.start()
       void handle.stop()
 
-      expect(() => manager.unregister('stopping-unreg')).toThrow(
+      await expect(manager.unregister('stopping-unreg')).rejects.toThrow(
         "Cannot unregister process 'stopping-unreg': process is currently active (stopping)"
       )
 
       mockCp.emit('close', 0, null)
+    })
+
+    it('joins an in-flight start before deciding whether the handle can be removed', async () => {
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
+      const mockCp = createMockChildProcess(1234, false)
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const manager = new ProcessManager()
+      const handle = manager.register({ id: 'starting-unreg', command: 'sleep' })
+      const startPromise = handle.start()
+      await vi.waitFor(() => expect(crossPlatformSpawn).toHaveBeenCalledOnce())
+
+      const unregisterPromise = manager.unregister('starting-unreg')
+      expect(manager.get('starting-unreg')).toBe(handle)
+
+      mockCp.emit('spawn')
+      await startPromise
+      await expect(unregisterPromise).rejects.toThrow(
+        "Cannot unregister process 'starting-unreg': process is currently active (running)"
+      )
+
+      const stopPromise = handle.stop()
+      mockCp.emit('close', 0, null)
+      await stopPromise
     })
   })
 })
