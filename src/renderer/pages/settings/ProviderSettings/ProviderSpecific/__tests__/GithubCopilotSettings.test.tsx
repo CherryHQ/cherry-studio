@@ -48,7 +48,7 @@ describe('GithubCopilotSettings', () => {
     ;(window as any).api = { copilot: { logout: copilotLogoutMock } }
   })
 
-  it('clears stored custom headers with explicit null merge-patch keys on logout', async () => {
+  it('clears stored custom headers with a whole-key null merge patch on logout', async () => {
     const user = userEvent.setup()
 
     render(<GithubCopilotSettings providerId="copilot" />)
@@ -61,7 +61,7 @@ describe('GithubCopilotSettings', () => {
           isAuthed: false,
           oauthUsername: '',
           oauthAvatar: '',
-          extraHeaders: { 'X-Copilot': null }
+          extraHeaders: null
         }
       })
     })

@@ -9,7 +9,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
-import { buildExtraHeadersReplacementPatch } from '../utils/providerExtraHeaders'
 
 const logger = loggerService.withContext('GithubCopilotSettings')
 
@@ -139,7 +138,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
           isAuthed: false,
           oauthUsername: '',
           oauthAvatar: '',
-          extraHeaders: buildExtraHeadersReplacementPatch(defaultHeaders ?? {}, {})
+          extraHeaders: null
         }
       })
 
@@ -159,7 +158,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     } finally {
       setLoading(false)
     }
-  }, [t, provider?.apiKeys, provider?.settings, defaultHeaders, deleteApiKey, updateProvider])
+  }, [t, provider?.apiKeys, provider?.settings, deleteApiKey, updateProvider])
 
   const handleCopyUserCode = useCallback(async () => {
     try {

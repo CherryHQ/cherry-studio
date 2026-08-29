@@ -148,6 +148,58 @@ describe('ProviderCustomHeaderDrawer', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps surviving headers alongside the nulled key when deleting one of several', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Keep': 'a', 'X-Remove': 'b' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.delete X-Remove' }))
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { 'X-Keep': 'a', 'X-Remove': null } }
+      })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('deletes a header named after an Object.prototype member', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { toString: 'a' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.delete toString' }))
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { toString: null } }
+      })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('persists JSON-mode clearing of all headers as explicit null merge-patch keys', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()

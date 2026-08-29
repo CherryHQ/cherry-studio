@@ -30,7 +30,6 @@ import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
-import { buildExtraHeadersReplacementPatch } from '../utils/providerExtraHeaders'
 import {
   findInvalidProviderImageEndpointDraft,
   mergeProviderImageEndpointDraft,
@@ -99,6 +98,21 @@ function rowsToHeadersObject(rows: HeaderRow[]): Record<string, string> {
     out[k] = row.value
   }
   return out
+}
+
+/**
+ * Build an `extraHeaders` merge patch that fully replaces the stored headers.
+ *
+ * PATCH /providers/:providerId applies `providerSettings` with JSON Merge Patch
+ * semantics: keys absent from the patch are kept, so deletions must be expressed
+ * as explicit `null` values (see ProviderService.applyJsonMergePatch).
+ */
+function buildExtraHeadersReplacementPatch(
+  previous: Record<string, string>,
+  next: Record<string, string>
+): Record<string, string | null> {
+  const removed = Object.keys(previous).filter((key) => !Object.hasOwn(next, key))
+  return { ...next, ...Object.fromEntries(removed.map((key) => [key, null])) }
 }
 
 /** Parse JSON object for custom headers; primitive values coerced to strings. */
@@ -217,9 +231,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
   const [jsonDraft, setJsonDraft] = useState('')
   const wasOpenRef = useRef(false)
-  // Headers as seen when the drawer opened: the deletion baseline for the save
-  // patch must not drift with background provider refreshes while editing.
-  const openedHeadersRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -241,7 +252,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     setInvalidImageEndpointField(null)
     setVisibleEndpointTypes(endpointTypes)
     setAddEndpointOpen(false)
-    openedHeadersRef.current = sourceHeaders
     setRows(headersObjectToRows(sourceHeaders))
     setJsonDraft(JSON.stringify(sourceHeaders, null, 2))
     setHeadersUiMode('list')
@@ -322,7 +332,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
         defaultChatEndpoint,
         providerSettings: {
           ...provider.settings,
-          extraHeaders: buildExtraHeadersReplacementPatch(openedHeadersRef.current, parsedHeaders)
+          extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
         }
       })
     } catch (error) {
@@ -356,6 +366,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     provider,
     providerId,
     rows,
+    sourceHeaders,
     syncProviderModels,
     t,
     updateProvider
