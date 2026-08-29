@@ -55,7 +55,6 @@ const mocks = vi.hoisted(() => ({
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
   buildCitationsGuidance: vi.fn(),
-  getAppLanguage: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn(),
   replacePromptVariables: vi.fn(),
@@ -127,7 +126,6 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
-vi.mock('@main/i18n', () => ({ getAppLanguage: mocks.getAppLanguage }))
 vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
@@ -309,7 +307,6 @@ beforeEach(() => {
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
-  mocks.getAppLanguage.mockReturnValue('en-US')
   mocks.preferenceGet.mockReturnValue(null)
   mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)

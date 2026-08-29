@@ -25,7 +25,6 @@ const mocks = vi.hoisted(() => ({
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   apiGatewayGetInternalRequestToken: vi.fn(),
   resolveReasoningProfile: vi.fn(),
-  getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn()
@@ -90,10 +89,6 @@ vi.mock('@application', () => ({
       throw new Error(`Unexpected application.get(${name})`)
     })
   }
-}))
-
-vi.mock('@main/i18n', () => ({
-  getAppLanguage: mocks.getAppLanguage
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
@@ -179,7 +174,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-agent-session-id': 'session-1',
       'x-cherry-internal-usage-token': 'internal-token'
     })
-    mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
@@ -1157,7 +1151,6 @@ describe('deriveConnectionConfig', () => {
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
-    mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
   })

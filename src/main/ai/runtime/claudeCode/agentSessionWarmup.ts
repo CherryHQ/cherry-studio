@@ -128,6 +128,7 @@ interface ConnectionMaterializationFacts {
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
+  effectiveLanguage?: string | null
 }
 
 /**
@@ -391,7 +392,8 @@ async function deriveConnectionConfigFromSnapshot(
     // language instruction is baked into the next prompt and prompt cache. This
     // trades cache preservation for correctness — first turn after change pays
     // full input-token cost until the new prefix is cached.
-    language: getEffectiveAgentLanguage(agent),
+    language:
+      materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -520,6 +522,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -534,7 +537,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
-        fastMode: fastModeTransport === 'claude-code'
+        fastMode: fastModeTransport === 'claude-code',
+        effectiveLanguage
       },
       agent
     ),
@@ -560,7 +564,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
-      })
+      }),
+      effectiveLanguage
     }
   )
   const sdkModelId = route.modelIds.primary

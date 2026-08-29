@@ -41,6 +41,8 @@ export interface BuildAgentRuntimePromptOptions {
   workspaceInstructions?: string
   /** Context required only when a custom system.md replaces the runtime's native base. */
   customBaseContext?: string
+  /** Materialized effective language; when omitted the preference is read live. */
+  effectiveLanguage?: string | null
 }
 
 const promptBuilder = new PromptBuilder()
@@ -52,7 +54,8 @@ export async function buildAgentRuntimePrompt({
   agent,
   citationsGuidance,
   workspaceInstructions,
-  customBaseContext
+  customBaseContext,
+  effectiveLanguage
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
@@ -90,7 +93,7 @@ export async function buildAgentRuntimePrompt({
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,
-    getLanguageInstruction(agent)
+    getLanguageInstruction(agent, effectiveLanguage)
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -108,8 +111,8 @@ ${instructions}
 </agent_instructions>`
 }
 
-function getLanguageInstruction(agent: AgentEntity): string {
-  const language = getEffectiveAgentLanguage(agent)
+function getLanguageInstruction(agent: AgentEntity, effectiveLanguage?: string | null): string {
+  const language = effectiveLanguage !== undefined ? effectiveLanguage : getEffectiveAgentLanguage(agent)
   if (!language) return ''
   return `By default, respond in ${language}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
 }
