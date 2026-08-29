@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
+import TopicBranchSwitcher from './components/TopicBranchSwitcher'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
 
@@ -240,6 +241,10 @@ const Chat: FC<Props> = (props) => {
       topBar={
         showConversationChrome ? (
           <ChatNavbar
+            conversationTitle={activeTopic ? activeTopic.name.trim() || t('chat.conversation.new') : undefined}
+            branchSwitcher={
+              activeTopic ? (title) => <TopicBranchSwitcher topic={activeTopic} anchor={title} /> : undefined
+            }
             conversationControls={
               activeTopic ? (
                 <ChatTopBarControls

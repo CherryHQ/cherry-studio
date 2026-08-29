@@ -110,6 +110,25 @@ describe('AgentContent', () => {
     expect(screen.getByText('conversation metadata')).toBeInTheDocument()
   })
 
+  it('shows the session title before the conversation controls', () => {
+    const { container } = render(
+      <AgentContent
+        activeAgent={agentA}
+        conversationTitle="Investigate renderer performance"
+        conversationControls={<span>conversation metadata</span>}
+      />
+    )
+
+    const title = screen.getByTestId('conversation-navbar-title')
+    const controls = container.querySelector('[data-conversation-topbar-controls]')
+
+    expect(title).toHaveTextContent('Investigate renderer performance')
+    // Layout contract: short titles use intrinsic width while long titles remain shrinkable.
+    expect(title.parentElement).toHaveClass('w-fit', 'shrink')
+    expect(title.parentElement).not.toHaveClass('flex-[1_1_8rem]')
+    expect(title.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('hides the new-session button when the sidebar is visible', () => {
     preferenceMock.showSidebar = true
 
