@@ -10,7 +10,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { app, BrowserWindow, webContents } from 'electron'
+import { app, BrowserWindow } from 'electron'
 
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.get_info': async () => ({
@@ -45,14 +45,12 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)
     return application.get('PreferenceService').get('app.zoom_factor')
   },
-  'app.set_spell_check_enabled': async (isEnable) => {
-    webContents.getAllWebContents().forEach((w) => w.session.setSpellCheckerEnabled(isEnable))
-  },
   'app.data_reset.request': async () => requestDataReset(),
   'app.migration_v2.rerun': async () => requestV1Remigration(),
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },
+  'app.updater.release_notes.get': async () => application.get('AppUpdaterService').getReleaseHistory(),
   'app.updater.quit_and_install': async () => {
     application.get('AppUpdaterService').quitAndInstall()
   }

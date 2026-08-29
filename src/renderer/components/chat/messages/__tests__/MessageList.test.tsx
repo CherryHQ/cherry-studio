@@ -1,7 +1,9 @@
 import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
@@ -22,12 +24,14 @@ const scrollToElement = vi.fn()
 const scrollToRange = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
+  navigationBaseKey: null as string | null,
   renderItemLimit: undefined as number | undefined,
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
   scrollElement: null as HTMLDivElement | null
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
+const messageOutlineModule = vi.hoisted(() => ({ loaded: false }))
 const messageListSearchMock = vi.hoisted(() => ({
   props: null as {
     messages: MessageListItem[]
@@ -38,12 +42,36 @@ const messageListSearchMock = vi.hoisted(() => ({
 const chatLayoutModeMock = vi.hoisted(() => ({
   railGutterPx: 0,
   setForceWideLayout: () => {},
-  setRailGutterPx: () => {}
+  setRailGutterPx: vi.fn()
 }))
+const originalLanguage = i18n.language
+
+beforeAll(async () => {
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(originalLanguage)
+})
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => chatLayoutModeMock
 }))
+
+vi.mock('@renderer/components/chat/HtmlArtifactView', async () => {
+  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+
+  return {
+    HtmlArtifactPopupOutlet: () => {
+      const { popupSession } = useHtmlArtifactPopupContext()
+      return popupSession ? (
+        <div role="dialog" aria-label={`${popupSession.title} popup`}>
+          {popupSession.html}
+        </div>
+      ) : null
+    }
+  }
+})
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
   default: () => <div data-testid="loading-icon" />
@@ -61,6 +89,7 @@ vi.mock('@renderer/components/SelectionContextMenu', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
+    clearTimeoutTimer: vi.fn(),
     setTimeoutTimer: (_key: string, callback: () => void) => callback()
   })
 }))
@@ -111,10 +140,13 @@ vi.mock('../layout/NarrowLayout', () => ({
   }
 }))
 
-vi.mock('../frame/MessageOutline', () => ({
-  __esModule: true,
-  default: () => null
-}))
+vi.mock('../frame/MessageOutline', () => {
+  messageOutlineModule.loaded = true
+  return {
+    __esModule: true,
+    default: () => null
+  }
+})
 
 vi.mock('../layout/MessageListLoading', () => ({
   MessageListInitialLoading: () => <div data-testid="message-list-loading" />
@@ -127,6 +159,34 @@ vi.mock('../list/MessageAnchorLine', () => ({
 
 vi.mock('../list/MessageGroup', async () => {
   const React = await import('react')
+  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+  const ArtifactLifecycleControl = () => {
+    const popupContext = useHtmlArtifactPopupContext()
+    const artifactId = 'artifact-1'
+    const html = '<script>interactive()</script>'
+    const isApproved = popupContext.approvedInteractiveHtmlById[artifactId] === html
+
+    return isApproved ? (
+      <button
+        type="button"
+        onClick={() =>
+          popupContext.openPopup({
+            artifactId,
+            html,
+            title: 'Interactive artifact',
+            editable: false,
+            kind: 'document',
+            zoom: 100
+          })
+        }>
+        Open artifact
+      </button>
+    ) : (
+      <button type="button" onClick={() => popupContext.approveInteractiveHtml(artifactId, html)}>
+        Approve artifact
+      </button>
+    )
+  }
   const MockMessageGroup = ({
     messages,
     registerMessageElement
@@ -158,6 +218,7 @@ vi.mock('../list/MessageGroup', async () => {
             />
           )
         })}
+        {messages.some((message) => message.id === 'artifact-source') && <ArtifactLifecycleControl />}
         {groupId}
       </div>
     )
@@ -168,11 +229,6 @@ vi.mock('../list/MessageGroup', async () => {
     default: MockMessageGroup
   }
 })
-
-vi.mock('../list/MessageNavigation', () => ({
-  __esModule: true,
-  default: () => null
-}))
 
 vi.mock('../list/MessageListSearch', () => ({
   MessageListSearch: (props: NonNullable<typeof messageListSearchMock.props>) => {
@@ -201,6 +257,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       showScrollToBottomButton,
       topPadding
     }: any) => {
+      const renderedScrollElementRef = React.useRef<HTMLDivElement | null>(null)
       React.useImperativeHandle(
         handleRef as Ref<MessageVirtualListHandle>,
         () => ({
@@ -209,6 +266,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToKey,
           scrollToElement,
           scrollToRange,
+          getNavigationBaseKey: () => messageVirtualListMocks.navigationBaseKey,
           isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -220,8 +278,9 @@ vi.mock('../list/MessageVirtualList', async () => {
           messageVirtualListMocks.readyCallbacks.push(onScrollContainerReady)
           return
         }
-        if (messageVirtualListMocks.scrollElement) {
-          onScrollContainerReady(messageVirtualListMocks.scrollElement)
+        const scrollElement = messageVirtualListMocks.scrollElement ?? renderedScrollElementRef.current
+        if (scrollElement) {
+          onScrollContainerReady(scrollElement)
         }
       }, [onScrollContainerReady])
 
@@ -229,6 +288,7 @@ vi.mock('../list/MessageVirtualList', async () => {
 
       return (
         <div
+          ref={renderedScrollElementRef}
           data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
@@ -288,12 +348,13 @@ describe('MessageList', () => {
   beforeEach(() => {
     scrollToBottom.mockClear()
     scrollToTop.mockClear()
-    scrollToKey.mockClear()
+    scrollToKey.mockReset()
     scrollToElement.mockClear()
     scrollToRange.mockClear()
     vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
+    messageVirtualListMocks.navigationBaseKey = null
     messageVirtualListMocks.renderItemLimit = undefined
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
@@ -301,12 +362,94 @@ describe('MessageList', () => {
     messageGroupMountCounts.clear()
     messageListSearchMock.props = null
     chatLayoutModeMock.railGutterPx = 0
+    chatLayoutModeMock.setRailGutterPx.mockReset()
+  })
+
+  it('does not load the message outline module while outline is disabled', () => {
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(messageOutlineModule.loaded).toBe(false)
   })
 
   it('exposes a stable message-list boundary', () => {
     const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
+  })
+
+  it('keeps rapid navigation moving through assistant and user group owners', async () => {
+    const user = userEvent.setup()
+    const userMessage1 = createMessage('user-1', 'user')
+    const assistantMessage1 = { ...createMessage('assistant-1', 'assistant'), parentId: userMessage1.id }
+    const userMessage2 = createMessage('user-2', 'user')
+    const assistantMessage2 = { ...createMessage('assistant-2', 'assistant'), parentId: userMessage2.id }
+    const userMessage3 = createMessage('user-3', 'user')
+    const assistantMessage3 = { ...createMessage('assistant-3', 'assistant'), parentId: userMessage3.id }
+    messageVirtualListMocks.navigationBaseKey = `assistant${userMessage3.id}`
+    messageVirtualListMocks.scrollElement = null
+    scrollToKey.mockImplementationOnce((key: string) => {
+      messageVirtualListMocks.navigationBaseKey = key
+    })
+
+    render(
+      <MessageListProvider
+        value={createValue(
+          [userMessage1, assistantMessage1, userMessage2, assistantMessage2, userMessage3, assistantMessage3],
+          { messageNavigation: 'buttons' }
+        )}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    const scrollElement = screen.getByTestId('virtual-list')
+    scrollElement.getBoundingClientRect = vi.fn(() => ({
+      bottom: 500,
+      height: 500,
+      left: 0,
+      right: 500,
+      top: 0,
+      width: 500,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    }))
+    fireEvent.mouseMove(scrollElement, { clientX: 470, clientY: 250 })
+
+    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
+    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
+
+    expect(scrollToKey.mock.calls).toEqual([
+      [`user${userMessage2.id}`, 'start'],
+      [`user${userMessage1.id}`, 'start']
+    ])
+  })
+
+  it('keeps artifact popup and approval state when the source virtual row unmounts', async () => {
+    const user = userEvent.setup()
+    const sourceMessage = createMessage('artifact-source', 'assistant')
+    const renderTree = () => (
+      <MessageListProvider value={createValue([sourceMessage])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    const view = render(renderTree())
+
+    await user.click(screen.getByRole('button', { name: 'Approve artifact' }))
+    await user.click(screen.getByRole('button', { name: 'Open artifact' }))
+    expect(await screen.findByRole('dialog', { name: 'Interactive artifact popup' })).toHaveTextContent(
+      '<script>interactive()</script>'
+    )
+
+    messageVirtualListMocks.renderItemLimit = 0
+    view.rerender(renderTree())
+
+    expect(screen.queryByRole('button', { name: 'Open artifact' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Interactive artifact popup' })).toBeInTheDocument()
+
+    messageVirtualListMocks.renderItemLimit = undefined
+    view.rerender(renderTree())
+
+    expect(screen.getByRole('button', { name: 'Open artifact' })).toBeInTheDocument()
   })
 
   it('keeps search disabled for embedded lists unless explicitly enabled', () => {
@@ -352,6 +495,23 @@ describe('MessageList', () => {
       paddingLeft: '48px',
       paddingRight: '48px'
     })
+  })
+
+  it('preserves the measured rail gutter when the message list unmounts', () => {
+    Object.defineProperty(messageVirtualListMocks.scrollElement!, 'clientWidth', { value: 820 })
+    const view = render(
+      <MessageListProvider
+        value={createValue([createMessage('assistant-1', 'assistant')], { messageNavigation: 'anchor' })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(chatLayoutModeMock.setRailGutterPx).toHaveBeenCalledWith(24)
+
+    chatLayoutModeMock.setRailGutterPx.mockClear()
+    view.unmount()
+
+    expect(chatLayoutModeMock.setRailGutterPx).not.toHaveBeenCalled()
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {
@@ -639,46 +799,6 @@ describe('MessageList', () => {
     renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(addEventListenerSpy).not.toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
-  })
-
-  it('limits message outline work to mounted message elements', () => {
-    messageVirtualListMocks.renderItemLimit = 1
-    const addEventListenerSpy = vi.spyOn(messageVirtualListMocks.scrollElement!, 'addEventListener')
-    messageVirtualListMocks.scrollElement!.getBoundingClientRect = vi.fn(
-      () =>
-        ({
-          bottom: 500,
-          height: 500,
-          left: 0,
-          right: 500,
-          top: 0,
-          width: 500,
-          x: 0,
-          y: 0,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
-    const getElementByIdSpy = vi.spyOn(document, 'getElementById')
-
-    render(
-      <MessageListProvider
-        value={createValue(
-          [
-            createMessage('assistant-visible', 'assistant'),
-            createMessage('assistant-unmounted-1', 'assistant'),
-            createMessage('assistant-unmounted-2', 'assistant')
-          ],
-          {
-            renderConfig: { ...defaultMessageRenderConfig, showMessageOutline: true }
-          }
-        )}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(addEventListenerSpy).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
-    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-1')
-    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-2')
   })
 
   it('exports topic image from a complete non-virtualized capture surface', async () => {

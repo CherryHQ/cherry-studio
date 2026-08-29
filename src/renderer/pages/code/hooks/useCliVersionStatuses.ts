@@ -27,9 +27,19 @@ const buildStatus = (snapshot: BinaryToolSnapshot | undefined, latest?: string):
   }
 }
 
+const SNAPSHOT_RETRY_MS = 2000
+const SNAPSHOT_MAX_ATTEMPTS = 5
+
+export interface CliVersionStatusesState {
+  statuses: Record<string, VersionStatus>
+  /** False until a read settles — either successfully or at the retry cap. */
+  resolved: boolean
+}
+
 /** Availability and managed upgrade status for every CLI tool. */
-export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<string, VersionStatus> => {
+export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionStatusesState => {
   const [statuses, setStatuses] = useState<Record<string, VersionStatus>>({})
+  const [resolved, setResolved] = useState(false)
   const [availabilityRevision, setAvailabilityRevision] = useState(0)
   const latestRef = useRef<Record<string, string | undefined>>({})
   const toolKey = toolIds.join('|')
@@ -37,6 +47,8 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
 
   useEffect(() => {
     let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    let attempts = 0
 
     const refresh = async () => {
       const binaryNames = tools.map((toolId) => CODE_CLI_TOOL_PRESET_MAP[toolId].executable)
@@ -44,7 +56,15 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
         logger.error('Failed to get CLI tool snapshots', error as Error)
         return null
       })
-      if (cancelled || !snapshots) return
+      if (cancelled) return
+      if (!snapshots) {
+        // Only an install/remove event re-runs this read, so without a retry a first
+        // attempt that races main-process readiness strands every tool for the session.
+        attempts += 1
+        if (attempts < SNAPSHOT_MAX_ATTEMPTS) retryTimer = setTimeout(() => void refresh(), SNAPSHOT_RETRY_MS)
+        else setResolved(true)
+        return
+      }
 
       for (const toolId of tools) {
         // Latest applies only to an exactly-applied fixed snapshot — driven by the
@@ -86,11 +106,13 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
         next[toolId] = buildStatus(snapshots[binaryName], latest)
       }
       setStatuses(next)
+      setResolved(true)
     }
 
     void refresh()
     return () => {
       cancelled = true
+      if (retryTimer) clearTimeout(retryTimer)
     }
   }, [availabilityRevision, toolKey, tools])
 
@@ -98,5 +120,5 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
     setAvailabilityRevision((revision) => revision + 1)
   })
 
-  return statuses
+  return { statuses, resolved }
 }

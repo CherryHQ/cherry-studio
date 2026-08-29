@@ -65,6 +65,14 @@ export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         ownerDomain: 'MINIAPPS',
         resourcePolicy: 'include-with-owner',
         sourceTable: table('mini_app')
+      },
+      // mini_app_file sandbox collection (one app holds many sandbox files) —
+      // same owner as the logo slot; blobs follow the full file-ref backup track.
+      {
+        sourceType: 'mini_app_file',
+        ownerDomain: 'MINIAPPS',
+        resourcePolicy: 'include-with-owner',
+        sourceTable: table('mini_app')
       }
     ],
     jsonSoftReferences: [],

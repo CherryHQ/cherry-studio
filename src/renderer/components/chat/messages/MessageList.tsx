@@ -1,3 +1,4 @@
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
@@ -9,11 +10,10 @@ import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/i
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
-import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -28,6 +28,7 @@ import {
 } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import {
+  useAnyMessageListItemProcessing,
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
@@ -36,7 +37,11 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { defaultMessageRenderConfig } from './types'
-import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
+import {
+  getLatestAssistantGroupKey,
+  getMessageGroupKey,
+  getOwningUserMessageIdByAssistantId
+} from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
@@ -44,6 +49,7 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+const MessageOutline = lazy(() => import('./frame/MessageOutline'))
 /** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
  * override is invisible until the rail gutter adds onto it. */
 const CHAT_SIDE_PADDING_PX = 24
@@ -228,6 +234,16 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
+  const latestAssistantGroupMessages = useMemo(
+    () =>
+      latestAssistantGroupKey
+        ? (groupedMessages
+            .find(([key]) => key === latestAssistantGroupKey)?.[1]
+            .filter((message) => message.role === 'assistant') ?? [])
+        : [],
+    [groupedMessages, latestAssistantGroupKey]
+  )
+  const shouldKeepLatestAssistantGroupMounted = useAnyMessageListItemProcessing(latestAssistantGroupMessages)
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -303,10 +319,26 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
-    const groupKey =
-      target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
-    messageListRef.current?.scrollToKey(groupKey, 'start')
+    messageListRef.current?.scrollToKey(getMessageGroupKey(target), 'start')
   }, [])
+
+  const getNavigationBaseMessageId = useCallback(() => {
+    const key = messageListRef.current?.getNavigationBaseKey()
+    if (!key) return null
+
+    const groupMessages = groupedMessages.find(([groupKey]) => groupKey === key)?.[1]
+    if (!groupMessages) return null
+
+    const userMessage = groupMessages.find((message) => message.role === 'user')
+    if (userMessage) return userMessage.id
+
+    const owningUserMessageIdByAssistantId = getOwningUserMessageIdByAssistantId(messages)
+    for (const message of groupMessages) {
+      const ownerId = owningUserMessageIdByAssistantId.get(message.id)
+      if (ownerId) return ownerId
+    }
+    return null
+  }, [groupedMessages, messages])
 
   const scrollToOutlineElement = useCallback((element: HTMLElement) => {
     messageListRef.current?.scrollToElement(element)
@@ -673,13 +705,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
     window.addEventListener('resize', handleAnchorUpdate)
 
+    // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
       if (frame !== null) cancelAnimationFrame(frame)
       scrollElement.removeEventListener('scroll', handleAnchorUpdate)
       window.removeEventListener('resize', handleAnchorUpdate)
-      // On unmount the composer must not keep yielding rail space.
-      setRailGutterPx(0)
     }
   }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
 
@@ -699,15 +730,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const latestAssistantGroupMessages = latestAssistantGroupKey
-    ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
-    : undefined
-  const shouldKeepLatestAssistantGroupMounted =
-    latestAssistantGroupMessages?.some(
-      (message) =>
-        message.role === 'assistant' &&
-        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
-    ) ?? false
   const keepMountedKeys =
     shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
@@ -721,7 +743,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
 
-  return (
+  const messageList = (
     <MessagesContainer
       id="messages"
       className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
@@ -844,16 +866,20 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline
-          message={activeOutlineMessage}
-          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
-          onNavigateToElement={scrollToOutlineElement}
-        />
+        <Suspense fallback={null}>
+          <MessageOutline
+            getMessageElement={getMessageElement}
+            message={activeOutlineMessage}
+            multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+            onNavigateToElement={scrollToOutlineElement}
+          />
+        </Suspense>
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation
           scrollContainerRef={scrollContainerRef}
           getMessageElement={getMessageElement}
+          getNavigationBaseMessageId={getNavigationBaseMessageId}
           messages={messages}
           scrollToMessageId={scrollToMessageById}
           scrollToTop={navigateToTop}
@@ -889,6 +915,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       />
     </MessagesContainer>
   )
+
+  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
 }
 
 export default MessageList

@@ -1,9 +1,14 @@
-import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@shared/data/types/trace'
 
-export interface TraceNode extends SpanEntity {
-  children: TraceNode[]
-  start: number
-  percent: number
+export interface TraceNode extends Omit<SpanEntity, 'parentId'> {
+  parentId: string | null
+  childIds: string[]
+}
+
+export interface TraceVisibleRow {
+  id: string
+  depth: number
+  rootId: string
 }
 
 /**
@@ -14,3 +19,5 @@ export const TRACE_ROW_GRID =
   'grid min-w-0 items-center gap-px ' +
   '[grid-template-columns:minmax(0,2.4fr)_minmax(3.5rem,0.7fr)_minmax(4rem,1fr)] ' +
   'max-[520px]:[grid-template-columns:minmax(0,1.7fr)_minmax(3.25rem,0.65fr)_minmax(3.5rem,0.75fr)]'
+
+export const TRACE_ROW_HEIGHT = 32

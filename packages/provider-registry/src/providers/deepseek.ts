@@ -1,66 +1,58 @@
 import { defineProvider } from './types'
 
-const flashEffortMap = {
+// api-docs.deepseek.com/zh-cn/guides/thinking_mode documents one effort table for V4 Flash and V4
+// Pro ("deepseek-v4-flash 与 deepseek-v4-pro 一致"). `xhigh` remains a compatibility input alias,
+// but is not advertised by the model metadata and is sent as the supported top-level `max` value.
+const v4EffortMap = {
   minimal: 'low' as const,
   low: 'low' as const,
   medium: 'high' as const,
   xhigh: 'max' as const
 }
 
-const proEffortMap = {
-  minimal: 'high' as const,
-  low: 'high' as const,
-  medium: 'high' as const,
-  xhigh: 'max' as const
+const v4FlashPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.014 },
+  input: { currency: 'USD' as const, perMillionTokens: 0.44 },
+  output: { currency: 'USD' as const, perMillionTokens: 1.32 }
 }
 
-const flashChatEffortWire = {
+const v4ProPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.044 },
+  input: { currency: 'USD' as const, perMillionTokens: 1.32 },
+  output: { currency: 'USD' as const, perMillionTokens: 3.96 }
+}
+
+// Targets name `@ai-sdk/deepseek` provider options, not wire fields: the SDK's zod schema takes
+// camelCase `reasoningEffort` and silently strips the snake_case form before it reaches the body.
+const v4ChatEffortWire = {
   off: { operations: [{ target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'disabled' } }] },
   auto: {
     operations: [
       { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const } }
     ],
-    effortMap: { auto: 'high' as const, ...flashEffortMap }
+    effortMap: { auto: 'high' as const, ...v4EffortMap }
   },
   effort: {
     operations: [
       { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const } }
     ],
-    effortMap: flashEffortMap
+    effortMap: v4EffortMap
   }
 }
 
-const proChatEffortWire = {
-  off: { operations: [{ target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'disabled' } }] },
-  auto: {
-    operations: [
-      { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
-    ],
-    effortMap: { auto: 'high' as const, ...proEffortMap }
-  },
-  effort: {
-    operations: [
-      { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
-    ],
-    effortMap: proEffortMap
-  }
-}
-
-const responsesEffortWire = {
+const v4ResponsesEffortWire = {
   off: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
   },
   auto: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: { auto: 'high' as const, ...flashEffortMap }
+    effortMap: { auto: 'high' as const, ...v4EffortMap }
   },
   effort: {
     operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: flashEffortMap
+    effortMap: v4EffortMap
   }
 }
 
@@ -80,7 +72,7 @@ export default defineProvider({
         type: 'openai-chat',
         wire: {
           off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
-          auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'auto' } }] },
+          auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
           effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
         }
       }
@@ -91,14 +83,11 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
-  apiFeatures: {
-    arrayContent: false
-  },
   serverTools: [
     {
       id: 'web-search',
       modelScope: 'model-dependent',
-      modelIdPrefixes: ['deepseek-v4-flash'],
+      modelIdPrefixes: ['deepseek-v4-flash', 'deepseek-v4-pro'],
       endpointTypes: ['openai-responses']
     }
   ],
@@ -110,25 +99,37 @@ export default defineProvider({
       official: 'https://deepseek.com/'
     }
   },
-  // The Anthropic-compatible endpoint serves V4 Pro / V4 Flash only, and silently maps any other
-  // model name onto v4-flash — so it is pinned on those two and withheld from chat/reasoner. It
+  // The Anthropic-compatible endpoint serves V4 Pro / V4 Flash / V4 Flash Vision Exp only, and silently maps any other
+  // model name onto v4-flash — so it is pinned on those three and withheld from chat/reasoner. It
   // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
   overrides: [
     { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
-    { modelId: 'deepseek-reasoner', endpointTypes: ['openai-chat-completions'] },
+    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', endpointTypes: ['openai-chat-completions'] },
     {
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      pricing: v4FlashPeakPricing,
       reasoningContracts: {
-        'openai-chat-completions': { wire: flashChatEffortWire },
-        'openai-responses': { wire: responsesEffortWire }
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
+      }
+    },
+    {
+      modelId: 'deepseek-v4-flash-vision-exp',
+      endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      pricing: v4FlashPeakPricing,
+      reasoningContracts: {
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
       }
     },
     {
       modelId: 'deepseek-v4-pro',
-      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      pricing: v4ProPeakPricing,
       reasoningContracts: {
-        'openai-chat-completions': { wire: proChatEffortWire }
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
       }
     }
   ]

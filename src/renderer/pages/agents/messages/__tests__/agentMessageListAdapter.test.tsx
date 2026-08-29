@@ -2,7 +2,6 @@ import type { MessageListProviderValue, MessageListRuntime } from '@renderer/com
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,7 +39,6 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   previewFile: vi.fn(),
   subscribeToolProgress: vi.fn(),
   openExternalUrl: vi.fn(),
-  openInExternalApp: vi.fn(),
   copyText: vi.fn(),
   copyRichContent: vi.fn(),
   copyImage: vi.fn(),
@@ -50,8 +48,7 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   notifyWarning: vi.fn(),
   notifyError: vi.fn(),
   getFileView: vi.fn(),
-  isToolAutoApproved: vi.fn(() => false),
-  externalCodeEditors: []
+  isToolAutoApproved: vi.fn(() => false)
 }))
 const headerCapabilitiesMock = vi.hoisted(() => ({
   userProfile: { avatar: '🙂' },
@@ -166,6 +163,12 @@ vi.mock('@renderer/services/ExportService', () => ({
   messagesToMarkdown: vi.fn(async () => 'markdown')
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key
+  })
+}))
+
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
 const {
   clearPendingAgentSessionImageActionsForTest,
@@ -178,7 +181,6 @@ describe('useAgentMessageListProviderValue', () => {
     vi.clearAllMocks()
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
-    window.api.file.showInFolder = vi.fn()
     ipcApiRequest.mockReset()
     ipcApiRequest.mockResolvedValue({
       kind: 'file',
@@ -195,6 +197,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -293,7 +296,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.previewFile).toBe(leafCapabilitiesMock.previewFile)
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
-    expect(value?.actions.openInExternalApp).toEqual(expect.any(Function))
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
@@ -305,13 +307,12 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.notifyWarning).toBe(leafCapabilitiesMock.notifyWarning)
     expect(value?.actions.notifyError).toBe(leafCapabilitiesMock.notifyError)
     expect(value?.state.isToolAutoApproved).toBe(leafCapabilitiesMock.isToolAutoApproved)
-    expect(value?.state.externalCodeEditors).toBe(leafCapabilitiesMock.externalCodeEditors)
     expect(value?.state.getFileView).toBe(leafCapabilitiesMock.getFileView)
     expect(value?.meta.userProfile).toBe(headerCapabilitiesMock.userProfile)
     expect(value?.meta.aiUsageMessageKind).toBe('agent-session')
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
+    expect(value?.actions.resolvePath?.('dist/report.md')).toBe('/tmp/workspace/dist/report.md')
     expect(value?.actions.openPath).toEqual(expect.any(Function))
-    expect(value?.actions.showInFolder).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
@@ -320,22 +321,6 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.openPath?.('dist/report.md')
     expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
-
-    const editor: ExternalAppInfo = {
-      id: 'vscode',
-      name: 'VS Code',
-      protocol: 'vscode://',
-      tags: ['code-editor'],
-      path: '/Applications/Visual Studio Code.app'
-    }
-    void value?.actions.openInExternalApp?.(editor, 'dist/report.md')
-    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/tmp/workspace/dist/report.md')
-
-    void value?.actions.openInExternalApp?.(editor, '/Users/me/report.md')
-    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/Users/me/report.md')
-
-    void value?.actions.showInFolder?.('/Users/me/report.md')
-    expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(openRouteMock).toHaveBeenCalledWith('/settings/provider', { id: 'provider-1' })
@@ -384,6 +369,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -405,9 +391,7 @@ describe('useAgentMessageListProviderValue', () => {
     render(<Probe />)
 
     expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
-    expect(() => value?.actions.showInFolder?.('dist/report.md')).toThrow(/absolute path/i)
     expect(window.api.file.openPath).not.toHaveBeenCalled()
-    expect(window.api.file.showInFolder).not.toHaveBeenCalled()
   })
 
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
@@ -415,6 +399,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -422,22 +407,27 @@ describe('useAgentMessageListProviderValue', () => {
     dataApiMocks.get.mockResolvedValue({
       data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }] }
     })
+    const diagnosticReport = { location: 'Interactive Agent conversation' }
 
     const Probe = () => {
-      useAgentMessageListProviderValue({
+      const params = {
         topic,
         messages: [],
         partsByMessageId: {},
+        diagnosticReport,
         isLoading: false,
         messageNavigation: 'anchor'
-      })
+      }
+      useAgentMessageListProviderValue(params)
       return null
     }
     render(<Probe />)
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      diagnosticReport: { location: string }
       persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
     }
+    expect(options.diagnosticReport).toEqual(diagnosticReport)
     await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
 
     expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
@@ -456,11 +446,76 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('omits diagnostic-report actions when the consumer does not provide that capability', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Read-only Agent tool flow',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+
+    const Probe = () => {
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
+    )
+  })
+
+  it('exposes diagnostic report launch only to the interactive message consumer', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const openDiagnosticReport = vi.fn()
+    let interactiveValue: MessageListProviderValue | undefined
+    let captureValue: MessageListProviderValue | undefined
+
+    const Probe = ({ capture = false }: { capture?: boolean }) => {
+      const value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        imageActionConsumer: capture ? 'capture' : undefined,
+        messageNavigation: 'anchor',
+        openDiagnosticReport
+      })
+      if (capture) captureValue = value
+      else interactiveValue = value
+      return null
+    }
+
+    const view = render(<Probe />)
+    view.rerender(<Probe capture />)
+
+    expect(interactiveValue?.actions.openDiagnosticReport).toBe(openDiagnosticReport)
+    expect(captureValue?.actions.openDiagnosticReport).toBeUndefined()
+  })
+
   it('renders terminal fallbacks in both current and sealed history layers', () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -535,6 +590,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -603,6 +659,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -642,6 +699,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -688,6 +746,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-a',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -744,6 +803,10 @@ describe('useAgentMessageListProviderValue', () => {
 
     const listenerCountBeforeCaptureBind = eventMocks.on.mock.calls.length
     render(<CaptureProbe />)
+
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
+    )
 
     const captureRuntime: MessageListRuntime = {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),

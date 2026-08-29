@@ -10,10 +10,13 @@ import { channelHandlers } from './channel'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
+import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
 import { exportHandlers } from './export'
+import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
+import { hermesDashboardHandlers } from './hermesDashboard'
 import { knowledgeHandlers } from './knowledge'
 import { localModelHandlers } from './localModel'
 import { mcpHandlers } from './mcp'
@@ -27,6 +30,7 @@ import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
 import { quickAssistantHandlers } from './quickAssistant'
+import { screenshotHandlers } from './screenshot'
 import { selectionHandlers } from './selection'
 import { skillHandlers } from './skill'
 import { systemHandlers } from './system'
@@ -55,10 +59,13 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...cherryinHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
+  ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
   ...exportHandlers,
+  ...externalAppHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
+  ...hermesDashboardHandlers,
   ...knowledgeHandlers,
   ...localModelHandlers,
   ...mcpHandlers,
@@ -72,6 +79,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...profileHandlers,
   ...providerHandlers,
   ...quickAssistantHandlers,
+  ...screenshotHandlers,
   ...selectionHandlers,
   ...skillHandlers,
   ...systemHandlers,

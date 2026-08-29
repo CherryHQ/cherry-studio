@@ -106,9 +106,9 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
   const insertTopic = (db: Database.Database, id: string, name = `topic-${id}`): void => {
     const now = Date.now()
     db.prepare(
-      `INSERT INTO topic (id, name, is_name_manually_edited, order_key, created_at, updated_at)
-       VALUES (?, ?, 0, ?, ?, ?)`
-    ).run(id, name, `order-${id}`, now, now)
+      `INSERT INTO topic (id, name, is_name_manually_edited, order_key, created_at, updated_at, last_activity_at)
+       VALUES (?, ?, 0, ?, ?, ?, ?)`
+    ).run(id, name, `order-${id}`, now, now, now)
   }
 
   /** Insert a message row. parentId null + role 'root' for the virtual root. */

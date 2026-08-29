@@ -16,10 +16,11 @@ import {
   useResourceListView
 } from './ResourceListContext'
 import {
+  RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
+  RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
   RESOURCE_LIST_LABEL_CLASS,
   RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS,
-  RESOURCE_LIST_ROW_HEIGHT_CLASS,
   RESOURCE_LIST_SELECTED_ROW_CLASS,
   RESOURCE_LIST_TEXT_START_PADDING_CLASS,
   RESOURCE_LIST_TITLE_FADE_CLASS,
@@ -45,7 +46,7 @@ function stopEventPropagation(event: { stopPropagation: () => void }) {
  * Group-header labels shrink to their text so the collapse chevron can sit right
  * after the name, which means the fade band would eat the tail of names that fit.
  * Measuring is the only way to tell: the label box shrinks below its text exactly
- * when the row runs out of room (sidebar resize, or the hover actions claiming
+ * when the row runs out of room (left-panel resize, or the hover actions claiming
  * their reserve), and the observer catches both.
  */
 function useLabelOverflow(label: string) {
@@ -104,7 +105,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
       style={style}
       className={cn(
         'group/resource-list-section flex w-full items-center text-foreground text-sm',
-        RESOURCE_LIST_ROW_HEIGHT_CLASS,
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
         className
       )}
       {...props}>
@@ -112,12 +113,13 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         className={cn(
           'flex w-full items-center gap-1.5 px-2.5 text-muted-foreground transition-colors duration-150',
           RESOURCE_LIST_VISUAL_ROW_CLASS,
-          RESOURCE_LIST_INTERACTIVE_ROW_CLASS
+          RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+          RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS
         )}>
         <button
           type="button"
           aria-expanded={!collapsed}
-          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none focus-visible:text-foreground"
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={() => actions.toggleGroup(section.id)}>
           <span className={cn('min-w-0 truncate text-left text-inherit', RESOURCE_LIST_LABEL_CLASS)}>
             {section.label}
@@ -165,7 +167,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
-  const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
   // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
@@ -231,13 +232,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     // in for one, so it has to read identically.
     showsSelectedSurface && 'font-medium'
   )
-  // The chevron trails the label and carries the same 24px footprint as an action button, so
-  // reserving exactly the two action buttons parks it as a third icon in that rhythm — equal
-  // spacing between the chevron, the more menu and the create action. The reserve sits on
-  // whichever box holds the label, so the label shrinks and the chevron slides left with it.
-  const groupHeaderActionYieldClassName = groupHeaderAction
-    ? 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-12 group-has-[:focus-visible]/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
-    : undefined
   const chevron = (
     <ChevronRight
       size={14}
@@ -252,10 +246,10 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         hasLeadingSlot ? 'px-1.5' : 'px-2.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+        !showsSelectedSurface && RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
+        showsSelectedSurface && 'has-[:focus-visible]:bg-resource-list-row-selected',
         isBucketHeader && 'text-muted-foreground',
-        showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS,
-        isCollapsible && chevronIsOwnButton && groupHeaderActionYieldClassName,
-        groupHeaderClassName
+        showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS
       )}>
       {groupHeaderLeadingAction && (
         <div
@@ -307,10 +301,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           type="button"
           aria-expanded={!collapsed}
           aria-current={showsSelectedSurface ? 'true' : undefined}
-          className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none',
-            groupHeaderActionYieldClassName
-          )}
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
           {groupHeaderIcon && (
             <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
@@ -325,11 +316,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           </span>
         </button>
       ) : (
-        <div
-          className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit',
-            groupHeaderActionYieldClassName
-          )}>
+        <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
           {groupHeaderIcon && (
             <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
               {groupHeaderIcon}
@@ -342,12 +329,16 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       )}
       {groupHeaderAction && (
         <div
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center opacity-0 transition-opacity group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:opacity-100"
+          className={cn(
+            '-ml-1.5 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 motion-reduce:transition-none',
+            !hasLeadingSlot && '-mr-1',
+            'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:grid-cols-[1fr] group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:grid-cols-[1fr] has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:grid-cols-[1fr] group-has-[:focus-visible]/resource-list-group:opacity-100'
+          )}
           onClick={stopEventPropagation}
           onContextMenu={stopEventPropagation}
           onPointerDown={stopEventPropagation}
           onPointerUp={stopEventPropagation}>
-          {groupHeaderAction}
+          <div className="flex min-w-0 items-center overflow-hidden">{groupHeaderAction}</div>
         </div>
       )}
     </div>
@@ -358,7 +349,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       style={style}
       className={cn(
         'group/resource-list-group flex w-full items-center text-foreground text-sm',
-        RESOURCE_LIST_ROW_HEIGHT_CLASS,
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
         className
       )}
       data-selected={selected || undefined}
@@ -388,6 +379,32 @@ type GroupShowMoreProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
+type GroupEmptyProps = ComponentProps<'div'> & {
+  ref?: Ref<HTMLDivElement>
+}
+
+export function GroupEmpty({ className, ref, style, ...props }: GroupEmptyProps) {
+  const meta = useResourceListMeta()
+
+  if (!meta.groupEmptyLabel) return null
+
+  return (
+    <div
+      ref={ref}
+      style={style}
+      className={cn(
+        'flex items-center pr-1.5 text-foreground-tertiary',
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
+        RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+        RESOURCE_LIST_LABEL_CLASS,
+        className
+      )}
+      {...props}>
+      {meta.groupEmptyLabel}
+    </div>
+  )
+}
+
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {
   const actions = useResourceListActions()
   const meta = useResourceListMeta()
@@ -403,7 +420,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       style={style}
       className={cn(
         'flex items-center justify-start pr-1.5 text-foreground',
-        RESOURCE_LIST_ROW_HEIGHT_CLASS,
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
         RESOURCE_LIST_TEXT_START_PADDING_CLASS,
         className
       )}
@@ -411,7 +428,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       <button
         type="button"
         className={cn(
-          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:text-foreground focus-visible:outline-none',
+          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none',
           RESOURCE_LIST_LABEL_CLASS
         )}
         onClick={() => {

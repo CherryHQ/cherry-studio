@@ -66,9 +66,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   const insertTopic = (db: Database.Database, id: string, name = `topic-${id}`): void => {
     const now = Date.now()
     db.prepare(
-      `INSERT INTO topic (id, name, is_name_manually_edited, order_key, created_at, updated_at)
-       VALUES (?, ?, 0, ?, ?, ?)`
-    ).run(id, name, `order-${id}`, now, now)
+      `INSERT INTO topic (id, name, is_name_manually_edited, order_key, created_at, updated_at, last_activity_at)
+       VALUES (?, ?, 0, ?, ?, ?, ?)`
+    ).run(id, name, `order-${id}`, now, now, now)
   }
 
   /** Insert a message row. parentId null + role 'root' for the virtual root. */
@@ -996,9 +996,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
          VALUES ('agt-att', 'custom', 'agent', 'do things', 'a0', ?, ?)`
       ).run(now, now)
       db.prepare(
-        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at)
-         VALUES ('ses-att', 'agt-att', 'session', 'ws-att', 'a0', ?, ?)`
-      ).run(now, now)
+        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at, last_activity_at)
+         VALUES ('ses-att', 'agt-att', 'session', 'ws-att', 'a0', ?, ?, ?)`
+      ).run(now, now, now)
       db.prepare(
         `INSERT INTO agent_session_message (id, session_id, role, data, searchable_text, status, created_at, updated_at)
          VALUES ('asm-att', 'ses-att', 'user', ?, '', 'success', ?, ?)`
@@ -1154,9 +1154,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
          VALUES ('agt-b18-asm', 'custom', 'agent', 'do things', 'a0', ?, ?)`
       ).run(now, now)
       db.prepare(
-        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at)
-         VALUES ('ses-b18-asm', 'agt-b18-asm', 'session', 'ws-b18-asm', 'a0', ?, ?)`
-      ).run(now, now)
+        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at, last_activity_at)
+         VALUES ('ses-b18-asm', 'agt-b18-asm', 'session', 'ws-b18-asm', 'a0', ?, ?, ?)`
+      ).run(now, now, now)
       db.prepare(
         `INSERT INTO agent_session_message (id, session_id, role, data, searchable_text, status, created_at, updated_at)
          VALUES ('asm-b18-asm', 'ses-b18-asm', 'user', '{}', 'hello world', 'success', ?, ?)`
@@ -1519,9 +1519,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   ): void => {
     const now = Date.now()
     db.prepare(
-      `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, agentId, `s-${id}`, workspaceId, `o-${id}`, now, now)
+      `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at, last_activity_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, agentId, `s-${id}`, workspaceId, `o-${id}`, now, now, now)
   }
 
   /** Insert an agent_channel row with a JSON workspace field (AgentSessionWorkspaceSource). */

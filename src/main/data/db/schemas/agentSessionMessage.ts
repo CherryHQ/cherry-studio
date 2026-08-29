@@ -1,5 +1,6 @@
+import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
-import { sql } from 'drizzle-orm'
+import { asc, desc, sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
@@ -23,6 +24,15 @@ export const agentSessionMessageTable = sqliteTable(
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
+    // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
+    // message edits cannot forge sender identity or mutate delivery lifecycle.
+    delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
+    deliveryStatus: text().$type<AgentSessionDeliveryStatus>(),
+    // Application-managed soft reference to the assistant placeholder that owns a delivery turn.
+    // No FK: a missing row is recovery evidence and must not silently null the reference on delete.
+    deliveryTurnRef: text(),
+    deliveryInReplyTo: text(),
+    deliverySenderSessionId: text(),
     // Stable integer surrogate for the FTS5 content_rowid (see message.ts for full rationale):
     // trigger-assigned, local-only, nullable because the AFTER INSERT trigger fills it.
     ftsRowid: integer(),
@@ -30,14 +40,27 @@ export const agentSessionMessageTable = sqliteTable(
   },
   (t) => [
     index('agent_session_message_session_created_id_idx').on(t.sessionId, t.createdAt, t.id),
+    index('agent_session_message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('agent_session_message_status_idx').on(t.status),
+    index('agent_session_message_delivery_status_idx').on(t.deliveryStatus),
+    index('agent_session_message_delivery_turn_ref_idx').on(t.deliveryTurnRef),
+    index('agent_session_message_delivery_sender_idx').on(t.deliverySenderSessionId, t.createdAt, t.id),
+    uniqueIndex('agent_session_message_delivery_reply_uniq').on(t.deliveryInReplyTo),
     // FTS5 content_rowid key — UNIQUE so its index keeps the per-row MAX(fts_rowid)+1 assignment
     // O(log N) (see ftsRowid column + message.ts for the rationale).
     uniqueIndex('agent_session_message_fts_rowid_uniq').on(t.ftsRowid),
     check('agent_session_message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
-    check('agent_session_message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
+    check('agent_session_message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`),
+    check(
+      'agent_session_message_delivery_status_check',
+      sql`${t.deliveryStatus} IS NULL OR ${t.deliveryStatus} IN ('accepted', 'delivering', 'consumed', 'failed')`
+    ),
+    check(
+      'agent_session_message_delivery_turn_ref_check',
+      sql`(${t.deliveryStatus} = 'delivering' AND ${t.deliveryTurnRef} IS NOT NULL) OR (${t.deliveryStatus} != 'delivering' AND ${t.deliveryTurnRef} IS NULL) OR (${t.deliveryStatus} IS NULL AND ${t.deliveryTurnRef} IS NULL)`
+    )
   ]
 )
 
@@ -51,7 +74,7 @@ export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL = `CREATE TRIGGER ${AGENT_
     searchable_text = COALESCE((
       SELECT group_concat(json_extract(value, '$.text'), char(10))
       FROM json_each(json_extract(NEW.data, '$.parts'))
-      WHERE json_extract(value, '$.type') IN ('text', 'reasoning')
+      WHERE json_extract(value, '$.type') = 'text'
     ), '')
   WHERE id = NEW.id;
   INSERT INTO agent_session_message_fts(rowid, searchable_text)
@@ -66,6 +89,11 @@ END`
  * implicit rowid, which a table rebuild or VACUUM would reshuffle — see schemas/message.ts). The
  * triggers assign `fts_rowid`, keep `searchable_text` in sync with text-bearing message parts, and
  * mirror it into the FTS index.
+ *
+ * Only `text` parts are indexed — NOT `reasoning`. Reasoning parts hold the model's hidden
+ * chain-of-thought, which the session UI does not render; indexing it would leak that hidden
+ * text through global-search snippets (which read `searchable_text` verbatim). This matches the
+ * chat `message` table's searchable-text expression, which likewise excludes reasoning.
  */
 export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
   // Keyed on the stable `fts_rowid` column, not the implicit rowid (which a table rebuild or
@@ -95,7 +123,7 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
     UPDATE agent_session_message SET searchable_text = COALESCE((
       SELECT group_concat(json_extract(value, '$.text'), char(10))
       FROM json_each(json_extract(NEW.data, '$.parts'))
-      WHERE json_extract(value, '$.type') IN ('text', 'reasoning')
+      WHERE json_extract(value, '$.type') = 'text'
     ), '') WHERE id = NEW.id;
     INSERT INTO agent_session_message_fts(rowid, searchable_text)
     SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;

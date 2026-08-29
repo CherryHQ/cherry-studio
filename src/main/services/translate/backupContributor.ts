@@ -49,7 +49,13 @@ export const TRANSLATE_HISTORY_CONTRIBUTOR = deepFreeze<BackupContributor>({
       },
       { root: table('translate_history'), identityKey: columns(['id']), members: [], renamable: false }
     ],
-    fileRefSourcePolicies: [],
+    // Layout-preserving PDF translations persist a Cherry-owned artifact
+    // (role='target', delete_when_unreferenced) alongside the history row — same
+    // collection-ref shape as painting/chat_message, so the artifact bundles
+    // with its owning domain. role='source' refs are external files (never copied).
+    fileRefSourcePolicies: [
+      { sourceType: 'translate_history', ownerDomain: 'TRANSLATE_HISTORY', resourcePolicy: 'include-with-owner' }
+    ],
     jsonSoftReferences: []
   },
   backupPolicy: {},

@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
-import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -9,8 +8,8 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
+import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
-import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -45,6 +44,8 @@ export interface WarmQueryRequest {
    * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
    */
   knowledgeBaseIds?: readonly string[]
+  /** Notification authority is baked into Cherry's in-process MCP server at startup. */
+  notificationContext?: AgentNotificationContext
 }
 
 export interface ConsumedWarmQuery {
@@ -132,7 +133,8 @@ function sanitizeSensitiveEnvForSignature(options: Options): Options {
 export function createClaudeCodeWarmQuerySignature(
   options: Options,
   credentialsFingerprint?: string,
-  knowledgeBaseIds: readonly string[] = []
+  knowledgeBaseIds: readonly string[] = [],
+  notificationContext?: AgentNotificationContext
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
@@ -141,7 +143,8 @@ export function createClaudeCodeWarmQuerySignature(
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
-    knowledgeBaseIds: [...knowledgeBaseIds].sort()
+    knowledgeBaseIds: [...knowledgeBaseIds].sort(),
+    notificationContext: notificationContext ?? null
   })
 }
 
@@ -158,9 +161,10 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
     try {
+      const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
-      this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
+      await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
     }
@@ -198,12 +202,16 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     })
   }
 
-  prewarm(request: WarmQueryRequest): void {
+  async prewarm(request: WarmQueryRequest): Promise<void> {
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
+    // single await sits before any `entries` access, so the body below still runs without gaps.
+    const { startup } = await import('@anthropic-ai/claude-agent-sdk')
     const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.notificationContext
     )
     const existing = this.entries.get(request.key)
 
@@ -236,7 +244,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.notificationContext
     )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined

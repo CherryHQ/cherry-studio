@@ -23,7 +23,6 @@ import { PromptBuilder } from '../prompt'
 
 const baseConfig: AgentConfiguration = {
   permission_mode: 'bypassPermissions',
-  max_turns: 100,
   env_vars: {}
 }
 
@@ -109,9 +108,9 @@ describe('PromptBuilder', () => {
 
     const { base, context: result } = await builder.buildPromptParts('/workspace')
 
-    // No system.md → keep the Claude Code preset as the base and append Cherry content;
+    // No system.md → keep the runtime-native prompt as the base and append Cherry content;
     // the old embedded "personal assistant" preamble must be gone.
-    expect(base).toEqual({ kind: 'claude_code' })
+    expect(base).toEqual({ kind: 'native' })
     expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Memories')
     expect(result).toContain('`/workspace/SOUL.md`')

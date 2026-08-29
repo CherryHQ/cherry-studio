@@ -254,7 +254,19 @@ const RangeSpecSchema = z
     min: z.number(),
     max: z.number(),
     default: z.number().optional(),
+    /** Omitted means the numeric input accepts any precision; renderers may
+     *  still choose an interaction step for controls such as sliders. */
     step: z.number().optional()
+  })
+  .refine((r) => r.min <= r.max, { message: 'min must be ≤ max' })
+
+export const RangeIntSpecSchema = z
+  .object({
+    type: z.literal('range'),
+    min: z.number().int(),
+    max: z.number().int(),
+    default: z.number().int().optional(),
+    step: z.number().int().positive().default(1)
   })
   .refine((r) => r.min <= r.max, { message: 'min must be ≤ max' })
 
@@ -282,6 +294,29 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
   TextSpecSchema
 ])
 
+const INTEGER_RANGE_PARAM_KEYS = [
+  CANONICAL_PARAM_KEY.NUM_IMAGES,
+  CANONICAL_PARAM_KEY.MAX_IMAGES,
+  CANONICAL_PARAM_KEY.NUM_INFERENCE_STEPS,
+  CANONICAL_PARAM_KEY.SAFETY_TOLERANCE,
+  CANONICAL_PARAM_KEY.OUTPUT_COMPRESSION
+] as const
+
+const ImageSupportsSchema = z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema).transform((supports, ctx) => {
+  const normalized = { ...supports }
+  for (const key of INTEGER_RANGE_PARAM_KEYS) {
+    const spec = supports[key]
+    if (spec === undefined) continue
+    const result = RangeIntSpecSchema.safeParse(spec)
+    if (result.success) {
+      normalized[key] = result.data
+    } else {
+      for (const issue of result.error.issues) ctx.addIssue({ ...issue, path: [key, ...issue.path] })
+    }
+  }
+  return normalized
+})
+
 /**
  * Per-mode model capability declaration. The renderer iterates `supports`
  * and dispatches `specToField` by `spec.type`; no per-vendor logic. `supports`
@@ -299,11 +334,11 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
  * instead of a hand-maintained routing table.
  */
 const ImageModeDefSchema = z.object({
-  supports: z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema),
+  supports: ImageSupportsSchema,
   maxInputImages: z.number().int().positive().optional(),
   vendorTransport: z
     .object({
-      endpoint: z.string(),
+      endpoint: z.string().regex(/^\/(?!\/)/, 'vendor transport endpoint must be a root-relative path, not a URL'),
       isSync: z.boolean().optional()
     })
     .optional(),

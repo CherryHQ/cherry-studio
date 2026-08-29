@@ -17,14 +17,17 @@ import type { ToolSet, UIMessageChunk } from 'ai'
  * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
  * `AiService.streamText`: the nested `stats` snapshot (Cherry `MessageStats`,
  * AI SDK v6 names) is the single carrier — the gateway SSE adapters read the
- * input/output totals from it, plus the reasoning breakdown for dialects that
- * expose one (Gemini's `usageMetadata.thoughtsTokenCount`).
+ * input/output totals from it, plus the cache-read and reasoning breakdowns
+ * for dialects that expose them.
  */
 export interface GatewayUsageMetadata {
   stats?: {
     totalTokens?: number
     inputTokens?: number
     outputTokens?: number
+    inputTokenDetails?: {
+      cacheReadTokens?: number
+    }
     outputTokenDetails?: {
       reasoningTokens?: number
     }
@@ -139,6 +142,9 @@ export interface IMessageConverter<TInputParams = unknown> {
   /** Restore a provider-safe tool name before returning a tool call to the API client. */
   toClientToolName?(toolName: string): string
 
+  /** Wire-safe (normalized) name for a client tool name; identity when already compatible. */
+  toProviderToolName?(toolName: string): string
+
   /**
    * Extract stream/generation options from input params
    * Maps format-specific parameters to AI SDK common options
@@ -188,6 +194,8 @@ export interface ContentBlockState {
   toolId?: string
   toolName?: string
   toolInput?: string
+  // For thinking blocks — captured from reasoning chunk providerMetadata
+  signature?: string
 }
 
 /**
@@ -197,6 +205,7 @@ export interface AdapterState {
   messageId: string
   model: string
   inputTokens: number
+  cacheReadTokens?: number
   outputTokens: number
   currentBlockIndex: number
   blocks: Map<number, ContentBlockState>

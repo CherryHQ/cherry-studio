@@ -109,7 +109,8 @@ const buildFixture = (): BackupContributor[] => [
   }),
   contributor('MINIAPPS', ['mini_app'], {
     fileRefSourcePolicies: [
-      { sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' }
+      { sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' },
+      { sourceType: 'mini_app_file', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' }
     ]
   }),
   contributor('SKILLS', ['agent_workspace']),
@@ -131,7 +132,11 @@ const buildFixture = (): BackupContributor[] => [
     fileRefSourcePolicies: [{ sourceType: 'painting', ownerDomain: 'PAINTINGS', resourcePolicy: 'include-with-owner' }]
   }),
   contributor('FILE_STORAGE', ['file_entry']),
-  contributor('TRANSLATE_HISTORY', ['translate_language'])
+  contributor('TRANSLATE_HISTORY', ['translate_language'], {
+    fileRefSourcePolicies: [
+      { sourceType: 'translate_history', ownerDomain: 'TRANSLATE_HISTORY', resourcePolicy: 'include-with-owner' }
+    ]
+  })
 ]
 
 /** Replace one domain's schema slice (immutable spread — no readonly violation). */

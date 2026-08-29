@@ -136,12 +136,22 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 // Parameter support checks
 // ---------------------------------------------------------------------------
 
+const isKimiFixedSamplingModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model))
+  return /^kimi-k(?:2[.-][5-9]\d*|[3-9]\d*)(?:[-_.]|$)/i.test(id)
+}
+
 /** Check if model supports temperature parameter */
-export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+export const isSupportTemperatureModel = (model: Model): boolean => {
+  if (model.parameterSupport?.temperature) return model.parameterSupport.temperature.supported !== false
+  return !isKimiFixedSamplingModel(model)
+}
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean => {
+  if (model.parameterSupport?.topP) return model.parameterSupport.topP.supported !== false
+  return !isKimiFixedSamplingModel(model)
+}
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
@@ -164,6 +174,34 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
 // Model family checks (lightweight ID-based, safe for runtime)
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether the model accepts dynamically-loaded tool declarations (the mechanism behind
+ * Claude Code's ToolSearch: `tool_reference` blocks / `system` messages carrying a `tools`
+ * array injected mid-conversation).
+ *
+ * Claude Code forces ToolSearch on for every non-first-party host when Cherry sets
+ * `ENABLE_TOOL_SEARCH=auto` (see settingsBuilder). Most Anthropic-compatible providers
+ * simply ignore unknown content blocks, but Moonshot's Anthropic endpoint rejects them on
+ * every model except Kimi K3 with `400 Invalid request: tokenization failed`
+ * (https://platform.kimi.com/docs/guide/use-dynamic-tool-loading). Kimi K3 ids resolve to
+ * `k3`/`kimi-k3*`/... — everything else in the Kimi family is excluded.
+ *
+ * Input is a raw API model id (e.g. `kimi-for-coding`); namespace prefixes (`provider:id`)
+ * and Claude Code's `[1m]` suffix are stripped before matching.
+ */
+export const supportsDynamicallyLoadedTools = (apiModelId: string): boolean => {
+  // Strip the gateway namespace prefix (`providerId:apiModelId`) and Claude Code's `[1m]`
+  // context suffix before matching — both wrap the raw API model id this check targets.
+  const bareId =
+    apiModelId
+      .replace(/\[1m\]$/i, '')
+      .split(':')
+      .pop() ?? ''
+  const id = getLowerBaseModelName(bareId)
+  if (!VENDOR_PATTERNS.kimi.test(id)) return true
+  return /^(?:k3|kimi-k3)(?:[-_.]|$)/i.test(id)
+}
+
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —
 // add the vendor to the registry's pattern map instead of duplicating
@@ -177,11 +215,17 @@ export const isAnthropicModel = (model: Model): boolean =>
 export const isGeminiModel = (model: Model): boolean =>
   VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model)))
 
-/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
-export const isGemini3Model = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
+/**
+ * Check if a raw model id is Gemini 3 series. The `*-latest` aliases resolve to
+ * Gemini 3, so an id-substring check alone misses them.
+ */
+export const isGemini3ModelId = (modelId: string): boolean => {
+  const id = getLowerBaseModelName(modelId)
   return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
 }
+
+/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
+export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
 
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>

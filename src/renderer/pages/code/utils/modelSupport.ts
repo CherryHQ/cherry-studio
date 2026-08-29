@@ -26,12 +26,21 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
         ...OPENAI_LIKE_ENDPOINTS
       ])
     case CodeCli.OPENCLAW:
+    case CodeCli.DEEPSEEK_HARNESS:
+    case CodeCli.HERMES:
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
     case CodeCli.GEMINI_CLI:
+    case CodeCli.ANTIGRAVITY_CLI:
       return hasModelEndpoint(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     case CodeCli.QWEN_CODE:
     case CodeCli.KIMI_CODE:
       return hasAnyModelEndpoint(model, OPENAI_LIKE_ENDPOINTS)
+    case CodeCli.PI:
+      return hasAnyModelEndpoint(model, [
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ...OPENAI_LIKE_ENDPOINTS
+      ])
     case CodeCli.QODER_CLI:
     case CodeCli.GITHUB_COPILOT_CLI:
       return false

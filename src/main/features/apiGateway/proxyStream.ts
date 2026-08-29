@@ -19,6 +19,7 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
@@ -32,7 +33,9 @@ import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
+import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { resolveGatewayModelAddress } from './utils/models'
+import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -198,21 +201,35 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
+  // Leaving inline system messages in place is what keeps the prompt prefix cacheable
+  // across turns; targets that reject them get a downgrade 400 or a fold.
+  const positionedMessages = positionInlineSystemMessages(
+    convertedMessages,
+    resolveEffectiveEndpoint(provider, model).endpointType,
+    config.requestHeaders
+  )
   const messages = isInternalAnthropicAgentRequest
-    ? appendInternalAgentContinuation(convertedMessages)
-    : convertedMessages
+    ? appendInternalAgentContinuation(positionedMessages)
+    : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
     converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
-  const providerOptions = applyFastModeToProviderOptions(
+  const fastModeProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     extractedProviderOptions,
     config.fastMode === true
   )
+
+  const agentSessionId = config.requestHeaders
+    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
+    : undefined
+  const providerOptions = agentSessionId
+    ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
+    : fastModeProviderOptions
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
@@ -367,6 +384,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
+            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -450,6 +468,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       callOverrides,
       contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
+      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 

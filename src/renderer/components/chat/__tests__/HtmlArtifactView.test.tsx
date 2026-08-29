@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { HtmlArtifactPopupHost, HtmlArtifactView } from '../HtmlArtifactView'
+import { HtmlArtifactPopupHost } from '../HtmlArtifactPopupContext'
+import { HtmlArtifactView } from '../HtmlArtifactView'
 import { ScrollOwnershipProvider } from '../messages/list/ScrollOwnershipContext'
 
 const mocks = vi.hoisted(() => ({
@@ -258,6 +259,33 @@ describe('HtmlArtifactView', () => {
     expect(screen.queryByTestId('html-artifacts-popup')).not.toBeInTheDocument()
     expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+  })
+
+  it('maximizes an interactive fragment into the webview popup regardless of kind', async () => {
+    // Regression lock for the content-only outlet tier: a kind-based guard would route an
+    // active fragment back to the script-less frame in the maximize popup (pre-R2 behavior).
+    const html = '<div><script>fragmentWidget()</script></div>'
+
+    render(<HtmlArtifactView html={html} title="Preview" kind="fragment" />)
+
+    // Inline (non-consented) surface stays script-less for a fragment...
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    // ...but the maximize popup (the explicit viewing action) opens the webview tier.
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
+    )
   })
 
   it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
@@ -538,6 +566,55 @@ describe('HtmlArtifactView', () => {
     for (const callback of mocks.resizeObserverCallbacks) {
       act(() => callback([], {} as ResizeObserver))
       expect(surface).toHaveStyle({ height: '221px' })
+    }
+  })
+
+  it('stabilizes at the natural height when bare text extends below the last element', () => {
+    render(<HtmlArtifactView html="<task-notification>Task done.</task-notification>  trailing text" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '8px'
+    const notice = frameDocument.createElement('task-notification')
+    notice.textContent = 'Task a6034e1f3607dfc0b completed.\nTask output file: /private/tmp/long-task-output.path'
+    body.replaceChildren(notice)
+    body.append('  在 macOS 的系统演进中……')
+
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 0
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 135 })
+    Object.defineProperty(documentElement, 'scrollHeight', { configurable: true, get: () => 135 })
+    // Element measurement stops at the <task-notification> box (91px); the bare text node after it
+    // reaches 127px. Without the whole-body range the surface flips 99↔135 under the observer.
+    vi.spyOn(notice, 'getBoundingClientRect').mockReturnValue({ bottom: 91, height: 40, width: 300 } as DOMRect)
+    // jsdom keeps each iframe in its own realm, so the frame's Range constructor differs from the
+    // host global; mock the one getIframeContentHeight actually calls createRange() on.
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: vi.fn(() => ({ bottom: 127, height: 30, width: 300 }) as DOMRect)
+    })
+
+    try {
+      fireEvent.load(iframe)
+      expect(surface).toHaveStyle({ height: '135px' })
+
+      for (const callback of mocks.resizeObserverCallbacks) {
+        act(() => callback([], {} as ResizeObserver))
+        expect(surface).toHaveStyle({ height: '135px' })
+      }
+    } finally {
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      }
     }
   })
 

@@ -109,8 +109,10 @@ describe('API gateway routes (integration)', () => {
       const { body } = await read(await get(app, '/openapi/json', {}))
       expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
 
+      // A wildcard bind is not a dialable target, so the advertised URL must be the
+      // loopback the curl example can actually reach.
       const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
-      expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
+      expect(custom.body.servers).toEqual([{ url: 'http://127.0.0.1:8080' }])
     })
   })
 
@@ -428,6 +430,17 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('normalizes an Antigravity custom model path to the gateway model address', async () => {
+      await read(
+        await post(app, '/v1beta/models/provider-a/models/models/gemini-flash:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'provider-a:models/gemini-flash',
+        streaming: true,
+        inputFormat: 'gemini'
+      })
+    })
+
     it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
       // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
       // normalization can't rewrite names ending in "flash"; the route must strip it.
@@ -436,6 +449,23 @@ describe('API gateway routes (integration)', () => {
       )
       expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
         modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true
+      })
+    })
+
+    it('routes a sentinel-suffixed model whose apiModelId itself contains "/models/"', async () => {
+      // Fireworks ids are `accounts/fireworks/models/<name>` (16 of them in the registry), so
+      // deciding the address protocol by looking for "/models/" misreads them as Antigravity
+      // paths and rejects a perfectly valid gemini-cli request.
+      await read(
+        await post(
+          app,
+          '/v1beta/models/fireworks:accounts/fireworks/models/deepseek-v4-flash@cherry:streamGenerateContent',
+          geminiBody
+        )
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'fireworks:accounts/fireworks/models/deepseek-v4-flash',
         streaming: true
       })
     })
@@ -462,19 +492,18 @@ describe('API gateway routes (integration)', () => {
       expect(mockProcessMessage).not.toHaveBeenCalled()
     })
 
-    // The text-only estimator would return a bogus ~3 with HTTP 200, suppressing gemini-cli's
-    // media fallback (it only falls back on a non-2xx) and badly undercounting context usage.
-    // Both media shapes matter: large uploads reach the CLI as fileData/fileUri via the Files API.
+    // Media is now counted (converted → shared walker, or the provider's remote count) rather
+    // than rejected — the estimate reflects what the provider actually receives.
     it.each([
       ['inlineData', { inlineData: { mimeType: 'image/png', data: 'AAAA' } }],
       ['fileData', { fileData: { mimeType: 'application/pdf', fileUri: 'gs://bucket/f.pdf' } }]
-    ])('countTokens with %s media → 400 so the CLI falls back to its own media count', async (_kind, mediaPart) => {
+    ])('countTokens with %s media → 200 with a token estimate', async (_kind, mediaPart) => {
       const mediaBody = { contents: [{ role: 'user', parts: [mediaPart] }] }
       const { status, body } = await read(
         await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', mediaBody)
       )
-      expect(status).toBe(400)
-      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
       expect(mockProcessMessage).not.toHaveBeenCalled()
     })
 

@@ -1,11 +1,6 @@
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
-import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import {
-  RefreshProvider,
-  TranslationOverlayProvider,
-  TranslationOverlaySetterProvider
-} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
@@ -265,15 +260,9 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatWriteProvider value={runtime.chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
-          <TranslationOverlaySetterProvider value={runtime.setTranslationOverlay}>
-            <TranslationOverlayProvider value={runtime.translationOverlay}>
-              <MessageEditingProvider>
-                <ChatLayoutModeProvider>
-                  <ConversationStageCenter placement={placement} main={main} composer={composer} />
-                </ChatLayoutModeProvider>
-              </MessageEditingProvider>
-            </TranslationOverlayProvider>
-          </TranslationOverlaySetterProvider>
+          <MessageEditingProvider>
+            <ConversationStageCenter placement={placement} main={main} composer={composer} />
+          </MessageEditingProvider>
         </RefreshProvider>
       </SiblingsProvider>
     </ChatWriteProvider>

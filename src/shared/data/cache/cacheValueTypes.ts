@@ -1,3 +1,4 @@
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
@@ -7,9 +8,10 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
-import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
+import type { UniqueModelId } from '../types/model'
+import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
@@ -70,7 +72,7 @@ export interface Tab {
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新
   isDormant?: boolean // 是否已休眠
-  isPinned?: boolean // 是否置顶（豁免 LRU）
+  isPinned?: boolean // 是否置顶（soft cap 下豁免 LRU；超过 hard cap 时可能休眠）
   savedState?: TabSavedState // 休眠前保存的状态
 }
 
@@ -128,7 +130,50 @@ export interface ChatScrollAnchor {
   offset: number
 }
 
-export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+export interface CacheComposerSerializedToken {
+  id: string
+  kind: ComposerMessageTokenKind | 'promptVariable'
+  label: string
+  icon?: string
+  description?: string
+  promptText?: string
+  payload?: unknown
+  index: number
+  textOffset: number
+}
+
+export interface CacheComposerAttachment {
+  fileTokenSourceId: string
+  path?: AbsoluteFilePath
+  name: string
+  origin_name: string
+  ext: string
+  size: number
+  type: FileType
+  composerFileKind?: 'pasted-text'
+}
+
+export interface CacheComposerDraftBase {
+  text: string
+  tokens: CacheComposerSerializedToken[]
+  files: CacheComposerAttachment[]
+  knowledgeBaseIds: string[]
+}
+
+export interface CacheChatComposerDraft extends CacheComposerDraftBase {
+  /** Explicit per-topic model selection; runtime model records are resolved when restoring. */
+  mentionedModelIds: UniqueModelId[]
+  /** Selection behavior cannot be inferred when zero or one models remain selected. */
+  modelMultiSelectMode: boolean
+}
+
+export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
+  workspaceKey: string
+  agentId: string
+  shouldValidateSkills?: boolean
+}
+
+export type ExternalOpenTargetPreferences = Record<string, string>
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'
@@ -165,4 +210,18 @@ export type WindowBoundsState = {
    *  window back onto the same display (clamping into it if the saved rect no
    *  longer fits), instead of resetting to the primary display. */
   displayBounds: { x: number; y: number; width: number; height: number }
+}
+
+/**
+ * Why a mini app's tile carries a dot. Derived by main, identical in every window; an
+ * entry exists only while at least one reason does.
+ */
+export type CacheMiniAppAttention = {
+  appId: string
+  /** The version the last update check found, or null. */
+  updateVersion: string | null
+  /** Leaves a Cherry release added under a namespace the app declared, still awaiting the user. */
+  pendingPermissions: string[]
+  /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
+  updating: { version: string; fraction: number | null } | null
 }

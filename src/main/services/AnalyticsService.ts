@@ -1,6 +1,5 @@
 import { application } from '@application'
-import type { TokenUsageData } from '@cherrystudio/analytics-client'
-import { AnalyticsClient } from '@cherrystudio/analytics-client'
+import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -14,6 +13,7 @@ const logger = loggerService.withContext('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
+  private hasTrackedAppLaunch = false
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
@@ -63,8 +63,9 @@ export class AnalyticsService extends BaseService implements Activatable {
     await this.reconciler.flush()
   }
 
-  onActivate(): void {
+  async onActivate(): Promise<void> {
     const clientId = getClientId()
+    const { AnalyticsClient } = await import('@cherrystudio/analytics-client')
 
     this.client = new AnalyticsClient({
       clientId,
@@ -79,14 +80,13 @@ export class AnalyticsService extends BaseService implements Activatable {
       }
     })
 
-    // FIXME: trackAppLaunch is called on every activate.
-    // Original code called it once in onInit. When the user toggles the preference
-    // off then on at runtime, this produces an extra launch event.
-    // This is beyond the scope of the Activatable refactoring — keeping as-is.
-    this.client.trackAppLaunch({
-      version: app.getVersion(),
-      os: process.platform
-    })
+    if (!this.hasTrackedAppLaunch) {
+      this.client.trackAppLaunch({
+        version: app.getVersion(),
+        os: process.platform
+      })
+      this.hasTrackedAppLaunch = true
+    }
 
     logger.info('Analytics service activated')
   }
@@ -100,7 +100,7 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.isActivated || !this.desiredEnabled) return
+    if (!this.isActivated || !this.desiredEnabled || (data.input_tokens === 0 && data.output_tokens === 0)) return
     this.client!.trackTokenUsage(data)
   }
 

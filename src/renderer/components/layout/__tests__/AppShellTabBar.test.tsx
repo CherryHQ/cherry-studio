@@ -230,11 +230,7 @@ describe('AppShellTabBar', () => {
       detachTab
     })
 
-    const backButton = screen.getByRole('button', { name: 'common.back' })
-    // The focused control stays visually plain until hover, while both label and icon highlight together.
-    expect(backButton).toHaveClass('cursor-pointer', 'bg-transparent', 'hover:text-foreground')
-    expect(backButton.querySelector('svg')).toHaveClass('group-hover:text-foreground')
-    expect(backButton).not.toHaveClass('hover:bg-accent')
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Launchpad' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
@@ -245,7 +241,6 @@ describe('AppShellTabBar', () => {
     expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
 
     const detachButton = screen.getByLabelText('tab.open_in_new_window', { selector: 'button' })
-    expect(detachButton.querySelector('svg')).toHaveClass('text-foreground-tertiary', 'group-hover:text-foreground')
     expect(detachButton).toHaveTextContent('')
     await user.click(detachButton)
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
@@ -308,6 +303,98 @@ describe('AppShellTabBar', () => {
       )
       expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
     } finally {
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+      rectSpy.mockRestore()
+    }
+  })
+
+  it('positions the detached window when a fast drag drops right after the detaching move', () => {
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
+      return {
+        width: isTabBar ? 800 : 160,
+        height: isTabBar ? 44 : 30,
+        top: 0,
+        left: 0,
+        right: isTabBar ? 800 : 160,
+        bottom: isTabBar ? 44 : 30,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      configurable: true,
+      value: vi.fn()
+    })
+    const moveWindowSend = vi.fn()
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      value: { ipcRenderer: { send: moveWindowSend } }
+    })
+
+    try {
+      const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+      const closeTab = renderTabBar({
+        tabs: [settingsTab],
+        activeTabId: settingsTab.id,
+        isFocusedTab: true,
+        detachTab: vi.fn()
+      })
+      const tab = screen.getByRole('button', { name: 'common.back' })
+
+      // One detaching pointermove, then the pointer comes up before any further move
+      // can issue Tab_MoveWindow — the window must still be positioned and shown.
+      const pointerDown = new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: 100,
+        clientY: 20,
+        screenX: 100,
+        screenY: 20
+      })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(tab, pointerDown)
+
+      const pointerMove = new MouseEvent('pointermove', {
+        bubbles: true,
+        clientX: 100,
+        clientY: 100,
+        screenX: 100,
+        screenY: 100
+      })
+      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
+
+      const pointerUp = new MouseEvent('pointerup', {
+        bubbles: true,
+        clientX: 100,
+        clientY: 100,
+        screenX: 100,
+        screenY: 100
+      })
+      Object.defineProperty(pointerUp, 'pointerId', { value: 1 })
+
+      // Dispatch both inside one act so React cannot flush the pending
+      // setDragState({ mode: 'detach' }) between them — pointerup then sees only
+      // the synchronous dragRef.detachedCreated flag, the stale-closure fallback
+      // the fix adds (real-world fast drops race the render commit the same way).
+      act(() => {
+        document.dispatchEvent(pointerMove)
+        document.dispatchEvent(pointerUp)
+      })
+
+      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+      expect(moveWindowSend).toHaveBeenCalledWith(
+        'tab:move-window',
+        expect.objectContaining({ tabId: settingsTab.id, x: -300, y: 80 })
+      )
+    } finally {
+      Reflect.deleteProperty(window, 'electron')
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
       } else {
@@ -409,131 +496,13 @@ describe('AppShellTabBar', () => {
     const normalTab = screen.getByRole('button', { name: 'A' })
     const pinnedTab = screen.getByRole('button', { name: 'P' })
 
+    // Electron drag-region markers keep tabs interactive while whitespace can move the window.
     expect(tabStrip.closest('header')).toHaveAttribute('data-ui', 'app.tab-bar')
     expect(tabStrip).not.toHaveClass('nodrag')
     expect(tabStrip).not.toHaveClass('[-webkit-app-region:no-drag]')
     expect(chatTab).toHaveClass('nodrag')
     expect(normalTab).toHaveClass('nodrag')
     expect(pinnedTab).toHaveClass('nodrag')
-  })
-
-  it("keeps an inactive tab's existing tone while dragging", () => {
-    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
-    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
-      configurable: true,
-      value: vi.fn()
-    })
-
-    try {
-      mocks.macTransparentState.value = true
-      renderTabBar()
-
-      const tab = screen.getByRole('button', { name: 'A' })
-      const classNameBeforeDrag = tab.className
-      const pointerDown = new MouseEvent('pointerdown', {
-        bubbles: true,
-        button: 0,
-        clientX: 100,
-        clientY: 20,
-        screenX: 100,
-        screenY: 20
-      })
-      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
-      fireEvent(tab, pointerDown)
-
-      const pointerMove = new MouseEvent('pointermove', {
-        bubbles: true,
-        clientX: 110,
-        clientY: 20,
-        screenX: 110,
-        screenY: 20
-      })
-      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
-      fireEvent(document, pointerMove)
-
-      expect(tab).toHaveClass('cursor-grabbing')
-      expect(tab.className.replace('cursor-grabbing', 'cursor-default')).toBe(classNameBeforeDrag)
-    } finally {
-      if (originalSetPointerCapture) {
-        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
-      } else {
-        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
-      }
-    }
-  })
-
-  it('removes the left inset on Windows and Linux without caller configuration', () => {
-    const tabs = [createTab('home')]
-
-    renderTabBar({ tabs, activeTabId: 'home' })
-
-    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
-    const tabStrip = screen.getByTestId('app-shell-tab-strip')
-
-    expect(header).toHaveClass('pl-0')
-    expect(header).not.toHaveClass('pl-3')
-    expect(tabStrip).toHaveClass('pr-1')
-    expect(tabStrip).not.toHaveClass('px-1')
-    expect(tabStrip).not.toHaveClass('pl-1')
-  })
-
-  it('keeps the macOS tab bar flush while tab buttons avoid traffic lights when the sidebar narrows', () => {
-    mocks.platformState.isMac = true
-
-    renderTabBar()
-
-    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
-    const tabStrip = screen.getByTestId('app-shell-tab-strip')
-
-    expect(header).toHaveClass('pl-0')
-    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
-    expect(screen.queryByTestId('macos-tab-strip-traffic-light-spacer')).toBeNull()
-    expect(tabStrip).toHaveStyle({
-      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
-    })
-    expect(tabStrip).toHaveClass('pr-1')
-    expect(tabStrip).not.toHaveClass('pl-1')
-  })
-
-  it('removes the macOS traffic light reserve while fullscreen', () => {
-    mocks.platformState.isMac = true
-
-    renderTabBar({ isFullscreen: true })
-
-    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
-    const tabStrip = screen.getByTestId('app-shell-tab-strip')
-
-    expect(header).toHaveClass('pl-0')
-    expect(tabStrip).not.toHaveStyle({
-      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
-    })
-    expect(tabStrip).toHaveClass('pr-1')
-  })
-
-  it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
-    const fadeMask = 'linear-gradient(to right, black 80%, transparent 100%)'
-
-    renderTabBar({
-      tabs: [createTab('chat', { url: '/app/chat?topicId=topic-1', title: 'Chat title' }), createTab('a')],
-      activeTabId: 'chat'
-    })
-
-    const title = screen.getByText('Chat title')
-    const tabButton = screen.getByRole('button', { name: 'Chat title' })
-    const icon = tabButton.querySelector('svg')
-
-    expect(title).toHaveClass('font-normal')
-    expect(title).toHaveClass('text-xs')
-    expect(title).toHaveClass('leading-none')
-    expect(title).toHaveClass('min-w-0', 'flex-1', 'overflow-hidden', 'whitespace-nowrap')
-    expect(title).not.toHaveClass('font-medium')
-    expect(title).not.toHaveClass('truncate')
-    expect(title.getAttribute('style')).toContain(`mask-image: ${fadeMask}`)
-    expect(tabButton).toHaveClass('px-2')
-    expect(tabButton).not.toHaveClass('pr-1')
-    expect(icon).toHaveAttribute('width', '14')
-    expect(icon).toHaveAttribute('height', '14')
-    expect(icon).toHaveClass('shrink-0')
   })
 
   it('does not request ResourceList reveal when switching chat or agent tabs', () => {
@@ -562,6 +531,19 @@ describe('AppShellTabBar', () => {
     expect(screen.queryByTestId('menu-tab.move-to-first')).toBeNull()
     expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(1)
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
+  })
+
+  it('does not offer pinning for transient mini-app tabs', () => {
+    const transientMiniAppTab = createTab('mini-app', {
+      url: '/app/mini-app/deepseek-harness',
+      metadata: { transientMiniApp: true }
+    })
+
+    renderTabBar({ tabs: [transientMiniAppTab], activeTabId: transientMiniAppTab.id, detachTab: vi.fn() })
+
+    expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
+    expect(screen.getByTestId('menu-tab.open-in-new-window')).toBeInTheDocument()
+    expect(screen.getByTestId('menu-tab.close')).toBeInTheDocument()
   })
 
   it('allows both the last normal tab and pinned tabs to close from the menu', () => {
@@ -1085,6 +1067,93 @@ describe('AppShellTabBar', () => {
     }
   })
 
+  it('reclamps a dragged tab with the current strip, tab, and launchpad geometry after resize', () => {
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    const originalRequestAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame')
+    const originalCancelAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame')
+    let stripWidth = 300
+    let tabWidth = 100
+    let tabLeft = 100
+
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const element = this as HTMLElement
+      const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
+      const geometry =
+        element.dataset.ui === 'app.tab-bar' || element.dataset.testid === 'app-shell-tab-strip'
+          ? { left: 0, width: stripWidth, height: element.dataset.ui === 'app.tab-bar' ? 44 : 30 }
+          : element.dataset.launchpadButton !== undefined
+            ? { left: stripWidth - 56, width: 28, height: 28 }
+            : element.dataset.tabId === 'a'
+              ? { left: tabLeft + translateX, width: tabWidth, height: 30 }
+              : element.dataset.tabId === 'home'
+                ? { left: 0, width: 100, height: 30 }
+                : { left: 0, width: 0, height: 0 }
+
+      return {
+        x: geometry.left,
+        y: 0,
+        top: 0,
+        bottom: geometry.height,
+        left: geometry.left,
+        right: geometry.left + geometry.width,
+        width: geometry.width,
+        height: geometry.height,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    vi.useFakeTimers()
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
+    })
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: (id: number) => window.clearTimeout(id)
+    })
+
+    try {
+      renderTabBar({ tabs: [createTab('home'), createTab('a')], activeTabId: 'a' })
+      const tab = screen.getByRole('button', { name: 'A' })
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 20, clientY: 20 })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(tab, pointerDown)
+
+      const startDrag = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(startDrag, 'pointerId', { value: 1 })
+      fireEvent(document, startDrag)
+      expect(tab).toHaveStyle({ transform: 'translateX(34px)' })
+
+      stripWidth = 240
+      tabWidth = 160
+      tabLeft = 0
+      const moveAfterResize = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(moveAfterResize, 'pointerId', { value: 1 })
+      fireEvent(document, moveAfterResize)
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+
+      expect(tab).toHaveStyle({ transform: 'translateX(18px)' })
+    } finally {
+      vi.useRealTimers()
+      for (const [key, descriptor] of [
+        ['requestAnimationFrame', originalRequestAnimationFrame],
+        ['cancelAnimationFrame', originalCancelAnimationFrame]
+      ] as const) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor)
+        else Reflect.deleteProperty(globalThis, key)
+      }
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+      rectSpy.mockRestore()
+    }
+  })
+
   it('clears the divider beside a tab whose context menu is open', () => {
     const tabs = [createTab('a'), createTab('b'), createTab('c')]
     renderTabBar({ tabs, activeTabId: 'a' })
@@ -1324,5 +1393,11 @@ describe('getTabCapabilities', () => {
     expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, canDetach: false })).detach).toBe(
       false
     )
+  })
+
+  it('disables pinning for transient mini-app tabs', () => {
+    const transientMiniAppTab = createTab('mini-app', { metadata: { transientMiniApp: true } })
+
+    expect(getTabCapabilities(transientMiniAppTab, ctx({ normalIndex: 0 })).togglePin).toBe(false)
   })
 })

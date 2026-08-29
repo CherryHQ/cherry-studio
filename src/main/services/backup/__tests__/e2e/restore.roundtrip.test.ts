@@ -157,10 +157,10 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
     const now = Date.now()
     liveConn
       .prepare(
-        `INSERT INTO topic (id, name, is_name_manually_edited, order_key, created_at, updated_at)
-         VALUES (?, ?, 0, ?, ?, ?)`
+        `INSERT INTO topic (id, name, is_name_manually_edited, order_key, created_at, updated_at, last_activity_at)
+         VALUES (?, ?, 0, ?, ?, ?, ?)`
       )
-      .run(id, name, `order-${id}`, now, now)
+      .run(id, name, `order-${id}`, now, now, now)
   }
 
   it('promotes a real exported archive into a fresh live DB (backfill + completed journal)', async () => {

@@ -341,6 +341,7 @@ export function runDataReset(): void {
       wipeV1RemigrationData(failures)
     } else {
       wipeDirectoryEntries(userData, shouldWipe, failures)
+      wipeNestedUserDataTargets(failures)
       // Temporary cache removal is best-effort.
       try {
         fs.rmSync(application.getPath('app.temp'), RM_OPTIONS)
@@ -435,6 +436,19 @@ function wipeV1RemigrationData(failures: string[]): void {
   }
 }
 
+/** Wipe feature data nested below a retained top-level runtime directory. */
+function wipeNestedUserDataTargets(failures: string[]): void {
+  const targets = [application.getPath('feature.provider_registry.override')]
+  for (const target of targets) {
+    try {
+      fs.rmSync(target, RM_OPTIONS)
+    } catch (error) {
+      logger.warn('Failed to remove nested user data during reset', { target, error: String(error) })
+      failures.push(target)
+    }
+  }
+}
+
 function refuseResetForPathMismatch(): void {
   deleteMarker()
   showPathMismatchWarning()
@@ -453,6 +467,13 @@ function showDataResetError(title: string, message: string): void {
 function shouldWipe(entry: string): boolean {
   return USER_DATA_WIPE.includes(entry)
 }
+
+/**
+ * Budget for clearing Chromium session state. Unrelated to the lifecycle
+ * shutdown deadline — it happens before `shutdown()` is even called — it merely
+ * borrowed the same number back when both were `SHUTDOWN_TIMEOUT_MS`.
+ */
+const CHROMIUM_CLEAR_TIMEOUT_MS = 5000
 
 /** Clears known sessions with a timeout so shutdown cannot hang. */
 async function clearChromiumState(): Promise<void> {
@@ -482,7 +503,7 @@ async function clearChromiumState(): Promise<void> {
         timeout = setTimeout(() => {
           logger.warn('Chromium state clear timed out during data reset request — continuing with shutdown')
           resolve()
-        }, SHUTDOWN_TIMEOUT_MS)
+        }, CHROMIUM_CLEAR_TIMEOUT_MS)
       })
     ])
   } finally {

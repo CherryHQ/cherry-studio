@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
+import type { ModelSelectorTag } from './filters'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
@@ -41,6 +42,7 @@ const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
+const FILTER_TAG_FADE_WIDTH_PX = 24
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
@@ -176,6 +178,13 @@ function ModelRow({
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
+  const disambiguationLabel = item.showIdentifier
+    ? item.groupKind === 'pinned'
+      ? `${providerName} · ${item.modelIdentifier}`
+      : item.modelIdentifier
+    : item.groupKind === 'pinned'
+      ? providerName
+      : undefined
 
   const leading = icon ? (
     <icon.Avatar size={24} className="border border-border" />
@@ -240,13 +249,81 @@ function ModelRow({
         <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
           {item.model.name}
         </span>
-        {item.isPinned && (
-          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
-            | {providerName}
+        {disambiguationLabel && (
+          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={disambiguationLabel}>
+            | {disambiguationLabel}
           </span>
         )}
       </ModelSelectorRow>
     </ModelSelectorDetailCard>
+  )
+}
+
+function ModelSelectorFilterTags({
+  tags,
+  tagSelection,
+  onToggleTag
+}: {
+  tags: readonly ModelSelectorTag[]
+  tagSelection: Record<ModelSelectorTag, boolean>
+  onToggleTag: (tag: ModelSelectorTag) => void
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [fadeState, setFadeState] = useState({ left: false, right: false })
+
+  const updateFadeState = useCallback(() => {
+    const element = scrollRef.current
+    if (!element) return
+
+    // 容差 1px:缩放下 scrollWidth/clientWidth 有亚像素误差,精确等式会让右侧渐隐永不消失
+    const left = element.scrollLeft > 0
+    const right = element.scrollLeft + element.clientWidth < element.scrollWidth - 1
+    setFadeState((prev) => (prev.left === left && prev.right === right ? prev : { left, right }))
+  }, [])
+
+  useLayoutEffect(() => {
+    updateFadeState()
+  })
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current
+    if (!element || typeof ResizeObserver === 'undefined') {
+      return undefined
+    }
+
+    const observer = new ResizeObserver(updateFadeState)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [updateFadeState])
+
+  const maskImage =
+    fadeState.left && fadeState.right
+      ? `linear-gradient(to right, transparent, black ${FILTER_TAG_FADE_WIDTH_PX}px, black calc(100% - ${FILTER_TAG_FADE_WIDTH_PX}px), transparent)`
+      : fadeState.right
+        ? `linear-gradient(to right, black calc(100% - ${FILTER_TAG_FADE_WIDTH_PX}px), transparent)`
+        : fadeState.left
+          ? `linear-gradient(to right, transparent, black ${FILTER_TAG_FADE_WIDTH_PX}px)`
+          : undefined
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={updateFadeState}
+      style={maskImage ? { maskImage } : undefined}
+      className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      data-testid="model-selector-filter-tags">
+      {tags.map((tag) => (
+        <ModelTag
+          key={`filter-${tag}`}
+          tag={tag}
+          size={FILTER_TAG_SIZE}
+          showLabel
+          inactive={!tagSelection[tag]}
+          onClick={() => onToggleTag(tag)}
+          className="h-5 shrink-0 items-center transition-colors"
+        />
+      ))}
+    </div>
   )
 }
 
@@ -803,23 +880,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       return undefined
     }
 
-    return (
-      <div
-        className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        data-testid="model-selector-filter-tags">
-        {availableTags.map((tag) => (
-          <ModelTag
-            key={`filter-${tag}`}
-            tag={tag}
-            size={FILTER_TAG_SIZE}
-            showLabel
-            inactive={!tagSelection[tag]}
-            onClick={() => toggleTag(tag)}
-            className="h-5 shrink-0 items-center transition-colors"
-          />
-        ))}
-      </div>
-    )
+    return <ModelSelectorFilterTags tags={availableTags} tagSelection={tagSelection} onToggleTag={toggleTag} />
   }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
   const multiSelectConfig = useMemo(

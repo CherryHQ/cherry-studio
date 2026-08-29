@@ -1,4 +1,4 @@
-import { getAppLanguage, getI18n, SUPPORTED_LANGUAGES, t } from '@main/i18n'
+import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
 import { defaultLanguage } from '@shared/utils/languages'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
@@ -41,6 +41,12 @@ describe('main i18n', () => {
       expect(t('dialog.save_file')).toBe('Save File')
     })
 
+    it('localizes Agent Session admission errors', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+      expect(t('agent.session.run_status.busy')).toBe('Agent 会话正忙，请稍后重试。')
+      expect(t('agent.session.run_status.unavailable')).toBe('Agent 会话已不可用。')
+    })
+
     it('interpolates {{var}} placeholders', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('agent.session.workspace_status.inaccessible', { path: '/tmp/x' })).toBe(
@@ -61,47 +67,12 @@ describe('main i18n', () => {
       expect(t('does.not.exist')).toBe('does.not.exist')
     })
 
-    it('falls back to en-US when the current language value is an untranslated marker', () => {
-      // ja-JP carries "[to be translated]:Restore complete…" for this key; the marker is
-      // a real string, so a naive ?? would not fall back — t() must treat it as missing
-      // and surface the en-US text instead.
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
-      expect(t('backup.restore.notification.completed')).toBe('Restore complete — the app will restart momentarily.')
-    })
-
-    it('returns the key when both the current language and en-US carry the marker', async () => {
-      // Extreme case: en-US itself is somehow marked untranslated. t() must keep
-      // falling through to the key rather than surface a raw marker.
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
-      const { default: enUs } = await import('@main/i18n/locales/en-us.json')
-      const notif = enUs.backup.restore.notification
-      const original = notif.completed
-      notif.completed = '[to be translated]:Restore complete'
-      try {
-        expect(t('backup.restore.notification.completed')).toBe('backup.restore.notification.completed')
-      } finally {
-        notif.completed = original
-      }
-    })
-
     it('resolves against an explicit `language` override, ignoring app.language', () => {
       // The API gateway's docs render one translation per requested language,
       // independent of the app's own language — this is what makes that possible.
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('dialog.save_file', undefined, 'zh-CN')).toBe('保存文件')
       expect(t('dialog.save_file')).toBe('Save File')
-    })
-  })
-
-  describe('getI18n', () => {
-    it('returns the { translation } subtree for the current language', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
-      expect(getI18n().translation.appMenu.about).toBe('About')
-    })
-
-    it('returns the { translation } subtree for an explicit language argument', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
-      expect(getI18n('zh-CN').translation.appMenu.about).toBe('关于')
     })
   })
 

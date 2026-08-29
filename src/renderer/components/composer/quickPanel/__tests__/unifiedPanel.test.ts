@@ -544,7 +544,8 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         symbol: 'thinking',
         parentPanel: options,
         queryAnchor: 0,
-        triggerInfo: { type: 'input', position: 0, originalText: '/think' },
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
@@ -568,6 +569,49 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         queryAnchor: 0,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      })
+    )
+  })
+
+  it('preserves tooltip metadata for submenu rows', () => {
+    const tooltipAnchor = createElement('span', { 'aria-label': 'warning' })
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-mode-auto',
+              kind: 'command',
+              label: 'Approve for Me',
+              icon: 'shield-alert',
+              tooltip: 'Needs a model that supports it.',
+              tooltipAnchor,
+              sources: ['popover']
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+    const permissionMode = options.list[0]
+
+    permissionMode.action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: permissionMode,
+      parentPanel: options
+    })
+
+    const submenu = vi.mocked(quickPanel.open).mock.calls[0][0]
+    expect(submenu.list[0]).toEqual(
+      expect.objectContaining({
+        tooltip: 'Needs a model that supports it.',
+        tooltipAnchor
       })
     )
   })

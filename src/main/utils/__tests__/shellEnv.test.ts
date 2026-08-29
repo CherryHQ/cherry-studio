@@ -1,6 +1,10 @@
 import { execFile, spawn } from 'child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { enumerateValuesSafeMock } = vi.hoisted(() => ({
+  enumerateValuesSafeMock: vi.fn()
+}))
+
 // Force Windows code path regardless of the host platform.
 vi.mock('@main/core/platform', () => ({
   isWin: true,
@@ -25,6 +29,18 @@ vi.mock('@application', () => ({
 
 vi.mock('child_process')
 
+vi.mock('registry-js', () => ({
+  HKEY: {
+    HKEY_LOCAL_MACHINE: 'HKEY_LOCAL_MACHINE',
+    HKEY_CURRENT_USER: 'HKEY_CURRENT_USER'
+  },
+  RegistryValueType: {
+    REG_SZ: 'REG_SZ',
+    REG_EXPAND_SZ: 'REG_EXPAND_SZ'
+  },
+  enumerateValuesSafe: enumerateValuesSafeMock
+}))
+
 // Control the bundled-git resolution; default null so most tests see no bundled
 // git appended (matching a build/host without the Windows MinGit bundle).
 vi.mock('../bundledGit', () => ({
@@ -34,32 +50,35 @@ vi.mock('../bundledGit', () => ({
 
 // Import AFTER mocks are registered so the module binds to mocked values.
 import { getBundledGitDir } from '../bundledGit'
-import { getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Simulate `reg query` output for a REG_EXPAND_SZ value. */
-const regOutput = (keyPath: string, value: string) => `\r\n${keyPath}\r\n    Path    REG_EXPAND_SZ    ${value}\r\n\r\n`
+const HKLM_HIVE = 'HKEY_LOCAL_MACHINE'
+const HKCU_HIVE = 'HKEY_CURRENT_USER'
+const HKLM_KEY = 'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
+const HKCU_KEY = 'Environment'
 
-/** Simulate `reg query` output for a plain REG_SZ value. */
-const regSzOutput = (keyPath: string, value: string) => `\r\n${keyPath}\r\n    Path    REG_SZ    ${value}\r\n\r\n`
-
-const HKLM_KEY = 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
-const HKCU_KEY = 'HKCU\\Environment'
-type RegistryCallback = (error: Error | null, stdout: string, stderr: string) => void
-
-function mockRegistryQuery(resolveOutput: (args: readonly string[]) => string): void {
-  const implementation = (_command: string, args: readonly string[], _options: unknown, callback: RegistryCallback) => {
-    try {
-      callback(null, resolveOutput(args), '')
-    } catch (error) {
-      callback(error as Error, '', '')
+function mockRegistryPaths({
+  system,
+  user,
+  type = 'REG_EXPAND_SZ'
+}: {
+  system?: string
+  user?: string
+  type?: 'REG_SZ' | 'REG_EXPAND_SZ'
+} = {}): void {
+  enumerateValuesSafeMock.mockImplementation((hive: string, keyPath: string) => {
+    if (hive === HKLM_HIVE && keyPath === HKLM_KEY && system !== undefined) {
+      return [{ name: 'Path', type, data: system }]
     }
-    return {}
-  }
-  vi.mocked(execFile).mockImplementation(implementation as never)
+    if (hive === HKCU_HIVE && keyPath === HKCU_KEY && user !== undefined) {
+      return [{ name: 'Path', type, data: user }]
+    }
+    return []
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -87,13 +106,7 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- registry reads -------------------------------------------------------
 
   it('should replace stale PATH with fresh system registry value', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) {
-        return regOutput(keyPath, 'C:\\Windows\\system32;C:\\Windows;C:\\NodeJS')
-      }
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Windows\\system32;C:\\Windows;C:\\NodeJS' })
 
     const env = await refreshShellEnv()
 
@@ -102,12 +115,7 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should combine system and user PATH with semicolon', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\System')
-      if (keyPath === HKCU_KEY) return regOutput(keyPath, 'C:\\User')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\System', user: 'C:\\User' })
 
     const env = await refreshShellEnv()
 
@@ -118,35 +126,18 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(pathValue).toContain('C:\\System;C:\\User')
   })
 
-  it('starts both registry reads without blocking on either result', async () => {
-    const callbacks = new Map<string, RegistryCallback>()
-    const implementation = (
-      _command: string,
-      args: readonly string[],
-      _options: unknown,
-      callback: RegistryCallback
-    ) => {
-      callbacks.set(args[1], callback)
-      return {}
-    }
-    vi.mocked(execFile).mockImplementation(implementation as never)
+  it('preserves Unicode registry PATH values without invoking reg.exe', async () => {
+    mockRegistryPaths({ system: 'D:\\开发工具\\nodejs' })
 
-    const envPromise = refreshShellEnv()
+    const env = await refreshShellEnv()
 
-    expect(callbacks.size).toBe(2)
-    callbacks.get(HKCU_KEY)?.(null, regOutput(HKCU_KEY, 'C:\\User'), '')
-    callbacks.get(HKLM_KEY)?.(null, regOutput(HKLM_KEY, 'C:\\System'), '')
-
-    const env = await envPromise
-    expect(env.Path).toContain('C:\\System;C:\\User')
+    expect(env.Path).toContain('D:\\开发工具\\nodejs')
+    expect(enumerateValuesSafeMock).toHaveBeenCalledWith(HKLM_HIVE, HKLM_KEY)
+    expect(execFile).not.toHaveBeenCalled()
   })
 
   it('should use only user PATH when system PATH is unavailable', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKCU_KEY) return regOutput(keyPath, 'C:\\UserOnly')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ user: 'C:\\UserOnly' })
 
     const env = await refreshShellEnv()
 
@@ -154,9 +145,7 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should fall back to process.env PATH when both registry reads fail', async () => {
-    mockRegistryQuery(() => {
-      throw new Error('registry unavailable')
-    })
+    mockRegistryPaths()
 
     const env = await refreshShellEnv()
 
@@ -166,11 +155,7 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- %VAR% expansion ------------------------------------------------------
 
   it('should expand %SystemRoot% in registry PATH', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, '%SystemRoot%\\system32')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: '%SystemRoot%\\system32' })
 
     const env = await refreshShellEnv()
 
@@ -179,11 +164,7 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should preserve unknown %VAR% references unexpanded', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, '%UNKNOWN_VAR%\\bin')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: '%UNKNOWN_VAR%\\bin' })
 
     const env = await refreshShellEnv()
 
@@ -191,11 +172,7 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should expand variables case-insensitively', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, '%systemroot%\\system32')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: '%systemroot%\\system32' })
 
     const env = await refreshShellEnv()
 
@@ -205,11 +182,7 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- REG_SZ (no expand) ---------------------------------------------------
 
   it('should handle REG_SZ values without %VAR% expansion needed', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regSzOutput(keyPath, 'C:\\PlainPath')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\PlainPath', type: 'REG_SZ' })
 
     const env = await refreshShellEnv()
 
@@ -220,11 +193,7 @@ describe('shellEnv – Windows registry PATH', () => {
 
   it('should preserve the unmodified user environment for system tools', async () => {
     process.env.MISE_DATA_DIR = 'C:\\Users\\TestUser\\mise-data'
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows;C:\\UserNode')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\UserNode' })
 
     await refreshShellEnv()
     const env = await getRawShellEnv()
@@ -235,11 +204,7 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should append Cherry Studio tool directories to PATH', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Windows' })
 
     const env = await refreshShellEnv()
 
@@ -252,11 +217,7 @@ describe('shellEnv – Windows registry PATH', () => {
   it('lists the mise shims dir only once despite appending and prepending it', async () => {
     // appendCherryToolDirsToPath() adds the shims dir, then mergeBinaryExecutionEnv()
     // prepends it again — the merge step must dedup so it does not appear twice.
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Windows' })
 
     const env = await refreshShellEnv()
 
@@ -267,11 +228,7 @@ describe('shellEnv – Windows registry PATH', () => {
   it('appends the bundled MinGit dir to the PATH tail as a last-resort git', async () => {
     const bundledGitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
     vi.mocked(getBundledGitDir).mockReturnValue(bundledGitDir)
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Git\\cmd;C:\\Windows')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Git\\cmd;C:\\Windows' })
 
     const env = await refreshShellEnv()
 
@@ -284,11 +241,7 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- does not spawn cmd.exe -----------------------------------------------
 
   it('should not spawn cmd.exe or any shell process', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Windows' })
 
     await refreshShellEnv()
 
@@ -298,27 +251,19 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- concurrent dedup -----------------------------------------------------
 
   it('should collapse overlapping fetches onto a single env resolution', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Windows' })
 
-    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two execFile calls
+    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two registry calls
     // per resolution. Overlapping callers must share one resolution → 2 calls.
     await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
 
-    expect(execFile).toHaveBeenCalledTimes(2)
+    expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(2)
   })
 
   // -- cache isolation ------------------------------------------------------
 
   it('returns a copy so a caller mutating the result cannot poison the cache', async () => {
-    mockRegistryQuery((args) => {
-      const keyPath = args[1]
-      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
-      throw new Error('not found')
-    })
+    mockRegistryPaths({ system: 'C:\\Windows' })
 
     const first = await refreshShellEnv()
     const pathKey = Object.keys(first).find((k) => k.toLowerCase() === 'path')
@@ -328,5 +273,13 @@ describe('shellEnv – Windows registry PATH', () => {
 
     const second = await getShellEnv()
     expect(second[pathKey as string]).toBeDefined()
+  })
+})
+
+describe('getPathFromEnvironment', () => {
+  it('reads PATH keys case-insensitively without copying unrelated values', () => {
+    expect(getPathFromEnvironment({ Path: 'C:\\Users\\tester\\bin', SECRET: 'hidden' })).toBe('C:\\Users\\tester\\bin')
+    expect(getPathFromEnvironment({ PATH: '/opt/homebrew/bin' })).toBe('/opt/homebrew/bin')
+    expect(getPathFromEnvironment({ HOME: '/Users/tester' })).toBeUndefined()
   })
 })

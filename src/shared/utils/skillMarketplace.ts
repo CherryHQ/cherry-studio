@@ -93,6 +93,122 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
   })
 }
 
+export type GithubSkillLocation = {
+  owner: string
+  repo: string
+  refNamespace: 'heads' | 'tags' | null
+  /** Decoded ref and path segments. Their boundary is resolved from the repository's actual refs. */
+  refAndPath: string[]
+  descriptorFileName: 'SKILL.md' | 'skill.md'
+}
+
+const GITHUB_REPO_PART = /^[a-zA-Z0-9_.-]+$/
+
+function invalidPathPart(part: string): boolean {
+  // A decoded `/` would silently change the depth the installer resolves, `\` does the same on
+  // Windows, and a NUL cannot reach the filesystem; none can name a real GitHub entry.
+  return (
+    !part ||
+    part !== part.trim() ||
+    part === '.' ||
+    part === '..' ||
+    part.includes('\\') ||
+    part.includes('/') ||
+    part.includes('\0')
+  )
+}
+
+/**
+ * Re-encode a decoded repo path for use in a URL. `GithubSkillLocation.refAndPath` is decoded so
+ * the installer can resolve it on disk; concatenating it raw would break the round-trip back through
+ * `parseGithubSkillUrl` (a `#` in a directory name turns the rest of the URL into a fragment).
+ */
+export function encodeGithubPath(directoryPath: string): string {
+  return directoryPath.split('/').map(encodeURIComponent).join('/')
+}
+
+/**
+ * Parse a GitHub URL pointing at one skill's SKILL.md file, e.g.
+ * `https://github.com/{owner}/{repo}/blob/{ref}/{dir}/SKILL.md` (or the `raw.githubusercontent.com`
+ * form). The renderer validates input and `SkillService` resolves the install with this same parser,
+ * so a URL the UI accepts is exactly one the installer can clone.
+ *
+ * The SKILL.md file name is required: the enclosing directory is what identifies the skill, and a
+ * bare repo or tree URL would leave the installer guessing which of several skills was meant.
+ */
+export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null {
+  let url: URL
+  let segments: string[]
+  try {
+    const trimmedUrl = rawUrl.trim()
+    url = new URL(trimmedUrl)
+    const authorityEnd = trimmedUrl.indexOf('/', trimmedUrl.indexOf('://') + 3)
+    const rawPath = authorityEnd === -1 ? '' : trimmedUrl.slice(authorityEnd).split(/[?#]/, 1)[0]
+    const rawSegments = rawPath.split('/').filter(Boolean).map(decodeURIComponent)
+    // WHATWG URL parsing removes literal dot segments before exposing `pathname`; inspect the raw
+    // path first so accepting a repository-root descriptor does not turn traversal into a valid ref.
+    if (rawSegments.some(invalidPathPart)) return null
+    // Decoding belongs inside the guard: `new URL` accepts a lone `%`, but decoding one throws, and
+    // callers rely on invalid input returning null rather than raising mid-render.
+    segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    return null
+  }
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  const [owner, rawRepo, ...tail] = segments
+  // `tree` denotes a directory. GitHub's Raw action uses `/raw/refs/heads/...` and redirects to the
+  // raw-content host, so both file routes belong to the same syntax contract.
+  const rawRefAndPath =
+    host === 'github.com' && (tail[0] === 'blob' || tail[0] === 'raw')
+      ? tail.slice(1)
+      : host === 'raw.githubusercontent.com'
+        ? tail
+        : null
+  if (!rawRefAndPath) return null
+
+  const repo = rawRepo?.replace(/\.git$/i, '')
+  const fileName = rawRefAndPath.at(-1)
+  const descriptorFileName = fileName === 'SKILL.md' || fileName === 'skill.md' ? fileName : null
+  let refAndPath = rawRefAndPath.slice(0, -1)
+  let refNamespace: GithubSkillLocation['refNamespace'] = null
+
+  if (refAndPath[0] === 'refs' && (refAndPath[1] === 'heads' || refAndPath[1] === 'tags')) {
+    refNamespace = refAndPath[1]
+    refAndPath = refAndPath.slice(2)
+  }
+
+  if (!owner || !repo || !descriptorFileName) return null
+  if (![owner, repo].every((part) => GITHUB_REPO_PART.test(part))) return null
+  // A single segment can be a ref selecting a descriptor at the repository root.
+  if (refAndPath.length < 1 || refAndPath.some(invalidPathPart)) return null
+
+  return { owner, repo, refNamespace, refAndPath, descriptorFileName }
+}
+
+/** Present a validated GitHub SKILL.md URL as an installable search result. */
+export function buildGithubSkillResult(rawUrl: string): SkillSearchResult | null {
+  const location = parseGithubSkillUrl(rawUrl)
+  if (!location) return null
+
+  const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
+  const path = encodeGithubPath(refAndPath.join('/'))
+  const canonicalUrl = refNamespace
+    ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${refNamespace}/${path}/${descriptorFileName}`
+    : `https://github.com/${owner}/${repo}/blob/${path}/${descriptorFileName}`
+  return {
+    slug: `${owner}/${repo}/${refNamespace ? `refs/${refNamespace}/` : ''}${refAndPath.join('/')}`,
+    name: repo,
+    description: null,
+    author: owner,
+    stars: 0,
+    downloads: 0,
+    sourceRegistry: 'github',
+    sourceUrl: canonicalUrl,
+    installSource: `github:${canonicalUrl}`
+  }
+}
+
 export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
   if (!parsed.success) throw new Error('Invalid skills.sh search response')

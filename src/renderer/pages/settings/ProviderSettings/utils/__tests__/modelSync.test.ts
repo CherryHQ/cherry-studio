@@ -1,4 +1,5 @@
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -31,14 +32,25 @@ beforeEach(() => {
 
 describe('fetchResolvedProviderModels', () => {
   it('throws when upstream model listing fails instead of returning an empty list', async () => {
-    listModelsMock.mockRejectedValueOnce(new Error('upstream failed'))
+    const apiKey = 'sk-should-not-reach-logs'
+    const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    listModelsMock.mockRejectedValueOnce(new Error(`upstream failed for ${apiKey}`))
 
-    await expect(fetchResolvedProviderModels('openai')).rejects.toThrow('upstream failed')
+    try {
+      await expect(fetchResolvedProviderModels('openai')).rejects.toThrow(`upstream failed for ${apiKey}`)
 
-    expect(listModelsMock).toHaveBeenCalledWith({
-      providerId: 'openai',
-      throwOnError: true
-    })
+      expect(listModelsMock).toHaveBeenCalledWith({
+        providerId: 'openai',
+        throwOnError: true
+      })
+      expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to fetch and resolve provider models', {
+        providerId: 'openai',
+        errorType: 'Error'
+      })
+      expect(JSON.stringify(loggerErrorSpy.mock.calls)).not.toContain(apiKey)
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
   })
 
   it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
@@ -66,6 +78,43 @@ describe('fetchResolvedProviderModels', () => {
     expect(models[0]).toMatchObject({
       name: 'DeepSeek V3.2',
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+  })
+
+  it('uses registry reasoning controls while preserving discovered thinking support', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        apiModelId: 'qwen3:32b',
+        name: 'qwen3:32b',
+        capabilities: [MODEL_CAPABILITY.REASONING]
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        apiModelId: 'qwen3:32b',
+        presetModelId: 'qwen3-32b',
+        name: 'Qwen3 32B',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
+          selectableEfforts: ['none', 'low', 'medium', 'high']
+        }
+      }
+    ])
+
+    const [model] = await fetchResolvedProviderModels('ollama')
+
+    expect(model).toMatchObject({
+      presetModelId: 'qwen3-32b',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
+        selectableEfforts: ['none', 'low', 'medium', 'high']
+      }
     })
   })
 
@@ -201,11 +250,12 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('does not forward model capabilities in the create DTO (resolved server-side from the registry)', () => {
+  it('does not forward capabilities for a preset-backed model', () => {
     const dto = toCreateModelDto('ppio', {
       id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
       providerId: 'ppio',
       apiModelId: 'bge-reranker-v2-m3',
+      presetModelId: 'bge-reranker-v2-m3',
       name: 'BGE Reranker',
       group: 'rerankers',
       capabilities: [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_GENERATION],
@@ -221,5 +271,69 @@ describe('toCreateModelDto', () => {
       modelId: 'bge-reranker-v2-m3',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
+  })
+
+  it('forwards all discovered capabilities for a custom model', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::acme-thinker:latest' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'acme-thinker:latest',
+      name: 'Acme Thinker',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL])
+  })
+
+  it('persists a discovered context window so the runtime can send num_ctx', () => {
+    // Ollama's window is read from /api/show at listing time, not supplied by the registry;
+    // dropping it here leaves the stored row without one and num_ctx is never sent (#18643).
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::qwen3:32b' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3:32b',
+      name: 'qwen3:32b',
+      capabilities: [],
+      contextWindow: 40960,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto.contextWindow).toBe(40960)
+  })
+
+  it('omits contextWindow when the model has none', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::acme:latest' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'acme:latest',
+      name: 'acme:latest',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).not.toHaveProperty('contextWindow')
+  })
+
+  it('keeps registry capabilities inherited for a preset-backed thinking model', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::qwen3:32b' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3:32b',
+      presetModelId: 'qwen3-32b',
+      name: 'Qwen3 32B',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto.capabilities).toBeUndefined()
   })
 })

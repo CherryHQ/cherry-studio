@@ -308,6 +308,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
           // Every other JobType belongs to a different concern or is runtime-only —
           // its job_schedule rows are not AGENTS-backed and are excluded here.
           'file-processing.background': 'excluded', // FILE_PROCESSING concern
+          'file-processing.background-local': 'excluded', // FILE_PROCESSING concern
           'file-processing.remote-poll': 'excluded', // FILE_PROCESSING concern
           'file.contenthash-backfill': 'excluded', // FILE_STORAGE concern (FileManager backfill job)
           'knowledge.prepare-root': 'excluded', // KNOWLEDGE concern

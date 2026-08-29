@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import { execFile, spawn } from 'child_process'
+import { spawn } from 'child_process'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
@@ -10,6 +10,12 @@ const logger = loggerService.withContext('ShellEnv')
 
 // Give shells enough time to source profile files, but fail fast when they hang.
 const SHELL_ENV_TIMEOUT_MS = 15_000
+
+/** Read PATH using Windows-compatible, case-insensitive environment-key semantics. */
+export function getPathFromEnvironment(env: Record<string, string | undefined>): string | undefined {
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
+  return pathKey ? env[pathKey] : undefined
+}
 
 /**
  * Ensures Cherry-managed tool directories are appended to the user's PATH while
@@ -51,34 +57,6 @@ const applyBinaryExecutionEnv = (env: Record<string, string>) => {
 }
 
 /**
- * Run `reg query <keyPath> /v <valueName>` and return the string data, or null on failure.
- */
-function queryRegValue(keyPath: string, valueName: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    execFile(
-      'reg',
-      ['query', keyPath, '/v', valueName],
-      {
-        encoding: 'utf-8',
-        timeout: 5000,
-        windowsHide: true
-      },
-      (error, stdout) => {
-        if (error) {
-          resolve(null)
-          return
-        }
-        // Output format:
-        //   HKEY_LOCAL_MACHINE\...\Environment
-        //       Path    REG_EXPAND_SZ    C:\Windows;...
-        const match = stdout.match(/REG_(?:EXPAND_)?SZ\s+(.*)/i)
-        resolve(match ? match[1].trim() : null)
-      }
-    )
-  })
-}
-
-/**
  * Replace `%VAR%` references with values from `env` (case-insensitive lookup).
  */
 function expandWindowsEnvVars(value: string, env: Record<string, string>): string {
@@ -94,17 +72,32 @@ function expandWindowsEnvVars(value: string, env: Record<string, string>): strin
  * Returns null when both registry reads fail.
  */
 async function readWindowsRegistryPath(env: Record<string, string>): Promise<string | null> {
-  const [systemPath, userPath] = await Promise.all([
-    queryRegValue('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', 'Path'),
-    queryRegValue('HKCU\\Environment', 'Path')
-  ])
+  try {
+    const { HKEY, RegistryValueType, enumerateValuesSafe } = await import('registry-js')
+    const readPathValue = (hive: (typeof HKEY)[keyof typeof HKEY], subkey: string): string | null => {
+      const pathValue = enumerateValuesSafe(hive, subkey).find(
+        (value) =>
+          value.name.toLowerCase() === 'path' &&
+          (value.type === RegistryValueType.REG_SZ || value.type === RegistryValueType.REG_EXPAND_SZ)
+      )
+      return typeof pathValue?.data === 'string' ? pathValue.data : null
+    }
 
-  if (!systemPath && !userPath) {
+    const systemPath = readPathValue(
+      HKEY.HKEY_LOCAL_MACHINE,
+      'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
+    )
+    const userPath = readPathValue(HKEY.HKEY_CURRENT_USER, 'Environment')
+
+    if (!systemPath && !userPath) {
+      return null
+    }
+
+    const combined = [systemPath, userPath].filter(Boolean).join(';')
+    return expandWindowsEnvVars(combined, env)
+  } catch {
     return null
   }
-
-  const combined = [systemPath, userPath].filter(Boolean).join(';')
-  return expandWindowsEnvVars(combined, env)
 }
 
 /**
@@ -138,9 +131,9 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
 /**
  * Spawns a login shell in the user's home directory to capture its environment variables.
  *
- * We explicitly run a login + interactive shell so it sources the same init files that a user
- * would typically rely on inside their terminal. Many CLIs export PATH or other variables from
- * these scripts; capturing them keeps spawned processes aligned with the user’s expectations.
+ * We explicitly run a login, non-interactive shell. This loads login profiles such as macOS
+ * `~/.zprofile` (where Homebrew commonly installs its PATH) without executing interactive prompt,
+ * theme, or terminal plugin setup from `~/.zshrc`.
  *
  * Timeout handling is important because profile scripts might block forever (e.g. misconfigured
  * `read` or prompts). We proactively kill the shell and surface an error in that case so that
@@ -181,7 +174,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       }
     }
 
-    const commandArgs = ['-ilc', 'env']
+    const commandArgs = ['-lc', 'env']
 
     logger.debug(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
