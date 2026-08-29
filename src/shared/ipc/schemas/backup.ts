@@ -4,6 +4,12 @@ import * as z from 'zod'
 import { defineRoute } from '../define'
 
 const autoBackupTypeSchema = z.enum(AUTO_BACKUP_TYPES)
+const autoBackupLastSuccessTimesSchema = z.object({
+  webdav: z.number().nullable(),
+  s3: z.number().nullable(),
+  local: z.number().nullable(),
+  nutstore: z.number().nullable()
+})
 const eventFields = { id: z.number().int().positive(), type: autoBackupTypeSchema }
 const autoBackupEventSchema = z.discriminatedUnion('status', [
   z.object({ ...eventFields, status: z.literal('running') }),
@@ -21,7 +27,11 @@ const autoBackupEventSchema = z.discriminatedUnion('status', [
 export const backupRequestSchemas = {
   'backup.get_auto_sync_state': defineRoute({
     input: z.void(),
-    output: z.object({ events: z.array(autoBackupEventSchema), pendingNotifications: z.array(autoBackupEventSchema) })
+    output: z.object({
+      lastSuccessTimes: autoBackupLastSuccessTimesSchema,
+      events: z.array(autoBackupEventSchema),
+      pendingNotifications: z.array(autoBackupEventSchema)
+    })
   }),
   'backup.acknowledge_auto_sync_notification': defineRoute({
     input: z.object({ type: autoBackupTypeSchema, id: z.number().int().positive() }),
