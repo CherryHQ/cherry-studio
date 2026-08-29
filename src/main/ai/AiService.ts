@@ -36,7 +36,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
-import { isNewApiProvider, isOllamaProvider } from '@shared/utils/provider'
+import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -1114,8 +1114,7 @@ export class AiService extends BaseService {
     // still surface for the user to enable.
     const remoteModels = providerRegistryService.syncRuntimePricing(
       providerId,
-      await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError }),
-      isNewApiProvider(provider)
+      await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
     )
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,

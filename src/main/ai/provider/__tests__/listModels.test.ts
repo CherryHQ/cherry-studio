@@ -767,7 +767,7 @@ describe('listModels — newApiFetcher endpoint types', () => {
     const provider = makeProvider({
       id: 'aionly',
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aionly.com/v1' }
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aiionly.com/v1' }
       }
     })
     aiSdkGetFromApiMock.mockResolvedValue({
@@ -784,6 +784,8 @@ describe('listModels — newApiFetcher endpoint types', () => {
     const models = await listModels(provider)
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual(['https://api.aiionly.com/v1/models'])
+    expect(models[0].pricing).toBeUndefined()
   })
 })
 
@@ -981,6 +983,274 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
     expect(priceOf('gemini-3.6-flash-free')?.input.perMillionTokens).toBe(0)
     expect(priceOf('half-priced')).toBeUndefined()
     expect(priceOf('unpriced')).toBeUndefined()
+  })
+})
+
+describe('listModels — provider-published pricing', () => {
+  it.each([
+    ['sophnet', 'CNY'],
+    ['jina', 'USD'],
+    ['poe', 'USD']
+  ])('imports %s per-token rates in the provider billing currency', async (providerId, currency) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'priced-model',
+            pricing: {
+              prompt: '0.00000125',
+              completion: '0.000005',
+              input_cache_read: '0.00000025'
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: providerId }))
+
+    expect(model.pricing).toEqual({
+      input: { currency, perMillionTokens: 1.25 },
+      output: { currency, perMillionTokens: 5 },
+      cacheRead: { currency, perMillionTokens: 0.25 }
+    })
+  })
+
+  it('imports Poe context tiers and inherits omitted tier fields from the base rate', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'tiered-model',
+            pricing: {
+              prompt: '0.000001',
+              completion: '0.000002',
+              input_cache_read: '0.0000001',
+              context_pricing: {
+                tiers: [{ min_tokens: 64_000, max_tokens: null, prompt: '0.000003', completion: '0.000004' }]
+              }
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'poe' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1 },
+      output: { currency: 'USD', perMillionTokens: 2 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.1 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 64_000,
+          input: { currency: 'USD', perMillionTokens: 3 },
+          output: { currency: 'USD', perMillionTokens: 4 },
+          cacheRead: { currency: 'USD', perMillionTokens: 0.1 }
+        }
+      ]
+    })
+  })
+
+  it('does not turn Poe request-priced or ambiguous-null entries into a token rate', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'request-priced', pricing: { prompt: null, completion: null, request: '0.01' } },
+          { id: 'ambiguous-null', pricing: null }
+        ]
+      }
+    })
+
+    const models = await listModels(makeProvider({ id: 'poe' }))
+
+    for (const model of models) {
+      expect(model.pricing).toEqual({
+        input: { currency: 'USD', perMillionTokens: null },
+        output: { currency: 'USD', perMillionTokens: null }
+      })
+    }
+  })
+
+  it('imports PPIO per-million CNY decimals, cache rates, and input-token tiers', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'vendor/tiered-model',
+            pricing: {
+              prompt: { price_per_m_decimal: '1' },
+              completion: { price_per_m_decimal: '2' },
+              input_cache_read: { price_per_m_decimal: '0.1' }
+            },
+            tiered_billing_configs: [
+              {
+                min_tokens: 100_000,
+                max_tokens: null,
+                pricing: {
+                  prompt: { price_per_m_decimal: '3' },
+                  completion: { price_per_m_decimal: '4' },
+                  input_cache_read: { price_per_m_decimal: '0.3' }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'ppio' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'CNY', perMillionTokens: 1 },
+      output: { currency: 'CNY', perMillionTokens: 2 },
+      cacheRead: { currency: 'CNY', perMillionTokens: 0.1 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 100_000,
+          input: { currency: 'CNY', perMillionTokens: 3 },
+          output: { currency: 'CNY', perMillionTokens: 4 },
+          cacheRead: { currency: 'CNY', perMillionTokens: 0.3 }
+        }
+      ]
+    })
+  })
+
+  it('converts Baidu prices from CNY per thousand tokens and preserves context tiers', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'ernie-tiered',
+            pricing: {
+              prompt: [
+                { up_to: 32, price: '0.006' },
+                { up_to: null, price: '0.01' }
+              ],
+              completion: [
+                { up_to: 32, price: '0.024' },
+                { up_to: null, price: '0.04' }
+              ]
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'baidu-cloud' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'CNY', perMillionTokens: 6 },
+      output: { currency: 'CNY', perMillionTokens: 24 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 32_001,
+          input: { currency: 'CNY', perMillionTokens: 10 },
+          output: { currency: 'CNY', perMillionTokens: 40 }
+        }
+      ]
+    })
+  })
+
+  it('converts LANYUN text rates from CNY per thousand tokens', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'lanyun-tiered',
+            x_lanyun: {
+              price_rules: [
+                {
+                  token_range_start: null,
+                  input_text_token_price: 0.0022,
+                  output_text_token_price: 0.0133,
+                  cached_text_token_price: 0.00022
+                },
+                { token_range_start: 100_001, input_text_token_price: 0.0044, output_text_token_price: 0.0266 }
+              ]
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'lanyun' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'CNY', perMillionTokens: 2.2 },
+      output: { currency: 'CNY', perMillionTokens: 13.3 },
+      cacheRead: { currency: 'CNY', perMillionTokens: 0.22 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 100_001,
+          input: { currency: 'CNY', perMillionTokens: 4.4 },
+          output: { currency: 'CNY', perMillionTokens: 26.6 }
+        }
+      ]
+    })
+  })
+
+  it('uses Hugging Face rates only when every possible upstream publishes the same price', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'stable-price',
+            providers: [
+              { provider: 'one', pricing: { input: 1, output: 2 } },
+              { provider: 'two', pricing: { input: 1, output: 2 } }
+            ]
+          },
+          {
+            id: 'variable-price',
+            providers: [
+              { provider: 'one', pricing: { input: 1, output: 2 } },
+              { provider: 'two', pricing: { input: 3, output: 4 } }
+            ]
+          },
+          {
+            id: 'incomplete-price',
+            providers: [
+              { provider: 'one', pricing: { input: 1, output: 2 } },
+              { provider: 'two', pricing: null }
+            ]
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeProvider({ id: 'huggingface' }))
+    const priceOf = (id: string) => models.find((model) => model.apiModelId === id)?.pricing
+
+    expect(priceOf('stable-price')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1 },
+      output: { currency: 'USD', perMillionTokens: 2 }
+    })
+    expect(priceOf('variable-price')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+    expect(priceOf('incomplete-price')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+  })
+
+  it.each(['ocoolai', 'burncloud'])('imports the authenticated NewAPI rate card for %s', async (providerId) => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({
+            value: { data: [{ model_name: 'priced-model', model_ratio: 0.5, completion_ratio: 4 }] }
+          })
+        : Promise.resolve({ value: { data: [{ id: 'priced-model' }] } })
+    )
+
+    const [model] = await listModels(makeProvider({ id: providerId }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1 },
+      output: { currency: 'USD', perMillionTokens: 4 }
+    })
   })
 })
 

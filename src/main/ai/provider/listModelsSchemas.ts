@@ -22,6 +22,110 @@ export const OpenAIModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+const NullablePriceStringSchema = z.string().nullable().optional()
+
+export const OpenAITokenPricingSchema = z.looseObject({
+  prompt: NullablePriceStringSchema,
+  completion: NullablePriceStringSchema,
+  input_cache_read: NullablePriceStringSchema,
+  input_cache_reads: NullablePriceStringSchema,
+  input_cache_write: NullablePriceStringSchema,
+  image: NullablePriceStringSchema,
+  request: NullablePriceStringSchema,
+  context_pricing: z
+    .looseObject({
+      tiers: z.array(
+        z.looseObject({
+          min_tokens: z.number(),
+          max_tokens: z.number().nullable().optional(),
+          prompt: NullablePriceStringSchema,
+          completion: NullablePriceStringSchema,
+          input_cache_read: NullablePriceStringSchema,
+          input_cache_reads: NullablePriceStringSchema,
+          input_cache_write: NullablePriceStringSchema
+        })
+      )
+    })
+    .optional()
+})
+
+const PPIOPriceBucketSchema = z.looseObject({
+  price_per_m_decimal: z.string().optional()
+})
+
+const PPIOPricingSchema = z.looseObject({
+  prompt: PPIOPriceBucketSchema.optional(),
+  completion: PPIOPriceBucketSchema.optional(),
+  input_cache_read: PPIOPriceBucketSchema.optional(),
+  input_cache_write: PPIOPriceBucketSchema.optional()
+})
+
+export const PPIOModelPricingSchema = z.looseObject({
+  pricing: PPIOPricingSchema.optional(),
+  tiered_billing_configs: z
+    .array(
+      z.looseObject({
+        min_tokens: z.number(),
+        max_tokens: z.number().nullable().optional(),
+        pricing: PPIOPricingSchema
+      })
+    )
+    .optional()
+})
+
+const BaiduPriceTierSchema = z.looseObject({
+  up_to: z.number().nullable().optional(),
+  price: z.string()
+})
+const BaiduTokenPriceSchema = z
+  .union([z.string(), z.array(BaiduPriceTierSchema)])
+  .nullable()
+  .optional()
+
+export const BaiduModelPricingSchema = z.looseObject({
+  pricing: z
+    .looseObject({
+      prompt: BaiduTokenPriceSchema,
+      completion: BaiduTokenPriceSchema,
+      image: NullablePriceStringSchema
+    })
+    .optional()
+})
+
+export const LanyunModelPricingSchema = z.looseObject({
+  x_lanyun: z
+    .looseObject({
+      price_rules: z
+        .array(
+          z.looseObject({
+            token_range_start: z.number().nullable().optional(),
+            input_text_token_price: z.number().nullable().optional(),
+            output_text_token_price: z.number().nullable().optional(),
+            cached_text_token_price: z.number().nullable().optional(),
+            cache_creation_5m_token: z.number().nullable().optional()
+          })
+        )
+        .optional()
+    })
+    .optional()
+})
+
+export const HuggingFaceModelPricingSchema = z.looseObject({
+  providers: z
+    .array(
+      z.looseObject({
+        pricing: z
+          .looseObject({
+            input: z.number(),
+            output: z.number()
+          })
+          .nullable()
+          .optional()
+      })
+    )
+    .optional()
+})
+
 // === OpenRouter (OpenAI-compatible + a per-token price string) ===
 
 export const OpenRouterModelsResponseSchema = z.object({

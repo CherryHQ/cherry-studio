@@ -256,24 +256,22 @@ describe('ProviderRegistryService', () => {
       expect(providerRegistryService.resolveModels('other-runtime-pricing-test', ['gpt-4o'])[0].pricing).toBeUndefined()
     })
 
-    it('uses an explicit unknown for an authoritative gateway while retaining its last known rate', () => {
-      const providerId = 'authoritative-pricing-test'
-      const [unknown] = providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }], true)
+    it('does not invent a rate and retains the last published one when a refresh omits pricing', () => {
+      const providerId = 'runtime-pricing-refresh-test'
       const knownPrice = {
         input: { currency: 'USD' as const, perMillionTokens: 1 },
         output: { currency: 'USD' as const, perMillionTokens: 2 }
       }
 
-      expect(unknown.pricing).toEqual({
-        input: { currency: 'USD', perMillionTokens: null },
-        output: { currency: 'USD', perMillionTokens: null }
-      })
+      expect(
+        providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }])[0].pricing
+      ).toBeUndefined()
 
-      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: knownPrice }], true)
-      const [retained] = providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }], true)
+      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: knownPrice }])
+      const [retained] = providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }])
 
       expect(retained.pricing).toEqual(knownPrice)
-      expect(providerRegistryService.syncRuntimePricing(providerId, [], true)).toEqual([])
+      expect(providerRegistryService.syncRuntimePricing(providerId, [])).toEqual([])
     })
   })
 

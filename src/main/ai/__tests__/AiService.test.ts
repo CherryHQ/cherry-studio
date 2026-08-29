@@ -1484,19 +1484,24 @@ describe('AiService tool approval', () => {
         [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com/v1' }
       }
     })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: [
-            {
-              id: 'deepseek-v4-flash',
-              supported_endpoint_types: ['embeddings', 'openai']
-            }
-          ]
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const isPricingRequest = String(input).endsWith('/api/pricing')
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: isPricingRequest
+              ? []
+              : [
+                  {
+                    id: 'deepseek-v4-flash',
+                    supported_endpoint_types: ['embeddings', 'openai']
+                  }
+                ]
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
       )
-    )
+    })
 
     try {
       const [listedModel] = await listModelsFromProviderActual(provider)
@@ -2211,10 +2216,10 @@ describe('AiService.listModels', () => {
     })
   })
 
-  it('treats NewAPI gateway pricing as authoritative runtime data', async () => {
+  it('keeps registry pricing available when a NewAPI-compatible provider has no runtime rate card', async () => {
     const service = createService()
-    const provider = { id: 'cherryin', modelListSource: 'api' }
-    const apiModels = [{ id: 'cherryin::openai/gpt-4o', apiModelId: 'openai/gpt-4o' }]
+    const provider = { id: 'aionly', modelListSource: 'api' }
+    const apiModels = [{ id: 'aionly::openai/gpt-4o', apiModelId: 'openai/gpt-4o' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
     mockListModelsFromProvider.mockResolvedValue(apiModels)
     mockListProviderRegistryModels.mockReturnValue([])
@@ -2232,12 +2237,9 @@ describe('AiService.listModels', () => {
       )
     )
 
-    const result = await service.listModels({ providerId: 'cherryin' })
+    const result = await service.listModels({ providerId: 'aionly' })
 
-    expect(result[0].pricing).toEqual({
-      input: { currency: 'USD', perMillionTokens: null },
-      output: { currency: 'USD', perMillionTokens: null }
-    })
+    expect(result).toEqual(apiModels)
   })
 
   it('does not impose a service-level timeout on model listing', async () => {

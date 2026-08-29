@@ -706,7 +706,7 @@ class ProviderRegistryService {
     this.loader = null
   }
 
-  syncRuntimePricing(providerId: string, models: Partial<Model>[], authoritative = false): Partial<Model>[] {
+  syncRuntimePricing(providerId: string, models: Partial<Model>[]): Partial<Model>[] {
     if (models.length === 0) return models
 
     let pricingByModel = this.runtimePricing.get(providerId)
@@ -714,14 +714,7 @@ class ProviderRegistryService {
       const modelId = model.apiModelId
       if (!modelId) continue
 
-      const pricing =
-        model.pricing ??
-        (authoritative && !pricingByModel?.has(modelId)
-          ? {
-              input: { currency: CURRENCY.USD, perMillionTokens: null },
-              output: { currency: CURRENCY.USD, perMillionTokens: null }
-            }
-          : undefined)
+      const pricing = model.pricing
       if (!pricing) continue
 
       if (!pricingByModel) {
