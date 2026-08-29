@@ -299,7 +299,11 @@ export class BackupService extends BaseService {
    * {@link armRestore} runs from the staged copy, so keeping it would only hold
    * a second full-size copy for the length of the user's decision.
    */
-  public async prepareRestoreFromDestination(id: BackupDestinationId, name: string): Promise<RestorePreview> {
+  public async prepareRestoreFromDestination(
+    id: BackupDestinationId,
+    name: string,
+    mode?: RestoreMode
+  ): Promise<RestorePreview> {
     const transport = createTransport(await resolveDestination(id))
 
     return this.runExclusive('prepare-restore', async (signal) => {
@@ -308,7 +312,7 @@ export class BackupService extends BaseService {
       try {
         await ensureDir(downloadDir)
         await transport.download(name, archivePath)
-        return await prepareRestore({ archivePath, signal })
+        return await prepareRestore({ archivePath, mode, signal })
       } finally {
         await remove(downloadDir).catch(() => {})
       }

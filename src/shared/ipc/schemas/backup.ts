@@ -355,7 +355,10 @@ export const backupRequestSchemas = {
   }),
   /** Download `name` from the destination and stage it, exactly like a local file. */
   'backup.prepare_restore_from_destination': defineRoute({
-    input: DestinationSchema.extend({ name: z.string().min(1) }),
+    input: DestinationSchema.extend({
+      name: z.string().min(1),
+      mode: z.enum(['replace', 'merge']).default('replace').optional()
+    }),
     output: PrepareOutcomeSchema
   }),
   'backup.list_destination_backups': defineRoute({

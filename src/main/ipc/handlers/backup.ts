@@ -443,7 +443,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.prepare_restore_from_destination': async (input, ctx) => {
     requireManagedWindow(ctx)
     const preview = await cancellable(() =>
-      application.get('BackupService').prepareRestoreFromDestination(input.destination, input.name)
+      application.get('BackupService').prepareRestoreFromDestination(input.destination, input.name, input.mode)
     )
     if (preview === null) {
       return { status: 'canceled' as const }
