@@ -509,6 +509,17 @@ export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'window.bounds': {}
 }
 
+/**
+ * Main persist keys that describe **this machine's** state and are meaningless
+ * on another one. The backup archive drops them, so restoring machine A's
+ * backup on machine B never makes B replay A's sync times or failure banners.
+ */
+export const DEVICE_LOCAL_MAIN_PERSIST_KEYS: readonly (keyof MainPersistCacheSchema)[] = [
+  'backup.auto_sync.last_attempt_times',
+  'backup.auto_sync.last_success_times',
+  'backup.auto_sync.latest_terminal_outcomes'
+]
+
 // ============================================================================
 // Cache Key Types
 // ============================================================================

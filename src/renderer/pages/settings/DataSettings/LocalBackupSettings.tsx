@@ -17,7 +17,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
-import dayjs from 'dayjs'
+import { formatBackupSyncTime } from '@renderer/utils/backup'
 import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -167,7 +167,7 @@ const LocalBackupSettings: React.FC = () => {
         )}
         {localBackupSync.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.local.lastSync')}: {dayjs(localBackupSync.lastSyncTime).format('HH:mm:ss')}
+            {t('settings.data.local.lastSync')}: {formatBackupSyncTime(localBackupSync.lastSyncTime)}
           </span>
         )}
       </RowFlex>

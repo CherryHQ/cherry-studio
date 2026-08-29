@@ -501,6 +501,39 @@ describe('AutoBackupService', () => {
     })
   })
 
+  it('drops a persisted failure when the backend configuration changes', async () => {
+    service.recordManualBackupCompletion('s3')
+    const lastSuccessTime = service.getStateSnapshot().lastSuccessTimes.s3
+    expect(lastSuccessTime).toEqual(expect.any(Number))
+    ;(service as any).emit({ type: 's3', status: 'failed', timestamp: Date.now(), errorMessage: 'upload failed' })
+    expect(service.getStateSnapshot().pendingNotifications).toHaveLength(1)
+
+    setPreference('data.backup.s3.auto_sync', false)
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { s3: lastSuccessTime },
+      events: [],
+      pendingNotifications: []
+    })
+
+    await recreateService()
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { s3: lastSuccessTime },
+      events: [],
+      pendingNotifications: []
+    })
+  })
+
+  it('keeps a persisted failure when only the schedule interval changes', async () => {
+    ;(service as any).emit({ type: 's3', status: 'failed', timestamp: Date.now(), errorMessage: 'upload failed' })
+
+    setPreference('data.backup.s3.sync_interval', 120)
+    await recreateService()
+
+    expect(service.getStateSnapshot().events).toMatchObject([{ type: 's3', status: 'failed' }])
+  })
+
   it('delivers automatic backup events to main and detached settings windows', () => {
     mocks.broadcastToType.mockClear()
 

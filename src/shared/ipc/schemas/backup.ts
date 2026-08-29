@@ -1,15 +1,16 @@
-import { AUTO_BACKUP_TYPES, type AutoBackupEvent } from '@shared/types/backup'
+import { AUTO_BACKUP_TYPES, type AutoBackupEvent, type AutoBackupLastSuccessTimes } from '@shared/types/backup'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
 const autoBackupTypeSchema = z.enum(AUTO_BACKUP_TYPES)
-const autoBackupLastSuccessTimesSchema = z.object({
-  webdav: z.number().nullable(),
-  s3: z.number().nullable(),
-  local: z.number().nullable(),
-  nutstore: z.number().nullable()
-})
+// `z.record(enum, value)` in zod 4 requires every enum key, so a new AUTO_BACKUP_TYPES
+// member widens this route instead of being silently stripped at the boundary while
+// AutoBackupSnapshot still declares it.
+const autoBackupLastSuccessTimesSchema = z.record(
+  autoBackupTypeSchema,
+  z.number().nullable()
+) satisfies z.ZodType<AutoBackupLastSuccessTimes>
 const eventFields = { id: z.number().int().positive(), type: autoBackupTypeSchema }
 const autoBackupEventSchema = z.discriminatedUnion('status', [
   z.object({ ...eventFields, status: z.literal('running') }),

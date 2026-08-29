@@ -119,7 +119,7 @@ export class AutoBackupService extends BaseService {
       preferenceService.subscribeMultipleChanges(Object.values(WATCHED_PREFERENCES).flat(), (key) => {
         const type = AUTO_BACKUP_TYPES.find((candidate) => WATCHED_PREFERENCES[candidate].includes(key))
         if (type) {
-          this.restartSchedule(type, key === 'data.backup.local.dir' ? 'immediate' : 'fromLastSyncTime')
+          this.applyConfigurationChange(type, key)
         }
       })
     )
@@ -167,6 +167,20 @@ export class AutoBackupService extends BaseService {
     const timestamp = Date.now()
     this.recordLastAttemptTime(type, timestamp)
     this.recordLastSuccessTime(type, timestamp)
+    this.clearTerminalOutcome(type)
+    if (this.active) this.restartSchedule(type, 'fromLastSyncTime')
+  }
+
+  // Not folded into `restartSchedule`: startup reaches that too and must keep the
+  // outcome it just restored. Without this, a disabled backend keeps its failure icon.
+  private applyConfigurationChange(type: AutoBackupType, key: UnifiedPreferenceKeyType): void {
+    // Rescheduling alone does not refute what the last attempt found; only switching the
+    // backend off or repointing it does.
+    if (!key.endsWith('.sync_interval')) this.clearTerminalOutcome(type)
+    this.restartSchedule(type, key === 'data.backup.local.dir' ? 'immediate' : 'fromLastSyncTime')
+  }
+
+  private clearTerminalOutcome(type: AutoBackupType): void {
     this.latestTerminalEvents.delete(type)
     this.pendingNotifications.delete(type)
     const cacheService = application.get('CacheService')
@@ -174,7 +188,6 @@ export class AutoBackupService extends BaseService {
       ...cacheService.getPersist(LATEST_TERMINAL_OUTCOMES_KEY),
       [type]: null
     })
-    if (this.active) this.restartSchedule(type, 'fromLastSyncTime')
   }
 
   private recordLastAttemptTime(type: AutoBackupType, timestamp: number): void {
