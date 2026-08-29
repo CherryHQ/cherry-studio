@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
+import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
@@ -22,8 +23,9 @@ import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@
 import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
-import { captureAllMonitors, listMonitors, listWindows } from './screenCapture'
+import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
+import { listWindowsOffThread } from './windowEnumerator'
 
 const logger = loggerService.withContext('ScreenshotOverlayService')
 
@@ -46,6 +48,26 @@ const MIN_SNAP_TARGET_SIZE = 5
  * nothing about the renderer's health, so it must not tear the session down.
  */
 const ERR_ABORTED = -3
+
+/**
+ * Capture-path timings for one session, in ms from the moment the shortcut landed.
+ *
+ * Only populated under `CS_DIAGNOSTICS`. Exists because the latency this path was
+ * fixed for is invisible from the outside: "the overlay feels slow" cannot tell a
+ * cold renderer apart from a blocked main process, and the two have opposite fixes.
+ */
+interface CaptureTrace {
+  t0: number
+  /** Screen capture and PNG encode, i.e. everything before the first open(). */
+  captureMs: number
+  /** All overlays opened and shown at opacity 0. */
+  openMs: number
+  /** Overlays whose window had to be created; the rest came warm from the pool. */
+  created: number
+  /** Overlays this session opened, i.e. how many readiness reports to expect. */
+  expected: number
+  ready: number
+}
 
 /** One display's frozen capture, kept for the session so region OCR can crop it. */
 interface SessionCapture {
@@ -103,6 +125,23 @@ export class ScreenshotOverlayService extends BaseService {
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
 
+  /**
+   * Snap targets pushed before their overlay reported ready, kept for one repeat.
+   *
+   * The enumeration usually outlives the overlays, but not always — few windows or a
+   * failed enumeration resolves it in microtasks. That push can miss: a cold renderer
+   * has not subscribed yet, and a pooled one clears the previous session's targets on
+   * new init data, which would wipe it. Either way hover-to-window snapping is gone
+   * for the whole capture, silently, so the push is repeated at the ready handshake.
+   */
+  private pendingSnapTargets = new Map<WindowId, DetectedWindow[]>()
+
+  /** Timings of the live session. Null unless CS_DIAGNOSTICS is set. */
+  private trace: CaptureTrace | null = null
+
+  /** Overlay windows created since the session started; the rest came from the pool. */
+  private overlaysCreated = 0
+
   /** Token of the newest OCR request. At most one overlay is active, so "keep only
    *  the newest" is global — bucketing by window would let two chains run at once. */
   private latestOcrToken: symbol | null = null
@@ -114,6 +153,10 @@ export class ScreenshotOverlayService extends BaseService {
         // No declarative equivalent in WindowBehavior, and a macOS panel window can
         // still paint traffic lights over a frameless overlay.
         if (isMac) window.setWindowButtonVisibility(false)
+
+        // Counts creations, so a trace can say whether the pool actually served this
+        // session warm. Reset per session in startCapture; pool warmup bumps it too.
+        this.overlaysCreated++
 
         // Attached here rather than after open(): a recycled window never re-enters
         // this callback, so per-session listeners would pile up and still miss reuses.
@@ -190,8 +233,17 @@ export class ScreenshotOverlayService extends BaseService {
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
 
+      const t0 = performance.now()
+      this.overlaysCreated = 0
+
       try {
+        // Started before the capture so the enumeration — hundreds of milliseconds of
+        // native work — overlaps the PNG encode and the window opening rather than
+        // following them. It runs off the main thread; see listWindowsOffThread.
+        const snapCandidates = collectSnapCandidates()
+
         const captures = await captureAllMonitors()
+        const captureMs = performance.now() - t0
         const windowManager = application.get('WindowManager')
         const mediaProtocol = application.get('MediaProtocolService')
         const displays = screen.getAllDisplays()
@@ -207,10 +259,11 @@ export class ScreenshotOverlayService extends BaseService {
         // display's pixel grid, so its scale factor is the reference for normalizing.
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
-        // Computed before any overlay exists so our own windows cannot become targets.
-        const snapCandidates = collectSnapCandidates()
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
         const ocrAvailable = isLocalModelReady('ocr')
+
+        // Which overlay covers which display, for the snap-target push below.
+        const snapOverlays: { windowId: WindowId; display: Display }[] = []
 
         for (const display of displays) {
           const captureResult = matchCapture(display, captures, monitorInfoList, primaryScaleFactor)
@@ -256,7 +309,6 @@ export class ScreenshotOverlayService extends BaseService {
                 height: captureResult.height,
                 scaleFactor: display.scaleFactor
               },
-              windows: projectSnapCandidates(display, snapCandidates, primaryScaleFactor),
               autoOcr,
               ocrAvailable
             }
@@ -272,13 +324,14 @@ export class ScreenshotOverlayService extends BaseService {
 
           this.overlayWindowIds.push(windowId)
           this.overlayMediaIds.set(windowId, mediaId)
+          snapOverlays.push({ windowId, display })
 
           // Transparent first so the OS show animation is never visible.
           window.setOpacity(0)
-          // macOS drops this flag on hide(), and closing a pooled overlay only hides it —
-          // a recycled window would otherwise fail to cover a fullscreen Space.
+          // macOS drops the fullscreen-auxiliary collection behavior on hide(). Reapply it
+          // without joining every Space, so a stale capture cannot follow Space switches.
           if (isMac) {
-            window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+            window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
           }
           // showMode 'manual' means nothing else ever shows this window, and setOpacity()
           // on a hidden one is a no-op. Inactive: only the cursor's overlay takes focus.
@@ -293,6 +346,19 @@ export class ScreenshotOverlayService extends BaseService {
         // Thrown into the catch below rather than returned: the user pressed a shortcut
         // and nothing appeared, which is a failed capture, not a quiet edge case.
         if (this.overlayWindowIds.length === 0) throw new Error('no display produced an overlay')
+
+        if (DIAGNOSTICS_ENABLED) {
+          this.trace = {
+            t0,
+            captureMs,
+            openMs: performance.now() - t0,
+            created: this.overlaysCreated,
+            expected: this.overlayWindowIds.length,
+            ready: 0
+          }
+        }
+
+        void this.pushSnapTargets(generation, snapCandidates, snapOverlays, primaryScaleFactor)
 
         logger.info(`Screenshot session started with ${this.overlayWindowIds.length} overlay(s)`)
       } catch (error) {
@@ -351,7 +417,21 @@ export class ScreenshotOverlayService extends BaseService {
     if (!this.isSessionOverlay(windowId)) return
     const window = application.get('WindowManager').getWindow(windowId)
     if (!window || window.isDestroyed()) return
-    window.focus()
+    makeKeyWindow(window)
+  }
+
+  /**
+   * Step this overlay below the IME candidate window while its text editor is open.
+   *
+   * macOS only: for a Chromium client the candidate window is placed at a fixed, low
+   * level instead of above the client, so an overlay raised over the Dock and menu bar
+   * covers it — text can be composed but the candidates are never visible. Stepping down
+   * for the duration of the edit is the only lever available from this side; the Dock and
+   * the menu bar do show over the frozen capture while it lasts.
+   */
+  public setTextEditing(windowId: WindowId, editing: boolean): void {
+    if (!isMac) return
+    application.get('WindowManager').behavior.setAlwaysOnTopLevel(windowId, editing ? 'floating' : null)
   }
 
   /**
@@ -425,7 +505,74 @@ export class ScreenshotOverlayService extends BaseService {
   public markOverlayReady(windowId: WindowId, mediaId: string): void {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return
     this.renderersReady.add(windowId)
+    const targets = this.pendingSnapTargets.get(windowId)
+    if (targets) {
+      this.pendingSnapTargets.delete(windowId)
+      application.get('IpcApiService').send(windowId, 'screenshot.snap_targets', { windows: targets })
+    }
     this.pendingReveals.get(windowId)?.reveal()
+    this.traceReady()
+  }
+
+  /**
+   * Report the capture path's timings once every overlay has painted.
+   *
+   * `usable` is the number that matters: the shortcut is pressed at t0 and the user
+   * can act at the last readiness report. `cold` tells whether the pool served this
+   * session — a cold overlay and a blocked main process both look like "slow" from
+   * the outside, and they have opposite fixes.
+   */
+  private traceReady(): void {
+    const trace = this.trace
+    if (!trace) return
+    trace.ready++
+    if (trace.ready < trace.expected) return
+    this.trace = null
+
+    const usable = performance.now() - trace.t0
+    logger.info(
+      `[Diagnostics/screenshot] usable=${usable.toFixed(0)}ms ` +
+        `capture=${trace.captureMs.toFixed(0)}ms open=${(trace.openMs - trace.captureMs).toFixed(0)}ms ` +
+        `paint=${(usable - trace.openMs).toFixed(0)}ms cold=${trace.created}/${trace.expected}`
+    )
+  }
+
+  /**
+   * Push each overlay the snap targets clipped to its own display.
+   *
+   * The list is pushed rather than carried in the init data because enumerating it
+   * takes hundreds of milliseconds; waiting for it before opening the overlays put
+   * it squarely on the shortcut's critical path. An overlay is fully usable before
+   * it lands — hovering just snaps to the whole display until then.
+   */
+  private async pushSnapTargets(
+    generation: number,
+    candidates: Promise<RawWindowInfo[]>,
+    overlays: { windowId: WindowId; display: Display }[],
+    primaryScaleFactor: number
+  ): Promise<void> {
+    const startedAt = performance.now()
+    const snapCandidates = await candidates
+    // The session may have ended while the enumeration ran; a pooled overlay is only
+    // hidden, so its renderer would happily apply targets for a capture it no longer shows.
+    if (generation !== this.sessionGeneration) return
+
+    if (DIAGNOSTICS_ENABLED) {
+      logger.info(
+        `[Diagnostics/screenshot] snap targets ready ${(performance.now() - startedAt).toFixed(0)}ms ` +
+          `after the overlays opened (0ms means the enumeration finished first), ` +
+          `${snapCandidates.length} candidates`
+      )
+    }
+
+    const ipcApiService = application.get('IpcApiService')
+    for (const { windowId, display } of overlays) {
+      const windows = projectSnapCandidates(display, snapCandidates, primaryScaleFactor)
+      ipcApiService.send(windowId, 'screenshot.snap_targets', { windows })
+      // This push is best-effort: an overlay that has not reported ready may not have
+      // subscribed yet, or may still clear it as stale. Repeat it once it has.
+      if (!this.renderersReady.has(windowId)) this.pendingSnapTargets.set(windowId, windows)
+    }
   }
 
   /** Copy the overlay's result to the clipboard and end the session. */
@@ -559,7 +706,7 @@ export class ScreenshotOverlayService extends BaseService {
       if (generation !== this.sessionGeneration) return
       if (window.isDestroyed()) return
       window.setOpacity(1)
-      if (isCursorDisplay) window.focus()
+      if (isCursorDisplay) makeKeyWindow(window)
     }
 
     const timer = setTimeout(() => {
@@ -591,9 +738,28 @@ export class ScreenshotOverlayService extends BaseService {
     // Per-session: a recycled overlay that painted last time has to earn it again, or
     // the next session's never-painted window would have no Escape rescue.
     this.renderersReady.clear()
+    this.pendingSnapTargets.clear()
+
+    // Explicit, not left to pool release: an overlay whose session ended mid-edit would
+    // otherwise come back at the text editor's level and never cover the Dock again.
+    // Only macOS ever steps an overlay down (see setTextEditing), so only macOS restores.
+    if (isMac) {
+      const windowManager = application.get('WindowManager')
+      for (const windowId of this.overlayWindowIds) windowManager.behavior.setAlwaysOnTopLevel(windowId, null)
+    }
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
+    if (DIAGNOSTICS_ENABLED && this.trace) {
+      // Deliberately no usable= number: every overlay left here was revealed by the
+      // fallback timer, so the only timestamp available is that timer's deadline —
+      // reporting it would pass a constant off as a measurement.
+      logger.info(
+        `[Diagnostics/screenshot] capture trace incomplete: ` +
+          `${this.trace.ready}/${this.trace.expected} overlays reported ready`
+      )
+    }
+    this.trace = null
 
     // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
     this.latestOcrToken = null
@@ -625,13 +791,14 @@ export class ScreenshotOverlayService extends BaseService {
     for (const windowId of this.overlayWindowIds) {
       const window = windowManager.getWindow(windowId)
       if (!window || window.isDestroyed()) continue
-      // macOS drops the all-workspaces flag on hide(); the alwaysOnTop level is
-      // restored declaratively by the window type's reapplyAlwaysOnTop quirk.
-      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+      // Restore fullscreen coverage after hide() without making the stale capture
+      // follow the user to another Space. The always-on-top level is restored by
+      // the window type's reapplyAlwaysOnTop quirk.
+      window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
       window.setOpacity(0)
       // The active overlay must become the key window again or Esc and the next drag
       // land nowhere; the others stay unfocused, as at session start.
-      if (windowId === this.activeOverlayWindowId) window.show()
+      if (windowId === this.activeOverlayWindowId) makeKeyWindow(window)
       else window.showInactive()
       // No handshake here: the image was decoded before the dialog opened.
       window.setOpacity(1)
@@ -711,6 +878,19 @@ export class ScreenshotOverlayService extends BaseService {
 }
 
 /**
+ * Make an already-visible overlay the keyboard target.
+ *
+ * On macOS the overlay is a non-activating panel and a capture normally starts with
+ * the app in the background, where `focus()` makes the panel key for an instant
+ * before AppKit takes it back — leaving Esc and the next drag nowhere to land.
+ * `show()` keeps it key, and skips app activation for a panel just as `focus()` does.
+ */
+function makeKeyWindow(window: BrowserWindow): void {
+  if (isMac) window.show()
+  else window.focus()
+}
+
+/**
  * Find the capture belonging to an Electron display.
  *
  * Electron and the native backend enumerate the same monitors under unrelated id
@@ -750,9 +930,9 @@ function matchCapture(
 }
 
 /** The windows that may act as hover-to-snap targets, before any per-display work. */
-function collectSnapCandidates(): RawWindowInfo[] {
+async function collectSnapCandidates(): Promise<RawWindowInfo[]> {
   const selfPid = process.pid
-  return listWindows().filter(
+  return (await listWindowsOffThread()).filter(
     (w) =>
       // Filters by pid, so every window of this app is excluded — the main window
       // and the launcher are just as wrong a snap target as an overlay.
@@ -814,7 +994,7 @@ function projectSnapCandidates(
     // 5 physical pixels; reordering changes what gets dropped on HiDPI Windows.
     if (width < MIN_SNAP_TARGET_SIZE || height < MIN_SNAP_TARGET_SIZE) continue
 
-    projected.push({ title: w.title, appName: w.appName, x, y, width, height })
+    projected.push({ title: w.title, x, y, width, height })
   }
 
   return projected

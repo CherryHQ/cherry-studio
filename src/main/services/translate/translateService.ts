@@ -4,7 +4,7 @@
  * Stateless orchestration — resolves the configured translate model + builds
  * the interpolated prompt from main-side preferences/DataApi, then hands the
  * stream off to `AiStreamManager.streamPrompt` with a `WebContentsListener`
- * keyed by a fresh `translate:${uuid}` streamId.
+ * keyed by the renderer-supplied `translate:*` streamId.
  *
  * Renderer subscribers consume `ai.stream.chunk` / `done` / `error` events
  * filtered by that streamId; abort flows back through `ai.stream.abort`.
@@ -24,12 +24,7 @@ import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueMo
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { isQwenMTModel } from '@shared/utils/model'
 
-import {
-  PersistenceListener,
-  type StreamListener,
-  TranslationBackend,
-  WebContentsListener
-} from '../../ai/streamManager'
+import { WebContentsListener } from '../../ai/streamManager'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -40,7 +35,7 @@ const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
  * `topicId`. Defensive: ensures `ai.stream.abort({ topicId })` cannot collide
  * with a real chat topic id, and lets a future debugger filter logs by
  * "translate streams" without inspecting payloads. Kept in sync with the
- * renderer-side literal in `TranslateService.ts`.
+ * renderer-side literal in `translateText.ts`.
  */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
 
@@ -60,20 +55,6 @@ export interface TranslateOpenRequest {
    * never have to pre-fetch the DTO just to call translate.
    */
   targetLangCode: TranslateLangCode
-  /**
-   * When present, attach a `PersistenceListener` + `TranslationBackend` to
-   * the stream so the final accumulated translation is written onto this
-   * message's `data.parts` as a `data-translation` part. Used by the
-   * MessageMenubar "translate this reply" flow. Omit for orphan callers
-   * (ActionTranslate, TranslatePage) — they keep the chunks-only contract.
-   */
-  messageId?: string
-  /**
-   * Optional source language passed through to the persisted
-   * `data-translation` part. Renderers that already detected the source
-   * (e.g. selection translate) can preserve it on the message row.
-   */
-  sourceLangCode?: TranslateLangCode
 }
 
 export interface TranslateOpenResult {
@@ -105,40 +86,20 @@ export class TranslateService {
     const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
     const { uniqueModelId, content } = this.resolveTranslatePayload(req.text, targetLanguage)
 
-    const listeners: StreamListener[] = []
-    // Built first so the persistence listener can surface a persist failure through it:
-    // TranslationBackend has no markTerminalError, so without this a post-stream persist
-    // failure would leave the renderer on a `success` it already received and silently lose
-    // the translation on reload.
     const wcListener = new WebContentsListener(sender, req.streamId)
-    if (req.messageId) {
-      listeners.push(
-        new PersistenceListener({
-          topicId: req.streamId,
-          backend: new TranslationBackend({
-            messageId: req.messageId,
-            targetLanguage: req.targetLangCode,
-            sourceLanguage: req.sourceLangCode
-          }),
-          onPersistFailed: (error) => wcListener.onError({ error, status: 'error', isTopicDone: true })
-        })
-      )
-    }
-    listeners.push(wcListener)
 
     const streamManager = application.get('AiStreamManager')
     streamManager.streamPrompt({
       streamId: req.streamId,
       uniqueModelId,
       prompt: content,
-      listener: listeners,
+      listener: wcListener,
       reasoningEffort: 'none'
     })
 
     logger.debug('translate stream opened', {
       streamId: req.streamId,
-      uniqueModelId,
-      messageId: req.messageId ?? null
+      uniqueModelId
     })
     return { streamId: req.streamId }
   }
@@ -173,8 +134,9 @@ export class TranslateService {
       ? text
       : preferenceService
           .get('feature.translate.model_prompt')
-          .replaceAll('{{target_language}}', targetLanguage.value)
-          .replaceAll('{{text}}', text)
+          .replaceAll(/{{target_language}}|{{text}}/g, (placeholder) =>
+            placeholder === '{{target_language}}' ? targetLanguage.value : text
+          )
 
     return { uniqueModelId, content }
   }

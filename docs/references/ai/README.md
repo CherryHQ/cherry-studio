@@ -22,6 +22,7 @@ renderer-side transport that connects to them.
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
 | [Adding an Agent Runtime](./adding-a-runtime.md) | Operational checklist for a new runtime: capability descriptor, driver package, registration points, design rules |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
+| [Provider State Ownership](./provider-state-ownership.md) | Where provider facts, endpoint dialects, connection overrides, and per-request controls belong |
 
 ### Subsystems
 
@@ -43,6 +44,7 @@ renderer-side transport that connects to them.
 |---|---|
 | [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnectToStream`, dispatch service, topic-status mirror |
 | [Execution Overlay](./execution-overlay.md) | `TopicStreamSubscription` + `useExecutionOverlay`: ref-counted attach, execution + anchor demux, one-shot `readUIMessageStream` per turn (the renderer half of the same merge function Main uses) |
+| [Text Translation](./translation.md) | `translate.open` prompt streams, renderer-owned result handling, and Home `data-translation` persistence |
 | [Tool Approval](./tool-approval.md) | Approval registry, Main-as-writer model, persistent decisions, `useToolApproval` hook |
 
 ## Where the code lives
@@ -70,7 +72,7 @@ src/main/ai/
 │   ├── context/                  ← ChatContextProvider implementations + dispatch
 │   ├── lifecycle/                ← chat / prompt-only stream lifecycles
 │   ├── listeners/                ← WebContents / Persistence / SSE / channel-adapter
-│   ├── persistence/              ← MessageService / TemporaryChat / Translation backends
+│   ├── persistence/              ← MessageService / TemporaryChat backends
 │   └── pipeStreamLoop.ts         ← shared chunk-pipe primitive
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 │   ├── custom/                   ← provider-specific adapters, transports, and wire profiles
@@ -146,6 +148,10 @@ src/main/ai/
   (MiniMax, Silicon, AiHubMix, …) carry one `adapterFamily` per endpoint.
   Picking the SDK package never reads `apiHost` or provider id heuristics
   at request time. See [Adapter Family](./adapter-family.md).
+- **One provider fact, one owner.** Host facts live on registry providers,
+  protocol deviations on endpoint configs, user connection deltas on provider
+  rows, and per-request choices on assistants. See
+  [Provider State Ownership](./provider-state-ownership.md).
 
 ## Related references
 

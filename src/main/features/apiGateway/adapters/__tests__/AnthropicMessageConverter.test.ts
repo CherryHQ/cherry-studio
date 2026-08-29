@@ -127,7 +127,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ])
   })
 
-  it('maps thinking and redacted_thinking blocks to reasoning parts', () => {
+  it('maps thinking and redacted_thinking blocks to reasoning parts preserving replay metadata', () => {
     const msgs = converter.toUIMessages(
       params({
         messages: [
@@ -141,9 +141,27 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         ] as MessageCreateParams['messages']
       })
     )
+    // signature/redactedData must survive into providerMetadata — @ai-sdk/anthropic
+    // silently drops reasoning parts without them, breaking thinking replay (#18150).
     expect(msgs[0].parts).toEqual([
-      { type: 'reasoning', text: 'hmm' },
-      { type: 'reasoning', text: 'xxx' }
+      { type: 'reasoning', text: 'hmm', providerMetadata: { anthropic: { signature: 's' } } },
+      { type: 'reasoning', text: '', providerMetadata: { anthropic: { redactedData: 'xxx' } } }
+    ])
+  })
+
+  it('preserves an empty thinking signature so the block still replays upstream', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'thinking', thinking: 'hmm', signature: '' }]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'reasoning', text: 'hmm', providerMetadata: { anthropic: { signature: '' } } }
     ])
   })
 
@@ -262,6 +280,42 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
       })
     )
     expect(msgs[0].parts[0]).toMatchObject({ type: 'dynamic-tool', toolCallId: 'c2', state: 'input-available' })
+  })
+
+  // Gateway addresses are `providerId:apiModelId`, and the apiModelId carries a `models/`
+  // prefix for some providers but not others — the Gemini 3 check must survive both shapes.
+  it.each(['gemini:models/gemini-flash-latest', 'cherryin:gemini-flash-latest', 'gemini:gemini-3-pro-preview'])(
+    'restores the cached thought signature for %s',
+    (model) => {
+      const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+      const c = new AnthropicMessageConverter({ googleReasoningCache })
+      const msgs = c.toUIMessages(
+        params({
+          model,
+          messages: [
+            { role: 'assistant', content: [{ type: 'tool_use', id: 'c4', name: 'Bash', input: {} }] }
+          ] as MessageCreateParams['messages']
+        })
+      )
+      expect(googleReasoningCache.get).toHaveBeenCalledWith('google-c4')
+      expect((msgs[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toMatchObject({
+        google: { thoughtSignature: 'sig-abc' }
+      })
+    }
+  )
+
+  it('leaves the google thought signature off a non-Gemini target', () => {
+    const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+    const c = new AnthropicMessageConverter({ googleReasoningCache })
+    const msgs = c.toUIMessages(
+      params({
+        model: 'openai:gpt-5',
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'c5', name: 'Bash', input: {} }] }
+        ] as MessageCreateParams['messages']
+      })
+    )
+    expect((msgs[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toBeUndefined()
   })
 
   it('reconstructs OpenRouter reasoning_details onto the tool call from the cache', () => {

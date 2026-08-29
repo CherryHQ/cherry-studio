@@ -9,12 +9,13 @@ import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
   getFromApi as aiSdkGetFromApi,
+  postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
-import { defaultAppHeaders } from '@main/utils/http'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
@@ -49,8 +50,8 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
-  GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
+  OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
@@ -69,6 +70,10 @@ type ModelFetcher = {
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
 }
 
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
+}
+
 function handleOptionalModelListFailure<T>(
   error: unknown,
   options: { throwOnError?: boolean } | undefined,
@@ -84,7 +89,7 @@ function handleOptionalModelListFailure<T>(
 function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
-    error
+    errorType: getErrorType(error)
   })
   return { data: [] }
 }
@@ -173,6 +178,46 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
+/** The trained context length from `/api/show`, whose `model_info` keys carry an architecture prefix. */
+function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined): number | undefined {
+  const architecture = modelInfo?.['general.architecture']
+  if (typeof architecture !== 'string') return undefined
+  const contextLength = modelInfo?.[`${architecture}.context_length`]
+  return typeof contextLength === 'number' && contextLength > 0 ? contextLength : undefined
+}
+
+/**
+ * `/api/tags` carries no context length, so without this the model has no `contextWindow` and
+ * Ollama falls back to sizing by available VRAM — 4k below 24 GiB, where an agent's tool preamble
+ * alone overruns the window and Ollama truncates the conversation away (#18643). Its own guidance
+ * puts agent and coding workloads at 64k+, which only the model's real window can satisfy.
+ */
+async function fetchOllamaContextWindow(
+  baseUrl: string,
+  provider: Provider,
+  model: string,
+  signal?: AbortSignal
+): Promise<number | undefined> {
+  try {
+    const { value } = await postJsonToApi({
+      url: `${baseUrl}/api/show`,
+      headers: defaultHeaders(provider),
+      body: { model },
+      successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
+      failedResponseHandler: createJsonErrorResponseHandler({
+        errorSchema: zodSchema(ApiErrorSchema),
+        errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+      }),
+      abortSignal: signal
+    })
+    return readOllamaContextLength(value.model_info)
+  } catch (error) {
+    // A model that cannot be inspected still belongs in the list; it falls back to the default window.
+    logger.warn('failed to read Ollama context length', { model, error })
+    return undefined
+  }
+}
+
 const ollamaFetcher: ModelFetcher = {
   match: (p) => isOllamaProvider(p),
   fetch: async (provider, signal) => {
@@ -185,10 +230,15 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) =>
+    const models = dedup(response.models, (m) => m.name)
+    const contextWindows = await Promise.all(
+      models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
+    )
+    return models.map((m, index) =>
       toModel(m.name, provider, {
         ownedBy: 'ollama',
-        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : []
+        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [],
+        ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
       })
     )
   }
@@ -219,7 +269,7 @@ const geminiFetcher: ModelFetcher = {
     // would persist the key into local logs users attach to bug reports.
     const response = await getFromApi({
       url: `${baseUrl}/v1beta/models`,
-      headers: { ...defaultAppHeaders(), 'x-goog-api-key': apiKey, ...provider.settings?.extraHeaders },
+      headers: mergeHeaders(defaultAppHeaders(), { 'x-goog-api-key': apiKey }, provider.settings?.extraHeaders),
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
@@ -327,44 +377,17 @@ const vertexFetcher: ModelFetcher = {
   }
 }
 
-const githubFetcher: ModelFetcher = {
-  match: (p) => matchesPreset(p, SystemProviderIds.github),
-  fetch: async (provider, signal) => {
-    const headers = defaultHeaders(provider)
-    const catalogResponse = await getFromApi({
-      url: 'https://models.github.ai/catalog/models',
-      headers,
-      responseSchema: GitHubModelsResponseSchema,
-      abortSignal: signal
-    })
-    const catalogModels = catalogResponse.map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        description: pickPreferredString([m.summary, m.description]),
-        ownedBy: m.publisher
-      })
-    )
-    return dedup(catalogModels, (m) => m.apiModelId)
-  }
-}
-
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
-    const copilotHeaders = {
-      ...COPILOT_DEFAULT_HEADERS,
-      ...provider.settings.extraHeaders
-    }
+    const copilotHeaders = mergeHeaders(COPILOT_DEFAULT_HEADERS, provider.settings.extraHeaders)
     // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
     // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
     const { token } = await copilotService.getToken(null as any, copilotHeaders)
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
-      headers: {
-        ...copilotHeaders,
-        Authorization: `Bearer ${token}`
-      },
+      headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
       responseSchema: CopilotModelsResponseSchema,
       abortSignal: signal
     })
@@ -395,10 +418,13 @@ const ovmsFetcher: ModelFetcher = {
       responseSchema: OVMSConfigResponseSchema,
       abortSignal: signal
     })
-    const entries = Object.entries(response).filter(([, info]) =>
-      info?.model_version_status?.some((v) => v?.state === 'AVAILABLE')
+    // List every model registered in OVMS config regardless of its server-side
+    // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
+    // expect downloaded models to appear in the model manager even when OVMS
+    // fails to load them server-side — the UI communicates readiness, not OVMS.
+    return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
+      toModel(name, provider, { ownedBy: 'ovms' })
     )
-    return dedup(entries, ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
   }
 }
 
@@ -669,12 +695,11 @@ const anthropicFetcher: ModelFetcher = {
     const apiKey = providerService.getRotatedApiKey(provider.id)
     const response = await getFromApi({
       url: `${baseUrl}/models?limit=1000`,
-      headers: {
-        ...defaultAppHeaders(),
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-        ...provider.settings?.extraHeaders
-      },
+      headers: mergeHeaders(
+        defaultAppHeaders(),
+        { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
+        provider.settings?.extraHeaders
+      ),
       responseSchema: AnthropicModelsResponseSchema,
       abortSignal: signal
     })
@@ -748,15 +773,10 @@ export async function probeOllamaModel(
   const start = performance.now()
   const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
   const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
-  const headers: Record<string, string> = {
-    ...defaultAppHeaders(),
-    ...getExtraHeaders(provider),
-    'Content-Type': 'application/json'
-  }
-  if (resolved.value) {
-    headers.Authorization = `Bearer ${resolved.value}`
-    headers['X-Api-Key'] = resolved.value
-  }
+  const headers = mergeHeaders(defaultAppHeaders(), getExtraHeaders(provider), {
+    'Content-Type': 'application/json',
+    ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
+  })
   const response = await fetch(`${baseUrl}/show`, {
     method: 'POST',
     headers,
@@ -777,7 +797,6 @@ const fetchers: ModelFetcher[] = [
   ollamaFetcher,
   geminiFetcher,
   vertexFetcher,
-  githubFetcher,
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
@@ -802,7 +821,7 @@ export async function listModels(
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
-    logger.error('Error listing models', error as Error, { providerId: provider.id })
+    logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
     if (options?.throwOnError) {
       throw error
     }

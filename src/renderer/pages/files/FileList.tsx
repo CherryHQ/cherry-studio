@@ -123,7 +123,7 @@ export const FileList = memo(function FileList({
 }: {
   files: FileItem[]
   selectedIds: Set<string>
-  onSelect: (id: string) => void
+  onSelect: (id: string, isChecked: boolean, shouldSelectRange: boolean) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
   onRestore: (id: string) => void
@@ -188,8 +188,10 @@ export const FileList = memo(function FileList({
                     size="sm"
                     className={FILE_LIST_CHECKBOX_CLASS_NAME}
                     checked={selected}
-                    onCheckedChange={() => onSelect(file.id)}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelect(file.id, !selected, e.shiftKey)
+                    }}
                     data-file-selection-checkbox
                     aria-label={t('files.select_file', { name: file.name })}
                   />

@@ -88,7 +88,7 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -97,7 +97,7 @@ import {
   rejectPendingAgentSessionImageActions,
   requestAgentSessionImageAction
 } from '../messages/agentSessionImageActionBus'
-import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
+const AgentSessionImageCaptureHost = lazy(() => import('../messages/AgentSessionImageCaptureHost'))
 import type { CreateAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import { useOptionalAgentFileNavigation } from './AgentRightPane'
@@ -354,7 +354,23 @@ const Sessions = ({
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [groupNow] = useState(() => new Date())
+  const [groupNow, setGroupNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const updateGroupNow = () => setGroupNow(new Date())
+    const intervalId = window.setInterval(updateGroupNow, 60_000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') updateGroupNow()
+    }
+    window.addEventListener('focus', updateGroupNow)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', updateGroupNow)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   const { notesPath } = useNotesSettings()
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
@@ -2064,17 +2080,19 @@ const Sessions = ({
           if (!open) setEditDialogTarget(null)
         }}
       />
-      {imageCaptureTargets.map(({ requestId, target: session }) => {
-        const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined
-        return (
-          <AgentSessionImageCaptureHost
-            key={requestId}
-            activeAgent={activeAgent}
-            modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
-            session={session}
-          />
-        )
-      })}
+      <Suspense>
+        {imageCaptureTargets.map(({ requestId, target: session }) => {
+          const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined
+          return (
+            <AgentSessionImageCaptureHost
+              key={requestId}
+              activeAgent={activeAgent}
+              modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
+              session={session}
+            />
+          )
+        })}
+      </Suspense>
     </SessionResourceList>
   )
 }

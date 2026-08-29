@@ -1,7 +1,7 @@
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
-import type { Citation } from '@renderer/types/message'
+import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
@@ -26,12 +26,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
 
-export interface MessageUiState {
-  foldSelected?: boolean
-  multiModelMessageStyle?: string
-  useful?: boolean
-  disclosures?: Record<string, boolean>
-}
+export type { MessageUiState } from '@renderer/types/message'
 
 export interface MessageListSelectionState {
   enabled: boolean
@@ -64,6 +59,11 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+}
+
+export interface MessageActivityStore {
+  getSnapshot: (message: MessageListItem) => MessageActivityState
+  subscribe: (messageId: string, listener: () => void) => () => void
 }
 
 export interface MessageFileView {
@@ -311,6 +311,7 @@ export interface MessageListState {
   translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
+  messageActivityStore?: MessageActivityStore
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   isMessageTranslating?: (messageId: string) => boolean
   getFileView?: (file: FileMetadata) => MessageFileView
@@ -349,6 +350,7 @@ export interface MessageListActions {
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
+  openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
   openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>

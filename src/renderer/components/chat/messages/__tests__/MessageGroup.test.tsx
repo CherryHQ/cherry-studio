@@ -1,3 +1,4 @@
+import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -7,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
-import type { MessageListItem } from '../types'
+import type { MessageGroupRuntime, MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
@@ -206,6 +207,12 @@ vi.mock('../MessageListProvider', () => ({
   }),
   useMessageListUi: () => ({}),
   useMessageListUiSelectors: () => mocks.messageListUiSelectors(),
+  useMessageListItemActivityState: (message: MessageListItem) =>
+    mocks.messageListUiSelectors().getMessageActivityState?.(message) ?? {
+      isProcessing: false,
+      isStreamTarget: false,
+      isApprovalAnchor: false
+    },
   useMessageListUiStatic: () => ({})
 }))
 
@@ -352,6 +359,59 @@ describe('MessageGroup', () => {
     expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
   })
 
+  it('keeps duplicate conversation tabs scoped to their own message element', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const groupRuntimes: MessageGroupRuntime[] = []
+    let firstRegisteredElement: HTMLElement | null = null
+    let secondRegisteredElement: HTMLElement | null = null
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      updateMessageUiState: vi.fn(),
+      bindMessageGroupRuntime: (_messageIds: string[], runtime: MessageGroupRuntime) => {
+        groupRuntimes.push(runtime)
+        return vi.fn()
+      }
+    })
+
+    const { container } = render(
+      <>
+        <TabIdContext value="tab-a">
+          <MessageGroup
+            messages={messages}
+            registerMessageElement={(_messageId, element) => {
+              firstRegisteredElement = element
+            }}
+          />
+        </TabIdContext>
+        <TabIdContext value="tab-b">
+          <MessageGroup
+            messages={messages}
+            registerMessageElement={(_messageId, element) => {
+              secondRegisteredElement = element
+            }}
+          />
+        </TabIdContext>
+      </>
+    )
+
+    const messageElements = container.querySelectorAll<HTMLElement>(
+      '[data-ui~="chat.message"][data-message-id="msg-1"]'
+    )
+    expect(messageElements).toHaveLength(2)
+    expect(messageElements[0].id).not.toBe(messageElements[1].id)
+    expect(firstRegisteredElement).toBe(messageElements[0])
+    expect(secondRegisteredElement).toBe(messageElements[1])
+    expect(groupRuntimes).toHaveLength(2)
+
+    act(() => groupRuntimes.at(1)!.locateMessage('msg-1'))
+
+    expect(mocks.scrollIntoView).toHaveBeenCalledWith(messageElements[1], {
+      behavior: 'smooth',
+      block: 'start',
+      container: 'nearest'
+    })
+  })
+
   it('shows the snapshot model identity for a single assistant reply', () => {
     const messages = [createMessage('msg-1', 0, 'fold')]
 
@@ -383,6 +443,42 @@ describe('MessageGroup', () => {
     }
   )
 
+  it('uses the injected runtime for grouped message navigation', () => {
+    let runtime: { locateMessage: (messageId: string) => void } | undefined
+    const bindMessageGroupRuntime = vi.fn(
+      (_messageIds: string[], nextRuntime: { locateMessage: (messageId: string) => void }) => {
+        runtime = nextRuntime
+        return vi.fn()
+      }
+    )
+    mocks.messageListActions.mockReturnValue({ bindMessageGroupRuntime })
+    const addEventListenerSpy = vi.spyOn(document, 'addEventListener')
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+
+    try {
+      render(<MessageGroup messages={messages} />)
+
+      expect(addEventListenerSpy).not.toHaveBeenCalledWith('flow-navigate-to-message', expect.any(Function))
+      expect(bindMessageGroupRuntime).toHaveBeenCalledWith(
+        ['msg-1', 'msg-2'],
+        expect.objectContaining({ locateMessage: expect.any(Function) })
+      )
+      expect(runtime).toBeDefined()
+
+      act(() => {
+        runtime?.locateMessage('msg-1')
+      })
+
+      expect(mocks.scrollIntoView).toHaveBeenCalledWith(document.getElementById('message-msg-1'), {
+        behavior: 'smooth',
+        block: 'start',
+        container: 'nearest'
+      })
+    } finally {
+      addEventListenerSpy.mockRestore()
+    }
+  })
+
   it('uses two equal columns across the full width in grid layout', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'grid',
@@ -404,6 +500,25 @@ describe('MessageGroup', () => {
     const grid = container.querySelector('[data-ui="chat.message.group"] > .grid') as HTMLElement
     expect(grid).toHaveClass('w-full')
     expect(grid.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))')
+  })
+
+  it('makes every grid popover scroll owner keyboard-focusable', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [createMessage('msg-1', 0, 'grid'), createMessage('msg-2', 1, 'grid')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const popoverScrollOwners = container.querySelectorAll('.in-popover')
+    expect(popoverScrollOwners).toHaveLength(2)
+    popoverScrollOwners.forEach((scrollOwner) => expect(scrollOwner).toHaveAttribute('tabindex', '0'))
   })
 
   it('keeps model identity in the existing selector for fold layout', () => {
@@ -444,6 +559,32 @@ describe('MessageGroup', () => {
     expect(contentContainer.closest('.message-body-column')).toBe(bodyColumn)
     expect(contentContainer.style.marginLeft).toBe('')
     expect(contentContainer.style.width).toBe('')
+  })
+
+  it('keeps ordinary message content out of the keyboard tab order', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    expect(contentContainer).not.toHaveAttribute('tabindex')
+  })
+
+  it('keeps bubble-style user message content out of the keyboard tab order', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const messages = [{ ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {
@@ -519,6 +660,7 @@ describe('MessageGroup', () => {
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('auto')
+    expect(contentContainer).toHaveAttribute('tabindex', '0')
 
     const horizontalGroup = outerWrapper!.parentElement as HTMLElement
     expect(getComputedStyle(horizontalGroup).overflowX).toBe('auto')

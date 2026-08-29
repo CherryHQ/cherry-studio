@@ -267,12 +267,25 @@ describe('miniAppHandlers', () => {
       })
 
       // Logo edits no longer ride in the PATCH body (they go through the
-      // `mini_app.set_logo` command); only name/url/status are delegated here.
+      // `mini_app.settings.set_logo` command); only name/url/status are delegated here.
       expect(updateMock).toHaveBeenCalledWith('custom-app', {
         name: 'Renamed App',
         url: 'https://renamed.app'
       })
       expect(result).toMatchObject({ name: 'Renamed App' })
+    })
+
+    it('should pass an installed app model choice through to the service', async () => {
+      // The model lives on the installation row, not `mini_app`; the DTO still has to
+      // admit it or the panel's only write path is refused at the schema.
+      updateMock.mockResolvedValueOnce({ appId: 'com.example.a', kind: 'app', aiModelId: 'openai::gpt-4o-mini' })
+
+      await miniAppHandlers['/mini-apps/:appId'].PATCH({
+        params: { appId: 'com.example.a' },
+        body: { aiModelId: 'openai::gpt-4o-mini' as never }
+      })
+
+      expect(updateMock).toHaveBeenCalledWith('com.example.a', { aiModelId: 'openai::gpt-4o-mini' })
     })
 
     it('should reject invalid status in PATCH body before calling the service', async () => {

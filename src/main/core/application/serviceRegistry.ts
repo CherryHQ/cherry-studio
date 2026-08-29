@@ -27,18 +27,21 @@ import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
+import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
+import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
-import { BinaryManager } from '@main/services/BinaryManager'
+import { BinaryManager } from '@main/services/binaryManager'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
+import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -98,11 +101,13 @@ export const services = {
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
+  AppService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
   DeepSeekHarnessService,
+  HermesDashboardService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,
@@ -147,6 +152,7 @@ export const services = {
   OcrInferenceService,
   KnowledgeService,
   KnowledgeVectorStoreService,
+  MiniAppRuntimeService,
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,

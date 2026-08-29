@@ -20,7 +20,7 @@ const NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
   bypassApproval: 'enforce'
 }).map(toMcpRuntimeName)
-const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
   mountedServers: NON_HOST_MCP_SERVERS
@@ -63,6 +63,7 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
+  getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
   createAgentsMdLoader: vi.fn(),
   loadAgentsMdInitialContext: vi.fn(),
@@ -161,8 +162,17 @@ vi.mock('@application', () => ({
   application: {
     // Session-keyed live state always resolves to the one real service instance (created below),
     // so the many per-test `applicationGet` overrides don't each have to register it.
-    get: (name: string) =>
-      name === 'ClaudeCodeSessionStateService' ? sessionStateService : mocks.applicationGet(name),
+    get: (name: string) => {
+      if (name === 'ClaudeCodeSessionStateService') return sessionStateService
+      if (name === 'AgentSessionRuntimeService') {
+        try {
+          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }
+        } catch {
+          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+        }
+      }
+      return mocks.applicationGet(name)
+    },
     getPath: mocks.applicationGetPath
   }
 }))
@@ -281,6 +291,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     mocks.modelGetByKey.mockReturnValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockReturnValue(null)
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn(() => false),
@@ -341,6 +352,35 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
+  })
+
+  it('preserves managed CLI paths from the login-shell environment', async () => {
+    mocks.getShellEnv.mockResolvedValue({
+      PATH: '/managed/shims:/usr/bin',
+      MISE_DATA_DIR: '/managed',
+      MISE_CONFIG_DIR: '/managed/config',
+      MISE_CACHE_DIR: '/managed/cache',
+      MISE_STATE_DIR: '/managed/state',
+      MISE_SHIMS_DIR: '/managed/shims'
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      PATH: '/managed/shims:/usr/bin',
+      MISE_DATA_DIR: '/managed',
+      MISE_CONFIG_DIR: '/managed/config',
+      MISE_CACHE_DIR: '/managed/cache',
+      MISE_STATE_DIR: '/managed/state',
+      MISE_SHIMS_DIR: '/managed/shims'
+    })
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
@@ -966,6 +1006,48 @@ describe('buildClaudeCodeSessionSettings', () => {
     const enabled = await runHooks('Read')
     expect(
       enabled.every(
+        (out) =>
+          (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
+          'deny'
+      )
+    ).toBe(true)
+  })
+
+  it('denies image Read calls before text-only model sessions can persist image tool results', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { supportsImages: false }
+    )
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const runHooks = (filePath: string) =>
+      Promise.all(
+        hooks.map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: filePath } } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+
+    const imageRead = await runHooks('/workspace/project/assets/Preview.png')
+    expect(imageRead).toContainEqual(
+      expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({
+          permissionDecision: 'deny',
+          permissionDecisionReason: expect.stringContaining('does not support image input')
+        })
+      })
+    )
+
+    const sourceRead = await runHooks('/workspace/project/src/Game.cs')
+    expect(
+      sourceRead.every(
         (out) =>
           (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
           'deny'
@@ -2161,7 +2243,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps AskUserQuestion available for channel-linked interactive sessions', async () => {
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -2292,7 +2374,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       'navigate',
       'diagnose',
       'product_info',
-      'apply_setting'
+      'apply_setting',
+      'prepare_diagnostic_report'
     ])
   })
 
@@ -2398,8 +2481,34 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
+  it('uses one captured notification authority throughout async MCP materialization', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const notificationContext = {
+      sourceChannel: null,
+      channels: [{ id: 'scheduled-channel', type: 'telegram' }],
+      allowAnyOwnedChannel: false
+    } as const
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+      linkedChannelSnapshot: null,
+      notificationContext
+    })
+
+    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
+    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
+      { method: 'tools/list', params: {} },
+      {}
+    )
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).toContain('notify')
+    expect(mocks.getTurnTrustedNotifyChannels).not.toHaveBeenCalled()
+  })
+
   it('excludes Assistant MCP capability for channel-linked sessions', async () => {
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -2426,8 +2535,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
 
-  it('keeps Support product info in channel sessions while denying unattended diagnostics and all-KB access', async () => {
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+  it('keeps reusable Support tools mounted in channel sessions while denying unattended diagnostics and all-KB access', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'support-1' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') {
@@ -2467,6 +2576,13 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.mcpServers?.assistant).toBeDefined()
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
+    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
+      'navigate',
+      'diagnose',
+      'product_info',
+      'apply_setting',
+      'prepare_diagnostic_report'
+    ])
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
     await expect(

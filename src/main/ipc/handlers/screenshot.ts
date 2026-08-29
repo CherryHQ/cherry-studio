@@ -63,6 +63,13 @@ export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas>
     if (!ctx.senderId || !service.isSessionOverlay(ctx.senderId)) return
     service.markOverlayReady(ctx.senderId, mediaId)
   },
+  // Active, not merely session: it changes how the window the user is typing in is
+  // stacked, which only the overlay holding the live selection has any business doing.
+  'screenshot.text_editing': async ({ editing }, ctx) => {
+    const service = application.get('ScreenshotOverlayService')
+    if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return
+    service.setTextEditing(ctx.senderId, editing)
+  },
   'screenshot.recognize_text': async ({ mediaId, region }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
     // Active, not merely session: OCR is the most expensive thing an overlay can

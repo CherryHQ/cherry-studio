@@ -12,6 +12,7 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
@@ -34,6 +35,7 @@ type Props = {
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
@@ -52,9 +54,11 @@ const AgentSessionMessages = ({
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openDiagnosticReport,
   deleteMessage,
   respondToolApproval
 }: Props) => {
+  const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
@@ -107,6 +111,7 @@ const AgentSessionMessages = ({
     }),
     [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
+  const diagnosticReport = useMemo(() => ({ location: t('error.diagnostic_report.locations.agent') }), [t])
 
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
@@ -121,6 +126,8 @@ const AgentSessionMessages = ({
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,
+    openDiagnosticReport,
+    diagnosticReport,
     deleteMessage,
     respondToolApproval,
     messageNavigation,

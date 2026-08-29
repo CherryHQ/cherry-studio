@@ -1,5 +1,5 @@
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
@@ -38,7 +38,7 @@ import { buildDshCompositionYaml } from '../compositionBuilder'
 import {
   assertDshProviderUsable,
   buildDshGatewayInjection,
-  DshMissingContextWindowError,
+  buildDshProviderInjection,
   DshUnsupportedProviderError,
   resolveDshProviderInjectionFromSnapshot
 } from '../modelInjection'
@@ -54,7 +54,7 @@ const GATEWAY = { baseUrl: 'http://127.0.0.1:23333', apiKey: GATEWAY_KEY, usageH
 const vertexProvider = {
   id: 'vertexai',
   name: 'Vertex AI',
-  apiFeatures: DEFAULT_API_FEATURES,
+  reportsActualCost: false,
   defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   endpointConfigs: {
     [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -67,7 +67,7 @@ const vertexProvider = {
 const nativeProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
-  apiFeatures: DEFAULT_API_FEATURES,
+  reportsActualCost: false,
   defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   endpointConfigs: {
     [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }
@@ -136,16 +136,68 @@ describe('buildDshGatewayInjection', () => {
     expect(route.models[0].id).toBe('vertexai:gemini-2.5-pro')
   })
 
-  it('rejects models the gateway cannot route and still requires a context window', () => {
+  it('rejects models the gateway cannot route and defaults an undeclared context window', () => {
     const nonChat = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] })
     expect(() => buildDshGatewayInjection(vertexProvider, nonChat, GATEWAY)).toThrow(DshUnsupportedProviderError)
 
     const windowless = makeModel({ contextWindow: undefined })
-    expect(() => buildDshGatewayInjection(vertexProvider, windowless, GATEWAY)).toThrow(DshMissingContextWindowError)
+    expect(buildDshGatewayInjection(vertexProvider, windowless, GATEWAY).modelConfig.contextWindow).toBe(256_000)
+  })
+})
+
+describe('buildDshProviderInjection', () => {
+  it('coerces user headers to the strings the dsh route schema accepts', () => {
+    const provider = {
+      ...nativeProvider,
+      settings: { extraHeaders: { 'x-trace': 'on', 'x-legacy': 42, 'x-broken': { a: 1 } } }
+    } as unknown as Provider
+    const model = makeModel({ id: 'deepseek::deepseek-chat', providerId: 'deepseek', apiModelId: 'deepseek-chat' })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
   })
 })
 
 describe('resolveDshProviderInjectionFromSnapshot', () => {
+  it.each([
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-completions'],
+    [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai-responses']
+  ] as const)('uses the resolved endpoint dialect for %s developer-role compatibility', (endpointType, api) => {
+    const model = makeModel({
+      id: 'deepseek::deepseek-chat',
+      providerId: 'deepseek',
+      apiModelId: 'deepseek-chat',
+      endpointTypes: [endpointType],
+      contextWindow: 128_000
+    })
+    const provider = {
+      ...nativeProvider,
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: {
+        [endpointType]: { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }
+      }
+    } as unknown as Provider
+    const withoutDeveloperRole = buildDshProviderInjection(provider, model, 'sk-native')
+    const withDeveloperRole = buildDshProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          [endpointType]: {
+            ...provider.endpointConfigs?.[endpointType],
+            dialect: { developerRole: true }
+          }
+        }
+      },
+      model,
+      'sk-native'
+    )
+
+    expect(withoutDeveloperRole.api).toBe(api)
+    expect(withoutDeveloperRole.modelConfig.compat).toEqual({ supportsDeveloperRole: false })
+    expect(withDeveloperRole.modelConfig.compat).toEqual({ supportsDeveloperRole: true })
+  })
+
   it('keeps native providers on the native route with agent-sdk usage capture', async () => {
     const model = makeModel({
       id: 'deepseek::deepseek-chat',

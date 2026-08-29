@@ -222,11 +222,16 @@ export function useHomeMessageListProviderValue({
 
     await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
   }, [])
+  const diagnosticReport = useMemo(
+    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.home') } : undefined),
+    [normalInteractionsEnabled, t]
+  )
 
   const {
     errorActions,
     exportActions,
     getMessageActivityState,
+    messageActivityStore,
     headerCapabilities,
     leafCapabilities,
     menuConfig,
@@ -241,40 +246,9 @@ export function useHomeMessageListProviderValue({
     partsByMessageId,
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
+    diagnosticReport,
     persistDiagnosis
   })
-
-  const clearTopic = useCallback(
-    async (data: Topic) => {
-      if (data && data.id !== topic.id) return
-      try {
-        await requireChatWrite('clearTopicMessages').clearTopicMessages()
-      } catch (error) {
-        logger.error('Failed to clear topic messages:', error as Error)
-        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
-      }
-    },
-    [requireChatWrite, t, topic.id]
-  )
-
-  useEffect(() => {
-    if (!normalInteractionsEnabled) return
-
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
-        const confirmed = await popup.confirm({
-          title: t('chat.input.clear.title'),
-          content: t('chat.input.clear.content'),
-          centered: true
-        })
-        if (!confirmed) return
-
-        void clearTopic(data)
-      })
-    ]
-
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [clearTopic, normalInteractionsEnabled, t])
 
   useEffect(() => {
     if (!assistant) return
@@ -816,10 +790,11 @@ export function useHomeMessageListProviderValue({
       menuConfig,
       selection: selectionController.selection,
       editingMessageId,
-      translationLanguages: translationLanguages ?? [],
+      translationLanguages,
       translationLanguagesStatus,
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
+      messageActivityStore,
       getMessageActivityState,
       isMessageTranslating,
       ...pickMessageLeafState(leafCapabilities),
@@ -838,6 +813,7 @@ export function useHomeMessageListProviderValue({
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,
+      messageActivityStore,
       messageNavigation,
       partsByMessageId,
       renderConfig,

@@ -4,6 +4,7 @@
  * Single source of truth for all built-in miniApps.
  * Both renderer (UI display) and main process (DB merge logic) import from here.
  */
+import type { LocalizedText } from '@shared/types/miniAppManifest'
 
 export interface MiniAppPreset {
   id: string
@@ -520,3 +521,20 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     supportedRegions: ['CN', 'Global']
   }
 ]
+
+/**
+ * A mini app that ships inside the Cherry package, listed for the launcher BEFORE it
+ * is installed. Display data only — `resources/builtin-mini-apps/<appId>/manifest.json`
+ * is the source of truth, re-read and fully validated at install time. Permissions,
+ * network and version are never taken from here.
+ */
+export interface BuiltinMiniApp {
+  appId: string
+  /** The manifest field verbatim — the CI test asserts equality with the shipped package. */
+  name: LocalizedText
+  /** Package-relative path to a build-time 128x128 WebP. See the catalog test. */
+  icon: string
+}
+
+/** Empty on purpose: this release ships the slot, not the contents. */
+export const BUILTIN_MINI_APPS: BuiltinMiniApp[] = []

@@ -17,6 +17,7 @@ import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
   useMessageListEditingId,
+  useMessageListItemActivityState,
   useMessageListMeta,
   useMessageListSelection,
   useMessageListUiSelectors,
@@ -106,10 +107,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
   const isLastMessage = index === 0 || !!isGrouped
 
-  const activityState = messageUi.getMessageActivityState?.(message)
-  const isProcessing = activityState?.isProcessing ?? false
-  const isStreamTarget = activityState?.isStreamTarget ?? false
-  const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
+  const activityState = useMessageListItemActivityState(message)
+  const isProcessing = activityState.isProcessing
+  const isStreamTarget = activityState.isStreamTarget
+  const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
@@ -206,6 +207,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       <Scrollbar
         data-ui="part:message-content"
         className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
+        tabIndex={isHorizontalMultiModelLayout ? 0 : undefined}
         style={{
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize,

@@ -136,12 +136,22 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 // Parameter support checks
 // ---------------------------------------------------------------------------
 
+const isKimiFixedSamplingModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model))
+  return /^kimi-k(?:2[.-][5-9]\d*|[3-9]\d*)(?:[-_.]|$)/i.test(id)
+}
+
 /** Check if model supports temperature parameter */
-export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+export const isSupportTemperatureModel = (model: Model): boolean => {
+  if (model.parameterSupport?.temperature) return model.parameterSupport.temperature.supported !== false
+  return !isKimiFixedSamplingModel(model)
+}
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean => {
+  if (model.parameterSupport?.topP) return model.parameterSupport.topP.supported !== false
+  return !isKimiFixedSamplingModel(model)
+}
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
@@ -205,11 +215,17 @@ export const isAnthropicModel = (model: Model): boolean =>
 export const isGeminiModel = (model: Model): boolean =>
   VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model)))
 
-/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
-export const isGemini3Model = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
+/**
+ * Check if a raw model id is Gemini 3 series. The `*-latest` aliases resolve to
+ * Gemini 3, so an id-substring check alone misses them.
+ */
+export const isGemini3ModelId = (modelId: string): boolean => {
+  const id = getLowerBaseModelName(modelId)
   return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
 }
+
+/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
+export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
 
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>
