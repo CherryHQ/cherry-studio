@@ -26,7 +26,7 @@ export {
   paramCatalogEntry,
   wireName
 } from './schemas/imageParamCatalog'
-export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
+export { ImageGenerationModeSchema, ImageGenerationSupportSchema, ScheduledModelPricingSchema } from './schemas/model'
 export { buildParamsSchema } from './utils/buildParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)
@@ -60,6 +60,7 @@ export type {
   ReasoningControl,
   ReasoningSupport,
   ReasoningWireDialect,
+  ScheduledModelPricing,
   SupportSpec
 } from './schemas/model'
 export { ReasoningControlSchema } from './schemas/model'

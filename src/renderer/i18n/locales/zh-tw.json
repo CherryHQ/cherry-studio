@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "包含邊界值；必須大於前一個級距。",
   "models.price.output": "輸出價格",
   "models.price.remove_tier": "移除價格級距 {{index}}",
+  "models.price.restore_provider": "使用供應商定價",
   "models.price.tier": "級距 {{index}}",
   "models.price.tier_from": "從 {{boundary}} 個輸入 Token 起（含）",
   "models.price.use_input_price": "使用輸入價格",

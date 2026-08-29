@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Inclusive boundary; must be greater than the previous tier.",
   "models.price.output": "Output Price",
   "models.price.remove_tier": "Remove pricing tier {{index}}",
+  "models.price.restore_provider": "Use provider pricing",
   "models.price.tier": "Tier {{index}}",
   "models.price.tier_from": "From {{boundary}} input tokens (inclusive)",
   "models.price.use_input_price": "Use input price",

@@ -19,7 +19,7 @@ import {
 } from '@main/ai/runtime/agentMcpServers'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { freezeAiUsagePricing } from '@main/ai/utils/usageCapture'
 import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
@@ -187,7 +187,7 @@ function buildUsageModels(
     {
       apiModelId: string
       modelName: string | null
-      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      pricing: ReturnType<typeof freezeAiUsagePricing>
       aliases: Set<string>
     }
   >()
@@ -195,7 +195,7 @@ function buildUsageModels(
     const current = byModelId.get(ref.modelId) ?? {
       apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
-      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      pricing: freezeAiUsagePricing(ref.model?.pricing),
       aliases: new Set<string>()
     }
     current.aliases.add(sdkModelId)
@@ -207,25 +207,9 @@ function buildUsageModels(
     modelId,
     apiModelId: snapshot.apiModelId,
     modelName: snapshot.modelName,
-    pricingSnapshot: snapshot.pricingSnapshot,
+    pricing: snapshot.pricing,
     aliases: [...snapshot.aliases]
   }))
-}
-
-function buildRebuildRouteFacts(routeFacts: ClaudeCodeRouteFacts) {
-  return {
-    ...routeFacts,
-    usageModels: routeFacts.usageModels.map((usageModel) => ({
-      ...usageModel,
-      pricingSnapshot: usageModel.pricingSnapshot
-        ? {
-            ...usageModel.pricingSnapshot,
-            // This records when usage attribution was materialized, not a spawn-time routing fact.
-            capturedAt: undefined
-          }
-        : null
-    }))
-  }
 }
 
 /**
@@ -384,7 +368,7 @@ async function deriveConnectionConfigFromSnapshot(
     maxOutputTokens,
     reasoningEffort,
     fastMode: effectiveFastMode,
-    route: buildRebuildRouteFacts(routeFacts),
+    route: routeFacts,
     cwd,
     language: getAppLanguage(),
     instructions: agent.instructions ?? null,
@@ -939,7 +923,9 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
     credentialsFingerprint: request.credentialsFingerprint,
-    usageCapture: request.usageCapture,
+    ...(request.usageCapture.owner === 'agent-sdk'
+      ? { credentialReceipt: request.usageCapture.credentialReceipt }
+      : {}),
     knowledgeBaseIds: request.knowledgeBaseIds,
     notificationContext: request.notificationContext
   }

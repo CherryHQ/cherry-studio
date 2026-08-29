@@ -372,7 +372,7 @@ describe('buildPiProviderInjection', () => {
           apiModelId: 'claude-sonnet-4',
           modelName: 'Sonnet',
           aliases: ['anthropic::claude', 'claude-sonnet-4'],
-          pricingSnapshot: null
+          pricing: null
         }
       ]
     })

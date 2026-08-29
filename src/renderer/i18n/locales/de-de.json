@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Inklusive Grenze; muss größer als die vorherige Stufe sein.",
   "models.price.output": "Ausgabepreis",
   "models.price.remove_tier": "Preisstufe {{index}} entfernen",
+  "models.price.restore_provider": "Anbieterpreise verwenden",
   "models.price.tier": "Tier {{index}}",
   "models.price.tier_from": "Ab {{boundary}} Eingabe-Tokens (einschließlich)",
   "models.price.use_input_price": "Eingabepreis verwenden",

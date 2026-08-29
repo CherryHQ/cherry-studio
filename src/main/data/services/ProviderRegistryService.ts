@@ -158,6 +158,7 @@ function isEmptyPricingEcho(value: unknown): boolean {
     !pricing.cacheRead &&
     !pricing.cacheWrite &&
     !pricing.inputTokenTiers?.length &&
+    !pricing.scheduled &&
     !pricing.perImage &&
     !pricing.perMinute
   )
@@ -167,6 +168,14 @@ function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeMod
   const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
     perMillionTokens: tier.perMillionTokens,
     currency: tier.currency ?? CURRENCY.USD
+  })
+  const normalizeScheduledOverride = (
+    override: NonNullable<RuntimeModelPricing['scheduled']>['rules'][number]['pricing']
+  ) => ({
+    ...(override.input ? { input: normalizeTier(override.input) } : {}),
+    ...(override.output ? { output: normalizeTier(override.output) } : {}),
+    ...(override.cacheRead ? { cacheRead: normalizeTier(override.cacheRead) } : {}),
+    ...(override.cacheWrite ? { cacheWrite: normalizeTier(override.cacheWrite) } : {})
   })
 
   return {
@@ -183,6 +192,17 @@ function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeMod
             ...(tier.cacheRead ? { cacheRead: normalizeTier(tier.cacheRead) } : {}),
             ...(tier.cacheWrite ? { cacheWrite: normalizeTier(tier.cacheWrite) } : {})
           }))
+        }
+      : {}),
+    ...(pricing.scheduled
+      ? {
+          scheduled: {
+            ...(pricing.scheduled.default ? { default: normalizeScheduledOverride(pricing.scheduled.default) } : {}),
+            rules: pricing.scheduled.rules.map((rule) => ({
+              schedule: rule.schedule,
+              pricing: normalizeScheduledOverride(rule.pricing)
+            }))
+          }
         }
       : {}),
     ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
@@ -567,6 +587,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
             currency: mergedPricing.cacheWrite.currency
           }
         : undefined,
+      scheduled: mergedPricing.scheduled,
       perImage: mergedPricing.perImage
         ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
         : undefined,

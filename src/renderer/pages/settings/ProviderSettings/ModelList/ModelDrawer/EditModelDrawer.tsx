@@ -4,6 +4,7 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
+import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
@@ -56,7 +57,7 @@ interface BuildPatchOverrides {
   purposeFields?: ModelPurposeFields
   classification?: ModelClassificationState
   supportsStreaming?: boolean
-  pricing?: Model['pricing']
+  pricing?: Model['pricing'] | null
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
@@ -65,7 +66,7 @@ interface BuildPatchOverrides {
 interface AutoSaveQueueItem {
   providerId: string
   modelId: string
-  patch: Partial<Model>
+  patch: UpdateModelDto
 }
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
@@ -145,7 +146,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   )
 
   const buildPatch = useCallback(
-    (overrides?: BuildPatchOverrides): Partial<Model> => {
+    (overrides?: BuildPatchOverrides): UpdateModelDto => {
       if (!model) {
         return {}
       }
@@ -280,6 +281,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [autoSave]
   )
+
+  const handleRestoreProviderPricing = useCallback(() => {
+    autoSave({ pricing: null })
+  }, [autoSave])
 
   const commitClassification = useCallback(
     (next: ModelClassificationState) => {
@@ -491,9 +496,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
               <div className={drawerClasses.sectionCard}>
                 <ModelPricingFields
-                  key={`${providerId}:${model.id}`}
+                  key={`${providerId}:${model.id}:${model.pricingSource}`}
                   pricing={model.pricing}
                   onCommit={handlePricingCommit}
+                  onRestoreProviderPricing={
+                    model.presetModelId != null && model.pricingSource === 'user'
+                      ? handleRestoreProviderPricing
+                      : undefined
+                  }
                 />
               </div>
             </div>

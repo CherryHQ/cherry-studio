@@ -1,4 +1,5 @@
 import { CURRENCY, type Currency, type Model } from '@shared/data/types/model'
+import { isEqual } from 'es-toolkit'
 
 type ModelPricing = NonNullable<Model['pricing']>
 
@@ -245,6 +246,10 @@ export function buildModelPricingFromDraft(
   if (!tiers) {
     return { errors }
   }
+  const currentTiers = parseModelPricingDraft(createModelPricingDraft(currentPricing)).tiers
+  if (isEqual(tiers, currentTiers) && currencySymbol === getModelPricingCurrencySymbol(currentPricing)) {
+    return { errors }
+  }
 
   const currency = CURRENCY_SYMBOL_TO_CODE[currencySymbol]
   const [baseTier, ...additionalTiers] = tiers
@@ -254,6 +259,7 @@ export function buildModelPricingFromDraft(
   delete unmodifiedPricing.cacheRead
   delete unmodifiedPricing.cacheWrite
   delete unmodifiedPricing.inputTokenTiers
+  delete unmodifiedPricing.scheduled
 
   const pricing: ModelPricing = {
     ...unmodifiedPricing,

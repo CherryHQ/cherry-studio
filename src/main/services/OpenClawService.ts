@@ -8,6 +8,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { resolveModelPricing } from '@main/ai/utils/modelPricing'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
@@ -1227,8 +1228,8 @@ export class OpenClawService extends BaseService {
   }
 
   private toOpenClawCost(model: DataModel): OpenClawModelConfig['cost'] | undefined {
-    const pricing = model.pricing
-    if (!pricing) return undefined
+    if (!model.pricing) return undefined
+    const pricing = resolveModelPricing(model.pricing, new Date())
     const isUsd = (currency?: string) => currency === undefined || currency === CURRENCY.USD
     if (!isUsd(pricing.input.currency) || !isUsd(pricing.output.currency)) return undefined
     if (pricing.input.perMillionTokens === null || pricing.output.perMillionTokens === null) return undefined

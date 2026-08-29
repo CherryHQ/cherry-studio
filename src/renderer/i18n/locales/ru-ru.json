@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Включительная граница; должна быть больше предыдущего уровня.",
   "models.price.output": "Цена вывода",
   "models.price.remove_tier": "Удалить ценовой уровень {{index}}",
+  "models.price.restore_provider": "Использовать цены провайдера",
   "models.price.tier": "Уровень {{index}}",
   "models.price.tier_from": "От {{boundary}} входных токенов (включительно)",
   "models.price.use_input_price": "Использовать входную цену",

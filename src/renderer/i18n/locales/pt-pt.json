@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Limite inclusivo; deve ser maior que o nível anterior.",
   "models.price.output": "Preço de saída",
   "models.price.remove_tier": "Remover nível de preço {{index}}",
+  "models.price.restore_provider": "Usar preços do fornecedor",
   "models.price.tier": "Nível {{index}}",
   "models.price.tier_from": "De {{boundary}} tokens de entrada (inclusive)",
   "models.price.use_input_price": "Use o preço de entrada",

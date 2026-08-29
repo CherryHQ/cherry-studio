@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "边界包含该值，且必须大于上一档。",
   "models.price.output": "输出价格",
   "models.price.remove_tier": "删除第 {{index}} 个价格档位",
+  "models.price.restore_provider": "使用提供商定价",
   "models.price.tier": "档位 {{index}}",
   "models.price.tier_from": "从 {{boundary}} 个输入 Token 起（含）",
   "models.price.use_input_price": "使用输入价格",

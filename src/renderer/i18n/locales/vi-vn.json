@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Ranh giới bao gồm giá trị này; phải lớn hơn bậc trước.",
   "models.price.output": "Giá đầu ra",
   "models.price.remove_tier": "Xóa bậc giá {{index}}",
+  "models.price.restore_provider": "Dùng giá của nhà cung cấp",
   "models.price.tier": "Bậc {{index}}",
   "models.price.tier_from": "Từ {{boundary}} token đầu vào (bao gồm)",
   "models.price.use_input_price": "Dùng giá đầu vào",

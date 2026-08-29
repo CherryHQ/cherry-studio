@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Συμπεριληπτικό όριο; πρέπει να είναι μεγαλύτερο από την προηγούμενη βαθμίδα.",
   "models.price.output": "Τιμή εξόδου",
   "models.price.remove_tier": "Αφαίρεση βαθμίδας τιμολόγησης {{index}}",
+  "models.price.restore_provider": "Χρήση τιμολόγησης παρόχου",
   "models.price.tier": "Βαθμίδα {{index}}",
   "models.price.tier_from": "Από {{boundary}} tokens εισόδου (συμπεριλαμβανομένων)",
   "models.price.use_input_price": "Χρησιμοποιήστε την τιμή εισόδου",

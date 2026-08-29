@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "包含的な境界。前のティアより大きくなければなりません。",
   "models.price.output": "出力価格",
   "models.price.remove_tier": "価格ティア {{index}} を削除",
+  "models.price.restore_provider": "プロバイダーの料金を使用",
   "models.price.tier": "ティア {{index}}",
   "models.price.tier_from": "{{boundary}}入力トークンから（境界値を含む）",
   "models.price.use_input_price": "入力価格を使用",

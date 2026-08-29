@@ -400,7 +400,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
             modelId: 'sonnet',
             apiModelId: 'sonnet-sdk',
             modelName: 'Sonnet',
-            pricingSnapshot: null,
+            pricing: {
+              input: { perMillionTokens: 1, currency: 'USD' },
+              output: { perMillionTokens: 2, currency: 'USD' }
+            },
             aliases: ['sonnet-sdk']
           }
         ]
@@ -408,22 +411,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.consumeWarmQuery.mockResolvedValue({
       warmQuery,
-      usageCapture: {
-        owner: 'agent-sdk',
-        credentialReceipt: { attribution: 'explicit', id: 'warm-key', masked: 'war-***' },
-        providerId: 'anthropic',
-        providerName: 'Anthropic',
-        source: null,
-        frozenModels: [
-          {
-            modelId: 'sonnet',
-            apiModelId: 'sonnet-sdk',
-            modelName: 'Sonnet',
-            pricingSnapshot: null,
-            aliases: ['sonnet-sdk']
-          }
-        ]
-      }
+      credentialReceipt: { attribution: 'explicit', id: 'warm-key', masked: 'war-***' }
     })
 
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -434,7 +422,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     expect(connection.usageCapture).toMatchObject({
       owner: 'agent-sdk',
-      credentialReceipt: { attribution: 'explicit', id: 'warm-key' }
+      credentialReceipt: { attribution: 'explicit', id: 'warm-key' },
+      frozenModels: [
+        {
+          modelId: 'sonnet',
+          pricing: {
+            input: { perMillionTokens: 1, currency: 'USD' },
+            output: { perMillionTokens: 2, currency: 'USD' }
+          }
+        }
+      ]
     })
     expect(warmQuery.query).toHaveBeenCalledOnce()
     await connection.close()
@@ -1514,14 +1511,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
             modelId: 'sonnet',
             apiModelId: 'sonnet-sdk',
             modelName: 'Sonnet',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['sonnet-sdk']
           },
           {
             modelId: 'haiku',
             apiModelId: 'haiku-sdk',
             modelName: 'Haiku',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['haiku-sdk']
           }
         ]
@@ -1535,6 +1532,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'request-sonnet', model: 'sonnet-sdk', usage: {} }
+      }
+    })
     queryQueue.push({
       type: 'assistant',
       message: {
@@ -1563,6 +1568,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
           cache_read_input_tokens: 4,
           cache_creation_input_tokens: 1
         }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'request-haiku', model: 'haiku-sdk', usage: {} }
       }
     })
     queryQueue.push({
@@ -1635,6 +1648,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           requestId: 'claude-agent:request-sonnet',
           model: 'sonnet-sdk',
           messageAssociation: 'current-turn',
+          startedAt: expect.any(Number),
           usage: {
             inputTokens: 13,
             outputTokens: 7,
@@ -1651,6 +1665,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           requestId: 'claude-agent:request-haiku',
           model: 'haiku-sdk',
           messageAssociation: 'current-turn',
+          startedAt: expect.any(Number),
           usage: {
             inputTokens: 4,
             outputTokens: 6,
@@ -1690,7 +1705,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             modelId: 'sonnet',
             apiModelId: 'sonnet-sdk',
             modelName: 'Sonnet',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['sonnet-sdk']
           }
         ]
@@ -1704,6 +1719,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'request-without-model', usage: {} }
+      }
+    })
     queryQueue.push({
       type: 'assistant',
       parent_tool_use_id: null,
@@ -1764,7 +1787,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             modelId: 'sonnet',
             apiModelId: 'sonnet-sdk',
             modelName: 'Sonnet',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['sonnet-sdk']
           }
         ]
@@ -1778,6 +1801,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'completed-step', model: 'sonnet-sdk', usage: {} }
+      }
+    })
     queryQueue.push({
       type: 'assistant',
       parent_tool_use_id: null,
@@ -1802,13 +1833,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
 
-    await expect(events.next()).resolves.toMatchObject({
-      value: {
-        type: 'usage',
-        invocation: {
-          requestId: 'claude-agent:completed-step',
-          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
-        }
+    let completedUsage: any
+    while (!completedUsage) {
+      const event = (await events.next()).value
+      if (event?.type === 'usage') completedUsage = event
+    }
+    expect(completedUsage).toMatchObject({
+      invocation: {
+        requestId: 'claude-agent:completed-step',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
       }
     })
 
@@ -1847,7 +1880,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             modelId: 'LongCat-2.0',
             apiModelId: 'LongCat-2.0',
             modelName: 'LongCat 2.0',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['LongCat-2.0']
           }
         ]
@@ -1861,6 +1894,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(2_000_000)
     queryQueue.push({
       type: 'stream_event',
       parent_tool_use_id: null,
@@ -1922,6 +1956,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           requestId: 'claude-agent:longcat-request',
           model: 'LongCat-2.0',
           messageAssociation: 'current-turn',
+          startedAt: 1_998_621,
           usage: {
             inputTokens: 43_816,
             outputTokens: 386,
@@ -1939,6 +1974,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     ])
     const invocation = seen.find((event) => event?.type === 'usage')?.invocation
     expect(invocation.metrics.timeCompletionMs).toBeGreaterThanOrEqual(invocation.metrics.timeFirstTokenMs)
+    dateNow.mockRestore()
     void connection.close()
   })
 
@@ -1967,7 +2003,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             modelId: 'sonnet',
             apiModelId: 'sonnet-sdk',
             modelName: 'Sonnet',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['sonnet-sdk']
           }
         ]
@@ -2040,6 +2076,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           requestId: 'claude-agent:sparse-terminal-request',
           model: 'sonnet-sdk',
           messageAssociation: 'current-turn',
+          startedAt: expect.any(Number),
           usage: {
             inputTokens: 15,
             outputTokens: 7,
@@ -2079,7 +2116,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             modelId: 'sonnet',
             apiModelId: 'sonnet-sdk',
             modelName: 'Sonnet',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['sonnet-sdk']
           }
         ]
@@ -2092,6 +2129,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'background-request', model: 'sonnet-sdk', usage: {} }
+      }
+    })
     queryQueue.push({
       type: 'assistant',
       message: {
@@ -2123,6 +2168,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         requestId: 'claude-agent:background-request',
         model: 'sonnet-sdk',
         messageAssociation: 'stateless',
+        startedAt: expect.any(Number),
         usage: {
           inputTokens: 11,
           outputTokens: 3,

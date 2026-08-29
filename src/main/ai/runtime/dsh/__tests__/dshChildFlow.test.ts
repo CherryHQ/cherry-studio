@@ -7,8 +7,8 @@ import { DshSubagentCoordinator, type DshSubagentSink } from '../dshChildFlow'
 const MAIN = 'main-session'
 
 let seq = 0
-const event = (type: string, data: unknown): SessionEvent =>
-  ({ type, seq: ++seq, time: Date.now(), data }) as unknown as SessionEvent
+const event = (type: string, data: unknown, time = Date.now()): SessionEvent =>
+  ({ type, seq: ++seq, time, data }) as unknown as SessionEvent
 
 const textDelta = (turn: number, index: number, text: string) =>
   event('assistant/chunk', { turn, step: 0, chunk: { type: 'text-delta', index, text } })
@@ -312,11 +312,13 @@ describe('DshSubagentCoordinator child projection', () => {
   })
 
   it('forwards child assistant usage for invocation records', () => {
+    coordinator.handleChildEvent('child-1', event('step/start', { turn: 2, step: 0 }, 123))
     coordinator.handleChildEvent('child-1', assistantUsage(2, { inputTokens: 100, outputTokens: 20 }))
     expect(sink.recordChildUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         childSessionId: 'child-1',
         turn: 2,
+        startedAt: 123,
         usage: { inputTokens: 100, outputTokens: 20 },
         model: 'deepseek-chat'
       })

@@ -124,6 +124,12 @@ Custom rows store their complete config. This lets catalog changes reach
 existing rows without a data migration. Explicit empty strings and arrays
 remain valid overrides.
 
+### Scheduled pricing
+
+Provider-specific pricing may carry a `scheduled` calendar. Its optional `default` rates override the flat compatibility price, then every matching rule is applied in declaration order; later rules win. Weekly rules use an IANA timezone and half-open time windows. Fixed rules use half-open absolute ISO intervals and model temporary price adjustments.
+
+The flat `input` / `output` rates remain required as a safe fallback for older catalog clients. Current clients resolve the calendar when a provider invocation starts and persist only the effective rate in the immutable usage snapshot.
+
 ### User Override Protection
 
 When a user changes a registry-enrichable field (for example `name`), the value

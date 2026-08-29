@@ -192,6 +192,21 @@ describe('EditModelDrawer pricing', () => {
     expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('pricing')
   })
 
+  it('restores catalog pricing by clearing the user override', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      presetModelId: 'claude-4-sonnet',
+      pricingSource: 'user' as const
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    await user.click(screen.getByRole('button', { name: 'models.price.restore_provider' }))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ pricing: null }))
+  })
+
   it('keeps a queued pricing save when a later unrelated field is edited', async () => {
     const user = userEvent.setup()
     let resolveFirstSave!: () => void

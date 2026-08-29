@@ -4,6 +4,7 @@ import type {
   MessageRef,
   SourceSnapshot
 } from '@data/services/AiUsageRecordService'
+import { resolveModelPricing } from '@main/ai/utils/modelPricing'
 import { type AiUsagePricingSnapshot, AiUsagePricingSnapshotSchema } from '@shared/data/types/aiUsageRecord'
 import type { Currency, RuntimeModelPricing } from '@shared/data/types/model'
 
@@ -34,6 +35,10 @@ function cloneAndFreeze<T>(value: T): Readonly<T> {
   return deepFreeze(structuredClone(value))
 }
 
+export function freezeAiUsagePricing(pricing: RuntimeModelPricing | null | undefined): RuntimeModelPricing | null {
+  return pricing ? (cloneAndFreeze(pricing) as RuntimeModelPricing) : null
+}
+
 function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['currency'] | undefined {
   const tokenRates = [
     pricing.input,
@@ -55,22 +60,29 @@ export function createAiUsagePricingSnapshot(
   capturedAt = new Date().toISOString()
 ): AiUsagePricingSnapshot | null {
   if (!pricing) return null
-  const currency = pricingCurrency(pricing)
+  const capturedDate = new Date(capturedAt)
+  if (Number.isNaN(capturedDate.getTime())) return null
+  const effectivePricing = resolveModelPricing(pricing, capturedDate)
+  const currency = pricingCurrency(effectivePricing)
   if (!currency) return null
 
   const snapshot = {
     currency,
-    ...(pricing.input?.perMillionTokens != null ? { inputPerMillionTokens: pricing.input.perMillionTokens } : {}),
-    ...(pricing.output?.perMillionTokens != null ? { outputPerMillionTokens: pricing.output.perMillionTokens } : {}),
-    ...(pricing.cacheRead?.perMillionTokens != null
-      ? { cacheReadPerMillionTokens: pricing.cacheRead.perMillionTokens }
+    ...(effectivePricing.input?.perMillionTokens != null
+      ? { inputPerMillionTokens: effectivePricing.input.perMillionTokens }
       : {}),
-    ...(pricing.cacheWrite?.perMillionTokens != null
-      ? { cacheWritePerMillionTokens: pricing.cacheWrite.perMillionTokens }
+    ...(effectivePricing.output?.perMillionTokens != null
+      ? { outputPerMillionTokens: effectivePricing.output.perMillionTokens }
       : {}),
-    ...(pricing.inputTokenTiers?.length
+    ...(effectivePricing.cacheRead?.perMillionTokens != null
+      ? { cacheReadPerMillionTokens: effectivePricing.cacheRead.perMillionTokens }
+      : {}),
+    ...(effectivePricing.cacheWrite?.perMillionTokens != null
+      ? { cacheWritePerMillionTokens: effectivePricing.cacheWrite.perMillionTokens }
+      : {}),
+    ...(effectivePricing.inputTokenTiers?.length
       ? {
-          inputTokenTiers: pricing.inputTokenTiers.map((tier) => ({
+          inputTokenTiers: effectivePricing.inputTokenTiers.map((tier) => ({
             minInputTokens: tier.minInputTokens,
             ...(tier.input.perMillionTokens != null ? { inputPerMillionTokens: tier.input.perMillionTokens } : {}),
             ...(tier.output.perMillionTokens != null ? { outputPerMillionTokens: tier.output.perMillionTokens } : {}),
@@ -83,11 +95,11 @@ export function createAiUsagePricingSnapshot(
           }))
         }
       : {}),
-    ...(pricing.perImage
+    ...(effectivePricing.perImage
       ? {
           perImage: {
-            price: pricing.perImage.price,
-            unit: pricing.perImage.unit ?? 'image'
+            price: effectivePricing.perImage.price,
+            unit: effectivePricing.perImage.unit ?? 'image'
           }
         }
       : {}),

@@ -70,3 +70,32 @@ describe('RuntimeModelPricingSchema input-token tiers', () => {
     ).toBe(false)
   })
 })
+
+describe('scheduled model pricing', () => {
+  it('rejects incomplete weekly windows, invalid timezones, and inverted fixed windows', () => {
+    const parseRule = (schedule: object) =>
+      RuntimeModelPricingSchema.safeParse({
+        ...basePricing,
+        scheduled: { rules: [{ schedule, pricing: { input: basePricing.input } }] }
+      }).success
+
+    expect(parseRule({ kind: 'weekly', timezone: 'UTC', daysOfWeek: ['monday'], startTime: '01:00' })).toBe(false)
+    expect(
+      parseRule({
+        kind: 'weekly',
+        timezone: 'UTC',
+        daysOfWeek: ['monday'],
+        startTime: '01:00',
+        endTime: '01:00'
+      })
+    ).toBe(false)
+    expect(parseRule({ kind: 'weekly', timezone: 'Not/A_Timezone', daysOfWeek: ['monday'] })).toBe(false)
+    expect(
+      parseRule({
+        kind: 'fixed',
+        startsAt: '2026-09-01T00:00:00.000Z',
+        endsAt: '2026-08-31T00:00:00.000Z'
+      })
+    ).toBe(false)
+  })
+})

@@ -8428,6 +8428,70 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.32
+        },
+        "scheduled": {
+          "default": {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.007
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.22
+            },
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 0.66
+            }
+          },
+          "rules": [
+            {
+              "pricing": {
+                "cacheRead": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.014
+                },
+                "input": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.44
+                },
+                "output": {
+                  "currency": "USD",
+                  "perMillionTokens": 1.32
+                }
+              },
+              "schedule": {
+                "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "endTime": "04:00",
+                "kind": "weekly",
+                "startTime": "01:00",
+                "timezone": "UTC"
+              }
+            },
+            {
+              "pricing": {
+                "cacheRead": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.014
+                },
+                "input": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.44
+                },
+                "output": {
+                  "currency": "USD",
+                  "perMillionTokens": 1.32
+                }
+              },
+              "schedule": {
+                "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "endTime": "10:00",
+                "kind": "weekly",
+                "startTime": "06:00",
+                "timezone": "UTC"
+              }
+            }
+          ]
         }
       },
       "providerId": "deepseek",
@@ -8559,6 +8623,70 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.32
+        },
+        "scheduled": {
+          "default": {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.007
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.22
+            },
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 0.66
+            }
+          },
+          "rules": [
+            {
+              "pricing": {
+                "cacheRead": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.014
+                },
+                "input": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.44
+                },
+                "output": {
+                  "currency": "USD",
+                  "perMillionTokens": 1.32
+                }
+              },
+              "schedule": {
+                "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "endTime": "04:00",
+                "kind": "weekly",
+                "startTime": "01:00",
+                "timezone": "UTC"
+              }
+            },
+            {
+              "pricing": {
+                "cacheRead": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.014
+                },
+                "input": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.44
+                },
+                "output": {
+                  "currency": "USD",
+                  "perMillionTokens": 1.32
+                }
+              },
+              "schedule": {
+                "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "endTime": "10:00",
+                "kind": "weekly",
+                "startTime": "06:00",
+                "timezone": "UTC"
+              }
+            }
+          ]
         }
       },
       "providerId": "deepseek",
@@ -8690,6 +8818,70 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3.96
+        },
+        "scheduled": {
+          "default": {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.022
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.66
+            },
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 1.98
+            }
+          },
+          "rules": [
+            {
+              "pricing": {
+                "cacheRead": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.044
+                },
+                "input": {
+                  "currency": "USD",
+                  "perMillionTokens": 1.32
+                },
+                "output": {
+                  "currency": "USD",
+                  "perMillionTokens": 3.96
+                }
+              },
+              "schedule": {
+                "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "endTime": "04:00",
+                "kind": "weekly",
+                "startTime": "01:00",
+                "timezone": "UTC"
+              }
+            },
+            {
+              "pricing": {
+                "cacheRead": {
+                  "currency": "USD",
+                  "perMillionTokens": 0.044
+                },
+                "input": {
+                  "currency": "USD",
+                  "perMillionTokens": 1.32
+                },
+                "output": {
+                  "currency": "USD",
+                  "perMillionTokens": 3.96
+                }
+              },
+              "schedule": {
+                "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "endTime": "10:00",
+                "kind": "weekly",
+                "startTime": "06:00",
+                "timezone": "UTC"
+              }
+            }
+          ]
         }
       },
       "providerId": "deepseek",
@@ -37742,5 +37934,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0f2033edf13d74e2"
+  "version": "697afa8384328522"
 }

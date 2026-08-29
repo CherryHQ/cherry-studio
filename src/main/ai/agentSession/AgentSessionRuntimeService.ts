@@ -1825,6 +1825,15 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     const capture = entry.usageCapture
     if (capture?.owner !== 'agent-sdk') return
+    const capturedAt = new Date(invocation.startedAt)
+    if (!Number.isFinite(invocation.startedAt) || invocation.startedAt < 0 || Number.isNaN(capturedAt.getTime())) {
+      logger.warn('Agent SDK usage has an invalid invocation start time; skipping persistence', {
+        sessionId: entry.sessionId,
+        requestId: invocation.requestId,
+        startedAt: invocation.startedAt
+      })
+      return
+    }
 
     const turn = invocation.messageAssociation === 'current-turn' ? this.liveTurn(entry) : undefined
     if (invocation.messageAssociation === 'current-turn' && !turn) {
@@ -1847,7 +1856,8 @@ export class AgentSessionRuntimeService extends BaseService {
         providerName: capture.providerName,
         modelId,
         modelName: frozenModel?.modelName ?? invocation.model,
-        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
+        pricing: frozenModel?.pricing ?? null,
+        capturedAt: capturedAt.toISOString(),
         credentialReceipt: capture.credentialReceipt,
         source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null

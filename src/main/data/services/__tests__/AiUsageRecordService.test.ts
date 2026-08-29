@@ -591,6 +591,40 @@ describe('AiUsageRecordService', () => {
     })
   })
 
+  it('freezes the rate active when a scheduled invocation starts', () => {
+    const pricing = {
+      input: { perMillionTokens: 2, currency: 'USD' as const },
+      output: { perMillionTokens: 4, currency: 'USD' as const },
+      scheduled: {
+        default: {
+          input: { perMillionTokens: 1, currency: 'USD' as const },
+          output: { perMillionTokens: 2, currency: 'USD' as const }
+        },
+        rules: [
+          {
+            schedule: {
+              kind: 'fixed' as const,
+              startsAt: '2026-07-28T01:00:00.000Z',
+              endsAt: '2026-07-28T02:00:00.000Z'
+            },
+            pricing: { input: { perMillionTokens: 0.25, currency: 'USD' as const } }
+          }
+        ]
+      }
+    }
+
+    expect(createAiUsagePricingSnapshot(pricing, '2026-07-28T01:30:00.000Z')).toEqual({
+      currency: 'USD',
+      inputPerMillionTokens: 0.25,
+      outputPerMillionTokens: 2,
+      capturedAt: '2026-07-28T01:30:00.000Z'
+    })
+    expect(createAiUsagePricingSnapshot(pricing, '2026-07-28T02:00:00.000Z')).toMatchObject({
+      inputPerMillionTokens: 1,
+      outputPerMillionTokens: 2
+    })
+  })
+
   it('does not invent a currency for tiered pricing without an explicit currency', () => {
     expect(
       createAiUsagePricingSnapshot(

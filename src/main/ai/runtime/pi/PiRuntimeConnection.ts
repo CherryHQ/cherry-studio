@@ -676,6 +676,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         requestId,
         model: message.responseModel?.trim() || message.model || this.modelId,
         messageAssociation: 'current-turn',
+        startedAt: message.timestamp,
         usage: {
           inputTokens,
           outputTokens,

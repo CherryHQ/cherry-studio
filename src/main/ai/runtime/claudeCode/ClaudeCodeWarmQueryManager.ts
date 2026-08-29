@@ -3,13 +3,13 @@ import { createHash } from 'node:crypto'
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
-import type { AgentSessionUsageCapture } from '../types'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -19,7 +19,7 @@ type WarmQueryEntry = {
   signature: string
   promise: Promise<WarmQuery | undefined>
   closePromise?: Promise<void>
-  usageCapture?: AgentSessionUsageCapture
+  credentialReceipt?: AiUsageCredentialReceipt
   idleTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -35,8 +35,8 @@ export interface WarmQueryRequest {
    * underlying connection material actually changing.
    */
   credentialsFingerprint?: string
-  /** Capture policy for the credentials and route that actually started this warm process. */
-  usageCapture?: AgentSessionUsageCapture
+  /** Receipt for the credential that actually started this warm process. */
+  credentialReceipt?: AiUsageCredentialReceipt
   /**
    * Effective knowledge scope (binding, else composer selection) baked into cherry-tools at startup.
    * It is signature material precisely because it is frozen here: a warm query built for one scope
@@ -50,7 +50,7 @@ export interface WarmQueryRequest {
 
 export interface ConsumedWarmQuery {
   warmQuery: WarmQuery
-  usageCapture?: AgentSessionUsageCapture
+  credentialReceipt?: AiUsageCredentialReceipt
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -234,7 +234,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       }
     )
 
-    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture }
+    const entry: WarmQueryEntry = { signature, promise, credentialReceipt: request.credentialReceipt }
     this.entries.set(request.key, entry)
     this.refreshIdleTimer(request.key, entry)
   }
@@ -260,7 +260,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const warmQuery = await entry.promise
     if (!warmQuery) return undefined
-    return { warmQuery, usageCapture: entry.usageCapture }
+    return { warmQuery, credentialReceipt: entry.credentialReceipt }
   }
 
   close(key: string): Promise<void> {

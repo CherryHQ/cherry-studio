@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Limite inclusive ; doit être supérieure au palier précédent.",
   "models.price.output": "Prix de sortie",
   "models.price.remove_tier": "Supprimer le niveau tarifaire {{index}}",
+  "models.price.restore_provider": "Utiliser les tarifs du fournisseur",
   "models.price.tier": "Niveau {{index}}",
   "models.price.tier_from": "De {{boundary}} jetons d'entrée (inclus)",
   "models.price.use_input_price": "Utilisez le prix d'entrée",

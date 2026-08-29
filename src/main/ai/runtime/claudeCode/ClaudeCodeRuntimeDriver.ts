@@ -136,6 +136,7 @@ type PendingInvocationUsage = {
   requestId: string
   model: string
   messageAssociation: 'current-turn' | 'stateless'
+  startedAt: number
   startUsage?: InvocationUsageBuckets
   assistantUsage?: InvocationUsageBuckets
   terminalUsage?: InvocationUsageBuckets
@@ -204,7 +205,8 @@ function materializeInvocationUsage(buckets: InvocationUsageBuckets | undefined)
 function pendingInvocationFromAssistant(
   message: SDKAssistantMessage,
   messageAssociation: PendingInvocationUsage['messageAssociation'],
-  fallbackModel: string
+  fallbackModel: string,
+  startedAt: number
 ): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
   const assistantUsage = isComplete ? invocationUsageBuckets(message.message.usage) : undefined
@@ -212,6 +214,7 @@ function pendingInvocationFromAssistant(
     requestId: message.message.id,
     model: resolveSdkInvocationModel(message.message.model, fallbackModel),
     messageAssociation,
+    startedAt,
     ...(assistantUsage ? { assistantUsage } : {}),
     completionObserved: isComplete,
     isStreamStopped: false
@@ -267,6 +270,7 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
     requestId: current.requestId,
     model: next.model || current.model,
     messageAssociation: current.messageAssociation,
+    startedAt: Math.min(current.startedAt, next.startedAt),
     ...(startUsage ? { startUsage } : {}),
     ...(assistantUsage ? { assistantUsage } : {}),
     ...(terminalUsage ? { terminalUsage } : {}),
@@ -408,7 +412,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       options,
       initializeTimeoutMs: request.initializeTimeoutMs,
       credentialsFingerprint: request.credentialsFingerprint,
-      usageCapture: request.usageCapture,
+      ...(request.usageCapture?.owner === 'agent-sdk'
+        ? { credentialReceipt: request.usageCapture.credentialReceipt }
+        : {}),
       knowledgeBaseIds: request.knowledgeBaseIds,
       notificationContext: request.notificationContext
     })
@@ -416,7 +422,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // A matching warm process may have selected a different rotated key when
     // it was started. Its receipt, not the freshly materialized request's,
     // describes the credential that will actually serve this connection.
-    this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
+    this._usageCapture =
+      request.usageCapture?.owner === 'agent-sdk' && consumedWarmQuery?.credentialReceipt
+        ? { ...request.usageCapture, credentialReceipt: consumedWarmQuery.credentialReceipt }
+        : request.usageCapture
     this.spawnOptions = options
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
@@ -875,7 +884,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     if (this.committedInvocationIds.has(message.message.id)) return
 
-    const next = pendingInvocationFromAssistant(message, messageAssociation, this.adapterModelId ?? this.input.modelId)
+    const current = this.pendingInvocations.get(message.message.id)
+    if (!current) {
+      logger.warn('Claude assistant usage is missing its message_start event; skipping usage capture', {
+        requestId: message.message.id
+      })
+      return
+    }
+    const next = pendingInvocationFromAssistant(
+      message,
+      messageAssociation,
+      this.adapterModelId ?? this.input.modelId,
+      current.startedAt
+    )
     this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
     if (this.pendingInvocations.get(next.requestId)?.isStreamStopped) {
       this.commitInvocationUsage(next.requestId)
@@ -893,10 +914,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       const sdkMessage = message.event.message
       const startUsage = invocationUsageBuckets(sdkMessage.usage)
       const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
+      const streamReceivedAt = Date.now()
       this.captureInvocationForLane(lane, {
         requestId: sdkMessage.id,
         model: resolveSdkInvocationModel(sdkMessage.model, this.adapterModelId ?? this.input.modelId),
         messageAssociation,
+        startedAt: streamReceivedAt - (ttftMs ?? 0),
         ...(startUsage ? { startUsage } : {}),
         timing: {
           streamStartedAt: performance.now(),
@@ -1062,6 +1085,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         requestId: `claude-agent:${pending.requestId}`,
         model: pending.model,
         messageAssociation: pending.messageAssociation,
+        startedAt: pending.startedAt,
         ...(usage ? { usage } : {}),
         ...(pending.metrics ? { metrics: pending.metrics } : {})
       }

@@ -304,7 +304,22 @@ describe('ProviderRegistryService', () => {
           providerId: 'openai',
           modelId: 'gpt-4o',
           parameterSupport: { temperature: { supported: false } },
-          pricing: { output: { perMillionTokens: 12 } }
+          pricing: {
+            output: { perMillionTokens: 12 },
+            scheduled: {
+              default: { output: { perMillionTokens: 6 } },
+              rules: [
+                {
+                  schedule: {
+                    kind: 'fixed',
+                    startsAt: '2026-08-31T01:00:00.000Z',
+                    endsAt: '2026-08-31T02:00:00.000Z'
+                  },
+                  pricing: { output: { perMillionTokens: 3 } }
+                }
+              ]
+            }
+          }
         } as any,
         'openai'
       )
@@ -316,7 +331,11 @@ describe('ProviderRegistryService', () => {
       })
       expect(model.pricing).toMatchObject({
         input: { perMillionTokens: 5 },
-        output: { perMillionTokens: 12 }
+        output: { perMillionTokens: 12 },
+        scheduled: {
+          default: { output: { perMillionTokens: 6 } },
+          rules: [{ pricing: { output: { perMillionTokens: 3 } } }]
+        }
       })
     })
 

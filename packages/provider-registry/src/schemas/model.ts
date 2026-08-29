@@ -390,6 +390,72 @@ export const ParameterSupportSchema = z.object({
   systemMessage: z.boolean().default(true)
 })
 
+export const ScheduledPricingOverrideSchema = z
+  .object({
+    input: PricePerTokenSchema.optional(),
+    output: PricePerTokenSchema.optional(),
+    cacheRead: PricePerTokenSchema.optional(),
+    cacheWrite: PricePerTokenSchema.optional()
+  })
+  .refine((pricing) => Object.values(pricing).some((rate) => rate !== undefined), {
+    message: 'scheduled pricing override must contain at least one rate'
+  })
+
+export const WeeklyPricingScheduleSchema = z
+  .object({
+    kind: z.literal('weekly'),
+    timezone: z.string().min(1),
+    daysOfWeek: z.array(z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])).min(1),
+    startTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .optional(),
+    endTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .optional()
+  })
+  .superRefine((schedule, ctx) => {
+    if ((schedule.startTime === undefined) !== (schedule.endTime === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [schedule.startTime === undefined ? 'startTime' : 'endTime'],
+        message: 'startTime and endTime must be provided together'
+      })
+    }
+    if (schedule.startTime !== undefined && schedule.startTime === schedule.endTime) {
+      ctx.addIssue({ code: 'custom', path: ['endTime'], message: 'endTime must differ from startTime' })
+    }
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: schedule.timezone }).format()
+    } catch {
+      ctx.addIssue({ code: 'custom', path: ['timezone'], message: 'invalid IANA timezone' })
+    }
+  })
+
+export const FixedPricingScheduleSchema = z
+  .object({
+    kind: z.literal('fixed'),
+    startsAt: z.iso.datetime(),
+    endsAt: z.iso.datetime()
+  })
+  .refine((schedule) => Date.parse(schedule.startsAt) < Date.parse(schedule.endsAt), {
+    path: ['endsAt'],
+    message: 'endsAt must be after startsAt'
+  })
+
+export const ScheduledModelPricingSchema = z.object({
+  default: ScheduledPricingOverrideSchema.optional(),
+  rules: z
+    .array(
+      z.object({
+        schedule: z.union([WeeklyPricingScheduleSchema, FixedPricingScheduleSchema]),
+        pricing: ScheduledPricingOverrideSchema
+      })
+    )
+    .min(1)
+})
+
 /**
  * Model pricing configuration.
  *
@@ -402,7 +468,6 @@ export const ParameterSupportSchema = z.object({
 export const ModelPricingSchema = z.object({
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
-
   cacheRead: PricePerTokenSchema.optional(),
   cacheWrite: PricePerTokenSchema.optional(),
 
@@ -419,7 +484,9 @@ export const ModelPricingSchema = z.object({
       price: z.number(),
       currency: ZodCurrencySchema
     })
-    .optional()
+    .optional(),
+
+  scheduled: ScheduledModelPricingSchema.optional()
 })
 
 // Model configuration schema
@@ -497,6 +564,7 @@ export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
 export type SupportSpec = z.infer<typeof SupportSpecSchema>
 export type ImageModeDef = z.infer<typeof ImageModeDefSchema>
 export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
+export type ScheduledModelPricing = z.infer<typeof ScheduledModelPricingSchema>
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
 export type ModelConfig = z.infer<typeof ModelConfigSchema>
 export type ModelList = z.infer<typeof ModelListSchema>

@@ -28,6 +28,7 @@ import {
 interface ModelPricingFieldsProps {
   pricing: Model['pricing']
   onCommit: (pricing: NonNullable<Model['pricing']>) => void
+  onRestoreProviderPricing?: () => void
 }
 
 /** Keeps digits and at most one decimal point, so the field never holds a non-numeric draft. */
@@ -259,7 +260,7 @@ function translateErrors(errors: ModelPricingDraftErrors, t: TFunction) {
   )
 }
 
-export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProps) {
+export function ModelPricingFields({ pricing, onCommit, onRestoreProviderPricing }: ModelPricingFieldsProps) {
   const { t } = useTranslation()
   const [currencySymbol, setCurrencySymbol] = useState<ModelPricingCurrencySymbol>(() =>
     getModelPricingCurrencySymbol(pricing)
@@ -353,6 +354,12 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
         <Plus aria-hidden className="size-3.5" />
         {t('models.price.add_tier')}
       </Button>
+
+      {onRestoreProviderPricing ? (
+        <Button type="button" variant="ghost" className="w-full" onClick={onRestoreProviderPricing}>
+          {t('models.price.restore_provider')}
+        </Button>
+      ) : null}
     </>
   )
 }

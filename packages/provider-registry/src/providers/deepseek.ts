@@ -22,6 +22,51 @@ const v4ProPeakPricing = {
   output: { currency: 'USD' as const, perMillionTokens: 3.96 }
 }
 
+const deepseekPeakDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
+
+function withDeepSeekSchedule<T extends typeof v4FlashPeakPricing>(peak: T, offPeak: T) {
+  return {
+    ...peak,
+    scheduled: {
+      default: offPeak,
+      rules: [
+        {
+          schedule: {
+            kind: 'weekly' as const,
+            timezone: 'UTC',
+            daysOfWeek: [...deepseekPeakDays],
+            startTime: '01:00',
+            endTime: '04:00'
+          },
+          pricing: peak
+        },
+        {
+          schedule: {
+            kind: 'weekly' as const,
+            timezone: 'UTC',
+            daysOfWeek: [...deepseekPeakDays],
+            startTime: '06:00',
+            endTime: '10:00'
+          },
+          pricing: peak
+        }
+      ]
+    }
+  }
+}
+
+const v4FlashPricing = withDeepSeekSchedule(v4FlashPeakPricing, {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.007 },
+  input: { currency: 'USD' as const, perMillionTokens: 0.22 },
+  output: { currency: 'USD' as const, perMillionTokens: 0.66 }
+})
+
+const v4ProPricing = withDeepSeekSchedule(v4ProPeakPricing, {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.022 },
+  input: { currency: 'USD' as const, perMillionTokens: 0.66 },
+  output: { currency: 'USD' as const, perMillionTokens: 1.98 }
+})
+
 // Targets name `@ai-sdk/deepseek` provider options, not wire fields: the SDK's zod schema takes
 // camelCase `reasoningEffort` and silently strips the snake_case form before it reaches the body.
 const v4ChatEffortWire = {
@@ -108,7 +153,7 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
-      pricing: v4FlashPeakPricing,
+      pricing: v4FlashPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }
@@ -117,7 +162,7 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-flash-vision-exp',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
-      pricing: v4FlashPeakPricing,
+      pricing: v4FlashPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }
@@ -126,7 +171,7 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
-      pricing: v4ProPeakPricing,
+      pricing: v4ProPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }

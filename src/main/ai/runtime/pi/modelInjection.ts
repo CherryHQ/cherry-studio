@@ -15,7 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { freezeAiUsagePricing } from '@main/ai/utils/usageCapture'
 import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
@@ -189,7 +189,7 @@ export function buildPiProviderInjection(
           apiModelId: modelId,
           modelName: model.name ?? model.id,
           aliases: [...new Set([model.id, modelId])],
-          pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)
+          pricing: freezeAiUsagePricing(model.pricing)
         }
       ]
     },

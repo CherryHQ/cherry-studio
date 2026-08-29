@@ -2533,6 +2533,7 @@
   "models.price.min_input_tokens_help": "Limită inclusivă; trebuie să fie mai mare decât nivelul anterior.",
   "models.price.output": "Preț ieșire",
   "models.price.remove_tier": "Elimină nivelul de preț {{index}}",
+  "models.price.restore_provider": "Folosește prețurile furnizorului",
   "models.price.tier": "Nivel {{index}}",
   "models.price.tier_from": "De la {{boundary}} tokenuri de intrare (inclusiv)",
   "models.price.use_input_price": "Folosește prețul de intrare",
