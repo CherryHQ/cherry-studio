@@ -186,6 +186,7 @@ export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi
  * unit testable in isolation.
  *
  * @throws DshUnsupportedProviderError when the provider's endpoint has no dsh mapping.
+ * @throws DshUnsupportedModelInputError when the model explicitly declares no text input.
  */
 export function buildDshProviderInjection(
   provider: Provider,
@@ -266,6 +267,7 @@ export function buildDshProviderInjection(
  * agent message and apply the stable per-session prompt cache key.
  *
  * @throws DshUnsupportedProviderError when the model is not gateway-routable either.
+ * @throws DshUnsupportedModelInputError when the model explicitly declares no text input.
  */
 export function buildDshGatewayInjection(
   provider: Provider,
