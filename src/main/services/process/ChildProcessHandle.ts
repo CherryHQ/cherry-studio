@@ -4,10 +4,10 @@ import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@m
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { ChildProcess } from 'child_process'
 
-import type { ChildProcessOptions, ProcessHandle, ProcessLogLine } from './types'
+import type { ChildProcessOptions, ProcessLogLine } from './types'
 import { DEFAULT_KILL_TIMEOUT_MS, ProcessState } from './types'
 
-export class ChildProcessHandle implements ProcessHandle {
+export class ChildProcessHandle {
   readonly id: string
 
   private _state: ProcessState = ProcessState.Idle

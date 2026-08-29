@@ -15,7 +15,7 @@ This is the main entry point for Cherry Studio's service lifecycle and applicati
 ### System Overview (Architecture)
 - [Lifecycle Overview](./lifecycle-overview.md) - Phases, hooks, states, events, parallel initialization
 - [Application Overview](./application-overview.md) - Bootstrap/shutdown orchestration, service registry, runtime control
-- [Process Manager](./process-manager.md) - Child and utility process ownership, events, and pooled task execution
+- [Process Manager](./process-manager.md) - External child-process registration, startup state, and bounded shutdown
 
 ### Usage Guide (Code Examples)
 - [Lifecycle Usage](./lifecycle-usage.md) - Decorators, error handling, conditional activation, pause/resume

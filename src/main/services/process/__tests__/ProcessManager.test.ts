@@ -20,9 +20,6 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn().mockResolvedValue({ PATH: '/usr/bin' })
 }))
 
-const mockUtilityProcessFork = vi.fn()
-vi.mock('electron', () => ({ utilityProcess: { fork: mockUtilityProcessFork } }))
-
 function createMockChildProcess(pid = 1234, autoSpawn = true) {
   const cp = new EventEmitter() as any
   cp.pid = pid
@@ -77,82 +74,6 @@ describe('ProcessManager', () => {
       const handle = manager.register({ id: 'get-proc', command: 'echo' })
 
       expect(manager.get('get-proc')).toBe(handle)
-    })
-  })
-
-  describe('events', () => {
-    it('emits process:started when a child process starts', async () => {
-      const { crossPlatformSpawn, ProcessManager } = await loadModules()
-      const mockCp = createMockChildProcess(5678)
-      crossPlatformSpawn.mockReturnValue(mockCp)
-
-      const manager = new ProcessManager()
-      manager.register({ id: 'start-proc', command: 'node' })
-
-      const startedListener = vi.fn()
-      manager.onProcessStarted(startedListener)
-
-      await manager.get('start-proc')!.start()
-
-      expect(startedListener).toHaveBeenCalledWith({ id: 'start-proc', pid: 5678 })
-    })
-
-    it('emits process:exited when process exits', async () => {
-      const { crossPlatformSpawn, ProcessManager } = await loadModules()
-      const mockCp = createMockChildProcess()
-      crossPlatformSpawn.mockReturnValue(mockCp)
-
-      const manager = new ProcessManager()
-      manager.register({ id: 'exit-proc', command: 'node' })
-
-      const exitedListener = vi.fn()
-      manager.onProcessExited(exitedListener)
-
-      await manager.get('exit-proc')!.start()
-      mockCp.emit('close', 0, null)
-
-      expect(exitedListener).toHaveBeenCalledWith({ id: 'exit-proc', code: 0, signal: null })
-    })
-
-    it('emits process:log on stdout and stderr data', async () => {
-      const { crossPlatformSpawn, ProcessManager } = await loadModules()
-      const mockCp = createMockChildProcess()
-      crossPlatformSpawn.mockReturnValue(mockCp)
-
-      const manager = new ProcessManager()
-      manager.register({ id: 'log-proc', command: 'node' })
-
-      const logListener = vi.fn()
-      manager.onProcessLog(logListener)
-
-      await manager.get('log-proc')!.start()
-      mockCp.stdout.emit('data', Buffer.from('hello\n'))
-      mockCp.stderr.emit('data', Buffer.from('error output\n'))
-
-      expect(logListener).toHaveBeenCalledTimes(2)
-      expect(logListener).toHaveBeenCalledWith(
-        expect.objectContaining({ processId: 'log-proc', stream: 'stdout', data: 'hello\n' })
-      )
-      expect(logListener).toHaveBeenCalledWith(
-        expect.objectContaining({ processId: 'log-proc', stream: 'stderr', data: 'error output\n' })
-      )
-    })
-
-    it('disposed subscriptions stop receiving events', async () => {
-      const { crossPlatformSpawn, ProcessManager } = await loadModules()
-      const mockCp = createMockChildProcess(9999)
-      crossPlatformSpawn.mockReturnValue(mockCp)
-
-      const manager = new ProcessManager()
-      manager.register({ id: 'off-proc', command: 'node' })
-
-      const startedListener = vi.fn()
-      const subscription = manager.onProcessStarted(startedListener)
-      subscription.dispose()
-
-      await manager.get('off-proc')!.start()
-
-      expect(startedListener).not.toHaveBeenCalled()
     })
   })
 

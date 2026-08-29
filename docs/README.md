@@ -188,7 +188,7 @@
 | [Lifecycle Migration Guide](./references/lifecycle/lifecycle-migration-guide.md) | Converting legacy singleton, raw-new, and free-function services to lifecycle decorators and registry entries |
 | [Lifecycle Overview](./references/lifecycle/lifecycle-overview.md) | Lifecycle internals — bootstrap phases, hooks, service states, events, and parallel initialization ordering |
 | [Lifecycle Usage Guide](./references/lifecycle/lifecycle-usage.md) | Code examples for lifecycle decorators, IPC and timer helpers, error handling, conditional activation, pause/resume |
-| [Process Manager](./references/lifecycle/process-manager.md) | Lifecycle-managed child and utility processes, typed events, shutdown ownership, and pooled task execution |
+| [Process Manager](./references/lifecycle/process-manager.md) | Lifecycle ownership, startup state, and bounded shutdown for app-owned external child processes |
 
 ### Logging
 

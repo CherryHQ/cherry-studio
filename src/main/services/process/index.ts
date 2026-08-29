@@ -1,15 +1,4 @@
 export { ChildProcessHandle } from './ChildProcessHandle'
 export { ProcessManager } from './ProcessManager'
-export type { TaskExecutorOptions } from './TaskExecutor'
-export { TaskExecutor } from './TaskExecutor'
-export type {
-  ChildProcessOptions,
-  ProcessExitedEvent,
-  ProcessHandle,
-  ProcessLogLine,
-  ProcessOptions,
-  ProcessStartedEvent,
-  UtilityProcessOptions
-} from './types'
+export type { ChildProcessOptions, ProcessLogLine } from './types'
 export { ProcessState } from './types'
-export { UtilityProcessHandle } from './UtilityProcessHandle'
