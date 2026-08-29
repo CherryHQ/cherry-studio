@@ -209,7 +209,7 @@ function selectFileAt(index: number) {
   // either with a regex so this helper works in both branches.
   const fileCheckboxes = screen
     .getAllByRole('checkbox')
-    .filter((c) => /^files\.select_file/.test(c.getAttribute('aria-label') ?? ''))
+    .filter((c) => (c.getAttribute('aria-label') ?? '').startsWith('files.select_file'))
   fireEvent.click(fileCheckboxes[index])
 }
 
@@ -522,7 +522,7 @@ describe('FilesPage keyboard rename', () => {
     // Match either so the test stays correct on both branches.
     const fileCheckbox = screen
       .getAllByRole('checkbox')
-      .find((c) => /^files\.select_file/.test(c.getAttribute('aria-label') ?? ''))
+      .find((c) => (c.getAttribute('aria-label') ?? '').startsWith('files.select_file'))
     expect(fileCheckbox).toBeDefined()
     fireEvent.click(fileCheckbox as HTMLElement)
     ;(fileCheckbox as HTMLElement).focus()
@@ -917,7 +917,7 @@ describe('FilesPage file operations', () => {
 
     const fileCheckboxes = screen
       .getAllByRole('checkbox')
-      .filter((c) => /^files\.select_file/.test(c.getAttribute('aria-label') ?? ''))
+      .filter((c) => (c.getAttribute('aria-label') ?? '').startsWith('files.select_file'))
     fireEvent.click(fileCheckboxes[0])
     fireEvent.contextMenu(screen.getByText('notes.md'))
 
