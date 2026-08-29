@@ -16,6 +16,7 @@ import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './export/exportArchive'
 import { sweepStaleExportOperations } from './export/exportOperation'
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './restore/acknowledgeRestore'
+import type { RestoreMode } from './restore/mergeRestore'
 import { runPostPromotionWork } from './restore/postPromotion'
 import {
   armPreparedRestore,
@@ -288,8 +289,8 @@ export class BackupService extends BaseService {
    * Admit an archive and stage a cancellable `prepared` restore. Mutates no live
    * state; {@link armRestore} is what commits to it.
    */
-  public prepareRestore(archivePath: string): Promise<RestorePreview> {
-    return this.runExclusive('prepare-restore', (signal) => prepareRestore({ archivePath, signal }))
+  public prepareRestore(archivePath: string, mode?: RestoreMode): Promise<RestorePreview> {
+    return this.runExclusive('prepare-restore', (signal) => prepareRestore({ archivePath, mode, signal }))
   }
 
   /**

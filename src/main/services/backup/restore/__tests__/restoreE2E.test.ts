@@ -74,6 +74,7 @@ const AGENT_SESSION_ID = '33333333-3333-4333-8333-333333333333'
 const AGENT_MESSAGE_ID = '44444444-4444-7444-8444-444444444444'
 const SDK_SESSION_ID = '55555555-5555-4555-8555-555555555555'
 const SDK_ASSISTANT_BOUNDARY = '66666666-6666-4666-8666-666666666666'
+const MERGE_MESSAGE_ID = '45444444-4444-7444-8444-444444444444'
 const TARGET_MARKER = 'e2e-target-marker'
 
 const dbh = setupTestDatabase()
@@ -915,6 +916,86 @@ describe('a crash before the commit boundary', () => {
     expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeDefined()
     expect(readFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'utf8')).toBe('TARGET-KB')
     expect(existsSync(join(targetUserData, 'Data', 'Skills', 'skill-1'))).toBe(false)
+
+    // A failed restore owns nothing, so acknowledgement just clears the record.
+    expect(acknowledgeRestore()).toMatchObject({ acknowledged: true })
+    expect(readRestoreJournalV2().kind).toBe('none')
+  })
+})
+
+describe('merge-mode restore, same device with content already there', () => {
+  beforeEach(() => {
+    // One device: the archive is produced and consumed against the same roots.
+    targetUserData = sourceUserData
+  })
+
+  it('keeps the rows the archive cannot carry and backfills the rows it can', async () => {
+    seedSourceResources()
+    // A second message whose data carries an attachment soft ref. With M1's empty
+    // staged set the merge conservatively discloses it (TODO(m2) in mergeRestore),
+    // which is what makes the merge degradation pipeline observable end to end.
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: MERGE_MESSAGE_ID,
+        sessionId: AGENT_SESSION_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'with attachment' },
+            { type: 'file', fileEntryId: FILE_ID }
+          ]
+        }
+      } as never)
+      .run()
+    const archive = await exportFrom('merge-same-device')
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive, mode: 'merge' })
+    expect(preview.restoreId).toBeTruthy()
+    await armPreparedRestore(preview.restoreId)
+    await runRestorePromotionV2()
+
+    // The promoted database is the MERGE of live and archive. Replace mode proves
+    // itself by this marker DISAPPEARING (see the cross-device describe); merge mode
+    // must keep it — the archive never carried it, and local rows win.
+    expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeDefined()
+    // An archive-only row backfilled into the live database.
+    expect(query(liveDbPath(), 'SELECT id FROM agent WHERE id = ?', AGENT_ID)).toBeDefined()
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+    // The conservative empty staged set discloses every imported attachment ref.
+    expect(presentJournalDegradations(read.journal.degradations ?? [])).toEqual(
+      expect.arrayContaining([{ code: 'merge_attachment_unavailable', count: 1 }])
+    )
+  })
+
+  it('rolls a merge back to the database this device already had when promotion is interrupted', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('merge-crash')
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive, mode: 'merge' })
+    await armPreparedRestore(preview.restoreId)
+
+    // The crash: the marker claims the installs completed while the filesystem still
+    // shows them pending. Pre-commit, the filesystem wins and the whole attempt —
+    // the merge output included, which the promotion cannot tell apart from a
+    // replacement — rolls back.
+    const armed = readRestoreJournalV2()
+    if (armed.kind !== 'ok' || armed.journal.state !== 'armed') throw new Error('expected an armed journal')
+    writeRestoreJournalV2({ ...armed.journal, state: 'promoting', step: 'resources-installed' })
+
+    await runRestorePromotionV2()
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok') throw new Error('expected a terminal journal')
+    expect(read.journal.state).toBe('failed')
+    // The pre-merge database is live again: marker present, archive rows gone.
+    expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeDefined()
+    expect(query(liveDbPath(), 'SELECT id FROM agent WHERE id = ?', AGENT_ID)).toBeUndefined()
 
     // A failed restore owns nothing, so acknowledgement just clears the record.
     expect(acknowledgeRestore()).toMatchObject({ acknowledged: true })

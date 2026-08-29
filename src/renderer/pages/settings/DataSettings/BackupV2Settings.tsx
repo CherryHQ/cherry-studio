@@ -69,6 +69,14 @@ const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
   'cyclic-reference': 'settings.data.backup_v2.outcome.degradation.cyclic_reference',
   'unclassified-reference': 'settings.data.backup_v2.outcome.degradation.unclassified_reference',
   'knowledge-index-rebuild': 'settings.data.backup_v2.outcome.degradation.knowledge_index_rebuild',
+  merge_ref_cleared: 'settings.data.backup_v2.outcome.degradation.merge_ref_cleared',
+  merge_row_pruned: 'settings.data.backup_v2.outcome.degradation.merge_row_pruned',
+  merge_rows_skipped: 'settings.data.backup_v2.outcome.degradation.merge_rows_skipped',
+  merge_association_dropped: 'settings.data.backup_v2.outcome.degradation.merge_association_dropped',
+  merge_field_conflict: 'settings.data.backup_v2.outcome.degradation.merge_field_conflict',
+  merge_backup_overwrote_local: 'settings.data.backup_v2.outcome.degradation.merge_backup_overwrote_local',
+  merge_attachment_unavailable: 'settings.data.backup_v2.outcome.degradation.merge_attachment_unavailable',
+  merge_resource_content_missing: 'settings.data.backup_v2.outcome.degradation.merge_resource_content_missing',
   unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
 }
 
@@ -544,7 +552,8 @@ const BackupV2Settings: FC = () => {
 
   const handlePrepare = () =>
     run({ kind: 'prepare' }, async () => {
-      const result = await ipcApi.request('backup.prepare_restore')
+      // No mode argument yet: the replace default is what the UI offers until a merge UI exists (M2).
+      const result = await ipcApi.request('backup.prepare_restore', {})
       if (result.status === 'canceled') return
       setPreview(result.preview)
     })

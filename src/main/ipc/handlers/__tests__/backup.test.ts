@@ -73,7 +73,7 @@ describe('backupHandlers', () => {
   describe('sender policy', () => {
     it.each([
       ['backup.export', () => backupHandlers['backup.export'](undefined, detachedCtx)],
-      ['backup.prepare_restore', () => backupHandlers['backup.prepare_restore'](undefined, detachedCtx)],
+      ['backup.prepare_restore', () => backupHandlers['backup.prepare_restore']({}, detachedCtx)],
       ['backup.cancel_operation', () => backupHandlers['backup.cancel_operation'](undefined, detachedCtx)],
       ['backup.cancel_restore', () => backupHandlers['backup.cancel_restore'](undefined, detachedCtx)],
       ['backup.arm_restore', () => backupHandlers['backup.arm_restore']({ restoreId: 'r1' }, detachedCtx)],
@@ -387,20 +387,21 @@ describe('backupHandlers', () => {
       showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
       service.prepareRestore.mockResolvedValue(preview)
 
-      const result = await backupHandlers['backup.prepare_restore'](undefined, ctx)
+      const result = await backupHandlers['backup.prepare_restore']({}, ctx)
 
       expect(showOpenDialog).toHaveBeenCalledWith(
         windowMock,
         expect.objectContaining({ filters: [{ name: 'Cherry Studio Backup', extensions: ['cherrybackup'] }] })
       )
-      expect(service.prepareRestore).toHaveBeenCalledWith('/tmp/in.cherrybackup')
+      // The renderer sends no mode yet (M2), so the handler forwards an explicit undefined.
+      expect(service.prepareRestore).toHaveBeenCalledWith('/tmp/in.cherrybackup', undefined)
       expect(result).toEqual({ status: 'prepared', preview })
     })
 
     it('reports a dismissed dialog as canceled', async () => {
       showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
 
-      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).resolves.toEqual({ status: 'canceled' })
+      await expect(backupHandlers['backup.prepare_restore']({}, ctx)).resolves.toEqual({ status: 'canceled' })
       expect(service.prepareRestore).not.toHaveBeenCalled()
     })
 
@@ -410,7 +411,7 @@ describe('backupHandlers', () => {
         new ArchiveAdmissionError('manifest-invalid', 'attacker text /Users/private/archive')
       )
 
-      const error = await backupHandlers['backup.prepare_restore'](undefined, ctx).catch((cause) => cause)
+      const error = await backupHandlers['backup.prepare_restore']({}, ctx).catch((cause) => cause)
       expect(error).toMatchObject({
         code: backupErrorCodes.ARCHIVE_REJECTED,
         data: { reason: 'manifest-invalid' }
@@ -427,7 +428,7 @@ describe('backupHandlers', () => {
       const cause = new ArchiveAdmissionError('manifest-invalid', 'requirement-set: declares 8, requires 10')
       service.prepareRestore.mockRejectedValue(cause)
 
-      await backupHandlers['backup.prepare_restore'](undefined, ctx).catch(() => undefined)
+      await backupHandlers['backup.prepare_restore']({}, ctx).catch(() => undefined)
 
       expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
         'Backup request refused',
@@ -460,7 +461,7 @@ describe('backupHandlers', () => {
         )
       )
 
-      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
+      await expect(backupHandlers['backup.prepare_restore']({}, ctx)).rejects.toMatchObject({
         code,
         data: {
           kind,
@@ -486,7 +487,7 @@ describe('backupHandlers', () => {
         })
       )
 
-      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
+      await expect(backupHandlers['backup.prepare_restore']({}, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.FORMAT_UNSUPPORTED,
         data: {
           kind: 'archive-newer',
@@ -504,7 +505,7 @@ describe('backupHandlers', () => {
       showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
       service.prepareRestore.mockRejectedValue(new ResourceInstallPlanError('target-symlink', 'Data/Notes'))
 
-      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
+      await expect(backupHandlers['backup.prepare_restore']({}, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.RESTORE_RESOURCES,
         data: { reason: 'target-symlink' }
       })
@@ -514,7 +515,7 @@ describe('backupHandlers', () => {
       showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
       service.prepareRestore.mockRejectedValue(new BackupCancelledError())
 
-      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).resolves.toEqual({ status: 'canceled' })
+      await expect(backupHandlers['backup.prepare_restore']({}, ctx)).resolves.toEqual({ status: 'canceled' })
     })
   })
 

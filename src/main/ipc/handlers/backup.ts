@@ -373,7 +373,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     }
   },
 
-  'backup.prepare_restore': async (_input, ctx) => {
+  'backup.prepare_restore': async (input, ctx) => {
     const parent = requireManagedWindow(ctx)
     const { canceled, filePaths } = await dialog.showOpenDialog(parent, {
       properties: ['openFile'],
@@ -383,7 +383,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     if (canceled || !archivePath) {
       return { status: 'canceled' as const }
     }
-    const preview = await cancellable(() => application.get('BackupService').prepareRestore(archivePath))
+    const preview = await cancellable(() => application.get('BackupService').prepareRestore(archivePath, input.mode))
     if (preview === null) {
       return { status: 'canceled' as const }
     }

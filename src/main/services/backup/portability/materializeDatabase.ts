@@ -137,6 +137,19 @@ export interface MaterializationSummary {
 }
 
 /**
+ * Structural view of one degradation row. The summarizer only folds table/reason
+ * strings, so it also accepts merge-mode records whose reasons are degradation
+ * CODES (BACKUP_DEGRADATION_CODES) rather than materialize reasons.
+ */
+interface MaterializationDegradationLike {
+  readonly table: string
+  readonly rowId: string
+  readonly reason: string
+  /** Present on materialize records only; never surfaced by the summarizer. */
+  readonly detail?: string
+}
+
+/**
  * Fold degradations into a bounded per-`(table, reason)` report.
  *
  * AGGREGATED, never per row: a profile can produce tens of thousands of degraded
@@ -150,7 +163,7 @@ export interface MaterializationSummary {
  * was written, `restore-db` ran on THIS device while materializing it.
  */
 export function summarizeMaterializationDegradations(
-  degradations: readonly MaterializationDegradation[],
+  degradations: readonly MaterializationDegradationLike[],
   origin: 'portable-db' | 'restore-db'
 ): Array<{ kind: string; reason: string }> {
   const counts = new Map<string, { table: string; reason: string; count: number }>()

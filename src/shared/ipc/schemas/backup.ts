@@ -147,6 +147,16 @@ export const BACKUP_DEGRADATION_CODES = [
   'cyclic-reference',
   'unclassified-reference',
   'knowledge-index-rebuild',
+  // Merge-mode restore reductions (engine reconciliation losses; the 'merge_' prefix
+  // names the mode, and 'merge_backup_overwrote_local' says which side won).
+  'merge_ref_cleared',
+  'merge_row_pruned',
+  'merge_rows_skipped',
+  'merge_association_dropped',
+  'merge_field_conflict',
+  'merge_backup_overwrote_local',
+  'merge_attachment_unavailable',
+  'merge_resource_content_missing',
   'unknown'
 ] as const
 
@@ -287,7 +297,15 @@ export const backupRequestSchemas = {
   }),
   'backup.get_status': defineRoute({ input: z.void(), output: BackupStatusSchema }),
   'backup.export': defineRoute({ input: z.void(), output: ExportOutcomeSchema }),
-  'backup.prepare_restore': defineRoute({ input: z.void(), output: PrepareOutcomeSchema }),
+  /**
+   * `mode: 'replace'` (default) materializes the archive as a whole-database
+   * replacement; `mode: 'merge'` restores archive rows into a copy of the live
+   * database, local rows winning. The renderer sends nothing until a merge UI exists.
+   */
+  'backup.prepare_restore': defineRoute({
+    input: z.strictObject({ mode: z.enum(['replace', 'merge']).default('replace').optional() }),
+    output: PrepareOutcomeSchema
+  }),
   /**
    * Abort the long-running operation reported by `backup.get_status.operation`.
    * NOT `cancel_restore`: this one stops work in flight (an export, an archive

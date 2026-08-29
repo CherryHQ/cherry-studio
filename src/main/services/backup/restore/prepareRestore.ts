@@ -50,6 +50,7 @@ import { measureResourceCoverage, type ResourceCoverage } from '../resources/cov
 import { planResourceInstalls } from '../resources/planInstalls'
 import { reconcileRestoreResources } from '../resources/reconcile'
 import { compactDegradationsForJournal } from './degradationReport'
+import { materializeMergedDatabase, type RestoreMode } from './mergeRestore'
 import { exitForRestoreJournalRecovery } from './restoreTransitionFailure'
 import { durabilizeRestoreStaging } from './stagingDurability'
 
@@ -62,6 +63,13 @@ const RESOURCES_DIR_NAME = 'resources'
 export interface PrepareRestoreInputs {
   /** Untrusted `.cherrybackup` chosen by the user. */
   readonly archivePath: string
+  /**
+   * How the archive meets this device's data: 'replace' (the default) materializes
+   * the archive into a whole-database replacement; 'merge' rebuilds the target as a
+   * live copy with the archive's rows merged in, local rows winning. Both feed the
+   * identical downstream seam.
+   */
+  readonly mode?: RestoreMode
   readonly signal?: AbortSignal
 }
 
@@ -164,17 +172,34 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
   let promoted = false
   let journalWritten = false
   try {
-    const materialized = await materializePortableDatabase({
-      dbPath: admitted.db.path,
-      mode: {
-        kind: 'restore',
-        rebase: buildRebaseTable(admitted.manifest.producer),
-        // An archive this install produced describes this install's own
-        // filesystem, so its external paths are kept verbatim (§3.1 Layer 1).
-        selfAttested: admitted.selfAttested
-      },
-      signal
-    })
+    // THE prepare seam. Both branches produce the same thing — a complete staged
+    // database at `admitted.db.path` plus its summary/hash/size/chain — so everything
+    // below is source-agnostic. 'replace' rewrites the archive's own file; 'merge'
+    // copies the live database and merges the archive into it (local rows win).
+    const materialized =
+      inputs.mode === 'merge'
+        ? (
+            await materializeMergedDatabase({
+              archiveDbPath: admitted.db.path,
+              liveDbPath: application.getPath('app.database.file'),
+              rebase: buildRebaseTable(admitted.manifest.producer),
+              // An archive this install produced describes this install's own
+              // filesystem (§3.1 Layer 1); carried for the merge's future path policy.
+              selfAttested: admitted.selfAttested,
+              signal
+            })
+          ).materialized
+        : await materializePortableDatabase({
+            dbPath: admitted.db.path,
+            mode: {
+              kind: 'restore',
+              rebase: buildRebaseTable(admitted.manifest.producer),
+              // An archive this install produced describes this install's own
+              // filesystem, so its external paths are kept verbatim (§3.1 Layer 1).
+              selfAttested: admitted.selfAttested
+            },
+            signal
+          })
 
     const userDataPath = application.getPath('app.userdata')
     const roots = resolveResourceRoots()

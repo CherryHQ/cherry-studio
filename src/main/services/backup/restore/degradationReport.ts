@@ -61,8 +61,11 @@ function classifyDegradation(
     return { code: resourceDegradationCode(degradation.reason), count: 1 }
   }
 
+  // Materialize-side reductions carry one of the five legacy codes; merge-mode
+  // materialization carries its 'merge_*' codes. Both arrive as '<code> (N rows)'
+  // from summarizeMaterializationDegradations.
   const parsed =
-    /^(capability-malformed|external-file-dropped|path-unportable|path-collision|workspace-disconnected) \((\d+) rows?\)$/.exec(
+    /^(capability-malformed|external-file-dropped|path-unportable|path-collision|workspace-disconnected|merge_ref_cleared|merge_row_pruned|merge_rows_skipped|merge_association_dropped|merge_field_conflict|merge_backup_overwrote_local|merge_attachment_unavailable|merge_resource_content_missing) \((\d+) rows?\)$/.exec(
       degradation.reason
     )
   if (!parsed) return { code: 'unknown', count: 1 }
