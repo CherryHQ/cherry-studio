@@ -51,8 +51,10 @@ export function publishResults(count: number) {
   setState({ resultCount: count, activeIndex: 0 })
 }
 
-/** Search box reports the query as typed (pre-debounce mirror into the URL) */
-export function setLiveQuery(query: string) {
+/** Search box reports the query as typed (pre-debounce mirror into the URL);
+ * passing undefined releases ownership (tab hidden/unmounted) — the store is
+ * window-global, so a hidden tab must not leave its query stuck in it */
+export function setLiveQuery(query: string | undefined) {
   setState({ liveQuery: query })
 }
 

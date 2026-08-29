@@ -43,7 +43,7 @@ describe('SettingsSearchBox', () => {
     navigateMock.mockReset()
     routerMock.history.back.mockReset()
     routerMock.history.canGoBack.mockReturnValue(true)
-    setLiveQuery('')
+    setLiveQuery(undefined)
   })
 
   it('does not walk history back when a deep-link dispatch lands on the search page', async () => {
@@ -101,6 +101,20 @@ describe('SettingsSearchBox', () => {
     // Before any debounced navigation: Enter must already jump on 'pro'
     expect(result.current.liveQuery).toBe('pro')
     expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('releases the live query on unmount (hidden tab must not leak it)', () => {
+    locationMock.pathname = '/settings/search'
+    searchMock.q = 'proxy'
+    const { result } = renderHook(() => useSettingsSearchKeyboard())
+    const { unmount } = render(<SettingsSearchBox />)
+
+    fireEvent.change(screen.getByTestId('search-input'), { target: { value: 'pro' } })
+    expect(result.current.liveQuery).toBe('pro')
+
+    unmount()
+    // Store is window-global across tabs: a hidden tab falls back to its URL
+    expect(result.current.liveQuery).toBeUndefined()
   })
 
   it('does nothing when the box is empty off the search page', () => {

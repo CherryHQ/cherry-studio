@@ -65,6 +65,11 @@ const SettingsSearchBox = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlQuery])
 
+  // The store is window-global; a hidden/unmounted tab must not leave its
+  // query stuck in it (<Activity> hides unmount effects, running this cleanup).
+  // On reactivation the URL fallback renders correctly until the next keystroke.
+  useEffect(() => () => setLiveQuery(undefined), [])
+
   const exitSearch = () => {
     // Only leave when the user actually searched: an empty-box Esc or one
     // before the debounce pushed must not walk the history back.
