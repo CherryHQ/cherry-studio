@@ -11045,7 +11045,9 @@
             ]
           }
         }
-      }
+      },
+      "name": "Kimi K2.6 Fast",
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p6-fast"
     },
     {
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
@@ -11079,7 +11081,9 @@
             ]
           }
         }
-      }
+      },
+      "name": "Kimi K2.6 Turbo",
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p6-turbo"
     },
     {
       "apiModelId": "accounts/fireworks/models/kimi-k2p7-code",
@@ -11162,7 +11166,9 @@
             ]
           }
         }
-      }
+      },
+      "name": "Kimi K2.7 Code Fast",
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p7-code-fast"
     },
     {
       "apiModelId": "accounts/fireworks/models/kimi-k3",
@@ -20360,7 +20366,8 @@
           "perMillionTokens": 2.501
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"]
     },
     {
       "apiModelId": "kimi-k2.5",
@@ -21107,7 +21114,8 @@
           "perMillionTokens": 0.47
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"]
     },
     {
       "apiModelId": "qwen3.8-max",
