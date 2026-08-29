@@ -242,6 +242,62 @@ $$
 
         expect(processLatexBrackets(input)).toBe(expected)
       })
+
+      it('should properly format multi-line derivations with aligned, tags, and commands (#19576)', () => {
+        const input = `Here is a derivation:
+\\[\\begin{aligned}
+\\phi(t) &\\Longrightarrow \\left( \\frac{\\alpha}{\\beta} \\right) \\psi(t) \\\\
+&= \\left( \\frac{1}{\\sqrt{2}} \\right) \\phi_0 \\tag{1}
+\\end{aligned}\\]`
+
+        const expected = `Here is a derivation:
+$$
+\\begin{aligned}
+\\phi(t) &\\Longrightarrow \\left( \\frac{\\alpha}{\\beta} \\right) \\psi(t) \\\\
+&= \\left( \\frac{1}{\\sqrt{2}} \\right) \\phi_0 \\tag{1}
+\\end{aligned}
+$$`
+
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should normalize direct $$...$$ multi-line math without newlines', () => {
+        const input = `$$\\begin{aligned}
+x &= 1 \\\\
+y &= 2
+\\end{aligned}$$`
+
+        const expected = `$$
+\\begin{aligned}
+x &= 1 \\\\
+y &= 2
+\\end{aligned}
+$$`
+
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should wrap an independent equation environment containing aligned math', () => {
+        const input = `\\begin{equation}
+\\begin{aligned}
+f'(x) &= x^2 \\\\
+&= 2x
+\\end{aligned}
+\\tag{1}
+\\end{equation}，`
+
+        const expected = `$$
+\\begin{equation}
+\\begin{aligned}
+f'(x) &= x^2 \\\\
+&= 2x
+\\end{aligned}
+\\tag{1}
+\\end{equation}
+$$，`
+
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
     })
 
     describe('code block protection', () => {

@@ -19,7 +19,8 @@ export const findCitationInChildren = (children: any): string => {
   return ''
 }
 
-const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/s
+const containsLatexRegex =
+  /\\\(.*?\\\)|\\\[.*?\\\]|\$\$|\\begin\{(?:equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/s
 
 /**
  * 转换 LaTeX 公式括号 `\[\]` 和 `\(\)` 为 Markdown 格式 `$$...$$` 和 `$...$`
@@ -30,6 +31,7 @@ const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/s
  * - 保护代码块和链接，避免被 remark-math 处理
  * - 支持嵌套括号的平衡匹配
  * - 转义括号 `\\(\\)` 或 `\\[\\]` 不会被处理
+ * - 块级公式与多行环境补齐换行，防止环境名被 remark-math 当作 code block meta 剥离
  *
  * @see https://github.com/remarkjs/remark-math/issues/39
  */
@@ -49,20 +51,54 @@ export const processLatexBrackets = (text: string) => {
       return `__CHERRY_STUDIO_PROTECTED_${index}__`
     })
 
-  const processMath = (content: string, openDelim: string, closeDelim: string, wrapper: string): string => {
+  // 规范化已有的 $$...$$ 块，多行或含环境时确保 $$ 前后换行
+  processedContent = processedContent.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
+    if (inner.includes('\n') || /\\(?:begin|tag)\b/.test(inner)) {
+      let body = inner
+      if (!/^\s*\n/.test(body)) body = `\n${body}`
+      if (!/\n\s*$/.test(body)) body = `${body}\n`
+      return `$$${body}$$`
+    }
+    return match
+  })
+
+  const processMath = (
+    content: string,
+    openDelim: string,
+    closeDelim: string,
+    wrapper: string,
+    normalizeBlock = false
+  ): string => {
     let result = ''
     let remaining = content
     while (remaining.length > 0) {
       const match = findLatexMatch(remaining, openDelim, closeDelim)
       if (!match) return result + remaining
-      result += `${match.pre}${wrapper}${match.body}${wrapper}`
+      let body = match.body
+      if (normalizeBlock && (body.includes('\n') || /\\(?:begin|tag)\b/.test(body))) {
+        if (!/^\s*\n/.test(body)) body = `\n${body}`
+        if (!/\n\s*$/.test(body)) body = `${body}\n`
+      }
+      result += `${match.pre}${wrapper}${body}${wrapper}`
       remaining = match.post
     }
     return result
   }
 
-  processedContent = processMath(processedContent, '\\[', '\\]', '$$')
+  processedContent = processMath(processedContent, '\\[', '\\]', '$$', true)
   processedContent = processMath(processedContent, '\\(', '\\)', '$')
+
+  // 仅将独立行上的常用显示环境包裹为块公式，避免改变普通段落中的文本。
+  processedContent = processedContent.replace(/\$\$[\s\S]*?\$\$/g, (match) => {
+    const index = protectedItems.length
+    protectedItems.push(match)
+    return `__CHERRY_STUDIO_PROTECTED_${index}__`
+  })
+  processedContent = processedContent.replace(
+    /(^|\n)([ \t]*\\begin\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}[\s\S]*?\\end\{\3\})(?=\s*(?:\n|$|[，。！？、,.!?;:：]))/g,
+    (_, prefix, block) => `${prefix}$$\n${block}\n$$`
+  )
+
   return processedContent.replace(/__CHERRY_STUDIO_PROTECTED_(\d+)__/g, (match, indexValue) => {
     const item = protectedItems[Number.parseInt(indexValue, 10)]
     return item ?? match
