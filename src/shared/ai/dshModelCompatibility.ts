@@ -66,7 +66,9 @@ export function mapEndpointToDshApi(
 
 /** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return resolveCanonicalEndpoint(provider, model).endpointType
+  // DSH's declared provider route is a runtime requirement, so preserve the
+  // model's protocol order before applying the normal provider-default policy.
+  return resolveCanonicalEndpoint(provider, model, model.endpointTypes?.[0]).endpointType
 }
 
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */

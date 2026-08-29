@@ -716,9 +716,17 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
   const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
 
   const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
+  // Some persisted CherryIN image rows predate endpoint metadata. Keep their
+  // provider extension selected from the configured default so its image-model
+  // dispatcher remains available, without pretending the image operation itself
+  // resolved to a chat endpoint in the canonical selector.
+  const providerId =
+    ctx.endpointType === undefined && !ctx.model.endpointTypes?.length && provider.defaultChatEndpoint
+      ? appProviderIds[resolveAiSdkProviderId(provider, provider.defaultChatEndpoint)]
+      : ctx.aiSdkProviderId
 
   return {
-    providerId: ctx.aiSdkProviderId,
+    providerId,
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,

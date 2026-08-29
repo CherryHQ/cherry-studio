@@ -19,9 +19,24 @@ function model(capabilities: Model['capabilities'] = []): Model {
 }
 
 const providers = {
-  openai: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', authType: 'api-key' },
-  anthropic: { id: 'anthropic', defaultChatEndpoint: 'anthropic-messages', authType: 'api-key' },
-  gemini: { id: 'gemini', defaultChatEndpoint: 'google-generate-content', authType: 'api-key' },
+  openai: {
+    id: 'openai',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'openai' } },
+    authType: 'api-key'
+  },
+  anthropic: {
+    id: 'anthropic',
+    defaultChatEndpoint: 'anthropic-messages',
+    endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } },
+    authType: 'api-key'
+  },
+  gemini: {
+    id: 'gemini',
+    defaultChatEndpoint: 'google-generate-content',
+    endpointConfigs: { 'google-generate-content': { adapterFamily: 'google' } },
+    authType: 'api-key'
+  },
   vertex: {
     id: 'vertex',
     defaultChatEndpoint: 'google-generate-content',

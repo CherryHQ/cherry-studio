@@ -329,6 +329,10 @@ describe('WebSearchButton', () => {
     mocks.provider = {
       id: 'new-api',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
+      },
       serverTools: [
         {
           id: 'web-search',
