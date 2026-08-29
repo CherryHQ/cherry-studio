@@ -2,19 +2,12 @@ import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
+import { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS, type StreamChunkPayload } from '@shared/ai/transport'
+import type { AiChatRequestBody, AiStreamOpenRequest } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { streamDispatchService } from './StreamDispatchService'
-
-/**
- * Cap for attach-replay chunks in the transport layer. Prevents the SDK's
- * `chat` instance from synchronously enqueueing thousands of replay chunks
- * into its `ReadableStream`, which would block the renderer main thread on
- * a long agent session. The live IPC listener covers the tail.
- */
-const MAX_ATTACH_REPLAY_CHUNKS = 1000
 
 const logger = loggerService.withContext('IpcChatTransport')
 
@@ -95,7 +88,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const replayChunks =
       result.bufferedChunks.length > MAX_ATTACH_REPLAY_CHUNKS
         ? (logger.warn('transport replay capped', { total: result.bufferedChunks.length, topicId }),
-          result.bufferedChunks.slice(-MAX_ATTACH_REPLAY_CHUNKS))
+          capAttachReplayChunks(result.bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS))
         : result.bufferedChunks
     return this.buildListenerStream(topicId, replayChunks)
   }
