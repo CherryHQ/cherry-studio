@@ -166,7 +166,7 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
-/** Reasoning effort persisted for the translate model; mirrors the assistant's own selection type. */
+/** The canonical reasoning-effort selection — the same type an assistant persists. */
 export type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 /**

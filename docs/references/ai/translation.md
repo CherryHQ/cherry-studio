@@ -4,7 +4,10 @@ sources:
   - src/shared/ipc/schemas/translate.ts
   - src/main/ipc/handlers/translate.ts
   - src/main/services/translate/translateService.ts
+  - src/shared/data/preference/preferenceSchemas.ts
   - src/renderer/utils/translate/translateText.ts
+  - src/renderer/pages/translate/TranslateSettings.tsx
+  - src/renderer/pages/translate/useTranslateReasoningEffort.ts
   - src/renderer/pages/home/messages/homeMessageListAdapter.tsx
 ---
 
@@ -75,9 +78,11 @@ target and cannot persist chat data from this route.
 
 Model parameters do not cross the wire either. Temperature, top-p, max tokens
 and reasoning effort live in Preference under `feature.translate.*`, so Main
-reads them itself — every translate surface gets the same settings without
-having to pass them, and a renderer cannot ask for a value the user did not
-configure.
+reads them itself — every caller of `translate.open` gets the same settings
+without having to pass them, and a renderer cannot ask for a value the user did
+not configure. (Layout-preserving PDF translation does not go through this
+route: `PdfTranslationService` drives BabelDoc via the API gateway and reads
+none of `feature.translate.*`.)
 
 ## Home message persistence
 
@@ -123,6 +128,7 @@ consumer and a lifecycle that the existing caller-owned flow cannot satisfy.
 - `src/renderer/pages/home/messages/__tests__/homeMessageListAdapter.test.tsx`
   covers keeping the translation active until its final write settles.
 - `src/main/services/translate/__tests__/translateService.test.ts` covers
-  model/prompt resolution, request validation, and stream dispatch.
+  model/prompt resolution, model-parameter gating, request validation, and
+  stream dispatch.
 - `src/main/ipc/handlers/__tests__/translate.test.ts` covers sender resolution
   and handler delegation.

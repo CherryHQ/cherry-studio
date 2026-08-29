@@ -48,8 +48,7 @@ removed rather than optimized as an external store or Cache entry.
 - **Source-language detection.** `useDetectLang` remains renderer-owned.
 - **Translation history.** Text translation does not currently write
   `translate_history` rows.
-- **Per-call sampling.** Answered by #9884: translate keeps its own
-  temperature / top-p / max-tokens / reasoning-effort preferences and gates
-  them against the model before putting them on `callOverrides`. Folding
-  that back into the request pipeline, so an assistant-less caller does not
-  have to gate for itself, is #19693.
+- **Gating for assistant-less callers.** #19693. #9884 gave translate its own
+  temperature / top-p / max-tokens / reasoning-effort preferences, but it has to
+  gate them against the model itself before putting them on `callOverrides`;
+  folding that back into the request pipeline is still open.

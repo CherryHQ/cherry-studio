@@ -1,8 +1,9 @@
 /**
  * Speed popover for a model: reasoning effort, reasoning summary, service tier
- * and fast mode. Every row hides itself unless the model declares the knob and
- * the caller passes a handler for it, so a surface only wires up what it can
- * persist.
+ * and fast mode. Every row hides itself unless the model declares the knob;
+ * the three optional ones also need a handler, so a surface with nowhere to
+ * persist a selection is not offered it. The whole popover hides when no row
+ * survives.
  */
 
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
@@ -59,14 +60,14 @@ interface ModelSpeedControlProps {
   reasoningEffort: ThinkingOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
-  /** Which way the popover opens; surfaces anchored to a top bar want 'bottom'. */
+  /** Which way the popover opens; defaults to 'top', but a top bar wants 'bottom'. */
   side?: ComponentProps<typeof PopoverContent>['side']
   /** Omit both to hide the summary row — surfaces where the selection has nowhere to persist. */
   reasoningSummary?: ReasoningSummary
   onReasoningEffortChange: (effort: ThinkingOption) => void
   onReasoningSummaryChange?: (summary: ReasoningSummary) => void
   onServiceTierChange?: (tier: ServiceTierSelection) => void
-  /** Omit both to hide the fast toggle — surfaces where the selection has nowhere to persist. */
+  /** Omitting the handler hides the fast toggle — a surface with nowhere to persist it. */
   onFastModeChange?: (enabled: boolean) => void
 }
 
@@ -154,7 +155,7 @@ export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOp
   return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
-/** Coerce a selection to one this model's endpoint declares, else its default tier. */
+/** Coerce a selection to one this model's endpoint declares — its default tier, or Standard when it declares no tiers at all. */
 export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelection): ServiceTierSelection {
   const control = model.requestControls?.serviceTier
   if (!control) return 'standard'
