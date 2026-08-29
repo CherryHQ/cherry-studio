@@ -108,6 +108,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // bailing
   { pattern: 'ring-(?:1t|mini|flash)' },
   { pattern: '^inkling' },
+  { pattern: '^ling-3-0-flash-fin$', toggle: true },
   // bytedance
   {
     pattern: 'doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\\d|doubao-seed-1[.-]8',
@@ -219,6 +220,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-t1' },
   { pattern: 'hunyuan-a13b' },
   { pattern: '^hy3' },
+  { pattern: '^hy4-preview$', effort: ['none', 'high'] },
   // upstage
   { pattern: '^solar-pro-?[2-9]' },
   // vercel
@@ -234,6 +236,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
+  { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },
   { pattern: 'glm-?5|glm-4[.-][567]', toggle: true },
   { pattern: 'glm-zero-preview' },
   { pattern: 'glm-z1' }

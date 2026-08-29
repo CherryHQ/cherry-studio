@@ -6,5 +6,9 @@ export default defineCreator({
   modelsDevProviders: ['bailing'],
   families: ['ling', 'ring'],
   idPrefixes: ['ling', 'ring', 'bailing'],
-  reasoningFamilies: [{ pattern: 'ring-(?:1t|mini|flash)' }, { pattern: '^inkling' }]
+  reasoningFamilies: [
+    { pattern: 'ring-(?:1t|mini|flash)' },
+    { pattern: '^inkling' },
+    { pattern: '^ling-3-0-flash-fin$', toggle: true }
+  ]
 })

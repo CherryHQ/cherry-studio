@@ -39,7 +39,9 @@ describe('inferReasoningMembership', () => {
     'mimo-v2-5',
     'llama-3-1-nemotron-ultra-253b-v1',
     // Gemini image SKUs ship thinking budgets (catalog: gemini-2-5-flash-image, 3-1-flash-image).
-    'gemini-3-flash-image'
+    'gemini-3-flash-image',
+    'ling-3-0-flash-fin',
+    'hy4-preview'
   ])('claims %s', (modelId) => {
     expect(inferReasoningMembership(modelId)).toBe(true)
   })

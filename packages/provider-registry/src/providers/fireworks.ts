@@ -53,14 +53,13 @@ const override = (modelId: string, support: ReasoningSupport): Partial<ProviderM
   reasoningContracts: reasoningContracts(support)
 })
 
-const toggleModels = [
-  'glm-5-1',
-  'kimi-k2-6',
-  'kimi-k2-6-fast',
-  'kimi-k2-6-turbo',
-  'kimi-k2-7-code',
-  'kimi-k2-7-code-fast'
-]
+const rate = (input: number, output: number, cacheRead: number): ProviderModelOverride['pricing'] => ({
+  input: { currency: 'USD', perMillionTokens: input },
+  output: { currency: 'USD', perMillionTokens: output },
+  cacheRead: { currency: 'USD', perMillionTokens: cacheRead }
+})
+
+const toggleModels = ['glm-5-1', 'kimi-k2-6', 'kimi-k2-7-code']
 
 const effortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
   { modelId: 'gpt-oss-120b', values: ['low', 'medium', 'high'] },
@@ -109,6 +108,24 @@ export default defineProvider({
   modelsDevProvider: 'fireworks-ai',
   overrides: [
     ...toggleModels.map((modelId) => override(modelId, toggleSupport)),
+    {
+      ...override('kimi-k2-6-fast', toggleSupport),
+      apiModelId: 'accounts/fireworks/routers/kimi-k2p6-fast',
+      name: 'Kimi K2.6 Fast',
+      pricing: rate(2, 8, 0.3)
+    },
+    {
+      ...override('kimi-k2-6-turbo', toggleSupport),
+      apiModelId: 'accounts/fireworks/routers/kimi-k2p6-turbo',
+      name: 'Kimi K2.6 Turbo',
+      pricing: rate(2, 8, 0.3)
+    },
+    {
+      ...override('kimi-k2-7-code-fast', toggleSupport),
+      apiModelId: 'accounts/fireworks/routers/kimi-k2p7-code-fast',
+      name: 'Kimi K2.7 Code Fast',
+      pricing: rate(1.9, 8, 0.38)
+    },
     { ...override('glm-5-1-fast', toggleSupport), name: 'GLM 5.1 Fast' },
     ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
     ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))

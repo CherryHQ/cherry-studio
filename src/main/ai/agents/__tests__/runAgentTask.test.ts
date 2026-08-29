@@ -569,8 +569,8 @@ describe('runAgentTask', () => {
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
-      { id: 'ch-match', agentId: 'a1' },
-      { id: 'ch-foreign', agentId: 'a2' }
+      { id: 'ch-match', type: 'telegram', agentId: 'a1', isActive: true },
+      { id: 'ch-foreign', type: 'telegram', agentId: 'a2', isActive: true }
     ] as never)
 
     const adapter = {
@@ -594,6 +594,108 @@ describe('runAgentTask', () => {
     expect(captured.listeners).toHaveLength(2)
   })
 
+  // The stream manager snapshots listeners then invokes every onDone. The task sentinel
+  // must not fan the same terminal event out again — that double-delivers one cron result.
+  it('delivers a successful cron result to a subscribed channel exactly once', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => false)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    const chunk = { type: 'text-delta', delta: 'daily summary' }
+    for (const listener of captured.listeners) {
+      listener.onChunk?.(chunk)
+    }
+    const doneResult = { status: 'success' }
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.(doneResult as never))))
+
+    await expect(promise).resolves.toEqual({ sessionId: 'sess-new', result: 'daily summary' })
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'daily summary', undefined)
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('delivers a paused cron result to a subscribed channel exactly once', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => false)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    const chunk = { type: 'text-delta', delta: 'partial summary' }
+    for (const listener of captured.listeners) {
+      listener.onChunk?.(chunk)
+    }
+    const pausedResult = { status: 'paused' }
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onPaused?.(pausedResult as never))))
+
+    await expect(promise).resolves.toEqual({ sessionId: 'sess-new', result: 'partial summary' })
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(stopped)_', undefined)
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [
+      'owned configured recipients, including offline or inactive channels',
+      [
+        { id: 'ch-offline', type: 'feishu', agentId: 'a1', isActive: true },
+        { id: 'ch-inactive', type: 'telegram', agentId: 'a1', isActive: false },
+        { id: 'ch-foreign', type: 'telegram', agentId: 'a2', isActive: true }
+      ],
+      [
+        { id: 'ch-inactive', type: 'telegram' },
+        { id: 'ch-offline', type: 'feishu' }
+      ]
+    ],
+    ['an explicit empty recipient set', [], []]
+  ])('passes %s as notification authority', async (_case, subscribedChannels, trustedNotifyChannels) => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce(subscribedChannels as never)
+    mockGetAdapter.mockReturnValue(undefined)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    captured.listeners[0].onDone({ status: 'completed' })
+    await promise
+
+    expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ trustedNotifyChannels }))
+  })
+
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
   // once. The channel listener's generic `Error: …` is suppressed for task runs so only
   // the richer `[Task failed]` summary from notifyTaskError is delivered (no double-send).
@@ -602,7 +704,9 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([{ id: 'ch1', agentId: 'a1' }] as never)
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
 
     const adapter = {
       channelId: 'ch1',
@@ -635,10 +739,23 @@ describe('runAgentTask', () => {
   // per-task timeout) must abort the upstream stream AND settle the handler
   // promise — otherwise it leaks until the JobManager force-finalize timeout.
   it('aborts the upstream stream and rejects when the run signal aborts', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => false)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
 
     const controller = new AbortController()
     const promise = runAgentTask(
@@ -646,10 +763,15 @@ describe('runAgentTask', () => {
     )
 
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    for (const listener of captured.listeners) {
+      listener.onChunk?.({ type: 'text-delta', delta: 'partial summary' })
+    }
     controller.abort(new Error('cancelled by manager'))
 
     await expect(promise).rejects.toThrow('cancelled by manager')
     expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'cancelled by manager')
+    expect(adapter.onStreamComplete).not.toHaveBeenCalled()
+    expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
   it('does not abort a queued successor after this task terminal listener has settled', async () => {
