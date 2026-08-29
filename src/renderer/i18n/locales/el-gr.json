@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
   "settings.messages.input.enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
   "settings.messages.input.newline_shortcuts": "Συντόμευση νέας γραμμής",
+  "settings.messages.input.paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
+  "settings.messages.input.paste_long_text_threshold": "Όριο μήκους μεγάλου κειμένου",
   "settings.messages.input.send_shortcuts": "Συντάγματα αποστολής",
   "settings.messages.input.show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
   "settings.messages.input.steer_shortcuts": "Συντόμευση κατεύθυνσης",
