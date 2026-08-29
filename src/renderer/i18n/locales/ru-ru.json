@@ -5179,6 +5179,7 @@
   "translate.stop": "Остановить перевод",
   "translate.target_language": "Целевой язык",
   "translate.title": "Перевод",
+  "translate.translate_to": "Перевести на",
   "update.install": "Установить",
   "update.later": "Позже",
   "update.message": "Новая версия {{version}} готова, установить сейчас?",

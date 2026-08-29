@@ -189,6 +189,12 @@ type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
 
 const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type === 'text' || part.type === 'file'
 
+// Composer edits as a single text field: the draft joins all text parts (`\n\n`) and
+// rebuilds files from tokens. Saving replaces the first editable part with the rebuilt
+// draft and drops trailing editable parts — non-editable `reasoning`/`dynamic-tool` blocks
+// stay in place and `data-translation` is removed. Interleaved shapes such as
+// [text "before", tool, text "after"] are blocked by `canEditAssistantMessageParts` and
+// never reach this path, so no reordering occurs on save.
 const replaceComposerEditableMessageParts = (
   originalParts: CherryMessagePart[],
   editedParts: CherryMessagePart[]

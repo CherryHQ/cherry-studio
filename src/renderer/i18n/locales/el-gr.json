@@ -5179,6 +5179,7 @@
   "translate.stop": "Σταματήστε τη μετάφραση",
   "translate.target_language": "Γλώσσα προορισμού",
   "translate.title": "Μετάφραση",
+  "translate.translate_to": "Μετάφραση σε",
   "update.install": "Εγκατάσταση",
   "update.later": "Μετά",
   "update.message": "Νέα έκδοση {{version}} είναι έτοιμη, θέλετε να την εγκαταστήσετε τώρα;",
