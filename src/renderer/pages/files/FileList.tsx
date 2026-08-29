@@ -191,11 +191,7 @@ export const FileList = memo(function FileList({
                     onCheckedChange={() => onSelect(file.id)}
                     onClick={(e) => e.stopPropagation()}
                     data-file-selection-checkbox
-                    aria-label={
-                      file.sourcePath
-                        ? t('files.select_file_with_path', { name: file.name, path: file.sourcePath })
-                        : t('files.select_file', { name: file.name })
-                    }
+                    aria-label={file.sourcePath ? t('files.select_file_with_path', { name: file.name, path: file.sourcePath }) : t('files.select_file', { name: file.name })}
                   />
                 </label>
               </div>
@@ -215,12 +211,7 @@ export const FileList = memo(function FileList({
                     <span
                       className="truncate text-foreground text-sm"
                       title={file.sourcePath ?? file.name}
-                      aria-label={
-                        file.sourcePath
-                          ? t('files.file_with_path', { name: file.name, path: file.sourcePath })
-                          : file.name
-                      }
-                    >
+                      aria-label={file.sourcePath ? t('files.file_with_path', { name: file.name, path: file.sourcePath }) : file.name}>
                       {file.name}
                     </span>
                     {file.isMissing && (

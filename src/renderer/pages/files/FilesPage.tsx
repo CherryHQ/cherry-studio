@@ -206,8 +206,7 @@ function toFileItem(
   // so the Files list row can surface it through the tooltip and
   // accessibility name when two same-name rows would otherwise be
   // indistinguishable (#19495).
-  const sourcePath =
-    entry.origin === 'external' ? entry.externalPath : physicalPath
+  const sourcePath = entry.origin === 'external' ? entry.externalPath : physicalPath
 
   const base = {
     id: entry.id,
