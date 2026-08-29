@@ -552,7 +552,11 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                         size="icon"
                         className={customHeaderDrawerClasses.removeIconButton}
                         onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                        aria-label={row.key.trim() ? `${t('common.delete')} ${row.key.trim()}` : t('common.delete')}>
+                        aria-label={
+                          row.key.trim()
+                            ? t('settings.provider.delete.header', { key: row.key.trim() })
+                            : t('common.delete')
+                        }>
                         <Trash2 aria-hidden />
                       </Button>
                     </div>

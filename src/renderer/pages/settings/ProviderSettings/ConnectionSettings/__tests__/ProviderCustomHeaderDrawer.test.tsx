@@ -66,7 +66,10 @@ vi.mock('../../primitives/ProviderSettingsPrimitives', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params && 'key' in params ? `${key} ${String(params.key)}` : key
+  })
 }))
 
 import ProviderCustomHeaderDrawer from '../ProviderCustomHeaderDrawer'
@@ -135,7 +138,7 @@ describe('ProviderCustomHeaderDrawer', () => {
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
 
-    await user.click(screen.getByRole('button', { name: 'common.delete X-Only' }))
+    await user.click(screen.getByRole('button', { name: 'settings.provider.delete.header X-Only' }))
     await user.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
@@ -161,7 +164,7 @@ describe('ProviderCustomHeaderDrawer', () => {
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
 
-    await user.click(screen.getByRole('button', { name: 'common.delete X-Remove' }))
+    await user.click(screen.getByRole('button', { name: 'settings.provider.delete.header X-Remove' }))
     await user.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
@@ -187,7 +190,7 @@ describe('ProviderCustomHeaderDrawer', () => {
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
 
-    await user.click(screen.getByRole('button', { name: 'common.delete toString' }))
+    await user.click(screen.getByRole('button', { name: 'settings.provider.delete.header toString' }))
     await user.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
