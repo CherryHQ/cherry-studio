@@ -1,3 +1,4 @@
+import { MODALITY } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
@@ -27,6 +28,18 @@ const azureProvider = makeProvider({
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'azure' } }
 })
+
+const inputModalityCases: Array<[string, Model['inputModalities'], boolean]> = [
+  ['accepts undeclared input modalities', undefined, true],
+  ['accepts empty input modalities', [], true],
+  ['accepts text input', [MODALITY.TEXT], true],
+  ['accepts text and image input', [MODALITY.TEXT, MODALITY.IMAGE], true],
+  ['accepts text and audio input', [MODALITY.TEXT, MODALITY.AUDIO], true],
+  ['accepts text and video input', [MODALITY.TEXT, MODALITY.VIDEO], true],
+  ['rejects video-only input', [MODALITY.VIDEO], false],
+  ['rejects image-only input', [MODALITY.IMAGE], false],
+  ['rejects audio-only input', [MODALITY.AUDIO], false]
+]
 
 describe('isDshCompatibleModel', () => {
   it('accepts native wire families directly', () => {
@@ -72,10 +85,11 @@ describe('isDshCompatibleModel', () => {
     ).toBe(false)
   })
 
-  it('does not use input modalities as a compatibility restriction', () => {
+  it('does not require a declared context window', () => {
     expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['image'] }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(true)
+  })
+
+  it.each(inputModalityCases)('%s', (_name, inputModalities, expected) => {
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities }))).toBe(expected)
   })
 })

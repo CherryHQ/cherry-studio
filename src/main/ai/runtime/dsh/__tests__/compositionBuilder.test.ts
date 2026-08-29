@@ -20,7 +20,7 @@ import {
   resolveDshPluginPath,
   toDshPluginUrl
 } from '../compositionBuilder'
-import { buildDshProviderInjection } from '../modelInjection'
+import { buildDshProviderInjection, DshUnsupportedModelInputError } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
 
@@ -273,9 +273,11 @@ describe('buildDshCompositionYaml', () => {
     const visionYml = buildDshCompositionYaml(makeInput({ modelConfig: vision.modelConfig }))
     expect(providerRoute(visionYml, 'deepseek').models[0].input).toEqual(['text', 'image'])
 
-    const audio = makeInjection({ inputModalities: [MODALITY.TEXT, MODALITY.AUDIO] })
-    const audioYml = buildDshCompositionYaml(makeInput({ modelConfig: audio.modelConfig }))
-    expect(providerRoute(audioYml, 'deepseek').models[0].input).toEqual(['text'])
+    for (const modality of [MODALITY.AUDIO, MODALITY.VIDEO]) {
+      const injection = makeInjection({ inputModalities: [MODALITY.TEXT, modality] })
+      const yml = buildDshCompositionYaml(makeInput({ modelConfig: injection.modelConfig }))
+      expect(providerRoute(yml, 'deepseek').models[0].input).toEqual(['text'])
+    }
   })
 
   it("honors Google as CherryIN's first declared route when the model supports multiple protocols", () => {
@@ -536,7 +538,7 @@ describe('buildDshCompositionYaml', () => {
     }
   })
 
-  it('does not reject models based on their declared input modalities', () => {
-    expect(makeInjection({ inputModalities: [MODALITY.AUDIO] }).modelConfig.input).toEqual(['text'])
+  it('rejects models that explicitly declare no text input', () => {
+    expect(() => makeInjection({ inputModalities: [MODALITY.VIDEO] })).toThrow(DshUnsupportedModelInputError)
   })
 })

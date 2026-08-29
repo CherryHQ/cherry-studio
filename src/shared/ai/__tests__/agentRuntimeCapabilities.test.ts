@@ -84,16 +84,18 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     })
   })
 
-  describe('dsh model compatibility', () => {
+  describe('dsh model input compatibility', () => {
     const isCompatible = AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible
     const provider = makeProvider({})
 
-    it('does not filter models by their declared input modalities', () => {
+    it('accepts unknown and text-capable multimodal inputs', () => {
       expect(isCompatible(provider, makeModel({}))).toBe(true)
       expect(isCompatible(provider, makeModel({ inputModalities: [] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.IMAGE] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.AUDIO] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.TEXT, MODALITY.VIDEO] }))).toBe(true)
+    })
+
+    it('keeps video-only models out of the text agent picker', () => {
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(false)
     })
   })
 })
