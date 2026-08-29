@@ -495,10 +495,36 @@ describe('TopicStreamSubscription', () => {
     mock.emitDone(TOPIC, A, 'success')
 
     const chunks = await readAll(sa)
-    expect(chunks.length).toBe(1000)
-    // The first chunk should be chunk-200 (1200 - 1000 = 200 offset), not chunk-0
-    expect(chunks[0]).toEqual(textChunk('chunk-200'))
+    // Bare deltas in the retained tail get a synthesized start so the overlay
+    // stream isn't fed orphaned deltas without their protocol opener.
+    expect(chunks.length).toBe(1001)
+    expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
+    expect(chunks[1]).toEqual(textChunk('chunk-200'))
     expect(chunks[chunks.length - 1]).toEqual(textChunk('chunk-1199'))
+    sub.dispose()
+  })
+
+  it('cap retains protocol opener: slicing mid-execution synthesizes missing text-start', async () => {
+    const startChunk = { type: 'text-start', id: 't' } as UIMessageChunk
+    const bufferedChunks: StreamChunkPayload[] = [
+      { topicId: TOPIC, executionId: A, attemptId: 1, chunk: startChunk },
+      ...Array.from({ length: 1200 }, (_, i) => ({
+        topicId: TOPIC,
+        executionId: A,
+        attemptId: 1,
+        chunk: textChunk(`delta-${i}`)
+      }))
+    ]
+    mock.mockApi.streamAttach.mockResolvedValueOnce({ status: 'attached', bufferedChunks })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitDone(TOPIC, A, 'success')
+    const chunks = await readAll(sa)
+    // Tail (1000 deltas) lost its start; cap helper synthesizes one so the
+    // reader receives a valid start→delta sequence.
+    expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
+    expect(chunks[1]).toEqual(textChunk('delta-200'))
     sub.dispose()
   })
 

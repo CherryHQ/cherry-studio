@@ -307,4 +307,34 @@ describe('IpcChatTransport', () => {
     const { done } = await reader.read()
     expect(done).toBe(true)
   })
+
+  it('reconnectToStream caps oversized attach replay and synthesizes missing opener', async () => {
+    const total = 1200
+    const bufferedChunks = Array.from({ length: total }, (_, i) => ({
+      topicId,
+      executionId: undefined,
+      attemptId: undefined,
+      anchorMessageId: undefined,
+      chunk: { type: 'text-delta', id: 't', delta: `chunk-${i}` } as UIMessageChunk
+    }))
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    expect(stream).toBeInstanceOf(ReadableStream)
+    const reader = stream!.getReader()
+    const chunks: UIMessageChunk[] = []
+    // initial replay chunks are enqueued synchronously; drain them then close via done
+    mock.emitDone(topicId, undefined, true)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    // Synthesis adds a start for the orphaned delta run
+    expect(chunks.length).toBe(1001)
+    expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
+    expect(chunks[1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-200' })
+    expect(chunks[chunks.length - 1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-1199' })
+    await stream!.cancel()
+  })
 })
