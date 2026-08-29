@@ -17,6 +17,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { CallOverrides } from '@main/ai/types'
 import { modelService } from '@main/data/services/ModelService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -24,7 +25,6 @@ import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueMo
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { isQwenMTModel } from '@shared/utils/model'
 import { mapLanguageToQwenMTModel } from '@shared/utils/qwenMt'
-import type { CallOverrides } from '@main/ai/types/requests'
 
 import { WebContentsListener } from '../../ai/streamManager'
 
