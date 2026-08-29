@@ -311,6 +311,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                 <EditableNumber
                   size="small"
                   className="w-20 text-sm"
+                  aria-label={t('settings.messages.input.paste_long_text_threshold')}
                   min={500}
                   max={10000}
                   step={100}

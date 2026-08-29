@@ -71,8 +71,21 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 vi.mock('@cherrystudio/ui', () => ({
   CustomTag: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Divider: ({ className }: { className?: string }) => <hr className={className} />,
-  EditableNumber: ({ value, onChange }: { value?: number; onChange?: (value?: number) => void }) => (
-    <input type="number" value={value ?? ''} onChange={(event) => onChange?.(Number(event.target.value))} />
+  EditableNumber: ({
+    value,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value?: number
+    onChange?: (value: number | null) => void
+    'aria-label'?: string
+  }) => (
+    <input
+      type="number"
+      value={value ?? ''}
+      aria-label={ariaLabel}
+      onChange={(event) => onChange?.(event.target.value ? Number(event.target.value) : null)}
+    />
   ),
   Flex: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
     <div className={className}>{children}</div>
@@ -151,7 +164,12 @@ describe('ChatPreferenceSections', () => {
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.paste_long_text_as_file', true)
     rerender(<ChatPreferenceSections />)
 
-    expect(screen.getByText('settings.messages.input.paste_long_text_threshold')).toBeInTheDocument()
+    const thresholdInput = screen.getByRole('spinbutton', {
+      name: 'settings.messages.input.paste_long_text_threshold'
+    })
+    fireEvent.change(thresholdInput, { target: { value: '2400' } })
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.paste_long_text_threshold', 2400)
   })
 
   it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {

@@ -4,7 +4,7 @@ import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types
 import { getFileExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
-import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
+import { hasSupportedClipboardImage, LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
 
 const logger = loggerService.withContext('pasteHandling')
 
@@ -61,13 +61,11 @@ export const handlePaste = async (
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
     // supported image in that case; letting the editor handle the text flavor can render a preview
     // without ever adding an attachment to composer state.
-    const hasSupportedClipboardImage = clipboardFiles.some(
-      (file) => file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))
-    )
+    const shouldPreferClipboardImage = hasSupportedClipboardImage(clipboardFiles, supportExts)
 
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
     const clipboardText = event.clipboardData?.getData('text')
-    if (clipboardText && !hasSupportedClipboardImage) {
+    if (clipboardText && !shouldPreferClipboardImage) {
       // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
       if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {
         if (!supportExts.includes(PASTED_TEXT_FILE_EXTENSION)) return false

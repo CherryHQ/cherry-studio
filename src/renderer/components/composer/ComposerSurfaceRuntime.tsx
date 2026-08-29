@@ -39,6 +39,7 @@ import { createComposerInputAdapter, insertComposerTokenAtCursor } from './compo
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
+  hasSupportedClipboardImage,
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
@@ -1659,11 +1660,15 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
+      const shouldPreferClipboardImage = hasSupportedClipboardImage(
+        Array.from(event.clipboardData?.files ?? []),
+        supportedExts
+      )
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
         textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
-        if (!textToInsert) {
+        if (!textToInsert && !shouldPreferClipboardImage) {
           event.preventDefault()
           return true
         }
@@ -1690,6 +1695,12 @@ export default function ComposerSurfaceRuntime({
           }
           return true
         }
+      }
+
+      if (shouldPreferClipboardImage) {
+        event.preventDefault()
+        void handlePaste(event)
+        return true
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {

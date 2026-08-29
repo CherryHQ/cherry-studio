@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-08-29T15:53:19.049Z
+ * Generated at: 2026-08-29T16:41:24.429Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -131,14 +131,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.launch_on_boot'
     },
     {
-      originalKey: 'pasteLongTextAsFile',
-      targetKey: 'chat.input.paste_long_text_as_file'
-    },
-    {
-      originalKey: 'pasteLongTextThreshold',
-      targetKey: 'chat.input.paste_long_text_threshold'
-    },
-    {
       originalKey: 'userTheme.colorPrimary',
       targetKey: 'ui.theme_user.color_primary'
     },
@@ -165,6 +157,14 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'assistantIconType',
       targetKey: 'assistant.icon_type'
+    },
+    {
+      originalKey: 'pasteLongTextAsFile',
+      targetKey: 'chat.input.paste_long_text_as_file'
+    },
+    {
+      originalKey: 'pasteLongTextThreshold',
+      targetKey: 'chat.input.paste_long_text_threshold'
     },
     {
       originalKey: 'renderInputMessageAsMarkdown',

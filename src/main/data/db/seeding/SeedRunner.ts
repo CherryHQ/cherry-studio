@@ -7,7 +7,7 @@ const logger = loggerService.withContext('SeedRunner')
 
 const SEED_KEY_PREFIX = 'seed:'
 /** Set after the first fully-successful seeding pass; while absent, the database is in its bootstrap window. */
-const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
+export const SEED_BOOTSTRAP_COMPLETED_KEY = 'seedRunner:bootstrapCompleted'
 
 interface SeedJournal {
   version: string
@@ -66,7 +66,7 @@ export class SeedRunner {
     const [row] = this.db
       .select({ key: appStateTable.key })
       .from(appStateTable)
-      .where(eq(appStateTable.key, BOOTSTRAP_MARKER_KEY))
+      .where(eq(appStateTable.key, SEED_BOOTSTRAP_COMPLETED_KEY))
       .limit(1)
       .all()
     return row !== undefined
@@ -76,7 +76,7 @@ export class SeedRunner {
     this.db
       .insert(appStateTable)
       .values({
-        key: BOOTSTRAP_MARKER_KEY,
+        key: SEED_BOOTSTRAP_COMPLETED_KEY,
         value: { completedAt: Date.now() },
         description: 'Set after the first fully-successful seeding pass; bootstrap-only seeders never run once present'
       })
