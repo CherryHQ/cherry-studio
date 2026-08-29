@@ -4,15 +4,14 @@
  */
 
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, endpointImpliedCapability, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getSupportedProviderDefaultEndpoint } from '@shared/utils/endpoint'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { getRawModelId } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
-import { resolveGatewayRoute } from './gatewayRouting'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -57,29 +56,12 @@ export function resolveEffectiveEndpoint(
   model: Model,
   preferredEndpointType?: EndpointType
 ): ResolvedEndpoint {
-  const gatewayRoute = resolveGatewayRoute(provider, model)
-  const isChatOperation = endpointImpliedCapability(model.endpointTypes?.[0]) == null
-  const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
-    Boolean(endpointType && provider.endpointConfigs?.[endpointType])
-  const preferred =
-    preferredEndpointType &&
-    model.endpointTypes?.includes(preferredEndpointType) &&
-    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
-      ? preferredEndpointType
-      : undefined
-  const supportedProviderDefault = isChatOperation ? getSupportedProviderDefaultEndpoint(provider, model) : undefined
-  const usableProviderDefault = hasEndpointConfig(supportedProviderDefault) ? supportedProviderDefault : undefined
-  const usableModelEndpoint = model.endpointTypes?.find(hasEndpointConfig)
-  const usableGatewayRoute = hasEndpointConfig(gatewayRoute?.endpointType) ? gatewayRoute : undefined
-  const usableChatFallback =
-    isChatOperation && hasEndpointConfig(provider.defaultChatEndpoint) ? provider.defaultChatEndpoint : undefined
-  const endpointType =
-    preferred ?? usableProviderDefault ?? usableModelEndpoint ?? usableGatewayRoute?.endpointType ?? usableChatFallback
-  const providerOptionsKey =
-    usableGatewayRoute && endpointType === usableGatewayRoute.endpointType
-      ? usableGatewayRoute.providerOptionsKey
-      : undefined
-  return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
+  const { endpointType, gatewayProviderOptionsKey } = resolveCanonicalEndpoint(provider, model, preferredEndpointType)
+  return {
+    endpointType,
+    baseUrl: endpointType ? getBaseUrl(provider, endpointType) : '',
+    providerOptionsKey: gatewayProviderOptionsKey
+  }
 }
 
 /** Maps base id → variant id (`openai` + `openai-chat-completions` → `openai-chat`). No-op when no variant exists. */

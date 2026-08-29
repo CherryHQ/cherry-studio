@@ -12,7 +12,7 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
-import { getSupportedProviderDefaultEndpoint } from './endpoint'
+import { type EndpointSelectionProvider, resolveCanonicalEndpoint } from './endpoint'
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
@@ -226,15 +226,10 @@ function serverToolServesEndpoint(tool: ServerToolConfig, endpointType: Endpoint
 
 function resolveServerToolEndpoint(
   model: Model,
-  provider: Pick<Provider, 'defaultChatEndpoint'>,
+  provider: EndpointSelectionProvider,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
-  return (
-    endpointType ??
-    getSupportedProviderDefaultEndpoint(provider, model) ??
-    model.endpointTypes?.[0] ??
-    provider.defaultChatEndpoint
-  )
+  return endpointType ?? resolveCanonicalEndpoint(provider, model).endpointType
 }
 
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */
@@ -251,7 +246,7 @@ export function isServerToolModelEligible(
 /** Effective built-in web-search availability for one provider-model pair. */
 export function isBuiltinWebSearchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: EndpointSelectionProvider & Pick<Provider, 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
@@ -288,7 +283,7 @@ export interface WebToolRoutes {
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
 export function isBuiltinWebFetchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: EndpointSelectionProvider & Pick<Provider, 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.URL_CONTEXT)

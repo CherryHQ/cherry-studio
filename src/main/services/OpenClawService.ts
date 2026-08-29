@@ -28,7 +28,7 @@ import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
-import { getSupportedProviderDefaultEndpoint } from '@shared/utils/endpoint'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
@@ -1131,6 +1131,13 @@ export class OpenClawService extends BaseService {
     }
 
     const endpointType = this.getModelEndpointType(primaryModel, provider)
+    if (!endpointType) {
+      const requestedEndpoint = primaryModel.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+      if (requestedEndpoint) {
+        throw new Error(`Provider ${provider.id} has no API host configured for ${requestedEndpoint}`)
+      }
+      throw new Error(`Provider ${provider.id} has no usable chat endpoint configured for ${primaryModel.id}`)
+    }
     const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
 
     if (!apiHost) {
@@ -1176,13 +1183,8 @@ export class OpenClawService extends BaseService {
     return noKeyPlaceholder ?? ''
   }
 
-  private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
-    return (
-      getSupportedProviderDefaultEndpoint(provider, model) ??
-      model.endpointTypes?.[0] ??
-      provider.defaultChatEndpoint ??
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    )
+  private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType | undefined {
+    return resolveCanonicalEndpoint(provider, model).endpointType
   }
 
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {

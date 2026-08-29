@@ -12,12 +12,11 @@
  * equivalent are unsupported for pi agents.
  */
 
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getSupportedProviderDefaultEndpoint } from '@shared/utils/endpoint'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
@@ -97,12 +96,7 @@ export function mapEndpointToPiApi(
  * renderer, which has no main-only resolver, can reuse it).
  */
 function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    getSupportedProviderDefaultEndpoint(provider, model) ??
-    model.endpointTypes?.[0] ??
-    resolveGatewayChatRoute(provider, model)?.endpointType ??
-    provider.defaultChatEndpoint
-  )
+  return resolveCanonicalEndpoint(provider, model).endpointType
 }
 
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */

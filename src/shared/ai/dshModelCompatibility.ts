@@ -12,10 +12,10 @@
  * back to the local API Gateway when the model is gateway-routable.
  */
 
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -66,9 +66,7 @@ export function mapEndpointToDshApi(
 
 /** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
+  return resolveCanonicalEndpoint(provider, model).endpointType
 }
 
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */

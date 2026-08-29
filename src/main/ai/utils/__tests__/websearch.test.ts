@@ -90,7 +90,11 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
     const cherryin = {
       id: 'cherryin',
       presetProviderId: 'cherryin',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.cherryin.ai/v1' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.cherryin.ai/v1' }
+      }
     } as Provider
     const config = buildProviderBuiltinWebSearchConfig(
       'cherryin',
@@ -105,6 +109,30 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
     )
 
     expect(config).toEqual({ openai: { searchContextSize: 'medium' } })
+  })
+
+  it('uses the configured model endpoint when the CherryIN default config is missing', () => {
+    const cherryin = {
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.cherryin.ai/v1' }
+      }
+    } as Provider
+    const config = buildProviderBuiltinWebSearchConfig(
+      'cherryin',
+      webSearchConfig,
+      model({
+        id: 'cherryin::gpt-5',
+        providerId: 'cherryin',
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      }),
+      cherryin
+    )
+
+    expect(config).toEqual({ 'openai-chat': { searchContextSize: 'medium' } })
   })
 })
 

@@ -1,0 +1,73 @@
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { describe, expect, it } from 'vitest'
+
+import { resolveCanonicalEndpoint } from '../endpoint'
+
+const provider = (overrides: Partial<Provider> = {}): Provider =>
+  ({
+    id: 'relay',
+    presetProviderId: 'relay',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/chat' },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example/anthropic' }
+    },
+    ...overrides
+  }) as Provider
+
+const model = (overrides: Partial<Model> = {}): Model =>
+  ({
+    id: 'relay:model',
+    providerId: 'relay',
+    name: 'model',
+    capabilities: [],
+    endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+    ...overrides
+  }) as Model
+
+describe('resolveCanonicalEndpoint', () => {
+  it('prefers a supported and configured provider default', () => {
+    expect(resolveCanonicalEndpoint(provider(), model()).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
+  it('skips a stale default whose endpoint configuration is missing', () => {
+    const stale = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example/anthropic' }
+      }
+    })
+
+    expect(resolveCanonicalEndpoint(stale, model()).endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+  })
+
+  it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])(
+    'does not assign a chat route to a capability-only %s model without endpointTypes',
+    (capability) => {
+      const capabilityOnly = model({ capabilities: [capability], endpointTypes: undefined })
+
+      expect(resolveCanonicalEndpoint(provider(), capabilityOnly).endpointType).toBeUndefined()
+    }
+  )
+
+  it('returns the configured gateway route and its provider-options key together', () => {
+    const gateway = provider({
+      id: 'aihubmix',
+      presetProviderId: 'aihubmix',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://aihubmix.example/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://aihubmix.example/anthropic' }
+      }
+    })
+    const claude = model({
+      id: 'aihubmix::claude-opus-4-6',
+      apiModelId: 'claude-opus-4-6',
+      endpointTypes: undefined
+    })
+
+    expect(resolveCanonicalEndpoint(gateway, claude)).toEqual({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      gatewayProviderOptionsKey: 'anthropic'
+    })
+  })
+})

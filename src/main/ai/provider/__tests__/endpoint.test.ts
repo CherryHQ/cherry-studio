@@ -375,6 +375,25 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
+  it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])(
+    'does not assign the chat default to a capability-only %s model without endpointTypes',
+    (capability) => {
+      const provider = makeProvider({
+        id: 'new-api',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/chat' }
+        }
+      })
+      const capabilityOnly = makeModel({ capabilities: [capability], endpointTypes: undefined })
+
+      expect(resolveEffectiveEndpoint(provider, capabilityOnly)).toMatchObject({
+        endpointType: undefined,
+        baseUrl: ''
+      })
+    }
+  )
+
   it('skips a supported chat default whose endpoint configuration is missing', () => {
     const provider = makeProvider({
       id: 'relay',
