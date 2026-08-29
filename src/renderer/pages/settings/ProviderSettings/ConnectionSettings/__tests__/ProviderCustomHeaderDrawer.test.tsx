@@ -110,7 +110,7 @@ describe('ProviderCustomHeaderDrawer', () => {
       expect(updateProviderMock).toHaveBeenCalledWith({
         endpointConfigs: provider.endpointConfigs,
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        providerSettings: { extraHeaders: {} }
+        providerSettings: { extraHeaders: null }
       })
     })
     expect(syncProviderModelsMock).toHaveBeenCalledWith(
@@ -120,5 +120,63 @@ describe('ProviderCustomHeaderDrawer', () => {
       })
     )
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends extraHeaders: null when the user clears the list (REGRESSION #19695)', async () => {
+    // Renderer must emit `null`, not `{}`, when the user empties the headers
+    // list. The main process patches providerSettings as RFC 7396 JSON
+    // Merge Patch, so `{}` re-merges into the stored `extraHeaders` and
+    // silently keeps every prior key. `null` is the merge-patch signal that
+    // removes the property (issue #19695).
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Stale': 'old' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    const deleteButtons = screen.getAllByRole('button', { name: 'common.delete' })
+    for (const btn of deleteButtons) {
+      await user.click(btn)
+    }
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerSettings: expect.objectContaining({ extraHeaders: null })
+        })
+      )
+    })
+  })
+
+  it('sends the populated extraHeaders object as-is when the user keeps entries', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Stale': 'old' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    // Default render seeds the rows from the stored `extraHeaders`, so the
+    // save below would normally still transmit the populated object — no
+    // clicks needed.
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      const lastCall = updateProviderMock.mock.calls.at(-1)
+      expect(lastCall?.[0]?.providerSettings?.extraHeaders).toEqual({ 'X-Stale': 'old' })
+    })
   })
 })

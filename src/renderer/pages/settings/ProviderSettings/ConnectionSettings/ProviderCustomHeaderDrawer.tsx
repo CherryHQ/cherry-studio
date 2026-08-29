@@ -312,10 +312,16 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     }
 
     try {
+      // The main process applies providerSettings as an RFC 7396 JSON Merge
+      // Patch, so an empty object would re-merge into the existing
+      // `extraHeaders` and silently keep every key. Emit `null` when the
+      // user has cleared the list so the stored entry is actually removed
+      // (issue #19695).
+      const nextExtraHeaders = isEmpty(parsedHeaders) ? null : parsedHeaders
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
         defaultChatEndpoint,
-        providerSettings: { ...provider.settings, extraHeaders: parsedHeaders }
+        providerSettings: { ...provider.settings, extraHeaders: nextExtraHeaders }
       })
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
