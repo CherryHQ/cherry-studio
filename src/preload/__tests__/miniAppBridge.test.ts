@@ -249,4 +249,17 @@ describe('null arguments', () => {
   ])('%s treats null like an absent argument', async (_name, call) => {
     await expect(call()).resolves.toBeDefined()
   })
+
+  it.each([
+    ['ai.chat', () => cherry.ai.chat({ messages: [] }, null as never)],
+    ['file.export', () => cherry.file.export('export.txt', null as never)]
+  ])('%s rejects null options through the public error contract', async (_name, call) => {
+    const reason = await call().then(
+      () => expect.fail('resolved'),
+      (error: unknown) => error
+    )
+
+    expect(reason).toEqual({ name: 'InvalidArgument', message: expect.any(String) })
+    expect(Object.getPrototypeOf(reason)).toBe(Object.prototype)
+  })
 })
