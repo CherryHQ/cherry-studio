@@ -604,9 +604,9 @@ describe('MessageVirtualList', () => {
     fireEvent.mouseDown(scroller, { button: 1 })
     expect(runtimeMockState.armAutoscrollCandidate).toHaveBeenCalledTimes(1)
 
-    runtimeMockState.dismissAutoscroll.mockClear()
+    runtimeMockState.armAutoscrollCandidate.mockClear()
     fireEvent.mouseDown(scroller, { button: 1 })
-    expect(runtimeMockState.dismissAutoscroll).toHaveBeenCalledTimes(1)
+    expect(runtimeMockState.armAutoscrollCandidate).toHaveBeenCalledTimes(1)
 
     runtimeMockState.dismissAutoscroll.mockClear()
     fireEvent.mouseDown(document.body, { button: 0 })

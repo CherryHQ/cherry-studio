@@ -821,11 +821,7 @@ export function useChatVirtualizerRuntime<T>({
       userScrollGestureRef.current ||
       hasRecentUserScrollIntent
     const wheelDir = lastWheelDirRef.current
-    const direction = autoscrollActiveRef.current
-      ? deltaDirection
-      : wheelDir !== 'none'
-        ? wheelDir
-        : deltaDirection
+    const direction = autoscrollActiveRef.current ? deltaDirection : wheelDir !== 'none' ? wheelDir : deltaDirection
     if (hasRecentUserScrollIntent && pendingUserInput?.direction === 'none' && direction !== 'none') {
       pendingUserInput.direction = direction
     }
