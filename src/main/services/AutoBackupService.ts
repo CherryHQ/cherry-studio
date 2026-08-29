@@ -3,12 +3,14 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import {
   AUTO_BACKUP_TYPES,
   type AutoBackupEvent,
   type AutoBackupEventInput,
   type AutoBackupSnapshot,
-  type AutoBackupType
+  type AutoBackupType,
+  BACKUP_ACTIVE_WRITERS_ERROR_CODE
 } from '@shared/types/backup'
 
 import { BackupBusyError } from './backup'
@@ -20,6 +22,35 @@ const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
+
+const GENERIC_FAILURE_MESSAGE = 'auto-backup failed'
+
+// Failure codes an automatic backup may legitimately surface. Failure events
+// are broadcast over IPC and replayed by `getStateSnapshot`, so the stored
+// message must never carry raw `error.message` prose (paths, errno text). The
+// renderer only substring-matches these codes in
+// `getLocalizedBackupErrorMessage`; anything else collapses to the generic
+// message while the full error stays in `logger.error`.
+const FAILURE_CODES: readonly string[] = [
+  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  backupErrorCodes.BUSY,
+  backupErrorCodes.STORAGE_UNAVAILABLE,
+  backupErrorCodes.EXPORT_SOURCE,
+  backupErrorCodes.EXPORT_DESTINATION,
+  backupErrorCodes.DESTINATION_NOT_CONFIGURED
+]
+
+/**
+ * Redacts a raw failure message down to the first known backup error code it
+ * contains, or a fixed generic string when none matches, so no filesystem
+ * paths or other error prose ever reach the renderer via IPC broadcast or
+ * snapshot replay.
+ * @param rawMessage - The raw `error.message` (or `String(error)`) from a
+ * failed automatic backup attempt
+ * @returns A code-only string when whitelisted, otherwise the generic message
+ */
+const sanitizeErrorMessage = (rawMessage: string): string =>
+  FAILURE_CODES.find((code) => rawMessage.includes(code)) ?? GENERIC_FAILURE_MESSAGE
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: ['data.backup.webdav.auto_sync', 'data.backup.webdav.host', 'data.backup.webdav.sync_interval'],
@@ -276,7 +307,7 @@ export class AutoBackupService extends BaseService {
       this.recordLastAttemptTime(type, timestamp)
       state.retryCount = 0
       state.running = false
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = sanitizeErrorMessage(error instanceof Error ? error.message : String(error))
       logger.error('Automatic backup failed after all attempts', error as Error)
       this.emit({ type, status: 'failed', timestamp, errorMessage })
       this.scheduleNext(type, 'fromNow', generation)
