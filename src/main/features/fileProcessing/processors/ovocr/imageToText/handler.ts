@@ -3,6 +3,7 @@ import { executeExtraction, prepareContext } from '../utils'
 
 export const ovocrImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
   mode: 'background',
+  imageOcrOutput: 'plain-text',
   prepare(file, config, signal) {
     const context = prepareContext(file, config, signal)
 

@@ -1,11 +1,27 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { OcrWord } from '@shared/ipc/schemas/screenshot'
 import type { FileInfo } from '@shared/types/file'
 
-export type ImageToTextHandlerOutput = {
+export type ImageOcrOutputKind = 'plain-text' | 'spatial-text'
+
+export type PlainImageToTextHandlerOutput = {
   kind: 'text'
   text: string
 }
+
+export type SpatialImageToTextHandlerOutput = {
+  kind: 'spatial-text'
+  text: string
+  /** Real OCR geometry in the source image's top-left-origin pixel space. */
+  lines: OcrWord[][]
+}
+
+/**
+ * OCR output is deliberately discriminated: consumers that require selectable
+ * geometry must never turn a plain string into guessed boxes.
+ */
+export type ImageToTextHandlerOutput = PlainImageToTextHandlerOutput | SpatialImageToTextHandlerOutput
 
 export type DocumentToMarkdownHandlerOutput =
   | {
@@ -139,6 +155,8 @@ export interface FileProcessingCapabilityHandler<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > {
+  /** Explicit image OCR capability, exposed before lazy handler loading. */
+  readonly imageOcrOutput?: ImageOcrOutputKind
   /**
    * Execution model declared statically on the handler. Mirrors the `mode`
    * field on PreparedJob but is available without awaiting prepare(), so the

@@ -2,13 +2,11 @@ import { writeFileSync } from 'node:fs'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import { isLocalModelReady } from '@main/services/localModel'
 import { MediaKind } from '@main/services/mediaProtocol'
 import { cropPng } from '@main/utils/image'
 import {
@@ -96,7 +94,7 @@ interface OcrRegion {
  */
 @Injectable('ScreenshotOverlayService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'MediaProtocolService', 'OcrInferenceService', 'FileProcessingService'])
+@DependsOn(['WindowManager', 'MediaProtocolService', 'FileProcessingService'])
 export class ScreenshotOverlayService extends BaseService {
   /** Overlay window ids of the live session — one per display that matched a capture. */
   private overlayWindowIds: WindowId[] = []
@@ -451,8 +449,7 @@ export class ScreenshotOverlayService extends BaseService {
 
     // Re-checked per request, never cached from initData: the user can change the
     // processor or remove its local model while the overlay is open.
-    const processorId = this.resolveConfiguredOcrProcessorId()
-    if (!processorId) return { status: 'unavailable' }
+    if (!this.isConfiguredOcrAvailable()) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }
@@ -477,16 +474,15 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const { lines } = await application
-        .get('OcrInferenceService')
-        .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
+      const output = await application.get('FileProcessingService').ocrImageBytesWithLayout(imageBytes)
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
+      if (!output) return { status: 'unavailable' }
 
-      return { status: 'ok', lines }
+      return { status: 'ok', lines: output.lines }
     } catch (error) {
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       // Rethrown so the overlay shows its error state; logged here because the IPC
@@ -496,21 +492,13 @@ export class ScreenshotOverlayService extends BaseService {
     }
   }
 
-  private resolveConfiguredOcrProcessorId(): string | null {
+  private isConfiguredOcrAvailable(): boolean {
     try {
-      const processorId = application.get('FileProcessingService').getConfiguredProcessorId('image_to_text')
-      // The screenshot text layer requires word boxes. File processors currently expose
-      // plain text only; Paddle is the sole geometry-capable overlay backend.
-      if (processorId !== 'local-paddleocr' || !isLocalModelReady('ocr')) return null
-      return processorId
+      return application.get('FileProcessingService').getConfiguredImageOcrOutputKind() === 'spatial-text'
     } catch (error) {
       logger.debug('Configured screenshot OCR processor is unavailable', { error: String(error) })
-      return null
+      return false
     }
-  }
-
-  private isConfiguredOcrAvailable(): boolean {
-    return this.resolveConfiguredOcrProcessorId() !== null
   }
 
   /**

@@ -1,0 +1,13 @@
+diff --git a/package.json b/package.json
+index 404b31bd063ef96b72f229ac0f871969ec66a223..285965c2566679aa92fd01429e4e5e8aab8e2f46 100644
+--- a/package.json
++++ b/package.json
+@@ -36,7 +36,7 @@
+ 	"license": "MIT",
+ 	"gypfile": true,
+ 	"engines": {
+-		"node": ">=18.0.0 <24.0.0",
++		"node": ">=18.0.0 <25.0.0",
+ 		"os": "darwin"
+ 	},
+ 	"repository": {

@@ -30,12 +30,10 @@ vi.mock('@main/utils/screenCapturePermission', () => capture)
 const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
-const localModel = vi.hoisted(() => ({ isLocalModelReady: vi.fn(() => true) }))
-vi.mock('@main/services/localModel', () => localModel)
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 const fileProcessing = vi.hoisted(() => ({
-  processorId: 'local-paddleocr'
+  outputKind: 'spatial-text' as 'plain-text' | 'spatial-text'
 }))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
@@ -179,9 +177,11 @@ const container = vi.hoisted(() => {
 
   const ipcApiService = { send: vi.fn(), broadcast: vi.fn(), broadcastToType: vi.fn() }
 
-  const ocrInferenceService = {
-    recognize:
-      vi.fn<(paths: unknown, source: { imageBytes: Uint8Array }) => Promise<{ text: string; lines: unknown[] }>>()
+  const fileProcessingService = {
+    getConfiguredImageOcrOutputKind: vi.fn(() => fileProcessing.outputKind),
+    ocrImageBytesWithLayout: vi.fn<
+      (imageBytes: Uint8Array) => Promise<{ kind: 'spatial-text'; text: string; lines: unknown[][] }>
+    >(async () => ({ kind: 'spatial-text', text: '', lines: [] }))
   }
 
   return {
@@ -195,16 +195,13 @@ const container = vi.hoisted(() => {
       MediaProtocolService: mediaProtocolService,
       WindowManager: windowManager,
       IpcApiService: ipcApiService,
-      OcrInferenceService: ocrInferenceService,
-      FileProcessingService: {
-        getConfiguredProcessorId: vi.fn(() => fileProcessing.processorId)
-      }
+      FileProcessingService: fileProcessingService
     },
     preferenceService,
     mediaProtocolService,
     windowManager,
     ipcApiService,
-    ocrInferenceService,
+    fileProcessingService,
     reset() {
       preferences.clear()
       mediaEntries.clear()
@@ -212,7 +209,7 @@ const container = vi.hoisted(() => {
       createdListeners.length = 0
       openCalls.length = 0
       mediaSeq = 0
-      fileProcessing.processorId = 'local-paddleocr'
+      fileProcessing.outputKind = 'spatial-text'
     }
   }
 })
@@ -318,15 +315,13 @@ function gateInferenceService() {
   const reached: number[] = []
   let announceStart: (() => void) | null = null
 
-  container.ocrInferenceService.recognize.mockImplementation(
-    async (_paths: unknown, source: { imageBytes: Uint8Array }) => {
-      reached.push(source.imageBytes[0])
-      announceStart?.()
-      announceStart = null
-      await new Promise<void>((resolve) => setTimeout(resolve, FAKE_RECOGNITION_MS))
-      return { text: '', lines: [] }
-    }
-  )
+  container.fileProcessingService.ocrImageBytesWithLayout.mockImplementation(async (imageBytes: Uint8Array) => {
+    reached.push(imageBytes[0])
+    announceStart?.()
+    announceStart = null
+    await new Promise<void>((resolve) => setTimeout(resolve, FAKE_RECOGNITION_MS))
+    return { kind: 'spatial-text', text: '', lines: [] }
+  })
 
   return {
     reached,
@@ -363,8 +358,11 @@ describe('ScreenshotOverlayService', () => {
     enumerator.listWindowsOffThread.mockResolvedValue([])
     capture.listMonitors.mockReturnValue([])
     capture.captureAllMonitors.mockReturnValue(new Map())
-    localModel.isLocalModelReady.mockReturnValue(true)
-    container.ocrInferenceService.recognize.mockResolvedValue({ text: '', lines: [] })
+    container.fileProcessingService.ocrImageBytesWithLayout.mockResolvedValue({
+      kind: 'spatial-text',
+      text: '',
+      lines: []
+    })
     startService()
   })
 
@@ -1209,7 +1207,7 @@ describe('ScreenshotOverlayService', () => {
       const result = await service.recognizeText('overlay-0-0', foreignMediaId, ocrRegion(1))
 
       expect(result).toEqual({ status: 'rejected' })
-      expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
+      expect(container.fileProcessingService.ocrImageBytesWithLayout).not.toHaveBeenCalled()
     })
 
     it('reports unavailable when the model is removed while the overlay is open', async () => {
@@ -1217,25 +1215,25 @@ describe('ScreenshotOverlayService', () => {
       // later, and reporting "no text" there sends them looking for the wrong problem.
       singleDisplaySetup()
       await service.startCapture()
-      localModel.isLocalModelReady.mockReturnValue(false)
+      fileProcessing.outputKind = 'plain-text'
 
       const result = await service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(1))
 
       expect(result).toEqual({ status: 'unavailable' })
-      expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
+      expect(container.fileProcessingService.ocrImageBytesWithLayout).not.toHaveBeenCalled()
     })
 
-    it('disables the text overlay when the configured processor has no word geometry', async () => {
-      fileProcessing.processorId = 'system'
+    it('enables the text overlay for any configured processor that advertises real geometry', async () => {
+      fileProcessing.outputKind = 'spatial-text'
       singleDisplaySetup()
 
       await service.startCapture()
       const initData = initDataOf('overlay-0-0')
       const result = await service.recognizeText('overlay-0-0', initData.mediaId, ocrRegion(1))
 
-      expect(initData.ocrAvailable).toBe(false)
-      expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
-      expect(result).toEqual({ status: 'unavailable' })
+      expect(initData.ocrAvailable).toBe(true)
+      expect(container.fileProcessingService.ocrImageBytesWithLayout).toHaveBeenCalled()
+      expect(result).toEqual({ status: 'ok', lines: [] })
     })
 
     it('trims a region whose extent overshoots the capture', async () => {
@@ -1264,7 +1262,7 @@ describe('ScreenshotOverlayService', () => {
       // Clamping the origin yields a 1px-wide slice that recognizes nothing, presenting
       // the caller's coordinate bug to the user as "there is no text here".
       expect(result).toEqual({ status: 'rejected' })
-      expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
+      expect(container.fileProcessingService.ocrImageBytesWithLayout).not.toHaveBeenCalled()
     })
 
     // Serialization itself is OcrInferenceService's PQueue(concurrency: 1) and is covered

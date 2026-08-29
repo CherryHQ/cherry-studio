@@ -13,6 +13,7 @@ import type { FileProcessingCapabilityHandler } from '../../types'
  */
 export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
   mode: 'background',
+  imageOcrOutput: 'spatial-text',
   prepare(file, _config, signal) {
     signal?.throwIfAborted()
     if (file.type !== FILE_TYPE.IMAGE) {
@@ -26,10 +27,10 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
     return {
       mode: 'background',
       async execute(executionContext) {
-        const { text } = await application
+        const { text, lines } = await application
           .get('OcrInferenceService')
           .recognize(modelPaths, { kind: 'path', imagePath: file.path }, executionContext.signal)
-        return { kind: 'text', text }
+        return { kind: 'spatial-text', text, lines }
       }
     }
   }

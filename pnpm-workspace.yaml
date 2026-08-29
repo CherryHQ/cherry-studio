@@ -99,8 +99,10 @@ patchedDependencies:
   # rc.7's pi-ai schema drops developer-role compatibility even though its underlying pi-ai model supports it.
   '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7': patches/@deepseek-ai__dsh-llm-pi-ai@0.1.0-rc.7.patch
   '@earendil-works/pi-ai@0.80.6': patches/@earendil-works__pi-ai@0.80.6.patch
+  '@cherrystudio/mac-system-ocr@0.2.7': patches/@cherrystudio__mac-system-ocr@0.2.7.patch
 
 allowBuilds:
+  '@cherrystudio/mac-system-ocr': true
   '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': false
   '@j178/prek': true

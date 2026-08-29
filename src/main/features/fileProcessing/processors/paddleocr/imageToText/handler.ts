@@ -10,6 +10,7 @@ import { createPaddleClient, PADDLE_MAX_FILE_SIZE } from '../client'
 /** Capability handler that extracts text from images via PaddleOCR. */
 export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
   mode: 'background',
+  imageOcrOutput: 'plain-text',
   /** Validates inputs and returns a background executor that calls the OCR API. */
   async prepare(file, config, signal) {
     signal?.throwIfAborted()

@@ -9,6 +9,7 @@ import { buildTextExtractionResult, executeExtraction, prepareDocumentPayload } 
 
 export const mistralImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
   mode: 'background',
+  imageOcrOutput: 'plain-text',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const context = prepareContext(file, config, signal)
