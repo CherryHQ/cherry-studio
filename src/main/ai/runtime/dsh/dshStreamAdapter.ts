@@ -213,56 +213,33 @@ export class DshStreamAdapter {
         }
         return
       case 'step/start':
-        if (
-          this.suppressedTurn !== undefined &&
-          (event.data as { turn: number }).turn === this.suppressedTurn
-        )
-          return
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         this.startProviderAttempt(event.data, true)
         return
       case 'assistant/chunk':
-        if (
-          this.suppressedTurn !== undefined &&
-          (event.data as { turn: number }).turn === this.suppressedTurn
-        )
-          return
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         if (this.ensureTurnOpen()) return
         this.handleAssistantChunk(event.data, event.seq)
         return
       case 'tool/call':
-        if (
-          this.suppressedTurn !== undefined &&
-          (event.data as { turn: number }).turn === this.suppressedTurn
-        )
-          return
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         if (this.ensureTurnOpen()) return
         this.handleToolCall(event.data)
         return
       case 'tool/result':
-        if (
-          this.suppressedTurn !== undefined &&
-          (event.data as { turn: number }).turn === this.suppressedTurn
-        )
-          return
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         if (this.ensureTurnOpen()) return
         this.handleToolResult(event.data)
         return
       case 'assistant/message':
-        if (
-          this.suppressedTurn !== undefined &&
-          (event.data as { turn: number }).turn === this.suppressedTurn
-        )
-          return
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         if (this.ensureTurnOpen()) return
         this.handleAssistantMessage(event.data, event.seq)
         return
       case 'turn/end': {
         // Suppressed autonomous turn: swallow entirely — do not surface a host turn-complete
         // and do not reset the grace window. Its content was already dropped.
-        if (
-          this.suppressedTurn !== undefined &&
-          (event.data as { turn: number }).turn === this.suppressedTurn
-        ) {
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) {
           this.suppressedTurn = undefined
           this.autonomousTurnSuppressed = false
           this.flushPendingProviderUsage()
