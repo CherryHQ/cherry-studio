@@ -1,5 +1,9 @@
 import { bearer } from '@elysia/bearer'
-import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
+import {
+  ANTIGRAVITY_MODEL_PATH_SEPARATOR,
+  isReservedGeminiGatewayModelId,
+  stripGeminiGatewayModelSuffix
+} from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 
 import type { InputParamsMap } from '../adapters'
@@ -25,6 +29,18 @@ function parseModelMethod(raw: string): { model: string; method: string } | null
   const lastColon = raw.lastIndexOf(':')
   if (lastColon <= 0 || lastColon >= raw.length - 1) return null
   return { model: stripGeminiGatewayModelSuffix(raw.slice(0, lastColon)), method: raw.slice(lastColon + 1) }
+}
+
+/** Convert Antigravity's custom-model path back to the gateway's `providerId:apiModelId` address. */
+function normalizeAntigravityModelPath(model: string): string {
+  const separator = ANTIGRAVITY_MODEL_PATH_SEPARATOR
+  const separatorIndex = model.indexOf(separator)
+  if (separatorIndex <= 0) return model
+
+  const providerId = model.slice(0, separatorIndex)
+  const apiModelId = model.slice(separatorIndex + separator.length)
+  if (!apiModelId || providerId.includes(':')) return model
+  return `${providerId}:${apiModelId}`
 }
 
 /** Google `invalid_argument` (400) envelope for in-handler request errors. */
@@ -71,7 +87,8 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       if (!parsed) {
         return status(400, invalidArgument('Invalid model path. Expected "models/{model}:{method}".'))
       }
-      const { model, method } = parsed
+      const { method } = parsed
+      const model = normalizeAntigravityModelPath(parsed.model)
 
       // The sentinel suffix is reserved: `parseModelMethod` strips one trailing `@cherry`, so a
       // model that STILL ends in it addresses a real id ending in the reserved suffix — which is

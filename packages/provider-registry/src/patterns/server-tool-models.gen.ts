@@ -281,7 +281,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ]
     },
     deepseek: {
-      'web-search': ['deepseek-v4-flash', 'deepseek-v4-flash-latest', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro']
+      'web-search': ['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro']
     },
     'new-api': {
       'web-search': [
@@ -727,7 +727,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'deepseek-v3-2-exp',
         'deepseek-v3-2-maas',
         'deepseek-v4-flash',
-        'deepseek-v4-flash-latest',
         'deepseek-v4-flash-vision-exp',
         'deepseek-v4-pro',
         'glm-4',
@@ -909,7 +908,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'deepseek-v3-2-exp',
         'deepseek-v3-2-maas',
         'deepseek-v4-flash',
-        'deepseek-v4-flash-latest',
         'deepseek-v4-flash-vision-exp',
         'deepseek-v4-pro',
         'doubao-seed-1-6',

@@ -162,6 +162,22 @@ describe('CherryDiagnosticUploadClient', () => {
     )
   })
 
+  it('uploads ZIP bytes from an extensionless physical path with the logical ZIP file name', async () => {
+    const extensionlessPath = path.join(workDir, 'saved-diagnostics')
+    await writeFile(extensionlessPath, ZIP_BYTES)
+
+    await expect(
+      client.upload({
+        description: '',
+        fileName: 'diagnostics.zip',
+        filePath: AbsoluteFilePathSchema.parse(extensionlessPath)
+      })
+    ).resolves.toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+
+    const form = fetchMock.mock.calls[0][1]?.body as FormData
+    expect(form.get('file')).toMatchObject({ name: 'diagnostics.zip', size: ZIP_BYTES.length })
+  })
+
   it('returns authentication_failed when signing fails before the request starts', async () => {
     signerMocks.generateDiagnosticUploadHeaders.mockImplementationOnce(() => {
       throw new Error('signing unavailable')
@@ -177,18 +193,12 @@ describe('CherryDiagnosticUploadClient', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['file name', 'diagnostics.txt', undefined],
-    ['file path', 'diagnostics.zip', 'diagnostics.txt']
-  ])('rejects a non-ZIP %s before signing or fetching', async (_label, fileName, alternatePath) => {
-    const selectedPath = alternatePath ? path.join(workDir, alternatePath) : filePath
-    if (alternatePath) await writeFile(selectedPath, ZIP_BYTES)
-
+  it('rejects a non-ZIP logical file name before signing or fetching', async () => {
     await expect(
       client.upload({
         description: '',
-        fileName,
-        filePath: AbsoluteFilePathSchema.parse(selectedPath)
+        fileName: 'diagnostics.txt',
+        filePath: AbsoluteFilePathSchema.parse(filePath)
       })
     ).resolves.toEqual({ reason: 'invalid_archive', status: 'rejected' })
 

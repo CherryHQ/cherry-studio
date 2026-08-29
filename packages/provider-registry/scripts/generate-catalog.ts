@@ -306,7 +306,16 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
       consider(id, parseMdEntry(m), p)
     }
   }
-  for (const m of or.data ?? []) consider(m.id, parseOrEntry(m), 'openrouter')
+  const openRouterStandalones = new Set(
+    PROVIDERS.find((provider) => provider.id === 'openrouter')?.overrides?.flatMap((override) =>
+      override.name && override.modelId ? [override.modelId] : []
+    )
+  )
+  for (const m of or.data ?? []) {
+    // A named `~vendor/*` override is an OpenRouter-owned moving alias, not a creator model.
+    if (m.id.startsWith('~') && openRouterStandalones.has(canonOf(m.id))) continue
+    consider(m.id, parseOrEntry(m), 'openrouter')
+  }
 
   // Fold host/org re-prefixes WITHOUT a hand-list (stripHostReprefix uses the index as the oracle):
   // databricks-gemini-3-flash → gemini-3-flash, cerebras-llama-4-scout → llama-4-scout, etc. Brands like
@@ -533,7 +542,10 @@ function buildProviderModels(
       (override) =>
         p.modelsDevProvider &&
         !override.apiModelId &&
-        (override.endpointTypes || override.reasoningContracts || override.requestControls)
+        (override.endpointTypes ||
+          override.reasoningContracts ||
+          override.requestControls ||
+          Object.hasOwn(override, 'pricing'))
     )
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
     for (const override of p.overrides ?? []) {

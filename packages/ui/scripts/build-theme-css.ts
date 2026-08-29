@@ -27,6 +27,8 @@ const __dirname = path.dirname(__filename)
 
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
+const IMPORT_RE = /@import\s+['"]([^'"]+)['"];?/g
+const DARK_BLOCK_RE = /^\.dark \{\n([\s\S]*?)^\}\n/gm
 
 const RADIUS_LINES = [
   '--radius-4xs: var(--cs-radius-4xs);',
@@ -189,6 +191,38 @@ export async function writeThemeContractCss(outputPath = THEME_OUTPUT_PATH, styl
   const inputs = await loadThemeContractInputs(stylesDir)
   const css = buildThemeContractCss(inputs)
   await fs.writeFile(outputPath, css, 'utf8')
+}
+
+/**
+ * Flattened, Tailwind-free build of `contract.css` for out-of-process consumers
+ * (mini apps). Serving the file with its relative @imports intact would make the
+ * package's internal layout an external contract.
+ */
+export async function buildFlatContractCss(stylesDir = STYLES_DIR): Promise<string> {
+  const inline = async (file: string, seen: Set<string>): Promise<string> => {
+    const abs = path.resolve(stylesDir, file)
+    if (seen.has(abs)) return ''
+    seen.add(abs)
+    const raw = await fs.readFile(abs, 'utf8')
+    const parts: string[] = []
+    let last = 0
+    for (const m of raw.matchAll(IMPORT_RE)) {
+      parts.push(raw.slice(last, m.index))
+      parts.push(await inline(path.join(path.dirname(file), m[1]), seen))
+      last = (m.index ?? 0) + m[0].length
+    }
+    parts.push(raw.slice(last))
+    return parts.join('')
+  }
+  return mirrorDarkBlocks(await inline('contract.css', new Set()))
+}
+
+/** Nothing in a mini app document adds `.dark`; only `prefers-color-scheme` can switch a guest. */
+function mirrorDarkBlocks(css: string): string {
+  return css.replace(DARK_BLOCK_RE, (block, body: string) => {
+    const indented = body.replace(/^(?=.)/gm, '  ')
+    return `${block}\n@media (prefers-color-scheme: dark) {\n  :root {\n${indented}  }\n}\n`
+  })
 }
 
 async function main() {

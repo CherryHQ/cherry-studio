@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderSetting from '../ProviderSetting'
 
 const useProviderMock = vi.fn()
 const useProviderApiKeyMock = vi.fn()
-const useProviderOnboardingAutoEnableMock = vi.fn()
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -15,10 +15,6 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
-}))
-
-vi.mock('../hooks/providerSetting/useProviderOnboardingAutoEnable', () => ({
-  useProviderOnboardingAutoEnable: (...args: any[]) => useProviderOnboardingAutoEnableMock(...args)
 }))
 
 vi.mock('../hooks/providerSetting/useProviderApiKey', () => ({
@@ -32,15 +28,26 @@ vi.mock('../components/ProviderHeader', () => ({
 vi.mock('../ConnectionSettings/AuthenticationSection', async () => {
   const { useAuthenticationApiKey } = await import('../hooks/providerSetting/useAuthenticationApiKey')
 
-  function AuthenticationSectionMock({ providerId }: any) {
+  function AuthenticationSectionMock({ providerId, onContinueApiSetup }: any) {
     const { inputApiKey } = useAuthenticationApiKey()
-    return <div>{`authentication-section-${providerId}-${inputApiKey}`}</div>
+    return (
+      <div>
+        {`authentication-section-${providerId}-${inputApiKey}`}
+        <button type="button" onClick={onContinueApiSetup}>
+          continue-model-setup
+        </button>
+      </div>
+    )
   }
 
   return {
     default: AuthenticationSectionMock
   }
 })
+
+vi.mock('../ConnectionSettings/ProviderApiSetupDialog', () => ({
+  default: ({ initialStep }: any) => <div role="dialog" aria-label={`api-setup-${initialStep}`} />
+}))
 
 vi.mock('../ModelList', async () => {
   const { useAuthenticationApiKey } = await import('../hooks/providerSetting/useAuthenticationApiKey')
@@ -60,7 +67,7 @@ describe('ProviderSetting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', isEnabled: true, name: 'openai' }
+      provider: { id: 'openai', isEnabled: false, name: 'openai' }
     })
     useProviderApiKeyMock.mockReturnValue({
       serverApiKey: 'server-key',
@@ -72,7 +79,7 @@ describe('ProviderSetting', () => {
   })
 
   it('shares one API-key draft between authentication and model settings', () => {
-    render(<ProviderSetting providerId="openai" isOnboarding />)
+    render(<ProviderSetting providerId="openai" />)
 
     expect(screen.getByTestId('provider-detail-shell')).toBeInTheDocument()
     expect(screen.getByText('provider-header-openai')).toBeInTheDocument()
@@ -80,10 +87,21 @@ describe('ProviderSetting', () => {
     expect(screen.getByText('model-list-openai-shared-draft-key')).toBeInTheDocument()
     expect(useProviderApiKeyMock).toHaveBeenCalledTimes(1)
     expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
-    expect(useProviderOnboardingAutoEnableMock).toHaveBeenCalledWith({
-      providerId: 'openai',
-      isOnboarding: true
-    })
+  })
+
+  it('opens the requested setup step when a newly created provider is selected', () => {
+    render(<ProviderSetting providerId="openai" initialApiSetupStep="models" />)
+
+    expect(screen.getByRole('dialog', { name: 'api-setup-models' })).toBeInTheDocument()
+  })
+
+  it('opens model setup from the authentication action', async () => {
+    const user = userEvent.setup()
+    render(<ProviderSetting providerId="openai" />)
+
+    await user.click(screen.getByRole('button', { name: 'continue-model-setup' }))
+
+    expect(screen.getByRole('dialog', { name: 'api-setup-models' })).toBeInTheDocument()
   })
 
   it('renders nothing when the provider is missing', () => {
