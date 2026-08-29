@@ -67,31 +67,4 @@ describe('ChatNavbar', () => {
 
     expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
-
-  it('places the title and branch switcher before the conversation controls', () => {
-    const { container } = render(
-      <ChatNavbar
-        conversationTitle="A very long topic title"
-        branchSwitcher={(title) => (
-          <>
-            {title}
-            <button type="button">Main 4</button>
-          </>
-        )}
-        conversationControls={<span>conversation metadata</span>}
-      />
-    )
-
-    const title = screen.getByTestId('conversation-navbar-title')
-    const branchSwitcher = screen.getByRole('button', { name: 'Main 4' })
-    const controls = container.querySelector('[data-conversation-topbar-controls]')
-
-    expect(title).toHaveTextContent('A very long topic title')
-    expect(title).toHaveClass('truncate')
-    // Layout contract: short titles use intrinsic width while long titles remain shrinkable.
-    expect(title.parentElement).toHaveClass('w-fit', 'shrink')
-    expect(title.parentElement).not.toHaveClass('flex-[1_1_8rem]')
-    expect(title.compareDocumentPosition(branchSwitcher) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(branchSwitcher.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
 })

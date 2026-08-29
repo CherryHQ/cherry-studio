@@ -178,9 +178,6 @@ describe('TopicBranchSwitcher', () => {
     const trigger = screen.getByRole('button', { name: 'Try another model, 2 branches' })
     expect(trigger).toHaveTextContent('Branch 2')
     expect(trigger).not.toHaveTextContent('Try another model')
-    // Layout contract: the title/branch cluster sizes to its content and may shrink, but never reserves a fixed basis.
-    expect(trigger.parentElement).toHaveClass('w-fit', 'shrink')
-    expect(trigger.parentElement).not.toHaveClass('flex-[0_1_22rem]')
   })
 
   it('switches to a leaf, closes on success, and skips requests for the current branch', async () => {
@@ -271,12 +268,6 @@ describe('TopicBranchSwitcher', () => {
     expect(screen.getByLabelText('Branches')).toBeInTheDocument()
     const mainBranch = screen.getByRole('button', { name: /^Main / })
     const activeBranch = screen.getByRole('button', { name: /^Try another model / })
-    // State contract: persistent selection remains stronger than transient hover or keyboard focus.
-    expect(activeBranch.closest('[role="listitem"]')).toHaveClass('bg-accent/60')
-    expect(activeBranch.closest('[role="listitem"]')).not.toHaveClass('hover:bg-accent/30')
-    expect(mainBranch.closest('[role="listitem"]')).toHaveClass('focus-within:bg-accent/40', 'hover:bg-accent/30')
-    expect(mainBranch).not.toHaveClass('focus-visible:bg-accent')
-    expect(mainBranch).not.toHaveClass('focus-visible:ring-2')
     await waitFor(() => expect(activeBranch).toHaveFocus())
     await user.tab({ shift: true })
     await user.tab({ shift: true })

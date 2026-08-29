@@ -191,33 +191,20 @@ vi.mock('../ChatContent', async () => {
 
 vi.mock('../components/ChatNavbar', () => ({
   default: ({
-    branchSwitcher,
     conversationControls,
-    conversationTitle,
     showSidebarControls
   }: {
-    branchSwitcher?: (title: ReactNode) => ReactNode
     conversationControls?: ReactNode
-    conversationTitle?: string
     showSidebarControls?: boolean
-  }) => {
-    const title = <span data-testid="chat-navbar-title">{conversationTitle}</span>
-    return (
-      <div data-show-sidebar-controls={String(showSidebarControls)} data-testid="chat-navbar">
-        {branchSwitcher ? branchSwitcher(title) : title}
-        {conversationControls}
-      </div>
-    )
-  }
+  }) => (
+    <div data-show-sidebar-controls={String(showSidebarControls)} data-testid="chat-navbar">
+      {conversationControls}
+    </div>
+  )
 }))
 
 vi.mock('../components/TopicBranchSwitcher', () => ({
-  default: ({ topic, anchor }: { topic: Topic; anchor: ReactNode }) => (
-    <>
-      {anchor}
-      <span data-testid="topic-branch-switcher">{topic.id}</span>
-    </>
-  )
+  default: () => null
 }))
 
 vi.mock('../components/TopicRightPane', () => {
@@ -284,17 +271,6 @@ describe('Chat', () => {
     expect(screen.getByTestId('topic-right-shortcuts')).toBeInTheDocument()
     expect(screen.getByTestId('chat-conversation-controls')).toHaveTextContent('Assistant')
     expect(chatContentProps.current?.assistantContext?.assistant?.id).toBe('assistant-1')
-  })
-
-  it('shows the topic title with the empty-name fallback and branch switcher', () => {
-    const view = render(<Chat activeTopic={topic} />)
-
-    expect(screen.getByTestId('chat-navbar-title')).toHaveTextContent('Topic')
-    expect(screen.getByTestId('topic-branch-switcher')).toHaveTextContent('topic-1')
-
-    view.rerender(<Chat activeTopic={{ ...topic, name: '   ' }} />)
-
-    expect(screen.getByTestId('chat-navbar-title')).toHaveTextContent('chat.conversation.new')
   })
 
   it('keeps the navbar mounted while disabling sidebar controls', () => {

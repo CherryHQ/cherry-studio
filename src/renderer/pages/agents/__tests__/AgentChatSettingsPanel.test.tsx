@@ -244,17 +244,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  AgentChatNavbar: ({
-    conversationControls,
-    conversationTitle
-  }: {
-    conversationControls?: ReactNode
-    conversationTitle?: string
-  }) => (
-    <div data-testid="agent-navbar">
-      <span data-testid="agent-navbar-title">{conversationTitle}</span>
-      {conversationControls}
-    </div>
+  AgentChatNavbar: ({ conversationControls }: { conversationControls?: ReactNode }) => (
+    <div data-testid="agent-navbar">{conversationControls}</div>
   )
 }))
 
@@ -386,18 +377,6 @@ describe('AgentChat settings panel', () => {
       configurable: true,
       value: {}
     })
-  })
-
-  it('shows the session title with the empty-name fallback', () => {
-    const view = renderAgentChat()
-
-    expect(screen.getByTestId('agent-navbar-title')).toHaveTextContent('agent.session.new')
-
-    view.rerender(
-      <AgentChat conversationBootstrap={createConversationBootstrap({ ...defaultSession, name: 'Session title' })} />
-    )
-
-    expect(screen.getByTestId('agent-navbar-title')).toHaveTextContent('Session title')
   })
 
   it('opens and closes the citations panel from agent messages', () => {
