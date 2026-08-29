@@ -143,6 +143,17 @@ const firePointer = (element: Element, type: string, init: Record<string, number
   fireEvent(element, event)
 }
 
+const fireWheel = (element: Element, init: Record<string, number>) => {
+  const event = new Event('wheel', { bubbles: true, cancelable: true })
+
+  for (const [key, value] of Object.entries(init)) {
+    Object.defineProperty(event, key, { value })
+  }
+
+  fireEvent(element, event)
+  return event
+}
+
 describe('Artboard', () => {
   beforeAll(() => {
     HTMLElement.prototype.setPointerCapture ??= vi.fn()
@@ -693,5 +704,81 @@ describe('Artboard', () => {
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
     expect(zoomInButton).toBeDisabled()
     expect(zoomOutButton).not.toBeDisabled()
+  })
+
+  describe('wheel zoom', () => {
+    // Image box centered at (200, 100) — wheel events aim at this box unless the
+    // test says otherwise, so a pointer at the center anchors zoom at (0, 0).
+    const mockImageRect = (image: Element) =>
+      vi
+        .spyOn(image, 'getBoundingClientRect')
+        .mockReturnValue({ left: 100, top: 50, width: 200, height: 100 } as DOMRect)
+
+    it('zooms in on wheel-up and out on wheel-down around the pointer', () => {
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const viewer = screen.getByTestId('artboard-viewer')
+      const image = screen.getByTestId('artboard-image-transform')
+      mockImageRect(image)
+
+      // Pointer at (300, 150) anchors 100px right / 50px below the image center;
+      // zooming 1 → 1.25 pulls the offset to keep that point under the cursor.
+      const zoomEvent = fireWheel(viewer, { deltaY: -100, clientX: 300, clientY: 150 })
+      expect(zoomEvent.defaultPrevented).toBe(true)
+      expect(image.style.transform).toBe('translate(-25px, -12.5px) scale(1.25) rotate(0deg)')
+
+      fireWheel(viewer, { deltaY: 100, clientX: 300, clientY: 150 })
+      expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+    })
+
+    it('clamps wheel zoom at the 0.25–4 boundaries without shifting the image', () => {
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const viewer = screen.getByTestId('artboard-viewer')
+      const image = screen.getByTestId('artboard-image-transform')
+      mockImageRect(image)
+      const zoomOutButton = screen.getByRole('button', { name: 'preview.zoom_out' })
+      const zoomInButton = screen.getByRole('button', { name: 'preview.zoom_in' })
+
+      for (let i = 0; i < 3; i++) {
+        fireWheel(viewer, { deltaY: 100, clientX: 200, clientY: 100 })
+      }
+      expect(image.style.transform).toBe('translate(0px, 0px) scale(0.25) rotate(0deg)')
+      expect(zoomOutButton).toBeDisabled()
+
+      // Extra wheel-downs at the floor stay consumed (no ancestor scroll) and
+      // must not nudge the clamped transform.
+      const clampedEvent = fireWheel(viewer, { deltaY: 100, clientX: 200, clientY: 100 })
+      expect(clampedEvent.defaultPrevented).toBe(true)
+      expect(image.style.transform).toBe('translate(0px, 0px) scale(0.25) rotate(0deg)')
+
+      for (let i = 0; i < 15; i++) {
+        fireWheel(viewer, { deltaY: -100, clientX: 200, clientY: 100 })
+      }
+      expect(image.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
+      expect(zoomInButton).toBeDisabled()
+
+      const ceilingEvent = fireWheel(viewer, { deltaY: -100, clientX: 200, clientY: 100 })
+      expect(ceilingEvent.defaultPrevented).toBe(true)
+      expect(image.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
+      expect(zoomOutButton).not.toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
+      expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+    })
+
+    it('leaves wheel events originating outside the artboard surface untouched', () => {
+      const { container: outside } = render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const image = screen.getByTestId('artboard-image-transform')
+      mockImageRect(image)
+
+      // Dispatching on the render wrapper bypasses the artboard surface entirely —
+      // the wheel must stay default (history strip and other scrollable UI keep
+      // working) and the image must not move.
+      const outsideEvent = fireWheel(outside, { deltaY: -100, clientX: 300, clientY: 150 })
+      expect(outsideEvent.defaultPrevented).toBe(false)
+      expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+    })
   })
 })

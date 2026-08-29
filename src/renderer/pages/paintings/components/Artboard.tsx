@@ -222,6 +222,11 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   const [displayedNaturalSize, setDisplayedNaturalSize] = useState<{ width: number; height: number } | null>(null)
   const [promptBarHeight, setPromptBarHeight] = useState(0)
   const imageDragRef = useRef<ImageDragState | null>(null)
+  // Latest scale/offset mirror for the native wheel listener, which must read the
+  // current transform synchronously without re-binding on every pan/zoom render.
+  const imageTransformRef = useRef({ scale: DEFAULT_IMAGE_SCALE, offset: DEFAULT_IMAGE_OFFSET })
+  imageTransformRef.current = { scale: imageScale, offset: imageOffset }
+  const viewerContainerRef = useRef<HTMLDivElement | null>(null)
   const awaitingRevealRef = useRef(false)
   const previousLoadingRef = useRef(isLoading)
   const paintingIdRef = useRef(painting.id)
@@ -305,6 +310,41 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     }
   }, [])
 
+  // Zoom around the pointer: with scale (and rotation) pivoting on the image
+  // center, keeping the anchor point stationary means offset' = a - (a - o)·ratio.
+  const onViewerWheel = useCallback((event: WheelEvent) => {
+    if (event.deltaY === 0) {
+      return
+    }
+    // React's synthetic onWheel registers passively, so consuming the gesture
+    // (page scroll, ctrl+wheel pinch-zoom) needs a native non-passive listener.
+    event.preventDefault()
+    const container = event.currentTarget as HTMLDivElement
+    const image = container.querySelector('img')
+    if (!image) {
+      return
+    }
+    const rect = image.getBoundingClientRect()
+    const anchorX = event.clientX - rect.left - rect.width / 2
+    const anchorY = event.clientY - rect.top - rect.height / 2
+    const { scale, offset } = imageTransformRef.current
+    const nextScale = Math.min(
+      MAX_IMAGE_SCALE,
+      Math.max(MIN_IMAGE_SCALE, scale + (event.deltaY < 0 ? IMAGE_SCALE_STEP : -IMAGE_SCALE_STEP))
+    )
+    if (nextScale === scale) {
+      return
+    }
+    const ratio = nextScale / scale
+    const nextOffset = {
+      x: anchorX - (anchorX - offset.x) * ratio,
+      y: anchorY - (anchorY - offset.y) * ratio
+    }
+    imageTransformRef.current = { scale: nextScale, offset: nextOffset }
+    setImageScale(nextScale)
+    setImageOffset(nextOffset)
+  }, [])
+
   // Explicit contain-fit box for the idle (already-generated) image, mirroring
   // PaintingImageSkeleton's lockedSize math. CSS auto-sizing a flex-col wrapper around
   // the image can't be trusted here — ImageViewer nests the `<img>` behind a
@@ -323,16 +363,22 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   // (already-generated) branch renders, which usually happens later (after a
   // generation completes) than Artboard's own mount. A callback ref re-attaches
   // the observer every time the branch swaps this node in, not just the first time.
-  const setViewerContainerRef = useCallback((el: HTMLDivElement | null) => {
-    viewerResizeObserverRef.current?.disconnect()
-    viewerResizeObserverRef.current = null
-    if (!el) return
-    const measure = () => setViewerContainer({ width: el.clientWidth, height: el.clientHeight })
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    viewerResizeObserverRef.current = observer
-  }, [])
+  const setViewerContainerRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      viewerResizeObserverRef.current?.disconnect()
+      viewerResizeObserverRef.current = null
+      viewerContainerRef.current?.removeEventListener('wheel', onViewerWheel)
+      viewerContainerRef.current = el
+      if (!el) return
+      el.addEventListener('wheel', onViewerWheel, { passive: false })
+      const measure = () => setViewerContainer({ width: el.clientWidth, height: el.clientHeight })
+      measure()
+      const observer = new ResizeObserver(measure)
+      observer.observe(el)
+      viewerResizeObserverRef.current = observer
+    },
+    [onViewerWheel]
+  )
 
   // `promptBar` renders in the fixed layout wrapper above the transformed image,
   // so its own rendered height has to come out of the space
@@ -497,6 +543,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
         ) : painting.files.length > 0 && currentImageUrl ? (
           <div
             ref={setViewerContainerRef}
+            data-testid="artboard-viewer"
             className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
             {/* The prompt bar is a flex-col sibling of the transformed image so it stays
                 fixed while the image pans, zooms, or rotates. The layout wrapper is
