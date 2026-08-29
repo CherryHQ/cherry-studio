@@ -335,6 +335,7 @@ describe('IpcChatTransport', () => {
     expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
     expect(chunks[1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-200' })
     expect(chunks[chunks.length - 1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-1199' })
-    await stream!.cancel()
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
   })
 })

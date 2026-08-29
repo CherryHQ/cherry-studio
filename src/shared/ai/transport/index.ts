@@ -1,4 +1,5 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
+export { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
 export {
   type DeferredToolOutput,
   type DeferredToolResultRef,
@@ -42,6 +43,5 @@ export type {
   TopicStreamStatus
 } from './stream'
 export { aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
-export { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'
