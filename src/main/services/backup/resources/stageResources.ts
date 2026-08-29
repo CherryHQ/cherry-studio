@@ -176,39 +176,35 @@ async function captureStrictUnit(input: {
 }> {
   const { requirement, sourcePath, stagingPath, roots, signal } = input
   const capturePolicy = capturePolicyForKind(requirement.kind, roots)
-  const maxAttempts = captureModeForKind(requirement.kind).kind === 'strict-unit' ? 2 : 1
-  let lastError: unknown
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    throwIfAborted(signal)
-    try {
-      if (requirement.resourceType === 'file') {
-        await stageFileWithDriftCheck({ sourcePath, stagingPath, signal })
-        return { contentPaths: [], degradations: [] }
-      }
-
-      await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
-      const staged = await stageDirectoryWithDriftCheck({
-        sourceDir: sourcePath,
-        stagingDir: stagingPath,
-        signal,
-        capturePolicy
-      })
-      return {
-        contentPaths: staged.files.map((file) => file.relPath),
-        degradations: staged.scan.omissions.map((omission) => ({
-          relativePath: omission.relPath,
-          reason: omission.reason
-        }))
-      }
-    } catch (error) {
-      if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
-      lastError = error
-      await rm(stagingPath, { recursive: true, force: true }).catch(() => {})
-      if (!(error instanceof SourceDriftError) || attempt === maxAttempts) throw error
+  throwIfAborted(signal)
+  try {
+    if (requirement.resourceType === 'file') {
+      await stageFileWithDriftCheck({ sourcePath, stagingPath, signal })
+      return { contentPaths: [], degradations: [] }
     }
+
+    await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
+    const staged = await stageDirectoryWithDriftCheck({
+      sourceDir: sourcePath,
+      stagingDir: stagingPath,
+      signal,
+      capturePolicy
+    })
+    return {
+      contentPaths: staged.files.map((file) => file.relPath),
+      degradations: staged.scan.omissions.map((omission) => ({
+        relativePath: omission.relPath,
+        reason: omission.reason
+      }))
+    }
+  } catch (error) {
+    if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
+    await rm(stagingPath, { recursive: true, force: true }).catch(() => {})
+    // Drift is degraded, never retried — a retry would accept content rewritten
+    // inside the capture window (the Windows CI failure).
+    throw error
   }
-  throw lastError
 }
 
 async function capturePartialTree(input: {
@@ -226,32 +222,30 @@ async function capturePartialTree(input: {
     throw new Error(`partial-tree capture requires a directory: ${requirement.livePath}`)
   }
   const capturePolicy = capturePolicyForKind(requirement.kind, roots)
-  let lastError: unknown
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    throwIfAborted(signal)
-    try {
-      await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
-      const staged = await stagePartialDirectoryTree({
-        sourceDir: sourcePath,
-        stagingDir: stagingPath,
-        signal,
-        capturePolicy
-      })
-      return {
-        contentPaths: staged.files.map((file) => file.relPath),
-        degradations: staged.omissions.map((omission) => ({
-          relativePath: omission.relPath,
-          reason: omission.reason
-        }))
-      }
-    } catch (error) {
-      if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
-      lastError = error
-      await rm(stagingPath, { recursive: true, force: true }).catch(() => {})
-      if (!(error instanceof SourceDriftError) || attempt === 2) throw error
+
+  throwIfAborted(signal)
+  try {
+    await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
+    const staged = await stagePartialDirectoryTree({
+      sourceDir: sourcePath,
+      stagingDir: stagingPath,
+      signal,
+      capturePolicy
+    })
+    return {
+      contentPaths: staged.files.map((file) => file.relPath),
+      degradations: staged.omissions.map((omission) => ({
+        relativePath: omission.relPath,
+        reason: omission.reason
+      }))
     }
+  } catch (error) {
+    if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
+    await rm(stagingPath, { recursive: true, force: true }).catch(() => {})
+    // Same as strict-unit: drift is degraded, never retried — a retry would
+    // accept content rewritten inside the capture window.
+    throw error
   }
-  throw lastError
 }
 
 export async function stageResources(input: StageResourcesInput): Promise<StagedResources> {
