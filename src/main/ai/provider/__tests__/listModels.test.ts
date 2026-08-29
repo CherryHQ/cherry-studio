@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
+import { VercelGatewayModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -467,6 +468,34 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
   })
 })
 
+describe('listModels — togetherFetcher pricing', () => {
+  it('imports the published per-million token and cached-input rates', async () => {
+    const provider = makeProvider({
+      id: 'together',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.together.xyz/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: [
+        {
+          id: 'moonshotai/Kimi-K2.6',
+          pricing: { input: 1.2, output: 4.5, cached_input: 0.2 }
+        }
+      ]
+    })
+
+    const [model] = await listModels(provider)
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1.2 },
+      output: { currency: 'USD', perMillionTokens: 4.5 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.2 }
+    })
+  })
+})
+
 describe('listModels — ppioFetcher capability mapping', () => {
   it('keeps only RERANK when the same model id appears in chat and reranker endpoints', async () => {
     const provider = makeProvider({
@@ -758,7 +787,7 @@ describe('listModels — newApiFetcher endpoint types', () => {
   })
 })
 
-describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () => {
+describe('listModels — gatewayFetcher (Vercel AI Gateway /v1/models)', () => {
   function makeGatewayProvider() {
     return makeProvider({
       id: 'gateway',
@@ -769,19 +798,19 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
     })
   }
 
-  it('hits /v3/ai/config with the protocol-version header (not the @ai-sdk/gateway path)', async () => {
+  it('uses the public model catalog instead of the SDK internal config endpoint', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
-        models: [{ id: 'openai/gpt-4o', name: 'GPT-4o', description: 'omni', specification: { provider: 'openai' } }]
+        data: [{ id: 'openai/gpt-4o', name: 'GPT-4o', description: 'omni', owned_by: 'openai' }]
       }
     })
 
-    const models = await listModels(makeGatewayProvider())
+    const models = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
 
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
-    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
-    expect(call.url).toBe('https://ai-gateway.vercel.sh/v3/ai/config')
-    expect(call.headers['ai-gateway-protocol-version']).toBe('0.0.1')
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers?: Record<string, string> }
+    expect(call.url).toBe('https://ai-gateway.vercel.sh/v1/models')
+    expect(call.headers).toBeUndefined()
 
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('openai/gpt-4o')
@@ -792,15 +821,113 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
   it('dedups models returned with duplicate ids', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
-        models: [
+        data: [
           { id: 'openai/gpt-4o', name: 'GPT-4o' },
           { id: 'openai/gpt-4o', name: 'GPT-4o (dup)' }
         ]
       }
     })
 
-    const models = await listModels(makeGatewayProvider())
+    const models = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
     expect(models).toHaveLength(1)
+  })
+
+  it('converts published token, cache, and context-tier rates from per-token USD', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: VercelGatewayModelsResponseSchema.parse({
+        data: [
+          {
+            id: 'alibaba/qwen3.5-plus',
+            pricing: {
+              input: '0.0000004',
+              output: '0.0000024',
+              input_cache_read: '0.00000004',
+              input_cache_write: '0.0000005',
+              input_tiers: [
+                { cost: '0.0000004', min: 0, max: 256_001 },
+                { cost: '0.0000012', min: 256_001 }
+              ],
+              output_tiers: [
+                { cost: '0.0000024', min: 0, max: 256_001 },
+                { cost: '0.0000072', min: 256_001 }
+              ],
+              input_cache_read_tiers: [
+                { cost: '0.00000004', max: 256_001 },
+                { cost: '0.00000012', min: 256_001 }
+              ],
+              input_cache_write_tiers: [
+                { cost: '0.0000005', min: 0, max: 256_001 },
+                { cost: '0.0000015', min: 256_001 }
+              ]
+            }
+          }
+        ]
+      })
+    })
+
+    const [model] = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 0.4 },
+      output: { currency: 'USD', perMillionTokens: 2.4 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.04 },
+      cacheWrite: { currency: 'USD', perMillionTokens: 0.5 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 256_001,
+          input: { currency: 'USD', perMillionTokens: 1.2 },
+          output: { currency: 'USD', perMillionTokens: 7.2 },
+          cacheRead: { currency: 'USD', perMillionTokens: 0.12 },
+          cacheWrite: { currency: 'USD', perMillionTokens: 1.5 }
+        }
+      ]
+    })
+  })
+
+  it('carries the published per-image price for image models', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'bfl/flux-kontext-max',
+            type: 'image',
+            pricing: { image: '0.08' }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null },
+      perImage: { price: 0.08, unit: 'image' }
+    })
+  })
+
+  it('keeps input-only embedding and reranking rates without inventing an output charge', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'openai/text-embedding-3-small', type: 'embedding', pricing: { input: '0.00000002' } },
+          { id: 'cohere/rerank-v3.5', type: 'reranking', pricing: { input: '0.00000005' } }
+        ]
+      }
+    })
+
+    const models = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
+
+    expect(models.map((model) => model.pricing)).toEqual([
+      {
+        input: { currency: 'USD', perMillionTokens: 0.02 },
+        output: { currency: 'USD', perMillionTokens: 0 }
+      },
+      {
+        input: { currency: 'USD', perMillionTokens: 0.05 },
+        output: { currency: 'USD', perMillionTokens: 0 }
+      }
+    ])
   })
 })
 

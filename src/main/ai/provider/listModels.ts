@@ -189,17 +189,19 @@ function usdPricing(price: {
   cacheWrite?: number | null
 }): Model['pricing'] | undefined {
   if (price.input === undefined || price.output === undefined) return undefined
-  // Rates are derived by multiplication (ratios, per-token strings), so drop the binary-float residue
-  // that would otherwise be stored and shown verbatim: 0.142857 * 2 * 1.5 = 0.42857100000000004.
-  const usd = (perMillionTokens: number | null) => ({
+  return {
+    input: usdRate(price.input),
+    output: usdRate(price.output),
+    ...(price.cacheRead !== undefined ? { cacheRead: usdRate(price.cacheRead) } : {}),
+    ...(price.cacheWrite !== undefined ? { cacheWrite: usdRate(price.cacheWrite) } : {})
+  }
+}
+
+/** Drop binary-float residue from derived rates before they reach storage or UI. */
+function usdRate(perMillionTokens: number | null) {
+  return {
     currency: CURRENCY.USD,
     perMillionTokens: perMillionTokens === null ? null : Number(perMillionTokens.toPrecision(10))
-  })
-  return {
-    input: usd(price.input),
-    output: usd(price.output),
-    ...(price.cacheRead !== undefined ? { cacheRead: usd(price.cacheRead) } : {}),
-    ...(price.cacheWrite !== undefined ? { cacheWrite: usd(price.cacheWrite) } : {})
   }
 }
 
@@ -212,6 +214,78 @@ const NEW_API_USD_PER_RATIO_UNIT = 2
 function unknownUsdPricing(): NonNullable<Model['pricing']> {
   const unknown = { currency: CURRENCY.USD, perMillionTokens: null }
   return { input: unknown, output: unknown }
+}
+
+type VercelGatewayPricing = NonNullable<z.infer<typeof VercelGatewayModelsResponseSchema>['data'][number]['pricing']>
+type VercelGatewayPricingTier = NonNullable<VercelGatewayPricing['input_tiers']>[number]
+
+function vercelTierRate(
+  base: string | undefined,
+  tiers: VercelGatewayPricingTier[] | undefined,
+  minInputTokens: number
+): number | null | undefined {
+  let rate = perMillion(base)
+  for (const tier of [...(tiers ?? [])].sort((left, right) => left.min - right.min)) {
+    if (tier.min > minInputTokens) break
+    rate = perMillion(tier.cost)
+  }
+  return rate
+}
+
+function vercelGatewayPricing(
+  price: VercelGatewayPricing | undefined,
+  modelType: string | undefined
+): Model['pricing'] | undefined {
+  if (!price) return undefined
+
+  const perImage = price.image?.trim() ? Number(price.image) : undefined
+  // These APIs have no generated-token bucket, so an omitted output rate means no charge rather than unknown.
+  const output = price.output ?? (modelType === 'embedding' || modelType === 'reranking' ? '0' : undefined)
+  const base =
+    usdPricing({
+      input: vercelTierRate(price.input, price.input_tiers, 0),
+      output: vercelTierRate(output, price.output_tiers, 0),
+      cacheRead: vercelTierRate(price.input_cache_read, price.input_cache_read_tiers, 0),
+      cacheWrite: vercelTierRate(price.input_cache_write, price.input_cache_write_tiers, 0)
+    }) ?? (perImage !== undefined && Number.isFinite(perImage) ? unknownUsdPricing() : undefined)
+  if (!base) return undefined
+
+  const thresholds = Array.from(
+    new Set(
+      [
+        ...(price.input_tiers ?? []),
+        ...(price.output_tiers ?? []),
+        ...(price.input_cache_read_tiers ?? []),
+        ...(price.input_cache_write_tiers ?? [])
+      ]
+        .map((tier) => tier.min)
+        .filter((minimum) => minimum > 0 && Number.isSafeInteger(minimum))
+    )
+  ).sort((left, right) => left - right)
+  const inputTokenTiers = thresholds.flatMap((minInputTokens) => {
+    const input = vercelTierRate(price.input, price.input_tiers, minInputTokens)
+    const tierOutput = vercelTierRate(output, price.output_tiers, minInputTokens)
+    if (input === undefined || tierOutput === undefined) return []
+    const cacheRead = vercelTierRate(price.input_cache_read, price.input_cache_read_tiers, minInputTokens)
+    const cacheWrite = vercelTierRate(price.input_cache_write, price.input_cache_write_tiers, minInputTokens)
+    return [
+      {
+        minInputTokens,
+        input: usdRate(input),
+        output: usdRate(tierOutput),
+        ...(cacheRead !== undefined ? { cacheRead: usdRate(cacheRead) } : {}),
+        ...(cacheWrite !== undefined ? { cacheWrite: usdRate(cacheWrite) } : {})
+      }
+    ]
+  })
+
+  return {
+    ...base,
+    ...(inputTokenTiers.length ? { inputTokenTiers } : {}),
+    ...(perImage !== undefined && Number.isFinite(perImage)
+      ? { perImage: { price: Number(perImage.toPrecision(10)), unit: 'image' as const } }
+      : {})
+  }
 }
 
 /**
@@ -524,13 +598,19 @@ const togetherFetcher: ModelFetcher = {
       responseSchema: TogetherModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
+    return dedup(response, (m) => m.id).map((m) => {
+      const pricing = usdPricing({
+        input: m.pricing?.input,
+        output: m.pricing?.output,
+        cacheRead: m.pricing?.cached_input
+      })
+      return toModel(m.id, provider, {
         name: m.display_name || m.id,
         description: m.description,
-        ownedBy: m.organization
+        ownedBy: m.organization,
+        ...(pricing ? { pricing } : {})
       })
-    )
+    })
   }
 }
 
@@ -782,29 +862,24 @@ const aiHubMixFetcher: ModelFetcher = {
   }
 }
 
-/** Vercel AI Gateway: hits /v3/ai/config directly with `ai-gateway-protocol-version` header
- *  instead of going through `@ai-sdk/gateway`'s `getAvailableModels()`. The SDK validates the
- *  response against a strict schema that breaks whenever Vercel evolves the registry, so we
- *  parse with `z.looseObject` here to keep listing resilient. Inference still uses the SDK. */
+/** Vercel AI Gateway publishes its current catalog and rates at the unauthenticated /v1/models endpoint. */
 const gatewayFetcher: ModelFetcher = {
   match: (p) => isAIGatewayProvider(p),
   fetch: async (provider, signal) => {
     const response = await getFromApi({
-      url: `https://ai-gateway.vercel.sh/v3/ai/config`,
-      headers: {
-        ...defaultHeaders(provider),
-        'ai-gateway-protocol-version': '0.0.1'
-      },
+      url: `https://ai-gateway.vercel.sh/v1/models`,
       responseSchema: VercelGatewayModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const pricing = vercelGatewayPricing(m.pricing, m.type)
+      return toModel(m.id, provider, {
         name: m.name || m.id,
         description: m.description,
-        ownedBy: m.specification?.provider
+        ownedBy: m.owned_by,
+        ...(pricing ? { pricing } : {})
       })
-    )
+    })
   }
 }
 

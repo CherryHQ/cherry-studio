@@ -156,6 +156,7 @@ export const TogetherModelsResponseSchema = z.array(
     context_length: z.number().optional(),
     pricing: z
       .looseObject({
+        cached_input: z.number().optional(),
         input: z.number().optional(),
         output: z.number().optional()
       })
@@ -203,25 +204,39 @@ export const OVMSConfigResponseSchema = z.record(
   })
 )
 
-// === Vercel AI Gateway (/v3/ai/config) ===
+// === Vercel AI Gateway (/v1/models) ===
+
+const VercelGatewayPricingTierSchema = z.looseObject({
+  cost: z.string(),
+  // The live catalog may omit min on the first tier; that bucket starts at zero.
+  min: z.number().optional().default(0),
+  max: z.number().optional()
+})
 
 export const VercelGatewayModelsResponseSchema = z.object({
-  models: z.array(
+  data: z.array(
     z.looseObject({
       id: z.string(),
       name: z.string().optional(),
       description: z.string().optional(),
-      modelType: z.string().optional(),
-      specification: z
+      owned_by: z.string().optional(),
+      type: z.string().optional(),
+      pricing: z
         .looseObject({
-          specificationVersion: z.string().optional(),
-          provider: z.string().optional(),
-          modelId: z.string().optional(),
-          type: z.string().optional()
+          input: z.string().optional(),
+          output: z.string().optional(),
+          input_cache_read: z.string().optional(),
+          input_cache_write: z.string().optional(),
+          input_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          output_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          input_cache_read_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          input_cache_write_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          image: z.string().optional()
         })
         .optional()
     })
-  )
+  ),
+  object: z.string().optional()
 })
 
 // === Anthropic (/v1/models) ===
