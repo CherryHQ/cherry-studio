@@ -110,8 +110,8 @@ export const BACKUP_RESOURCE_KINDS = [
 export type BackupResourceKind = (typeof BACKUP_RESOURCE_KINDS)[number]
 
 export type ResourceCaptureMode =
-  | { readonly kind: 'strict-unit'; readonly maxAttempts: 2 }
-  | { readonly kind: 'partial-tree'; readonly maxAttempts: 2 }
+  | { readonly kind: 'strict-unit' }
+  | { readonly kind: 'partial-tree' }
   | { readonly kind: 'owner-snapshot' }
 
 /** The one trusted managed root each resource kind is allowed to replace. */
@@ -207,7 +207,7 @@ function managedLivePath(ctx: SnapshotReadContext, root: string, absolute: strin
  */
 const fileBlobAdapter: BackupResourceAdapter = {
   kind: 'file-blob',
-  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
+  captureMode: { kind: 'strict-unit' },
   collectRequirements(ctx) {
     const rows = ctx.db
       .select({ id: fileEntryTable.id, ext: fileEntryTable.ext, origin: fileEntryTable.origin })
@@ -268,7 +268,7 @@ function knowledgeMaterialsByBase(ctx: SnapshotReadContext): ReadonlyMap<string,
  */
 const knowledgeBaseAdapter: BackupResourceAdapter = {
   kind: 'knowledge-base',
-  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
+  captureMode: { kind: 'strict-unit' },
   capturePolicy: () => ({ excludeRelativePath: isKnowledgeCaptureExcluded }),
   collectRequirements(ctx) {
     const rows = ctx.db.select({ id: knowledgeBaseTable.id }).from(knowledgeBaseTable).all()
@@ -305,7 +305,7 @@ function fixedManagedResource(
 
 const mcpWorkspaceAdapter: BackupResourceAdapter = {
   kind: 'mcp-workspace',
-  captureMode: { kind: 'partial-tree', maxAttempts: 2 },
+  captureMode: { kind: 'partial-tree' },
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.mcpWorkspace, 'directory')
   }
@@ -313,7 +313,7 @@ const mcpWorkspaceAdapter: BackupResourceAdapter = {
 
 const mcpMemoryAdapter: BackupResourceAdapter = {
   kind: 'mcp-memory',
-  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
+  captureMode: { kind: 'strict-unit' },
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.mcpMemory, 'file')
   }
@@ -321,7 +321,7 @@ const mcpMemoryAdapter: BackupResourceAdapter = {
 
 const agentChannelStateAdapter: BackupResourceAdapter = {
   kind: 'agent-channel-state',
-  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
+  captureMode: { kind: 'strict-unit' },
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.agentChannels, 'directory')
   }
@@ -329,7 +329,7 @@ const agentChannelStateAdapter: BackupResourceAdapter = {
 
 const agentRuntimeConfigAdapter: BackupResourceAdapter = {
   kind: 'agent-runtime-config',
-  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
+  captureMode: { kind: 'strict-unit' },
   capturePolicy: () => ({ excludeRelativePath: isAgentRuntimeConfigCaptureExcluded }),
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.agentRuntimeConfig, 'directory')
@@ -353,7 +353,7 @@ const agentRuntimeConfigAdapter: BackupResourceAdapter = {
  */
 const noteRootAdapter: BackupResourceAdapter = {
   kind: 'note-root',
-  captureMode: { kind: 'partial-tree', maxAttempts: 2 },
+  captureMode: { kind: 'partial-tree' },
   collectRequirements(ctx) {
     const rows = ctx.db.select({ rootPath: noteTable.rootPath }).from(noteTable).all()
 
@@ -380,7 +380,7 @@ const noteRootAdapter: BackupResourceAdapter = {
 /** Agent identity and memory, one app-owned directory per live agent row. */
 const agentDataAdapter: BackupResourceAdapter = {
   kind: 'agent-data',
-  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
+  captureMode: { kind: 'strict-unit' },
   collectRequirements(ctx) {
     const rows = ctx.db.select({ id: agentTable.id }).from(agentTable).where(isNull(agentTable.deletedAt)).all()
 
@@ -446,7 +446,7 @@ const agentTranscriptAdapter: BackupResourceAdapter = {
  */
 const agentWorkspaceAdapter: BackupResourceAdapter = {
   kind: 'agent-workspace',
-  captureMode: { kind: 'partial-tree', maxAttempts: 2 },
+  captureMode: { kind: 'partial-tree' },
   capturePolicy: (roots) => ({
     decideNode(context) {
       if (
@@ -497,7 +497,7 @@ const agentWorkspaceAdapter: BackupResourceAdapter = {
  */
 const skillAdapter: BackupResourceAdapter = {
   kind: 'skill',
-  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
+  captureMode: { kind: 'strict-unit' },
   collectRequirements(ctx) {
     const rows = ctx.db.select({ folderName: agentGlobalSkillTable.folderName }).from(agentGlobalSkillTable).all()
 
@@ -536,8 +536,7 @@ export function capturePolicyForKind(kind: string, roots?: ResourceRoots): Captu
 export function captureModeForKind(kind: string): ResourceCaptureMode {
   return (
     RESOURCE_ADAPTERS.find((adapter) => adapter.kind === kind)?.captureMode ?? {
-      kind: 'strict-unit',
-      maxAttempts: 2
+      kind: 'strict-unit'
     }
   )
 }
