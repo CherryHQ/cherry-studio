@@ -228,20 +228,15 @@ export function isModelEndpointTypeAvailable(
   return !model.endpointTypes?.length || model.endpointTypes.includes(endpointType)
 }
 
-/**
- * Resolve the effective model route from live model capabilities and provider configs.
- * A suggested endpoint is a runtime heuristic, so a valid persisted user choice wins over it.
- */
+/** Resolve the effective model route from live model capabilities and provider configs. */
 export function getModelPreferredEndpoint(
   model: EndpointRoutingModel,
-  provider: EndpointRoutingProvider,
-  suggestedEndpointType?: EndpointType
+  provider: EndpointRoutingProvider
 ): EndpointType | undefined {
   const isAvailable = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
     endpointType != null && isModelEndpointTypeAvailable(model, provider, endpointType)
 
   if (isAvailable(model.preferredEndpointType)) return model.preferredEndpointType
-  if (isAvailable(suggestedEndpointType)) return suggestedEndpointType
 
   // Prefer a declared endpoint the provider still serves over an earlier one it does not, so a
   // removed route stops dragging its dialect onto whatever host `getBaseUrl` cascades to.

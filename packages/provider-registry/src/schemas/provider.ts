@@ -235,13 +235,6 @@ export const ProviderConfigSchema = z
      * local provider still needs its baseUrl input. Defaults false.
      */
     authOptional: z.boolean().default(false),
-    /**
-     * The provider multiplexes every protocol through one user-configured host
-     * (CherryIN / New API / AiOnly). Secondary endpoint configs may therefore
-     * carry only an adapter family and inherit the default endpoint's base URL.
-     * Every supported protocol must still have an endpoint config. Defaults false.
-     */
-    sharedEndpointHost: z.boolean().default(false),
     /** Provider-native (server-executed) built-in tools served by this host. */
     serverTools: z.array(ServerToolConfigSchema).default([]),
     /** Whether usage responses carry the actual billed amount. */

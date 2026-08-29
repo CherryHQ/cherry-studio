@@ -77,34 +77,14 @@ describe('getModelPreferredEndpoint', () => {
 
     expect(getModelPreferredEndpoint(makeModel(undefined), provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
-
-  it('keeps a runtime suggestion below a valid pin', () => {
-    const model = makeModel(
-      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
-      ENDPOINT_TYPE.OPENAI_RESPONSES
-    )
-
-    expect(getModelPreferredEndpoint(model, makeProvider(), ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(
-      ENDPOINT_TYPE.OPENAI_RESPONSES
-    )
-  })
-
-  it('uses a runtime suggestion once the pin is gone', () => {
-    const model = makeModel([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES])
-
-    expect(getModelPreferredEndpoint(model, makeProvider(), ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(
-      ENDPOINT_TYPE.OPENAI_RESPONSES
-    )
-  })
 })
 
 describe('isModelEndpointTypeAvailable', () => {
-  it('does not infer an adapter from a shared host and a model declaration', () => {
+  it('does not infer an adapter from a provider host and a model declaration', () => {
     const provider = {
       id: 'some-aggregator',
       presetProviderId: 'some-aggregator',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      sharedEndpointHost: true,
       endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.example.net' } }
     } as RoutingProvider
     const model = makeModel([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
@@ -112,9 +92,8 @@ describe('isModelEndpointTypeAvailable', () => {
     expect(isModelEndpointTypeAvailable(model, provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(false)
   })
 
-  it('accepts a declared shared-host route when its adapter is configured', () => {
+  it('accepts a declared route when its adapter is configured', () => {
     const provider = makeProvider({
-      sharedEndpointHost: true,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.example.net' },
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }

@@ -91,7 +91,6 @@ describe('CherryIN endpoint web-search mapping', () => {
   const provider = {
     id: 'cherryin',
     presetProviderId: 'cherryin',
-    sharedEndpointHost: true,
     endpointConfigs: {
       'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
       'openai-responses': { adapterFamily: 'cherryin' },

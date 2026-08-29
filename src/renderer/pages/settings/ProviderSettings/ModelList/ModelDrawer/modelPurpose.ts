@@ -45,7 +45,7 @@ export interface ApplyModelPurposeOptions {
 
 type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
 export type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'> &
-  Partial<Pick<Provider, 'id' | 'presetProviderId' | 'sharedEndpointHost'>>
+  Partial<Pick<Provider, 'id' | 'presetProviderId'>>
 
 function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
   return MODEL_CHAT_ENDPOINT_TYPES.some((candidate) => candidate === endpointType)
@@ -93,8 +93,8 @@ export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): M
  * The chat endpoints a model could be routed to. Two or more means the user has a real choice and the
  * preferred-endpoint picker is worth showing; one or none means there is nothing to pick.
  *
- * A model declaration narrows the provider's configured chat routes. `sharedEndpointHost` permits a
- * configured adapter to inherit one URL; it does not create adapters for undeclared protocols.
+ * A model declaration narrows the provider's configured chat routes. A configured adapter may
+ * inherit the provider URL; it does not create adapters for undeclared protocols.
  */
 export function getPreferredEndpointCandidates(
   provider: ProviderChatEndpoints,
@@ -115,8 +115,7 @@ export function getPreferredEndpointCandidates(
     id: provider.id ?? '',
     presetProviderId: provider.presetProviderId,
     defaultChatEndpoint: provider.defaultChatEndpoint,
-    endpointConfigs: provider.endpointConfigs,
-    sharedEndpointHost: provider.sharedEndpointHost
+    endpointConfigs: provider.endpointConfigs
   }
   const routingModel = {
     id: createUniqueModelId(routingProvider.id || 'provider', 'model'),

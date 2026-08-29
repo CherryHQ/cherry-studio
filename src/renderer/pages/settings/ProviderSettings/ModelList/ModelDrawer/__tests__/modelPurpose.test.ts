@@ -61,12 +61,12 @@ describe('getPreferredEndpointCandidates', () => {
     expect(getPreferredEndpointCandidates(doubao, [ENDPOINT_TYPE.OPENAI_EMBEDDINGS])).toEqual([])
   })
 
-  it('does not invent aggregator adapters from a shared host', () => {
+  it('does not invent adapters that the provider has not configured', () => {
     expect(
-      getPreferredEndpointCandidates(
-        { id: 'new-api', sharedEndpointHost: true, defaultChatEndpoint: undefined, endpointConfigs: undefined },
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-      )
+      getPreferredEndpointCandidates({ id: 'new-api', defaultChatEndpoint: undefined, endpointConfigs: undefined }, [
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      ])
     ).toEqual([])
   })
 
@@ -94,7 +94,6 @@ describe('resolvePreferredEndpointOptions', () => {
       resolvePreferredEndpointOptions(
         {
           id: 'relay',
-          sharedEndpointHost: true,
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
           endpointConfigs: {
             [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' }

@@ -1,6 +1,5 @@
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { isNewApiProvider } from '@shared/utils/provider'
 
 /**
  * Minimal valid Provider fixture for main/ai tests.
@@ -10,7 +9,7 @@ import { isNewApiProvider } from '@shared/utils/provider'
  * actually reads.
  */
 export function makeProvider(overrides: Partial<Provider> = {}): Provider {
-  const provider = {
+  return {
     id: 'fake',
     name: 'Fake',
     apiKeys: [],
@@ -20,13 +19,6 @@ export function makeProvider(overrides: Partial<Provider> = {}): Provider {
     isEnabled: true,
     ...overrides
   } as Provider
-
-  // The registry hands every aggregator preset `sharedEndpointHost`, and endpoint routing reads it.
-  // Deriving it here keeps hand-built fixtures faithful instead of each test remembering to set it.
-  if (provider.sharedEndpointHost === undefined && isNewApiProvider(provider)) {
-    provider.sharedEndpointHost = true
-  }
-  return provider
 }
 
 export function makeEndpointConfig(overrides: Partial<EndpointConfig> = {}): EndpointConfig {

@@ -1525,14 +1525,13 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
-    it('maps a pinned adapter-only Anthropic endpoint through its shared provider host', async () => {
+    it('maps a pinned adapter-only Anthropic endpoint through its provider host', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
       vi.mocked(providerService.getByProviderId).mockResolvedValue(
         createProvider({
           id: 'new-api',
           name: 'New API',
-          sharedEndpointHost: true,
           endpointConfigs: {
             [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
               baseUrl: 'https://new-api.example.com',

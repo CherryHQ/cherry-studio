@@ -23,7 +23,6 @@ type ProviderConnection = Omit<
   | 'defaultChatEndpoint'
   | 'modelListSource'
   | 'authOptional'
-  | 'sharedEndpointHost'
   | 'serverTools'
   | 'reportsActualCost'
 > & {
@@ -33,8 +32,6 @@ type ProviderConnection = Omit<
   modelListSource?: ProviderConfig['modelListSource']
   /** Defaults to `false`; only credential-free local providers declare it. */
   authOptional?: ProviderConfig['authOptional']
-  /** Defaults to `false`; only one-host multi-protocol aggregators declare it. */
-  sharedEndpointHost?: ProviderConfig['sharedEndpointHost']
   /** Defaults to `[]`; only providers that natively serve built-in tools declare it. */
   serverTools?: ProviderServerToolConfig[]
   /** Defaults false; only providers whose usage carries billed cost declare it. */
@@ -100,7 +97,6 @@ export function openaiCompatible(
      */
     reasoningFormat?: ProviderReasoningFormat
     authOptional?: ProviderConfig['authOptional']
-    sharedEndpointHost?: ProviderConfig['sharedEndpointHost']
     serverTools?: ProviderServerToolConfig[]
   } & GenFields
 ): Provider {
@@ -120,7 +116,6 @@ export function openaiCompatible(
     endpointConfigs,
     metadata: { website: p.website },
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
-    ...(p.sharedEndpointHost ? { sharedEndpointHost: p.sharedEndpointHost } : {}),
     ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
