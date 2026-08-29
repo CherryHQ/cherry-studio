@@ -33,10 +33,14 @@ const SearchResultsPage = () => {
   // missing-key log burst).
   const { t: tEn, i18n } = useTranslation(undefined, { lng: 'en-US', useSuspense: false })
   const tEnReady = i18n.hasResourceBundle('en-US', 'translation') ? tEn : undefined
-  const { activeIndex } = useSettingsSearchKeyboard()
+  const { activeIndex, liveQuery } = useSettingsSearchKeyboard()
   const listRef = useRef<HTMLDivElement>(null)
 
-  const query = typeof search.q === 'string' ? search.q : ''
+  const urlQuery = typeof search.q === 'string' ? search.q : ''
+  // Rank against the live (pre-debounce) query when the box has spoken; the URL
+  // value only seeds the very first frame of a deep link, before the box's
+  // sync effect runs
+  const query = liveQuery ?? urlQuery
   const results = useMemo(() => rankEntries(query, settingsSearchSections, t, tEnReady), [query, t, tEnReady])
 
   useEffect(() => {

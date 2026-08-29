@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import {
   moveActiveIndex,
   requestJump,
+  setLiveQuery,
   SETTINGS_SEARCH_LISTBOX_ID,
   settingsSearchOptionDomId,
   useSettingsSearchKeyboard
@@ -46,19 +47,30 @@ const SettingsSearchBox = () => {
     const pathnameChanged = prevPathnameRef.current !== location.pathname
     prevPathnameRef.current = location.pathname
     if (!pathnameChanged) return
-    if (isSearchPage) {
-      if (!value && urlQuery) setValue(urlQuery)
-    } else if (value) {
+    if (!isSearchPage && value) {
       setValue('')
+      setLiveQuery('')
       hasPushedRef.current = false
     }
-  }, [location.pathname, isSearchPage, value, urlQuery])
+  }, [location.pathname, isSearchPage, value])
+
+  // External URL updates (history back/forward, deep links in the same tab)
+  // sync back into the box. Our own debounced mirrors land as urlQuery ===
+  // value.trim() and are ignored. Runs only on urlQuery changes, never while
+  // the user is typing ahead of the debounce.
+  useEffect(() => {
+    if (urlQuery === value.trim()) return
+    setValue(urlQuery)
+    setLiveQuery(urlQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlQuery])
 
   const exitSearch = () => {
     // Only leave when the user actually searched: an empty-box Esc or one
     // before the debounce pushed must not walk the history back.
     const shouldLeave = hasPushedRef.current || isSearchPage
     setValue('')
+    setLiveQuery('')
     hasPushedRef.current = false
     if (!shouldLeave) return
     if (router.history.canGoBack()) router.history.back()
@@ -103,7 +115,12 @@ const SettingsSearchBox = () => {
         aria-controls={isSearchPage ? SETTINGS_SEARCH_LISTBOX_ID : undefined}
         aria-activedescendant={hasResults ? settingsSearchOptionDomId(activeIndex) : undefined}
         className={cn(isSearchPage && 'border-primary')}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value)
+          // Immediate pre-debounce mirror: the results page ranks against the
+          // live query so Enter never jumps on stale (pre-keystroke) results
+          setLiveQuery(e.target.value)
+        }}
         onClear={exitSearch}
         clearLabel={t('common.clear')}
         onKeyDown={(e) => {

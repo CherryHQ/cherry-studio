@@ -12,9 +12,21 @@ export interface SettingsSearchKeyboardState {
   resultCount: number
   /** DOM id the next navigation should scroll to and flash; consumed by SettingsFocusScroll */
   pendingFocusId: string | undefined
+  /**
+   * Query as currently typed (immediate, pre-debounce). The box writes it on
+   * every keystroke; the results page ranks against it so Enter never jumps on
+   * stale results while the debounced URL mirror is still in flight. undefined
+   * means "box has not spoken yet" — consumers fall back to the URL value.
+   */
+  liveQuery: string | undefined
 }
 
-let state: SettingsSearchKeyboardState = { activeIndex: 0, resultCount: 0, pendingFocusId: undefined }
+let state: SettingsSearchKeyboardState = {
+  activeIndex: 0,
+  resultCount: 0,
+  pendingFocusId: undefined,
+  liveQuery: undefined
+}
 
 const listeners = new Set<() => void>()
 
@@ -37,6 +49,11 @@ export function useSettingsSearchKeyboard(): SettingsSearchKeyboardState {
 /** Results page reports the fresh result list; selection resets to the first row */
 export function publishResults(count: number) {
   setState({ resultCount: count, activeIndex: 0 })
+}
+
+/** Search box reports the query as typed (pre-debounce mirror into the URL) */
+export function setLiveQuery(query: string) {
+  setState({ liveQuery: query })
 }
 
 export function moveActiveIndex(direction: 1 | -1) {
