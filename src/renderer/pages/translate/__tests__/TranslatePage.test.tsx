@@ -51,10 +51,11 @@ const dropMock = vi.hoisted(() => ({
 
 const translateCoreMock = vi.hoisted(() => ({
   addHistory: vi.fn(),
+  updateHistory: vi.fn(),
+  historyHookOptions: vi.fn(),
   detectLanguage: vi.fn(),
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
-  updateHistory: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
@@ -133,7 +134,10 @@ vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
       return 'unknown'
     }
   },
-  useTranslateHistory: () => ({ add: translateCoreMock.addHistory, update: translateCoreMock.updateHistory })
+  useTranslateHistory: (options?: unknown) => {
+    translateCoreMock.historyHookOptions(options)
+    return { add: translateCoreMock.addHistory, update: translateCoreMock.updateHistory }
+  }
 }))
 
 vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
@@ -511,6 +515,7 @@ describe('TranslatePage', () => {
     translateCoreMock.translateText.mockResolvedValue('translated text')
     translateCoreMock.updateHistory.mockReset()
     translateCoreMock.updateHistory.mockResolvedValue(undefined)
+    translateCoreMock.historyHookOptions.mockClear()
     translateCoreMock.isAbortError.mockReset()
     translateCoreMock.isAbortError.mockReturnValue(false)
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
@@ -1256,13 +1261,72 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('keeps single-direction history target-only without detecting a source language', async () => {
+  it('stores single-direction history before detecting and backfills its source language', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'auto',
       'feature.translate.page.target_language': 'en-us'
     })
     translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-1' })
+    let resolveDetection!: (language: string) => void
+    translateCoreMock.detectLanguage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDetection = resolve
+      })
+    )
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    // The user-visible translation completes while detection is still pending.
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('translate.complete'))
+    expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+      sourceText: 'hello',
+      targetText: 'translated text',
+      sourceLanguage: null,
+      targetLanguage: 'en-us'
+    })
+    expect(translateCoreMock.updateHistory).not.toHaveBeenCalled()
+    // Backfill must not flip the page into the detecting state.
+    expect(screen.getByRole('button', { name: 'translate.button.translate' })).not.toBeDisabled()
+
+    await act(async () => resolveDetection('zh-cn'))
+
+    await waitFor(() =>
+      expect(translateCoreMock.updateHistory).toHaveBeenCalledWith('history-1', { sourceLanguage: 'zh-cn' })
+    )
+    expect(screen.getByRole('button', { name: 'translate.button.translate' })).not.toBeDisabled()
+  })
+
+  it.each([
+    ['unknown detection', () => Promise.resolve('unknown')],
+    ['failed detection', () => Promise.reject(new Error('detect failed'))]
+  ])('leaves single-direction history source unset after %s', async (_caseName, detectResult) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-1' })
+    translateCoreMock.detectLanguage.mockImplementationOnce(detectResult)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(translateCoreMock.updateHistory).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores a deleted history row during source-language backfill', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-deleted' })
+    translateCoreMock.updateHistory.mockRejectedValueOnce(new Error('history not found'))
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
@@ -1270,25 +1334,21 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
     await waitFor(() =>
-      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
-        'hello',
-        'en-us',
-        expect.any(Function),
-        expect.any(AbortSignal)
-      )
-    )
-    expect(toast.error).not.toHaveBeenCalled()
-    await waitFor(() =>
-      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
-        sourceText: 'hello',
-        targetText: 'translated text',
-        sourceLanguage: null,
-        targetLanguage: 'en-us'
+      expect(translateCoreMock.updateHistory).toHaveBeenCalledWith('history-deleted', {
+        sourceLanguage: 'en-us'
       })
     )
-    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
-    expect(translateCoreMock.updateHistory).not.toHaveBeenCalled()
+    await act(async () => {
+      await Promise.resolve()
+    })
+
     expect(toast.error).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'translate.button.translate' })).not.toBeDisabled()
+    // The mocked hook cannot enforce its own feedback options, so assert the
+    // page asks for the silent behavior the backfill relies on.
+    expect(translateCoreMock.historyHookOptions).toHaveBeenCalledWith({
+      update: { showErrorToast: false, rethrowError: false }
+    })
   })
 
   it('continues translating with the selected target when auto detection returns unknown in bidirectional mode', async () => {

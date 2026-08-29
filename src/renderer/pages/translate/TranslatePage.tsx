@@ -215,7 +215,9 @@ const TranslatePage: FC = () => {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
-  const { add: addHistory } = useTranslateHistory()
+  const { add: addHistory, update: updateHistory } = useTranslateHistory({
+    update: { showErrorToast: false, rethrowError: false }
+  })
   const { notesPath } = useNotesSettings()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
@@ -375,7 +377,7 @@ const TranslatePage: FC = () => {
       rawText: string,
       actualSourceLanguage: TranslateLangCode | null,
       actualTargetLanguage: TranslateLangCode
-    ): Promise<void> => {
+    ): Promise<TranslateHistory | undefined> => {
       if (isTranslating) return
 
       smoothReset('')
@@ -400,7 +402,7 @@ const TranslatePage: FC = () => {
         )
       }
 
-      await addHistory({
+      return addHistory({
         sourceText: rawText,
         targetText: translated,
         sourceLanguage: actualSourceLanguage,
@@ -410,13 +412,33 @@ const TranslatePage: FC = () => {
     [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
   )
 
+  // Off the translation critical path: a failed detection or patch just leaves
+  // the stored source language unset, so every outcome stays silent.
+  //
+  // Backfills for different history ids can overlap on this one template-path
+  // mutation, which shares `isMutating`/`error` across them (see
+  // docs/references/data/data-api-in-renderer.md). Harmless today because
+  // nothing here reads that state — revisit if this call site ever does.
+  const backfillHistorySourceLanguage = useCallback(
+    (historyId: string, rawText: string) => {
+      void detectLanguageOrUnknown(rawText, detectLanguage, () => undefined)
+        .then((language) => {
+          if (language === UNKNOWN_LANG_CODE) return
+          return updateHistory(historyId, { sourceLanguage: language })
+        })
+        .catch(() => undefined)
+    },
+    [detectLanguage, updateHistory]
+  )
+
   const translateTextContent = useCallback(
     async (rawText: string, allowBidirectional: boolean, isCurrent?: () => boolean): Promise<void> => {
       if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
 
       if (allowBidirectional && !isBidirectional) {
         setDetectedLanguage(null)
-        await translate(rawText, null, targetLanguage)
+        const history = await translate(rawText, null, targetLanguage)
+        if (history) backfillHistorySourceLanguage(history.id, rawText)
         return
       }
 
@@ -455,6 +477,7 @@ const TranslatePage: FC = () => {
       await translate(rawText, actualSourceLanguage, targetResult.language)
     },
     [
+      backfillHistorySourceLanguage,
       bidirectionalPair,
       detectLanguage,
       isBidirectional,
