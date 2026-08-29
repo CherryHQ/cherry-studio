@@ -1,46 +1,45 @@
 /**
- * Translate's reasoning-effort selection, resolved against the configured
- * translate model.
+ * Translate's reasoning-effort selection, read alongside the configured model.
  *
- * The settings panel and the page toolbar both edit the same preference, so the
- * reconciliation lives here instead of at either call site — the translate model
- * also changes out-of-band, when picking a default model cascades into it.
+ * The stored selection is never rewritten to fit the current model, matching
+ * what the composers do: `ModelSpeedControl` shows provider Default for an
+ * effort this model does not declare, and Main degrades the same selection to
+ * "send no reasoning parameter". So pointing translate at a model with a
+ * narrower vocabulary — including when picking a default model cascades into
+ * `feature.translate.model_id` — costs the user nothing, and pointing it back
+ * returns the effort they chose.
  */
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
-import { deriveThinkingOptions, resolveReasoningEffortForModel } from '@shared/ai/reasoning'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import { isUniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect } from 'react'
 
 const logger = loggerService.withContext('useTranslateReasoningEffort')
 
 export function useTranslateReasoningEffort() {
   const [modelId] = usePreference('feature.translate.model_id')
-  const { model } = useModelById(modelId && isUniqueModelId(modelId) ? modelId : null)
+  const { model, error } = useModelById(modelId && isUniqueModelId(modelId) ? modelId : null)
   const [effort, setEffort] = usePreference('feature.translate.reasoning_effort')
+
+  // A model row that fails to resolve hides the control, which on screen is
+  // indistinguishable from a model that simply cannot reason.
+  useEffect(() => {
+    if (error) logger.error('Failed to resolve the translate model', error, { modelId })
+  }, [error, modelId])
 
   const selectEffort = useCallback(
     (next: ReasoningEffortOption) => {
-      setEffort(next).catch((error) => logger.error('Failed to persist translate reasoning effort', error as Error))
+      setEffort(next).catch((err) => logger.error('Failed to persist translate reasoning effort', err as Error))
     },
     [setEffort]
   )
 
-  // Project a stored effort onto the current model's vocabulary and write the
-  // result back, so the panel never offers a value this model would reject.
-  // Writing only on a real difference keeps this a fixpoint rather than a loop.
-  useEffect(() => {
-    if (!model) return
-    const resolved = resolveReasoningEffortForModel(model, effort)
-    if (resolved === undefined || resolved === effort) return
-    selectEffort(resolved)
-  }, [model, effort, selectEffort])
-
   // Matches the control's own visibility rule: more than a bare 'default'.
-  const supportsReasoning = useMemo(() => (model ? (deriveThinkingOptions(model)?.length ?? 0) > 1 : false), [model])
+  const supportsReasoning = model ? (deriveThinkingOptions(model)?.length ?? 0) > 1 : false
 
   return { model, effort, selectEffort, supportsReasoning }
 }

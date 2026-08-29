@@ -152,13 +152,26 @@ vi.mock('@cherrystudio/ui', () => ({
     getThumbAriaLabel?: (index: number) => string
     'aria-label'?: string
   }) => (
-    <div aria-label={props['aria-label'] ?? getThumbAriaLabel?.(0)} data-value={value[0]}>
+    <div role="slider" aria-label={props['aria-label'] ?? getThumbAriaLabel?.(0)} data-value={value[0]}>
       <button type="button" data-testid="slider-drag" onClick={() => onValueChange?.([max])} />
       <button type="button" data-testid="slider-commit" onClick={() => onValueCommit?.([max])} />
     </div>
   ),
-  Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (value: boolean) => void }) => (
-    <button type="button" aria-pressed={checked} onClick={() => onCheckedChange(!checked)} />
+  Switch: ({
+    checked,
+    onCheckedChange,
+    ...props
+  }: {
+    checked: boolean
+    onCheckedChange: (value: boolean) => void
+    'aria-label'?: string
+  }) => (
+    <button
+      type="button"
+      aria-label={props['aria-label']}
+      aria-pressed={checked}
+      onClick={() => onCheckedChange(!checked)}
+    />
   ),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
@@ -515,8 +528,7 @@ describe('translate model parameters', () => {
   it('enables temperature from the panel', async () => {
     render(<TranslateSettingsPanelContent />)
 
-    const row = screen.getByText('library.config.basic.temperature').closest('div')?.parentElement
-    fireEvent.click(within(row as HTMLElement).getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.basic.temperature' }))
 
     await waitFor(() => expect(setterFor('feature.translate.enable_temperature')).toHaveBeenCalledWith(true))
   })
@@ -525,7 +537,7 @@ describe('translate model parameters', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.enable_temperature', true)
     render(<TranslateSettingsPanelContent />)
 
-    const slider = within(screen.getByLabelText('library.config.basic.temperature'))
+    const slider = within(screen.getByRole('slider', { name: 'library.config.basic.temperature' }))
     fireEvent.click(slider.getByTestId('slider-drag'))
     expect(setterFor('feature.translate.temperature')).not.toHaveBeenCalled()
 
@@ -543,22 +555,35 @@ describe('translate model parameters', () => {
     expect(screen.getByText('assistants.settings.reasoning_effort.label')).toBeInTheDocument()
   })
 
-  it('rewrites a stored effort the selected model cannot honour', async () => {
+  it('keeps a stored effort the selected model cannot honour instead of rewriting it', async () => {
+    // Switching to a narrower model must not cost the user their choice: the control
+    // shows provider Default for the render, and Main degrades the same value on its own.
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'max')
-    mockTranslateModel = reasoningModel
-
-    render(<TranslateSettingsPanelContent />)
-
-    await waitFor(() => expect(setterFor('feature.translate.reasoning_effort')).toHaveBeenCalledWith('high'))
-  })
-
-  it('leaves a stored effort alone when the model declares it', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'low')
     mockTranslateModel = reasoningModel
 
     render(<TranslateSettingsPanelContent />)
 
     await waitFor(() => expect(screen.getByText('assistants.settings.reasoning_effort.label')).toBeInTheDocument())
     expect(setterFor('feature.translate.reasoning_effort')).not.toHaveBeenCalled()
+  })
+
+  it('does not touch the stored effort for a model with no reasoning at all', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    mockTranslateModel = plainModel
+
+    render(<TranslateSettingsPanelContent />)
+
+    await waitFor(() => expect(screen.getByText('library.config.basic.temperature')).toBeInTheDocument())
+    expect(setterFor('feature.translate.reasoning_effort')).not.toHaveBeenCalled()
+  })
+
+  it('persists the effort the user picks', async () => {
+    mockTranslateModel = reasoningModel
+    render(<TranslateSettingsPanelContent />)
+
+    // The effort slider commits on change, unlike the sampling sliders below it.
+    fireEvent.click(within(screen.getByRole('slider', { name: 'agent.speed.effort' })).getByTestId('slider-drag'))
+
+    await waitFor(() => expect(setterFor('feature.translate.reasoning_effort')).toHaveBeenCalledWith('high'))
   })
 })

@@ -232,15 +232,9 @@ const TranslateSettingsCoreContent: FC = () => {
   )
 }
 
-/**
- * Sampling knobs plus reasoning effort for the translate model. Lives in the
- * shared panel body so the translate page and Settings → Models both get them.
- *
- * Unlike an assistant, these persist per keystroke rather than on a form
- * submit, so sliders keep a local value while dragging and write on release.
- * Nothing here mirrors the model-capability gating main applies before the
- * request — a knob a model ignores is dropped there and logged, not hidden.
- */
+// Rendered by both panel bodies, so the translate page and Settings → Models
+// agree. Values commit on release, never per change: they go straight to
+// Preference, and an `enable*` toggle must not disturb the number beside it.
 const TranslateModelParameters: FC = () => {
   const { t } = useTranslation()
   const { model, effort, selectEffort, supportsReasoning } = useTranslateReasoningEffort()
@@ -319,6 +313,7 @@ const TranslateModelParameters: FC = () => {
               )}
               <Switch
                 size="sm"
+                aria-label={t('library.config.basic.max_tokens')}
                 checked={enableMaxTokens}
                 onCheckedChange={(next) => void safePersist(setEnableMaxTokens(next), 'translate max tokens toggle')}
               />
@@ -385,7 +380,7 @@ const SamplingSliderItem: FC<SamplingSliderItemProps> = ({
           <span className="text-muted-foreground text-xs">
             {enabled ? shown.toFixed(precision) : t('library.config.basic.default_value')}
           </span>
-          <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} />
+          <Switch size="sm" aria-label={label} checked={enabled} onCheckedChange={onEnabledChange} />
         </div>
       }>
       {enabled && (
