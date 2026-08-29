@@ -11,10 +11,13 @@ import type {
   ReasoningWireProfile,
   ReasoningWireTarget
 } from '@cherrystudio/provider-registry'
+import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+
+const logger = loggerService.withContext('reasoningSerializers')
 
 export type CanonicalReasoningSelection = ReasoningEffortOption
 
@@ -45,6 +48,17 @@ const OMIT: ResolvedReasoningInvocation = {
   kind: 'omit',
   selection: 'default',
   emissions: []
+}
+
+/**
+ * Degrading to "send no reasoning parameter" is silent everywhere else, and it
+ * is not inert: the resulting `kind` decides whether the sampling gates treat
+ * thinking as active, so a request can lose its temperature to a degradation
+ * the user never saw.
+ */
+function omit(reason: string, model: Model, selection: CanonicalReasoningSelection): ResolvedReasoningInvocation {
+  logger.info(`Reasoning '${selection}' not sent for ${model.id}: ${reason}`)
+  return { ...OMIT, selection }
 }
 
 function resolveSelection(
@@ -119,13 +133,16 @@ function resolveModeBudget(
 }
 
 export function resolveReasoningInvocation(input: ResolveReasoningInvocationInput): ResolvedReasoningInvocation {
-  if (!input.model.reasoning || input.profile.disabled) return OMIT
+  const requested = input.selection ?? 'default'
+  if (!input.model.reasoning || input.profile.disabled) {
+    return omit('the model declares no reasoning, or its profile is disabled', input.model, requested)
+  }
 
   const selection = resolveSelection(input.selection, input.model)
-  if (!selection) return OMIT
+  if (!selection) return omit('the model does not declare this effort', input.model, requested)
 
   const mode = resolveMode(selection, input.profile)
-  if (!mode) return { ...OMIT, selection }
+  if (!mode) return omit('the profile has no wire mode for this effort', input.model, selection)
 
   const effort = resolveModeEffort(selection, mode)
   const budgetTokens =
@@ -134,10 +151,12 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   // `null` means the request's output cap cannot satisfy the wire contract
   // (for example Anthropic requires budget_tokens < max_tokens). Omit the
   // whole mode instead of emitting an invalid or partially enabled request.
-  if (budgetTokens === null) return { ...OMIT, selection }
+  if (budgetTokens === null) {
+    return omit("the request's output cap cannot satisfy the wire's budget contract", input.model, selection)
+  }
 
   if ('budget' in mode && mode.budget.missing.type === 'omit-mode' && budgetTokens === undefined) {
-    return { ...OMIT, selection }
+    return omit('the wire requires a thinking budget and none could be derived', input.model, selection)
   }
 
   const emissions: ResolvedReasoningEmission[] = []
@@ -160,7 +179,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
     if (value !== undefined) emissions.push({ target: operation.target, value })
   }
 
-  if (emissions.length === 0) return { ...OMIT, selection }
+  if (emissions.length === 0) return omit('the mode produced no wire values', input.model, selection)
 
   const kind: ResolvedReasoningKind =
     budgetTokens !== undefined ? 'budget' : selection === 'none' ? 'off' : selection === 'auto' ? 'auto' : 'effort'

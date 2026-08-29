@@ -151,6 +151,12 @@ describe('translateService.open', () => {
     )
     getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
     getByLangCodeMock.mockReturnValue(TARGET)
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'feature.translate.enable_temperature': true,
+      'feature.translate.temperature': 0.3,
+      'feature.translate.enable_max_tokens': true,
+      'feature.translate.max_tokens': 512
+    })
   })
 
   it('uses the renderer-supplied streamId, resolves the DTO, and dispatches via streamManager.streamPrompt', async () => {
@@ -172,6 +178,7 @@ describe('translateService.open', () => {
             uniqueModelId: string
             prompt: string
             reasoningEffort?: string
+            callOverrides?: Record<string, unknown>
             listener: { id: string } | Array<{ id: string }>
           }
         ]
@@ -182,6 +189,9 @@ describe('translateService.open', () => {
     expect(arg.prompt).toBe('Translate to English: hello')
     // Ships the stored effort — 'none' by default; unsupported values degrade downstream.
     expect(arg.reasoningEffort).toBe('none')
+    // The whole feature hangs off this one argument: drop it and every other
+    // assertion in this file still passes while nothing reaches the model.
+    expect(arg.callOverrides).toEqual({ temperature: 0.3, maxOutputTokens: 512 })
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)

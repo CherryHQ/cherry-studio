@@ -1,10 +1,11 @@
 /**
  * Main-process translate service.
  *
- * Stateless orchestration — resolves the configured translate model + builds
- * the interpolated prompt from main-side preferences/DataApi, then hands the
- * stream off to `AiStreamManager.streamPrompt` with a `WebContentsListener`
- * keyed by the renderer-supplied `translate:*` streamId.
+ * Stateless orchestration — resolves the configured translate model, builds the
+ * interpolated prompt, and gates the configured model parameters against that
+ * model, all from main-side preferences/DataApi; then hands the stream off to
+ * `AiStreamManager.streamPrompt` with a `WebContentsListener` keyed by the
+ * renderer-supplied `translate:*` streamId.
  *
  * Renderer subscribers consume `ai.stream.chunk` / `done` / `error` events
  * filtered by that streamId; abort flows back through `ai.stream.abort`.
@@ -17,6 +18,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { CallOverrides, SamplingSettings } from '@main/ai/types'
 import { getTemperature, getTopP } from '@main/ai/utils/modelParameters'
 import type { ResolvedReasoningKind } from '@main/ai/utils/reasoningSerializers'
 import { modelService } from '@main/data/services/ModelService'
@@ -30,7 +32,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isQwenMTModel } from '@shared/utils/model'
 
 import { WebContentsListener } from '../../ai/streamManager'
-import type { CallOverrides } from '../../ai/types'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -45,16 +46,8 @@ const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
  */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
 
-/**
- * Which reasoning bucket the sampling gates should assume.
- *
- * `getTemperature` / `getTopP` only distinguish "thinking is off" (`omit` /
- * `off`) from everything else, so the three active kinds collapse into one.
- * Main resolves the real invocation later and degrades an effort the model
- * does not declare, which can only make thinking *less* active than assumed —
- * so an inherited value that turns out unsupported drops a sampling parameter
- * that would have been kept, never sends one that should have been dropped.
- */
+// `getTemperature` / `getTopP` only split "thinking off" (omit / off) from everything else.
+// Assuming active is the safe side: a later degradation only drops a param that would have been kept.
 function reasoningKindFor(effort: ReasoningEffortOption): ResolvedReasoningKind {
   if (effort === 'default') return 'omit'
   if (effort === 'none') return 'off'
@@ -123,10 +116,14 @@ export class TranslateService {
       callOverrides
     })
 
-    logger.debug('translate stream opened', {
+    // `info`, and with the overrides: this is the only record of what translate
+    // actually put on the request, and `resolveReasoningInvocation` logs the
+    // reasoning it ends up sending separately.
+    logger.info('translate stream opened', {
       streamId: req.streamId,
       uniqueModelId,
-      reasoningEffort
+      reasoningEffort,
+      callOverrides
     })
     return { streamId: req.streamId }
   }
@@ -135,10 +132,11 @@ export class TranslateService {
    * Read the translate model parameters and gate them against the model.
    *
    * Sampling rides `callOverrides` because `streamPrompt` offers no other
-   * channel for a caller without an assistant. That field is documented for
-   * pass-through proxies, so translate gates the values itself rather than
-   * letting them reach the wire unchecked — the pipeline does not re-gate what
-   * arrives this way. Folding this back into the request pipeline is #19693.
+   * channel for a caller without an assistant — the field exists for exactly
+   * that (`CallOverrides`, used by the API gateway). Downstream re-gating drops
+   * only `topK` (`filterStandardParams`), so temperature, topP and
+   * maxOutputTokens reach the wire as given and translate has to gate them
+   * here. Folding this back into the request pipeline is #19693.
    */
   resolveRequestParameters(model: Model): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
     const preferenceService = application.get('PreferenceService')
@@ -150,7 +148,7 @@ export class TranslateService {
       enableTopP: preferenceService.get('feature.translate.enable_top_p'),
       maxTokens: preferenceService.get('feature.translate.max_tokens'),
       enableMaxTokens: preferenceService.get('feature.translate.enable_max_tokens')
-    }
+    } satisfies SamplingSettings
 
     const reasoning = { kind: reasoningKindFor(reasoningEffort) }
     const temperature = getTemperature(settings, model, reasoning)
