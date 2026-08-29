@@ -50,14 +50,10 @@ const OMIT: ResolvedReasoningInvocation = {
   emissions: []
 }
 
-/**
- * Degrading to "send no reasoning parameter" is silent everywhere else, and it
- * is not inert: the resulting `kind` decides whether the sampling gates treat
- * thinking as active, so a request can lose its temperature to a degradation
- * the user never saw.
- */
+// Only a selection the user made is worth a line: it is otherwise invisible, and not inert — the
+// resulting kind is what the sampling gates read. 'default' asked for nothing and is ordinary traffic.
 function omit(reason: string, model: Model, selection: CanonicalReasoningSelection): ResolvedReasoningInvocation {
-  logger.info(`Reasoning '${selection}' not sent for ${model.id}: ${reason}`)
+  if (selection !== 'default') logger.info(`Reasoning '${selection}' not sent for ${model.id}: ${reason}`)
   return { ...OMIT, selection }
 }
 

@@ -2,12 +2,17 @@
  * Translate's reasoning-effort selection, read alongside the configured model.
  *
  * The stored selection is never rewritten to fit the current model, matching
- * what the composers do: `ModelSpeedControl` shows provider Default for an
- * effort this model does not declare, and Main degrades the same selection to
- * "send no reasoning parameter". So pointing translate at a model with a
- * narrower vocabulary — including when picking a default model cascades into
- * `feature.translate.model_id` — costs the user nothing, and pointing it back
- * returns the effort they chose.
+ * what the composers do. Main resolves the stored value per request instead:
+ * to the nearest effort the model does declare, or — when it declares none at
+ * all, or cannot turn thinking off — to no reasoning parameter. So pointing
+ * translate at a model with a narrower vocabulary, including when picking a
+ * default model cascades into `feature.translate.model_id`, costs the user
+ * nothing, and pointing it back returns the effort they chose.
+ *
+ * The display is more conservative than the wire: `ModelSpeedControl` shows
+ * provider Default for an effort the model does not declare, while the request
+ * carries the nearest one. That split is the composers' too — worth knowing
+ * when reading a log line that names an effort the popover never showed.
  */
 
 import { usePreference } from '@data/hooks/usePreference'

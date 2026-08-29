@@ -555,9 +555,9 @@ describe('translate model parameters', () => {
     expect(screen.getByText('assistants.settings.reasoning_effort.label')).toBeInTheDocument()
   })
 
-  it('keeps a stored effort the selected model cannot honour instead of rewriting it', async () => {
+  it('keeps a stored effort the model does not declare instead of rewriting it', async () => {
     // Switching to a narrower model must not cost the user their choice: the control
-    // shows provider Default for the render, and Main degrades the same value on its own.
+    // shows provider Default, and Main resolves the stored value per request on its own.
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'max')
     mockTranslateModel = reasoningModel
 
