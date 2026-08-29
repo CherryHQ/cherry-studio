@@ -1,5 +1,6 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -36,12 +37,15 @@ const commandHandlerMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => ({
   props: [] as any[]
 }))
+const translationLanguagesMock = vi.hoisted(() => ({
+  languages: [] as TranslateLanguage[] | undefined
+}))
 const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
   const refetchTranslationLanguagesMock = vi.fn(async () => undefined)
   return {
     refetchTranslationLanguagesMock,
     useLanguagesMock: vi.fn(() => ({
-      languages: [],
+      languages: translationLanguagesMock.languages,
       getLabel: vi.fn(() => ''),
       status: 'ready' as const,
       refetch: refetchTranslationLanguagesMock
@@ -313,6 +317,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     messageEditingMock.editingMessageId = null
     messageEditingMock.editingMessage = null
     modelSelectorMock.props = []
+    translationLanguagesMock.languages = []
     clearPendingTopicImageActionsForTest()
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -357,6 +362,31 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     expect(value?.state.getMessageActivityState).toBe(getMessageActivityStateMock)
     expect(value?.state.messageActivityStore).toBe(messageActivityStoreMock)
+  })
+
+  it('keeps translation languages absent while they are not loaded', () => {
+    translationLanguagesMock.languages = undefined
+    let value: MessageListProviderValue | undefined
+
+    const { rerender } = render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        streamingLayers={{ historyPartsByMessageId: {}, liveMessageIds: [] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.translationLanguages).toBeUndefined()
+
+    rerender(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        streamingLayers={{ historyPartsByMessageId: {}, liveMessageIds: ['message-1'] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.translationLanguages).toBeUndefined()
   })
 
   it('exposes the language load status and retries through the shared refetch', () => {
