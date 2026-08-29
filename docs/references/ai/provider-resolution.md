@@ -30,7 +30,7 @@ See [Adapter Family](./adapter-family.md) for the full design.
 `src/main/ai/provider/endpoint.ts` exposes four pure helpers:
 
 ```ts
-resolveEffectiveEndpoint(provider, model, { requiredEndpointType?, suggestedEndpointType? }): {
+resolveEffectiveEndpoint(provider, model, { requiredEndpointType? }): {
   endpointType,
   baseUrl,
   providerOptionsKey?
@@ -44,16 +44,15 @@ resolveProviderOptionsKey(aiSdkProviderId, context): string
 
 1. A caller's hard requirement for a runtime that speaks exactly one protocol.
 2. The model's persisted `preferredEndpointType`.
-3. A caller suggestion, such as Pi preferring Anthropic Messages for a dual-protocol model.
-4. The first model-declared endpoint with a configured provider route.
-5. A registered per-model gateway route.
-6. `provider.defaultChatEndpoint`.
+3. The first model-declared endpoint with a configured provider route.
+4. A registered per-model gateway route.
+5. `provider.defaultChatEndpoint`.
 
 Every chat protocol requires a live endpoint configuration; a hand-added model with no
-`endpointTypes` can use any configured provider route. New API, CherryIN, and AIOnly use
-`sharedEndpointHost` only to inherit one user-configured URL across those configured adapters;
-their upstream-reported endpoint set still narrows which routes each model accepts. Invalid stored
-preferences are skipped, as are runtime requirements and suggestions without a model declaration
+`endpointTypes` can use any configured provider route. An adapter-only endpoint configuration can
+inherit the provider's user-configured URL; the upstream-reported endpoint set still narrows which
+routes each model accepts. Invalid stored
+preferences are skipped, as are runtime requirements without a model declaration
 or registered gateway route. If a model declares protocols but none has a configured route, the
 resolver retains its first declaration so URL resolution fails closed instead of borrowing the
 provider default.

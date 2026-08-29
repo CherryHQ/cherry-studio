@@ -513,7 +513,7 @@ describe('ProviderRegistryService', () => {
       expect(chat.serviceTierControl).toBeUndefined()
     })
 
-    it('uses the same available fallback route as requests for a stale shared-host preference', () => {
+    it('uses the same available fallback route as requests for a stale preference', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'relay-model', name: 'Relay Model', capabilities: ['reasoning'] }]
@@ -534,7 +534,6 @@ describe('ProviderRegistryService', () => {
           {
             id: 'relay',
             name: 'Relay',
-            sharedEndpointHost: true,
             defaultChatEndpoint: 'openai-chat-completions',
             endpointConfigs: {
               'openai-responses': {

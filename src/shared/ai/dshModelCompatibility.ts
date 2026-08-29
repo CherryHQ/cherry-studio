@@ -64,21 +64,12 @@ export function mapEndpointToDshApi(
   }
 }
 
-/**
- * The effective chat endpoint the dsh runtime uses. Delegates to the shared resolver, so a persisted
- * user pin wins over the declared order — dsh speaks Chat, Responses, Anthropic and Google, so it
- * has no single-dialect constraint that should override the user.
- */
-export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return getModelPreferredEndpoint(model, provider)
-}
-
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */
 export function resolveDshApi(provider: Provider, model: Model): DshApi | undefined {
   // dsh runs as a subprocess with no per-request transport injection, so every login-based
   // provider is undrivable — including the app-managed OAuth ones pi adapts in-process.
   if (isLoginBasedProvider(provider)) return undefined
-  const endpointType = resolveDshEndpointType(provider, model)
+  const endpointType = getModelPreferredEndpoint(model, provider)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToDshApi(endpointType, adapterFamily)
 }

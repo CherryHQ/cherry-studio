@@ -80,7 +80,6 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
-  sharedEndpointHost?: boolean
   /** Registry capability: provider-native tools served by this host. */
   serverTools?: ServerToolConfig[]
   /** Registry-owned currency for provider-reported cost amounts. */
@@ -791,7 +790,6 @@ class ProviderRegistryService {
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
-        sharedEndpointHost: provider?.sharedEndpointHost,
         serverTools: provider?.serverTools,
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,

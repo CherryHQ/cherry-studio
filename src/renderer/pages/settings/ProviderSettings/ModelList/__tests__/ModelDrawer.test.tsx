@@ -17,7 +17,6 @@ const toastErrorMock = vi.fn()
 const newApiProvider = {
   id: 'new-api',
   name: 'New API',
-  sharedEndpointHost: true,
   endpointConfigs: {
     [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
       adapterFamily: 'newapi',

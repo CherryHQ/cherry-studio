@@ -88,20 +88,6 @@ export function mapEndpointToPiApi(
   }
 }
 
-/**
- * The effective chat endpoint the runtime would use: a valid persisted choice,
- * then Pi's Anthropic suggestion for dual-protocol models, then the normal
- * model/provider fallback. Kept pure so the renderer can reuse it.
- */
-function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  const suggestedEndpointType =
-    model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
-    model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-      ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-      : undefined
-  return getModelPreferredEndpoint(model, provider, suggestedEndpointType)
-}
-
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */
 export function resolvePiApi(provider: Provider, model: Model): PiApi | undefined {
   // Login-based providers hold no plain app-side API key. An external-CLI login
@@ -111,7 +97,7 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
   // injects their OAuth token + provider headers + payload rewrite per request —
   // so they ARE drivable and fall through to the normal endpoint mapping.
   if (isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)) return undefined
-  const endpointType = resolveEndpointType(provider, model)
+  const endpointType = getModelPreferredEndpoint(model, provider)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToPiApi(endpointType, adapterFamily)
 }

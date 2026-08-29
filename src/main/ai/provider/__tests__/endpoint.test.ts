@@ -341,10 +341,9 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('https://ark.example.com/v3/responses/')
   })
 
-  it('uses the shared New API host for a preferred adapter-only endpoint', () => {
+  it('uses the provider host for a preferred adapter-only endpoint', () => {
     const provider = makeProvider({
       id: 'new-api',
-      sharedEndpointHost: true,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
@@ -366,13 +365,10 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
-  it('inherits the shared host for every aggregator, not just the New API preset', () => {
-    // Keyed to `matchesPreset('new-api')`, CherryIN and AiOnly fell out of the inheritance rule and
-    // resolved a pinned secondary route to no host at all.
+  it('inherits the provider host for configured adapter-only endpoints regardless of provider identity', () => {
     const provider = makeProvider({
       id: 'cherryin',
       presetProviderId: 'cherryin',
-      sharedEndpointHost: true,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
@@ -394,10 +390,9 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
-  it('does not let a shared host stand in for a missing adapter', () => {
+  it('does not let the provider host stand in for a missing adapter', () => {
     const provider = makeProvider({
       id: 'relay',
-      sharedEndpointHost: true,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' }
@@ -474,28 +469,6 @@ describe('resolveEffectiveEndpoint', () => {
       endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
       baseUrl: '',
       providerOptionsKey: undefined
-    })
-  })
-
-  it('keeps a valid user preference ahead of a runtime suggestion', () => {
-    const provider = makeProvider({
-      id: 'relay',
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/chat' },
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example.com/anthropic' }
-      }
-    })
-    const model = {
-      id: 'relay::model',
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    } as never
-
-    expect(
-      resolveEffectiveEndpoint(provider, model, { suggestedEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
-    ).toMatchObject({
-      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      baseUrl: 'https://relay.example.com/chat'
     })
   })
 

@@ -7,7 +7,7 @@ import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
-import { getModelPreferredEndpoint, isAzureOpenAIProvider, isModelEndpointTypeAvailable } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -39,25 +39,19 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: caller hard requirement → valid user preference → caller suggestion → `model.endpointTypes[0]`
+ * Priority: caller hard requirement → valid user preference → `model.endpointTypes[0]`
  * → gateway per-model route → `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves
  * the wire endpoint from the model id for multi-backend gateways (AiHubMix, …) whose models carry no
  * explicit endpoint (see `gatewayRouting`). `getBaseUrl` applies its own fallback among
  * `endpointConfigs`.
  *
- * Hard requirements belong to runtimes that speak exactly one dialect. Suggestions are runtime
- * heuristics and therefore stay below a valid persisted user choice. Every candidate is checked
+ * Hard requirements belong to runtimes that speak exactly one dialect. Every candidate is checked
  * against the model's current capability set and the provider's live endpoint configs.
  */
-export interface EndpointResolutionOptions {
-  requiredEndpointType?: EndpointType
-  suggestedEndpointType?: EndpointType
-}
-
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  options?: EndpointResolutionOptions
+  options?: { requiredEndpointType?: EndpointType }
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
   const isRuntimeCandidateAvailable = (endpointType: EndpointType) =>
@@ -72,11 +66,7 @@ export function resolveEffectiveEndpoint(
     model.preferredEndpointType && isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)
       ? model.preferredEndpointType
       : undefined
-  const suggestedEndpoint =
-    options?.suggestedEndpointType && isRuntimeCandidateAvailable(options.suggestedEndpointType)
-      ? options.suggestedEndpointType
-      : undefined
-  const selectedEndpoint = requiredEndpoint ?? userPreferredEndpoint ?? suggestedEndpoint
+  const selectedEndpoint = requiredEndpoint ?? userPreferredEndpoint
   const endpointType = selectedEndpoint ?? getModelPreferredEndpoint(model, provider)
   const endpointRequiresOwnHost =
     endpointType !== undefined &&
@@ -85,16 +75,13 @@ export function resolveEffectiveEndpoint(
     endpointType !== undefined &&
     provider.endpointConfigs != null &&
     Object.hasOwn(provider.endpointConfigs, endpointType)
-  const endpointCanShareDefaultHost =
-    hasEndpointConfig && (provider.sharedEndpointHost || isAzureOpenAIProvider(provider))
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return {
     endpointType,
     baseUrl: getBaseUrl(provider, endpointType, {
-      // Shared-host gateways and Azure reuse one user-configured host only for declared adapters;
-      // every unserved protocol still fails closed.
-      selectedEndpointOnly: endpointRequiresOwnHost && !endpointCanShareDefaultHost
+      // A configured adapter may reuse the provider's default host; an unserved protocol fails closed.
+      selectedEndpointOnly: endpointRequiresOwnHost && !hasEndpointConfig
     }),
     providerOptionsKey
   }
