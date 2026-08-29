@@ -259,3 +259,38 @@ describe('rankEntries cross-language source matching', () => {
     expect(rankEntries('skill', fixture, zh)).toEqual([])
   })
 })
+
+describe('text normalization in matching', () => {
+  const fx: Record<string, string> = {
+    'k.gateway': 'API 网关',
+    'k.cafe': 'Café réseau',
+    'k.plain': 'Plain Row'
+  }
+  const fixture: SettingsSearchSection[] = [
+    { route: '/gw', sectionTitleKey: 'k.gateway', entries: [] },
+    { route: '/cafe', sectionTitleKey: 'k.cafe', entries: [{ anchorId: 'a', titleKey: 'k.plain' }] }
+  ]
+  const t = (key: string) => fx[key] ?? key
+
+  it('matches across CJK/latin spacing ("API网关" finds "API 网关")', () => {
+    const ranked = rankEntries('API网关', fixture, t)
+    expect(ranked.map((r) => r.route)).toEqual(['/gw'])
+    // Spacing is stylistic: still the exact grade, not substring
+    expect(ranked[0]?.score).toBe(900)
+  })
+
+  it('matches composed against decomposed accent forms (French)', () => {
+    // "Café" in the catalog is composed (U+00E9); the query decomposes it
+    // as e + combining acute (U+0301), as some IMEs / clipboards produce
+    const decomposed = 'cafe\u0301 re\u0301seau'
+    const ranked = rankEntries(decomposed, fixture, t)
+    expect(ranked.map((r) => r.route)).toEqual(['/cafe'])
+    expect(ranked[0]?.score).toBe(900)
+  })
+
+  it('applies the squeezed pass uniformly (latin "plainrow" finds "Plain Row")', () => {
+    // Whitespace folding is language-agnostic by design; both spellings rank exact
+    expect(rankEntries('plain row', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
+    expect(rankEntries('plainrow', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
+  })
+})

@@ -19,20 +19,31 @@ type Tier = (typeof TIER)[keyof typeof TIER]
 type MatchLevel = keyof Tier
 type Translate = (key: string) => string
 
-function matchLevel(haystack: string, needle: string): MatchLevel | undefined {
-  const h = haystack.toLowerCase()
-  const n = needle.toLowerCase()
-  if (h === n) return 'exact'
-  if (h.startsWith(n)) return 'prefix'
-  if (h.includes(n)) return 'substring'
+/** Canonical match form: NFC fold (composed ≡ decomposed accents) + case fold */
+const normalizeText = (text: string): string => text.normalize('NFC').toLowerCase()
+
+function compareLevels(haystack: string, needle: string): MatchLevel | undefined {
+  if (haystack === needle) return 'exact'
+  if (haystack.startsWith(needle)) return 'prefix'
+  if (haystack.includes(needle)) return 'substring'
   return undefined
+}
+
+function matchLevel(haystack: string, needle: string): MatchLevel | undefined {
+  const level = compareLevels(normalizeText(haystack), normalizeText(needle))
+  if (level) return level
+  // Whitespace-insensitive pass: CJK/latin spacing is stylistic ("API 网关" ≡ "API网关")
+  const hSqueezed = normalizeText(haystack).replace(/\s+/g, '')
+  const nSqueezed = normalizeText(needle).replace(/\s+/g, '')
+  if (!nSqueezed) return undefined
+  return compareLevels(hSqueezed, nSqueezed)
 }
 
 /** Pinyin match (full or initials) against Chinese text; latin-only text never matches here */
 function pinyinMatch(text: string, query: string): boolean {
   const { full, initials } = toPinyinForms(text)
   if (!full) return false
-  const q = query.toLowerCase()
+  const q = normalizeText(query)
   return full.includes(q) || initials.includes(q)
 }
 
