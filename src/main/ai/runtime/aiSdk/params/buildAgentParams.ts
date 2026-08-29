@@ -617,8 +617,8 @@ function buildAgentOptions(
   )
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
-    const temperature = getTemperature(assistant, model, reasoning)
-    const topP = getTopP(assistant, model, reasoning)
+    const temperature = getTemperature(assistant.settings, model, reasoning)
+    const topP = getTopP(assistant.settings, model, reasoning)
     standardParams = {
       ...(temperature !== undefined && { temperature }),
       ...(topP !== undefined && { topP }),

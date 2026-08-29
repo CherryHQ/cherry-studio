@@ -1,11 +1,12 @@
 /**
- * Assistant + Model/Provider capabilities → final `temperature` / `topP`
- * / `maxOutputTokens`.
+ * Sampling settings + Model/Provider capabilities → final `temperature` / `topP`
+ * / `maxOutputTokens`. The settings come from an assistant, or from a feature
+ * that keeps its own (translate).
  */
 
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { SamplingSettings } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { AiSdkParam } from '@shared/types/aiSdk'
 import {
@@ -25,7 +26,7 @@ const logger = loggerService.withContext('modelParameters')
 
 /** `undefined` falls back to the provider default. */
 export function getTemperature(
-  assistant: Assistant,
+  settings: SamplingSettings,
   model: Model,
   reasoning: Pick<ResolvedReasoningInvocation, 'kind'>
 ): number | undefined {
@@ -34,8 +35,7 @@ export function getTemperature(
     return undefined
   }
 
-  const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
-  if (!enableTemperature) return undefined
+  if (!settings.enableTemperature) return undefined
 
   if (isClaude47SeriesModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
@@ -52,14 +52,14 @@ export function getTemperature(
     return undefined
   }
 
-  let temperature = assistant.settings?.temperature ?? DEFAULT_ASSISTANT_SETTINGS.temperature
+  let temperature = settings.temperature
 
   if (isMaxTemperatureOneModel(model) && temperature > 1) {
     logger.info(`Model ${model.id} has max temperature of 1, clamping temperature from ${temperature} to 1`)
     temperature = 1
   }
 
-  if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTopP) {
+  if (isTemperatureTopPMutuallyExclusiveModel(model) && settings.enableTopP) {
     logger.info(`Model ${model.id} only accepts one of temperature and topP, both enabled; keeping temperature`)
   }
 
@@ -68,7 +68,7 @@ export function getTemperature(
 
 /** Temperature wins when both are enabled on mutually-exclusive models. */
 export function getTopP(
-  assistant: Assistant,
+  settings: SamplingSettings,
   model: Model,
   reasoning: Pick<ResolvedReasoningInvocation, 'kind'>
 ): number | undefined {
@@ -77,8 +77,7 @@ export function getTopP(
     return undefined
   }
 
-  const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
-  if (!enableTopP) return undefined
+  if (!settings.enableTopP) return undefined
 
   if (isClaude47SeriesModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
@@ -90,12 +89,12 @@ export function getTopP(
     return undefined
   }
 
-  if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTemperature) {
+  if (isTemperatureTopPMutuallyExclusiveModel(model) && settings.enableTemperature) {
     logger.info(`Model ${model.id} only accepts one of temperature and topP, disabling topP.`)
     return undefined
   }
 
-  let topP = assistant.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP
+  let topP = settings.topP
 
   if (isClaudeReasoningModel(model) && reasoning.kind !== 'omit' && reasoning.kind !== 'off') {
     const clampedTopP = Math.max(0.95, Math.min(topP, 1))
