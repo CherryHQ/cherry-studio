@@ -327,11 +327,13 @@ async function cancellable<T>(work: () => Promise<T>): Promise<T | null> {
 
 export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.get_auto_sync_state': async () => application.get('AutoBackupService').getStateSnapshot(),
-  'backup.acknowledge_auto_sync_notification': async ({ type, id }) => {
-    application.get('AutoBackupService').acknowledgeNotification(type, id)
+  'backup.acknowledge_auto_sync_notification': async (input, ctx) => {
+    requireManagedWindow(ctx)
+    application.get('AutoBackupService').acknowledgeNotification(input.type, input.id)
   },
-  'backup.manual_completion.record': async ({ type }) => {
-    application.get('AutoBackupService').recordManualBackupCompletion(type)
+  'backup.manual_completion.record': async (input, ctx) => {
+    requireManagedWindow(ctx)
+    application.get('AutoBackupService').recordManualBackupCompletion(input.type)
   },
 
   'backup.get_status': async () => {

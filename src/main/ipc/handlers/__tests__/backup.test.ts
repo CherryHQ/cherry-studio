@@ -81,6 +81,14 @@ describe('backupHandlers', () => {
       [
         'backup.acknowledge_restore',
         () => backupHandlers['backup.acknowledge_restore']({ knowledgeRebuild: 'require-complete' }, detachedCtx)
+      ],
+      [
+        'backup.acknowledge_auto_sync_notification',
+        () => backupHandlers['backup.acknowledge_auto_sync_notification']({ type: 'webdav', id: 1 }, detachedCtx)
+      ],
+      [
+        'backup.manual_completion.record',
+        () => backupHandlers['backup.manual_completion.record']({ type: 'webdav' }, detachedCtx)
       ]
     ])('refuses %s from a caller that is not a managed window', async (_route, call) => {
       await expect(call()).rejects.toMatchObject({ code: backupErrorCodes.SENDER_NOT_ALLOWED })
