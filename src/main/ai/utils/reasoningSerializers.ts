@@ -57,7 +57,15 @@ function omit(reason: string, model: Model, selection: CanonicalReasoningSelecti
   return { ...OMIT, selection }
 }
 
-function resolveSelection(
+/**
+ * Project a selection onto what this model declares: the value itself, the
+ * nearest effort it does declare, or `undefined` when it declares none.
+ *
+ * Exported for a caller that must know whether reasoning will be active before
+ * the pipeline resolves the invocation. That is only the model half of the
+ * answer — the wire profile can still omit a mode this returns.
+ */
+export function resolveSelection(
   selection: ResolveReasoningInvocationInput['selection'],
   model: Model
 ): CanonicalReasoningSelection | undefined {

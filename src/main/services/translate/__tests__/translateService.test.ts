@@ -276,13 +276,42 @@ describe('translateService.resolveRequestParameters', () => {
     const model = makeModel({
       id: 'anthropic::claude-sonnet-4-5-20250101',
       providerId: 'anthropic',
-      capabilities: [MODEL_CAPABILITY.REASONING]
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }], selectableEfforts: ['low', 'high'] }
     })
 
     const params = translateService.resolveRequestParameters(model)
 
     expect(params.reasoningEffort).toBe('high')
     expect(params.callOverrides.temperature).toBeUndefined()
+  })
+
+  it('keeps temperature when the model declares no effort the stored selection can reach', () => {
+    // claude-sonnet-4-5 and four siblings declare only none/auto, so a stored 'high'
+    // resolves to nothing and no thinking is sent — the temperature must survive it.
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+    })
+
+    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBe(0.3)
+  })
+
+  it('drops temperature when the stored effort resolves to a neighbour the model does declare', () => {
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium'] }], selectableEfforts: ['low', 'medium'] }
+    })
+
+    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBeUndefined()
   })
 
   it("keeps temperature on the same model when the effort is left at the provider's default", () => {

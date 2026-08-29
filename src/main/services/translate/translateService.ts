@@ -20,7 +20,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CallOverrides, SamplingSettings } from '@main/ai/types'
 import { getTemperature, getTopP } from '@main/ai/utils/modelParameters'
-import type { ResolvedReasoningKind } from '@main/ai/utils/reasoningSerializers'
+import { type ResolvedReasoningKind, resolveSelection } from '@main/ai/utils/reasoningSerializers'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
@@ -46,11 +46,12 @@ const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
  */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
 
-// `getTemperature` / `getTopP` only split "thinking off" (omit / off) from everything else.
-// Assuming active is the safe side: a later degradation only drops a param that would have been kept.
-function reasoningKindFor(effort: ReasoningEffortOption): ResolvedReasoningKind {
-  if (effort === 'default') return 'omit'
-  if (effort === 'none') return 'off'
+// Which bucket the sampling gates should assume, resolved the way Main will resolve it. Guessing
+// from the stored effort alone drops a parameter over thinking the model was never going to do.
+function reasoningKindFor(effort: ReasoningEffortOption, model: Model): ResolvedReasoningKind {
+  const resolved = resolveSelection(effort, model)
+  if (resolved === undefined || resolved === 'default') return 'omit'
+  if (resolved === 'none') return 'off'
   return 'effort'
 }
 
@@ -135,8 +136,15 @@ export class TranslateService {
    * channel for a caller without an assistant — the field exists for exactly
    * that (`CallOverrides`, used by the API gateway). Downstream re-gating drops
    * only `topK` (`filterStandardParams`), so temperature, topP and
-   * maxOutputTokens reach the wire as given and translate has to gate them
-   * here. Folding this back into the request pipeline is #19693.
+   * maxOutputTokens reach the wire as given and translate has to gate them here.
+   *
+   * That forces the gate to run before the pipeline resolves reasoning, which an
+   * assistant's settings never do — `buildAgentParams` gates them after. Sharing
+   * `resolveSelection` closes the model half of that gap. The wire half stays
+   * open: a profile with no mode for the selection, or a thinking budget the
+   * output cap cannot satisfy, still reads as active here and omits downstream,
+   * so a translation can lose a temperature it should have kept. #19693 is the
+   * exit — it moves this gate inside the pipeline, where both halves are known.
    */
   resolveRequestParameters(model: Model): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
     const preferenceService = application.get('PreferenceService')
@@ -150,7 +158,7 @@ export class TranslateService {
       enableMaxTokens: preferenceService.get('feature.translate.enable_max_tokens')
     } satisfies SamplingSettings
 
-    const reasoning = { kind: reasoningKindFor(reasoningEffort) }
+    const reasoning = { kind: reasoningKindFor(reasoningEffort, model) }
     const temperature = getTemperature(settings, model, reasoning)
     const topP = getTopP(settings, model, reasoning)
 
