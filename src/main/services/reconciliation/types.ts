@@ -1,0 +1,277 @@
+// Merge engine core types — detached restore import pipeline (plan (b)).
+//
+// The merge engine merges backup rows into a detached work.sqlite (VACUUM INTO copy
+// of live) inside one synchronous better-sqlite3 transaction. Conflict resolution
+// follows identity-class defaults (uuid-entity → SKIP, natural-key/slot → FIELD_MERGE);
+// identity propagation rewrites FKs to local canonical PKs; junction rows are
+// resolved in a global phase after all root/member writes. See spec
+// `backup-restore-safety/import-orchestrator.md`.
+
+import type { AggregateBoundary } from '@main/data/db/backup/contributorTypes'
+import type { DbColumnName, DbTableName } from '@main/data/db/backup/dbSchemaRefs'
+import type { BackupDomain, ConflictStrategy } from '@main/data/db/backup/domains'
+import type { DbType } from '@main/data/db/types'
+import type Database from 'better-sqlite3'
+
+/**
+ * The subset of the caller's resource plan the engine needs: which body-backed note
+ * overlays may be imported, and where their root must point on this host
+ * (notesRoot-relative relPath → target notes root).
+ *
+ * Declared structurally instead of importing the producer's `ResourcePlan`: that type
+ * lives in the backup service layer, which in turn pulls in archive concepts (manifest /
+ * presets / archive errors). The engine must not take a reverse dependency on the layer
+ * that calls it — same direction rule as `@main/data/db/backup/README.md`. The backup
+ * `ResourcePlan` satisfies this shape structurally, so callers pass it unchanged.
+ */
+export interface NoteOverlayPlan {
+  readonly noteAdditions: ReadonlyMap<string, string>
+}
+
+/** Effective action for an aggregate during merge — exhaustive switch in importRows (B3). */
+export type MergeAction = 'insert' | 'skip' | 'overwrite' | 'rename' | 'field-merge'
+
+/** Per-aggregate decision produced by scanAggregates (work.sqlite is the merge base). */
+export interface AggregateDecision {
+  readonly aggregate: AggregateBoundary
+  /** Composite identity tuple (ordered, NOT delimiter-joined) —忠实表达 [scope,key]/[type,name]/.... */
+  readonly identity: readonly (string | number)[]
+  /** Backup-side physical PK tuple (ordered) — importRows queries backupDb members by this. */
+  readonly backupPrimaryKey: readonly (string | number)[]
+  /**
+   * Local canonical PK (FIELD_MERGE local wins / RENAME new PK); undefined when the
+   * aggregate is not yet imported or has no local survivor. Drives identity propagation.
+   */
+  readonly localCanonicalPrimaryKey?: readonly (string | number)[]
+  readonly action: MergeAction
+  /**
+   * Why a 'skip' decision was reached (selected-domain filter, PK conflict, etc.). The write
+   * path uses it to disclose user-visible skips (e.g. a pin whose entity domain is not in this
+   * restore). undefined for non-skip actions or undifferentiated skips.
+   */
+  readonly skipReason?: string
+  /** New root uuid for RENAME (renamable uuid-entity, single-column PK only). */
+  readonly newRootKey?: string
+  /** Resolved target Notes root for a planned note-add overlay. */
+  readonly noteRootPath?: string
+  /**
+   * Resolved target host externalPath for a planned note-add overlay (hostRoot + the
+   * notesRoot-relative body path, forward-slash normalized). The note table stores the
+   * ABSOLUTE externalPath; without rewriting `path` to the host form a restored overlay
+   * keeps the backup machine's absolute path and cannot be joined by the host renderer.
+   */
+  readonly noteHostPath?: string
+  /**
+   * True when this agent_workspace row's path was rebased to a managed placeholder
+   * (user workspace whose custom dir isn't carried by the archive). The write path
+   * discloses it as content-missing so the user knows the workspace dir is absent on host.
+   */
+  readonly workspaceRebased?: boolean
+  /**
+   * Resolved host-form path for a cross-machine agent_workspace row (rebased by scanAggregates
+   * before identity lookup). The write path re-selects the row from backup.sqlite (machine-
+   * specific path), so the rebased value must be carried here to overwrite it on write.
+   */
+  readonly workspaceRebasedPath?: string
+}
+
+/** Endpoint of a junction reference (root or member table + the FK column into it). */
+export interface JunctionEndpoint {
+  readonly table: DbTableName
+  readonly fkColumn: DbColumnName
+  /** 'root' or a member table name (e.g. chat_message_file_ref.sourceId → message member). */
+  readonly aggregatePath: 'root' | DbTableName
+}
+
+/**
+ * Registry-derived descriptor for a junction table (B4). Derived from
+ * schema.references filter kind='junction' — NOT aggregate.members. Excludes
+ * include-member dual-cascade tables (assistant_mcp_server etc.) which are handled
+ * by root/member processing.
+ */
+export interface JunctionDescriptor {
+  readonly table: DbTableName
+  readonly ownerDomain: BackupDomain
+  readonly sourceEndpoint: JunctionEndpoint
+  readonly targetEndpoint: JunctionEndpoint
+}
+
+/** Owning (same-domain) endpoint of a polymorphic association — e.g. entity_tag.tagId → tag. */
+export interface PolymorphicTagEndpoint {
+  readonly table: DbTableName
+  readonly fkColumn: DbColumnName
+  readonly referencedDomain: BackupDomain
+}
+
+/**
+ * Polymorphic soft-ref endpoint — entityId rewritten via entityType → domain → root table
+ * (see `POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE` in polymorphicAssociationDeriver).
+ */
+export interface PolymorphicEntityEndpoint {
+  readonly fkColumn: DbColumnName
+  readonly entityTypeColumn: DbColumnName
+  readonly routeBy: Readonly<Record<string, BackupDomain | 'excluded'>>
+}
+
+/**
+ * Registry-derived descriptor for a polymorphic association table (A1). Tables with
+ * ≥1 kind:'owning' same-domain ref + a non-empty polymorphicEntityMap on the owner
+ * domain, that are neither aggregate roots nor include-members. Stage-A1: entity_tag only.
+ */
+export interface PolymorphicAssociationDescriptor {
+  readonly table: DbTableName
+  readonly ownerDomain: BackupDomain
+  readonly tagEndpoint: PolymorphicTagEndpoint
+  readonly entityEndpoint: PolymorphicEntityEndpoint
+}
+
+/**
+ * identityMap is role-aware (R8): source eligibility vs target availability.
+ * The asymmetry is critical — a skipped target survives locally (available),
+ * while a skipped source was not imported (ineligible).
+ *
+ * The maps are scoped per endpoint TABLE (not flat by id) so that the same textual id
+ * in two different entity tables cannot overwrite each other. Once FIELD_MERGE/OVERWRITE
+ * maps an id to a different canonical id, a flat map would let junction resolution
+ * rewrite a FK to the wrong entity; the per-table scope keeps endpoints disjoint.
+ *
+ * TODO(junction-phase): the spec's `sourceMap.get(sourceEndpoint, id)` keys on a full
+ * `JunctionEndpoint` (table + fkColumn + aggregatePath). Per-table keying is sufficient
+ * for the SKIP-only MVP (no junction consumer; no registry junction reuses one table
+ * across two distinct endpoint shapes) — re-evaluate keying granularity when
+ * `importAllJunctionRows` lands; widen to `JunctionEndpoint` if a dual-endpoint-same-table
+ * junction is introduced.
+ */
+export interface IdentityMap {
+  /**
+   * Source eligibility: per endpoint table, backup-id → imported work-id. Only rows
+   * imported THIS restore (insert/FIELD_MERGE/OVERWRITE). skip → absent (not imported,
+   * ineligible). rename → backup old id absent (work is the new clone).
+   */
+  readonly sourceMap: Map<DbTableName, Map<string, string>>
+  /**
+   * Target availability: per endpoint table, backup-id → canonical work-id. Imported OR
+   * pre-existing local (skip = local survives = available → local canonical). rename
+   * (old not imported) / domain-unselected → absent.
+   */
+  readonly targetMap: Map<DbTableName, Map<string, string>>
+}
+
+/**
+ * Why a reconcile pass had to degrade a row or reference instead of applying it faithfully.
+ *
+ * This is the *engine's* vocabulary, owned here rather than imported from a consumer's
+ * contract: the engine reconciles two databases and has no opinion on where the remote one
+ * came from. Consumers map it onto their own user-facing enum — backup maps to
+ * `RestoreDegradationKind`, which is the IPC + i18n surface and must stay stable.
+ *
+ * `remote_overwrote_local` is deliberately consumer-neutral: for restore the remote side is
+ * a backup archive; for a future cross-device consumer it is a peer replica.
+ */
+export const RECONCILE_DEGRADATION_KINDS = [
+  'ref_cleared',
+  'row_pruned',
+  'rows_skipped',
+  'association_dropped',
+  'field_conflict',
+  'remote_overwrote_local',
+  'attachment_unavailable',
+  'resource_content_missing'
+] as const
+
+export type ReconcileDegradationKind = (typeof RECONCILE_DEGRADATION_KINDS)[number]
+
+/**
+ * A degraded-to-SKIP record — the merge side of the one structured degradation contract
+ * (`RestoreDegradation`). Every lossy merge phase (dangling-ref repair, junction /
+ * polymorphic drops, field conflicts, attachment disclosure) emits one of these; the
+ * ImportOrchestrator maps them into `RestoreResultSummary.degradations` so they survive
+ * the relaunch in the journal instead of living only in a log line.
+ */
+export interface DegradedSkip {
+  /** Engine-side reason code; the consumer maps it to its own i18n'd enum. */
+  readonly kind: ReconcileDegradationKind
+  readonly table: DbTableName
+  readonly count: number
+  readonly reason: string
+}
+
+/** Merge engine result — degraded-to-SKIP records reach the durable restore summary + journal. */
+export interface MergeResult {
+  readonly degradedToSkips: readonly DegradedSkip[]
+}
+
+/**
+ * Context the MergeEngine consumes. Carries the selected domains, the user's optional
+ * strategy override, and the file_entry IDs whose blobs were not staged (skipped during
+ * import). The role-aware identityMap + write-quiesce lease are engine-internal — built in
+ * `mergeBackupIntoWork`, not passed by the caller (see plan (b) Stage 3 wiring for the
+ * ArchiveContext that does cross the spine boundary).
+ */
+export interface MergeContext {
+  /**
+   * Absolute path to the migrated backup.sqlite (admission unpacked + migrate-forwarded it);
+   * the engine opens it read-only. Cross-spine ArchiveContext field — set by importBackup
+   * from ArchiveContext.backupDbPath, NOT engine-internal.
+   */
+  readonly backupDbPath: string
+  /** Selected domains for this restore (drives topo sort + which aggregates are scanned). */
+  readonly domains: readonly BackupDomain[]
+  /**
+   * User strategy override. undefined (omit) → use each aggregate's conflictDefault
+   * (防 UI 默认 SKIP 覆盖 PROVIDERS FIELD_MERGE 丢凭证). Only set when the user explicitly
+   * chooses a strategy.
+   */
+  readonly userStrategy?: ConflictStrategy
+  /** file_entry IDs whose blobs were not staged — skip these rows during import. */
+  readonly skippedFileEntryIds: ReadonlySet<string>
+  /**
+   * file_entry IDs whose blobs WERE staged into the archive / restore staging tree.
+   * Used after merge to disclose `message.data` soft refs whose blobs are missing
+   * (DB-only restore passes an empty set → every fileEntryId is disclosed).
+   */
+  readonly stagedFileEntryIds: ReadonlySet<string>
+  /**
+   * knowledge_base baseIds whose dir was skipped at planning (conflict: local row
+   * OR disk exists). MergeEngine skips these roots so the DB row isn't inserted
+   * while its dir isn't moved — same-source as the file_entry skipped set (the
+   * conflict-symmetry fix; otherwise planning skip + merge INSERT → dangling).
+   * undefined = treat as empty (unit stubs that do not exercise knowledge skip).
+   */
+  readonly skippedKnowledgeBaseIds?: ReadonlySet<string>
+  /**
+   * skill folderNames whose dir was skipped at planning (conflict). Same role as
+   * skippedKnowledgeBaseIds for the skill root. Matched on backupRow.folder_name.
+   * undefined = treat as empty.
+   */
+  readonly skippedSkillFolderNames?: ReadonlySet<string>
+  /**
+   * The resource plan built from this restore's snapshot. noteAdditions is the
+   * single source for which body-backed note overlays may be imported and where
+   * their root_path must point on this host. Missing plans fail closed for Notes.
+   */
+  readonly resourcePlan?: NoteOverlayPlan
+  /**
+   * Whether Notes overlays are in scope. ImportOrchestrator sets this via
+   * `presetIncludesFiles(manifest.preset)` (P0-3) — not raw manifest.includeFiles
+   * (export may set includeFiles from filesTotal>0). When false, MergeEngine skips
+   * every `note` overlay so restore does not leave starred/expanded state pointing
+   * at missing files (§3.5). undefined = legacy callers / unit stubs (do not strip).
+   */
+  readonly includeFiles?: boolean
+  /**
+   * This host's managed agent system-workspaces root (feature.agents.system_workspaces).
+   * Cross-machine restore rebases agent_workspace.path (a natural-key identityKey stored as
+   * a machine-specific absolute dir) to this root BEFORE identity lookup, so a backup
+   * workspace matches the host's same-named workspace instead of duplicating. undefined =
+   * legacy callers / unit stubs (do not rebase).
+   */
+  readonly hostSystemWorkspacesRoot?: string
+}
+
+/** Merge engine entry signature — invoked by ImportOrchestrator inside the staging spine. */
+export type MergeBackupIntoWork = (
+  workSqlite: Database.Database,
+  workDb: DbType,
+  ctx: MergeContext
+) => Promise<MergeResult>
