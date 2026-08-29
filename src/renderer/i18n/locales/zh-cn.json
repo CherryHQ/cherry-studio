@@ -5179,6 +5179,7 @@
   "translate.stop": "停止翻译",
   "translate.target_language": "目标语言",
   "translate.title": "翻译",
+  "translate.translate_to": "译为",
   "update.install": "立即安装",
   "update.later": "稍后",
   "update.message": "发现新版本 {{version}}，是否立即安装？",

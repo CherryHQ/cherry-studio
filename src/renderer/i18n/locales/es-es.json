@@ -5179,6 +5179,7 @@
   "translate.stop": "Detener Traducción",
   "translate.target_language": "Idioma de destino",
   "translate.title": "Traducción",
+  "translate.translate_to": "Traducir a",
   "update.install": "Instalar",
   "update.later": "Más tarde",
   "update.message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",

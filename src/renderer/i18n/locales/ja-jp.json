@@ -5179,6 +5179,7 @@
   "translate.stop": "翻訳を停止",
   "translate.target_language": "目標言語",
   "translate.title": "翻訳",
+  "translate.translate_to": "翻訳先",
   "update.install": "今すぐインストール",
   "update.later": "後で",
   "update.message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",

@@ -5179,6 +5179,7 @@
   "translate.stop": "Dừng Dịch",
   "translate.target_language": "Ngôn ngữ đích",
   "translate.title": "Dịch",
+  "translate.translate_to": "Dịch sang",
   "update.install": "Cài đặt",
   "update.later": "Sau đó",
   "update.message": "Phiên bản mới {{version}} đã sẵn sàng, bạn có muốn cài đặt ngay bây giờ không?",

@@ -5179,6 +5179,7 @@
   "translate.stop": "Oprește traducerea",
   "translate.target_language": "Limbă țintă",
   "translate.title": "Traducere",
+  "translate.translate_to": "Tradu în",
   "update.install": "Instalează",
   "update.later": "Mai târziu",
   "update.message": "Noua versiune {{version}} este gata, vrei să o instalezi acum?",

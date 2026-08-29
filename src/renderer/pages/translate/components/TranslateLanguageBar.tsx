@@ -207,27 +207,34 @@ const TranslateLanguageBar: FC<Props> = ({
           </span>
         </Button>
       ) : (
-        <Combobox
-          size="default"
-          options={targetOptions}
-          value={targetLanguage}
-          onChange={(value) => handleTargetSelect(Array.isArray(value) ? value[0] : value)}
-          placeholder={t('translate.target_language')}
-          searchable={false}
-          emptyText={t('common.no_results')}
-          width={targetSelectWidth}
-          popoverClassName="w-(--radix-popover-trigger-width)"
-          renderValue={(value, options) => {
-            const option = options.find((item) => item.value === value)
-            return (
-              <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
-                <span className="sr-only">{t('translate.target_language')}</span>
-                {option?.icon ?? languageIcon(target?.emoji ?? UNKNOWN_EMOJI)}
-                <span className="truncate">{option?.label ?? targetLabel}</span>
-              </div>
-            )
-          }}
-        />
+        <>
+          {!showSourceControls && (
+            <span aria-hidden="true" className="shrink-0 text-muted-foreground text-sm">
+              {t('translate.translate_to')}
+            </span>
+          )}
+          <Combobox
+            size="default"
+            options={targetOptions}
+            value={targetLanguage}
+            onChange={(value) => handleTargetSelect(Array.isArray(value) ? value[0] : value)}
+            placeholder={t('translate.target_language')}
+            searchable={false}
+            emptyText={t('common.no_results')}
+            width={targetSelectWidth}
+            popoverClassName="w-(--radix-popover-trigger-width)"
+            renderValue={(value, options) => {
+              const option = options.find((item) => item.value === value)
+              return (
+                <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
+                  <span className="sr-only">{t('translate.target_language')}</span>
+                  {option?.icon ?? languageIcon(target?.emoji ?? UNKNOWN_EMOJI)}
+                  <span className="truncate">{option?.label ?? targetLabel}</span>
+                </div>
+              )
+            }}
+          />
+        </>
       )}
     </div>
   )

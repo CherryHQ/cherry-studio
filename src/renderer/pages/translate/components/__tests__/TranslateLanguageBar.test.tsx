@@ -140,6 +140,33 @@ describe('TranslateLanguageBar', () => {
     expect(screen.getByRole('button', { name: targetLanguageButtonName })).toBeInTheDocument()
   })
 
+  it('labels the lone target control so it explains what is being selected', () => {
+    const props = baseProps()
+    props.showSourceControls = false
+
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.getByText('translate.translate_to')).toBeInTheDocument()
+    // The visible label is decorative: the control keeps its own accessible name.
+    expect(screen.getByRole('button', { name: 'translate.target_language 🇬🇧 English' })).toBeInTheDocument()
+  })
+
+  it('omits the target label when the source control already provides context', () => {
+    render(<TranslateLanguageBar {...baseProps()} />)
+
+    expect(screen.queryByText('translate.translate_to')).not.toBeInTheDocument()
+  })
+
+  it('omits the target label in bidirectional mode', () => {
+    const props = baseProps()
+    props.isBidirectional = true
+    props.showSourceControls = false
+
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.queryByText('translate.translate_to')).not.toBeInTheDocument()
+  })
+
   it('opens source dropdown and calls onSourceChange on select', () => {
     const props = baseProps()
     render(<TranslateLanguageBar {...props} />)
