@@ -1,10 +1,17 @@
+/**
+ * Speed popover for a model: reasoning effort, reasoning summary, service tier
+ * and fast mode. Every row hides itself unless the model declares the knob and
+ * the caller passes a handler for it, so a surface only wires up what it can
+ * persist.
+ */
+
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
@@ -47,17 +54,20 @@ const SERVICE_TIER_LABEL_KEYS: Record<ServiceTierSelection, string> = {
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
-interface ComposerSpeedControlProps {
+interface ModelSpeedControlProps {
   model: Model
   reasoningEffort: ThinkingOption
   serviceTier?: ServiceTierSelection
-  fastMode: boolean
+  fastMode?: boolean
+  /** Which way the popover opens; surfaces anchored to a top bar want 'bottom'. */
+  side?: ComponentProps<typeof PopoverContent>['side']
   /** Omit both to hide the summary row — surfaces where the selection has nowhere to persist. */
   reasoningSummary?: ReasoningSummary
   onReasoningEffortChange: (effort: ThinkingOption) => void
   onReasoningSummaryChange?: (summary: ReasoningSummary) => void
   onServiceTierChange?: (tier: ServiceTierSelection) => void
-  onFastModeChange: (enabled: boolean) => void
+  /** Omit both to hide the fast toggle — surfaces where the selection has nowhere to persist. */
+  onFastModeChange?: (enabled: boolean) => void
 }
 
 interface WheelStepControlProps {
@@ -132,38 +142,44 @@ function WheelStepControl({ children, className, min, max, value, onValueChange 
   )
 }
 
-/** Keep the submitted selection valid without changing the provider's Default semantics. */
-export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
+/**
+ * Coerce a selection to something this model declares, falling back to provider
+ * Default rather than guessing a neighbouring effort. The control displays this
+ * value; a caller that submits should send the same one so the wire matches the
+ * UI. Whether the coerced value is written back is the caller's policy.
+ */
+export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
   const reasoningOptions = deriveThinkingOptions(model) ?? []
 
   return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
-/** Use the endpoint default for this send without mutating an unsupported saved selection. */
-export function resolveComposerServiceTier(model: Model, tier: ServiceTierSelection): ServiceTierSelection {
+/** Coerce a selection to one this model's endpoint declares, else its default tier. */
+export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelection): ServiceTierSelection {
   const control = model.requestControls?.serviceTier
   if (!control) return 'standard'
   return control.options.includes(tier) ? tier : control.default
 }
 
-export function ComposerSpeedControl({
+export function ModelSpeedControl({
   model,
   reasoningEffort,
   reasoningSummary,
   serviceTier = 'standard',
-  fastMode,
+  fastMode = false,
+  side = 'top',
   onReasoningEffortChange,
   onReasoningSummaryChange,
   onServiceTierChange,
   onFastModeChange
-}: ComposerSpeedControlProps) {
+}: ModelSpeedControlProps) {
   const { t } = useTranslation()
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
   }, [model])
   const supportsReasoning = reasoningOptions.length > 1
-  const supportsFast = model.supportsFastMode === true
+  const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
   const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
   const supportsServiceTier = serviceTierOptions.length > 0
   // Only endpoints whose wire carries a summary knob project these; the wire's own default is 'auto'.
@@ -175,9 +191,9 @@ export function ComposerSpeedControl({
   const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
   const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
 
-  // Model changes reconcile in an effect owned by the composer. During that one render, preserve
-  // provider Default rather than displaying or submitting an invalid explicit tier.
-  const effectiveReasoningEffort = resolveComposerReasoningEffort(model, reasoningEffort)
+  // A model swap reconciles in an effect owned by the caller. During that one render, preserve
+  // provider Default rather than displaying an explicit value the new model rejects.
+  const effectiveReasoningEffort = resolveSupportedReasoningEffort(model, reasoningEffort)
   const selectedOption = supportsReasoning ? effectiveReasoningEffort : undefined
   const defaultSliderEffort = model.reasoning?.defaultEffort
   const sliderSelection =
@@ -192,7 +208,7 @@ export function ComposerSpeedControl({
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
-  const effectiveServiceTier = resolveComposerServiceTier(model, serviceTier)
+  const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
   const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
   const handleSliderValueChange = (index: number) => {
@@ -216,7 +232,7 @@ export function ComposerSpeedControl({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        side="top"
+        side={side}
         align="end"
         sideOffset={8}
         className="w-72 rounded-lg border-frame-border p-3 text-xs shadow-xl">
@@ -226,7 +242,7 @@ export function ComposerSpeedControl({
               <div className="flex min-w-0 items-baseline gap-1.5 text-xs">
                 <span className="shrink-0 text-muted-foreground">{effortControlLabel}:</span>
                 <span
-                  data-testid="composer-effort-slider-label"
+                  data-testid="model-speed-effort-label"
                   aria-live="polite"
                   className="truncate font-medium text-foreground">
                   {effortLabel}
@@ -256,7 +272,7 @@ export function ComposerSpeedControl({
                     className={cn('rounded-full', fastMode && 'text-primary hover:text-primary')}
                     aria-label={t('agent.speed.fast')}
                     aria-pressed={fastMode}
-                    onClick={() => onFastModeChange(!fastMode)}>
+                    onClick={() => onFastModeChange?.(!fastMode)}>
                     <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
                   </Button>
                 ) : null}
@@ -299,7 +315,7 @@ export function ComposerSpeedControl({
                   index === currentIndex ? null : (
                     <span
                       key={effort}
-                      data-slot="composer-effort-step"
+                      data-slot="model-speed-effort-step"
                       data-index={index}
                       className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
                       style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
