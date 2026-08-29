@@ -5199,6 +5199,7 @@
   "translate.settings.autoCopy": "Copiar automáticamente después de completar la traducción",
   "translate.settings.bidirectional": "Configuración de traducción bidireccional",
   "translate.settings.bidirectional_tip": "Una vez activada, solo se admitirá la traducción bidireccional entre el idioma de origen y el idioma de destino",
+  "translate.settings.model_params": "Parámetros del modelo",
   "translate.settings.model_placeholder": "Seleccionar modelo de traducción",
   "translate.settings.preview": "Vista previa de Markdown",
   "translate.settings.scroll_sync": "Configuración de sincronización de desplazamiento",

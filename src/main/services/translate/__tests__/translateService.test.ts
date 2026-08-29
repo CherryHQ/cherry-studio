@@ -1,3 +1,4 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,6 +41,7 @@ vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
   }))
 }))
 
+const { makeModel } = await import('../../../ai/__tests__/fixtures')
 const { translateService } = await import('../translateService')
 
 const TARGET: TranslateLanguage = {
@@ -178,7 +180,7 @@ describe('translateService.open', () => {
     expect(arg.streamId).toBe(streamId)
     expect(arg.uniqueModelId).toBe('openai::gpt-4o')
     expect(arg.prompt).toBe('Translate to English: hello')
-    // Translation always requests thinking off; unsupported models degrade to omit downstream.
+    // Ships the stored effort — 'none' by default; unsupported values degrade downstream.
     expect(arg.reasoningEffort).toBe('none')
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
@@ -218,5 +220,72 @@ describe('translateService.open', () => {
       })
     ).toThrow('Invalid target language: unknown')
     expect(getByLangCodeMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('translateService.resolveRequestParameters', () => {
+  const enableAll = () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'feature.translate.enable_temperature': true,
+      'feature.translate.temperature': 0.3,
+      'feature.translate.enable_top_p': true,
+      'feature.translate.top_p': 0.8,
+      'feature.translate.enable_max_tokens': true,
+      'feature.translate.max_tokens': 2048
+    })
+  }
+
+  it('sends nothing while every parameter is off, leaving the model at its own defaults', () => {
+    const params = translateService.resolveRequestParameters(makeModel())
+
+    expect(params.reasoningEffort).toBe('none')
+    expect(params.callOverrides).toEqual({})
+  })
+
+  it('sends each enabled parameter', () => {
+    enableAll()
+
+    const params = translateService.resolveRequestParameters(makeModel())
+
+    expect(params.callOverrides).toEqual({ temperature: 0.3, topP: 0.8, maxOutputTokens: 2048 })
+  })
+
+  it('drops a sampling parameter the model rejects and keeps the rest', () => {
+    enableAll()
+    // Claude 4.5 accepts temperature or topP, never both.
+    const model = makeModel({ id: 'anthropic::claude-sonnet-4-5-20250101', providerId: 'anthropic' })
+
+    const params = translateService.resolveRequestParameters(model)
+
+    expect(params.callOverrides).toEqual({ temperature: 0.3, maxOutputTokens: 2048 })
+  })
+
+  it('drops temperature once the stored effort turns Claude thinking on', () => {
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250101',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const params = translateService.resolveRequestParameters(model)
+
+    expect(params.reasoningEffort).toBe('high')
+    expect(params.callOverrides.temperature).toBeUndefined()
+  })
+
+  it("keeps temperature on the same model when the effort is left at the provider's default", () => {
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'default')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250101',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const params = translateService.resolveRequestParameters(model)
+
+    expect(params.callOverrides.temperature).toBe(0.3)
   })
 })

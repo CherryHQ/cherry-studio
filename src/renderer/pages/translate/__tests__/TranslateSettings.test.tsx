@@ -1,9 +1,10 @@
 import { toast } from '@renderer/services/toast'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,11 @@ const translateLanguageMutationsMock = vi.hoisted(() => ({
 }))
 
 let mockLanguages: TranslateLanguage[] = []
+let mockTranslateModel: Model | undefined
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: () => ({ model: mockTranslateModel })
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -124,6 +130,31 @@ vi.mock('@cherrystudio/ui', () => ({
           {opt.label}
         </button>
       ))}
+    </div>
+  ),
+  RadioGroup: ({ children }: { children: React.ReactNode }) => <div role="radiogroup">{children}</div>,
+  RadioGroupItem: ({ value }: { value: string }) => <button type="button" role="radio" data-value={value} />,
+  EditableNumber: ({ value, onChange }: { value: number; onChange: (value: number) => void }) => (
+    <input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+  ),
+  Slider: ({
+    value,
+    max,
+    onValueChange,
+    onValueCommit,
+    getThumbAriaLabel,
+    ...props
+  }: {
+    value: number[]
+    max: number
+    onValueChange?: (value: number[]) => void
+    onValueCommit?: (value: number[]) => void
+    getThumbAriaLabel?: (index: number) => string
+    'aria-label'?: string
+  }) => (
+    <div aria-label={props['aria-label'] ?? getThumbAriaLabel?.(0)} data-value={value[0]}>
+      <button type="button" data-testid="slider-drag" onClick={() => onValueChange?.([max])} />
+      <button type="button" data-testid="slider-commit" onClick={() => onValueCommit?.([max])} />
     </div>
   ),
   Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (value: boolean) => void }) => (
@@ -414,5 +445,120 @@ describe('TranslateSettingsPanelContent', () => {
     })
 
     await waitFor(() => expect(translateLanguageMutationsMock.remove).toHaveBeenCalledWith('xk-la'))
+  })
+})
+
+describe('translate model parameters', () => {
+  const reasoningModel = {
+    id: 'openai::gpt-5',
+    providerId: 'openai',
+    apiModelId: 'gpt-5',
+    name: 'GPT-5',
+    capabilities: [MODEL_CAPABILITY.REASONING],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    reasoning: {
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
+      defaultEffort: 'medium',
+      selectableEfforts: ['low', 'medium', 'high']
+    }
+  } satisfies Model
+
+  const plainModel = {
+    id: 'openai::gpt-4.1',
+    providerId: 'openai',
+    apiModelId: 'gpt-4.1',
+    name: 'GPT-4.1',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model
+
+  const setters = new Map<string, ReturnType<typeof vi.fn>>()
+  const setterFor = (key: string) => {
+    const existing = setters.get(key)
+    if (existing) return existing
+    const setter = vi.fn().mockResolvedValue(undefined)
+    setters.set(key, setter)
+    return setter
+  }
+
+  beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
+    mockLanguages = []
+    mockTranslateModel = undefined
+    setters.clear()
+
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_prompt': TRANSLATE_PROMPT,
+      'feature.translate.model_id': 'openai::gpt-5',
+      'feature.translate.enable_temperature': false,
+      'feature.translate.temperature': 1,
+      'feature.translate.enable_top_p': false,
+      'feature.translate.top_p': 1,
+      'feature.translate.enable_max_tokens': false,
+      'feature.translate.max_tokens': 4096,
+      'feature.translate.reasoning_effort': 'none'
+    })
+    mockUsePreference.mockImplementation((key: string) => [
+      MockUsePreferenceUtils.getPreferenceValue(key as any),
+      setterFor(key)
+    ])
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('enables temperature from the panel', async () => {
+    render(<TranslateSettingsPanelContent />)
+
+    const row = screen.getByText('library.config.basic.temperature').closest('div')?.parentElement
+    fireEvent.click(within(row as HTMLElement).getByRole('button'))
+
+    await waitFor(() => expect(setterFor('feature.translate.enable_temperature')).toHaveBeenCalledWith(true))
+  })
+
+  it('persists a sampling value on release rather than on every drag step', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.enable_temperature', true)
+    render(<TranslateSettingsPanelContent />)
+
+    const slider = within(screen.getByLabelText('library.config.basic.temperature'))
+    fireEvent.click(slider.getByTestId('slider-drag'))
+    expect(setterFor('feature.translate.temperature')).not.toHaveBeenCalled()
+
+    fireEvent.click(slider.getByTestId('slider-commit'))
+    await waitFor(() => expect(setterFor('feature.translate.temperature')).toHaveBeenCalledWith(2))
+  })
+
+  it('offers reasoning effort only for a model that declares it', () => {
+    mockTranslateModel = plainModel
+    const { rerender } = render(<TranslateSettingsPanelContent />)
+    expect(screen.queryByText('assistants.settings.reasoning_effort.label')).not.toBeInTheDocument()
+
+    mockTranslateModel = reasoningModel
+    rerender(<TranslateSettingsPanelContent />)
+    expect(screen.getByText('assistants.settings.reasoning_effort.label')).toBeInTheDocument()
+  })
+
+  it('rewrites a stored effort the selected model cannot honour', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'max')
+    mockTranslateModel = reasoningModel
+
+    render(<TranslateSettingsPanelContent />)
+
+    await waitFor(() => expect(setterFor('feature.translate.reasoning_effort')).toHaveBeenCalledWith('high'))
+  })
+
+  it('leaves a stored effort alone when the model declares it', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'low')
+    mockTranslateModel = reasoningModel
+
+    render(<TranslateSettingsPanelContent />)
+
+    await waitFor(() => expect(screen.getByText('assistants.settings.reasoning_effort.label')).toBeInTheDocument())
+    expect(setterFor('feature.translate.reasoning_effort')).not.toHaveBeenCalled()
   })
 })

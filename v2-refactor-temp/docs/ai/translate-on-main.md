@@ -48,4 +48,8 @@ removed rather than optimized as an external store or Cache entry.
 - **Source-language detection.** `useDetectLang` remains renderer-owned.
 - **Translation history.** Text translation does not currently write
   `translate_history` rows.
-- **Per-call temperature.** No product surface currently requests it.
+- **Per-call sampling.** Answered by #9884: translate keeps its own
+  temperature / top-p / max-tokens / reasoning-effort preferences and gates
+  them against the model before putting them on `callOverrides`. Folding
+  that back into the request pipeline, so an assistant-less caller does not
+  have to gate for itself, is #19693.

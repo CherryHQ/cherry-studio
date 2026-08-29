@@ -5199,6 +5199,7 @@
   "translate.settings.autoCopy": "Copiază după traducere ",
   "translate.settings.bidirectional": "Setări traducere bidirecțională",
   "translate.settings.bidirectional_tip": "Când este activat, este acceptată doar traducerea bidirecțională între limbile sursă și țintă",
+  "translate.settings.model_params": "Parametrii modelului",
   "translate.settings.model_placeholder": "Selectează modelul de traducere",
   "translate.settings.preview": "Previzualizare Markdown",
   "translate.settings.scroll_sync": "Setări sincronizare derulare",

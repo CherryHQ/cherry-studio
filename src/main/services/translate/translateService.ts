@@ -17,15 +17,20 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getTemperature, getTopP } from '@main/ai/utils/modelParameters'
+import type { ResolvedReasoningKind } from '@main/ai/utils/reasoningSerializers'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isQwenMTModel } from '@shared/utils/model'
 
 import { WebContentsListener } from '../../ai/streamManager'
+import type { CallOverrides } from '../../ai/types'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -39,6 +44,22 @@ const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
  * renderer-side literal in `translateText.ts`.
  */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
+
+/**
+ * Which reasoning bucket the sampling gates should assume.
+ *
+ * `getTemperature` / `getTopP` only distinguish "thinking is off" (`omit` /
+ * `off`) from everything else, so the three active kinds collapse into one.
+ * Main resolves the real invocation later and degrades an effort the model
+ * does not declare, which can only make thinking *less* active than assumed —
+ * so an inherited value that turns out unsupported drops a sampling parameter
+ * that would have been kept, never sends one that should have been dropped.
+ */
+function reasoningKindFor(effort: ReasoningEffortOption): ResolvedReasoningKind {
+  if (effort === 'default') return 'omit'
+  if (effort === 'none') return 'off'
+  return 'effort'
+}
 
 export interface TranslateOpenRequest {
   /**
@@ -67,6 +88,8 @@ interface ResolvedPayload {
   uniqueModelId: UniqueModelId
   /** Final prompt content. For Qwen MT this is the raw source text (the model handles language pairing). */
   content: string
+  /** Carried out so `open` can gate the sampling settings against this model's capabilities. */
+  model: Model
 }
 
 export class TranslateService {
@@ -85,7 +108,8 @@ export class TranslateService {
       throw new Error(`Invalid target language: ${req.targetLangCode}`)
     }
     const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
-    const { uniqueModelId, content } = this.resolveTranslatePayload(req.text, targetLanguage)
+    const { uniqueModelId, content, model } = this.resolveTranslatePayload(req.text, targetLanguage)
+    const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
 
     const wcListener = new WebContentsListener(sender, req.streamId)
 
@@ -95,14 +119,51 @@ export class TranslateService {
       uniqueModelId,
       prompt: content,
       listener: wcListener,
-      reasoningEffort: 'none'
+      reasoningEffort,
+      callOverrides
     })
 
     logger.debug('translate stream opened', {
       streamId: req.streamId,
-      uniqueModelId
+      uniqueModelId,
+      reasoningEffort
     })
     return { streamId: req.streamId }
+  }
+
+  /**
+   * Read the translate model parameters and gate them against the model.
+   *
+   * Sampling rides `callOverrides` because `streamPrompt` offers no other
+   * channel for a caller without an assistant. That field is documented for
+   * pass-through proxies, so translate gates the values itself rather than
+   * letting them reach the wire unchecked — the pipeline does not re-gate what
+   * arrives this way. Folding this back into the request pipeline is #19693.
+   */
+  resolveRequestParameters(model: Model): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
+    const preferenceService = application.get('PreferenceService')
+    const reasoningEffort = preferenceService.get('feature.translate.reasoning_effort')
+    const settings = {
+      temperature: preferenceService.get('feature.translate.temperature'),
+      enableTemperature: preferenceService.get('feature.translate.enable_temperature'),
+      topP: preferenceService.get('feature.translate.top_p'),
+      enableTopP: preferenceService.get('feature.translate.enable_top_p'),
+      maxTokens: preferenceService.get('feature.translate.max_tokens'),
+      enableMaxTokens: preferenceService.get('feature.translate.enable_max_tokens')
+    }
+
+    const reasoning = { kind: reasoningKindFor(reasoningEffort) }
+    const temperature = getTemperature(settings, model, reasoning)
+    const topP = getTopP(settings, model, reasoning)
+
+    return {
+      reasoningEffort,
+      callOverrides: {
+        ...(temperature !== undefined && { temperature }),
+        ...(topP !== undefined && { topP }),
+        ...(settings.enableMaxTokens && { maxOutputTokens: settings.maxTokens })
+      }
+    }
   }
 
   /**
@@ -141,7 +202,7 @@ export class TranslateService {
             placeholder === '{{target_language}}' ? targetLanguage.value : text
           )
 
-    return { uniqueModelId, content }
+    return { uniqueModelId, content, model }
   }
 }
 

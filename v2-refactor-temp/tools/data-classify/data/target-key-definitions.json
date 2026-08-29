@@ -757,6 +757,55 @@
       "defaultValue": false,
       "status": "classified",
       "description": "Allow self-signed/unverifiable TLS certificates for WebDAV backup transport (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.enable_temperature",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the translate request sends a temperature (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.temperature",
+      "type": "number",
+      "defaultValue": 1,
+      "status": "classified",
+      "description": "Sampling temperature for the translate model, sent only when enable_temperature is on (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.enable_top_p",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the translate request sends a topP (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.top_p",
+      "type": "number",
+      "defaultValue": 1,
+      "status": "classified",
+      "description": "Nucleus sampling topP for the translate model, sent only when enable_top_p is on (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.enable_max_tokens",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the translate request declares a max output token limit (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.max_tokens",
+      "type": "number",
+      "defaultValue": 4096,
+      "status": "classified",
+      "description": "Max output tokens for the translate model, sent only when enable_max_tokens is on (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.reasoning_effort",
+      "type": "PreferenceTypes.ReasoningEffortOption",
+      "defaultValue": "none",
+      "status": "classified",
+      "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
     }
   ]
 }
