@@ -51,7 +51,7 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import {
   cancelTopicRenaming,
   finishTopicRenaming,
@@ -84,6 +84,7 @@ import {
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -351,20 +352,28 @@ export function Topics({
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
-    assistantFavoriteIds: sidebarAssistantFavoriteIds,
-    toggleAssistant: toggleSidebarAssistant,
-    removeAssistant: removeSidebarAssistant
-  } = useSidebarFavorites()
+    shortcuts: sidebarShortcuts,
+    toggle: toggleSidebarShortcut,
+    remove: removeSidebarShortcut
+  } = useSidebarShortcuts()
   const sidebarAssistantFavoriteIdSet = useMemo(
-    () => new Set(sidebarAssistantFavoriteIds),
-    [sidebarAssistantFavoriteIds]
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
   )
   const handleToggleAssistantSidebar = useCallback(
     (assistantId: string) => {
-      if (sidebarAssistantFavoriteIdSet.has(assistantId)) removeSidebarAssistant(assistantId)
-      else toggleSidebarAssistant(assistantId)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, assistantId)
+      if (sidebarAssistantFavoriteIdSet.has(assistantId)) removeSidebarShortcut(target)
+      else toggleSidebarShortcut(target)
     },
-    [removeSidebarAssistant, sidebarAssistantFavoriteIdSet, toggleSidebarAssistant]
+    [removeSidebarShortcut, sidebarAssistantFavoriteIdSet, toggleSidebarShortcut]
   )
   const {
     topics: apiTopics,

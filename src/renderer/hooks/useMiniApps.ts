@@ -6,9 +6,10 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -236,7 +237,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
-  const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
+  const { remove: removeSidebarShortcut } = useSidebarShortcuts()
   const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
@@ -400,7 +401,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         }
       }
 
-      removeSidebarFavoriteMiniApp(appId)
+      removeSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId))
     },
     [
       currentMiniAppId,
@@ -412,7 +413,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
-      removeSidebarFavoriteMiniApp,
+      removeSidebarShortcut,
       tabsContext
     ]
   )

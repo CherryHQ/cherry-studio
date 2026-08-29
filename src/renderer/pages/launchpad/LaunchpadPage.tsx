@@ -16,11 +16,16 @@ import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
+import {
+  createSidebarShortcutTarget,
+  getSidebarMenuPath,
+  isRequiredSidebarShortcut,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
+} from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -29,7 +34,6 @@ import { useTranslation } from 'react-i18next'
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
 
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_TILE_CLASS =
@@ -56,12 +60,10 @@ export default function LaunchpadPage() {
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const { isPinned, setPinned } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
-
-  const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
 
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
@@ -118,35 +120,37 @@ export default function LaunchpadPage() {
 
   const pinToSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (visibleSidebarFavoriteSet.has(favorite)) return
-      setAppPinned(favorite, true)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      setPinned(target, true, t(getSidebarIconLabelKey(favorite)))
     },
-    [setAppPinned, visibleSidebarFavoriteSet]
+    [setPinned, t]
   )
 
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
-      setAppPinned(favorite, false)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      if (isRequiredSidebarShortcut(target)) return
+      setPinned(target, false)
     },
-    [setAppPinned, visibleSidebarFavoriteSet]
+    [setPinned]
   )
 
   const getAppContextMenuItems = useCallback(
     (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
-      const isPinned = visibleSidebarFavoriteSet.has(favorite)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      const pinned = isPinned(target)
 
       return [
         {
           type: 'item',
-          id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
-          label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite),
-          onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
+          id: `launchpad.${pinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
+          label: t(pinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+          enabled: !pinned || !isRequiredSidebarShortcut(target),
+          onSelect: () => (pinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
     },
-    [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
+    [isPinned, pinToSidebar, t, unpinFromSidebar]
   )
 
   // Sidebar-backed app tiles keep their existing launchpad order. The direct

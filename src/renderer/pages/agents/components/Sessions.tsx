@@ -38,7 +38,7 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
@@ -79,6 +79,7 @@ import {
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
@@ -544,17 +545,28 @@ const Sessions = ({
 
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const {
-    agentFavoriteIds: sidebarAgentFavoriteIds,
-    toggleAgent: toggleSidebarAgent,
-    removeAgent: removeSidebarAgent
-  } = useSidebarFavorites()
-  const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
+    shortcuts: sidebarShortcuts,
+    toggle: toggleSidebarShortcut,
+    remove: removeSidebarShortcut
+  } = useSidebarShortcuts()
+  const sidebarAgentFavoriteIdSet = useMemo(
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
+  )
   const handleToggleAgentSidebar = useCallback(
     (agentId: string) => {
-      if (sidebarAgentFavoriteIdSet.has(agentId)) removeSidebarAgent(agentId)
-      else toggleSidebarAgent(agentId)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, agentId)
+      if (sidebarAgentFavoriteIdSet.has(agentId)) removeSidebarShortcut(target)
+      else toggleSidebarShortcut(target)
     },
-    [removeSidebarAgent, sidebarAgentFavoriteIdSet, toggleSidebarAgent]
+    [removeSidebarShortcut, sidebarAgentFavoriteIdSet, toggleSidebarShortcut]
   )
   const agentsForDisplay = useMemo(() => {
     if (!optimisticAgentOrderIds) return agents

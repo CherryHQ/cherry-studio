@@ -1,6 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
+import {
+  CORE_SIDEBAR_SHORTCUT_PROVIDERS,
+  SidebarShortcutRegistry,
+  SidebarShortcutRegistryProvider
+} from '@renderer/components/app/sidebarShortcuts'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
@@ -15,7 +20,7 @@ import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useMemo } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
@@ -82,21 +87,24 @@ function MainWindowRuntime(): null {
 
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+  const sidebarShortcutRegistry = useMemo(() => new SidebarShortcutRegistry(CORE_SIDEBAR_SHORTCUT_PROVIDERS), [])
 
   return (
     <TabsProvider>
-      {providerSetupStatus === 'pending' ? (
-        <Suspense fallback={<BootFallback />}>
-          <OnboardingPage />
-        </Suspense>
-      ) : (
-        <AppShell />
-      )}
-      <MainWindowRuntime />
-      <ConversationNotificationRuntime />
-      <PopupHost />
-      <ToastHost />
-      {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+      <SidebarShortcutRegistryProvider registry={sidebarShortcutRegistry}>
+        {providerSetupStatus === 'pending' ? (
+          <Suspense fallback={<BootFallback />}>
+            <OnboardingPage />
+          </Suspense>
+        ) : (
+          <AppShell />
+        )}
+        <MainWindowRuntime />
+        <ConversationNotificationRuntime />
+        <PopupHost />
+        <ToastHost />
+        {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+      </SidebarShortcutRegistryProvider>
     </TabsProvider>
   )
 }

@@ -5,16 +5,18 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { CircleXIcon, ExternalLink } from 'lucide-react'
+import { CircleXIcon, ExternalLink, Pin, PinOff } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -36,6 +38,9 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
+  const { isPinned: isSidebarShortcutPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
+  const sidebarTarget = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MCP_SERVER, server.id)
+  const sidebarPinned = isSidebarShortcutPinned(sidebarTarget)
 
   const updateServerBody = useCallback((body: UpdateMcpServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
@@ -259,6 +264,17 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         </SourceCell>
 
         <ToolbarWrapper onClick={handleToolbarClick}>
+          <Tooltip content={t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar')}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar')}
+              onClick={() => toggleSidebarShortcut(sidebarTarget, server.name)}
+              className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
+              data-no-dnd>
+              {sidebarPinned ? <PinOff size={13} /> : <Pin size={13} />}
+            </Button>
+          </Tooltip>
           <Switch
             checked={server.isActive}
             key={server.id}

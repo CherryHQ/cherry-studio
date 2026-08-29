@@ -1,9 +1,11 @@
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { Provider } from '@shared/data/types/provider'
-import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
+import { CopyPlus, Edit, Pin, PinOff, Trash2, UserPen } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,6 +41,9 @@ export default function ProviderListItemWithContextMenu({
   onSetListItemRef
 }: ProviderListItemWithContextMenuProps) {
   const { t } = useTranslation()
+  const { isPinned: isSidebarShortcutPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
+  const sidebarTarget = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.PROVIDER, provider.id)
+  const sidebarPinned = isSidebarShortcutPinned(sidebarTarget)
 
   const menuItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
     const items: CommandContextMenuExtraItem[] = []
@@ -62,6 +67,13 @@ export default function ProviderListItemWithContextMenu({
     }
     items.push({
       type: 'item',
+      id: 'toggle-sidebar-shortcut',
+      label: t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+      icon: sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />,
+      onSelect: () => toggleSidebarShortcut(sidebarTarget, getFancyProviderName(provider))
+    })
+    items.push({
+      type: 'item',
       id: 'notes',
       label: t('settings.provider.notes.title'),
       icon: <UserPen size={14} />,
@@ -78,7 +90,17 @@ export default function ProviderListItemWithContextMenu({
       })
     }
     return items
-  }, [onDelete, onDuplicate, onEdit, provider.id, showManagementActions, t])
+  }, [
+    onDelete,
+    onDuplicate,
+    onEdit,
+    provider,
+    showManagementActions,
+    sidebarPinned,
+    sidebarTarget,
+    t,
+    toggleSidebarShortcut
+  ])
 
   // Right-click stays uncontrolled — Radix handles cross-popup mutex naturally.
   // The more-button popup remains controlled so the parent's single-row-active-at-a-time

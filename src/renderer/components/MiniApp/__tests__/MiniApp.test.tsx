@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarShortcutItem,
+  type SidebarShortcutTarget
+} from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -25,12 +29,12 @@ const mocks = vi.hoisted(() => ({
   setOpenedKeepAliveMiniApps: vi.fn(),
   setSplitOpen: vi.fn(),
   setSplitMiniAppId: vi.fn(),
-  setSidebarFavorites: vi.fn(() => Promise.resolve()),
+  setSidebarFavorites: vi.fn<(value: SidebarShortcutItem[]) => Promise<void>>(() => Promise.resolve()),
   miniApps: [] as MiniAppType[],
   pinned: [] as MiniAppType[],
   openedKeepAliveMiniApps: [] as MiniAppType[],
   splitMiniAppId: '',
-  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[]
+  sidebarFavorites: [] as SidebarShortcutItem[]
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -114,6 +118,22 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({
+    isPinned: (target: SidebarShortcutTarget) =>
+      mocks.sidebarFavorites.some((item) => item.id === createSidebarShortcutId(target)),
+    toggle: (target: SidebarShortcutTarget, fallbackLabel?: string) => {
+      const id = createSidebarShortcutId(target)
+      const exists = mocks.sidebarFavorites.some((item) => item.id === id)
+      void mocks.setSidebarFavorites(
+        exists
+          ? mocks.sidebarFavorites.filter((item) => item.id !== id)
+          : [...mocks.sidebarFavorites, { type: 'shortcut', id, target, fallbackLabel }]
+      )
+    }
+  })
+}))
+
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'ui.sidebar.favorites') return [mocks.sidebarFavorites, mocks.setSidebarFavorites]
@@ -145,8 +165,15 @@ afterEach(() => {
   mocks.pinned = []
   mocks.openedKeepAliveMiniApps = []
   mocks.splitMiniAppId = ''
-  mocks.sidebarFavorites = [{ type: 'app', id: 'assistants' }]
+  mocks.sidebarFavorites = [appShortcut('assistants')]
 })
+
+const shortcut = (providerId: string, resourceId: string): SidebarShortcutItem => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+}
+const appShortcut = (id: string) => shortcut('core.app', id)
+const miniAppShortcut = (id: string) => shortcut('core.mini-app', id)
 
 describe('MiniApp launchpad pin menu', () => {
   it.each(['Enter', ' '])('opens the mini app tab with the %j key', (key) => {
@@ -182,8 +209,8 @@ describe('MiniApp launchpad pin menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_sidebar' }))
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      { type: 'app', id: 'assistants' },
-      { type: 'mini_app', id: 'calculator' }
+      appShortcut('assistants'),
+      { ...miniAppShortcut('calculator'), fallbackLabel: 'Calculator' }
     ])
   })
 
@@ -201,20 +228,13 @@ describe('MiniApp launchpad pin menu', () => {
   })
 
   it('removes a mini app from sidebar favorites', () => {
-    mocks.sidebarFavorites = [
-      { type: 'app', id: 'assistants' },
-      { type: 'mini_app', id: 'calculator' },
-      { type: 'mini_app', id: 'weather' }
-    ]
+    mocks.sidebarFavorites = [appShortcut('assistants'), miniAppShortcut('calculator'), miniAppShortcut('weather')]
     mocks.pinned = [calculatorApp]
 
     render(<MiniApp app={calculatorApp} variant="launchpad" />)
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.remove_from_sidebar' }))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      { type: 'app', id: 'assistants' },
-      { type: 'mini_app', id: 'weather' }
-    ])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appShortcut('assistants'), miniAppShortcut('weather')])
   })
 
   it('collapses the split pane when the hidden mini app is the one in it', async () => {
