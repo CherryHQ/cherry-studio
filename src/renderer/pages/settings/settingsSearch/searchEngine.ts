@@ -43,8 +43,9 @@ function matchLevel(haystack: string, needle: string): MatchLevel | undefined {
 function pinyinMatch(text: string, query: string): boolean {
   const { full, initials } = toPinyinForms(text)
   if (!full) return false
-  const q = normalizeText(query)
-  return full.includes(q) || initials.includes(q)
+  // Same whitespace folding as matchLevel: "dai li" ≡ "daili"
+  const q = normalizeText(query).replace(/\s+/g, '')
+  return full.replace(/\s+/g, '').includes(q) || initials.includes(q)
 }
 
 function scoreField(text: string, query: string, tier: Tier, allowPinyin: boolean): number {

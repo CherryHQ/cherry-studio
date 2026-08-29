@@ -288,6 +288,13 @@ describe('text normalization in matching', () => {
     expect(ranked[0]?.score).toBe(900)
   })
 
+  it('folds whitespace in pinyin queries ("dai li" finds 代理)', () => {
+    const dict2: Record<string, string> = { 'k.zh': '代理' }
+    const fx2: SettingsSearchSection[] = [{ route: '/z', sectionTitleKey: 'k.zh', entries: [] }]
+    const ranked = rankEntries('dai li', fx2, (k) => dict2[k] ?? k)
+    expect(ranked.map((r) => r.route)).toEqual(['/z'])
+  })
+
   it('applies the squeezed pass uniformly (latin "plainrow" finds "Plain Row")', () => {
     // Whitespace folding is language-agnostic by design; both spellings rank exact
     expect(rankEntries('plain row', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
