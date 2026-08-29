@@ -119,7 +119,11 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
-  notifyReadModelChange(topicIds: readonly string[], kind: 'membership' | 'projection', options: { deleted?: boolean } = {}): void {
+  notifyReadModelChange(
+    topicIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: { deleted?: boolean } = {}
+  ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
     // Deleted ids are terminal: scope each by-id effect to that exact id so only its
