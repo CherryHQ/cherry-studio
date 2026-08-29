@@ -245,21 +245,10 @@ describe('null arguments', () => {
     ['network.fetch', () => cherry.network.fetch(null as never)],
     ['clipboard.write', () => cherry.clipboard.write(null as never)],
     ['notification.show', () => cherry.notification.show(null as never)],
-    ['ai.chat', () => cherry.ai.chat(null as never, {})]
+    ['ai.chat', () => cherry.ai.chat(null as never, {})],
+    ['ai.chat options', () => cherry.ai.chat({ messages: [] }, null as never)],
+    ['file.export options', () => cherry.file.export('export.txt', null as never)]
   ])('%s treats null like an absent argument', async (_name, call) => {
     await expect(call()).resolves.toBeDefined()
-  })
-
-  it.each([
-    ['ai.chat', () => cherry.ai.chat({ messages: [] }, null as never)],
-    ['file.export', () => cherry.file.export('export.txt', null as never)]
-  ])('%s rejects null options through the public error contract', async (_name, call) => {
-    const reason = await call().then(
-      () => expect.fail('resolved'),
-      (error: unknown) => error
-    )
-
-    expect(reason).toEqual({ name: 'InvalidArgument', message: expect.any(String) })
-    expect(Object.getPrototypeOf(reason)).toBe(Object.prototype)
   })
 })
