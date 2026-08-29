@@ -47,7 +47,12 @@ describe('AgentSessionMessageBackend', () => {
       sessionId: 'session-1',
       assistantMessageId: 'assistant-1'
     })
-    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    const listener = new PersistenceListener({
+      topicId: 'agent-session:session-1',
+      backend,
+      onPersistFailed: vi.fn(),
+      rejectEmptySuccess: false
+    })
 
     await listener.onDone({ status: 'success', finalMessage: undefined })
 

@@ -63,8 +63,8 @@ export const handlePaste = async (
     // without ever adding an attachment to composer state.
     const shouldPreferClipboardImage = hasSupportedClipboardImage(clipboardFiles, supportExts)
 
-    // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
-    const clipboardText = event.clipboardData?.getData('text')
+    // 优先处理文本粘贴（优先 text/plain，部分平台/剪贴板只暴露该 MIME），除非剪贴板同时包含当前会话支持的图像。
+    const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text')
     if (clipboardText && !shouldPreferClipboardImage) {
       // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
       if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {

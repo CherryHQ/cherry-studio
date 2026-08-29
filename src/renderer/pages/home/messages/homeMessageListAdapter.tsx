@@ -29,6 +29,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -212,12 +213,44 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
+  const displayPartsByMessageId = useMemo(
+    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    [messages, partsByMessageId, t]
+  )
+  const displayStreamingLayers = useMemo(() => {
+    if (!streamingLayers) return undefined
+
+    const historyPartsByMessageId = withTerminalErrorFallback(
+      messages,
+      streamingLayers.historyPartsByMessageId,
+      t('error.no_response')
+    )
+    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+
+    return { ...streamingLayers, historyPartsByMessageId }
+  }, [messages, streamingLayers, t])
+
+  const displayPartsByMessageIdRef = useRef(displayPartsByMessageId)
+  useEffect(() => {
+    displayPartsByMessageIdRef.current = displayPartsByMessageId
+  }, [displayPartsByMessageId])
+
   const persistDiagnosis = useCallback(async (partId: string, diagnosis: DiagnosisResult) => {
     const parsed = parseMessagePartId(partId)
     if (!parsed) return
 
     const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
-    const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+    let updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+    if (!updatedParts) {
+      // Synthetic fallback error is display-only: persisted lacks it but the
+      // display map has it at the same index. Materialize the fallback into
+      // persisted storage before attaching the diagnosis so the error detail
+      // popup can save.
+      const displayParts = displayPartsByMessageIdRef.current[parsed.messageId]
+      if (displayParts) {
+        updatedParts = withMessagePartDiagnosis(displayParts, parsed.partIndex, diagnosis)
+      }
+    }
     if (!updatedParts) return
 
     await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
@@ -243,8 +276,8 @@ export function useHomeMessageListProviderValue({
     topicId,
     topicName: topic.name,
     messages: messageItems,
-    partsByMessageId,
-    streamingLayers,
+    partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
     persistDiagnosis
@@ -493,13 +526,29 @@ export function useHomeMessageListProviderValue({
       try {
         const persistedMessage = await dataApiService.get(`/messages/${messageId}`)
         const persistedParts = persistedMessage.data.parts ?? []
-        const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
-        if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
+        let resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
+        let partsForEdit = persistedParts
+        let isSyntheticFallback = false
+        if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') {
+          const displayParts = displayPartsByMessageIdRef.current[messageId] ?? []
+          const displayResolved = resolvePartFromParts({ [messageId]: displayParts }, partId)
+          if (
+            !displayResolved ||
+            displayResolved.messageId !== messageId ||
+            (displayResolved.part.type as string) !== 'data-error'
+          )
+            return
+          partsForEdit = displayParts
+          resolved = displayResolved
+          isSyntheticFallback = true
+        }
 
-        await requireChatWrite('removeMessageErrorPart').editMessage(
-          messageId,
-          persistedParts.filter((_, index) => index !== resolved.index)
-        )
+        const filtered = partsForEdit.filter((_, index) => index !== resolved.index)
+        const durableParts = isSyntheticFallback
+          ? [...filtered, { type: 'data-clear', data: { dismissedNoResponse: true } } as CherryMessagePart]
+          : filtered
+
+        await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)
       } catch (error) {
         logger.error('Failed to remove error part:', error as Error)
         throw error
@@ -778,8 +827,8 @@ export function useHomeMessageListProviderValue({
     () => ({
       topic,
       messages: messageItems,
-      partsByMessageId,
-      streamingLayers,
+      partsByMessageId: displayPartsByMessageId,
+      streamingLayers: displayStreamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -801,6 +850,8 @@ export function useHomeMessageListProviderValue({
       getTranslationLanguageLabel
     }),
     [
+      displayPartsByMessageId,
+      displayStreamingLayers,
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
@@ -815,11 +866,9 @@ export function useHomeMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageNavigation,
-      partsByMessageId,
       renderConfig,
       resolvedAssistantId,
       selectionController.selection,
-      streamingLayers,
       topic,
       translationLanguages,
       translationLanguagesStatus

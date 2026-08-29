@@ -17,6 +17,8 @@ import {
   withCherryMeta
 } from '@shared/data/types/uiParts'
 
+import { hasRenderableContent as sharedHasRenderableContent } from '@shared/data/messageRenderability'
+
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
 
 function isToolPart(part: CherryMessagePart): boolean {
@@ -110,6 +112,9 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   })
   return filtered.length === parts.length ? parts : filtered
 }
+
+/** Shared renderability predicate — single source of truth for hidden-marker + empty structured payload checks. */
+export const hasRenderableContent = sharedHasRenderableContent
 
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
