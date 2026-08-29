@@ -143,7 +143,11 @@ describe('translateService.resolveTranslatePayload', () => {
       name: 'Qwen MT Turbo'
     })
 
-    expect(() => translateService.resolveTranslatePayload('x', { ...TARGET, langCode: 'tlh' })).toThrow(
+    // `langCode: 'tlh'` exercises the not-supported branch: the regex shape is
+    // a valid `PersistedLangCode` (Klingon, ISO 639-2), but the Qwen-MT
+    // language table has no entry for it. Cast through `unknown` so the
+    // branded `langCode` type does not reject the literal here.
+    expect(() => translateService.resolveTranslatePayload('x', { ...TARGET, langCode: 'tlh' as never })).toThrow(
       /translate\.error\.not_supported/
     )
   })
