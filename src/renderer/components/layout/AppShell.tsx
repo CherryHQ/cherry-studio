@@ -61,13 +61,8 @@ export const AppShell = () => {
   const isFullscreen = useNativeFullscreen()
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
-  const {
-    currentMiniAppId,
-    openedOneOffMiniApp,
-    setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setMiniAppShow
-  } = useMiniApps()
+  const { currentMiniAppId, openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow } =
+    useMiniApps()
 
   // Split state is window-wide and does not follow the last mini-app tab out, so
   // the next mini app would open into a stale split with its app still pooled.
