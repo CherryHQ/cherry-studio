@@ -171,7 +171,7 @@ const USER_SCROLL_INPUT_WINDOW_MS = 250
 // A middle press only arms a candidate; real outer-scroller movement must
 // confirm it before freeze logic yields. Both candidate and confirmed states
 // are time-bounded so a swallowed dismissal click cannot latch suppression.
-const AUTOSCROLL_CANDIDATE_MS = 400
+const AUTOSCROLL_CANDIDATE_MS = 1500
 const AUTOSCROLL_IDLE_MS = 250
 // While the user holds the viewport frozen, snap scrollTop back to the freeze
 // anchor when a layout change drifts it by more than this. Kept above
@@ -230,6 +230,8 @@ export function useChatVirtualizerRuntime<T>({
   const readNavigationActiveRef = useRef(false)
   const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
+  const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastWheelDirRef = useRef<ScrollDirection>('none')
   const markUserInput = useCallback((direction: ScrollDirection = 'none') => {
     pendingUserInputRef.current = { at: performance.now(), direction }
   }, [])
@@ -514,7 +516,12 @@ export function useChatVirtualizerRuntime<T>({
     if (!autoscrollActiveRef.current) return
     autoscrollActiveRef.current = false
     clearAutoscrollIdleTimer()
-    lastUserInputAtRef.current = 0
+    pendingUserInputRef.current = null
+    if (wheelTimeoutRef.current) {
+      clearTimeout(wheelTimeoutRef.current)
+      wheelTimeoutRef.current = null
+    }
+    lastWheelDirRef.current = 'none'
     settleUserScrollGesture()
   }, [clearAutoscrollIdleTimer, settleUserScrollGesture])
 
@@ -537,6 +544,11 @@ export function useChatVirtualizerRuntime<T>({
     } else {
       autoscrollActiveRef.current = true
     }
+    if (wheelTimeoutRef.current) {
+      clearTimeout(wheelTimeoutRef.current)
+      wheelTimeoutRef.current = null
+    }
+    lastWheelDirRef.current = 'none'
     markUserInput()
     clearAutoscrollIdleTimer()
     autoscrollIdleTimerRef.current = setTimeout(() => {
@@ -733,9 +745,6 @@ export function useChatVirtualizerRuntime<T>({
 
   // ---- scroll / wheel handlers ---------------------------------------
 
-  const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastWheelDirRef = useRef<ScrollDirection>('none')
-
   const notifyWheelIntent = useCallback(
     (deltaY: number) => {
       const dir = getScrollDirection(deltaY)
@@ -812,7 +821,11 @@ export function useChatVirtualizerRuntime<T>({
       userScrollGestureRef.current ||
       hasRecentUserScrollIntent
     const wheelDir = lastWheelDirRef.current
-    const direction = wheelDir !== 'none' ? wheelDir : deltaDirection
+    const direction = autoscrollActiveRef.current
+      ? deltaDirection
+      : wheelDir !== 'none'
+        ? wheelDir
+        : deltaDirection
     if (hasRecentUserScrollIntent && pendingUserInput?.direction === 'none' && direction !== 'none') {
       pendingUserInput.direction = direction
     }

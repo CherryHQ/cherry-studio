@@ -3736,7 +3736,7 @@ describe('useChatVirtualizerRuntime', () => {
 
       // Candidate expires without ever confirming — e.g. macOS middle-click
       // where Chromium never entered autoscroll.
-      void act(() => vi.advanceTimersByTime(500))
+      void act(() => vi.advanceTimersByTime(1600))
 
       // A later programmatic nudge (virtua compensation, streaming layout)
       // must NOT be mistaken for autoscroll and must NOT suppress the freeze,
