@@ -10,9 +10,10 @@ export default defineCreator({
     // family knob shapes (mirrors `getXunfeiMaaSModelId` in v1):
     // xopdeepseekv32 -> deepseek-v3.2 (hybrid thinking toggle).
     { pattern: '^xopdeepseekv3\\d', toggle: true },
-    // xopdeepseekv4pro -> deepseek-v4-pro (effort vocabulary). `(?!3\d)`
-    // keeps v3.x ids (handled above) from matching the `\d{2,}` fallback.
-    { pattern: '^xopdeepseekv(?!3\\d)(?:[4-9]|\\d{2,})', effort: ['none', 'high', 'max'] },
+    // xopdeepseekv4pro -> deepseek-v4-pro (effort vocabulary). Anchor to
+    // `v[4-9]` so separator-less v2.x ids like `xopdeepseekv21` (v2.1) are not
+    // misclassified as v4+ reasoning models.
+    { pattern: '^xopdeepseekv[4-9]', effort: ['none', 'high', 'max'] },
     // xopkimik26 -> kimi-k2.6 (thinking toggle for k2.5+ / k3+).
     { pattern: '^xopkimik(?:2[5-9]\\d*|[3-9]\\d*)', toggle: true },
     // xopqwen35397b -> qwen3.5-397b, xopqwen36v35b -> qwen3.6-v35b
@@ -23,6 +24,7 @@ export default defineCreator({
     // (thinking toggle for glm-4.5+/5.x).
     { pattern: '^xopglmv?(?:4[5-7]|5\\d*)', toggle: true },
     // xsparkx2 -> spark-x2, xsparkx2flash -> spark-x2-flash (thinking toggle).
-    { pattern: '^xsparkx\\d', toggle: true }
+    // Narrow to `x2` so xsparkx1 / xsparkx3 etc. are not treated as reasoning.
+    { pattern: '^xsparkx2', toggle: true }
   ]
 })

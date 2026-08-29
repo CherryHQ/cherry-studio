@@ -173,12 +173,12 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'gemma-?4' },
   // iflytek
   { pattern: '^xopdeepseekv3\\d', toggle: true },
-  { pattern: '^xopdeepseekv(?!3\\d)(?:[4-9]|\\d{2,})', effort: ['none', 'high', 'max'] },
+  { pattern: '^xopdeepseekv[4-9]', effort: ['none', 'high', 'max'] },
   { pattern: '^xopkimik(?:2[5-9]\\d*|[3-9]\\d*)', toggle: true },
   { pattern: '^xopqwen3[5-9]\\d*', budget: { min: 0, max: 81920 } },
   { pattern: '^xopqwen3[5-9]\\d*', toggle: true },
   { pattern: '^xopglmv?(?:4[5-7]|5\\d*)', toggle: true },
-  { pattern: '^xsparkx\\d', toggle: true },
+  { pattern: '^xsparkx2', toggle: true },
   // inception
   { pattern: '^mercury-2' },
   // meituan
