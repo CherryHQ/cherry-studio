@@ -275,7 +275,23 @@ export function Topics({
   const tabs = useOptionalTabsContext()
   const conversationNav = useConversationNavigation('assistants')
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [groupNow] = useState(() => dayjs())
+  const [groupNow, setGroupNow] = useState(() => dayjs())
+
+  useEffect(() => {
+    const updateGroupNow = () => setGroupNow(dayjs())
+    const intervalId = window.setInterval(updateGroupNow, 60_000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') updateGroupNow()
+    }
+    window.addEventListener('focus', updateGroupNow)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', updateGroupNow)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   const { notesPath } = useNotesSettings()
   const {
     updateTopic: patchTopic,

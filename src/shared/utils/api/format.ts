@@ -43,15 +43,7 @@ export function splitApiKeyString(keyStr: string): string[] {
 export function maskApiKey(key: string): string {
   if (!key) return ''
 
-  if (key.length > 24) {
-    return `${key.slice(0, 8)}****${key.slice(-8)}`
-  } else if (key.length > 16) {
-    return `${key.slice(0, 4)}****${key.slice(-4)}`
-  } else if (key.length > 8) {
-    return `${key.slice(0, 2)}****${key.slice(-2)}`
-  } else {
-    return key
-  }
+  return key.length > 8 ? `${key.slice(0, 2)}****${key.slice(-4)}` : key
 }
 
 /**

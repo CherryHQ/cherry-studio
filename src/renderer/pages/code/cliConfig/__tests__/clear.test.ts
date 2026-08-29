@@ -16,6 +16,9 @@ vi.mock('@renderer/ipc', () => ({
 let existing: Record<string, string>
 let writes: Record<string, string>
 let deletes: string[]
+const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+const hermesConfigPath = resolvedSpecPath('hermes-config')
+const hermesEnvPath = resolvedSpecPath('hermes-env')
 
 beforeEach(() => {
   existing = {}
@@ -26,16 +29,16 @@ beforeEach(() => {
   mocks.request.mockReset()
   mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
     if (route === 'code_cli.read_config') {
-      // Translate targets back to `/resolved~/…` paths so the strip-semantics fixtures stay unchanged.
+      // Translate target path specs to deterministic `/resolved…` fixture paths.
       return {
         files: (input.targets as CliConfigTarget[]).map((target) => {
-          const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+          const resolvedPath = resolvedSpecPath(target)
           return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
         })
       }
     }
     for (const file of input.files as CliConfigWriteFile[]) {
-      const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`
+      const resolvedPath = resolvedSpecPath(file.target)
       if ('delete' in file) deletes.push(resolvedPath)
       else writes[resolvedPath] = file.content
     }
@@ -291,7 +294,7 @@ describe('clearCliConfig', () => {
   })
 
   it('hermes: strips only the Cherry-managed custom runtime and credential', async () => {
-    existing['/resolved~/.hermes/config.yaml'] = [
+    existing[hermesConfigPath] = [
       '# user-owned comment',
       'user_top: keep',
       'model:',
@@ -307,23 +310,23 @@ describe('clearCliConfig', () => {
       'reuse: *shared',
       ''
     ].join('\n')
-    existing['/resolved~/.hermes/.env'] = 'USER_KEY=keep\nCHERRY_HERMES_API_KEY=sk-secret\n'
+    existing[hermesEnvPath] = 'USER_KEY=keep\nCHERRY_HERMES_API_KEY=sk-secret\n'
 
     await clearCliConfig({ cliTool: CodeCli.HERMES })
 
-    expect(parseYaml(writes['/resolved~/.hermes/config.yaml'])).toEqual({
+    expect(parseYaml(writes[hermesConfigPath])).toEqual({
       user_top: 'keep',
       model: { context_length: 200000, label: 'keep quoted', tags: ['one', 'two'] },
       shared: { enabled: true },
       reuse: { enabled: true }
     })
-    expect(writes['/resolved~/.hermes/config.yaml']).toContain('# user-owned comment')
-    expect(writes['/resolved~/.hermes/config.yaml']).toContain('context_length: 200000 # keep inline comment')
-    expect(writes['/resolved~/.hermes/config.yaml']).toContain('label: "keep quoted"')
-    expect(writes['/resolved~/.hermes/config.yaml']).toContain('tags: [ one, two ]')
-    expect(writes['/resolved~/.hermes/config.yaml']).toContain('shared: &shared { enabled: true }')
-    expect(writes['/resolved~/.hermes/config.yaml']).toContain('reuse: *shared')
-    expect(writes['/resolved~/.hermes/.env']).toBe('USER_KEY=keep\n')
+    expect(writes[hermesConfigPath]).toContain('# user-owned comment')
+    expect(writes[hermesConfigPath]).toContain('context_length: 200000 # keep inline comment')
+    expect(writes[hermesConfigPath]).toContain('label: "keep quoted"')
+    expect(writes[hermesConfigPath]).toContain('tags: [ one, two ]')
+    expect(writes[hermesConfigPath]).toContain('shared: &shared { enabled: true }')
+    expect(writes[hermesConfigPath]).toContain('reuse: *shared')
+    expect(writes[hermesEnvPath]).toBe('USER_KEY=keep\n')
   })
 
   it('pi: strips Cherry-managed providers and defaults while preserving user config', async () => {
@@ -435,7 +438,7 @@ describe('clearCliConfig', () => {
     })
 
     it('hermes: rejects and writes nothing', async () => {
-      existing['/resolved~/.hermes/config.yaml'] = 'api_key: "sk-ant-real-secret"\n  malformed: yaml'
+      existing[hermesConfigPath] = 'api_key: "sk-ant-real-secret"\n  malformed: yaml'
       await expect(clearCliConfig({ cliTool: CodeCli.HERMES })).rejects.toThrow(/Failed to parse/)
       await expect(clearCliConfig({ cliTool: CodeCli.HERMES })).rejects.not.toThrow(/sk-ant-real-secret/)
       expect(writes).toEqual({})

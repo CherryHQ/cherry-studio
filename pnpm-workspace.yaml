@@ -96,6 +96,9 @@ patchedDependencies:
   # Version-pinned: hunk targets a content-hashed dist chunk; bumps hard-fail install until key+hunk are re-derived.
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
+  # rc.7's pi-ai schema drops developer-role compatibility even though its underlying pi-ai model supports it.
+  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7': patches/@deepseek-ai__dsh-llm-pi-ai@0.1.0-rc.7.patch
+  '@earendil-works/pi-ai@0.80.6': patches/@earendil-works__pi-ai@0.80.6.patch
 
 allowBuilds:
   '@deepseek-ai/dsh-subprocess-local': true
