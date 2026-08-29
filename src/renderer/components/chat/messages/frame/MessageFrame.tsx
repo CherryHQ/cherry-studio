@@ -17,6 +17,7 @@ import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
   useMessageListEditingId,
+  useMessageListItemActivityState,
   useMessageListMeta,
   useMessageListSelection,
   useMessageListUiSelectors,
@@ -106,10 +107,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
   const isLastMessage = index === 0 || !!isGrouped
 
-  const activityState = messageUi.getMessageActivityState?.(message)
-  const isProcessing = activityState?.isProcessing ?? false
-  const isStreamTarget = activityState?.isStreamTarget ?? false
-  const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
+  const activityState = useMessageListItemActivityState(message)
+  const isProcessing = activityState.isProcessing
+  const isStreamTarget = activityState.isStreamTarget
+  const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
