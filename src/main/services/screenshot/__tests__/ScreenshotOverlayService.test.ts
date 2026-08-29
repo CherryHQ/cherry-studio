@@ -35,8 +35,7 @@ vi.mock('@main/services/localModel', () => localModel)
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 const fileProcessing = vi.hoisted(() => ({
-  processorId: 'local-paddleocr',
-  ocrImageBytes: vi.fn<(_imageBytes: Uint8Array, _signal?: AbortSignal) => Promise<string>>()
+  processorId: 'local-paddleocr'
 }))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
@@ -198,7 +197,6 @@ const container = vi.hoisted(() => {
       IpcApiService: ipcApiService,
       OcrInferenceService: ocrInferenceService,
       FileProcessingService: {
-        ocrImageBytes: fileProcessing.ocrImageBytes,
         getConfiguredProcessorId: vi.fn(() => fileProcessing.processorId)
       }
     },
@@ -215,7 +213,6 @@ const container = vi.hoisted(() => {
       openCalls.length = 0
       mediaSeq = 0
       fileProcessing.processorId = 'local-paddleocr'
-      fileProcessing.ocrImageBytes.mockReset()
     }
   }
 })
@@ -1228,72 +1225,17 @@ describe('ScreenshotOverlayService', () => {
       expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
     })
 
-    it('uses the configured non-Paddle OCR processor without requiring local model weights', async () => {
+    it('disables the text overlay when the configured processor has no word geometry', async () => {
       fileProcessing.processorId = 'system'
-      fileProcessing.ocrImageBytes.mockResolvedValue('First line\nSecond line')
-      localModel.isLocalModelReady.mockReturnValue(false)
       singleDisplaySetup()
 
       await service.startCapture()
       const initData = initDataOf('overlay-0-0')
-      const result = await service.recognizeText('overlay-0-0', initData.mediaId, {
-        x: 10,
-        y: 20,
-        width: 200,
-        height: 80
-      })
+      const result = await service.recognizeText('overlay-0-0', initData.mediaId, ocrRegion(1))
 
-      expect(initData.ocrAvailable).toBe(true)
-      expect(fileProcessing.ocrImageBytes).toHaveBeenCalledOnce()
+      expect(initData.ocrAvailable).toBe(false)
       expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
-      expect(result).toEqual({
-        status: 'ok',
-        geometry: 'synthetic',
-        lines: [
-          [{ text: 'First line', box: { x: 0, y: 0, width: 200, height: 40 }, confidence: 1 }],
-          [{ text: 'Second line', box: { x: 0, y: 40, width: 200, height: 40 }, confidence: 1 }]
-        ]
-      })
-    })
-
-    it('aborts and serializes superseded non-Paddle OCR requests', async () => {
-      fileProcessing.processorId = 'mistral'
-      let firstSignal: AbortSignal | undefined
-      let resolveFirst!: (value: string) => void
-      let announceFirst!: () => void
-      const firstStarted = new Promise<void>((resolve) => {
-        announceFirst = resolve
-      })
-      fileProcessing.ocrImageBytes
-        .mockImplementationOnce((_imageBytes, signal) => {
-          firstSignal = signal
-          announceFirst()
-          return new Promise<string>((resolve) => {
-            resolveFirst = resolve
-          })
-        })
-        .mockResolvedValueOnce('new result')
-      singleDisplaySetup()
-      await service.startCapture()
-      const mediaId = initDataOf('overlay-0-0').mediaId
-
-      const first = service.recognizeText('overlay-0-0', mediaId, ocrRegion(1))
-      await firstStarted
-      const second = service.recognizeText('overlay-0-0', mediaId, ocrRegion(2))
-      await Promise.resolve()
-
-      expect(firstSignal?.aborted).toBe(true)
-      expect(fileProcessing.ocrImageBytes).toHaveBeenCalledTimes(1)
-
-      resolveFirst('old result')
-      expect(await first).toEqual({ status: 'rejected' })
-      expect(await second).toEqual({
-        status: 'ok',
-        geometry: 'synthetic',
-        lines: [[{ text: 'new result', box: { x: 0, y: 0, width: 100, height: 100 }, confidence: 1 }]]
-      })
-      expect(fileProcessing.ocrImageBytes).toHaveBeenCalledTimes(2)
-      expect(fileProcessing.ocrImageBytes.mock.calls[1][1]).toBeInstanceOf(AbortSignal)
+      expect(result).toEqual({ status: 'unavailable' })
     })
 
     it('trims a region whose extent overshoots the capture', async () => {
@@ -1349,7 +1291,7 @@ describe('ScreenshotOverlayService', () => {
       expect(await second).toEqual({ status: 'rejected' })
       expect(await third).toEqual({ status: 'rejected' })
       expect(await fourth).toEqual({ status: 'rejected' })
-      expect(await fifth).toEqual({ status: 'ok', lines: [], geometry: 'paddle-padded' })
+      expect(await fifth).toEqual({ status: 'ok', lines: [] })
       // The first is superseded by the time it returns, but it was already running —
       // it is the queued middle that is dropped without touching the worker.
       expect(await first).toEqual({ status: 'rejected' })
@@ -1375,7 +1317,7 @@ describe('ScreenshotOverlayService', () => {
       // A per-window token would leave both live and let display A's late result paint
       // over the overlay the user actually moved to.
       expect(await onFirstDisplay).toEqual({ status: 'rejected' })
-      expect(await onSecondDisplay).toEqual({ status: 'ok', lines: [], geometry: 'paddle-padded' })
+      expect(await onSecondDisplay).toEqual({ status: 'ok', lines: [] })
     })
 
     it('rejects a recognition that finishes after the pooled window entered a new session', async () => {
@@ -1413,7 +1355,7 @@ describe('ScreenshotOverlayService', () => {
       // The stale one must not resolve `ok`, or a pooled overlay would paint the
       // previous capture's text over the new one.
       expect(await stale).toEqual({ status: 'rejected' })
-      expect(await fresh).toEqual({ status: 'ok', lines: [], geometry: 'paddle-padded' })
+      expect(await fresh).toEqual({ status: 'ok', lines: [] })
     })
   })
 

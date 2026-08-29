@@ -143,9 +143,10 @@ const ScreenshotSettings: FC = () => {
   }
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)
+  const supportsScreenshotGeometry = effectiveOcrProcessorId === 'local-paddleocr'
   const requiresLocalOcrModel =
     effectiveOcrProcessorId !== null && FILE_PROCESSOR_LOCAL_MODEL[effectiveOcrProcessorId] === 'ocr'
-  const ocrReady = effectiveOcrProcessorId !== null && (!requiresLocalOcrModel || ocrModel.status === 'ready')
+  const ocrReady = supportsScreenshotGeometry && (!requiresLocalOcrModel || ocrModel.status === 'ready')
 
   return (
     <SettingsContentColumn theme={theme}>

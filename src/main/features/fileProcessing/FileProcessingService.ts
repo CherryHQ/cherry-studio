@@ -13,7 +13,7 @@ import {
   resolveProcessorConfigByFeature,
   resolveProcessorIdByFeature
 } from './config/resolveProcessorConfig'
-import { ocrImageBytes, ocrImageToText } from './ocrImageToText'
+import { ocrImageToText } from './ocrImageToText'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
@@ -113,11 +113,6 @@ export class FileProcessingService extends BaseService {
    */
   ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
     return ocrImageToText(file, signal)
-  }
-
-  /** OCR transient image bytes without forcing callers to own temporary-file cleanup. */
-  ocrImageBytes(imageBytes: Uint8Array, signal?: AbortSignal): Promise<string> {
-    return ocrImageBytes(imageBytes, signal)
   }
 
   /** Resolve the active processor without leaking file-processing configuration internals. */

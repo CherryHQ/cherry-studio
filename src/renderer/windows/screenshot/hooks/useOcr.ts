@@ -9,7 +9,7 @@
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { OcrGeometry, OcrWord } from '@shared/ipc/schemas/screenshot'
+import type { OcrWord } from '@shared/ipc/schemas/screenshot'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { SelectionRect } from '../types'
@@ -87,8 +87,8 @@ function unpadBox(box: OcrWord['box']): OcrTextLine['box'] {
  * One span per detected line. The engine detects boxes and groups them into lines;
  * the text layer's selection logic is built around one span per line, so merge first.
  */
-export function mergeLine(words: OcrWord[], geometry: OcrGeometry = 'paddle-padded'): OcrTextLine {
-  const boxes = words.map((word) => (geometry === 'paddle-padded' ? unpadBox(word.box) : word.box))
+export function mergeLine(words: OcrWord[]): OcrTextLine {
+  const boxes = words.map((word) => unpadBox(word.box))
   const left = Math.min(...boxes.map((b) => b.x))
   const top = Math.min(...boxes.map((b) => b.y))
   const right = Math.max(...boxes.map((b) => b.x + b.width))
@@ -142,10 +142,7 @@ export function useOcr(
           setState({ status: 'unavailable', lines: [] })
           return
         }
-        setState({
-          status: 'done',
-          lines: result.lines.filter((words) => words.length > 0).map((words) => mergeLine(words, result.geometry))
-        })
+        setState({ status: 'done', lines: result.lines.filter((words) => words.length > 0).map(mergeLine) })
       } catch (error) {
         if (generationRef.current !== generation) return
         logger.error('Text recognition failed', error as Error)

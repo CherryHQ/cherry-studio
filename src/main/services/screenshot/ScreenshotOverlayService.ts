@@ -17,7 +17,7 @@ import {
   requestScreenCapturePermission,
   type ScreenCapturePermissionStatus
 } from '@main/utils/screenCapturePermission'
-import type { OcrRecognitionResult, OcrWord } from '@shared/ipc/schemas/screenshot'
+import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 import dayjs from 'dayjs'
@@ -145,12 +145,6 @@ export class ScreenshotOverlayService extends BaseService {
   /** Token of the newest OCR request. At most one overlay is active, so "keep only
    *  the newest" is global — bucketing by window would let two chains run at once. */
   private latestOcrToken: symbol | null = null
-
-  /** Cancels paid/local non-Paddle work when a newer selection takes ownership. */
-  private nonPaddleOcrAbortController: AbortController | null = null
-
-  /** Providers are serialized even when an implementation ignores AbortSignal. */
-  private nonPaddleOcrTail: Promise<void> = Promise.resolve()
 
   protected onInit(): void {
     const windowManager = application.get('WindowManager')
@@ -443,16 +437,13 @@ export class ScreenshotOverlayService extends BaseService {
   /**
    * Recognize text inside one region of an overlay's frozen capture.
    *
-   * Paddle serialization is owned by `OcrInferenceService`. Other configured processors
-   * use the abortable serial chain below, so a superseded remote request is cancelled when
-   * supported and can never run concurrently when cancellation is ignored. The token is
-   * re-checked before and after recognition so only the newest result can be painted.
+   * Serialization is owned by `OcrInferenceService`. Only processors that return real
+   * word geometry are enabled for the overlay; plain-text processors must not fabricate
+   * selectable boxes that do not correspond to the captured image.
    */
   public async recognizeText(windowId: WindowId, mediaId: string, region: OcrRegion): Promise<OcrRecognitionResult> {
     const token = Symbol('ocr-request')
     this.latestOcrToken = token
-    this.nonPaddleOcrAbortController?.abort(new Error('Screenshot OCR request superseded'))
-    this.nonPaddleOcrAbortController = null
 
     // Ownership, not just session membership: two overlays of one session would
     // otherwise let display A ask for OCR of display B's capture.
@@ -486,19 +477,16 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const isPaddleGeometry = processorId === 'local-paddleocr'
-      const lines = isPaddleGeometry
-        ? (await application.get('OcrInferenceService').recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })).lines
-        : await this.runConfiguredOcr(imageBytes, clamped, token)
-
-      if (lines === null) return { status: 'rejected' }
+      const { lines } = await application
+        .get('OcrInferenceService')
+        .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-      return { status: 'ok', lines, geometry: isPaddleGeometry ? 'paddle-padded' : 'synthetic' }
+      return { status: 'ok', lines }
     } catch (error) {
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       // Rethrown so the overlay shows its error state; logged here because the IPC
@@ -508,40 +496,12 @@ export class ScreenshotOverlayService extends BaseService {
     }
   }
 
-  private async runConfiguredOcr(
-    imageBytes: Uint8Array,
-    region: OcrRegion,
-    token: symbol
-  ): Promise<OcrWord[][] | null> {
-    const controller = new AbortController()
-    this.nonPaddleOcrAbortController = controller
-
-    const run = this.nonPaddleOcrTail.then(async () => {
-      if (controller.signal.aborted || this.latestOcrToken !== token) return null
-      try {
-        const text = await application.get('FileProcessingService').ocrImageBytes(imageBytes, controller.signal)
-        return this.createPlainTextLines(text, region)
-      } catch (error) {
-        if (controller.signal.aborted) return null
-        throw error
-      }
-    })
-    this.nonPaddleOcrTail = run.then(
-      () => undefined,
-      () => undefined
-    )
-
-    try {
-      return await run
-    } finally {
-      if (this.nonPaddleOcrAbortController === controller) this.nonPaddleOcrAbortController = null
-    }
-  }
-
   private resolveConfiguredOcrProcessorId(): string | null {
     try {
       const processorId = application.get('FileProcessingService').getConfiguredProcessorId('image_to_text')
-      if (processorId === 'local-paddleocr' && !isLocalModelReady('ocr')) return null
+      // The screenshot text layer requires word boxes. File processors currently expose
+      // plain text only; Paddle is the sole geometry-capable overlay backend.
+      if (processorId !== 'local-paddleocr' || !isLocalModelReady('ocr')) return null
       return processorId
     } catch (error) {
       logger.debug('Configured screenshot OCR processor is unavailable', { error: String(error) })
@@ -551,24 +511,6 @@ export class ScreenshotOverlayService extends BaseService {
 
   private isConfiguredOcrAvailable(): boolean {
     return this.resolveConfiguredOcrProcessorId() !== null
-  }
-
-  /** Providers without word geometry still yield a selectable, copyable line overlay. */
-  private createPlainTextLines(text: string, region: OcrRegion): OcrWord[][] {
-    const textLines = text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-    if (textLines.length === 0) return []
-
-    const lineHeight = region.height / textLines.length
-    return textLines.map((line, index) => [
-      {
-        text: line,
-        box: { x: 0, y: index * lineHeight, width: region.width, height: lineHeight },
-        confidence: 1
-      }
-    ])
   }
 
   /**
@@ -837,10 +779,8 @@ export class ScreenshotOverlayService extends BaseService {
     }
     this.trace = null
 
-    // Invalidates every in-flight OCR result and cancels configured processors that honor signals.
+    // Invalidates every in-flight OCR result; Paddle's serial worker may still finish in the background.
     this.latestOcrToken = null
-    this.nonPaddleOcrAbortController?.abort(new Error('Screenshot session ended'))
-    this.nonPaddleOcrAbortController = null
   }
 
   /** The overlay holding the live selection, used as the save dialog's parent. */

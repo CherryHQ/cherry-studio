@@ -154,33 +154,27 @@ describe('ScreenshotSettings', () => {
   })
 
   it.each(['system', 'tesseract', 'mistral'] as const)(
-    'allows auto OCR with the configured %s processor when Paddle weights are absent',
+    'disables screenshot text overlay for configured %s because it has no word geometry',
     async (processorId) => {
       MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', processorId)
       stubIpc({ ocrStatus: 'not_downloaded' })
 
       render(<ScreenshotSettings />)
 
-      await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
-      expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
-      expect(screen.queryByText('settings.screenshot.ocr.model.unavailable')).not.toBeInTheDocument()
+      await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
+      expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
     }
   )
 
   it('uses the effective default processor when the preference is unset', async () => {
-    const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', null)
     stubIpc({ defaultOcrProcessorId: 'system', ocrStatus: 'not_downloaded' })
 
     render(<ScreenshotSettings />)
 
-    await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
+    await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
     expect(requestedRoutes()).toContain('file_processing.configured_processor.get')
-    expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
-    expect(screen.queryByText('settings.screenshot.ocr.model.unavailable')).not.toBeInTheDocument()
-
-    await user.click(autoOcrSwitch())
-    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('feature.screenshot.auto_ocr')).toBe(false))
+    expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
   })
 
   it('keeps auto OCR disabled when main rejects the configured processor capability', async () => {
