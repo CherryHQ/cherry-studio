@@ -83,6 +83,9 @@ const SearchResultsPage = () => {
             id={settingsSearchOptionDomId(index)}
             type="button"
             role="option"
+            // Combobox owns the focus (aria-activedescendant model): options stay
+            // pointer-reachable but must not join the tab order
+            tabIndex={-1}
             aria-selected={index === activeIndex}
             className={cn(
               'flex flex-col items-start gap-0.5 rounded-[10px] border border-transparent px-3 py-2 text-left hover:bg-muted',
