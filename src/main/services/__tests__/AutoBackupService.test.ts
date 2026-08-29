@@ -307,6 +307,26 @@ describe('AutoBackupService', () => {
     expect(service.getStateSnapshot().pendingNotifications).toEqual([])
   })
 
+  it('redacts raw error prose and paths from the failure event message', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    mocks.exportToDestination.mockRejectedValue(
+      new Error(`ENOENT: no such file or directory, open '/Users/x/secret/path/backup.zip'`)
+    )
+
+    await vi.advanceTimersByTimeAsync(60_000 + 7_000 + 17_000 + 37_000)
+
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'backup.auto_sync_state_changed',
+      expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: 'auto-backup failed' })
+    )
+
+    const failure = service.getStateSnapshot().pendingNotifications[0]
+    expect(failure).toMatchObject({ type: 'webdav', status: 'failed', errorMessage: 'auto-backup failed' })
+  })
+
   it('keeps the last result in snapshots while the next backup is running', () => {
     ;(service as any).emit({ type: 'webdav', status: 'succeeded', timestamp: 123 })
     ;(service as any).emit({ type: 'webdav', status: 'running' })
