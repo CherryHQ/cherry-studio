@@ -51,7 +51,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             parentAnchorId: mergedBody.parentAnchorId ?? '',
             mentionedModelIds: mergedBody.mentionedModels,
             reasoningEffort: mergedBody.reasoningEffort,
-            serviceTier: mergedBody.serviceTier,
             ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
         : {
@@ -61,7 +60,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
             mentionedModelIds: mergedBody.mentionedModels,
             reasoningEffort: mergedBody.reasoningEffort,
-            serviceTier: mergedBody.serviceTier,
             ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
 
