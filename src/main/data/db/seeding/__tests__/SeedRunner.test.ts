@@ -4,11 +4,13 @@ import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { seeders } from '@data/db/seeding/seederRegistry'
-import { SEED_BOOTSTRAP_COMPLETED_KEY, SeedRunner } from '@data/db/seeding/SeedRunner'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
 
 function createSeeder(overrides: Partial<ISeeder> = {}): ISeeder {
   return {
@@ -108,10 +110,7 @@ describe('SeedRunner', () => {
     expect(seeder.run).toHaveBeenCalledTimes(1)
     const [journal] = await dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:test-seed'))
     expect(journal?.value).toMatchObject({ version: '1.0' })
-    const [marker] = await dbh.db
-      .select()
-      .from(appStateTable)
-      .where(eq(appStateTable.key, SEED_BOOTSTRAP_COMPLETED_KEY))
+    const [marker] = await dbh.db.select().from(appStateTable).where(eq(appStateTable.key, BOOTSTRAP_MARKER_KEY))
     expect(marker).toBeDefined()
   })
 
@@ -147,10 +146,7 @@ describe('SeedRunner', () => {
     })
     expect(() => runner.runAll([failing])).toThrow('seed failed')
 
-    const markerRows = await dbh.db
-      .select()
-      .from(appStateTable)
-      .where(eq(appStateTable.key, SEED_BOOTSTRAP_COMPLETED_KEY))
+    const markerRows = await dbh.db.select().from(appStateTable).where(eq(appStateTable.key, BOOTSTRAP_MARKER_KEY))
     expect(markerRows).toHaveLength(0)
 
     const bootstrapSeeder = createSeeder({ executionPolicy: 'bootstrap-only' })
@@ -165,10 +161,7 @@ describe('SeedRunner', () => {
     runner.runAll([createSeeder()])
     runner.runAll([createSeeder()])
 
-    const markerRows = await dbh.db
-      .select()
-      .from(appStateTable)
-      .where(eq(appStateTable.key, SEED_BOOTSTRAP_COMPLETED_KEY))
+    const markerRows = await dbh.db.select().from(appStateTable).where(eq(appStateTable.key, BOOTSTRAP_MARKER_KEY))
     expect(markerRows).toHaveLength(1)
   })
 
