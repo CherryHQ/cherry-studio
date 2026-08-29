@@ -1,31 +1,13 @@
 {
-  "generated_at": "2026-08-28T18:00:00Z",
-  "discussion_fetch_status": "skipped — gh CLI unavailable in remote environment; use GitHub Actions or local Conductor for GraphQL discussion sync",
-  "issue_based_signals": {
-    "help_wanted_open": 2,
-    "discussion_labeled_open": 2,
-    "high_comment_issues": [
-      {"number": 18131, "title": "MCP server shows connected but no tools mounted — agent sessions"},
-      {"number": 14898, "title": "Cherry Studio Account System and Cross-Device Sync"},
-      {"number": 16172, "title": "Improve knowledge base retrieval recall"},
-      {"number": 19630, "title": "MAX_REQUESTED_OUTPUT_TOKENS hardcoded to 128_000"}
+  "generated_at": "2026-08-29T18:00:00Z",
+  "note": "Discussions GraphQL API unavailable via GitHub MCP in this environment. Data reflects last known state from 2026-08-28.",
+  "last_known": {
+    "total_discussions_visible": "~50 (estimated from issue tracker cross-refs)",
+    "unanswered_count": "unknown — API not accessible",
+    "hot_topics": [
+      "MAX_REQUESTED_OUTPUT_TOKENS hardcoded limit (#19630)",
+      "MCP OAuth flow blocking startup (#19048)",
+      "Anthropic/OpenRouter cache TTL configurable (#19696)"
     ]
-  },
-  "top_feature_requests_by_signal": [
-    "Cherry Studio Account System and Cross-Device Sync (#14898)",
-    "Built-In Browser Pane for Agents (#16124)",
-    "Usage Dashboard with token analytics (#16170)",
-    "Anthropic Computer Use support (#15663)",
-    "Sub-Agent calling between agents (#15982)",
-    "Unified Agent permission modes across runtimes (#18898)",
-    "MAX_REQUESTED_OUTPUT_TOKENS configurable (#19630)"
-  ],
-  "community_friction_signals_aug28": [
-    "v2.0.9 regression surge (8 P1s Aug 27) — v2.0.10 released today to address; monitor resolution",
-    "Cloud backup still broken (#10512, 330 days old) — recurring community pain point",
-    "ARM/Linux users blocked: upload/input (#16863), arm64 flickering (#19578)",
-    "Pi runtime: auto-permission mode prompting every call (#19376) — agent UX regression",
-    "Agent stability: DeepSeek V4 tool loop broken (#18741), reasoning_text dropped (#19321)",
-    "Windows updater leaves old version installed (#19625) — new today, triage needed"
-  ]
+  }
 }

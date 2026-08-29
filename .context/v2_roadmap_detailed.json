@@ -1,60 +1,38 @@
 {
-  "generated_at": "2026-08-28T18:00:00Z",
+  "generated_at": "2026-08-29T18:00:00Z",
   "v2_branch_status": {
-    "open_prs_targeting_v2": 0,
-    "note": "No PRs targeting v2 base branch as of 2026-08-28. All active development merges to main."
+    "open_prs_base_v2": 0,
+    "note": "No open PRs targeting the v2 branch found. All active development is on main. V2 may have been fully merged to main."
   },
-  "main_branch_activity": {
-    "open_prs": 100,
-    "active_contributors_today": ["userInner", "SiinXu", "kennyzheng-builds", "DeJeune", "ActiveSky", "kovsu", "GeorgeDong32", "eeee0717", "404-Page-Found"]
+  "active_v2_label_issues": [
+    {"number": 17949, "title": "V2 regression: cannot check/manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 24},
+    {"number": 19379, "title": "Pi runtime: report_artifacts never render", "labels": ["bug","p1","ui-ux","v2","agent"], "age_days": 4},
+    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 4},
+    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "labels": ["bug","p1","windows","v2"], "age_days": 1}
+  ],
+  "internal_team_tasks_sample": [
+    {"number": 19671, "title": "Lazy-load optional Knowledge management UI", "assignee": "GeorgeDong32"},
+    {"number": 19715, "title": "Defer CodeMirror theme resolution until editor is active", "assignee": "GeorgeDong32"},
+    {"number": 19719, "title": "Keep AppShell out of onboarding bundle", "assignee": null},
+    {"number": 19718, "title": "Lazy-load low-frequency Provider Settings editors", "assignee": null},
+    {"number": 19717, "title": "Suspend Translate sidebar while closed", "assignee": null},
+    {"number": 19716, "title": "Remove duplicate per-message topic stream subscriptions", "assignee": null},
+    {"number": 19675, "title": "Isolate model health-check updates to affected rows", "assignee": null},
+    {"number": 19693, "title": "Decouple AI request pipeline from Assistant", "assignee": null}
+  ],
+  "performance_cluster": {
+    "total_performance_label_issues": "14 in top-100 sample",
+    "focus_areas": ["lazy loading", "bundle splitting", "stream subscription optimization", "model health-check efficiency"]
   },
-  "v2_labeled_open_issues": [
-    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "labels": ["bug","p1","windows","needs-repro","needs-triage","v2"], "age_days": 0},
-    {"number": 19379, "title": "Pi runtime: report_artifacts deliverables never render", "labels": ["bug","p1","ui-ux","v2","agent"], "age_days": 3},
-    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts for every tool call", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 3},
-    {"number": 17949, "title": "V2 regression: cannot check and manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 23},
-    {"number": 18099, "title": "Restore 'Save only' option for historical message editing (v1→v2 regression)", "labels": ["ui-ux"], "age_days": 21}
-  ],
-  "release_context": {
-    "latest_release": "v2.0.10",
-    "release_date_approx": "2026-08-28",
-    "prior_release": "v2.0.9",
-    "v209_regression_p1_count": 8,
-    "v210_expected_fixes": "Partial — addresses subset of v2.0.9 cluster; full resolution requires verification post-rollout",
-    "hotfix_urgency": "MEDIUM — v2.0.10 is out; monitor for resolution of Aug 27 P1 cluster"
-  },
-  "planned_features_open": [
-    {"number": 18960, "title": "Agent Stall Detection and User Intervention", "labels": ["planned","feature","assistant","internal-team"]},
-    {"number": 18965, "title": "User-provided Reasons When Rejecting Tool Calls", "labels": ["planned","feature","assistant","internal-team"]},
-    {"number": 18968, "title": "Privacy-safe Structured Model Diagnostics", "labels": ["planned","feature","models","internal-team"]},
-    {"number": 18976, "title": "Unified Context and Token Usage Breakdown", "labels": ["planned","feature","internal-team"]}
-  ],
-  "internal_team_prd_issues": [
-    {"number": 16172, "title": "Improve knowledge base retrieval (hybrid search / reranking)", "labels": ["p3","feature","rag","prd","internal-team"]},
-    {"number": 16170, "title": "Usage dashboard — daily/weekly/total token usage", "labels": ["feature","ui-ux","models","prd","internal-team"]},
-    {"number": 14898, "title": "Cherry Studio Account System and Cross-Device Sync", "labels": ["feature","data","internal-team"]},
-    {"number": 16124, "title": "Built-In Browser Pane (shared with Agent)", "labels": ["feature","ui-ux","agent","prd","internal-team"]},
-    {"number": 15663, "title": "Support Anthropic Computer Use", "labels": ["assistant","internal-team"]}
-  ],
-  "active_pr_themes_aug28": [
-    {"theme": "Post-v2.0.10 stabilization / v2.0.9 regression close-out", "priority": "P1 — monitor"},
-    {"theme": "Performance sprint day 4 (lazy loading, subscription isolation)", "issues": [19671,19675,19672,19674,19673], "priority": "high"},
-    {"theme": "Agent session reliability (Pi runtime, DeepSeek tool loop)", "priority": "high"},
-    {"theme": "Internal model/provider tasks (Kimi presets, Gemini policy, API gateway typing)", "issues": [19661,19655,19656], "priority": "medium"},
-    {"theme": "Data / backup reliability", "priority": "medium"}
-  ],
-  "pr_pipeline_targets_main": {
-    "count": 100,
-    "top_authors_approx": {
-      "userInner": 35,
-      "SiinXu": 19,
-      "kennyzheng-builds": 9,
-      "DeJeune": 7,
-      "GeorgeDong32": 5,
-      "ActiveSky": 3,
-      "kovsu": 3,
-      "404-Page-Found": 3
-    },
-    "needs_review_labeled": 8
+  "pr_activity_today": {
+    "top_open_prs": [
+      {"number": 18693, "title": "fix(composer): restore configurable long-text paste"},
+      {"number": 19723, "title": "fix(window-manager): block content-initiated subframe navigation"},
+      {"number": 18786, "title": "fix(model-pricing): record what providers actually charge"},
+      {"number": 19720, "title": "fix(provider): normalize reasoning_effort for GitHub Copilot"},
+      {"number": 19448, "title": "fix(scheduled-tasks): stop stale running status after startup"},
+      {"number": 19713, "title": "fix(translate-history): revalidate in place when membership changes"},
+      {"number": 19712, "title": "fix(translate): restore translation_options for Qwen-MT models"}
+    ]
   }
 }

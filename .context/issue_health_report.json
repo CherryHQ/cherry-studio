@@ -1,71 +1,66 @@
 {
-  "generated_at": "2026-08-28T18:00:00Z",
-  "total_open_issues": 1004,
-  "health_buckets": {
-    "active": {
-      "description": "Updated within last 7 days (Aug 21–28)",
-      "count_estimate": 820,
-      "pct": "~82%",
-      "note": "Top-100 sample is fully active; high activity volume continues"
-    },
-    "aging": {
-      "description": "7–30 days since last update (Jul 29 – Aug 20)",
-      "count_estimate": 70,
-      "pct": "~7%"
-    },
-    "stale": {
-      "description": "30–90 days without update (May 30 – Jul 28), many auto-labeled 'inactive'",
-      "count_estimate": 64,
-      "pct": "~6%",
-      "inactive_label_count": 10
-    },
-    "zombie": {
-      "description": "90+ days open with no resolution (before May 30)",
-      "count_estimate": 50,
-      "pct": "~5%",
-      "notable_zombies": [
-        {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 330, "labels": ["bug","p1","windows","data"]}
-      ]
-    }
+  "generated_at": "2026-08-29T18:00:00Z",
+  "total_open_issues": 1014,
+  "p1_critical_count": 31,
+  "p1_breakdown": {
+    "active_assigned": 8,
+    "active_unassigned": 17,
+    "aging_7_30d": 4,
+    "stale_30_90d": 2,
+    "zombie_gt90d": 2,
+    "needs_repro_or_more_info": 6
   },
-  "triage_queue": {
-    "needs_triage_count": 10,
-    "needs_repro_count": 3,
-    "needs_more_info_count": 5,
-    "new_today_needing_triage": [19625, 19623]
+  "p1_platform_breakdown": {
+    "windows_specific": 9,
+    "linux_specific": 3,
+    "cross_platform": 19
   },
-  "hot_areas_aug28": {
-    "v2_0_10_release": {
-      "description": "v2.0.10 released today; expected to fix subset of v2.0.9 regression cluster (8 P1s from Aug 27)",
-      "unresolved_from_cluster": ["verify after v2.0.10 rollout"]
-    },
-    "performance_sprint_day4": {
-      "count": 5,
-      "issues": [19671, 19675, 19672, 19674, 19673],
-      "description": "Internal team performance task batch day 4: lazy-load Knowledge UI, isolate health-check rows, citations panel on first open, lazy ModelSettings panels, defer provider setup"
-    },
-    "streaming_model_switch_blocked": {
-      "issues": [19659],
-      "priority": "p1",
-      "description": "New P1 filed today: cannot switch model conversation while a response streams"
-    },
-    "agent_runtime_bugs": {
-      "issues": [19383, 19379, 19376, 19321, 18741],
-      "description": "5 agent runtime P1s carried forward: handler not found on agent delete, Pi runtime artifacts, Pi auto-permission prompts, DeepSeek reasoning_text drop, DeepSeek V4 tool loop broken"
-    },
-    "data_backup_cluster": {
-      "issues": [19670, 19669, 19678, 18273, 18272],
-      "description": "Backup/data reliability issues: sync status resets (#19670), downgrade detection missing (#19669), v1→v2 context marker loss (#19678), zip-slip (#18273 - security), filename sanitization (#18272 - security)"
-    }
+  "p1_category_breakdown": {
+    "agent_pi_runtime": 7,
+    "ui_ux": 8,
+    "models_inference": 6,
+    "data_startup": 4,
+    "connectivity": 3,
+    "other": 3
   },
-  "security_flagged": [
-    {"number": 18273, "title": "[Bug]: Backup restore: zip-slip path traversal (no path containment check)", "labels": ["data"], "severity": "HIGH"},
-    {"number": 18272, "title": "[Bug]: Knowledge material filenames not sanitized on native add", "labels": ["data"], "severity": "MEDIUM"}
+  "high_urgency_unassigned_p1": [
+    {"number": 19659, "title": "Cannot switch model while streaming", "age_days": 1},
+    {"number": 19383, "title": "Built-in agent DELETE handler missing", "age_days": 4},
+    {"number": 19582, "title": "Assistant Management hides tags after 2.0.9 upgrade", "age_days": 2},
+    {"number": 19583, "title": "Deleting topic fails to refresh", "age_days": 2},
+    {"number": 19578, "title": "Linux arm64 window continuous flicker", "age_days": 2},
+    {"number": 19579, "title": "DB disk I/O failure exits on startup", "age_days": 2},
+    {"number": 19454, "title": "Streaming output flickers during generation", "age_days": 3}
   ],
-  "summary_deltas_vs_yesterday": {
-    "open_issues_change": "+14",
-    "new_p1_count": 2,
-    "resolved_cluster": "v2.0.9 regression cluster being addressed by v2.0.10",
-    "today_theme": "Stabilization after v2.0.9 surge. v2.0.10 released. Performance sprint continues (day 4). 2 new P1s. Agent runtime stability remains top concern."
-  }
+  "sample_health_100_recent": {
+    "Active": 64,
+    "Aging": 32,
+    "Stale": 3,
+    "Zombie": 1
+  },
+  "triage_backlog": {
+    "needs_triage_estimate": 80,
+    "no_label_estimate": 130,
+    "needs_repro_estimate": 40
+  },
+  "top_label_clusters": {
+    "ui_ux": {"count_sample": 26, "pct_sample": "26%"},
+    "models": {"count_sample": 24, "pct_sample": "24%"},
+    "internal_team": {"count_sample": 19, "pct_sample": "19%"},
+    "performance": {"count_sample": 14, "pct_sample": "14%"},
+    "bug": {"count_sample": 16, "pct_sample": "16%"},
+    "feature": {"count_sample": 15, "pct_sample": "15%"}
+  },
+  "zombie_p1_issues": [
+    {"number": 8730, "title": "Cannot connect SenseTime model", "age_days": 402},
+    {"number": 10512, "title": "Cloud Backup Complete Failure", "age_days": 294},
+    {"number": 15431, "title": "Quick Assist feature not working", "age_days": 155}
+  ],
+  "recommendations": [
+    "Assign or triage the 17 unassigned P1 bugs — several are 2.0.9 regressions filed in last 48h",
+    "Consider closing #8730 (402d) and #10512 (294d) as stale or converting to roadmap items",
+    "The 'needs-repro' subset of P1 (#19572, #19625) needs a repro attempt before assignment",
+    "~130 unlabeled issues represent ~13% of the backlog — a triage sprint would help",
+    "Pi runtime P1 cluster (#19376, #19379) should be bundled for vaayne"
+  ]
 }
