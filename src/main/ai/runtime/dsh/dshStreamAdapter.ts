@@ -136,6 +136,8 @@ export class DshStreamAdapter {
   private autonomousTurn = false
   /** The current autonomous turn should be suppressed (latched at `turn/start` within the grace window). */
   private autonomousTurnSuppressed = false
+  /** Turn id of the suppressed autonomous turn, if any; isolates its late events even after a host turn begins. */
+  private suppressedTurn?: number
   /** Timestamp of the last host-prompted turn's `turn/end`; drives the post-turn grace period. */
   private hostTurnEndedAt?: number
 
@@ -146,7 +148,9 @@ export class DshStreamAdapter {
     this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
-    this.autonomousTurnSuppressed = false
+    if (this.suppressedTurn === undefined) {
+      this.autonomousTurnSuppressed = false
+    }
     this.hostTurnEndedAt = undefined
   }
 
@@ -154,7 +158,9 @@ export class DshStreamAdapter {
   abortTurn(): void {
     this.turnActive = false
     this.autonomousTurn = false
-    this.autonomousTurnSuppressed = false
+    if (this.suppressedTurn === undefined) {
+      this.autonomousTurnSuppressed = false
+    }
   }
 
   /**
@@ -199,29 +205,69 @@ export class DshStreamAdapter {
         // Latch the suppression decision at turn boundary: if this autonomous turn starts
         // within the grace window after a host turn ended, suppress it for the entire turn.
         if (!this.turnActive && this.hostTurnEndedAt !== undefined) {
-          this.autonomousTurnSuppressed = Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS
+          const withinGrace = Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS
+          if (withinGrace) {
+            this.autonomousTurnSuppressed = true
+            this.suppressedTurn = (event.data as { turn: number }).turn
+          }
         }
         return
       case 'step/start':
+        if (
+          this.suppressedTurn !== undefined &&
+          (event.data as { turn: number }).turn === this.suppressedTurn
+        )
+          return
         this.startProviderAttempt(event.data, true)
         return
       case 'assistant/chunk':
+        if (
+          this.suppressedTurn !== undefined &&
+          (event.data as { turn: number }).turn === this.suppressedTurn
+        )
+          return
         if (this.ensureTurnOpen()) return
         this.handleAssistantChunk(event.data, event.seq)
         return
       case 'tool/call':
+        if (
+          this.suppressedTurn !== undefined &&
+          (event.data as { turn: number }).turn === this.suppressedTurn
+        )
+          return
         if (this.ensureTurnOpen()) return
         this.handleToolCall(event.data)
         return
       case 'tool/result':
+        if (
+          this.suppressedTurn !== undefined &&
+          (event.data as { turn: number }).turn === this.suppressedTurn
+        )
+          return
         if (this.ensureTurnOpen()) return
         this.handleToolResult(event.data)
         return
       case 'assistant/message':
+        if (
+          this.suppressedTurn !== undefined &&
+          (event.data as { turn: number }).turn === this.suppressedTurn
+        )
+          return
         if (this.ensureTurnOpen()) return
         this.handleAssistantMessage(event.data, event.seq)
         return
       case 'turn/end': {
+        // Suppressed autonomous turn: swallow entirely — do not surface a host turn-complete
+        // and do not reset the grace window. Its content was already dropped.
+        if (
+          this.suppressedTurn !== undefined &&
+          (event.data as { turn: number }).turn === this.suppressedTurn
+        ) {
+          this.suppressedTurn = undefined
+          this.autonomousTurnSuppressed = false
+          this.flushPendingProviderUsage()
+          return
+        }
         this.flushPendingProviderUsage()
         // A turn that never carried content (a stale goal round rejected at pre-step)
         // has nothing to settle — surfacing it would fabricate an empty host turn.
