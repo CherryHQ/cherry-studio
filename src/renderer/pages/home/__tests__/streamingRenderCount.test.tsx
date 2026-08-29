@@ -62,7 +62,7 @@ describe('streaming render count (PR 2 regression net)', () => {
     const initialMessages = [...stableMessages, makeMessage(STREAMING_ID, [text(`${STREAMING_ID}:0`)])]
 
     const { result, rerender } = renderHook(
-      ({ messages }: { messages: CherryUIMessage[] }) => useStablePartsByMessageId(messages, {}, {}),
+      ({ messages }: { messages: CherryUIMessage[] }) => useStablePartsByMessageId(messages, {}),
       { initialProps: { messages: initialMessages } }
     )
 
@@ -118,7 +118,7 @@ describe('streaming render count (PR 2 regression net)', () => {
     const messages = [makeMessage('m1', [text('a')]), makeMessage('m2', [text('b')])]
 
     const { result, rerender } = renderHook(
-      ({ msgs }: { msgs: CherryUIMessage[] }) => useStablePartsByMessageId(msgs, {}, {}),
+      ({ msgs }: { msgs: CherryUIMessage[] }) => useStablePartsByMessageId(msgs, {}),
       { initialProps: { msgs: messages } }
     )
 

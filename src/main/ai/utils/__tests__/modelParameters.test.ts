@@ -69,6 +69,30 @@ describe('getTemperature', () => {
     expect(getTemperature(a, model, OMIT_REASONING)).toBe(1)
   })
 
+  it('omits temperature when the resolved provider-model marks it unsupported', () => {
+    const a = makeAssistant({ temperature: 0.7 })
+    const model = makeModel({
+      id: 'moonshot::kimi-k2-6',
+      providerId: 'moonshot',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
+  })
+
+  it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
+    'omits fixed temperature for a custom %s model without registry metadata',
+    (id) => {
+      const a = makeAssistant({ temperature: 0.7 })
+      expect(getTemperature(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+    }
+  )
+
   it('disables temperature for Gemini 3.x models', () => {
     const a = makeAssistant({ temperature: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
@@ -108,6 +132,14 @@ describe('getTopP', () => {
 
     expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
   })
+
+  it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
+    'omits fixed topP for a custom %s model without registry metadata',
+    (id) => {
+      const a = makeAssistant({ enableTopP: true, topP: 1 })
+      expect(getTopP(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+    }
+  )
 
   it('clamps topP to [0.95, 1] from the resolved request reasoning', () => {
     // `enableTemperature: false` — Claude 4.5 has mutually-exclusive

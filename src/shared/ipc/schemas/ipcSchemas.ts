@@ -18,7 +18,7 @@ import { type HermesDashboardEventSchemas, hermesDashboardRequestSchemas } from 
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
 import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
-import { miniAppRequestSchemas } from './miniApp'
+import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
@@ -106,6 +106,7 @@ export type IpcEventSchemas = AiEventSchemas &
   HermesDashboardEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &
+  MiniAppEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
   OAuthEventSchemas &
