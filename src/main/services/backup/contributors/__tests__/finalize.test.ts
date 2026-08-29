@@ -298,6 +298,65 @@ describe('finalize invariants', () => {
     expectInvariant(list, 10)
   })
 
+  it('#10 rejects a cross-domain required entity-id jsonSoftReference cycle', () => {
+    // The #10 json edge source: a `required` entity-id jsonSoftReference whose
+    // targetTable is an aggregate root owned by ANOTHER domain adds a cross-domain
+    // dependency edge (the target's identityMap must seed before the source imports,
+    // or required rows are mis-pruned). Both real production entity-id declarations
+    // are same-domain, so this branch is otherwise never exercised.
+    // Cycle: MCP_SERVERS→ASSISTANTS via the json edge (mcp_server.args is a real JSON
+    // column; ASSISTANTS declares `assistant` as an aggregate root so it lands in
+    // rootToDomain), closed by ASSISTANTS→MCP_SERVERS via a synthetic reference on a
+    // real non-FK column ('name') — #10 runs before #24, so the unmatched-FK check
+    // is not reached.
+    const withBackEdge = patchSchema(buildFixture(), 'ASSISTANTS', {
+      aggregates: [{ root: 'assistant', renamable: false }],
+      references: [
+        { table: 'assistant', column: 'modelId', referencedDomain: 'PROVIDERS', kind: 'optional' },
+        { table: 'assistant', column: 'groupId', referencedDomain: 'TAGS_GROUPS', kind: 'optional' },
+        { table: 'assistant', column: 'name', referencedDomain: 'MCP_SERVERS', kind: 'optional' }
+      ]
+    })
+    const list = patchSchema(withBackEdge, 'MCP_SERVERS', {
+      jsonSoftReferences: [
+        {
+          table: 'mcp_server' as DbTableName,
+          column: 'args' as DbColumnName<'mcp_server'>,
+          target: 'entity-id' as const,
+          ownerDomain: 'MCP_SERVERS' as BackupDomain,
+          kind: 'required' as const,
+          targetTable: 'assistant' as DbTableName,
+          selectors: [{ idField: 'id' }]
+        }
+      ]
+    })
+    expectInvariant(list, 10)
+  })
+
+  it('#10 tolerates a cross-domain tolerant entity-id edge (no edge added)', () => {
+    // tolerant entity-id refs add no domain edge (a missing target is allowed) — only
+    // `required` cross-domain targets become prerequisites. Same declarations as the
+    // cycle test minus the synthetic back-edge, with kind 'tolerant': the cross-domain
+    // target is legal and the graph stays acyclic, so finalize must pass.
+    const withRoot = patchSchema(buildFixture(), 'ASSISTANTS', {
+      aggregates: [{ root: 'assistant', renamable: false }]
+    })
+    const list = patchSchema(withRoot, 'MCP_SERVERS', {
+      jsonSoftReferences: [
+        {
+          table: 'mcp_server' as DbTableName,
+          column: 'args' as DbColumnName<'mcp_server'>,
+          target: 'entity-id' as const,
+          ownerDomain: 'MCP_SERVERS' as BackupDomain,
+          kind: 'tolerant' as const,
+          targetTable: 'assistant' as DbTableName,
+          selectors: [{ idField: 'id' }]
+        }
+      ]
+    })
+    expect(() => finalize(list, META)).not.toThrow()
+  })
+
   it('#11 rejects an unowned FileRefSourceType', () => {
     expectInvariant(patchSchema(buildFixture(), 'PAINTINGS', { fileRefSourcePolicies: [] }), 11)
   })
