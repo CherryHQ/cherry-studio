@@ -1,5 +1,6 @@
+import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
@@ -204,6 +205,133 @@ describe('pasteHandling', () => {
     expect(window.api.file.write).toHaveBeenCalledWith(tempImageFile.path, new Uint8Array([1, 2, 3]))
     expect(files).toHaveLength(1)
     expect(files[0]).toMatchObject({ path: tempImageFile.path, ext: '.png', type: FILE_TYPE.IMAGE })
+  })
+
+  it('processes path-backed clipboard files concurrently and commits them once in order', async () => {
+    const firstFile = {
+      ...selectedFile,
+      id: 'file-a',
+      name: 'a.png',
+      origin_name: 'a.png',
+      path: '/tmp/a.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    const secondFile = {
+      ...firstFile,
+      id: 'file-b',
+      name: 'b.png',
+      origin_name: 'b.png',
+      path: '/tmp/b.png'
+    }
+    let resolveFirstFile: (file: FileMetadata) => void = () => undefined
+    let markSecondReadStarted: () => void = () => undefined
+    const pendingFirstFile = new Promise<FileMetadata>((resolve) => {
+      resolveFirstFile = resolve
+    })
+    const secondReadStarted = new Promise<void>((resolve) => {
+      markSecondReadStarted = resolve
+    })
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockImplementation((path) => {
+      if (path === firstFile.path) return pendingFirstFile
+      markSecondReadStarted()
+      return Promise.resolve(secondFile)
+    })
+    const clipboardFiles = [
+      { name: firstFile.name, type: 'image/png' },
+      { name: secondFile.name, type: 'image/png' }
+    ] as File[]
+    let files: ComposerAttachment[] = [toComposerAttachment(selectedFile)]
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: () => '',
+        files: clipboardFiles
+      }
+    } as unknown as ClipboardEvent
+
+    const pastePromise = pasteHandling.handlePaste(event, ['.png'], setFiles)
+    await secondReadStarted
+
+    resolveFirstFile(firstFile)
+    await pastePromise
+
+    expect(window.api.file.get).toHaveBeenCalledWith(secondFile.path)
+    expect(setFiles).toHaveBeenCalledOnce()
+    expect(files.map((file) => file.path)).toEqual([selectedFile.path, firstFile.path, secondFile.path])
+  })
+
+  it('keeps successful path-backed files when another read fails and reports one file error', async () => {
+    const successfulFile = {
+      ...selectedFile,
+      id: 'file-success',
+      name: 'success.png',
+      origin_name: 'success.png',
+      path: '/tmp/success.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockImplementation((path) =>
+      path === '/tmp/failure.png' ? Promise.reject(new Error('read failed')) : Promise.resolve(successfulFile)
+    )
+    const clipboardFiles = [
+      { name: 'failure.png', type: 'image/png' },
+      { name: successfulFile.name, type: 'image/png' }
+    ] as File[]
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, (key) => key)
+
+    expect(handled).toBe(true)
+    expect(files.map((file) => file.path)).toEqual([successfulFile.path])
+    expect(toast.error).toHaveBeenCalledOnce()
+    expect(toast.error).toHaveBeenCalledWith('chat.input.file_error')
+  })
+
+  it('keeps supported path-backed files and reports unsupported files', async () => {
+    const supportedFile = {
+      ...selectedFile,
+      id: 'file-supported',
+      name: 'supported.png',
+      origin_name: 'supported.png',
+      path: '/tmp/supported.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockResolvedValue(supportedFile)
+    const clipboardFiles = [
+      { name: 'unsupported.exe', type: 'application/octet-stream' },
+      { name: supportedFile.name, type: 'image/png' }
+    ] as File[]
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, undefined, '', undefined, (key) => key)
+
+    expect(handled).toBe(true)
+    expect(files.map((file) => file.path)).toEqual([supportedFile.path])
+    expect(toast.info).toHaveBeenCalledOnce()
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   describe('handler registration and lifecycle', () => {
