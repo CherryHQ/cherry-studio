@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
-import type { Currency, EndpointType, Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
   CURRENCY,
@@ -40,6 +40,20 @@ import * as z from 'zod'
 import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
+  baiduModelPricing,
+  huggingFaceModelPricing,
+  lanyunModelPricing,
+  newApiGroupMultiplier,
+  newApiPricing,
+  type NewApiPricingItem,
+  openAITokenPricing,
+  perMillion,
+  ppioModelPricing,
+  unknownUsdPricing,
+  usdPricing,
+  vercelGatewayPricing
+} from './listModels/pricing'
+import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
   getVertexModelId,
@@ -49,20 +63,15 @@ import {
 import {
   AIHubMixModelsResponseSchema,
   AnthropicModelsResponseSchema,
-  BaiduModelPricingSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
-  HuggingFaceModelPricingSchema,
-  LanyunModelPricingSchema,
   NewApiModelsResponseSchema,
   NewApiPricingResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
-  OpenAITokenPricingSchema,
   OpenRouterModelsResponseSchema,
   OVMSConfigResponseSchema,
-  PPIOModelPricingSchema,
   TogetherModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
@@ -164,401 +173,6 @@ function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>)
     isHidden: false,
     ...extra
   }
-}
-
-/**
- * OpenRouter quotes decimal strings per SINGLE token; everything downstream is per 1M.
- *
- * Three outcomes, because two different "no number" cases must not collapse into one: an empty or
- * unparseable field is an ABSENT rate (`undefined` — let the registry answer), while a negative
- * sentinel is OpenRouter saying the rate exists but varies (`null` — an explicit unknown that must
- * survive registry enrichment). `''` in particular would coerce to a free `0` via `Number('')`.
- */
-function perMillion(perToken: string | null | undefined): number | null | undefined {
-  if (perToken === null || perToken === undefined || perToken.trim() === '') return undefined
-  const parsed = Number(perToken)
-  if (!Number.isFinite(parsed)) return undefined
-  return parsed < 0 ? null : parsed * 1_000_000
-}
-
-/**
- * A gateway's own price list is authoritative for its rates — the registry only carries the vendor's
- * list price, which resellers routinely diverge from. Rates are USD per 1M tokens; a listing that omits
- * either side of the pair carries no usable price at all, so the whole block is dropped rather than
- * half-filled (`0` would read as free). A `null` rate is a published-but-unknown one and is kept.
- */
-function tokenPricing(
-  currency: Currency,
-  price: {
-    input?: number | null
-    output?: number | null
-    cacheRead?: number | null
-    cacheWrite?: number | null
-  }
-): Model['pricing'] | undefined {
-  if (price.input === undefined || price.output === undefined) return undefined
-  return {
-    input: tokenRate(currency, price.input),
-    output: tokenRate(currency, price.output),
-    ...(price.cacheRead !== undefined ? { cacheRead: tokenRate(currency, price.cacheRead) } : {}),
-    ...(price.cacheWrite !== undefined ? { cacheWrite: tokenRate(currency, price.cacheWrite) } : {})
-  }
-}
-
-function usdPricing(price: {
-  input?: number | null
-  output?: number | null
-  cacheRead?: number | null
-  cacheWrite?: number | null
-}): Model['pricing'] | undefined {
-  return tokenPricing(CURRENCY.USD, price)
-}
-
-/** Drop binary-float residue from derived rates before they reach storage or UI. */
-function tokenRate(currency: Currency, perMillionTokens: number | null) {
-  return {
-    currency,
-    perMillionTokens: perMillionTokens === null ? null : Number(perMillionTokens.toPrecision(10))
-  }
-}
-
-function usdRate(perMillionTokens: number | null) {
-  return tokenRate(CURRENCY.USD, perMillionTokens)
-}
-
-type NewApiPricingResponse = z.infer<typeof NewApiPricingResponseSchema>
-type NewApiPricingItem = NewApiPricingResponse['data'][number]
-
-/** One NewAPI ratio unit is $2 per 1M tokens; output and cache rates are multiples of the input rate. */
-const NEW_API_USD_PER_RATIO_UNIT = 2
-
-function unknownPricing(currency: Currency): NonNullable<Model['pricing']> {
-  const unknown = { currency, perMillionTokens: null }
-  return { input: unknown, output: unknown }
-}
-
-function unknownUsdPricing(): NonNullable<Model['pricing']> {
-  return unknownPricing(CURRENCY.USD)
-}
-
-type VercelGatewayPricing = NonNullable<z.infer<typeof VercelGatewayModelsResponseSchema>['data'][number]['pricing']>
-type VercelGatewayPricingTier = NonNullable<VercelGatewayPricing['input_tiers']>[number]
-
-function vercelTierRate(
-  base: string | undefined,
-  tiers: VercelGatewayPricingTier[] | undefined,
-  minInputTokens: number
-): number | null | undefined {
-  let rate = perMillion(base)
-  for (const tier of [...(tiers ?? [])].sort((left, right) => left.min - right.min)) {
-    if (tier.min > minInputTokens) break
-    rate = perMillion(tier.cost)
-  }
-  return rate
-}
-
-function vercelGatewayPricing(
-  price: VercelGatewayPricing | undefined,
-  modelType: string | undefined
-): Model['pricing'] | undefined {
-  if (!price) return undefined
-
-  const perImage = price.image?.trim() ? Number(price.image) : undefined
-  // These APIs have no generated-token bucket, so an omitted output rate means no charge rather than unknown.
-  const output = price.output ?? (modelType === 'embedding' || modelType === 'reranking' ? '0' : undefined)
-  const base =
-    usdPricing({
-      input: vercelTierRate(price.input, price.input_tiers, 0),
-      output: vercelTierRate(output, price.output_tiers, 0),
-      cacheRead: vercelTierRate(price.input_cache_read, price.input_cache_read_tiers, 0),
-      cacheWrite: vercelTierRate(price.input_cache_write, price.input_cache_write_tiers, 0)
-    }) ?? (perImage !== undefined && Number.isFinite(perImage) ? unknownUsdPricing() : undefined)
-  if (!base) return undefined
-
-  const thresholds = Array.from(
-    new Set(
-      [
-        ...(price.input_tiers ?? []),
-        ...(price.output_tiers ?? []),
-        ...(price.input_cache_read_tiers ?? []),
-        ...(price.input_cache_write_tiers ?? [])
-      ]
-        .map((tier) => tier.min)
-        .filter((minimum) => minimum > 0 && Number.isSafeInteger(minimum))
-    )
-  ).sort((left, right) => left - right)
-  const inputTokenTiers = thresholds.flatMap((minInputTokens) => {
-    const input = vercelTierRate(price.input, price.input_tiers, minInputTokens)
-    const tierOutput = vercelTierRate(output, price.output_tiers, minInputTokens)
-    if (input === undefined || tierOutput === undefined) return []
-    const cacheRead = vercelTierRate(price.input_cache_read, price.input_cache_read_tiers, minInputTokens)
-    const cacheWrite = vercelTierRate(price.input_cache_write, price.input_cache_write_tiers, minInputTokens)
-    return [
-      {
-        minInputTokens,
-        input: usdRate(input),
-        output: usdRate(tierOutput),
-        ...(cacheRead !== undefined ? { cacheRead: usdRate(cacheRead) } : {}),
-        ...(cacheWrite !== undefined ? { cacheWrite: usdRate(cacheWrite) } : {})
-      }
-    ]
-  })
-
-  return {
-    ...base,
-    ...(inputTokenTiers.length ? { inputTokenTiers } : {}),
-    ...(perImage !== undefined && Number.isFinite(perImage)
-      ? { perImage: { price: Number(perImage.toPrecision(10)), unit: 'image' as const } }
-      : {})
-  }
-}
-
-function openAITokenPricing(value: unknown, currency: Currency): Model['pricing'] | undefined {
-  const parsed = OpenAITokenPricingSchema.safeParse(value)
-  if (!parsed.success) return undefined
-
-  const price = parsed.data
-  const cacheRead = perMillion(price.input_cache_read ?? price.input_cache_reads)
-  const baseInput = perMillion(price.prompt)
-  const baseOutput = perMillion(price.completion)
-  const cacheWrite = perMillion(price.input_cache_write)
-  const perImage = price.image?.trim() ? Number(price.image) : undefined
-  const base =
-    tokenPricing(currency, { input: baseInput, output: baseOutput, cacheRead, cacheWrite }) ??
-    (perImage !== undefined && Number.isFinite(perImage) ? unknownPricing(currency) : undefined)
-  if (!base) return undefined
-
-  const inputTokenTiers = [...(price.context_pricing?.tiers ?? [])]
-    .sort((left, right) => left.min_tokens - right.min_tokens)
-    .flatMap((tier) => {
-      if (!Number.isSafeInteger(tier.min_tokens) || tier.min_tokens <= 0) return []
-      const tierInput = perMillion(tier.prompt)
-      const tierOutput = perMillion(tier.completion)
-      const tierCacheRead = perMillion(tier.input_cache_read ?? tier.input_cache_reads)
-      const tierCacheWrite = perMillion(tier.input_cache_write)
-      const input = tierInput === undefined ? baseInput : tierInput
-      const output = tierOutput === undefined ? baseOutput : tierOutput
-      if (input === undefined || output === undefined) return []
-      return [
-        {
-          minInputTokens: tier.min_tokens,
-          input: tokenRate(currency, input),
-          output: tokenRate(currency, output),
-          ...(tierCacheRead !== undefined || cacheRead !== undefined
-            ? { cacheRead: tokenRate(currency, tierCacheRead === undefined ? cacheRead! : tierCacheRead) }
-            : {}),
-          ...(tierCacheWrite !== undefined || cacheWrite !== undefined
-            ? { cacheWrite: tokenRate(currency, tierCacheWrite === undefined ? cacheWrite! : tierCacheWrite) }
-            : {})
-        }
-      ]
-    })
-
-  return {
-    ...base,
-    ...(inputTokenTiers.length ? { inputTokenTiers } : {}),
-    ...(perImage !== undefined && Number.isFinite(perImage)
-      ? { perImage: { price: Number(perImage.toPrecision(10)), unit: 'image' as const } }
-      : {})
-  }
-}
-
-function decimalRate(value: string | undefined, multiplier = 1): number | null | undefined {
-  if (value === undefined || value.trim() === '') return undefined
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return undefined
-  return parsed < 0 ? null : parsed * multiplier
-}
-
-function ppioModelPricing(value: unknown): Model['pricing'] | undefined {
-  const parsed = PPIOModelPricingSchema.safeParse(value)
-  if (!parsed.success || !parsed.data.pricing) return undefined
-
-  const price = parsed.data.pricing
-  const baseInput = decimalRate(price.prompt?.price_per_m_decimal)
-  const baseOutput = decimalRate(price.completion?.price_per_m_decimal)
-  const cacheRead = decimalRate(price.input_cache_read?.price_per_m_decimal)
-  const cacheWrite = decimalRate(price.input_cache_write?.price_per_m_decimal)
-  const base = tokenPricing(CURRENCY.CNY, { input: baseInput, output: baseOutput, cacheRead, cacheWrite })
-  if (!base) return undefined
-
-  const inputTokenTiers = [...(parsed.data.tiered_billing_configs ?? [])]
-    .sort((left, right) => left.min_tokens - right.min_tokens)
-    .flatMap((tier) => {
-      if (!Number.isSafeInteger(tier.min_tokens) || tier.min_tokens <= 1) return []
-      const input = decimalRate(tier.pricing.prompt?.price_per_m_decimal) ?? baseInput
-      const output = decimalRate(tier.pricing.completion?.price_per_m_decimal) ?? baseOutput
-      const tierCacheRead = decimalRate(tier.pricing.input_cache_read?.price_per_m_decimal) ?? cacheRead
-      const tierCacheWrite = decimalRate(tier.pricing.input_cache_write?.price_per_m_decimal) ?? cacheWrite
-      if (input === undefined || output === undefined) return []
-      return [
-        {
-          minInputTokens: tier.min_tokens,
-          input: tokenRate(CURRENCY.CNY, input),
-          output: tokenRate(CURRENCY.CNY, output),
-          ...(tierCacheRead !== undefined ? { cacheRead: tokenRate(CURRENCY.CNY, tierCacheRead) } : {}),
-          ...(tierCacheWrite !== undefined ? { cacheWrite: tokenRate(CURRENCY.CNY, tierCacheWrite) } : {})
-        }
-      ]
-    })
-
-  return { ...base, ...(inputTokenTiers.length ? { inputTokenTiers } : {}) }
-}
-
-type BaiduTokenPrice = NonNullable<NonNullable<z.infer<typeof BaiduModelPricingSchema>['pricing']>['prompt']>
-
-function baiduRateAt(value: BaiduTokenPrice | undefined, inputTokens: number): number | null | undefined {
-  if (typeof value === 'string') return decimalRate(value, 1_000)
-  if (!value?.length) return undefined
-  const tier = value.find((item) => item.up_to == null || inputTokens <= item.up_to * 1_000)
-  return decimalRate(tier?.price, 1_000)
-}
-
-function baiduModelPricing(value: unknown): Model['pricing'] | undefined {
-  const parsed = BaiduModelPricingSchema.safeParse(value)
-  if (!parsed.success || !parsed.data.pricing) return undefined
-
-  const price = parsed.data.pricing
-  const baseInput = baiduRateAt(price.prompt ?? undefined, 0)
-  const baseOutput = baiduRateAt(price.completion ?? undefined, 0)
-  const perImage = decimalRate(price.image ?? undefined)
-  const base =
-    tokenPricing(CURRENCY.CNY, { input: baseInput, output: baseOutput }) ??
-    (perImage !== undefined && Number.isFinite(perImage) ? unknownPricing(CURRENCY.CNY) : undefined)
-  if (!base) return undefined
-
-  const thresholds = Array.from(
-    new Set(
-      [price.prompt, price.completion]
-        .flatMap((tokenPrice) => (Array.isArray(tokenPrice) ? tokenPrice : []))
-        .flatMap((tier) => (tier.up_to == null ? [] : [tier.up_to * 1_000 + 1]))
-        .filter((minimum) => Number.isSafeInteger(minimum) && minimum > 0)
-    )
-  ).sort((left, right) => left - right)
-  const inputTokenTiers = thresholds.flatMap((minInputTokens) => {
-    const input = baiduRateAt(price.prompt ?? undefined, minInputTokens)
-    const output = baiduRateAt(price.completion ?? undefined, minInputTokens)
-    if (input === undefined || output === undefined) return []
-    return [
-      {
-        minInputTokens,
-        input: tokenRate(CURRENCY.CNY, input),
-        output: tokenRate(CURRENCY.CNY, output)
-      }
-    ]
-  })
-
-  return {
-    ...base,
-    ...(inputTokenTiers.length ? { inputTokenTiers } : {}),
-    ...(perImage !== undefined && Number.isFinite(perImage)
-      ? { perImage: { price: Number(perImage.toPrecision(10)), unit: 'image' as const } }
-      : {})
-  }
-}
-
-function lanyunModelPricing(value: unknown): Model['pricing'] | undefined {
-  const parsed = LanyunModelPricingSchema.safeParse(value)
-  if (!parsed.success) return undefined
-  const rules = [...(parsed.data.x_lanyun?.price_rules ?? [])].sort(
-    (left, right) => (left.token_range_start ?? 0) - (right.token_range_start ?? 0)
-  )
-  const baseRule = rules.find((rule) => (rule.token_range_start ?? 0) <= 0)
-  if (!baseRule) return undefined
-  const base = tokenPricing(CURRENCY.CNY, {
-    input:
-      baseRule.input_text_token_price == null
-        ? undefined
-        : Number((baseRule.input_text_token_price * 1_000).toPrecision(10)),
-    output:
-      baseRule.output_text_token_price == null
-        ? undefined
-        : Number((baseRule.output_text_token_price * 1_000).toPrecision(10)),
-    cacheRead:
-      baseRule.cached_text_token_price == null
-        ? undefined
-        : Number((baseRule.cached_text_token_price * 1_000).toPrecision(10)),
-    cacheWrite:
-      baseRule.cache_creation_5m_token == null
-        ? undefined
-        : Number((baseRule.cache_creation_5m_token * 1_000).toPrecision(10))
-  })
-  if (!base) return undefined
-
-  const inputTokenTiers = rules.flatMap((rule) => {
-    const minInputTokens = rule.token_range_start ?? 0
-    if (!Number.isSafeInteger(minInputTokens) || minInputTokens <= 0) return []
-    if (rule.input_text_token_price == null || rule.output_text_token_price == null) return []
-    return [
-      {
-        minInputTokens,
-        input: tokenRate(CURRENCY.CNY, rule.input_text_token_price * 1_000),
-        output: tokenRate(CURRENCY.CNY, rule.output_text_token_price * 1_000),
-        ...(rule.cached_text_token_price != null
-          ? { cacheRead: tokenRate(CURRENCY.CNY, rule.cached_text_token_price * 1_000) }
-          : {}),
-        ...(rule.cache_creation_5m_token != null
-          ? { cacheWrite: tokenRate(CURRENCY.CNY, rule.cache_creation_5m_token * 1_000) }
-          : {})
-      }
-    ]
-  })
-
-  return { ...base, ...(inputTokenTiers.length ? { inputTokenTiers } : {}) }
-}
-
-function huggingFaceModelPricing(value: unknown): Model['pricing'] | undefined {
-  const parsed = HuggingFaceModelPricingSchema.safeParse(value)
-  if (!parsed.success || !parsed.data.providers?.length) return undefined
-  const prices = parsed.data.providers.map((provider) => provider.pricing)
-  if (prices.some((price) => !price)) return unknownUsdPricing()
-  const [first, ...rest] = prices as Array<{ input: number; output: number }>
-  if (rest.some((price) => price.input !== first.input || price.output !== first.output)) return unknownUsdPricing()
-  return usdPricing(first)
-}
-
-function catalogModelPricing(provider: Provider, model: OpenAIModelResponseItem): Model['pricing'] | undefined {
-  if (matchesPreset(provider, SystemProviderIds.ppio)) return ppioModelPricing(model)
-  if (matchesPreset(provider, SystemProviderIds['baidu-cloud'])) return baiduModelPricing(model)
-  if (matchesPreset(provider, SystemProviderIds.lanyun)) return lanyunModelPricing(model)
-  if (matchesPreset(provider, SystemProviderIds.huggingface)) return huggingFaceModelPricing(model)
-  if (matchesPreset(provider, SystemProviderIds.sophnet)) return openAITokenPricing(model.pricing, CURRENCY.CNY)
-  if (matchesPreset(provider, SystemProviderIds.jina)) return openAITokenPricing(model.pricing, CURRENCY.USD)
-  if (matchesPreset(provider, SystemProviderIds.poe)) {
-    if (model.pricing === undefined) return undefined
-    return openAITokenPricing(model.pricing, CURRENCY.USD) ?? unknownUsdPricing()
-  }
-  return undefined
-}
-
-/**
- * The billing-group multiplier that applies to the caller. NewAPI scales every model ratio by the
- * group the token belongs to, so reading the ratios alone quotes the wrong price to anyone outside
- * the default group. `usable_group` names the groups the caller may bill against: exactly one is an
- * unambiguous answer, while several (or none, on an unauthenticated read) leave only `default`.
- */
-function newApiGroupMultiplier(response: NewApiPricingResponse): number {
-  const groups = Object.keys(response.usable_group ?? {})
-  const group = groups.length === 1 ? groups[0] : 'default'
-  return response.group_ratio?.[group] ?? 1
-}
-
-/** Rates from a NewAPI gateway's `/api/pricing`, scaled by the caller's billing group. */
-function newApiPricing(entry: NewApiPricingItem, groupMultiplier: number): NonNullable<Model['pricing']> {
-  // Anything the flat ratios can't express (CherryIN prices DeepSeek V4 by time of day) has no single
-  // rate to state. Say so rather than quoting one of the tiers as if it always applied.
-  if (entry.billing_mode) {
-    return unknownUsdPricing()
-  }
-  // quota_type 1 prices per request, which the per-token model can't hold.
-  if (entry.quota_type === 1 || entry.model_ratio === undefined) return unknownUsdPricing()
-  // Output and cache derive from input, so scaling input once carries the group through all three.
-  const input = entry.model_ratio * NEW_API_USD_PER_RATIO_UNIT * groupMultiplier
-  return usdPricing({
-    input,
-    output: input * (entry.completion_ratio ?? 1),
-    cacheRead: entry.cache_ratio === undefined ? undefined : input * entry.cache_ratio
-  })!
 }
 
 function dedup<T>(items: T[], getId: (item: T) => string | undefined): T[] {
@@ -901,37 +515,53 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }
 
+function buildNewApiModels(
+  provider: Provider,
+  models: NewApiModelResponseItem[],
+  pricingByModel: Map<string, Model['pricing']> = new Map(),
+  missingPricing?: Model['pricing']
+): Partial<Model>[] {
+  return dedup(models, (model) => model.id).map((model) => {
+    const endpointTypes = normalizeEndpointTypes(model.supported_endpoint_types)
+    const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+    const pricing = pricingByModel.get(model.id) ?? missingPricing
+
+    return toModel(model.id, provider, {
+      ownedBy: model.owned_by,
+      endpointTypes,
+      ...(pricing ? { pricing } : {}),
+      ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+    })
+  })
+}
+
 const newApiFetcher: ModelFetcher = {
   match: (p) =>
     matchesPreset(p, SystemProviderIds['new-api']) ||
     matchesPreset(p, SystemProviderIds.cherryin) ||
-    matchesPreset(p, SystemProviderIds.aionly) ||
     matchesPreset(p, SystemProviderIds.ocoolai) ||
     matchesPreset(p, SystemProviderIds.burncloud),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    // NewAPI publishes rates here; AIOnly only shares its model-list shape and rejects this route.
-    // Authenticate to read the token's billing group instead of quoting the default group.
-    const pricingRequest = matchesPreset(provider, SystemProviderIds.aionly)
-      ? Promise.resolve({ data: { data: [] as NewApiPricingItem[] }, available: false })
-      : getFromApi({
-          url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/pricing`,
-          headers: defaultHeaders(provider),
-          responseSchema: NewApiPricingResponseSchema,
-          abortSignal: signal
-        })
-          .then((data) => ({ data, available: true }))
-          .catch((error) => ({
-            data: recoverOptionalModelListFailure<NewApiPricingItem>(error, {
-              providerId: provider.id,
-              endpoint: 'new-api-pricing'
-            }),
-            available: false
-          }))
+    const headers = defaultHeaders(provider)
+    const pricingRequest = getFromApi({
+      url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/pricing`,
+      headers,
+      responseSchema: NewApiPricingResponseSchema,
+      abortSignal: signal
+    })
+      .then((data) => ({ data, available: true }))
+      .catch((error) => ({
+        data: recoverOptionalModelListFailure<NewApiPricingItem>(error, {
+          providerId: provider.id,
+          endpoint: 'new-api-pricing'
+        }),
+        available: false
+      }))
     const [response, pricingResult] = await Promise.all([
       getFromApi({
         url: `${baseUrl}/models`,
-        headers: defaultHeaders(provider),
+        headers,
         responseSchema: NewApiModelsResponseSchema,
         abortSignal: signal
       }),
@@ -939,21 +569,25 @@ const newApiFetcher: ModelFetcher = {
     ])
     const pricingResponse = pricingResult.data
     const groupMultiplier = newApiGroupMultiplier(pricingResponse)
-    const pricingByModel = new Map(
-      pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry, groupMultiplier)])
-    )
-    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
-      const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
-      const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
-      const pricing = pricingByModel.get(m.id) ?? (pricingResult.available ? unknownUsdPricing() : undefined)
+    const hasAmbiguousCredential = provider.apiKeys.filter((key) => key.isEnabled).length > 1
+    const pricingByModel = hasAmbiguousCredential
+      ? new Map<string, Model['pricing']>()
+      : new Map(pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry, groupMultiplier)]))
+    const missingPricing = pricingResult.available ? unknownUsdPricing() : undefined
+    return buildNewApiModels(provider, response.data, pricingByModel, missingPricing)
+  }
+}
 
-      return toModel(m.id, provider, {
-        ownedBy: m.owned_by,
-        endpointTypes,
-        ...(pricing ? { pricing } : {}),
-        ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
-      })
+const aiOnlyFetcher: ModelFetcher = {
+  match: (provider) => matchesPreset(provider, SystemProviderIds.aionly),
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `${formatApiHost(getBaseUrl(provider))}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: NewApiModelsResponseSchema,
+      abortSignal: signal
     })
+    return buildNewApiModels(provider, response.data)
   }
 }
 
@@ -1025,7 +659,7 @@ const openRouterFetcher: ModelFetcher = {
 }
 
 const ppioFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.ppio,
+  match: (provider) => matchesPreset(provider, SystemProviderIds.ppio),
   fetch: async (provider, signal, options) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const headers = defaultHeaders(provider)
@@ -1063,7 +697,7 @@ const ppioFetcher: ModelFetcher = {
     const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
       const id = model.id?.trim()
       if (!id) return
-      const pricing = catalogModelPricing(provider, model)
+      const pricing = ppioModelPricing(model)
 
       const existing = modelsById.get(id)
       if (!existing) {
@@ -1184,7 +818,7 @@ const jinaFetcher: ModelFetcher = {
     })
     return dedup(response.data, (m) => m.id).map((m) => {
       const apiModelId = m.id.replace(/^jina-ai\//, '')
-      const pricing = catalogModelPricing(provider, m)
+      const pricing = openAITokenPricing(m.pricing, CURRENCY.USD)
       return toModel(apiModelId, provider, {
         name: m.name || apiModelId,
         ownedBy: m.owned_by,
@@ -1193,6 +827,60 @@ const jinaFetcher: ModelFetcher = {
     })
   }
 }
+
+type OpenAICompatiblePricing = (model: OpenAIModelResponseItem) => Model['pricing'] | undefined
+
+function createOpenAICompatibleFetcher(
+  match: ModelFetcher['match'],
+  resolvePricing?: OpenAICompatiblePricing
+): ModelFetcher {
+  return {
+    match,
+    fetch: async (provider, signal) => {
+      const baseUrl = formatApiHost(getBaseUrl(provider))
+      const response = await getFromApi({
+        url: `${baseUrl}/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      })
+      return dedup(response.data, (model) => model.id).map((model) => {
+        const pricing = resolvePricing?.(model)
+        return toModel(model.id, provider, {
+          name: model.name || model.id,
+          ownedBy: model.owned_by,
+          ...(pricing ? { pricing } : {})
+        })
+      })
+    }
+  }
+}
+
+const baiduCloudFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds['baidu-cloud']),
+  baiduModelPricing
+)
+
+const lanyunFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.lanyun),
+  lanyunModelPricing
+)
+
+const huggingFaceFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.huggingface),
+  huggingFaceModelPricing
+)
+
+const sophnetFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.sophnet),
+  (model) => openAITokenPricing(model.pricing, CURRENCY.CNY)
+)
+
+const poeFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.poe),
+  (model) =>
+    model.pricing === undefined ? undefined : (openAITokenPricing(model.pricing, CURRENCY.USD) ?? unknownUsdPricing())
+)
 
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
@@ -1210,26 +898,7 @@ const openAIFetcher: ModelFetcher = {
   }
 }
 
-const openAICompatibleFetcher: ModelFetcher = {
-  match: () => true,
-  fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
-      url: `${baseUrl}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: OpenAIModelsResponseSchema,
-      abortSignal: signal
-    })
-    return dedup(response.data, (m) => m.id).map((m) => {
-      const pricing = catalogModelPricing(provider, m)
-      return toModel(m.id, provider, {
-        name: m.name || m.id,
-        ownedBy: m.owned_by,
-        ...(pricing ? { pricing } : {})
-      })
-    })
-  }
-}
+const openAICompatibleFetcher = createOpenAICompatibleFetcher(() => true)
 
 // ── Ollama probe ──
 
@@ -1270,12 +939,18 @@ const fetchers: ModelFetcher[] = [
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
+  aiOnlyFetcher,
   newApiFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
   anthropicFetcher,
   jinaFetcher,
+  baiduCloudFetcher,
+  lanyunFetcher,
+  huggingFaceFetcher,
+  sophnetFetcher,
+  poeFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]

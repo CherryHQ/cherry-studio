@@ -1152,6 +1152,16 @@ describe('listModels — provider-published pricing', () => {
     })
   })
 
+  it('does not treat Baidu negative image sentinels as a usable rate', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'ernie-image-variable', pricing: { image: '-1' } }] }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'baidu-cloud' }))
+
+    expect(model.pricing).toBeUndefined()
+  })
+
   it('converts LANYUN text rates from CNY per thousand tokens', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
@@ -1346,6 +1356,55 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       input: { currency: 'USD', perMillionTokens: 1.25 },
       output: { currency: 'USD', perMillionTokens: 5 },
       cacheRead: { currency: 'USD', perMillionTokens: 0.125 }
+    })
+  })
+
+  it('uses one selected credential for the model list and its authenticated rate card', async () => {
+    getRotatedApiKeyMock.mockReturnValueOnce('sk-group-a').mockReturnValueOnce('sk-group-b')
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({ value: { data: [{ model_name: 'gpt-4o', model_ratio: 1 }] } })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    await listModels(
+      makeProvider({
+        ...makeNewApiProvider(),
+        apiKeys: [{ id: 'key-a', isEnabled: true }]
+      })
+    )
+
+    expect(getRotatedApiKeyMock).toHaveBeenCalledTimes(1)
+    const requestHeaders = aiSdkGetFromApiMock.mock.calls.map(([request]) => request.headers)
+    expect(requestHeaders).toHaveLength(2)
+    expect(
+      requestHeaders.every((headers) =>
+        Object.entries(headers).some(
+          ([name, value]) => name.toLowerCase() === 'authorization' && value === 'Bearer sk-group-a'
+        )
+      )
+    ).toBe(true)
+  })
+
+  it('reports unknown pricing when enabled keys may belong to different billing groups', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({ value: { data: [{ model_name: 'gpt-4o', model_ratio: 1 }] } })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+    const provider = makeProvider({
+      ...makeNewApiProvider(),
+      apiKeys: [
+        { id: 'key-a', isEnabled: true },
+        { id: 'key-b', isEnabled: true }
+      ]
+    })
+
+    const [model] = await listModels(provider)
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
     })
   })
 
