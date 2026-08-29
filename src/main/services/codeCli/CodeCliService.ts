@@ -784,6 +784,10 @@ export class CodeCliService extends BaseService {
         // Escape special characters in paths for Windows batch scripting
         // Using double quotes for compatibility with CMD
 
+        // Secrets reach the CLI only by process-environment inheritance, and `wt` hands its
+        // commandline to an already-running WindowsTerminal.exe whose environment carries none.
+        const secretNames = Object.keys(secretEnv)
+
         // Build bat file content, including debug information
         // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
         const batContent = [
@@ -807,6 +811,13 @@ export class CodeCliService extends BaseService {
           ':: Clear screen before running CLI',
           'cls',
           '',
+          ...(secretNames.length > 0
+            ? [
+                ':: Verify the credentials handed over by Cherry Studio actually arrived',
+                ...secretNames.map((name) => `if not defined ${name} goto :secret_env_missing`),
+                ''
+              ]
+            : []),
           ':: Execute command',
           command,
           '',
@@ -824,6 +835,17 @@ export class CodeCliService extends BaseService {
           'pause',
           'exit /b 1',
           '',
+          ...(secretNames.length > 0
+            ? [
+                ':secret_env_missing',
+                'echo ERROR: This terminal did not receive the credentials from Cherry Studio.',
+                'echo Your terminal reused an existing window instead of starting a fresh one.',
+                'echo Close every open window of this terminal app, then launch again from Cherry Studio.',
+                'pause',
+                'exit /b 1',
+                ''
+              ]
+            : []),
           ':end',
           'pause'
         ].join('\r\n')

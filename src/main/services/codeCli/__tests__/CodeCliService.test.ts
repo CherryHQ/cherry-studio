@@ -1042,6 +1042,38 @@ describe('CodeCliService', () => {
       }
     })
 
+    // Windows delivery is pure environment inheritance, and a reused terminal window silently
+    // hands the tab its own environment instead — the CLI must not start on a missing key.
+    it('aborts the launch script when the Antigravity credentials did not reach the terminal', async () => {
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project',
+          terminal: TerminalApp.WINDOWS_TERMINAL
+        })
+
+        expect(result.success).toBe(true)
+        const [, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        // The guard may name the variables but never their values.
+        expect(batContent).toContain('if not defined GEMINI_API_KEY goto :secret_env_missing')
+        expect(batContent).toContain('if not defined GOOGLE_GEMINI_BASE_URL goto :secret_env_missing')
+        expect(batContent).not.toContain('antigravity-secret')
+        expect(batContent).not.toContain('https://gemini.example.test')
+        // Every guard runs before the CLI, and its branch exits instead of falling into the launch.
+        expect(batContent.lastIndexOf('if not defined ')).toBeLessThan(batContent.indexOf('--gemini_dir='))
+        expect(batContent.slice(batContent.indexOf(':secret_env_missing'))).toContain('exit /b 1')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('bridges Antigravity credentials through WSLENV without writing their values to the command', async () => {
       shellEnvMock.getRawShellEnv.mockResolvedValue({
         Path: 'C:\\Windows\\System32',

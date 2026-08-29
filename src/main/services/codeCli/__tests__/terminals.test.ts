@@ -47,13 +47,15 @@ it('launches Tabby through its command runner without touching the clipboard', (
   expect(serialized).not.toContain('osascript')
 })
 
-it('makes Windows Terminal inherit the invoking process environment', () => {
+// `wt` must stay on the bare `--` passthrough: subcommands and flags such as `--inheritEnvironment`
+// only parse on Windows Terminal >= 1.18, and older builds abort without ever opening a window.
+it('launches Windows Terminal through the version-portable -- passthrough', () => {
   const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((terminal) => terminal.id === TerminalApp.WINDOWS_TERMINAL)
   if (!cfg) throw new Error('no Windows Terminal builder')
 
   expect(cfg.command('C:\\project', 'C:\\launch.bat')).toEqual({
     command: 'wt',
-    args: ['new-tab', '--inheritEnvironment', '--', 'cmd', '/c', 'C:\\launch.bat']
+    args: ['--', 'cmd', '/c', 'C:\\launch.bat']
   })
 })
 

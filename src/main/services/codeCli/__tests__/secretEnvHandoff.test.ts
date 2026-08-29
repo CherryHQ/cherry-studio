@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -55,6 +55,28 @@ describe.skipIf(process.platform === 'win32')('secret environment handoff', () =
     await expect(createSecretEnvHandoff(tempRoot, { GEMINI_API_KEY: 'first\nsecond' })).rejects.toThrow(
       'GEMINI_API_KEY'
     )
+  })
+
+  // The handoff directory lives under a shared temp root, so a local attacker who owns that parent
+  // can substitute their own target between creation and delivery. Both cases must stay unwritten.
+  it('refuses to deliver when the handoff target was swapped for a file the attacker can read', async () => {
+    const attackerSink = path.join(tempRoot, 'attacker-sink')
+    await writeFile(attackerSink, '', { mode: 0o600 })
+    const handoff = await createSecretEnvHandoff(tempRoot, { GEMINI_API_KEY: 'must-not-leak' })
+    await rm(handoff.pipePath)
+    await symlink(attackerSink, handoff.pipePath)
+
+    await expect(handoff.deliver()).rejects.toThrow('owner-only pipe')
+    expect(await readFile(attackerSink, 'utf8')).toBe('')
+  })
+
+  it('refuses to deliver through a pipe other local users can read', async () => {
+    const handoff = await createSecretEnvHandoff(tempRoot, { GEMINI_API_KEY: 'must-not-leak' })
+    await chmod(handoff.pipePath, 0o666)
+    const eavesdropper = execFileAsync('/bin/sh', ['-c', `cat < '${handoff.pipePath}'`], { encoding: 'utf8' })
+
+    await expect(handoff.deliver()).rejects.toThrow('owner-only pipe')
+    expect((await eavesdropper).stdout).toBe('')
   })
 
   it('removes an unused pipe and its private directory when disposed before delivery', async () => {

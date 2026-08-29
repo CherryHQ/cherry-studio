@@ -9,6 +9,7 @@ import { posixQuote } from './shellQuote'
 
 const execFileAsync = promisify(execFile)
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const MKFIFO_PATHS = ['/usr/bin/mkfifo', '/bin/mkfifo']
 const OPEN_RETRY_MS = 25
 const DELIVERY_TIMEOUT_MS = 5 * 60_000
 
@@ -20,7 +21,7 @@ export interface SecretEnvHandoff {
 }
 
 async function createNamedPipe(pipePath: string): Promise<void> {
-  for (const executable of ['/usr/bin/mkfifo', '/bin/mkfifo']) {
+  for (const executable of MKFIFO_PATHS) {
     try {
       await execFileAsync(executable, [pipePath])
       return
@@ -28,7 +29,16 @@ async function createNamedPipe(pipePath: string): Promise<void> {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
   }
-  throw new Error('Unable to create the secure environment handoff pipe')
+  throw new Error(
+    `Unable to create the secure environment handoff pipe: mkfifo was not found at ${MKFIFO_PATHS.join(' or ')}`
+  )
+}
+
+async function assertPrivatePipe(handle: FileHandle, pipePath: string): Promise<void> {
+  const stats = await handle.stat()
+  if (!stats.isFIFO() || stats.uid !== process.getuid?.() || (stats.mode & 0o777) !== 0o600) {
+    throw new Error(`Refusing to hand over the environment: ${pipePath} is not an owner-only pipe`)
+  }
 }
 
 function validateEntries(env: Record<string, string>): Array<[string, string]> {
@@ -128,6 +138,9 @@ export async function createSecretEnvHandoff(tempRoot: string, env: Record<strin
         }
 
         if (!writer || abortController.signal.aborted) return
+        // The handoff dir sits under a world-writable shared temp root, so another local user can
+        // swap it for their own target between creation and this write — re-check the open handle.
+        await assertPrivatePipe(writer, pipePath)
         await writer.writeFile(payload, 'utf8')
       } catch (error) {
         if (!abortController.signal.aborted) throw error
