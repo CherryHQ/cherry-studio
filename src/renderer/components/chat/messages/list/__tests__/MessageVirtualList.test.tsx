@@ -146,7 +146,6 @@ describe('MessageVirtualList', () => {
     runtimeMockState.onWheel.mockClear()
     runtimeMockState.shift = false
     runtimeMockState.scrollerRef.current = null
-    runtimeMockState._resetAutoscrollState()
     virtuaMockState.scrollRefReadyAtMount.length = 0
   })
 
