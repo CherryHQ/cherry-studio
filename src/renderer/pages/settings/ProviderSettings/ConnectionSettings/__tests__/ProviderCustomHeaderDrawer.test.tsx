@@ -121,4 +121,59 @@ describe('ProviderCustomHeaderDrawer', () => {
     )
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('persists clearing the last header as an explicit null merge-patch key', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Only': 'a' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.delete X-Only' }))
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { 'X-Only': null } }
+      })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists JSON-mode clearing of all headers as explicit null merge-patch keys', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Only': 'a' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.copilot.toggle_headers_editor_json' }))
+    const textarea = screen.getByLabelText('settings.provider.copilot.custom_headers')
+    await user.clear(textarea)
+    await user.type(textarea, '{{}')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { 'X-Only': null } }
+      })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

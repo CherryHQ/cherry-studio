@@ -30,6 +30,7 @@ import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
+import { buildExtraHeadersReplacementPatch } from '../utils/providerExtraHeaders'
 import {
   findInvalidProviderImageEndpointDraft,
   mergeProviderImageEndpointDraft,
@@ -216,6 +217,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
   const [jsonDraft, setJsonDraft] = useState('')
   const wasOpenRef = useRef(false)
+  // Headers as seen when the drawer opened: the deletion baseline for the save
+  // patch must not drift with background provider refreshes while editing.
+  const openedHeadersRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -237,6 +241,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     setInvalidImageEndpointField(null)
     setVisibleEndpointTypes(endpointTypes)
     setAddEndpointOpen(false)
+    openedHeadersRef.current = sourceHeaders
     setRows(headersObjectToRows(sourceHeaders))
     setJsonDraft(JSON.stringify(sourceHeaders, null, 2))
     setHeadersUiMode('list')
@@ -315,7 +320,10 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
         defaultChatEndpoint,
-        providerSettings: { ...provider.settings, extraHeaders: parsedHeaders }
+        providerSettings: {
+          ...provider.settings,
+          extraHeaders: buildExtraHeadersReplacementPatch(openedHeadersRef.current, parsedHeaders)
+        }
       })
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
@@ -533,7 +541,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                         size="icon"
                         className={customHeaderDrawerClasses.removeIconButton}
                         onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                        aria-label={t('common.delete')}>
+                        aria-label={row.key.trim() ? `${t('common.delete')} ${row.key.trim()}` : t('common.delete')}>
                         <Trash2 aria-hidden />
                       </Button>
                     </div>
