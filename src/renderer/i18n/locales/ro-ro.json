@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "{{count}} legătură(i) dintre elementele restaurate au fost eliminate de ce cealaltă parte nu a fost restaurată.",
-            "merge_attachment_unavailable": "{{count}} atașament(e) din conversațiile restaurate nu au fost transportate ca fișiere de această copie de siguranță și este posibil să nu se deschidă.",
+            "merge_attachment_unavailable": "Nu s-a putut verifica dacă {{count}} atașament(e) din conversațiile restaurate sunt prezente ca fișiere în această restaurare; este posibil să nu se deschidă corect.",
             "merge_backup_overwrote_local": "{{count}} câmp(uri) de pe acest dispozitiv au fost înlocuite cu valoarea din copia de siguranță, deoarece fuziunea lasă copia să câștige la acel câmp.",
             "merge_field_conflict": "{{count}} câmp(uri) în conflict au păstrat valoarea existentă deja pe acest dispozitiv.",
             "merge_ref_cleared": "{{count}} referință(e) către elemente care nu există aici au fost șterse pentru ca datele fuzionate să rămână consistente.",

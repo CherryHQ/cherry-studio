@@ -300,10 +300,11 @@ export const backupRequestSchemas = {
   /**
    * `mode: 'replace'` (default) materializes the archive as a whole-database
    * replacement; `mode: 'merge'` restores archive rows into a copy of the live
-   * database, local rows winning. The renderer sends nothing until a merge UI exists.
+   * database, local rows winning. The renderer sends the explicit 'replace' until
+   * a merge UI exists; a missing field still resolves to the default here.
    */
   'backup.prepare_restore': defineRoute({
-    input: z.strictObject({ mode: z.enum(['replace', 'merge']).default('replace').optional() }),
+    input: z.strictObject({ mode: z.enum(['replace', 'merge']).default('replace') }),
     output: PrepareOutcomeSchema
   }),
   /**
@@ -357,7 +358,7 @@ export const backupRequestSchemas = {
   'backup.prepare_restore_from_destination': defineRoute({
     input: DestinationSchema.extend({
       name: z.string().min(1),
-      mode: z.enum(['replace', 'merge']).default('replace').optional()
+      mode: z.enum(['replace', 'merge']).default('replace')
     }),
     output: PrepareOutcomeSchema
   }),

@@ -8,8 +8,9 @@
 // serviceRegistry.ts and uses no @Injectable/@ServicePhase decorators.
 //
 // Lazy trigger: BackupService (a WhenReady lifecycle service) calls
-// getRegistry() in onInit(); the first call runs finalize synchronously and
-// caches the frozen result. A finalize failure throws ContributorFinalizeError,
+// getRegistry() in onInit(), so the 27-invariant validation gates startup; the
+// first call runs finalize synchronously and caches the frozen result, which
+// every later merge reuses. A finalize failure throws ContributorFinalizeError,
 // which surfaces as a BackupService.onInit failure → the lifecycle container
 // refuses to start, preserving the startup-time validation semantics.
 
@@ -54,8 +55,8 @@ export class ContributorManager {
 
 /**
  * The process-wide singleton, wired with the real 14-domain CONTRIBUTORS barrel.
- * BackupService.onInit() calls getRegistry() to lazily run finalize + cache the
- * frozen registry; a finalize failure surfaces as a BackupService.onInit failure
- * → the lifecycle container refuses to start.
+ * BackupService.onInit() calls getRegistry() to finalize + cache the frozen
+ * registry at startup (a finalize failure surfaces there → the lifecycle container
+ * refuses to start); merge-mode restores then reuse the cache.
  */
 export const contributorManager = new ContributorManager(CONTRIBUTORS)

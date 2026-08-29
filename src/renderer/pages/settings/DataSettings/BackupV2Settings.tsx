@@ -552,8 +552,9 @@ const BackupV2Settings: FC = () => {
 
   const handlePrepare = () =>
     run({ kind: 'prepare' }, async () => {
-      // No mode argument yet: the replace default is what the UI offers until a merge UI exists (M2).
-      const result = await ipcApi.request('backup.prepare_restore', {})
+      // Replace is the only mode until a merge UI exists (M2); sent explicitly per
+      // the boundary contract (the schema default covers a missing field anyway).
+      const result = await ipcApi.request('backup.prepare_restore', { mode: 'replace' })
       if (result.status === 'canceled') return
       setPreview(result.preview)
     })

@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "有 {{count}} 條已還原項目之間的關聯因另一側未還原而被移除。",
-            "merge_attachment_unavailable": "有 {{count}} 個已還原會話中的附件未被此備份作為檔案攜帶，可能無法開啟。",
+            "merge_attachment_unavailable": "無法核實本次還原是否攜帶 {{count}} 個已還原會話附件的檔案，其可能無法正常開啟。",
             "merge_backup_overwrote_local": "有 {{count}} 個本機欄位被備份中的值覆蓋（合併模式在該欄位以備份為準）。",
             "merge_field_conflict": "有 {{count}} 個衝突欄位保留了本裝置已有的值。",
             "merge_ref_cleared": "有 {{count}} 個指向本機不存在項目的參照已被清除，以保證合併後的資料一致。",

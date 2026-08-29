@@ -65,7 +65,7 @@ export async function backupToDestination(
  * `backup.arm_restore` runs, which is the same two-step the local file flow uses.
  */
 export async function prepareRestoreFromDestination(destination: BackupDestinationId, name: string) {
-  return ipcApi.request('backup.prepare_restore_from_destination', { destination, name })
+  return ipcApi.request('backup.prepare_restore_from_destination', { destination, name, mode: 'replace' })
 }
 
 /** Archives this device wrote to `destination`, newest first. */

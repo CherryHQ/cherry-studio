@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "{{count}} liên kết giữa các mục đã khôi phục bị bỏ vì phía còn lại không được khôi phục.",
-            "merge_attachment_unavailable": "{{count}} tệp đính kèm trong các cuộc hội thoại đã khôi phục không được bản sao lưu này mang theo dưới dạng tệp và có thể không mở được.",
+            "merge_attachment_unavailable": "Không thể xác minh {{count}} tệp đính kèm trong các cuộc hội thoại đã khôi phục có hiện diện dưới dạng tệp trong lần khôi phục này hay không; chúng có thể không mở đúng cách.",
             "merge_backup_overwrote_local": "{{count}} trường trên thiết bị này đã được thay bằng giá trị của bản sao lưu, vì hợp nhất ưu tiên bản sao lưu ở trường đó.",
             "merge_field_conflict": "{{count}} trường xung đột đã giữ giá trị hiện có trên thiết bị này.",
             "merge_ref_cleared": "{{count}} tham chiếu đến các mục không tồn tại ở đây đã được xóa để dữ liệu hợp nhất nhất quán.",

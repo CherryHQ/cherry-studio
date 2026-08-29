@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "{{count}} Verknüpfung(en) zwischen wiederhergestellten Einträgen wurden entfernt, weil die andere Seite nicht wiederhergestellt wurde.",
-            "merge_attachment_unavailable": "{{count}} Anlage(n) in wiederhergestellten Unterhaltungen wurden von diesem Backup nicht als Datei mitgeführt und lassen sich möglicherweise nicht öffnen.",
+            "merge_attachment_unavailable": "Für {{count}} Anlage(n) in wiederhergestellten Unterhaltungen konnte nicht überprüft werden, ob ihre Datei bei dieser Wiederherstellung vorhanden ist; sie lassen sich möglicherweise nicht korrekt öffnen.",
             "merge_backup_overwrote_local": "{{count}} Feld(er) auf diesem Gerät wurden durch den Wert des Backups ersetzt, weil beim Zusammenführen das Backup dieses Feld für sich entscheidet.",
             "merge_field_conflict": "{{count}} Konfliktfeld(er) haben den bereits auf diesem Gerät vorhandenen Wert behalten.",
             "merge_ref_cleared": "{{count}} Verweis(e) auf Einträge, die hier nicht existieren, wurden entfernt, damit die zusammengeführten Daten konsistent bleiben.",

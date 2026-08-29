@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "{{count}} enlace(s) entre elementos restaurados se descartaron porque el otro lado no se restauró.",
-            "merge_attachment_unavailable": "{{count}} adjunto(s) en conversaciones restauradas no se incluyeron como archivos en esta copia de seguridad y podrían no abrirse.",
+            "merge_attachment_unavailable": "No se pudo verificar si {{count}} adjunto(s) de conversaciones restauradas están presentes como archivos en esta restauración; podrían no abrirse correctamente.",
             "merge_backup_overwrote_local": "{{count}} campo(s) de este dispositivo fueron reemplazados por el valor de la copia de seguridad, porque la fusión da prioridad a la copia en ese campo.",
             "merge_field_conflict": "{{count}} campo(s) en conflicto conservaron el valor que ya existía en este dispositivo.",
             "merge_ref_cleared": "{{count}} referencia(s) a elementos que no existen aquí se eliminaron para mantener la coherencia de los datos fusionados.",

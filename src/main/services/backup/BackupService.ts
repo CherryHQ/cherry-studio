@@ -9,6 +9,7 @@ import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhas
 import type { BackupDestinationId } from '@shared/ipc/schemas/backup'
 import { ensureDir, remove } from 'fs-extra'
 
+import { contributorManager } from './contributors/ContributorManager'
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
 import { createTransport, type RemoteArchive } from './destinations/destinationTransport'
@@ -131,6 +132,9 @@ export class BackupService extends BaseService {
     this.shuttingDown = false
     this.postPromotionSuppressed = false
     this.exportCleanupWork = null
+    // Finalize the contributor registry at startup: a violated invariant refuses
+    // to start here, not at the first restore (merges reuse the cached registry).
+    contributorManager.getRegistry()
   }
 
   /**

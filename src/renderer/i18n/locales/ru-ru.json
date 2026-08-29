@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "{{count}} связь(ей) между восстановлёнными записями удалена, так как другая сторона не была восстановлена.",
-            "merge_attachment_unavailable": "{{count}} вложение(й) в восстановленных беседах не были перенесены этой резервной копией как файлы и могут не открываться.",
+            "merge_attachment_unavailable": "Не удалось проверить, присутствуют ли {{count}} вложение(й) в восстановленных беседах в виде файлов; они могут не открыться.",
             "merge_backup_overwrote_local": "{{count}} поле(й) на этом устройстве заменено значением из резервной копии: при слиянии в этом поле побеждает копия.",
             "merge_field_conflict": "{{count}} конфликтующее(их) поле(й) сохранило значение, уже существующее на этом устройстве.",
             "merge_ref_cleared": "{{count}} ссылка(ок) на записи, которых здесь нет, удалена, чтобы объединённые данные остались согласованными.",

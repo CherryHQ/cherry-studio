@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "{{count}} link(s) between restored items were dropped because the other side was not restored.",
-            "merge_attachment_unavailable": "{{count}} attachment(s) in restored conversations were not carried as files by this backup and may not open.",
+            "merge_attachment_unavailable": "{{count}} attachment(s) in restored conversations could not be verified to be present as files for this restore and may not open correctly.",
             "merge_backup_overwrote_local": "{{count}} field(s) on this device were replaced by the backup's value, because merge lets the backup win that field.",
             "merge_field_conflict": "{{count}} conflicted field(s) kept the value already on this device.",
             "merge_ref_cleared": "{{count}} reference(s) to items that do not exist here were cleared to keep the merged data consistent.",

@@ -5028,7 +5028,7 @@
             "external_reference": "有 {{count}} 个链接指向 Cherry Studio 受管资源单元之外，未被包含。",
             "knowledge_index_rebuild": "有 {{count}} 个知识库搜索索引无法以一致快照运输，将使用已包含的源材料重建。",
             "merge_association_dropped": "有 {{count}} 条已恢复条目之间的关联因另一侧未恢复而被移除。",
-            "merge_attachment_unavailable": "有 {{count}} 个已恢复会话中的附件未被此备份作为文件携带，可能无法打开。",
+            "merge_attachment_unavailable": "无法核实本次恢复是否携带 {{count}} 个已恢复会话附件的文件，其可能无法正常打开。",
             "merge_backup_overwrote_local": "有 {{count}} 个本机字段被备份中的值覆盖（合并模式在该字段上以备份为准）。",
             "merge_field_conflict": "有 {{count}} 个冲突字段保留了本设备已有的值。",
             "merge_ref_cleared": "有 {{count}} 个指向本机不存在条目的引用已被清除，以保证合并后的数据一致。",

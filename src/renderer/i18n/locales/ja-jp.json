@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "復元された項目間の {{count}} 件のリンクは、相手側が復元されなかったため削除されました。",
-            "merge_attachment_unavailable": "復元された会話内の {{count}} 件の添付ファイルは、このバックアップにはファイルとして含まれておらず、開けない場合があります。",
+            "merge_attachment_unavailable": "復元された会話内の {{count}} 件の添付ファイルは、この復元でファイルの存在を確認できなかったため、正しく開けない場合があります。",
             "merge_backup_overwrote_local": "このデバイスの {{count}} 件のフィールドがバックアップの値で上書きされました（マージでは該当フィールドはバックアップが優先されます）。",
             "merge_field_conflict": "競合した {{count}} 件のフィールドは、このデバイスに既にあった値を保持しました。",
             "merge_ref_cleared": "このデバイスに存在しない項目への参照 {{count}} 件を削除し、マージ後のデータの整合性を保ちました。",

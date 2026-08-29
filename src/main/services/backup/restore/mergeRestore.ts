@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { type AppliedMigration, readAppliedChain } from '@data/db/restore/appliedChain'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -24,7 +25,6 @@ import { assertNoDbSidecars, sealDetachedDb } from '../dbSeal'
 import { BackupCancelledError } from '../errors'
 import { sha256FileCancellable } from '../hashing'
 import type { ManagedRootRebaseTable } from '../portability/managedPathRebase'
-import type { MaterializationSummary } from '../portability/materializeDatabase'
 
 const logger = loggerService.withContext('backupMergeRestore')
 
@@ -42,8 +42,9 @@ const logger = loggerService.withContext('backupMergeRestore')
  * The three properties promotion requires of a staged database hold by construction:
  * the work file is sealed with no `-wal`/`-shm` sidecars, its applied chain is the
  * LIVE chain (the work file starts as a live copy and the merge never touches
- * `__drizzle_migrations` — re-read after the merge to prove it), and the file lands
- * in the admission staging tree the seam's promotion rename already reads from.
+ * `__drizzle_migrations` — outside the engine's table whitelist; promotion still
+ * re-checks the chain with `chainIsBundledPrefix`), and the file lands in the
+ * admission staging tree the seam's promotion rename already reads from.
  *
  * The work connection deliberately does NOT set `trusted_schema = OFF` the way
  * materialize does: that switch exists for opening attacker-supplied schemas, while
@@ -77,8 +78,6 @@ export interface MergeRestoreInputs {
 
 export interface MergeRestoreOutput {
   readonly materialized: MergedDatabase
-  /** The merge's own reductions; the same records as `materialized.summary.degradations`. */
-  readonly degradations: readonly MergeDegradation[]
 }
 
 /**
@@ -92,9 +91,13 @@ export interface MergeDegradation {
   readonly reason: BackupDegradationCode
 }
 
-/** Same shape as {@link MaterializedDatabase}, with merge-code degradation reasons. */
+/**
+ * What the merge materialization reports. Only `degradations` — the replace path's
+ * §3.1 sanitize/reset counters are not run on the merge path, and emitting them as
+ * zeros would encode "not executed" as "executed with zero effect" (see module doc).
+ */
 export interface MergedDatabase {
-  readonly summary: Omit<MaterializationSummary, 'degradations'> & {
+  readonly summary: {
     readonly degradations: readonly MergeDegradation[]
   }
   /** SHA-256 of the sealed merged file — the identity the restore journal names. */
@@ -108,8 +111,10 @@ export interface MergedDatabase {
  * Engine-side reconciliation loss → user-facing degradation code. Identity mapping
  * except `remote_overwrote_local`: for a restore the "remote" side IS the backup,
  * so the code says so (the engine's kind is deliberately consumer-neutral).
+ * Exported for the mapping-lock test; every entry must stay inside
+ * BACKUP_DEGRADATION_CODES, the closed vocabulary the journal consumes.
  */
-const MERGE_DEGRADATION_CODES: Record<ReconcileDegradationKind, BackupDegradationCode> = {
+export const MERGE_DEGRADATION_CODES: Record<ReconcileDegradationKind, BackupDegradationCode> = {
   ref_cleared: 'merge_ref_cleared',
   row_pruned: 'merge_row_pruned',
   rows_skipped: 'merge_rows_skipped',
@@ -121,8 +126,9 @@ const MERGE_DEGRADATION_CODES: Record<ReconcileDegradationKind, BackupDegradatio
 }
 
 /**
- * The finalized 14-domain registry. {@link contributorManager} is the process-wide
- * lazy singleton: the 27-invariant finalize runs once, on the first merge.
+ * The finalized 14-domain registry. Finalize runs once, at BackupService startup
+ * (its onInit calls getRegistry() so a violated invariant refuses startup); every
+ * merge reuses the cached frozen result.
  */
 function mergeRegistry(): ReadonlyBackupRegistry {
   return contributorManager.getRegistry()
@@ -132,9 +138,17 @@ function buildMergeContext(inputs: MergeRestoreInputs, domains: readonly BackupD
   return {
     backupDbPath: inputs.archiveDbPath,
     domains,
+    // agent_workspace.path is a machine-specific absolute dir (its identityKey), so
+    // cross-machine identity lookup needs this host's managed root to rebase first.
+    hostSystemWorkspacesRoot: application.getPath('feature.agents.system_workspaces'),
     // M1 resource sets start empty: installs still run the replacement path, so the
     // merge cannot know which blobs landed — every imported attachment soft ref is
     // conservatively disclosed. TODO(m2): feed planResourceInstalls' staged/skipped sets in.
+    // The directory-side skip sets stay unpassed too: when a same-named local
+    // knowledge-base/skill dir exists, the merge INSERTs its rows while
+    // planResourceInstalls skips the dir → a dangling entry. Merge runs BEFORE the
+    // plan (structural constraint), so M2 must reorder the seam or compensate — same
+    // disclosure as the file_entry sets above.
     skippedFileEntryIds: new Set<string>(),
     stagedFileEntryIds: new Set<string>()
   }
@@ -169,28 +183,14 @@ function expandDegradedSkips(result: MergeResult): MergeDegradation[] {
   )
 }
 
-/** The replace mode's counters are archive-processing counts; a merge runs none of them. */
-function mergeSummary(degradations: readonly MergeDegradation[]): MergedDatabase['summary'] {
-  return {
-    activeJobsDeleted: 0,
-    schedulesDisabled: 0,
-    mcpServersSanitized: 0,
-    agentsSanitized: 0,
-    channelsSanitized: 0,
-    knowledgeItemsReset: 0,
-    externalFileEntriesDeleted: 0,
-    preferencesDeleted: 0,
-    codeCliConfigsRewritten: 0,
-    codeCliConfigsDeleted: 0,
-    pathsRebased: 0,
-    pathsExternal: 0,
-    degradations
-  }
-}
-
 /**
  * Build the merged database for a merge-mode restore and put it in the archive's
  * slot, ready for the seam's remaining steps (coverage → planning → promotion rename).
+ *
+ * The merge path does NOT run the replace mode's §3.1 sanitize set (MCP isActive/
+ * dxtPath, PREFERENCE_RESET_KEYS, activeJobs, ...) — merge keeps local rows, so the
+ * replace-mode reset semantics need an M2 product decision before they can apply;
+ * the summary therefore carries only the merge's own degradations.
  *
  * Any failure before the final rename leaves the admitted archive untouched and the
  * work file removed; admission staging continues under admission's own cleanup.
@@ -213,8 +213,10 @@ export async function materializeMergedDatabase(inputs: MergeRestoreInputs): Pro
         workDb,
         buildMergeContext(inputs, domains)
       )
-      // Prove the merge never disturbed the applied chain: the work file started as a
-      // live copy, so this chain is the live one — a bundled prefix by construction.
+      // The chain guarantee is structural, not observed: the engine never writes
+      // `__drizzle_migrations` (outside its table whitelist), so the work file keeps
+      // the live chain it was born with, and promotion re-checks it via
+      // chainIsBundledPrefix. This re-read only records what the output carries.
       chain = readAppliedChain(work)
       sealDetachedDb(work)
     } finally {
@@ -230,13 +232,13 @@ export async function materializeMergedDatabase(inputs: MergeRestoreInputs): Pro
     renameOnlySync(workPath, inputs.archiveDbPath)
 
     const degradations = expandDegradedSkips(result)
-    const materialized = { summary: mergeSummary(degradations), hash, sizeBytes, chain }
+    const materialized = { summary: { degradations }, hash, sizeBytes, chain }
     logger.info('Merge-mode materialization finished', {
       domains: domains.length,
       degradations: degradations.length,
       sizeBytes
     })
-    return { materialized, degradations }
+    return { materialized }
   } catch (error) {
     // A no-op once the rename succeeded (the file has moved); garbage otherwise.
     fs.rmSync(workPath, { force: true })

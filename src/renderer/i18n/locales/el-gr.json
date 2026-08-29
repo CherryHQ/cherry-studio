@@ -5028,7 +5028,7 @@
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
             "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "merge_association_dropped": "{{count}} σύνδεσμος/συνδέσμοι μεταξύ επαναφερόμενων στοιχείων απορρίφθηκαν επειδή η άλλη πλευρά δεν επαναφέρθηκε.",
-            "merge_attachment_unavailable": "{{count}} συνημμένο/α σε επαναφερόμενες συνομιλίες δεν μεταφέρθηκαν ως αρχεία από αυτό το αντίγραφο ασφαλείας και ενδέχεται να μην ανοίγουν.",
+            "merge_attachment_unavailable": "{{count}} συνημμένο/α σε επαναφερόμενες συνομιλίες: δεν ήταν δυνατό να επαληθευτεί αν το αρχείο τους υπάρχει σε αυτή την επαναφορά και ενδέχεται να μην ανοίγουν σωστά.",
             "merge_backup_overwrote_local": "{{count}} πεδίο/πεδία σε αυτή τη συσκευή αντικαταστάθηκαν από την τιμή του αντιγράφου ασφαλείας, επειδή η συγχώνευση δίνει σε αυτό το πεδίο προτεραιότητα.",
             "merge_field_conflict": "{{count}} πεδίο/πεδία με σύγκρουση διατήρησαν την τιμή που υπάρχει ήδη σε αυτή τη συσκευή.",
             "merge_ref_cleared": "{{count}} παραπομπή/ές σε στοιχεία που δεν υπάρχουν εδώ εκκαθαρίστηκαν ώστε τα συγχωνευμένα δεδομένα να παραμείνουν συνεπή.",
