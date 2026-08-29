@@ -37,6 +37,7 @@ const mockReadRetryPolicy = vi.fn(() => ({
 }))
 const mockGetImageGenerationSupport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
+const mockSyncRuntimePricing = vi.fn((...args: [string, Partial<Model>[], boolean?]) => args[1])
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
@@ -99,7 +100,9 @@ vi.mock('@main/data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
-    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args)
+    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args),
+    syncRuntimePricing: (providerId: string, models: Partial<Model>[], authoritative?: boolean) =>
+      mockSyncRuntimePricing(providerId, models, authoritative)
   }
 }))
 
@@ -2205,6 +2208,35 @@ describe('AiService.listModels', () => {
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'openai',
       presetProviderId: null
+    })
+  })
+
+  it('treats NewAPI gateway pricing as authoritative runtime data', async () => {
+    const service = createService()
+    const provider = { id: 'cherryin', modelListSource: 'api' }
+    const apiModels = [{ id: 'cherryin::openai/gpt-4o', apiModelId: 'openai/gpt-4o' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue([])
+    mockSyncRuntimePricing.mockImplementationOnce((_providerId, models, authoritative) =>
+      models.map((model) =>
+        authoritative
+          ? {
+              ...model,
+              pricing: {
+                input: { currency: 'USD', perMillionTokens: null },
+                output: { currency: 'USD', perMillionTokens: null }
+              }
+            }
+          : model
+      )
+    )
+
+    const result = await service.listModels({ providerId: 'cherryin' })
+
+    expect(result[0].pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
     })
   })
 

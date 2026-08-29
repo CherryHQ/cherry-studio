@@ -235,6 +235,48 @@ describe('ProviderRegistryService', () => {
     })
   })
 
+  describe('runtime pricing', () => {
+    it('refreshes provider-scoped prices without persisting them in the registry', () => {
+      setupRegistryData()
+      const providerId = 'runtime-pricing-test'
+      const firstPrice = {
+        input: { currency: 'USD' as const, perMillionTokens: 1 },
+        output: { currency: 'USD' as const, perMillionTokens: 2 }
+      }
+      const refreshedPrice = {
+        input: { currency: 'USD' as const, perMillionTokens: 3 },
+        output: { currency: 'USD' as const, perMillionTokens: 4 }
+      }
+
+      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: firstPrice }])
+      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: refreshedPrice }])
+
+      expect(providerRegistryService.resolveModels(providerId, ['gpt-4o'])[0].pricing).toEqual(refreshedPrice)
+      expect(providerRegistryService.lookupModel(providerId, 'gpt-4o').runtimePricing).toEqual(refreshedPrice)
+      expect(providerRegistryService.resolveModels('other-runtime-pricing-test', ['gpt-4o'])[0].pricing).toBeUndefined()
+    })
+
+    it('uses an explicit unknown for an authoritative gateway while retaining its last known rate', () => {
+      const providerId = 'authoritative-pricing-test'
+      const [unknown] = providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }], true)
+      const knownPrice = {
+        input: { currency: 'USD' as const, perMillionTokens: 1 },
+        output: { currency: 'USD' as const, perMillionTokens: 2 }
+      }
+
+      expect(unknown.pricing).toEqual({
+        input: { currency: 'USD', perMillionTokens: null },
+        output: { currency: 'USD', perMillionTokens: null }
+      })
+
+      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: knownPrice }], true)
+      const [retained] = providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }], true)
+
+      expect(retained.pricing).toEqual(knownPrice)
+      expect(providerRegistryService.syncRuntimePricing(providerId, [], true)).toEqual([])
+    })
+  })
+
   describe('registry load failure', () => {
     it('should throw when models.json cannot be read', async () => {
       setupRegistryData()

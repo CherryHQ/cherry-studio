@@ -209,6 +209,11 @@ type NewApiPricingItem = NewApiPricingResponse['data'][number]
 /** One NewAPI ratio unit is $2 per 1M tokens; output and cache rates are multiples of the input rate. */
 const NEW_API_USD_PER_RATIO_UNIT = 2
 
+function unknownUsdPricing(): NonNullable<Model['pricing']> {
+  const unknown = { currency: CURRENCY.USD, perMillionTokens: null }
+  return { input: unknown, output: unknown }
+}
+
 /**
  * The billing-group multiplier that applies to the caller. NewAPI scales every model ratio by the
  * group the token belongs to, so reading the ratios alone quotes the wrong price to anyone outside
@@ -222,22 +227,21 @@ function newApiGroupMultiplier(response: NewApiPricingResponse): number {
 }
 
 /** Rates from a NewAPI gateway's `/api/pricing`, scaled by the caller's billing group. */
-function newApiPricing(entry: NewApiPricingItem, groupMultiplier: number): Model['pricing'] | undefined {
+function newApiPricing(entry: NewApiPricingItem, groupMultiplier: number): NonNullable<Model['pricing']> {
   // Anything the flat ratios can't express (CherryIN prices DeepSeek V4 by time of day) has no single
   // rate to state. Say so rather than quoting one of the tiers as if it always applied.
   if (entry.billing_mode) {
-    const unknown = { currency: CURRENCY.USD, perMillionTokens: null }
-    return { input: unknown, output: unknown }
+    return unknownUsdPricing()
   }
   // quota_type 1 prices per request, which the per-token model can't hold.
-  if (entry.quota_type === 1 || entry.model_ratio === undefined) return undefined
+  if (entry.quota_type === 1 || entry.model_ratio === undefined) return unknownUsdPricing()
   // Output and cache derive from input, so scaling input once carries the group through all three.
   const input = entry.model_ratio * NEW_API_USD_PER_RATIO_UNIT * groupMultiplier
   return usdPricing({
     input,
     output: input * (entry.completion_ratio ?? 1),
     cacheRead: entry.cache_ratio === undefined ? undefined : input * entry.cache_ratio
-  })
+  })!
 }
 
 function dedup<T>(items: T[], getId: (item: T) => string | undefined): T[] {
@@ -582,7 +586,7 @@ const newApiFetcher: ModelFetcher = {
     p.id === SystemProviderIds.aionly,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    const [response, pricingResponse] = await Promise.all([
+    const [response, pricingResult] = await Promise.all([
       getFromApi({
         url: `${baseUrl}/models`,
         headers: defaultHeaders(provider),
@@ -597,13 +601,17 @@ const newApiFetcher: ModelFetcher = {
         headers: defaultHeaders(provider),
         responseSchema: NewApiPricingResponseSchema,
         abortSignal: signal
-      }).catch((error) =>
-        recoverOptionalModelListFailure<NewApiPricingItem>(error, {
-          providerId: provider.id,
-          endpoint: 'new-api-pricing'
-        })
-      )
+      })
+        .then((data) => ({ data, available: true }))
+        .catch((error) => ({
+          data: recoverOptionalModelListFailure<NewApiPricingItem>(error, {
+            providerId: provider.id,
+            endpoint: 'new-api-pricing'
+          }),
+          available: false
+        }))
     ])
+    const pricingResponse = pricingResult.data
     const groupMultiplier = newApiGroupMultiplier(pricingResponse)
     const pricingByModel = new Map(
       pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry, groupMultiplier)])
@@ -611,7 +619,7 @@ const newApiFetcher: ModelFetcher = {
     return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
       const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
       const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
-      const pricing = pricingByModel.get(m.id)
+      const pricing = pricingByModel.get(m.id) ?? (pricingResult.available ? unknownUsdPricing() : undefined)
 
       return toModel(m.id, provider, {
         ownedBy: m.owned_by,

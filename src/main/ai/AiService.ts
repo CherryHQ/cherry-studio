@@ -36,7 +36,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
-import { isOllamaProvider } from '@shared/utils/provider'
+import { isNewApiProvider, isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -1112,7 +1112,11 @@ export class AiService extends BaseService {
     // Union the live API list with the registry catalog so vendor-exclusive models
     // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
     // still surface for the user to enable.
-    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const remoteModels = providerRegistryService.syncRuntimePricing(
+      providerId,
+      await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError }),
+      isNewApiProvider(provider)
+    )
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null

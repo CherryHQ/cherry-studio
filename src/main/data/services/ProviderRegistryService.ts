@@ -692,6 +692,7 @@ export function projectRuntimeReasoning(
  */
 class ProviderRegistryService {
   private loader: RegistryLoader | null = null
+  private runtimePricing = new Map<string, Map<string, RuntimeModelPricing>>()
 
   /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
@@ -703,6 +704,46 @@ class ProviderRegistryService {
 
   clearCache(): void {
     this.loader = null
+  }
+
+  syncRuntimePricing(providerId: string, models: Partial<Model>[], authoritative = false): Partial<Model>[] {
+    if (models.length === 0) return models
+
+    let pricingByModel = this.runtimePricing.get(providerId)
+    for (const model of models) {
+      const modelId = model.apiModelId
+      if (!modelId) continue
+
+      const pricing =
+        model.pricing ??
+        (authoritative && !pricingByModel?.has(modelId)
+          ? {
+              input: { currency: CURRENCY.USD, perMillionTokens: null },
+              output: { currency: CURRENCY.USD, perMillionTokens: null }
+            }
+          : undefined)
+      if (!pricing) continue
+
+      if (!pricingByModel) {
+        pricingByModel = new Map()
+        this.runtimePricing.set(providerId, pricingByModel)
+      }
+      pricingByModel.set(modelId, pricing)
+    }
+
+    return models.map((model) => {
+      const pricing = model.apiModelId ? pricingByModel?.get(model.apiModelId) : undefined
+      return pricing ? { ...model, pricing } : model
+    })
+  }
+
+  private getRuntimePricing(providerId: string, modelId: string): RuntimeModelPricing | undefined {
+    return this.runtimePricing.get(providerId)?.get(modelId)
+  }
+
+  private applyRuntimePricing(providerId: string, model: Model): Model {
+    const pricing = model.apiModelId ? this.getRuntimePricing(providerId, model.apiModelId) : undefined
+    return pricing ? { ...model, pricing } : model
   }
 
   /**
@@ -1104,6 +1145,7 @@ class ProviderRegistryService {
     registryOverride: ProtoProviderModelOverride | null
     reasoningProfile: ResolvedReasoningProfile
     serviceTierControl?: ResolvedServiceTierControl
+    runtimePricing?: RuntimeModelPricing
   } {
     const loader = this.getLoader()
     const providerContext = providerContextCache?.get(providerId) ?? this.getEffectiveProviderContext(providerId)
@@ -1118,7 +1160,8 @@ class ProviderRegistryService {
       presetModel,
       registryOverride,
       reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId),
-      serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride)
+      serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride),
+      runtimePricing: this.getRuntimePricing(providerId, modelId)
     }
   }
 
@@ -1175,16 +1218,20 @@ class ProviderRegistryService {
         // ids. `presetModelId` keeps the canonical link for metadata; `deriveResolvedModelName` keeps the
         // display name distinguishable between siblings that share one canonical entry.
         const canonicalApiId = model.apiModelId ?? registryOverride?.apiModelId ?? null
-        results.push({
-          ...model,
-          id: createUniqueModelId(providerId, modelId),
-          apiModelId: modelId,
-          name: deriveResolvedModelName(modelId, model.name, canonicalApiId),
-          presetModelId: presetModel.id
-        })
+        results.push(
+          this.applyRuntimePricing(providerId, {
+            ...model,
+            id: createUniqueModelId(providerId, modelId),
+            apiModelId: modelId,
+            name: deriveResolvedModelName(modelId, model.name, canonicalApiId),
+            presetModelId: presetModel.id
+          })
+        )
       } else {
         const custom = createCustomModel(providerId, modelId, reasoningProfile.wire, serviceTierControl)
-        results.push({ ...custom, name: deriveResolvedModelName(modelId, null, null) })
+        results.push(
+          this.applyRuntimePricing(providerId, { ...custom, name: deriveResolvedModelName(modelId, null, null) })
+        )
       }
     }
 
@@ -1225,13 +1272,15 @@ class ProviderRegistryService {
         serviceTierControl
       )
       const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
-      results.push({
-        ...model,
-        id: createUniqueModelId(providerId, apiModelId),
-        providerId,
-        apiModelId,
-        presetModelId: presetModel.id
-      })
+      results.push(
+        this.applyRuntimePricing(providerId, {
+          ...model,
+          id: createUniqueModelId(providerId, apiModelId),
+          providerId,
+          apiModelId,
+          presetModelId: presetModel.id
+        })
+      )
     }
 
     return results
@@ -1292,12 +1341,14 @@ class ProviderRegistryService {
       )
 
       const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
-      results.push({
-        ...model,
-        id: createUniqueModelId(override.providerId, apiModelId),
-        apiModelId,
-        presetModelId: presetModel.id
-      })
+      results.push(
+        this.applyRuntimePricing(override.providerId, {
+          ...model,
+          id: createUniqueModelId(override.providerId, apiModelId),
+          apiModelId,
+          presetModelId: presetModel.id
+        })
+      )
     }
 
     return results

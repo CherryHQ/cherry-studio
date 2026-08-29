@@ -124,6 +124,7 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
 type CreateModelRegistryData = ModelLookupResult & {
   reasoningProfile: ResolvedReasoningProfile
   serviceTierControl?: ResolvedServiceTierControl
+  runtimePricing?: RuntimeModelPricing
 }
 
 type ReconcileRemovalFilterResult = {
@@ -441,10 +442,12 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
 function createPresetFallback(
   row: UserModelRow,
   profile?: ResolvedReasoningProfile['wire'],
-  serviceTierControl?: ResolvedServiceTierControl
+  serviceTierControl?: ResolvedServiceTierControl,
+  runtimePricing?: RuntimeModelPricing
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+  const runtimeBaseline = runtimePricing ? { ...baseline, pricing: runtimePricing } : baseline
+  return applyStoredModelState(applyStoredPresetDeltas(runtimeBaseline, row), row)
 }
 
 class ModelService {
@@ -453,13 +456,10 @@ class ModelService {
     modelId: string,
     reasoningConfigCache?: Map<string, ReasoningProviderContext>
   ): Model | null {
-    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = providerRegistryService.lookupModel(
-      providerId,
-      modelId,
-      reasoningConfigCache
-    )
+    const { presetModel, registryOverride, reasoningProfile, serviceTierControl, runtimePricing } =
+      providerRegistryService.lookupModel(providerId, modelId, reasoningConfigCache)
     if (!presetModel) return null
-    return mergePresetModel(
+    const baseline = mergePresetModel(
       presetModel,
       registryOverride,
       providerId,
@@ -467,6 +467,7 @@ class ModelService {
       reasoningProfile.support,
       serviceTierControl
     )
+    return runtimePricing ? { ...baseline, pricing: runtimePricing } : baseline
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
@@ -482,7 +483,10 @@ class ModelService {
         registryData?.reasoningProfile.support,
         registryData?.serviceTierControl
       )
-      const deltaFields = collectPresetDeltaFields(dto, baseline)
+      const runtimeBaseline = registryData?.runtimePricing
+        ? { ...baseline, pricing: registryData.runtimePricing }
+        : baseline
+      const deltaFields = collectPresetDeltaFields(dto, runtimeBaseline)
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
     }
 
@@ -669,10 +673,10 @@ class ModelService {
     return rows.map((row) => {
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+          const { presetModel, registryOverride, reasoningProfile, serviceTierControl, runtimePricing } =
             providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
+            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl, runtimePricing)
           }
 
           const baseline = mergePresetModel(
@@ -683,7 +687,8 @@ class ModelService {
             reasoningProfile.support,
             serviceTierControl
           )
-          const resolved = applyStoredPresetDeltas(baseline, row)
+          const runtimeBaseline = runtimePricing ? { ...baseline, pricing: runtimePricing } : baseline
+          const resolved = applyStoredPresetDeltas(runtimeBaseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
@@ -700,7 +705,7 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+        const { presetModel, registryOverride, reasoningProfile, serviceTierControl, runtimePricing } =
           providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
@@ -736,7 +741,9 @@ class ModelService {
         if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
           updates.maxOutputTokens = registryModel.maxOutputTokens
         }
-        if (model.pricing === undefined && registryModel?.pricing !== undefined) {
+        if (model.pricing === undefined && runtimePricing !== undefined) {
+          updates.pricing = runtimePricing
+        } else if (model.pricing === undefined && registryModel?.pricing !== undefined) {
           updates.pricing = registryModel.pricing
         }
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true

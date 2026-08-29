@@ -919,8 +919,14 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       input: { currency: 'USD', perMillionTokens: null },
       output: { currency: 'USD', perMillionTokens: null }
     })
-    expect(priceOf('openai/dall-e-3')).toBeUndefined()
-    expect(priceOf('no-price-published')).toBeUndefined()
+    expect(priceOf('openai/dall-e-3')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+    expect(priceOf('no-price-published')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
   })
 
   it('bills the caller at their own group rate, not the default group', async () => {

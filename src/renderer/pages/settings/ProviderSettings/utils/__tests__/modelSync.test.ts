@@ -306,7 +306,7 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('carries the resolved price into the create payload', () => {
+  it('does not persist provider-reported pricing as a user override', () => {
     const pricing = {
       input: { currency: 'USD' as const, perMillionTokens: 0.135 },
       output: { currency: 'USD' as const, perMillionTokens: 0.54 }
@@ -319,7 +319,7 @@ describe('toCreateModelDto', () => {
       pricing
     } as Model)
 
-    expect(dto.pricing).toEqual(pricing)
+    expect(dto.pricing).toBeUndefined()
   })
 
   it('does not forward capabilities for a preset-backed model', () => {
