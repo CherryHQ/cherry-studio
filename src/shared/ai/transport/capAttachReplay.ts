@@ -32,7 +32,10 @@ export function capAttachReplayChunks(
         const key = scopedPartKey(payload, kind, (chunk as { id: string }).id)
         if (!openParts.has(key)) {
           openParts.add(key)
-          out.push({ ...payload, chunk: { type: `${kind}-start`, id: (chunk as { id: string }).id } } as StreamChunkPayload)
+          out.push({
+            ...payload,
+            chunk: { type: `${kind}-start`, id: (chunk as { id: string }).id }
+          } as StreamChunkPayload)
         }
         out.push(payload)
         break
