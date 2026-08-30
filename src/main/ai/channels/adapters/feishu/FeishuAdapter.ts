@@ -15,9 +15,23 @@ import { createFeishuHttpInstance } from './FeishuHttpInstance'
 
 const FEISHU_MAX_LENGTH = 4000
 const FEISHU_PING_TIMEOUT_SECONDS = 10
+/** How long a transparent SDK reconnect may run before the adapter stops reporting connected (#18336). */
+const RECONNECT_GRACE_MS = 5 * 60_000
 const REACTION_THINKING = 'Typing'
 const REACTION_DONE = 'OK'
 const REACTION_ERROR = 'CRY'
+
+/** Inbound message policy — the single source for both the SDK config and the connect log (#18336). */
+const CHANNEL_POLICY = { dmMode: 'open', requireMention: true, respondToMentionAll: false } as const
+
+/** User-facing hints for the SDK's policy-level reject reasons (#18336). */
+const REJECT_HINTS: Record<string, string> = {
+  no_mention: 'group messages must @mention the bot (requireMention is enabled)',
+  group_not_allowed: 'the chat is not in the channel configured allowed_chat_ids',
+  sender_not_allowed: 'the sender is not allowed by the channel policy',
+  dm_disabled: 'direct messages are disabled by the channel policy',
+  mention_all_blocked: '@all mentions are not answered (respondToMentionAll is disabled)'
+}
 
 type ChatReaction = {
   messageId: string
@@ -143,7 +157,7 @@ class FeishuStreamSession {
   }
 }
 
-class FeishuAdapter extends ChannelAdapter {
+export class FeishuAdapter extends ChannelAdapter {
   private channel: Lark.LarkChannel | null = null
   private appId: string
   private appSecret: string
@@ -151,6 +165,10 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
+  private acceptedCount = 0
+  private rejectedCount = 0
+  private reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null
+
   private readonly streams = new Map<string, FeishuStreamSession>()
   private readonly chatReactions = new Map<string, ChatReaction>()
 
@@ -199,11 +217,7 @@ class FeishuAdapter extends ChannelAdapter {
       logger: sdkLogger,
       loggerLevel: Lark.LoggerLevel.info,
       httpInstance: createFeishuHttpInstance(),
-      policy: {
-        dmMode: 'open',
-        requireMention: true,
-        respondToMentionAll: false
-      },
+      policy: CHANNEL_POLICY,
       safety: { batch: { text: { delayMs: 0 } } },
       outbound: { textChunkLimit: FEISHU_MAX_LENGTH },
       wsConfig: { pingTimeout: FEISHU_PING_TIMEOUT_SECONDS }
@@ -212,6 +226,7 @@ class FeishuAdapter extends ChannelAdapter {
 
     channel.on({
       message: (message) => {
+        this.acceptedCount += 1
         void this.handleMessage(message).catch((error) => {
           this.log.error('Failed to handle Feishu message', {
             chatId: message.chatId,
@@ -221,14 +236,34 @@ class FeishuAdapter extends ChannelAdapter {
         })
       },
       reconnecting: () => {
+        // The SDK retries transparently and in-flight streams stay alive, so
+        // the status deliberately remains connected during the grace window.
+        // If reconnection never completes, stop reporting a live connection —
+        // that is the 'connected but nothing arrives' trap of #18336.
         this.log.warn('Feishu WebSocket reconnecting')
+        this.armReconnectGrace(channel)
       },
       reconnected: () => {
+        this.clearReconnectGrace()
         this.markConnected()
         this.log.info('Feishu WebSocket reconnected')
       },
       reject: (event) => {
-        this.log.debug('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+        // Policy rejections (e.g. a group message without @mention under
+        // requireMention) were invisible at debug level: the bot looked
+        // connected while quietly ignoring every message (#18336).
+        this.rejectedCount += 1
+        const hint = REJECT_HINTS[event.reason] ?? 'check the channel policy configuration'
+        this.log.warn(
+          `Feishu message rejected: ${event.reason} (${hint}; rejected=${this.rejectedCount} accepted=${this.acceptedCount})`,
+          {
+            chatId: event.chatId,
+            reason: event.reason,
+            hint,
+            rejectedTotal: this.rejectedCount,
+            acceptedTotal: this.acceptedCount
+          }
+        )
       },
       error: (error) => {
         this.log.error('Feishu channel error', { error: error.message, code: error.code })
@@ -250,7 +285,12 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     this.markConnected()
-    this.log.info('Feishu bot connected (WebSocket)')
+    // Make the active inbound policy visible in logs: 'connected but messages
+    // never arrive' reports are usually policy rejections, not dead sockets (#18336).
+    this.log.info(
+      `Feishu bot connected (WebSocket; dmMode=${CHANNEL_POLICY.dmMode} requireMention=${CHANNEL_POLICY.requireMention} allowedChatIds=${this.allowedChatIds.length})`,
+      { ...CHANNEL_POLICY, allowedChatIds: this.allowedChatIds.length }
+    )
   }
 
   private startRegistrationInBackground(signal: AbortSignal): void {
@@ -296,6 +336,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   protected override async performDisconnect(): Promise<void> {
+    this.clearReconnectGrace()
     for (const stream of this.streams.values()) stream.dispose()
     this.streams.clear()
     this.chatReactions.clear()
@@ -529,6 +570,23 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     return { images, files }
+  }
+
+  private armReconnectGrace(channel: Lark.LarkChannel): void {
+    this.clearReconnectGrace()
+    this.reconnectGraceTimer = setTimeout(() => {
+      this.reconnectGraceTimer = null
+      if (this.channel !== channel || !this.connected) return
+      this.markDisconnected('Feishu WebSocket did not reconnect within the grace window')
+      this.log.error('Feishu WebSocket reconnect grace window elapsed; marking disconnected')
+    }, RECONNECT_GRACE_MS)
+  }
+
+  private clearReconnectGrace(): void {
+    if (this.reconnectGraceTimer !== null) {
+      clearTimeout(this.reconnectGraceTimer)
+      this.reconnectGraceTimer = null
+    }
   }
 
   private getChannel(): Lark.LarkChannel {
