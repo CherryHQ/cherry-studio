@@ -761,24 +761,42 @@ function extractCallOverridesBodyParams(callOverrides: CallOverrides | undefined
   for (const opts of Object.values(callOverrides.providerOptions)) {
     if (!opts || typeof opts !== 'object') continue
     for (const [key, value] of Object.entries(opts as Record<string, unknown>)) {
-      // Classify by explicit delivery: any key whose wire target would be request-body.
-      // Currently only `chat_template_kwargs.*` is body-routed.
-      if (isRequestBodyTarget(key as any) || key === 'chat_template_kwargs') {
+      if (value === undefined) continue
+      // Dotted body-routed keys (e.g. `chat_template_kwargs.enable_thinking`) must
+      // expand to a nested object, not a flat key, so the later deep-merge preserves
+      // sibling fields like `foo`. Check dotted form before the generic body-target
+      // branch, otherwise `isRequestBodyTarget` would shadow it.
+      if (key.startsWith('chat_template_kwargs.')) {
+        const rest = key.slice('chat_template_kwargs.'.length)
+        const bag = (body['chat_template_kwargs'] ??= {}) as Record<string, unknown>
+        bag[rest] = value
+        continue
+      }
+      if (key === 'chat_template_kwargs') {
         if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
           body[key] = merge(
             {},
             (body[key] as Record<string, unknown> | undefined) ?? {},
             value as Record<string, unknown>
           )
-        } else if (value !== undefined) {
+        } else {
           body[key] = value
         }
-      } else if (key.startsWith('chat_template_kwargs.')) {
-        const dot = key.indexOf('.')
-        const top = key.slice(0, dot)
-        const rest = key.slice(dot + 1)
-        const bag = (body[top] ??= {}) as Record<string, unknown>
-        bag[rest] = value
+        continue
+      }
+      // Classify by explicit delivery declared on the wire operation. Currently
+      // only `chat_template_kwargs.*` is body-routed; keep this generic so future
+      // body-routed targets are handled without adding new prefix heuristics.
+      if (isRequestBodyTarget(key as any)) {
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          body[key] = merge(
+            {},
+            (body[key] as Record<string, unknown> | undefined) ?? {},
+            value as Record<string, unknown>
+          )
+        } else {
+          body[key] = value
+        }
       }
     }
   }
