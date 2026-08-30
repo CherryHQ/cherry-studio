@@ -225,7 +225,7 @@ export const modelListClasses = {
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-md border-border-subtle border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-md border-border-subtle bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   fetchGuideWrap: 'relative flex shrink-0',
   fetchGuideArrow:
     'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-muted-foreground motion-reduce:animate-none',
@@ -413,7 +413,7 @@ export const modelSyncClasses = {
   manageGroupBadge: 'h-4 rounded-md px-1.5 py-0 text-[10px] leading-4',
   manageGroupBody: 'space-y-1 overflow-hidden bg-card py-1.5',
   manageRow:
-    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success-subtle',
+    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success-subtle dark:data-[added=true]:bg-success-subtle/15',
   manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
   manageRowDescriptionHelp:
@@ -425,15 +425,14 @@ export const modelSyncClasses = {
 
 export const apiKeyListClasses = {
   summaryMeta: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
-  helperText: 'text-[13px] leading-tight text-muted-foreground',
-  listWrap: 'overflow-hidden rounded-lg border border-border-subtle',
+  listWrap: 'overflow-hidden rounded-lg border border-border',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
-  keyRow: 'flex flex-col gap-2 border-b border-border-subtle px-4 py-3 last:border-b-0',
+  keyRow: 'flex flex-col gap-2 border-b border-border px-4 py-3 last:border-b-0',
   keyDisplayRow: 'flex min-w-0 items-center gap-3',
   keyTextBlock: 'min-w-0 flex-1',
   keyRowActions: 'flex shrink-0 items-center gap-1.5',
   keyLabel: 'min-w-0 truncate text-[13px] leading-tight text-foreground',
-  keyValue: 'min-w-0 flex-1 truncate font-mono text-xs leading-tight text-foreground-tertiary',
+  keyValue: 'min-w-0 flex-1 truncate font-mono text-foreground text-xs leading-tight',
   keyDraftRow: 'flex min-w-0 items-center gap-2',
   keyDraftInputs: 'grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(4.5rem,6rem)_minmax(0,1fr)]',
   keyDraftInput: 'h-8 rounded-md bg-background px-2.5 text-sm leading-5',
@@ -442,8 +441,7 @@ export const apiKeyListClasses = {
   keySaveIconButton:
     'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success-subtle hover:text-success-subtle-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
   keyDestructiveIconButton:
-    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
-  actionRow: 'flex items-center justify-between gap-3'
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3 hover:[&_svg]:text-destructive-foreground'
 } as const
 
 export const oauthCardClasses = {
@@ -513,7 +511,7 @@ export const fieldClasses = {
   inputActionButton: cn(fieldIconButtonBase, 'size-8'),
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
-    'flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+    'flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [&_svg]:-translate-y-px',
   titleWithHelp: 'flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1',
   titleHelpLink:
     'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-link transition-colors hover:underline'

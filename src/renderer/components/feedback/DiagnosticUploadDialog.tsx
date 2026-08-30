@@ -1,27 +1,32 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   Scrollbar,
   SegmentedControl,
-  Switch
+  Switch,
+  Textarea
 } from '@cherrystudio/ui'
+import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
-import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { DiagnosticRange, DiagnosticUploadFallbackReason } from '@shared/ipc/schemas/diagnostics'
+import { describeDiagnosticChatSource, describeDiagnosticFileSource } from '@renderer/utils/diagnosticSourceSummary'
+import type { DiagnosticRange, DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
-import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
+import {
+  DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
+  DIAGNOSTIC_FEEDBACK_FORM_URL,
+  diagnosticDescriptionByteLength
+} from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import { CircleAlert, CircleCheck, LoaderCircle } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('DiagnosticUploadDialog')
@@ -33,38 +38,58 @@ const RANGE_OPTIONS = [
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
 type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
-type UploadState =
-  | { readonly status: 'idle' }
-  | { readonly status: 'uploading' }
-  | { readonly status: 'submission_unknown_fallback_save_failed' }
-  | { readonly result: UploadResult; readonly status: UploadResult['status'] }
+type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
+type OperationStatus = 'idle' | 'saving' | 'submitting'
+
+function discardRetainedUpload(bundleId: string) {
+  return ipcApi.request('diagnostics.bundle.discard_upload', { bundleId })
+}
 
 interface DiagnosticUploadDialogProps {
+  readonly fixedRange?: DiagnosticRange
+  readonly initialDescription?: string
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** unitIndex
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
-}
-
-export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadDialogProps) {
+export function DiagnosticUploadDialog({
+  fixedRange,
+  initialDescription,
+  onOpenChange,
+  open
+}: DiagnosticUploadDialogProps) {
   const { t } = useTranslation()
-  const [range, setRange] = useState<DiagnosticRange>('24h')
+  const uploadFormId = useId()
+  const [selectedRange, setSelectedRange] = useState<DiagnosticRange>('24h')
+  const effectiveRange = fixedRange ?? selectedRange
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
+  const [includeChatRecords, setIncludeChatRecords] = useState(false)
+  const [description, setDescription] = useState(initialDescription ?? '')
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+  const [acknowledged, setAcknowledged] = useState(false)
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
   const [inspectError, setInspectError] = useState(false)
   const [isInspecting, setIsInspecting] = useState(false)
-  const [uploadState, setUploadState] = useState<UploadState>({ status: 'idle' })
+  const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
+  const [result, setResult] = useState<UploadResult | null>(null)
+  const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
-  const status = uploadState.status
-  const result = 'result' in uploadState ? uploadState.result : null
-  const submissionUnknownFallbackSaveFailed = status === 'submission_unknown_fallback_save_failed'
+  const retainedBundleIdRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      const retainedBundleId = retainedBundleIdRef.current
+      if (!retainedBundleId) return
+      retainedBundleIdRef.current = null
+      void discardRetainedUpload(retainedBundleId).catch((error) =>
+        logger.error('Failed to discard retained diagnostic upload on unmount', error as Error)
+      )
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -72,7 +97,7 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
     setIsInspecting(true)
     setInspectError(false)
     void ipcApi
-      .request('diagnostics.bundle.inspect', { range })
+      .request('diagnostics.bundle.inspect', { range: effectiveRange })
       .then((inspection) => {
         if (active) setInspectResult(inspection)
       })
@@ -88,21 +113,47 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
     return () => {
       active = false
     }
-  }, [open, range])
+  }, [effectiveRange, open])
 
   useEffect(() => {
-    if (result || submissionUnknownFallbackSaveFailed) primaryActionRef.current?.focus()
-  }, [result, submissionUnknownFallbackSaveFailed])
+    if (result) primaryActionRef.current?.focus()
+  }, [result])
+
+  useEffect(() => {
+    if (!open) setHasAttemptedSubmit(false)
+  }, [open])
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
+  const chatRecordsAvailable = inspectResult?.sources.chatRecords.available ?? false
   const effectiveIncludeLogs = includeLogs && logsAvailable
   const effectiveIncludeTraces = includeTraces && tracesAvailable
+  const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
   const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
-  const canUpload = inspectResult !== null && !isInspectionPending && !inspectError && status === 'idle'
+  const normalizedDescription = description.trim()
+  const descriptionValid =
+    normalizedDescription.length > 0 &&
+    diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
+  const showDescriptionError = hasAttemptedSubmit && !descriptionValid
+  const isBusy = operationStatus !== 'idle'
+  const canAttemptUpload =
+    inspectResult !== null && !isInspectionPending && !inspectError && operationStatus === 'idle' && acknowledged
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && status === 'uploading') return
+  const handleOpenChange = async (nextOpen: boolean) => {
+    if (!nextOpen && isBusy) return
+    if (!nextOpen && result && result.status !== 'uploaded') {
+      try {
+        const discardResult = await discardRetainedUpload(result.bundleId)
+        if (discardResult.status === 'busy') {
+          toast.error(t('settings.about.diagnostics.errors.busy'))
+          return
+        }
+        retainedBundleIdRef.current = null
+      } catch (error) {
+        logger.error('Failed to discard retained diagnostic upload', error as Error)
+        return
+      }
+    }
     onOpenChange(nextOpen)
   }
 
@@ -116,39 +167,88 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
   }
 
   const revealBundle = async () => {
-    if (!result || result.status === 'uploaded') return
+    if (!savedUpload) return
     try {
-      await ipcApi.request('file.show_in_folder', createFilePathHandle(result.filePath))
+      await ipcApi.request('file.show_in_folder', createFilePathHandle(savedUpload.filePath))
     } catch (error) {
       logger.error('Failed to reveal diagnostic upload fallback', error as Error)
       toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
     }
   }
 
+  const acceptSubmissionResult = (uploadResult: OutputFor<'diagnostics.bundle.upload'>) => {
+    if (!mountedRef.current) {
+      if (uploadResult.status !== 'busy' && uploadResult.status !== 'uploaded') {
+        void discardRetainedUpload(uploadResult.bundleId).catch((error) =>
+          logger.error('Failed to discard retained diagnostic upload after unmount', error as Error)
+        )
+      }
+      return
+    }
+    if (uploadResult.status === 'busy') {
+      toast.error(t('settings.about.diagnostics.errors.busy'))
+      return
+    }
+    retainedBundleIdRef.current = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
+    setResult(uploadResult)
+  }
+
   const uploadBundle = async () => {
-    if (!canUpload) return
-    setUploadState({ status: 'uploading' })
+    if (!canAttemptUpload || !descriptionValid) return
+    setOperationStatus('submitting')
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
+        description: normalizedDescription,
+        includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
-        range
+        range: effectiveRange
       })
-      if (uploadResult.status === 'busy') {
-        setUploadState({ status: 'idle' })
-        toast.error(t('settings.about.diagnostics.errors.busy'))
-        return
-      }
-      setUploadState({ result: uploadResult, status: uploadResult.status })
-      if (uploadResult.status === 'manual_upload_required') void openManualForm()
+      acceptSubmissionResult(uploadResult)
     } catch (error) {
       logger.error('Failed to upload diagnostic bundle', error as Error)
-      if (error instanceof IpcError && error.code === diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED) {
-        setUploadState({ status: 'submission_unknown_fallback_save_failed' })
-        return
-      }
-      setUploadState({ status: 'idle' })
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
+    } finally {
+      if (mountedRef.current) setOperationStatus('idle')
+    }
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setHasAttemptedSubmit(true)
+    if (!descriptionValid || !canAttemptUpload) return
+    void uploadBundle()
+  }
+
+  const retryUpload = async () => {
+    if (!result || result.status === 'uploaded' || isBusy) return
+    setOperationStatus('submitting')
+    try {
+      const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: result.bundleId })
+      acceptSubmissionResult(retryResult)
+    } catch (error) {
+      logger.error('Failed to retry diagnostic upload', error as Error)
+      toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
+    } finally {
+      if (mountedRef.current) setOperationStatus('idle')
+    }
+  }
+
+  const saveUpload = async () => {
+    if (!result || result.status === 'uploaded' || savedUpload || isBusy) return
+    setOperationStatus('saving')
+    try {
+      const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: result.bundleId })
+      if (saveResult.status === 'busy') {
+        toast.error(t('settings.about.diagnostics.errors.busy'))
+      } else if (saveResult.status === 'saved') {
+        setSavedUpload(saveResult)
+      }
+    } catch (error) {
+      logger.error('Failed to save retained diagnostic upload', error as Error)
+      toast.error(t('settings.about.diagnostics.upload.errors.save_failed'))
+    } finally {
+      if (mountedRef.current) setOperationStatus('idle')
     }
   }
 
@@ -158,231 +258,252 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
   }))
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        size="xl"
-        className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
-        closeOnOverlayClick={status !== 'uploading'}
-        showCloseButton={status !== 'uploading'}
-        onEscapeKeyDown={(event) => {
-          if (status === 'uploading') event.preventDefault()
-        }}>
-        <DialogHeader className="px-6 pt-6 pr-12 pb-4">
-          <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
-          <DialogDescription>{t('settings.about.diagnostics.upload.dialog.description')}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          size="xl"
+          className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
+          closeOnOverlayClick={!isBusy}
+          showCloseButton={!isBusy}
+          onEscapeKeyDown={(event) => {
+            if (isBusy) event.preventDefault()
+          }}>
+          <DialogHeader className="px-6 pt-6 pr-12 pb-4">
+            <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
+          </DialogHeader>
 
-        <Scrollbar className="min-h-0 px-6 py-2">
-          {result ? (
-            <UploadResultContent result={result} />
-          ) : submissionUnknownFallbackSaveFailed ? (
-            <SubmissionUnknownFallbackSaveFailedContent />
-          ) : (
-            <div className="space-y-4">
-              <section className="space-y-2">
-                <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-                <SegmentedControl<DiagnosticRange>
-                  value={range}
-                  onValueChange={(nextRange) => {
-                    setRange(nextRange)
-                    setInspectResult(null)
-                  }}
-                  options={rangeOptions}
-                  disabled={status === 'uploading'}
-                />
-              </section>
+          <Scrollbar className="min-h-0 px-6 py-2">
+            <span className="sr-only" role="status" aria-live="polite">
+              {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+            </span>
+            {result ? (
+              <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
+            ) : (
+              <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
+                <section className="space-y-2">
+                  <label htmlFor="diagnostic-description" className="block font-medium text-sm">
+                    {t('settings.about.diagnostics.report.description_label')}
+                  </label>
+                  <Textarea.Input
+                    id="diagnostic-description"
+                    value={description}
+                    onValueChange={setDescription}
+                    placeholder={t('settings.about.diagnostics.report.description_placeholder')}
+                    rows={4}
+                    disabled={isBusy}
+                    hasError={showDescriptionError}
+                    aria-describedby={showDescriptionError ? 'diagnostic-description-error' : undefined}
+                  />
+                  {showDescriptionError ? (
+                    <p id="diagnostic-description-error" className="text-error text-xs">
+                      {t(
+                        normalizedDescription.length === 0
+                          ? 'settings.about.diagnostics.report.description_required'
+                          : 'settings.about.diagnostics.report.description_too_long'
+                      )}
+                    </p>
+                  ) : null}
+                </section>
 
-              <section className="divide-y divide-border rounded-xl border border-border">
-                <SourceRow
-                  title={t('settings.about.diagnostics.sources.system.title')}
-                  description={t('settings.about.diagnostics.sources.system.description', {
-                    crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                  })}
-                  checked
-                  disabled
-                />
-                <SourceRow
-                  title={t('settings.about.diagnostics.sources.logs.title')}
-                  description={sourceDescription(t, inspectResult?.sources.logs, isInspectionPending)}
-                  checked={effectiveIncludeLogs}
-                  disabled={status === 'uploading' || isInspectionPending || !logsAvailable}
-                  onCheckedChange={setIncludeLogs}
-                />
-                <SourceRow
-                  title={t('settings.about.diagnostics.sources.traces.title')}
-                  description={sourceDescription(t, inspectResult?.sources.traces, isInspectionPending)}
-                  checked={effectiveIncludeTraces}
-                  disabled={status === 'uploading' || isInspectionPending || !tracesAvailable}
-                  onCheckedChange={setIncludeTraces}
-                />
-              </section>
+                {fixedRange === undefined ? (
+                  <section className="space-y-2">
+                    <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
+                    <SegmentedControl<DiagnosticRange>
+                      value={selectedRange}
+                      onValueChange={(nextRange) => {
+                        setSelectedRange(nextRange)
+                        setInspectResult(null)
+                        setAcknowledged(false)
+                      }}
+                      options={rangeOptions}
+                      disabled={isBusy}
+                    />
+                  </section>
+                ) : null}
 
-              {isInspectionPending ? (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm" role="status">
-                  <LoaderCircle className="size-4 animate-spin" />
-                  {t('settings.about.diagnostics.inspecting')}
-                </div>
-              ) : null}
-              {inspectError ? (
-                <p className="text-error text-sm" role="alert">
-                  {t('settings.about.diagnostics.errors.inspect_failed')}
-                </p>
-              ) : null}
-              {inspectResult?.hasWarnings ? (
-                <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
-              ) : null}
-              <Alert
-                type="info"
-                showIcon
-                message={t('settings.about.diagnostics.upload.privacy.title')}
-                description={t('settings.about.diagnostics.upload.privacy.description', {
-                  size: formatBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
-                })}
-              />
-            </div>
-          )}
-        </Scrollbar>
+                <section className="divide-y divide-border rounded-xl border border-border">
+                  <SourceRow
+                    title={t('settings.about.diagnostics.sources.system.title')}
+                    description={t('settings.about.diagnostics.sources.system.description', {
+                      crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
+                    })}
+                    checked
+                    disabled
+                  />
+                  <SourceRow
+                    title={t('settings.about.diagnostics.sources.logs.title')}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
+                    checked={effectiveIncludeLogs}
+                    disabled={isBusy || isInspectionPending || !logsAvailable}
+                    onCheckedChange={(checked) => {
+                      setIncludeLogs(checked)
+                      setAcknowledged(false)
+                    }}
+                  />
+                  <SourceRow
+                    title={t('settings.about.diagnostics.sources.traces.title')}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
+                    checked={effectiveIncludeTraces}
+                    disabled={isBusy || isInspectionPending || !tracesAvailable}
+                    onCheckedChange={(checked) => {
+                      setIncludeTraces(checked)
+                      setAcknowledged(false)
+                    }}
+                  />
+                  <SourceRow
+                    title={t('settings.about.diagnostics.sources.chat_records.title')}
+                    description={describeDiagnosticChatSource(
+                      t,
+                      inspectResult?.sources.chatRecords,
+                      isInspectionPending
+                    )}
+                    checked={effectiveIncludeChatRecords}
+                    disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
+                    onCheckedChange={(checked) => {
+                      setIncludeChatRecords(checked)
+                      setAcknowledged(false)
+                    }}
+                  />
+                </section>
 
-        <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-          {submissionUnknownFallbackSaveFailed ? (
-            <Button ref={primaryActionRef} variant="outline" onClick={() => handleOpenChange(false)}>
-              {t('settings.about.diagnostics.actions.close')}
-            </Button>
-          ) : result ? (
-            <>
-              <Button
-                ref={result.status === 'uploaded' ? primaryActionRef : undefined}
-                variant="outline"
-                onClick={() => handleOpenChange(false)}>
-                {t('settings.about.diagnostics.actions.close')}
-              </Button>
-              {result.status !== 'uploaded' ? (
-                <Button variant="outline" onClick={() => void revealBundle()}>
-                  {t('settings.about.diagnostics.actions.reveal')}
-                </Button>
-              ) : null}
-              {result.status !== 'uploaded' ? (
-                <Button ref={primaryActionRef} variant="emphasis" onClick={() => void openManualForm()}>
-                  {t('settings.about.diagnostics.upload.actions.open_form')}
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <Button variant="outline" disabled={status === 'uploading'} onClick={() => handleOpenChange(false)}>
-                {t('settings.about.diagnostics.actions.cancel')}
-              </Button>
-              <Button
-                variant="emphasis"
-                loading={status === 'uploading'}
-                disabled={!canUpload}
-                onClick={() => void uploadBundle()}>
+                {inspectError ? (
+                  <p className="text-error text-sm" role="alert">
+                    {t('settings.about.diagnostics.errors.inspect_failed')}
+                  </p>
+                ) : null}
+                {inspectResult?.hasWarnings ? (
+                  <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
+                ) : null}
+                <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
+                  <Checkbox
+                    id="diagnostic-acknowledgement"
+                    checked={acknowledged}
+                    disabled={isBusy}
+                    onCheckedChange={(checked) => setAcknowledged(checked === true)}
+                  />
+                  <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
+                </label>
+              </form>
+            )}
+          </Scrollbar>
+
+          <DialogFooter className="mt-4 border-border border-t px-6 py-4">
+            {isBusy ? (
+              <Button variant="emphasis" loading disabled>
                 {t(
-                  status === 'uploading'
-                    ? 'settings.about.diagnostics.upload.actions.uploading'
-                    : 'settings.about.diagnostics.upload.actions.consent_upload'
+                  operationStatus === 'saving'
+                    ? 'settings.about.diagnostics.report.saving'
+                    : 'settings.about.diagnostics.report.submitting'
                 )}
               </Button>
-            </>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            ) : result ? (
+              <>
+                <Button
+                  ref={result.status === 'uploaded' ? primaryActionRef : undefined}
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}>
+                  {t('settings.about.diagnostics.actions.close')}
+                </Button>
+                {result.status !== 'uploaded' ? (
+                  <Button variant="outline" onClick={() => void openManualForm()}>
+                    {t('settings.about.diagnostics.report.open_manual_form')}
+                  </Button>
+                ) : null}
+                {result.status !== 'uploaded' && !savedUpload ? (
+                  <Button variant="outline" onClick={() => void saveUpload()}>
+                    {t('settings.about.diagnostics.report.save_locally')}
+                  </Button>
+                ) : null}
+                {result.status !== 'uploaded' ? (
+                  <Button ref={primaryActionRef} variant="emphasis" onClick={() => void retryUpload()}>
+                    {t('settings.about.diagnostics.report.retry')}
+                  </Button>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => handleOpenChange(false)}>
+                  {t('settings.about.diagnostics.actions.cancel')}
+                </Button>
+                <Button type="submit" form={uploadFormId} variant="emphasis" disabled={!canAttemptUpload}>
+                  {t('settings.about.diagnostics.upload.actions.consent_upload')}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
-function SubmissionUnknownFallbackSaveFailedContent() {
-  const { t } = useTranslation()
-  return (
-    <div className="flex gap-3 rounded-xl border border-warning-border bg-warning-subtle p-4" role="alert">
-      <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
-      <div className="min-w-0 space-y-1">
-        <p className="font-medium">{t('settings.about.diagnostics.upload.unknown_without_copy.title')}</p>
-        <p className="text-muted-foreground text-sm">
-          {t('settings.about.diagnostics.upload.unknown_without_copy.description')}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function UploadResultContent({ result }: { readonly result: UploadResult }) {
+function UploadResultContent({
+  result,
+  savedUpload,
+  onReveal
+}: {
+  readonly result: UploadResult
+  readonly savedUpload: SavedUploadResult | null
+  readonly onReveal: () => Promise<void>
+}) {
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
     return (
-      <div
-        className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true">
-        <CircleCheck className="mt-0.5 size-5 shrink-0 text-success" />
-        <div className="min-w-0 space-y-1">
-          <p className="font-medium text-success-subtle-foreground">
-            {t('settings.about.diagnostics.upload.success.title')}
-          </p>
-          <p className="text-muted-foreground text-sm">
-            {t('settings.about.diagnostics.upload.success.description', {
-              included: result.includedFileCount,
-              omitted: result.omittedFileCount,
-              size: formatBytes(result.archiveBytes)
-            })}
-          </p>
+      <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">
+        <div className="space-y-2">
+          <p className="font-medium">{t('settings.about.diagnostics.report.success_title')}</p>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.feedback_id')}</span>
+            <code className="break-all">{result.reportId}</code>
+            <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
+          </div>
         </div>
-      </div>
+      </Alert>
     )
   }
 
   const isUnknown = result.status === 'submission_unknown'
-  const reason = isUnknown ? null : result.reason
   return (
     <div className="space-y-4">
-      <div className="flex gap-3 rounded-xl border border-warning-border bg-warning-subtle p-4">
-        <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
-        <div className="min-w-0 space-y-1">
-          <p className="font-medium">
-            {t(
-              isUnknown
-                ? 'settings.about.diagnostics.upload.unknown.title'
-                : 'settings.about.diagnostics.upload.manual.title'
-            )}
-          </p>
-          <p className="text-muted-foreground text-sm">
-            {t(
-              isUnknown
-                ? 'settings.about.diagnostics.upload.unknown.description'
-                : 'settings.about.diagnostics.upload.manual.description'
-            )}
-          </p>
-          {reason ? <p className="text-muted-foreground text-xs">{fallbackReasonText(t, reason)}</p> : null}
-          <p className="break-all text-xs">{result.fileName}</p>
-        </div>
-      </div>
+      <Alert
+        type="warning"
+        showIcon
+        message={t(
+          isUnknown
+            ? 'settings.about.diagnostics.upload.unknown.title'
+            : 'settings.about.diagnostics.upload.manual.title'
+        )}
+        description={
+          isUnknown ? t('settings.about.diagnostics.upload.unknown.description') : failureReasonText(t, result.reason)
+        }
+      />
+      {savedUpload ? (
+        <section
+          aria-label={t('settings.about.diagnostics.report.saved_locally')}
+          className="flex items-center justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <p className="break-all text-sm">{savedUpload.fileName}</p>
+            <p className="text-muted-foreground text-xs">{t('settings.about.diagnostics.report.saved_locally')}</p>
+          </div>
+          <Button variant="link" className="h-auto shrink-0 px-0 py-0" onClick={() => void onReveal()}>
+            {t('settings.about.diagnostics.report.open_location')}
+          </Button>
+        </section>
+      ) : null}
     </div>
   )
 }
 
-function fallbackReasonText(t: ReturnType<typeof useTranslation>['t'], reason: DiagnosticUploadFallbackReason): string {
-  const keys: Record<DiagnosticUploadFallbackReason, string> = {
-    attachment_upload_failed: 'settings.about.diagnostics.upload.reasons.attachment_upload_failed',
-    form_changed: 'settings.about.diagnostics.upload.reasons.form_changed',
-    form_unavailable: 'settings.about.diagnostics.upload.reasons.form_unavailable',
-    network_failed: 'settings.about.diagnostics.upload.reasons.network_failed',
-    submission_rejected: 'settings.about.diagnostics.upload.reasons.submission_rejected'
+function failureReasonText(t: ReturnType<typeof useTranslation>['t'], reason: DiagnosticUploadFailureReason): string {
+  const keys: Record<DiagnosticUploadFailureReason, string> = {
+    archive_too_large: 'settings.about.diagnostics.report.failure_reasons.archive_too_large',
+    authentication_failed: 'settings.about.diagnostics.report.failure_reasons.authentication_failed',
+    invalid_archive: 'settings.about.diagnostics.report.failure_reasons.invalid_archive',
+    rate_limited: 'settings.about.diagnostics.report.failure_reasons.rate_limited',
+    service_unavailable: 'settings.about.diagnostics.report.failure_reasons.service_unavailable',
+    submission_rejected: 'settings.about.diagnostics.report.failure_reasons.submission_rejected'
   }
   return t(keys[reason])
-}
-
-function sourceDescription(
-  t: ReturnType<typeof useTranslation>['t'],
-  source: InspectResult['sources']['logs'] | undefined,
-  isInspectionPending: boolean
-): string {
-  if (isInspectionPending) return t('settings.about.diagnostics.sources.inspecting')
-  if (!source?.available) return t('settings.about.diagnostics.sources.unavailable')
-  return t('settings.about.diagnostics.sources.summary', {
-    count: source.fileCount,
-    size: formatBytes(source.estimatedBytes)
-  })
 }
 
 function SourceRow({

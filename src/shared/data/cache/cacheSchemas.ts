@@ -324,6 +324,9 @@ export type SharedCacheSchema = {
   // Nothing evicts an entry — that is the point, and it costs a handful of rows per
   // session. Null is the cache miss (see the `jobs.state` precedent above).
   'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Apps that want the user's attention, and why (a host-added permission, or an update).
+  // Written by `useWindowRuntime` only; identical in every window, hence shared.
+  'mini_app.attention': CacheValueTypes.CacheMiniAppAttention[]
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
@@ -354,6 +357,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'jobs.progress.${jobId}': { progress: 0 },
   'knowledge.item.embedding_progress.${itemId}': null,
   'mini_app.transient_descriptor.${appId}': null,
+  'mini_app.attention': [],
   'knowledge.item.directory_copy_progress.${itemId}': null
 }
 

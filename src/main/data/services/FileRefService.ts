@@ -14,6 +14,8 @@ import {
   agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
   jobFileRefTable,
+  type MiniAppFileRefRow,
+  miniAppFileRefTable,
   type MiniAppLogoFileRefRow,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
@@ -30,6 +32,7 @@ import {
   chatMessageSourceType,
   FileRefSchema,
   jobSourceType,
+  miniAppFileRef,
   miniAppLogoRef,
   paintingSourceType,
   providerLogoRef,
@@ -88,8 +91,8 @@ function paintingRowToFileRef(row: PaintingFileRefRow): FileRef {
  * the caller-supplied `sourceType` and validates against its variant schema.
  */
 function singleFileRowToFileRef(
-  row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow,
-  sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
+  row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow | MiniAppFileRefRow,
+  sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType | typeof miniAppFileRef.sourceType
 ): FileRef {
   return FileRefSchema.parse({ ...row, sourceType })
 }
@@ -157,6 +160,15 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
+      },
+      [miniAppFileRef.sourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppFileRefTable)
+          .where(eq(miniAppFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
       },
       [jobSourceType]: () => {
         const rows = this.getDb()
@@ -230,6 +242,15 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
       }
+      case miniAppFileRef.sourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppFileRefTable)
+          .where(eq(miniAppFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
+      }
       case jobSourceType: {
         const rows = this.getDb()
           .select()
@@ -296,6 +317,13 @@ class FileRefServiceImpl implements FileRefService {
             .from(miniAppLogoFileRefTable)
             .where(inArray(miniAppLogoFileRefTable.fileEntryId, chunk))
             .groupBy(miniAppLogoFileRefTable.fileEntryId)
+            .all(),
+        [miniAppFileRef.sourceType]: () =>
+          this.getDb()
+            .select({ entryId: miniAppFileRefTable.fileEntryId, refCount: count() })
+            .from(miniAppFileRefTable)
+            .where(inArray(miniAppFileRefTable.fileEntryId, chunk))
+            .groupBy(miniAppFileRefTable.fileEntryId)
             .all(),
         [jobSourceType]: () =>
           this.getDb()

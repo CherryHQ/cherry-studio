@@ -14,10 +14,11 @@ import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
+import { type HermesDashboardEventSchemas, hermesDashboardRequestSchemas } from './hermesDashboard'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
 import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
-import { miniAppRequestSchemas } from './miniApp'
+import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
@@ -58,6 +59,7 @@ export const ipcRequestSchemas = {
   ...diagnosticsRequestSchemas,
   ...exportRequestSchemas,
   ...externalAppRequestSchemas,
+  ...hermesDashboardRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
@@ -101,8 +103,10 @@ export type IpcEventSchemas = AiEventSchemas &
   ChannelEventSchemas &
   DeepSeekHarnessEventSchemas &
   FileEventSchemas &
+  HermesDashboardEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &
+  MiniAppEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
   OAuthEventSchemas &

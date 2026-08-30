@@ -482,6 +482,149 @@ describe('MessageService', () => {
     })
   })
 
+  describe('listLiveCreatedInRangeMetadataPage', () => {
+    it('returns body-free canonical metadata within the closed range in stable newest-first order', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-range-a', activeNodeId: null, orderKey: 'ba0' },
+        { id: 'topic-range-b', activeNodeId: null, orderKey: 'ba1' },
+        { id: 'topic-range-deleted', activeNodeId: null, orderKey: 'ba2', deletedAt: 1 }
+      ])
+      await dbh.db.insert(messageTable).values([
+        { ...rootRow('topic-range-a'), createdAt: 200, updatedAt: 200 },
+        rootRow('topic-range-b'),
+        rootRow('topic-range-deleted'),
+        {
+          id: 'range-start',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('start'),
+          status: 'success',
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'range-tie-a',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'assistant',
+          data: mainText('tie a'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'range-tie-z',
+          parentId: 'vroot-topic-range-b',
+          topicId: 'topic-range-b',
+          role: 'assistant',
+          data: mainText('tie z'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'range-end',
+          parentId: 'vroot-topic-range-b',
+          topicId: 'topic-range-b',
+          role: 'user',
+          data: mainText('结束🙂\n"quoted"\\slash'),
+          status: 'success',
+          compactionSummary: '摘要🙂\n"quoted"',
+          createdAt: 300,
+          updatedAt: 300
+        },
+        {
+          id: 'range-before',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('before'),
+          status: 'success',
+          createdAt: 99,
+          updatedAt: 99
+        },
+        {
+          id: 'range-after',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('after'),
+          status: 'success',
+          createdAt: 301,
+          updatedAt: 301
+        },
+        {
+          id: 'range-message-deleted',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'assistant',
+          data: mainText('deleted message'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200,
+          deletedAt: 1
+        },
+        {
+          id: 'range-topic-deleted',
+          parentId: 'vroot-topic-range-deleted',
+          topicId: 'topic-range-deleted',
+          role: 'assistant',
+          data: mainText('deleted topic'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const firstPage = messageService.listLiveCreatedInRangeMetadataPage({ fromMs: 100, toMs: 300, limit: 2 })
+      const secondPage = messageService.listLiveCreatedInRangeMetadataPage({
+        fromMs: 100,
+        toMs: 300,
+        limit: 2,
+        cursor: firstPage.nextCursor
+      })
+
+      expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+      expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
+      expect(secondPage.nextCursor).toBeUndefined()
+      expect([...firstPage.items, ...secondPage.items].map((message) => message.createdAt)).toEqual([
+        '1970-01-01T00:00:00.300Z',
+        '1970-01-01T00:00:00.200Z',
+        '1970-01-01T00:00:00.200Z',
+        '1970-01-01T00:00:00.100Z'
+      ])
+      for (const metadata of [...firstPage.items, ...secondPage.items]) {
+        const entity = messageService.getById(metadata.id)
+        expect(metadata).not.toHaveProperty('data')
+        expect(metadata.topicId).toBe(entity.topicId)
+        expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+      }
+    })
+
+    it('plans the global keyset range walk without a temporary order-by sort', () => {
+      const plan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT message.id
+           FROM message
+           INNER JOIN topic ON message.topic_id = topic.id
+           WHERE message.created_at >= ?
+             AND message.created_at <= ?
+             AND message.deleted_at IS NULL
+             AND topic.deleted_at IS NULL
+             AND message.role != 'root'
+             AND (message.created_at < ? OR (message.created_at = ? AND message.id > ?))
+           ORDER BY message.created_at DESC, message.id ASC
+           LIMIT ?`
+        )
+        .all(100, 300, 200, 200, 'cursor-id', 101) as Array<{ detail: string }>
+
+      expect(plan.some(({ detail }) => detail.includes('USING INDEX message_created_at_id_idx'))).toBe(true)
+      expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+    })
+  })
+
   describe('markMessagesError', () => {
     async function seedStatuses() {
       await dbh.db.insert(topicTable).values({
