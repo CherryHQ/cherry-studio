@@ -718,7 +718,6 @@ describe('KnowledgePage', () => {
   // The four lazy-contract tests below must stay first: vi.mock factories run once per
   // module per file, so only the first test to open each dialog/panel can observe its load.
   it('does not load the management dialogs or item detail panels while the page renders', async () => {
-    const user = userEvent.setup()
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
