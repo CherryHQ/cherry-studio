@@ -3,6 +3,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { settingsMenu } from '@renderer/pages/settings/settingsMenu'
 import SettingsFocusScroll from '@renderer/pages/settings/settingsSearch/SettingsFocusScroll'
+import SettingsFocusUrl from '@renderer/pages/settings/settingsSearch/SettingsFocusUrl'
 import SettingsSearchBox from '@renderer/pages/settings/settingsSearch/SettingsSearchBox'
 import { SettingsSearchDomIdsProvider } from '@renderer/pages/settings/settingsSearch/SettingsSearchDomIds'
 import {
@@ -106,6 +107,7 @@ const SettingsPage: FC = () => {
               data-ui="settings.content"
               className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
               <Outlet />
+              <SettingsFocusUrl />
               <SettingsFocusScroll scopeRef={contentRef} />
             </div>
           </div>

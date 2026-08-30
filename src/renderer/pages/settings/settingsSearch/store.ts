@@ -8,8 +8,11 @@
  * other's selection/jump/highlight intent. Accepted as low-risk: every field
  * is recoverable ephemeral UI state, and <Activity> hide runs unmount
  * cleanups, so a hidden tab releases liveQuery and its jump handler instead
- * of leaking them. EXIT CONDITION: once tab session identity/ownership is
- * unified (the per-tab session class of bugs, e.g. #18885 / #18879), delete
+ * of leaking them. The recognized pendingFocus intent writers are the search
+ * results page's goTo and the URL translator (SettingsFocusUrl) —
+ * SettingsFocusScroll only consumes/clears it, and more writers do not
+ * extend the protocol. EXIT CONDITION: once tab session identity/ownership
+ * is unified (the per-tab session class of bugs, e.g. #18885 / #18879), delete
  * this module and move the state to the owning tab's context/provider.
  */
 import { useSyncExternalStore } from 'react'
