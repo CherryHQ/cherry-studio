@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@cherrystudio/ui'
-import type { SkillSearchSource } from '@shared/types/skill'
+import { parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
 
 const SOURCE_LABEL_KEYS: Record<string, string> = {
   builtin: 'settings.skills.source.builtin',
@@ -11,16 +11,11 @@ const SOURCE_LABEL_KEYS: Record<string, string> = {
   zip: 'settings.skills.source.zip'
 }
 
-export function SkillSourceBadge({
-  source,
-  sourceRegistry
-}: {
-  source: string
-  sourceRegistry?: SkillSearchSource | null
-}) {
+export function SkillSourceBadge({ source, sourceUrl }: { source: string; sourceUrl?: string | null }) {
   const { t } = useTranslation()
   const labelKey = SOURCE_LABEL_KEYS[source]
   const label = labelKey ? t(labelKey) : source
+  const sourceRegistry = source === 'marketplace' && sourceUrl ? parseSkillSourceUrl(sourceUrl)?.sourceRegistry : null
 
   return (
     <Badge

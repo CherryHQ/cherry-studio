@@ -184,7 +184,7 @@ async function fetchFromGithub(
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
   const sourceUrl = namespace
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
-    : `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
+    : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
 
   const tempDir = await openTempDir()
   const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)
@@ -199,7 +199,11 @@ async function fetchFromSkillsSh(
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const parts = identifier.split('/')
-  if (parts.length !== 3 || parts.some((part) => !part)) {
+  if (
+    parts.length !== 3 ||
+    !parts.every((part) => /^[a-zA-Z0-9_.-]+$/.test(part)) ||
+    parts.some((part) => part === '.' || part === '..')
+  ) {
     throw new Error(`Invalid skills.sh identifier: ${identifier}`)
   }
   logger.info('Installing from skills.sh', { identifier })
@@ -211,7 +215,10 @@ async function fetchFromSkillsSh(
 
   const skillDir = await resolveSkillDirectory(tempDir, skillName, null)
   await assertSkillDirectoryWithinLimits(skillDir)
-  return { skillDir, sourceUrl: repoUrl }
+  return {
+    skillDir,
+    sourceUrl: `https://skills.sh/${identifier}`
+  }
 }
 
 async function fetchFromClawhub(

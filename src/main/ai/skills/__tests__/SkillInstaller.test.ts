@@ -1,5 +1,6 @@
 import * as path from 'node:path'
 
+import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockPathExists = vi.fn()
@@ -139,7 +140,7 @@ describe('SkillInstaller', () => {
     })
   })
 
-  it('hashes scripts and assets in addition to SKILL.md', async () => {
+  it('uses a versioned full-directory hash as the persisted content baseline', async () => {
     mockFsReaddir.mockImplementation(async (directory: string) => {
       if (directory.endsWith('/scripts')) {
         return [{ name: 'run.sh' }]
@@ -157,9 +158,10 @@ describe('SkillInstaller', () => {
     })
     mockFindSkillMdPath.mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
 
-    const sourceHash = await installer.computeDirectoryHash('/source/skill')
-    const installedHash = await installer.computeDirectoryHash('/installed/skill')
+    const sourceHash = await installer.computeContentHash('/source/skill')
+    const installedHash = await installer.computeContentHash('/installed/skill')
 
+    expect(sourceHash).toMatch(new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}[a-f0-9]{64}$`))
     expect(installedHash).not.toBe(sourceHash)
   })
 

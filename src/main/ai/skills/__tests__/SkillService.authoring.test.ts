@@ -8,6 +8,7 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
+import { hasSkillRemoteUpdateProvenance } from '@shared/utils/skillMarketplace'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,6 +26,7 @@ const SKILL_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_SKILL_ID = '22222222-2222-4222-8222-222222222222'
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const INSTALL_SOURCE = 'skills.sh:owner/repo/writer'
+const SOURCE_URL = 'https://skills.sh/owner/repo/writer'
 
 describe('SkillService authoring and remote updates', () => {
   const dbh = setupTestDatabase()
@@ -65,22 +67,24 @@ describe('SkillService authoring and remote updates', () => {
     folderName: string,
     options: {
       source?: string
-      installSource?: string | null
-      upstreamHash?: string | null
+      sourceUrl?: string | null
+      contentHash?: string
       isEnabled?: boolean
       updatedAt?: number
     } = {}
   ): Promise<void> {
     const directory = path.join(skillsRoot, folderName)
-    const contentHash = await installer.computeContentHash(directory)
+    const contentHash = options.contentHash ?? (await installer.computeContentHash(directory))
     await dbh.db.insert(agentGlobalSkillTable).values({
       id,
       name: folderName,
+      description: `${folderName} description`,
       folderName,
       source: options.source ?? 'marketplace',
+      sourceUrl:
+        options.sourceUrl === undefined ? (options.source === 'builtin' ? null : SOURCE_URL) : options.sourceUrl,
+      version: '1.0.0',
       contentHash,
-      installSource: options.installSource ?? null,
-      upstreamHash: options.upstreamHash ?? null,
       isEnabled: options.isEnabled ?? true,
       updatedAt: options.updatedAt
     })
@@ -90,7 +94,7 @@ describe('SkillService authoring and remote updates', () => {
     const tempDir = await makeTempDir('skill-remote-')
     const skillDir = path.join(tempDir, 'writer')
     await writeSkill(skillDir, { name: 'writer', version, supportingContent })
-    return { tempDir, skillDir, sourceUrl: 'https://github.com/owner/repo' }
+    return { tempDir, skillDir, sourceUrl: SOURCE_URL }
   }
 
   beforeEach(async () => {
@@ -126,6 +130,7 @@ describe('SkillService authoring and remote updates', () => {
     const otherDir = path.join(skillsRoot, 'other')
     await writeSkill(skillDir)
     await writeSkill(otherDir)
+    const baseline = await installer.computeContentHash(skillDir)
     await seedSkill(SKILL_ID, 'writer', { updatedAt: 10 })
     await seedSkill(OTHER_SKILL_ID, 'other', { updatedAt: 20 })
     await fs.promises.writeFile(path.join(skillDir, 'scripts', 'run.sh'), 'echo changed\n', 'utf-8')
@@ -138,15 +143,44 @@ describe('SkillService authoring and remote updates', () => {
       .from(agentGlobalSkillTable)
       .where(eq(agentGlobalSkillTable.id, OTHER_SKILL_ID))
       .get()
-    expect(updated?.updatedAt).toBeGreaterThan(10)
+    expect(updated).toMatchObject({ contentHash: baseline, updatedAt: 10 })
     expect(untouched?.updatedAt).toBe(20)
     await expect(fs.promises.readFile(path.join(mirrorRoot, 'writer', 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
       'echo changed\n'
     )
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('reconciles edited metadata without replacing the installation baseline', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir)
+    const baseline = await installer.computeContentHash(skillDir)
+    await seedSkill(SKILL_ID, 'writer', { updatedAt: 10 })
+    await writeSkill(skillDir, { version: '2.0.0' })
+
+    await new SkillService().reconcileSkill(SKILL_ID)
+
+    const updated = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID)).get()
+    expect(updated).toMatchObject({ version: '2.0.0', contentHash: baseline })
+    expect(updated?.updatedAt).toBeGreaterThan(10)
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
       { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID] },
       { endpoint: '/skills/:skillId', entityIds: [SKILL_ID] }
     ])
+  })
+
+  it('keeps the installation baseline during full library reconciliation', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir)
+    const baseline = await installer.computeContentHash(skillDir)
+    await seedSkill(SKILL_ID, 'writer', { updatedAt: 10 })
+    await writeSkill(skillDir, { version: '2.0.0', supportingContent: 'echo locally edited\n' })
+
+    await new SkillService().reconcileSkills()
+
+    const updated = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID)).get()
+    expect(updated).toMatchObject({ version: '2.0.0', contentHash: baseline })
+    expect(updated?.updatedAt).toBeGreaterThan(10)
   })
 
   it('rejects scoped reconciliation for a built-in Skill', async () => {
@@ -201,27 +235,42 @@ describe('SkillService authoring and remote updates', () => {
     ])
   })
 
-  it('stores exact remote provenance and derives only safe renderer update fields on install', async () => {
+  it('stores the exact Skill source URL and full-directory installation baseline', async () => {
     const fetched = await createFetchedSkill('1.0.0', 'echo installed\n')
-    const upstreamHash = await installer.computeDirectoryHash(fetched.skillDir)
+    const contentHash = await installer.computeContentHash(fetched.skillDir)
     const onInstalled = vi.fn()
     fetchRemoteSkillMock.mockResolvedValue({ ...fetched, onInstalled })
 
     const installed = await new SkillService().install({ installSource: INSTALL_SOURCE })
 
     const row = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, installed.id)).get()
-    expect(row).toMatchObject({ installSource: INSTALL_SOURCE, upstreamHash })
-    expect(installed).toMatchObject({ sourceRegistry: 'skills.sh', canUpdateFromRemote: true })
-    expect(installed).not.toHaveProperty('installSource')
+    expect(row).toMatchObject({ sourceUrl: SOURCE_URL, contentHash })
+    expect(hasSkillRemoteUpdateProvenance(installed)).toBe(true)
+    expect(fetchRemoteSkillMock).toHaveBeenCalledExactlyOnceWith('skills.sh', 'owner/repo/writer')
     expect(onInstalled).toHaveBeenCalledOnce()
     await expect(fs.promises.access(fetched.tempDir)).rejects.toThrow()
+  })
+
+  it('upgrades a legacy skills.sh repo-root source through an explicit exact reinstall', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir)
+    await seedSkill(SKILL_ID, 'writer', {
+      sourceUrl: 'https://github.com/owner/repo',
+      contentHash: 'legacy-skill-md-hash'
+    })
+    const fetched = await createFetchedSkill('2.0.0', 'echo upgraded\n')
+    fetchRemoteSkillMock.mockResolvedValue(fetched)
+
+    const installed = await new SkillService().install({ installSource: INSTALL_SOURCE })
+
+    expect(installed).toMatchObject({ id: SKILL_ID, sourceUrl: SOURCE_URL, version: '2.0.0' })
+    expect(hasSkillRemoteUpdateProvenance(installed)).toBe(true)
   })
 
   it('checks a dirty Skill, refuses implicit overwrite, then applies the confirmed remote version in place', async () => {
     const skillDir = path.join(skillsRoot, 'writer')
     await writeSkill(skillDir, { supportingContent: 'echo baseline\n' })
-    const upstreamHash = await installer.computeDirectoryHash(skillDir)
-    await seedSkill(SKILL_ID, 'writer', { installSource: INSTALL_SOURCE, upstreamHash, isEnabled: false })
+    await seedSkill(SKILL_ID, 'writer', { isEnabled: false })
     await dbh.db.insert(agentTable).values({
       id: AGENT_ID,
       type: 'claude-code',
@@ -262,17 +311,17 @@ describe('SkillService authoring and remote updates', () => {
     })
     await expect(fs.promises.readFile(path.join(skillDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo remote\n')
     const row = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID)).get()
-    expect(row?.upstreamHash).toBe(await installer.computeDirectoryHash(skillDir))
+    expect(row?.contentHash).toBe(await installer.computeContentHash(skillDir))
     for (const tempDir of fetchedTempDirs) {
       await expect(fs.promises.access(tempDir)).rejects.toThrow()
     }
   })
 
-  it('leaves files and provenance unchanged when remote publication fails', async () => {
+  it('leaves files and the installation baseline unchanged when remote publication fails', async () => {
     const skillDir = path.join(skillsRoot, 'writer')
     await writeSkill(skillDir, { supportingContent: 'echo baseline\n' })
-    const upstreamHash = await installer.computeDirectoryHash(skillDir)
-    await seedSkill(SKILL_ID, 'writer', { installSource: INSTALL_SOURCE, upstreamHash })
+    const contentHash = await installer.computeContentHash(skillDir)
+    await seedSkill(SKILL_ID, 'writer')
     let fetchedTempDir = ''
     fetchRemoteSkillMock.mockImplementation(async () => {
       const fetched = await createFetchedSkill('2.0.0', 'echo remote\n')
@@ -296,15 +345,14 @@ describe('SkillService authoring and remote updates', () => {
       'echo baseline\n'
     )
     const row = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID)).get()
-    expect(row).toMatchObject({ version: null, installSource: INSTALL_SOURCE, upstreamHash })
+    expect(row).toMatchObject({ version: '1.0.0', sourceUrl: SOURCE_URL, contentHash })
     await expect(fs.promises.access(fetchedTempDir)).rejects.toThrow()
   })
 
   it('rejects a stale checked revision before replacing the local folder', async () => {
     const skillDir = path.join(skillsRoot, 'writer')
     await writeSkill(skillDir, { supportingContent: 'echo baseline\n' })
-    const upstreamHash = await installer.computeDirectoryHash(skillDir)
-    await seedSkill(SKILL_ID, 'writer', { installSource: INSTALL_SOURCE, upstreamHash })
+    await seedSkill(SKILL_ID, 'writer')
     fetchRemoteSkillMock.mockImplementation(() => createFetchedSkill('2.0.0', 'echo remote\n'))
     const service = new SkillService()
     const check = await service.checkRemoteUpdate(SKILL_ID)
@@ -319,10 +367,10 @@ describe('SkillService authoring and remote updates', () => {
     )
   })
 
-  it('does not guess provenance for old marketplace rows or modify files after a network failure', async () => {
+  it('does not treat a legacy SKILL.md-only hash as an installation baseline', async () => {
     const oldSkillDir = path.join(skillsRoot, 'writer')
     await writeSkill(oldSkillDir)
-    await seedSkill(SKILL_ID, 'writer')
+    await seedSkill(SKILL_ID, 'writer', { contentHash: 'legacy-skill-md-hash' })
     const service = new SkillService()
 
     await expect(service.checkRemoteUpdate(SKILL_ID)).resolves.toEqual({
@@ -330,11 +378,8 @@ describe('SkillService authoring and remote updates', () => {
       reason: 'missing_provenance'
     })
 
-    const upstreamHash = await installer.computeDirectoryHash(oldSkillDir)
-    await dbh.db
-      .update(agentGlobalSkillTable)
-      .set({ installSource: INSTALL_SOURCE, upstreamHash })
-      .where(eq(agentGlobalSkillTable.id, SKILL_ID))
+    const contentHash = await installer.computeContentHash(oldSkillDir)
+    await dbh.db.update(agentGlobalSkillTable).set({ contentHash }).where(eq(agentGlobalSkillTable.id, SKILL_ID))
     fetchRemoteSkillMock.mockRejectedValue(new Error('offline'))
     await expect(service.checkRemoteUpdate(SKILL_ID)).rejects.toThrow('offline')
     await expect(fs.promises.readFile(path.join(oldSkillDir, 'SKILL.md'), 'utf-8')).resolves.toContain('version: 1.0.0')

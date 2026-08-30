@@ -150,8 +150,6 @@ export const InstalledSkillSchema = z.object({
   version: z.string().nullable(),
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
-  sourceRegistry: SkillSearchSourceSchema.nullable(),
-  canUpdateFromRemote: z.boolean(),
   isGlobalEnabled: z.boolean(),
   isEnabled: z.boolean(),
   createdAt: z.iso.datetime(),

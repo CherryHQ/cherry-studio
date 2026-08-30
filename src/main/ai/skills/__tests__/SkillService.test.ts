@@ -844,8 +844,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md',
-        { installSource: 'github:https://github.com/owner/repo/blob/dev/skills/recruit-init/SKILL.md' }
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md'
       )
     })
 
@@ -948,8 +947,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(`${path.sep}content`),
         'marketplace',
-        `https://github.com/owner/repo/tree/${oid}`,
-        { installSource: `github:https://github.com/owner/repo/blob/${oid}/SKILL.md` }
+        `https://github.com/owner/repo/blob/${oid}/SKILL.md`
       )
     })
 
@@ -970,8 +968,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md',
-        { installSource: 'github:https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md' }
+        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
       )
     })
 
@@ -1158,11 +1155,27 @@ describe('SkillService', () => {
         .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
         .mockResolvedValue({})
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
-      return { skillService, workDir, gitCalls, installSkillDirSpy }
+      return { skillService, workDir, gitCalls, installSkillDirSpy, installSpy: installSkillDirSpy }
     }
 
     const installFromClone = (skillService: SkillService) =>
       skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })
+
+    it('persists the exact skills.sh Skill path instead of the cloned repository root', async () => {
+      const { skillService, installSpy, workDir } = await setupClonedInstall()
+      vi.mocked(findAllSkillDirectories).mockResolvedValueOnce([
+        { folderPath: path.join(workDir, 'skills', 'demo'), sourcePath: 'skills/demo' }
+      ])
+      vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'demo' } as never)
+
+      await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
+
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('skills', 'demo')),
+        'marketplace',
+        'https://skills.sh/owner/repo/demo'
+      )
+    })
 
     it('bounds a clone and blocks its credential prompts, the way the fetch path already is', async () => {
       const { skillService, gitCalls } = await setupClonedInstall()
@@ -1365,8 +1378,7 @@ describe('SkillService', () => {
         expect(installSkillDirSpy).toHaveBeenCalledWith(
           canonicalExtractDir,
           'marketplace',
-          'https://clawhub.ai/ivangdavila/skills/code',
-          { installSource: 'clawhub:ivangdavila/code' }
+          'https://clawhub.ai/ivangdavila/skills/code'
         )
       } finally {
         createTempDirSpy.mockRestore()
