@@ -13,6 +13,7 @@ const { captured, mockTracerInit, mockTracerShutdown, MockCacheBatchSpanProcesso
         }
       | undefined,
     storage: { isActivated: false },
+    bridge: { isActivated: false },
     storageActivation: undefined as Promise<void> | undefined,
     transitions: [] as string[]
   },
@@ -36,6 +37,7 @@ vi.mock('@application', () => ({
         }
       }
       if (name === 'TraceStorageService') return captured.storage
+      if (name === 'ClaudeCodeTraceBridgeService') return captured.bridge
       if (name === 'NodeTraceService') return captured.service
       throw new Error(`Unexpected service: ${name}`)
     }),
@@ -46,12 +48,20 @@ vi.mock('@application', () => ({
         captured.storage.isActivated = true
         return
       }
+      if (name === 'ClaudeCodeTraceBridgeService') {
+        captured.bridge.isActivated = true
+        return
+      }
       await captured.service?._doActivate()
     }),
     deactivate: vi.fn(async (name: string) => {
       captured.transitions.push(`deactivate:${name}`)
       if (name === 'TraceStorageService') {
         captured.storage.isActivated = false
+        return
+      }
+      if (name === 'ClaudeCodeTraceBridgeService') {
+        captured.bridge.isActivated = false
         return
       }
       await captured.service?._doDeactivate()
@@ -97,6 +107,7 @@ describe('NodeTraceService runtime preference', () => {
     captured.preferenceHandler = undefined
     captured.service = undefined
     captured.storage.isActivated = false
+    captured.bridge.isActivated = false
     captured.storageActivation = undefined
     captured.transitions.length = 0
     mockTracerInit.mockReset()
@@ -112,6 +123,7 @@ describe('NodeTraceService runtime preference', () => {
 
     expect(service.isActivated).toBe(false)
     expect(captured.storage.isActivated).toBe(false)
+    expect(captured.bridge.isActivated).toBe(false)
     expect(mockTracerInit).not.toHaveBeenCalled()
 
     setDeveloperMode(true)
@@ -119,7 +131,12 @@ describe('NodeTraceService runtime preference', () => {
 
     expect(service.isActivated).toBe(true)
     expect(captured.storage.isActivated).toBe(true)
-    expect(captured.transitions).toEqual(['activate:TraceStorageService', 'activate:NodeTraceService'])
+    expect(captured.bridge.isActivated).toBe(true)
+    expect(captured.transitions).toEqual([
+      'activate:TraceStorageService',
+      'activate:NodeTraceService',
+      'activate:ClaudeCodeTraceBridgeService'
+    ])
     expect(mockTracerInit).toHaveBeenCalledTimes(1)
 
     setDeveloperMode(false)
@@ -127,7 +144,12 @@ describe('NodeTraceService runtime preference', () => {
 
     expect(service.isActivated).toBe(false)
     expect(captured.storage.isActivated).toBe(false)
-    expect(captured.transitions.slice(2)).toEqual(['deactivate:NodeTraceService', 'deactivate:TraceStorageService'])
+    expect(captured.bridge.isActivated).toBe(false)
+    expect(captured.transitions.slice(3)).toEqual([
+      'deactivate:ClaudeCodeTraceBridgeService',
+      'deactivate:NodeTraceService',
+      'deactivate:TraceStorageService'
+    ])
     expect(mockTracerShutdown).toHaveBeenCalledTimes(1)
 
     setDeveloperMode(true)
@@ -135,6 +157,7 @@ describe('NodeTraceService runtime preference', () => {
 
     expect(service.isActivated).toBe(true)
     expect(captured.storage.isActivated).toBe(true)
+    expect(captured.bridge.isActivated).toBe(true)
     expect(mockTracerInit).toHaveBeenCalledTimes(2)
     expect(MockCacheBatchSpanProcessor).toHaveBeenCalledTimes(2)
     expect(MockCacheBatchSpanProcessor.mock.results[0].value).not.toBe(
@@ -166,6 +189,7 @@ describe('NodeTraceService runtime preference', () => {
 
     expect(service.isActivated).toBe(true)
     expect(captured.storage.isActivated).toBe(true)
+    expect(captured.bridge.isActivated).toBe(true)
     expect(mockTracerInit).toHaveBeenCalledTimes(2)
     expect(captured.transitions).not.toContain('deactivate:TraceStorageService')
   })
@@ -188,6 +212,7 @@ describe('NodeTraceService runtime preference', () => {
 
     expect(service.isActivated).toBe(false)
     expect(captured.storage.isActivated).toBe(false)
+    expect(captured.bridge.isActivated).toBe(false)
     expect(mockTracerInit).not.toHaveBeenCalled()
     expect(captured.transitions).toEqual(['activate:TraceStorageService', 'deactivate:TraceStorageService'])
   })

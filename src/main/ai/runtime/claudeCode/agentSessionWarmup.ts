@@ -387,6 +387,10 @@ async function deriveConnectionConfigFromSnapshot(
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
     language: getAppLanguage(),
+    // Claude Code receives its telemetry environment only when the subprocess is spawned. A
+    // developer-mode change therefore takes effect at the next safe turn boundary by making the
+    // existing connection stale; active turns remain untouched and finish on their current child.
+    developerTracingEnabled: application.get('PreferenceService').get('app.developer_mode.enabled') === true,
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.

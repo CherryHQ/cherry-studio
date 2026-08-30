@@ -1208,6 +1208,19 @@ describe('deriveConnectionConfig', () => {
     expect(second.rebuildFactFingerprints).toEqual(first.rebuildFactFingerprints)
   })
 
+  it('rebuilds a persisted Claude Code connection when developer tracing changes', async () => {
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.developer_mode.enabled' ? false : undefined))
+    const disabled = await deriveSignature()
+
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.developer_mode.enabled' ? true : undefined))
+    const enabled = await deriveSignature()
+
+    expect(enabled.rebuildSignature).not.toBe(disabled.rebuildSignature)
+    expect(enabled.rebuildFactFingerprints.developerTracingEnabled).not.toBe(
+      disabled.rebuildFactFingerprints.developerTracingEnabled
+    )
+  })
+
   it('does not rebuild when only the usage pricing capture time changes', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,

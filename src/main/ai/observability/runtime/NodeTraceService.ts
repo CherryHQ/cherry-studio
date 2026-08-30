@@ -28,16 +28,20 @@ export class NodeTraceService extends BaseService implements Activatable {
     desired: boolean
     traceActive: boolean
     storageActive: boolean
+    claudeCodeBridgeActive: boolean
   }>({
     name: 'developerTracing',
     getSnapshot: () => ({
       desired: this.desiredEnabled,
       traceActive: this.isActivated,
-      storageActive: application.get('TraceStorageService').isActivated
+      storageActive: application.get('TraceStorageService').isActivated,
+      claudeCodeBridgeActive: application.get('ClaudeCodeTraceBridgeService').isActivated
     }),
-    isSettled: ({ desired, traceActive, storageActive }) =>
-      desired ? traceActive && storageActive : !traceActive && !storageActive,
-    apply: async ({ desired, traceActive, storageActive }) => {
+    isSettled: ({ desired, traceActive, storageActive, claudeCodeBridgeActive }) =>
+      desired
+        ? traceActive && storageActive && claudeCodeBridgeActive
+        : !traceActive && !storageActive && !claudeCodeBridgeActive,
+    apply: async ({ desired, traceActive, storageActive, claudeCodeBridgeActive }) => {
       if (desired) {
         if (!storageActive) {
           await application.activate('TraceStorageService')
@@ -51,10 +55,26 @@ export class NodeTraceService extends BaseService implements Activatable {
           if (!this.isActivated) {
             throw new Error('Failed to activate NodeTraceService')
           }
+          return
+        }
+        if (!claudeCodeBridgeActive) {
+          await application.activate('ClaudeCodeTraceBridgeService')
+          if (!application.get('ClaudeCodeTraceBridgeService').isActivated) {
+            throw new Error('Failed to activate ClaudeCodeTraceBridgeService')
+          }
         }
         return
       }
 
+      // The bridge must stop accepting telemetry before either downstream tracing component is
+      // torn down. Its HTTP server and trace-context registry are both lifecycle-owned.
+      if (claudeCodeBridgeActive) {
+        await application.deactivate('ClaudeCodeTraceBridgeService')
+        if (application.get('ClaudeCodeTraceBridgeService').isActivated) {
+          throw new Error('Failed to deactivate ClaudeCodeTraceBridgeService')
+        }
+        return
+      }
       if (traceActive) {
         await application.deactivate('NodeTraceService')
         if (this.isActivated) {
