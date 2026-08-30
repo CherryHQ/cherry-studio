@@ -24,8 +24,10 @@ const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
 // The WeakMap key is the plugin object (stable identity from the registry).
 // The cache lives behind a mutable binding so test code can clear it between cases
 // via `__filePreviewInternal.resetLoadedModules()`. Production code never calls reset.
-let loadedModules: WeakMap<FilePreviewPlugin, Promise<{ default: ComponentType<FilePreviewPluginProps> }>> =
-  new WeakMap()
+let loadedModules: WeakMap<
+  FilePreviewPlugin,
+  Promise<{ default: ComponentType<FilePreviewPluginProps> }>
+> = new WeakMap()
 
 export const __filePreviewInternal = {
   resetLoadedModules(): void {
@@ -233,8 +235,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
         // Use WeakMap cache so load() is called at most once per plugin instance.
         // For unknown extensions we may need textFilePreviewPlugin as a fallback,
         // so load it too alongside the candidate plugin.
-        const needsTextFallback =
-          !candidatePlugin || TEXT_CONTENT_PLUGIN_IDS.has(candidatePlugin.id)
+        const needsTextFallback = !candidatePlugin || TEXT_CONTENT_PLUGIN_IDS.has(candidatePlugin.id)
         const textPluginLoad =
           needsTextFallback && !loadedModules.has(textFilePreviewPlugin)
             ? (() => {
@@ -242,7 +243,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
                 loadedModules.set(textFilePreviewPlugin, p)
                 return p
               })()
-            : loadedModules.get(textFilePreviewPlugin) ?? Promise.resolve(null)
+            : (loadedModules.get(textFilePreviewPlugin) ?? Promise.resolve(null))
 
         const candidateLoad = (() => {
           if (!candidatePlugin) return null
@@ -262,8 +263,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
           candidateLoad
         ])
         const metadata = metadataResult.status === 'fulfilled' ? metadataResult.value : null
-        const candidateModule =
-          candidateResult && candidateResult.status === 'fulfilled' ? candidateResult.value : null
+        const candidateModule = candidateResult && candidateResult.status === 'fulfilled' ? candidateResult.value : null
         const candidateLoadError =
           candidateResult && candidateResult.status === 'rejected' ? candidateResult.reason : null
 
@@ -317,9 +317,8 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
 
         // Pre-create a render-bound element factory so we never invoke lazy()
         // again on re-render — the chunk is already in `pluginModule`.
-        const pluginComponent: ((props: FilePreviewPluginProps) => ReactNode) | null = plugin && pluginModule
-          ? (props) => createElement(pluginModule.default, props)
-          : null
+        const pluginComponent: ((props: FilePreviewPluginProps) => ReactNode) | null =
+          plugin && pluginModule ? (props) => createElement(pluginModule.default, props) : null
 
         setResolution({ file, metadata, plugin, pluginComponent, requestKey, status: 'ready' })
       } catch {
