@@ -82,8 +82,3 @@ export function requestJump() {
 export function setPendingFocus(domId: string | undefined) {
   setState({ pendingFocusId: domId })
 }
-
-/** DOM ids shared by the combobox input (aria-controls/activedescendant) and the listbox */
-export const SETTINGS_SEARCH_LISTBOX_ID = 'settings-search-results-listbox'
-
-export const settingsSearchOptionDomId = (index: number) => `settings-search-option-${index}`

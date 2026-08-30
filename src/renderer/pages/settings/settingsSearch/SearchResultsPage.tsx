@@ -7,14 +7,8 @@ import { useTranslation } from 'react-i18next'
 
 import { settingsSearchSections } from './aggregate'
 import { rankEntries } from './searchEngine'
-import {
-  publishResults,
-  registerJumpHandler,
-  setPendingFocus,
-  SETTINGS_SEARCH_LISTBOX_ID,
-  settingsSearchOptionDomId,
-  useSettingsSearchKeyboard
-} from './store'
+import { useSettingsSearchDomIds } from './SettingsSearchDomIds'
+import { publishResults, registerJumpHandler, setPendingFocus, useSettingsSearchKeyboard } from './store'
 
 /**
  * Results page for the hidden /settings/search route. Flat list of ranked
@@ -34,6 +28,7 @@ const SearchResultsPage = () => {
   const { t: tEn, i18n } = useTranslation(undefined, { lng: 'en-US', useSuspense: false })
   const tEnReady = i18n.hasResourceBundle('en-US', 'translation') ? tEn : undefined
   const { activeIndex, liveQuery } = useSettingsSearchKeyboard()
+  const { listboxId, optionDomId } = useSettingsSearchDomIds()
   const listRef = useRef<HTMLDivElement>(null)
 
   const urlQuery = typeof search.q === 'string' ? search.q : ''
@@ -61,8 +56,8 @@ const SearchResultsPage = () => {
 
   // Keep the keyboard-selected row in view
   useEffect(() => {
-    listRef.current?.querySelector(`#${settingsSearchOptionDomId(activeIndex)}`)?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex])
+    listRef.current?.querySelector(`#${optionDomId(activeIndex)}`)?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, optionDomId])
 
   if (!results.length) {
     return (
@@ -77,14 +72,14 @@ const SearchResultsPage = () => {
       <div
         ref={listRef}
         role="listbox"
-        id={SETTINGS_SEARCH_LISTBOX_ID}
+        id={listboxId}
         aria-label={t('settings.search.results')}
         className="flex flex-col gap-0.5"
         data-ui="settings.search.results">
         {results.map((result, index) => (
           <button
             key={`${result.route}-${result.focusId ?? 'section'}-${index}`}
-            id={settingsSearchOptionDomId(index)}
+            id={optionDomId(index)}
             type="button"
             role="option"
             // Combobox owns the focus (aria-activedescendant model): options stay
