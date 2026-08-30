@@ -23,8 +23,15 @@ const diagnosticSourceSummarySchema = z.object({
   fileCount: z.number().int().nonnegative()
 })
 
+const diagnosticChatSourceSummarySchema = z.object({
+  available: z.boolean(),
+  estimatedBytes: z.number().int().nonnegative(),
+  messageCount: z.number().int().nonnegative()
+})
+
 const diagnosticBundleInputSchema = z
   .object({
+    includeChatRecords: z.boolean(),
     includeLogs: z.boolean(),
     includeTraces: z.boolean(),
     range: diagnosticRangeSchema
@@ -63,6 +70,7 @@ export const diagnosticsRequestSchemas = {
       hasWarnings: z.boolean(),
       sourceLimitBytes: z.number().int().positive(),
       sources: z.object({
+        chatRecords: diagnosticChatSourceSummarySchema,
         crashDumps: z.object({ fileCount: z.number().int().nonnegative() }),
         logs: diagnosticSourceSummarySchema,
         traces: diagnosticSourceSummarySchema

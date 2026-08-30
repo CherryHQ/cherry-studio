@@ -1,5 +1,6 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -83,6 +84,25 @@ function makeGeminiProvider() {
 }
 
 describe('listModels — default grouping', () => {
+  it('surfaces strict listing errors without writing provider error details to logs', async () => {
+    const apiKey = 'sk-should-not-reach-logs'
+    const provider = makeProvider({
+      id: 'openai',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://models.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockRejectedValueOnce(new Error(`Unauthorized for ${apiKey}`))
+
+    await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow(`Unauthorized for ${apiKey}`)
+
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Error listing models', {
+      providerId: 'openai',
+      errorType: 'Error'
+    })
+    expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain(apiKey)
+  })
+
   it.each(['7f8b0f84-36d1-45ec-9f49-0bfb535ab38d', 'opencode'])(
     'derives model-family groups instead of using provider id %s',
     async (providerId) => {
@@ -558,10 +578,11 @@ describe('listModels — openRouterFetcher image models', () => {
   })
 
   it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {
+    const apiKey = 'sk-should-not-reach-logs'
     const provider = makeOpenRouterProvider()
     aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
       if (url.endsWith('/images/models')) {
-        return Promise.reject(new Error('image catalog unavailable'))
+        return Promise.reject(new Error(`image catalog unavailable for ${apiKey}`))
       }
       if (url.endsWith('/embeddings/models')) {
         return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
@@ -573,6 +594,7 @@ describe('listModels — openRouterFetcher image models', () => {
       expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
       expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
     ])
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(apiKey)
   })
 })
 

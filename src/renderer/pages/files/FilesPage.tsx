@@ -380,7 +380,15 @@ function FilesPage() {
   // renders a friendly format label derived from `ext` (e.g. `md` → Markdown).
   // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
-  const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
+  const activeFileType = filter.kind === 'type' ? filter.value : undefined
+  const activeFilesQuery = useMemo(
+    () => ({
+      sortBy: serverSortKey,
+      sortOrder: sortDir,
+      ...(activeFileType && { fileType: activeFileType })
+    }),
+    [activeFileType, serverSortKey, sortDir]
+  )
   const trashedFilesQuery = useMemo(
     () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
     [serverSortKey, sortDir]
@@ -605,31 +613,6 @@ function FilesPage() {
     requestLoadMore
   ])
 
-  const maybeFillClientFilteredViewport = useCallback(() => {
-    // Type filters are applied client-side over the loaded active pages.
-    // If the filtered rows do not make the container scrollable, scroll-load
-    // cannot fire, so proactively fetch another active page until scrolling can engage.
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el || !hasMoreActiveFiles || isLoadingMoreActiveFiles || pendingLoadMoreRef.current) return
-    if (el.scrollHeight > el.clientHeight) return
-
-    requestLoadMore(loadMoreActiveFiles)
-  }, [filter.kind, hasMoreActiveFiles, isLoadingMoreActiveFiles, loadMoreActiveFiles, requestLoadMore])
-
-  useEffect(() => {
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el) return
-
-    maybeFillClientFilteredViewport()
-    if (typeof ResizeObserver === 'undefined') return
-
-    const resizeObserver = new ResizeObserver(() => maybeFillClientFilteredViewport())
-    resizeObserver.observe(el)
-    return () => resizeObserver.disconnect()
-  }, [filter.kind, maybeFillClientFilteredViewport])
-
   const handleOpen = useCallback(
     (file: FileItem) => {
       const requestToken = ++openRequestTokenRef.current
@@ -715,10 +698,6 @@ function FilesPage() {
 
     return result
   }, [files, filter])
-
-  useEffect(() => {
-    maybeFillClientFilteredViewport()
-  }, [maybeFillClientFilteredViewport, filteredFiles.length, files.length])
 
   const fileCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -835,9 +814,8 @@ function FilesPage() {
     [files, isTrash, refetchFiles, t]
   )
 
-  const handleDelete = useCallback(
-    (ids?: Set<string>) => {
-      const targetIds = ids ?? selectedIds
+  const requestDelete = useCallback(
+    (targetIds: Set<string>) => {
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
@@ -848,7 +826,12 @@ function FilesPage() {
 
       void performDelete(new Set(targets.map((file) => file.id)))
     },
-    [files, isTrash, performDelete, selectedIds]
+    [files, isTrash, performDelete]
+  )
+
+  const handleDelete = useCallback(
+    (ids?: Set<string>) => requestDelete(ids ?? selectedIds),
+    [requestDelete, selectedIds]
   )
 
   const emptyTrash = useCallback(async () => {
@@ -930,14 +913,19 @@ function FilesPage() {
     setRenamingId(id)
   }, [])
 
+  const handleDeleteOne = useCallback((id: string) => requestDelete(new Set([id])), [requestDelete])
+  const handleRestoreOne = useCallback((id: string) => void handleRestore(new Set([id])), [handleRestore])
+  const handleRenameConfirm = useCallback((id: string, name: string) => void handleRename(id, name), [handleRename])
+  const handleRenameCancel = useCallback(() => setRenamingId(null), [])
+
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
       onRename: startInlineRename,
-      onDelete: (id) => handleDelete(new Set([id])),
-      onRestore: (id) => void handleRestore(new Set([id])),
+      onDelete: handleDeleteOne,
+      onRestore: handleRestoreOne,
       onShowInFolder: handleShowInFolder
     }),
-    [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
+    [handleDeleteOne, handleRestoreOne, handleShowInFolder, startInlineRename]
   )
 
   const handleSort = useCallback(
@@ -1121,14 +1109,13 @@ function FilesPage() {
                   <FileGrid
                     files={filteredFiles}
                     scrollRef={contentScrollRef}
-                    onLayoutChange={maybeFillClientFilteredViewport}
                     onOpen={handleOpen}
-                    onDelete={(id) => handleDelete(new Set([id]))}
+                    onDelete={handleDeleteOne}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 ) : (
                   <FileList
@@ -1139,13 +1126,13 @@ function FilesPage() {
                     onOpen={handleOpen}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
-                    onDelete={(id) => handleDelete(new Set([id]))}
-                    onRestore={(id) => void handleRestore(new Set([id]))}
+                    onDelete={handleDeleteOne}
+                    onRestore={handleRestoreOne}
                     onRename={startInlineRename}
                     onShowInFolder={handleShowInFolder}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 )}
               </>

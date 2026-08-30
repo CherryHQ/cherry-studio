@@ -14,6 +14,7 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['claude-code', 'claude', '@anthropic-ai/claude-code', 'registry', 'claude'],
   ['openai-codex', 'codex', '@openai/codex', 'registry', 'codex'],
   ['opencode', 'opencode', 'opencode-ai', 'registry', 'opencode'],
+  ['antigravity-cli', 'agy', 'google-antigravity/antigravity-cli', 'aqua', 'aqua:google-antigravity/antigravity-cli'],
   ['openclaw', 'openclaw', 'openclaw', 'npm', 'npm:openclaw'],
   ['deepseek-harness', 'dsh', '@deepseek-ai/dsh', 'npm', 'npm:@deepseek-ai/dsh'],
   ['gemini-cli', 'gemini', '@google/gemini-cli', 'npm', 'npm:@google/gemini-cli'],
@@ -29,6 +30,7 @@ const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
   [CodeCli.CLAUDE_CODE]: 'claude -p "<prompt>" --output-format json',
   [CodeCli.OPENAI_CODEX]: 'codex exec "<prompt>" --json',
   [CodeCli.OPEN_CODE]: 'opencode run "<prompt>" --format json',
+  [CodeCli.ANTIGRAVITY_CLI]: 'agy -p "<prompt>" --output-format json',
   [CodeCli.OPENCLAW]: 'openclaw agent --local --agent main --message "<prompt>" --json --timeout 600',
   [CodeCli.DEEPSEEK_HARNESS]: 'dsh --profile headless "<prompt>"',
   [CodeCli.GEMINI_CLI]: 'gemini -p "<prompt>" --output-format json',
@@ -41,6 +43,7 @@ const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
 }
 
 const EXPECTED_SKILL_CAVEATS: Partial<Record<CodeCli, string[]>> = {
+  [CodeCli.ANTIGRAVITY_CLI]: ['auto-approved by default', 'disposable or read-only copy'],
   [CodeCli.OPENCLAW]: ['exits zero', 'payload'],
   [CodeCli.DEEPSEEK_HARNESS]: ['persistent session', 'write to the workspace'],
   [CodeCli.KIMI_CODE]: ['automatically approves', 'read-only copy', 'KIMI_CODE_HOME', 'sandbox_permissions'],
