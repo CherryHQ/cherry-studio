@@ -150,12 +150,33 @@ export const InstalledSkillSchema = z.object({
   version: z.string().nullable(),
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
+  sourceRegistry: SkillSearchSourceSchema.nullable(),
+  canUpdateFromRemote: z.boolean(),
   isGlobalEnabled: z.boolean(),
   isEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
+
+export const SkillRemoteUpdateCheckSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    state: z.literal('unsupported'),
+    reason: z.enum(['not_remote', 'missing_provenance'])
+  }),
+  z.strictObject({
+    state: z.literal('up_to_date'),
+    localChanges: z.boolean(),
+    remoteVersion: z.string().nullable()
+  }),
+  z.strictObject({
+    state: z.literal('available'),
+    localChanges: z.boolean(),
+    remoteVersion: z.string().nullable(),
+    revision: z.string().min(1)
+  })
+])
+export type SkillRemoteUpdateCheck = z.infer<typeof SkillRemoteUpdateCheckSchema>
 
 // ============================================================================
 // IPC option types

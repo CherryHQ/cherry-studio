@@ -11,7 +11,10 @@ const {
   getInstalledSkillDirectoryMock,
   importSystemMock,
   openPathMock,
-  reconcileMock
+  reconcileMock,
+  reconcileSkillMock,
+  checkRemoteUpdateMock,
+  applyRemoteUpdateMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
@@ -23,7 +26,10 @@ const {
   getInstalledSkillDirectoryMock: vi.fn(),
   importSystemMock: vi.fn(),
   openPathMock: vi.fn(),
-  reconcileMock: vi.fn()
+  reconcileMock: vi.fn(),
+  reconcileSkillMock: vi.fn(),
+  checkRemoteUpdateMock: vi.fn(),
+  applyRemoteUpdateMock: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -31,6 +37,14 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
+  SkillRemoteUpdateError: class SkillRemoteUpdateError extends Error {
+    constructor(
+      readonly code: string,
+      message: string
+    ) {
+      super(message)
+    }
+  },
   skillService: {
     install: installMock,
     uninstall: uninstallMock,
@@ -41,7 +55,10 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     getById: getByIdMock,
     getInstalledSkillDirectory: getInstalledSkillDirectoryMock,
     importSystem: importSystemMock,
-    reconcileSkills: reconcileMock
+    reconcileSkills: reconcileMock,
+    reconcileSkill: reconcileSkillMock,
+    checkRemoteUpdate: checkRemoteUpdateMock,
+    applyRemoteUpdate: applyRemoteUpdateMock
   }
 }))
 
@@ -118,6 +135,29 @@ describe('skillHandlers', () => {
 
     await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
     expect(reconcileMock).toHaveBeenCalledWith()
+  })
+
+  it('scopes reconcile to one Skill when skillId is present', async () => {
+    reconcileSkillMock.mockResolvedValue(undefined)
+
+    await expect(skillHandlers['skill.reconcile']({ skillId: 's1' }, ctx)).resolves.toBeUndefined()
+    expect(reconcileSkillMock).toHaveBeenCalledExactlyOnceWith('s1')
+    expect(reconcileMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards remote checks and applies while preserving stable domain error codes', async () => {
+    checkRemoteUpdateMock.mockResolvedValue({ state: 'up_to_date', localChanges: false, remoteVersion: '1.0.0' })
+    await expect(skillHandlers['skill.remote.check']({ skillId: 's1' }, ctx)).resolves.toEqual({
+      state: 'up_to_date',
+      localChanges: false,
+      remoteVersion: '1.0.0'
+    })
+
+    const { SkillRemoteUpdateError } = await import('@main/ai/skills/SkillService')
+    applyRemoteUpdateMock.mockRejectedValue(new SkillRemoteUpdateError('SKILL_REMOTE_STALE' as never, 'stale'))
+    await expect(
+      skillHandlers['skill.remote.apply']({ skillId: 's1', revision: 'revision', overwriteLocalChanges: false }, ctx)
+    ).rejects.toMatchObject({ code: 'SKILL_REMOTE_STALE', message: 'stale' })
   })
 
   it('opens the registered skill directory without accepting a renderer-supplied path', async () => {
