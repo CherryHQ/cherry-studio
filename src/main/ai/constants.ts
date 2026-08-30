@@ -21,12 +21,13 @@ export const CONTEXT_COMPACT_KEEP_BUDGET_RATIO = 0.3
 export const COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN = 0.9
 
 /**
- * More conservative margin for the Claude Code (Agent v2) runtime. Its
- * auto-compaction is budgeted from the declared window via
- * `resolveAutoCompactWindow`, and the reproduction in #18894 shows a
- * 256K-declared / 128K-real channel still overflows with a 10% margin
- * (effective 230K → budget 194K > 128K). A larger headroom is required
- * to keep the budget inside the provider's real limit.
+ * More conservative margin for the Claude Code (Agent v2) runtime when the
+ * channel is untrusted. Its auto-compaction is budgeted from the declared
+ * window via `resolveAutoCompactWindow`, and the reproduction in #18894 shows
+ * a 256K-declared / 128K-real third-party channel still overflows with a 10%
+ * margin (effective 230K → budget 194K > 128K). Anthropic-official providers
+ * report accurate windows and must not pay this cost; the margin applies only
+ * to third-party / untrusted channels.
  */
 export const COMPACTION_CLAUDE_SAFETY_MARGIN = 0.6
 
