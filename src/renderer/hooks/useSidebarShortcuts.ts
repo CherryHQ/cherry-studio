@@ -49,7 +49,11 @@ export function useSidebarShortcuts() {
     [runMutation]
   )
   const reorder = useCallback(
-    (items: readonly SidebarShortcutItem[]) => runMutation(sidebarShortcutService.reorder(items)),
+    (items: readonly SidebarShortcutItem[]) => {
+      const operation = sidebarShortcutService.reorder(items)
+      runMutation(operation)
+      return operation
+    },
     [runMutation]
   )
 

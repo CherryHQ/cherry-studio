@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSidebarShortcutTarget } from '../../../utils/sidebar'
@@ -55,21 +55,23 @@ vi.mock('../../Sidebar', () => ({
     onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
   }) => (
     <div>
-      {entries.map((entry) => (
-        <div key={entry.key}>
-          <button
-            type="button"
-            aria-disabled={entry.disabled || undefined}
-            onClick={() => !entry.disabled && entry.onOpen()}>
-            {entry.label}
-          </button>
-          {entry.contextMenuItems.map((item) => (
-            <button key={item.id} type="button" disabled={item.enabled === false} onClick={item.onSelect}>
-              {item.label}
+      <ol aria-label="shortcuts">
+        {entries.map((entry) => (
+          <li key={entry.key} aria-label={entry.label}>
+            <button
+              type="button"
+              aria-disabled={entry.disabled || undefined}
+              onClick={() => !entry.disabled && entry.onOpen()}>
+              {entry.label}
             </button>
-          ))}
-        </div>
-      ))}
+            {entry.contextMenuItems.map((item) => (
+              <button key={item.id} type="button" disabled={item.enabled === false} onClick={item.onSelect}>
+                {item.label}
+              </button>
+            ))}
+          </li>
+        ))}
+      </ol>
       <button type="button" onClick={() => onEntriesReorder({ oldIndex: 0, newIndex: 1 })}>
         reorder
       </button>
@@ -85,12 +87,19 @@ function shortcut(providerId: string, resourceId: string, fallbackLabel?: string
   return { type: 'shortcut', id: createSidebarShortcutId(target), target, fallbackLabel }
 }
 
+function renderedShortcutLabels(): Array<string | null> {
+  return within(screen.getByRole('list', { name: 'shortcuts' }))
+    .getAllByRole('listitem')
+    .map((item) => item.getAttribute('aria-label'))
+}
+
 describe('app Sidebar shortcuts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.shortcuts = []
     mocks.resolutions = []
     mocks.registryResolve.mockReturnValue({ activate: mocks.activate })
+    mocks.reorder.mockResolvedValue(undefined)
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {
@@ -136,9 +145,38 @@ describe('app Sidebar shortcuts', () => {
     )
   })
 
-  it('persists drag order using shortcut identities, including unresolved rows', () => {
-    const first = shortcut('core.skill', 'one')
-    const second = shortcut('core.mcp-server', 'two')
+  it('keeps the dropped order visible until the preference write confirms it', async () => {
+    const first = shortcut('core.skill', 'one', 'One')
+    const second = shortcut('core.mcp-server', 'two', 'Two')
+    const firstResolution = { status: 'missing', shortcut: first }
+    const secondResolution = { status: 'unavailable', shortcut: second }
+    let finishReorder: () => void = vi.fn()
+    mocks.reorder.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishReorder = resolve
+      })
+    )
+    mocks.shortcuts = [first, second]
+    mocks.resolutions = [firstResolution, secondResolution]
+
+    const { rerender } = render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: 'reorder' }))
+
+    expect(renderedShortcutLabels()).toEqual(['Two', 'One'])
+    expect(mocks.reorder).toHaveBeenCalledWith([second, first])
+
+    mocks.shortcuts = [second, first]
+    mocks.resolutions = [secondResolution, firstResolution]
+    rerender(<Sidebar />)
+    act(() => finishReorder())
+
+    await waitFor(() => expect(renderedShortcutLabels()).toEqual(['Two', 'One']))
+  })
+
+  it('restores the persisted order when a drag write fails', async () => {
+    const first = shortcut('core.skill', 'one', 'One')
+    const second = shortcut('core.mcp-server', 'two', 'Two')
+    mocks.reorder.mockRejectedValue(new Error('write failed'))
     mocks.shortcuts = [first, second]
     mocks.resolutions = [
       { status: 'missing', shortcut: first },
@@ -148,6 +186,7 @@ describe('app Sidebar shortcuts', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button', { name: 'reorder' }))
 
-    expect(mocks.reorder).toHaveBeenCalledWith([second, first])
+    expect(renderedShortcutLabels()).toEqual(['Two', 'One'])
+    await waitFor(() => expect(renderedShortcutLabels()).toEqual(['One', 'Two']))
   })
 })

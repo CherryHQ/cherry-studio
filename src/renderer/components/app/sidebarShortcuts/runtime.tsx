@@ -5,7 +5,7 @@ import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes
 import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { SidebarShortcutRegistry } from './registry'
-import type { SidebarActivationGateway, SidebarShortcutResolution } from './types'
+import type { SidebarActivationGateway, SidebarShortcutProvider, SidebarShortcutResolution } from './types'
 
 const RegistryContext = createContext<SidebarShortcutRegistry | null>(null)
 
@@ -66,51 +66,152 @@ export async function resolveSidebarShortcuts(
   return shortcuts.map((shortcut) => resolvedById.get(shortcut.id) ?? { status: 'unavailable', shortcut })
 }
 
+interface ProviderShortcutGroup {
+  key: string
+  items: SidebarShortcutItem[]
+}
+
+interface ProviderSubscription {
+  key: string
+  provider: SidebarShortcutProvider
+  cleanup: () => void
+}
+
+function groupShortcutsByProvider(shortcuts: readonly SidebarShortcutItem[]): Map<string, ProviderShortcutGroup> {
+  const itemsByProvider = new Map<string, SidebarShortcutItem[]>()
+  for (const shortcut of shortcuts) {
+    const providerId = shortcut.target.locator.providerId
+    const items = itemsByProvider.get(providerId) ?? []
+    items.push(shortcut)
+    itemsByProvider.set(providerId, items)
+  }
+  return new Map(
+    [...itemsByProvider].map(([providerId, items]) => [
+      providerId,
+      {
+        key: items
+          .map((item) => item.id)
+          .toSorted()
+          .join('\u0000'),
+        items
+      }
+    ])
+  )
+}
+
+function withCurrentShortcut(
+  resolution: SidebarShortcutResolution,
+  shortcut: SidebarShortcutItem
+): SidebarShortcutResolution {
+  return resolution.shortcut.fallbackLabel === shortcut.fallbackLabel ? resolution : { ...resolution, shortcut }
+}
+
 export function useResolvedSidebarShortcuts(
   shortcuts: readonly SidebarShortcutItem[],
   registry: SidebarShortcutRegistry
 ): SidebarShortcutResolution[] {
-  const shortcutKey = shortcuts.map((shortcut) => `${shortcut.id}\u0001${shortcut.fallbackLabel ?? ''}`).join('\u0000')
-  const [revision, setRevision] = useState(0)
-  const [resolutions, setResolutions] = useState<SidebarShortcutResolution[]>(() =>
-    shortcuts.map((shortcut) => ({ status: 'loading', shortcut }))
+  const groups = useMemo(() => groupShortcutsByProvider(shortcuts), [shortcuts])
+  const [resolutionsById, setResolutionsById] = useState<ReadonlyMap<string, SidebarShortcutResolution>>(
+    () => new Map()
   )
-  const generationRef = useRef(0)
+  const mountedRef = useRef(true)
+  const registryRef = useRef(registry)
   const shortcutsRef = useRef(shortcuts)
+  const groupsRef = useRef(groups)
+  const resolvedGroupKeysRef = useRef(new Map<string, string>())
+  const generationsRef = useRef(new Map<string, number>())
+  const subscriptionsRef = useRef(new Map<string, ProviderSubscription>())
+  const resolveProviderRef = useRef<(providerId: string, group: ProviderShortcutGroup) => void>(() => {})
   shortcutsRef.current = shortcuts
+  groupsRef.current = groups
+
+  const resolveProvider = useCallback(
+    (providerId: string, group: ProviderShortcutGroup) => {
+      const generation = (generationsRef.current.get(providerId) ?? 0) + 1
+      generationsRef.current.set(providerId, generation)
+      void resolveSidebarShortcuts(group.items, registry).then((next) => {
+        const currentGroup = groupsRef.current.get(providerId)
+        if (
+          !mountedRef.current ||
+          generationsRef.current.get(providerId) !== generation ||
+          currentGroup?.key !== group.key
+        ) {
+          return
+        }
+        setResolutionsById((current) => {
+          const updated = new Map(current)
+          for (const resolution of next) updated.set(resolution.shortcut.id, resolution)
+          return updated
+        })
+      })
+    },
+    [registry]
+  )
+  resolveProviderRef.current = resolveProvider
 
   useEffect(() => {
-    const currentShortcuts = shortcutsRef.current
-    const cleanups: Array<() => void> = []
-    const targetsByProvider = new Map<string, SidebarShortcutItem[]>()
-    for (const shortcut of currentShortcuts) {
-      const items = targetsByProvider.get(shortcut.target.locator.providerId) ?? []
-      items.push(shortcut)
-      targetsByProvider.set(shortcut.target.locator.providerId, items)
+    if (registryRef.current !== registry) {
+      registryRef.current = registry
+      resolvedGroupKeysRef.current.clear()
+      for (const providerId of generationsRef.current.keys()) {
+        generationsRef.current.set(providerId, (generationsRef.current.get(providerId) ?? 0) + 1)
+      }
     }
-    for (const [providerId, items] of targetsByProvider) {
-      const provider = registry.get(providerId)
-      if (!provider?.subscribe) continue
-      cleanups.push(
-        provider.subscribe(
-          items.map((item) => item.target),
-          () => setRevision((value) => value + 1)
-        )
-      )
-    }
-    return () => cleanups.forEach((cleanup) => cleanup())
-  }, [registry, shortcutKey])
 
-  useEffect(() => {
-    const currentShortcuts = shortcutsRef.current
-    const generation = ++generationRef.current
-    setResolutions(currentShortcuts.map((shortcut) => ({ status: 'loading', shortcut })))
-    void resolveSidebarShortcuts(currentShortcuts, registry).then((next) => {
-      if (generationRef.current === generation) setResolutions(next)
+    const currentIds = new Set(shortcutsRef.current.map((shortcut) => shortcut.id))
+    setResolutionsById((current) => {
+      if ([...current.keys()].every((id) => currentIds.has(id))) return current
+      return new Map([...current].filter(([id]) => currentIds.has(id)))
     })
-  }, [registry, revision, shortcutKey])
 
-  return resolutions
+    for (const providerId of resolvedGroupKeysRef.current.keys()) {
+      if (groups.has(providerId)) continue
+      resolvedGroupKeysRef.current.delete(providerId)
+      generationsRef.current.set(providerId, (generationsRef.current.get(providerId) ?? 0) + 1)
+    }
+    for (const [providerId, group] of groups) {
+      if (resolvedGroupKeysRef.current.get(providerId) === group.key) continue
+      resolvedGroupKeysRef.current.set(providerId, group.key)
+      resolveProvider(providerId, group)
+    }
+
+    for (const [providerId, subscription] of subscriptionsRef.current) {
+      const group = groups.get(providerId)
+      const provider = registry.get(providerId)
+      if (group && provider?.subscribe && subscription.key === group.key && subscription.provider === provider) {
+        continue
+      }
+      subscription.cleanup()
+      subscriptionsRef.current.delete(providerId)
+    }
+    for (const [providerId, group] of groups) {
+      const provider = registry.get(providerId)
+      if (!provider?.subscribe || subscriptionsRef.current.has(providerId)) continue
+      const cleanup = provider.subscribe(
+        group.items.map((item) => item.target),
+        () => {
+          const currentGroup = groupsRef.current.get(providerId)
+          if (currentGroup) resolveProviderRef.current(providerId, currentGroup)
+        }
+      )
+      subscriptionsRef.current.set(providerId, { key: group.key, provider, cleanup })
+    }
+  }, [groups, registry, resolveProvider])
+
+  useEffect(() => {
+    mountedRef.current = true
+    const subscriptions = subscriptionsRef.current
+    return () => {
+      mountedRef.current = false
+      for (const subscription of subscriptions.values()) subscription.cleanup()
+      subscriptions.clear()
+    }
+  }, [])
+
+  return shortcuts.map((shortcut) => {
+    const resolution = resolutionsById.get(shortcut.id)
+    return resolution ? withCurrentShortcut(resolution, shortcut) : { status: 'loading', shortcut }
+  })
 }
 
 export function useSidebarActivationGateway(): SidebarActivationGateway {

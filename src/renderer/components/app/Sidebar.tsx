@@ -8,7 +8,17 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { isRequiredSidebarShortcut } from '@renderer/utils/sidebar'
 import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
 import type { Ref } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import {
+  lazy,
+  startTransition,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useOptimistic,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -16,6 +26,7 @@ import {
   getSidebarDisplayWidth,
   getSidebarLayout,
   normalizeSidebarWidth,
+  type ResolvedSidebarEntry,
   Sidebar as UISidebar,
   type SidebarUser,
   type SidebarVisibleLayout,
@@ -29,6 +40,18 @@ import {
 } from './sidebarShortcuts'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
+
+function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly string[]): ResolvedSidebarEntry[] {
+  const byKey = new Map(entries.map((entry) => [entry.key, entry]))
+  const optimisticKeys = new Set(orderedKeys)
+  return [
+    ...orderedKeys.flatMap((key) => {
+      const entry = byKey.get(key)
+      return entry ? [entry] : []
+    }),
+    ...entries.filter((entry) => !optimisticKeys.has(entry.key))
+  ]
+}
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
@@ -80,7 +103,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [hoverVisible, setHoverVisible] = useState(false)
   const layout = getSidebarLayout(activeSidebarWidth)
   const navigation = useMemo(() => ({ url: activeTab?.url ?? '/' }), [activeTab?.url])
-  const entries = useMemo(
+  const resolvedEntries = useMemo(
     () =>
       resolutions.map((resolution) => {
         const { shortcut } = resolution
@@ -171,18 +194,23 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       }),
     [gateway, navigation, registry, remove, resolutions, t]
   )
+  const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
   const handleReorder = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      if (oldIndex === newIndex) return
       const byId = new Map(shortcuts.map((shortcut) => [shortcut.id, shortcut]))
-      reorder(
-        arrayMove(entries, oldIndex, newIndex).flatMap((entry) => {
-          const shortcut = byId.get(entry.key)
-          return shortcut ? [shortcut] : []
-        })
-      )
+      const reorderedEntries = arrayMove(entries, oldIndex, newIndex)
+      const reorderedShortcuts = reorderedEntries.flatMap((entry) => {
+        const shortcut = byId.get(entry.key)
+        return shortcut ? [shortcut] : []
+      })
+      startTransition(async () => {
+        setOptimisticEntryOrder(reorderedEntries.map((entry) => entry.key))
+        await reorder(reorderedShortcuts).catch(() => undefined)
+      })
     },
-    [entries, reorder, shortcuts]
+    [entries, reorder, setOptimisticEntryOrder, shortcuts]
   )
 
   const handleOpenSettingsTab = useCallback(() => openSettingsTab(), [])
