@@ -1,11 +1,12 @@
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { Provider } from '@shared/data/types/provider'
-import { CopyPlus, Edit, Pin, PinOff, Trash2, UserPen } from 'lucide-react'
+import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -69,7 +70,7 @@ export default function ProviderListItemWithContextMenu({
       type: 'item',
       id: 'toggle-sidebar-shortcut',
       label: t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-      icon: sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />,
+      icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
       onSelect: () => toggleSidebarShortcut(sidebarTarget, getFancyProviderName(provider))
     })
     items.push({

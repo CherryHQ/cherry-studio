@@ -19,6 +19,7 @@ interface ProviderAvatarPrimitiveProps {
 }
 
 export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = ({
+  providerId,
   providerName,
   logo,
   logoSrc,
@@ -38,11 +39,12 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // custom provider can wear a brand logo, instead of rendering the raw string as an
   // (invalid) image URL. The ref resolves synchronously; the component itself loads
   // async — the initials fallback below covers the brief loading window.
-  const builtinIconRef =
+  const explicitBuiltinIconRef =
     typeof resolvedLogo === 'string' && resolvedLogo.startsWith('icon:')
       ? resolveProviderIconRef(resolvedLogo.slice('icon:'.length))
       : undefined
-  const builtinIcon = useIcon(builtinIconRef)
+  const providerIconRef = resolvedLogo ? undefined : resolveProviderIconRef(providerId)
+  const builtinIcon = useIcon(explicitBuiltinIconRef ?? providerIconRef)
   const effectiveLogo = builtinIcon ?? resolvedLogo
 
   // CompoundIcon handles light/dark variants internally; size the icon to the avatar container.

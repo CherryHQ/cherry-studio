@@ -24,6 +24,13 @@ afterEach(() => {
 })
 
 describe('ProviderAvatarPrimitive', () => {
+  it('uses the built-in provider icon when no custom logo is stored', () => {
+    render(<ProviderAvatarPrimitive providerId="openai" providerName="OpenAI" />)
+
+    expect(screen.getByTestId('brand-icon')).toBeInTheDocument()
+    expect(screen.queryByText('O')).not.toBeInTheDocument()
+  })
+
   it('renders image logo avatars with object-cover cropping', () => {
     const logo = 'file:///tmp/wide-provider-logo.png'
 

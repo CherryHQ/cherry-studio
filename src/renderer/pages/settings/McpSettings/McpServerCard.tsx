@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
@@ -16,7 +17,7 @@ import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@ren
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { CircleXIcon, ExternalLink, Pin, PinOff } from 'lucide-react'
+import { CircleXIcon, ExternalLink } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -272,7 +273,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
               onClick={() => toggleSidebarShortcut(sidebarTarget, server.name)}
               className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
               data-no-dnd>
-              {sidebarPinned ? <PinOff size={13} /> : <Pin size={13} />}
+              <SidebarShortcutIcon size={13} pinned={sidebarPinned} />
             </Button>
           </Tooltip>
           <Switch

@@ -12,6 +12,7 @@ import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
@@ -145,6 +146,7 @@ export default function LaunchpadPage() {
           type: 'item',
           id: `launchpad.${pinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(pinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+          icon: <SidebarShortcutIcon size={14} pinned={pinned} />,
           enabled: !pinned || !isRequiredSidebarShortcut(target),
           onSelect: () => (pinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }

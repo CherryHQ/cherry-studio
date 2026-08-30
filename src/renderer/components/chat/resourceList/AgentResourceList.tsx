@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
@@ -338,7 +339,7 @@ export function AgentResourceList({
         buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
           label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-          icon: sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />,
+          icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
           order: 22
         }),
         buildResolvedIconTypeMenuAction(

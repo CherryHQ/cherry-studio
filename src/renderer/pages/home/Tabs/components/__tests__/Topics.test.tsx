@@ -996,6 +996,8 @@ describe('Topics', () => {
     expect(screen.getByText('This week')).toBeInTheDocument()
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
+    // Pinned conversation names stay visually centered in their dedicated group.
+    expect(screen.getByText('Beta pinned')).toHaveClass('text-center')
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()

@@ -3,6 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPermissionsDialog'
@@ -227,6 +228,7 @@ const MiniApp: FC<Props> = ({
       type: 'item',
       id: 'mini-app.toggle-sidebar-favorite',
       label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+      icon: <SidebarShortcutIcon size={14} pinned={isSidebarFavorite} />,
       onSelect: handleToggleSidebarFavorite
     },
     ...(!isPinned

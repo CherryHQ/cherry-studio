@@ -1885,6 +1885,7 @@ const TopicRow = memo(function TopicRow({
           title={topicName}
           className={cn(
             nameAnimationClassName,
+            topic.pinned && 'text-center',
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
             // overlay fades out, the standing yield closes, and the in-flow action rail expands.

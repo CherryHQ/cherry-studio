@@ -2004,14 +2004,13 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
-  it('uses the sidebar-pinned route assistant before the remembered one', async () => {
+  it('creates and activates a conversation for a sidebar-pinned assistant with no topics', async () => {
     homeMocks.routeSearch = { assistantId: 'assistant-2' }
+    homeMocks.entryTopic = undefined
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
 
     render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')

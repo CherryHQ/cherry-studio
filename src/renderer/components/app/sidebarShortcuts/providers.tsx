@@ -1,5 +1,6 @@
 import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
@@ -15,7 +16,7 @@ import {
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
-import { Server, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 
 import { SIDEBAR_ICON_COMPONENTS } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'
@@ -251,7 +252,7 @@ const mcpServerProvider: SidebarShortcutProvider = {
       (server) => server.id,
       (server) => ({
         label: server.name,
-        renderIcon: (size) => <Server size={size} strokeWidth={1.6} />
+        renderIcon: (size) => <McpLogo width={size} height={size} aria-hidden />
       })
     )
   },
