@@ -1,3 +1,4 @@
+/* eslint-disable simple-import-sort/imports */
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'

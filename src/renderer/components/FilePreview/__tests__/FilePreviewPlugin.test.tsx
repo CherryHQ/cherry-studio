@@ -1,3 +1,4 @@
+/* eslint-disable simple-import-sort/imports */
 import '@testing-library/jest-dom/vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
