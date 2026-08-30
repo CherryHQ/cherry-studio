@@ -10,6 +10,7 @@ import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'luc
 import { createElement, Suspense, type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
+
 import { FilePreviewLayout } from './FilePreviewLayout'
 import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
