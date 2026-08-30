@@ -705,9 +705,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 256_000 }
     )
 
-    // The explicit override wins for the env var; the budget still tracks the real window.
+    // The explicit override wins for the env var; the budget still tracks the real window
+    // through the 0.6 safety margin, so it lands below the override (the overstated-window fix).
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
-    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(131_072)
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
