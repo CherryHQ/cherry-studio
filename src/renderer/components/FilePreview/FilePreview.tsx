@@ -110,6 +110,7 @@ interface FilePreviewPluginRendererProps {
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   plugin: FilePreviewPlugin
+  pluginComponent: ReturnType<typeof lazy<React.ComponentType<object>>>
   refreshKey: number
   type: FilePreviewType
 }
@@ -142,18 +143,17 @@ function FilePreviewPluginRenderer({
   filePath,
   metadata,
   plugin,
+  pluginComponent,
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
-
   return (
     <ErrorBoundary
       key={`${plugin.id}:${filePath}:${refreshKey}`}
       FallbackComponent={PluginErrorFallback}
       onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
-        <PluginPreview
+        <pluginComponent
           filePath={filePath}
           fileName={fileName}
           metadata={metadata}
@@ -185,6 +185,7 @@ type FilePreviewResolution =
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
       plugin: FilePreviewPlugin | null
+      pluginComponent: ReturnType<typeof lazy<React.ComponentType<object>>> | null
       requestKey: string
       status: 'ready'
     }
@@ -207,9 +208,17 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     let cancelled = false
     setResolution({ requestKey, status: 'loading' })
 
+    // Resolve the plugin synchronously from the file path — no IPC needed.
+    const candidatePlugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+
     void (async () => {
       try {
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        // Run metadata IPC and plugin chunk loading in parallel.
+        const [metadata] = await Promise.all([
+          ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath)),
+          // Kick off plugin module loading eagerly so React.lazy does not re-fetch.
+          candidatePlugin ? Promise.resolve(candidatePlugin.load()) : Promise.resolve(null)
+        ])
         if (cancelled) return
 
         if (!metadata) {
@@ -222,7 +231,8 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
           return
         }
 
-        let plugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+        // Accept/reject the candidate plugin based on metadata exactly as before.
+        let plugin = candidatePlugin
         if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
           const isText = metadata.type === 'text'
 
@@ -233,7 +243,10 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
           }
         }
 
-        setResolution({ file, metadata, plugin, requestKey, status: 'ready' })
+        // Pre-create the lazy component so React.lazy does not issue a second request.
+        const pluginComponent = plugin ? lazy(plugin.load) : null
+
+        setResolution({ file, metadata, plugin, pluginComponent, requestKey, status: 'ready' })
       } catch {
         if (!cancelled) setResolution({ requestKey, status: 'unavailable' })
       }
@@ -254,12 +267,13 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     preview = <FilePreviewState kind="directory" />
   } else if (resolution.status === 'unavailable') {
     preview = <FilePreviewState kind="unavailable" />
-  } else if (resolution.plugin) {
+  } else if (resolution.plugin && resolution.pluginComponent) {
     preview = (
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
         plugin={resolution.plugin}
+        pluginComponent={resolution.pluginComponent}
         refreshKey={refreshKey}
         type={type}
       />

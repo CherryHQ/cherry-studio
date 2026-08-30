@@ -157,4 +157,36 @@ describe('FilePreview', () => {
     expect(await screen.findByTestId('text-file-preview')).toBeInTheDocument()
     expect(mocks.textPreview).toHaveBeenCalledTimes(1)
   })
+
+  it('kicks off the plugin chunk load in parallel with metadata IPC (#19605)', async () => {
+    // Slow IPC, fast plugin: plugin load fires while metadata is still in-flight.
+    let resolveMetadata: (value: unknown) => void = () => undefined
+    mocks.ipcApiRequest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMetadata = resolve
+        })
+    )
+
+    render(<FilePreview filePath={'/tmp/source.JSON' as AbsoluteFilePath} />)
+
+    // Wait two microtask ticks for the async effect to schedule both operations.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Metadata IPC has been called (still pending), proving the effect ran.
+    expect(mocks.ipcApiRequest).toHaveBeenCalledTimes(1)
+
+    // Resolve metadata; component transitions to ready and renders the text preview.
+    resolveMetadata({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
+
+    expect(await screen.findByTestId('text-file-preview')).toBeInTheDocument()
+  })
 })
