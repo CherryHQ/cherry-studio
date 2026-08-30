@@ -216,6 +216,16 @@ describe('read (text)', () => {
     expect(out).toBe('plain')
   })
 
+  it('bounds text allocation when maxBytes is set', async () => {
+    const f = path.join(tmp, 'bounded.txt')
+    await writeFile(f, '123456', 'utf-8')
+
+    await expect(read(f as AbsoluteFilePath, { encoding: 'text', maxBytes: 5 })).rejects.toThrow(
+      'File exceeds read limit of 5 bytes'
+    )
+    await expect(read(f as AbsoluteFilePath, { encoding: 'text', maxBytes: 6 })).resolves.toBe('123456')
+  })
+
   it('throws ENOENT on missing path', async () => {
     await expect(read(path.join(tmp, 'missing') as AbsoluteFilePath)).rejects.toThrow(/ENOENT/)
   })

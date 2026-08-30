@@ -1,8 +1,10 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
-import { read, stat } from '@main/utils/file'
+import { isSameOrInside, read, realpath, stat } from '@main/utils/file'
 import type { WindowId } from '@shared/ipc/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type {
   NotesSearchMatch,
@@ -223,7 +225,8 @@ async function searchFileContent(
   keyword: string,
   options: NotesSearchOptions,
   signal: AbortSignal,
-  searchStartedAt: number
+  searchStartedAt: number,
+  notesRoots: AbsoluteFilePath[]
 ): Promise<NotesSearchResult | null> {
   const parsedPath = AbsoluteFilePathSchema.safeParse(node.externalPath)
   if (!parsedPath.success) {
@@ -233,14 +236,20 @@ async function searchFileContent(
 
   try {
     throwIfAborted(signal)
-    const fileStat = await stat(parsedPath.data)
+    const realPath = await realpath(parsedPath.data)
+    if (!notesRoots.some((root) => isSameOrInside(realPath, root))) {
+      logger.warn('Skipping note search for a path outside the configured notes roots', { noteId: node.id })
+      return null
+    }
+
+    const fileStat = await stat(realPath)
     throwIfAborted(signal)
     const maxFileSize = options.maxFileSize ?? DEFAULT_MAX_FILE_SIZE
     if (!fileStat.isFile || fileStat.size > maxFileSize) {
       return null
     }
 
-    const content = await read(parsedPath.data, { encoding: 'text', signal })
+    const content = await read(realPath, { encoding: 'text', maxBytes: maxFileSize, signal })
     throwIfAborted(signal)
     if (!content || Buffer.byteLength(content, 'utf8') > maxFileSize) {
       return null
@@ -319,6 +328,7 @@ export class NotesSearchService extends BaseService {
   private async runSearch(query: NotesSearchQuery, controller: AbortController): Promise<NotesSearchResult[]> {
     const { nodes, keyword, options, maxResults } = query
     const searchStartedAt = Date.now()
+    const notesRoots = await this.resolveNotesRoots()
     const candidates = flattenFileNodes(nodes)
       .map<SearchCandidate>((node, ordinal) => ({
         node,
@@ -367,7 +377,14 @@ export class NotesSearchService extends BaseService {
         inFlight.set(ordinal, candidate)
 
         const nameMatch = matchFileName(node, keyword, options.caseSensitive ?? false)
-        const contentResult = await searchFileContent(node, keyword, options, controller.signal, searchStartedAt)
+        const contentResult = await searchFileContent(
+          node,
+          keyword,
+          options,
+          controller.signal,
+          searchStartedAt,
+          notesRoots
+        )
         inFlight.delete(ordinal)
 
         if (controller.signal.aborted) {
@@ -401,6 +418,24 @@ export class NotesSearchService extends BaseService {
     }
 
     return results.sort(compareRankedResults).map(({ result }) => result)
+  }
+
+  private async resolveNotesRoots(): Promise<AbsoluteFilePath[]> {
+    const configuredPath = application.get('PreferenceService').get('feature.notes.path').trim()
+    const candidates = [application.getPath('feature.notes.data'), configuredPath]
+    const roots = await Promise.all(
+      candidates.map(async (candidate) => {
+        const parsed = AbsoluteFilePathSchema.safeParse(candidate)
+        if (!parsed.success) return null
+        try {
+          return await realpath(parsed.data)
+        } catch {
+          return null
+        }
+      })
+    )
+
+    return roots.filter((root): root is AbsoluteFilePath => root !== null)
   }
 
   private teardown(reason: string): Promise<void> {

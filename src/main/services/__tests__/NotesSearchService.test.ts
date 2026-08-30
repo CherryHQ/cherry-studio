@@ -1,13 +1,26 @@
 import type { NotesTreeNode } from '@shared/types/note'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { readMock, statMock } = vi.hoisted(() => ({
+const { applicationGetPathMock, preferenceGetMock, readMock, realpathMock, statMock } = vi.hoisted(() => ({
+  applicationGetPathMock: vi.fn(),
+  preferenceGetMock: vi.fn(),
   readMock: vi.fn(),
+  realpathMock: vi.fn(),
   statMock: vi.fn()
 }))
 
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn(() => ({ get: preferenceGetMock })),
+    getPath: applicationGetPathMock
+  }
+}))
+
 vi.mock('@main/utils/file', () => ({
+  isSameOrInside: (candidate: string, container: string) =>
+    candidate === container || candidate.startsWith(`${container}/`),
   read: readMock,
+  realpath: realpathMock,
   stat: statMock
 }))
 
@@ -51,6 +64,9 @@ describe('NotesSearchService', () => {
     vi.clearAllMocks()
     vi.spyOn(Date, 'now').mockReturnValue(NOW)
     BaseService.resetInstances()
+    applicationGetPathMock.mockReturnValue('/notes')
+    preferenceGetMock.mockReturnValue('/notes')
+    realpathMock.mockImplementation(async (filePath: string) => filePath)
     statMock.mockResolvedValue({ size: 20, createdAt: NOW, modifiedAt: NOW, isDirectory: false, isFile: true })
     readMock.mockResolvedValue('')
     service = new NotesSearchService()
@@ -169,6 +185,43 @@ describe('NotesSearchService', () => {
     expect(results).toEqual([
       expect.objectContaining({ id: 'growing', matchType: 'filename', matches: [], score: 100 })
     ])
+    expect(readMock).toHaveBeenCalledWith('/notes/growing.md', {
+      encoding: 'text',
+      maxBytes: 5,
+      signal: expect.any(AbortSignal)
+    })
+  })
+
+  it('does not read renderer-provided paths outside the configured notes roots', async () => {
+    const results = await service.search(
+      {
+        nodes: [note('outside', { externalPath: '/private/outside.md', name: 'needle outside' })],
+        keyword: 'needle',
+        options: {},
+        maxResults: 10
+      },
+      requestContext('search-outside')
+    )
+
+    expect(statMock).not.toHaveBeenCalled()
+    expect(readMock).not.toHaveBeenCalled()
+    expect(results).toEqual([
+      expect.objectContaining({ id: 'outside', matchType: 'filename', matches: [], score: 100 })
+    ])
+  })
+
+  it('rejects a note path whose real target escapes the configured root through a symlink', async () => {
+    realpathMock.mockImplementation(async (filePath: string) =>
+      filePath === '/notes/link.md' ? '/private/target.md' : filePath
+    )
+
+    await service.search(
+      { nodes: [note('link')], keyword: 'needle', options: {}, maxResults: 10 },
+      requestContext('search-symlink')
+    )
+
+    expect(statMock).not.toHaveBeenCalled()
+    expect(readMock).not.toHaveBeenCalled()
   })
 
   it('bounds reads to five and aborts outstanding work after maxResults is satisfied', async () => {

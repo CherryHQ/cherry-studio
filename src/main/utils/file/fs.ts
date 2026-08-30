@@ -61,7 +61,7 @@ const notImplemented = (op: string): never => {
 /** Read file content as text with optional encoding detection. */
 export async function read(
   path: AbsoluteFilePath,
-  options?: { encoding?: 'text'; detectEncoding?: boolean; signal?: AbortSignal }
+  options?: { encoding?: 'text'; detectEncoding?: boolean; maxBytes?: number; signal?: AbortSignal }
 ): Promise<string>
 export async function read(
   path: AbsoluteFilePath,
@@ -73,10 +73,26 @@ export async function read(
 ): Promise<{ data: Uint8Array; mime: string }>
 export async function read(
   path: AbsoluteFilePath,
-  options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean; signal?: AbortSignal }
+  options?: {
+    encoding?: 'text' | 'base64' | 'binary'
+    detectEncoding?: boolean
+    maxBytes?: number
+    signal?: AbortSignal
+  }
 ): Promise<unknown> {
   const encoding = options?.encoding ?? 'text'
   if (encoding === 'text') {
+    if (options?.maxBytes !== undefined) {
+      const maxBytes = options.maxBytes
+      if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes >= Number.MAX_SAFE_INTEGER) {
+        throw new RangeError('maxBytes must be a non-negative safe integer below Number.MAX_SAFE_INTEGER')
+      }
+      const bounded = await readChunk(path, 0, maxBytes + 1, options.signal)
+      if (bounded.byteLength > maxBytes) {
+        throw new RangeError(`File exceeds read limit of ${maxBytes} bytes`)
+      }
+      return Buffer.from(bounded).toString('utf8')
+    }
     return readFile(path, { encoding: 'utf-8', signal: options?.signal })
   }
   const buf = await readFile(path, { signal: options?.signal })
@@ -91,19 +107,23 @@ export async function read(
 export async function readChunk(
   path: AbsoluteFilePath,
   offset: number,
-  length: number
+  length: number,
+  signal?: AbortSignal
 ): Promise<Uint8Array<ArrayBuffer>> {
+  signal?.throwIfAborted()
   const fileHandle = await fsOpen(path, 'r')
   try {
     const buffer = new Uint8Array(length)
     let totalBytesRead = 0
     while (totalBytesRead < length) {
+      signal?.throwIfAborted()
       const { bytesRead } = await fileHandle.read(
         buffer,
         totalBytesRead,
         length - totalBytesRead,
         offset + totalBytesRead
       )
+      signal?.throwIfAborted()
       if (bytesRead === 0) break
       totalBytesRead += bytesRead
     }
