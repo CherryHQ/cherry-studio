@@ -186,17 +186,6 @@ export interface SkillImportSystemOptions {
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
 
 // ============================================================================
-// File tree node (for skill detail file browser)
-// ============================================================================
-
-export interface SkillFileNode {
-  name: string
-  path: string // relative path from skill root
-  type: 'file' | 'directory'
-  children?: SkillFileNode[]
-}
-
-// ============================================================================
 // Workspace skill metadata (from .claude/skills)
 // ============================================================================
 

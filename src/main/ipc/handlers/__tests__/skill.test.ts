@@ -133,6 +133,34 @@ describe('skillHandlers', () => {
     expect(openPathMock).toHaveBeenCalledWith('/managed/skills/safe-skill')
   })
 
+  it('resolves the managed directory and marks only builtin Skills as read-only', async () => {
+    getByIdMock
+      .mockResolvedValueOnce({ id: 'local', folderName: 'local-skill', source: 'local' })
+      .mockResolvedValueOnce({ id: 'builtin', folderName: 'builtin-skill', source: 'builtin' })
+    getInstalledSkillDirectoryMock
+      .mockReturnValueOnce('/managed/skills/local-skill')
+      .mockReturnValueOnce('/managed/skills/builtin-skill')
+
+    await expect(skillHandlers['skill.folder.resolve']({ skillId: 'local' }, ctx)).resolves.toEqual({
+      rootPath: '/managed/skills/local-skill',
+      access: 'read_write'
+    })
+    await expect(skillHandlers['skill.folder.resolve']({ skillId: 'builtin' }, ctx)).resolves.toEqual({
+      rootPath: '/managed/skills/builtin-skill',
+      access: 'read_only',
+      readOnlyReason: 'builtin'
+    })
+  })
+
+  it('does not resolve a folder when the Skill is no longer installed', async () => {
+    getByIdMock.mockResolvedValue(null)
+
+    await expect(skillHandlers['skill.folder.resolve']({ skillId: 'missing' }, ctx)).rejects.toThrow(
+      'Skill not found: missing'
+    )
+    expect(getInstalledSkillDirectoryMock).not.toHaveBeenCalled()
+  })
+
   it('does not open a path when the skill is no longer installed', async () => {
     getByIdMock.mockResolvedValue(null)
 
