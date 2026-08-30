@@ -7,17 +7,19 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 /**
  * Build the user-turn content sent to an agent runtime. Agent runtimes are
  * filesystem agents (they have no native multimodal channel here), so attached
- * files are forwarded as their absolute paths appended to the text — the agent
- * reads them with its own tools. Driver-neutral: shared by the Claude Code and
- * pi drivers so they cannot drift on attachment handling.
+ * files are forwarded as their original filenames and absolute paths appended
+ * to the text — the agent reads them with its own tools. Driver-neutral: shared
+ * by the DSH and pi drivers so they cannot drift on attachment handling.
  */
 export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
   const text = extractMessageText(message)
-  const paths = extractAttachmentPaths(message)
+  const attachments = extractAttachments(message)
   const content =
-    paths.length === 0
+    attachments.length === 0
       ? text
-      : `${text.trim() ? `${text}\n\n` : ''}Attached files (read them with your tools using these absolute paths):\n${paths.map((path) => `- ${path}`).join('\n')}`
+      : `${text.trim() ? `${text}\n\n` : ''}Attached files (read them with your tools using these absolute paths):\n${attachments
+          .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
+          .join('\n')}`
   return wrapAgentSessionDeliveryContent(message, content)
 }
 
@@ -56,13 +58,13 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
   )
 }
 
-/** Absolute local paths of `file://`-backed attachment parts (composer attachments). */
-function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
-  const paths: string[] = []
+/** Original names and absolute local paths of composer attachments. */
+function extractAttachments(message: AgentSessionMessageEntity): Array<{ filename?: string; path: string }> {
+  const attachments: Array<{ filename?: string; path: string }> = []
   for (const part of message.data?.parts ?? []) {
     // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
     if (part.type !== 'file' || !part.url.startsWith('file://')) continue
-    paths.push(fileURLToPath(part.url))
+    attachments.push({ filename: part.filename, path: fileURLToPath(part.url) })
   }
-  return paths
+  return attachments
 }
