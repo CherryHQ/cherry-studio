@@ -62,6 +62,8 @@ function createSkill(isGlobalEnabled: boolean): InstalledSkill {
     version: null,
     sourceTags: [],
     contentHash: 'hash',
+    sourceRegistry: null,
+    canUpdateFromRemote: false,
     isGlobalEnabled,
     isEnabled: false,
     createdAt: '2026-01-01T00:00:00.000Z',

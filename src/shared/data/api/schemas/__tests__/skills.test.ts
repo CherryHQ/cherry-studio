@@ -16,6 +16,8 @@ describe('Skill schemas', () => {
       version: '1.2.3',
       sourceTags: ['metadata'],
       contentHash: 'hash',
+      sourceRegistry: null,
+      canUpdateFromRemote: false,
       isEnabled: false,
       isGlobalEnabled: true,
       createdAt: '2026-01-01T00:00:00.000Z',

@@ -786,7 +786,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md',
+        { installSource: 'github:https://github.com/owner/repo/blob/dev/skills/recruit-init/SKILL.md' }
       )
     })
 
@@ -889,7 +890,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(`${path.sep}content`),
         'marketplace',
-        `https://github.com/owner/repo/tree/${oid}`
+        `https://github.com/owner/repo/tree/${oid}`,
+        { installSource: `github:https://github.com/owner/repo/blob/${oid}/SKILL.md` }
       )
     })
 
@@ -910,7 +912,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md',
+        { installSource: 'github:https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md' }
       )
     })
 
@@ -1239,7 +1242,8 @@ describe('SkillService', () => {
         expect(installSkillDirSpy).toHaveBeenCalledWith(
           canonicalExtractDir,
           'marketplace',
-          'https://clawhub.ai/ivangdavila/skills/code'
+          'https://clawhub.ai/ivangdavila/skills/code',
+          { installSource: 'clawhub:ivangdavila/code' }
         )
       } finally {
         createTempDirSpy.mockRestore()

@@ -20,6 +20,7 @@ import {
   type ListSkillsQuery,
   SKILL_LIST_MEMBERSHIP_DIMENSIONS
 } from '@shared/data/api/schemas/skills'
+import type { SkillSearchSource } from '@shared/types/skill'
 import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 
 /**
@@ -42,6 +43,27 @@ export class AgentGlobalSkillService {
     const rows = tx.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1).all()
     if (!rows[0]) return null
     return this.rowToInstalledSkill(rows[0])
+  }
+
+  getByIdWithProvenance(id: string): {
+    skill: InstalledSkill
+    installSource: string | null
+    upstreamHash: string | null
+  } | null {
+    return this.getByIdWithProvenanceTx(this.db, id)
+  }
+
+  getByIdWithProvenanceTx(
+    tx: DbOrTx,
+    id: string
+  ): { skill: InstalledSkill; installSource: string | null; upstreamHash: string | null } | null {
+    const row = tx.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1).get()
+    if (!row) return null
+    return {
+      skill: this.rowToInstalledSkill(row),
+      installSource: row.installSource,
+      upstreamHash: row.upstreamHash
+    }
   }
 
   getByFolderName(folderName: string): InstalledSkill | null {
@@ -206,6 +228,26 @@ export class AgentGlobalSkillService {
     ])
   }
 
+  notifySkillProjectionChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [skillId] },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
+  }
+
+  notifySkillMembershipChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'membership', entityIds: [skillId] },
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [skillId]
+      },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
+  }
+
   /**
    * Assert every id in `skillIds` still exists in `agent_global_skill` within the
    * caller's write tx. Callers pre-validate the same ids outside the tx to surface
@@ -289,6 +331,7 @@ export class AgentGlobalSkillService {
   }
 
   private rowToInstalledSkill(row: AgentGlobalSkillRow): InstalledSkill {
+    const sourceRegistry = this.getSourceRegistry(row.installSource)
     return {
       id: row.id,
       name: row.name,
@@ -301,10 +344,32 @@ export class AgentGlobalSkillService {
       version: row.version,
       sourceTags: row.tags,
       contentHash: row.contentHash,
+      sourceRegistry,
+      canUpdateFromRemote:
+        row.source === 'marketplace' &&
+        sourceRegistry !== null &&
+        row.installSource !== null &&
+        row.upstreamHash !== null,
       isGlobalEnabled: row.isEnabled,
       isEnabled: false,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
+    }
+  }
+
+  private getSourceRegistry(installSource: string | null): SkillSearchSource | null {
+    const prefix = installSource?.split(':', 1)[0]
+    switch (prefix) {
+      case 'claude-plugins':
+        return 'claude-plugins.dev'
+      case 'skills.sh':
+        return 'skills.sh'
+      case 'clawhub':
+        return 'clawhub.ai'
+      case 'github':
+        return 'github'
+      default:
+        return null
     }
   }
 }

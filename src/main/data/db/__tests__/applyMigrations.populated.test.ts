@@ -106,6 +106,51 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('adds nullable Skill provenance without changing installed Skills or agent associations', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agent-1', 'claude-code', 'Agent', '', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_global_skill
+           (id, name, folder_name, source, content_hash, is_enabled, created_at, updated_at)
+         VALUES ('skill-1', 'Writer', 'writer', 'marketplace', 'hash', 1, ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_skill (agent_id, skill_id, is_enabled, created_at, updated_at)
+         VALUES ('agent-1', 'skill-1', 1, ?, ?)`
+      )
+      .run(now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(
+      sqlite
+        .prepare(
+          'SELECT id, folder_name, is_enabled, install_source, upstream_hash FROM agent_global_skill WHERE id = ?'
+        )
+        .get('skill-1')
+    ).toEqual({
+      id: 'skill-1',
+      folder_name: 'writer',
+      is_enabled: 1,
+      install_source: null,
+      upstream_hash: null
+    })
+    expect(sqlite.prepare('SELECT agent_id, skill_id, is_enabled FROM agent_skill').get()).toEqual({
+      agent_id: 'agent-1',
+      skill_id: 'skill-1',
+      is_enabled: 1
+    })
+  })
+
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     const now = Date.now()

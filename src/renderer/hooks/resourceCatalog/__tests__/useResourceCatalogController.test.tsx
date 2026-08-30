@@ -117,6 +117,8 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
       version: null,
       sourceTags: [],
       contentHash: 'hash',
+      sourceRegistry: null,
+      canUpdateFromRemote: false,
       isGlobalEnabled: true,
       isEnabled: false,
       createdAt: '2024-01-01T00:00:00.000Z',

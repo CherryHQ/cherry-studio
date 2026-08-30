@@ -114,7 +114,9 @@ export function ResourceCard({
                   {skillVersion}
                 </Badge>
               )}
-              {r.type === 'skill' ? <SkillSourceBadge source={r.raw.source} /> : null}
+              {r.type === 'skill' ? (
+                <SkillSourceBadge source={r.raw.source} sourceRegistry={r.raw.sourceRegistry} />
+              ) : null}
             </div>
             <p
               className={cn(

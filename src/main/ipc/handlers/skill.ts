@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { skillService } from '@main/ai/skills/SkillService'
+import { SkillRemoteUpdateError, skillService } from '@main/ai/skills/SkillService'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -32,7 +33,16 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
     toSkillResult(() => skillService.installFromDirectory({ directoryPath }), 'Failed to install skill from directory'),
   'skill.list_local': ({ workdir }) =>
     toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins'),
-  'skill.reconcile': () => skillService.reconcileSkills(),
+  'skill.reconcile': ({ skillId }) => (skillId ? skillService.reconcileSkill(skillId) : skillService.reconcileSkills()),
+  'skill.remote.check': ({ skillId }) => skillService.checkRemoteUpdate(skillId),
+  'skill.remote.apply': async (options) => {
+    try {
+      return await skillService.applyRemoteUpdate(options)
+    } catch (error) {
+      if (error instanceof SkillRemoteUpdateError) throw new IpcError(error.code, error.message)
+      throw error
+    }
+  },
   'skill.discover_system': () => skillService.discoverSystem(),
   'skill.import_system': ({ directoryPath }) => skillService.importSystem({ directoryPath }),
   'skill.folder.open': async ({ skillId }, { senderId }) => {

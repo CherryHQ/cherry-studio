@@ -11,11 +11,13 @@ import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
+import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type {
   SkillImportSystemOptions,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
   SkillInstallOptions,
+  SkillRemoteUpdateCheck,
   SkillToggleOptions,
   SystemSkillCandidate,
   SystemSkillPlacement
@@ -32,6 +34,18 @@ const logger = loggerService.withContext('SkillService')
 
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+
+type SkillRemoteUpdateErrorCode = (typeof skillErrorCodes)[keyof typeof skillErrorCodes]
+
+export class SkillRemoteUpdateError extends Error {
+  constructor(
+    readonly code: SkillRemoteUpdateErrorCode,
+    message: string
+  ) {
+    super(message)
+    this.name = 'SkillRemoteUpdateError'
+  }
+}
 
 /**
  * Skill management service.
@@ -166,7 +180,9 @@ export class SkillService {
     const fetched = await fetchRemoteSkill(source, rest.join(':'))
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
+        installSource: options.installSource
+      })
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -430,7 +446,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; installSource?: string | null } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -441,7 +457,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; installSource?: string | null } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -481,6 +497,7 @@ export class SkillService {
     }
 
     const contentHash = await this.installer.computeContentHash(skillDir)
+    const upstreamHash = provenance.installSource ? await this.installer.computeDirectoryHash(skillDir) : null
     const destFolderName = existing?.folderName ?? folderName
     const destPath = this.getSkillStoragePath(destFolderName)
 
@@ -500,6 +517,9 @@ export class SkillService {
           version: metadata.version ?? null,
           tags,
           contentHash,
+          ...(source === 'marketplace'
+            ? { sourceUrl, installSource: provenance.installSource ?? null, upstreamHash }
+            : {}),
           ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
         })
       })
@@ -523,7 +543,9 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash
+          contentHash,
+          installSource: provenance.installSource ?? null,
+          upstreamHash
         })
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
@@ -586,7 +608,7 @@ export class SkillService {
   }
 
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
-  async linkMirror(folderName: string): Promise<void> {
+  async linkMirror(folderName: string, options: { throwOnError?: boolean } = {}): Promise<void> {
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
@@ -668,6 +690,7 @@ export class SkillService {
       }
     } catch (error) {
       logger.warn('Failed to mirror skill to Claude config', { folderName, sourceDir, targetDir, error })
+      if (options.throwOnError) throw error
     }
   }
 
@@ -719,6 +742,191 @@ export class SkillService {
         this.reconcileInFlight = null
       })
     return this.reconcileInFlight
+  }
+
+  async reconcileSkill(skillId: string): Promise<void> {
+    await this.mutationLock.runExclusive(() => this.reconcileSkillLocked(skillId))
+  }
+
+  private async reconcileSkillLocked(skillId: string): Promise<void> {
+    const skill = agentGlobalSkillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+    if (skill.source === 'builtin') throw new Error(`Built-in Skill is read-only: ${skill.folderName}`)
+
+    const skillDir = this.getSkillStoragePath(skill.folderName)
+    let stats: fs.Stats
+    try {
+      stats = await fs.promises.lstat(skillDir)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      agentGlobalSkillService.deleteById(skillId)
+      await this.unlinkMirror(skill.folderName)
+      agentGlobalSkillService.notifySkillMembershipChange(skillId)
+      logger.info('Pruned missing Skill during scoped reconcile', { skillId, folderName: skill.folderName })
+      return
+    }
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error(`Managed Skill path is not a directory: ${skill.folderName}`)
+    }
+
+    await this.normalizeSkillMdCasing(skillDir)
+    const descriptor = await this.readSkillMdState(skillDir)
+    if (descriptor.status !== 'found') {
+      await this.unlinkMirror(skill.folderName)
+      throw new Error(`Skill descriptor is ${descriptor.status}: ${skill.folderName}`)
+    }
+
+    let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
+    try {
+      metadata = await parseSkillMetadata(skillDir, skill.folderName, 'skills')
+    } catch (error) {
+      await this.unlinkMirror(skill.folderName)
+      throw error
+    }
+
+    agentGlobalSkillService.update(skillId, {
+      name: metadata.name,
+      description: metadata.description ?? null,
+      author: metadata.author ?? null,
+      version: metadata.version ?? null,
+      tags: metadata.tags ?? [],
+      contentHash: createHash('sha256').update(descriptor.content).digest('hex')
+    })
+    await this.linkMirror(skill.folderName, { throwOnError: true })
+    agentGlobalSkillService.notifySkillProjectionChange(skillId)
+    logger.info('Scoped Skill reconcile completed', { skillId, folderName: skill.folderName })
+  }
+
+  async checkRemoteUpdate(skillId: string): Promise<SkillRemoteUpdateCheck> {
+    const record = agentGlobalSkillService.getByIdWithProvenance(skillId)
+    if (!record) throw new Error(`Skill not found: ${skillId}`)
+    if (record.skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
+    if (!record.installSource || !record.upstreamHash) {
+      return { state: 'unsupported', reason: 'missing_provenance' }
+    }
+
+    const fetched = await this.fetchRemote(record.installSource)
+    try {
+      const [currentHash, remoteHash, metadata] = await Promise.all([
+        this.installer.computeDirectoryHash(this.getSkillStoragePath(record.skill.folderName)),
+        this.installer.computeDirectoryHash(fetched.skillDir),
+        parseSkillMetadata(fetched.skillDir, record.skill.folderName, 'skills')
+      ])
+      const localChanges = currentHash !== record.upstreamHash
+      if (remoteHash === record.upstreamHash) {
+        return { state: 'up_to_date', localChanges, remoteVersion: metadata.version ?? null }
+      }
+      return {
+        state: 'available',
+        localChanges,
+        remoteVersion: metadata.version ?? null,
+        revision: this.createRemoteRevision({
+          skillId,
+          installSource: record.installSource,
+          upstreamHash: record.upstreamHash,
+          currentHash,
+          remoteHash
+        })
+      }
+    } finally {
+      await safeRemoveDirectory(fetched.tempDir)
+    }
+  }
+
+  async applyRemoteUpdate(options: {
+    skillId: string
+    revision: string
+    overwriteLocalChanges: boolean
+  }): Promise<InstalledSkill> {
+    const record = agentGlobalSkillService.getByIdWithProvenance(options.skillId)
+    if (!record) throw new Error(`Skill not found: ${options.skillId}`)
+    if (record.skill.source !== 'marketplace' || !record.installSource || !record.upstreamHash) {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill has no supported remote source')
+    }
+
+    const fetched = await this.fetchRemote(record.installSource)
+    try {
+      const [remoteHash, metadata, contentHash] = await Promise.all([
+        this.installer.computeDirectoryHash(fetched.skillDir),
+        parseSkillMetadata(fetched.skillDir, record.skill.folderName, 'skills'),
+        this.installer.computeContentHash(fetched.skillDir)
+      ])
+
+      return await this.mutationLock.runExclusive(async () => {
+        const currentRecord = agentGlobalSkillService.getByIdWithProvenance(options.skillId)
+        if (
+          !currentRecord ||
+          currentRecord.skill.source !== 'marketplace' ||
+          !currentRecord.installSource ||
+          currentRecord.installSource !== record.installSource ||
+          !currentRecord.upstreamHash
+        ) {
+          throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update provenance changed')
+        }
+
+        const destination = this.getSkillStoragePath(currentRecord.skill.folderName)
+        const currentHash = await this.installer.computeDirectoryHash(destination)
+        const revision = this.createRemoteRevision({
+          skillId: options.skillId,
+          installSource: currentRecord.installSource,
+          upstreamHash: currentRecord.upstreamHash,
+          currentHash,
+          remoteHash
+        })
+        if (revision !== options.revision || remoteHash === currentRecord.upstreamHash) {
+          throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
+        }
+
+        const hasLocalChanges = currentHash !== currentRecord.upstreamHash
+        if (hasLocalChanges && !options.overwriteLocalChanges) {
+          throw new SkillRemoteUpdateError(
+            skillErrorCodes.REMOTE_LOCAL_CHANGES,
+            'Skill has local changes that require explicit overwrite'
+          )
+        }
+
+        await this.installer.install(fetched.skillDir, destination)
+        agentGlobalSkillService.update(options.skillId, {
+          name: metadata.name,
+          description: metadata.description ?? null,
+          author: metadata.author ?? null,
+          version: metadata.version ?? null,
+          tags: metadata.tags ?? [],
+          sourceUrl: fetched.sourceUrl,
+          contentHash,
+          installSource: currentRecord.installSource,
+          upstreamHash: remoteHash
+        })
+        await this.linkMirror(currentRecord.skill.folderName, { throwOnError: true })
+
+        const updated = agentGlobalSkillService.getById(options.skillId)
+        if (!updated) throw new Error(`Skill disappeared after remote update: ${options.skillId}`)
+        agentGlobalSkillService.notifySkillProjectionChange(options.skillId)
+        logger.info('Remote Skill update applied', {
+          skillId: options.skillId,
+          folderName: currentRecord.skill.folderName,
+          overwriteLocalChanges: options.overwriteLocalChanges
+        })
+        return updated
+      })
+    } finally {
+      await safeRemoveDirectory(fetched.tempDir)
+    }
+  }
+
+  private fetchRemote(installSource: string) {
+    const [source, ...identifier] = installSource.split(':')
+    return fetchRemoteSkill(source, identifier.join(':'))
+  }
+
+  private createRemoteRevision(input: {
+    skillId: string
+    installSource: string
+    upstreamHash: string
+    currentHash: string
+    remoteHash: string
+  }): string {
+    return createHash('sha256').update(JSON.stringify(input)).digest('hex')
   }
 
   /**

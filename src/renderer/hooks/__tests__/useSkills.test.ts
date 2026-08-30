@@ -71,6 +71,8 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     version: null,
     sourceTags: [],
     contentHash: 'hash-1',
+    sourceRegistry: null,
+    canUpdateFromRemote: false,
     isGlobalEnabled: true,
     isEnabled: false,
     createdAt: '2024-01-01T00:00:00.000Z',
