@@ -581,12 +581,7 @@ describe('reasoning utils', () => {
       expect(result).toEqual({ enable_thinking: false })
     })
 
-    // DeepSeek V4+ reasoning effort must reach both the official @ai-sdk/deepseek path
-    // (reads snake_case `reasoning_effort`) and the @ai-sdk/openai-compatible path
-    // (drops snake_case, only honors camelCase `reasoningEffort`). getReasoningEffort cannot
-    // tell the two apart, so it emits both casings. Regression guard for
-    // https://github.com/CherryHQ/cherry-studio/issues/15824
-    it('should emit both snake_case and camelCase reasoning effort for DeepSeek V4+ with high', async () => {
+    it('should emit camelCase reasoning effort for DeepSeek V4+ with high', async () => {
       const { isReasoningModel, isDeepSeekV4PlusModel } = await import('@renderer/config/models')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
@@ -609,12 +604,11 @@ describe('reasoning utils', () => {
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({
         thinking: { type: 'enabled' },
-        reasoning_effort: 'high',
         reasoningEffort: 'high'
       })
     })
 
-    it('should map xhigh to max in both casings for DeepSeek V4+', async () => {
+    it('should map xhigh to max for DeepSeek V4+', async () => {
       const { isReasoningModel, isDeepSeekV4PlusModel } = await import('@renderer/config/models')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
@@ -637,7 +631,6 @@ describe('reasoning utils', () => {
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({
         thinking: { type: 'enabled' },
-        reasoning_effort: 'max',
         reasoningEffort: 'max'
       })
     })
