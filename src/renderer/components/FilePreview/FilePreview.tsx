@@ -147,13 +147,15 @@ function FilePreviewPluginRenderer({
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
+  const PluginComponent = pluginComponent
+
   return (
     <ErrorBoundary
       key={`${plugin.id}:${filePath}:${refreshKey}`}
       FallbackComponent={PluginErrorFallback}
       onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
-        <pluginComponent
+        <PluginComponent
           filePath={filePath}
           fileName={fileName}
           metadata={metadata}
