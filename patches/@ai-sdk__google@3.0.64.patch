@@ -37,6 +37,118 @@ index bfc039b..e239776 100644
  }
  
  // src/google-error.ts
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -848,4 +848,5 @@ function prepareTools({
+   tools,
+   toolChoice,
+-  modelId
++  modelId,
++  isVertexProvider
+ }) {
+@@ -984,5 +985,7 @@ function prepareTools({
+       }
+       const combinedToolConfig = {
+-        functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
++        functionCallingConfig: { mode: "VALIDATED" },
++        ...!isVertexProvider && {
++          includeServerSideToolInvocations: true
++        }
+       };
+@@ -1424,5 +1427,6 @@ var GoogleGenerativeAILanguageModel = class {
+     } = prepareTools({
+       tools,
+       toolChoice,
+-      modelId: this.modelId
++      modelId: this.modelId,
++      isVertexProvider
+     });
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -856,4 +856,5 @@ function prepareTools({
+   tools,
+   toolChoice,
+-  modelId
++  modelId,
++  isVertexProvider
+ }) {
+@@ -992,5 +993,7 @@ function prepareTools({
+       }
+       const combinedToolConfig = {
+-        functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
++        functionCallingConfig: { mode: "VALIDATED" },
++        ...!isVertexProvider && {
++          includeServerSideToolInvocations: true
++        }
+       };
+@@ -1430,5 +1433,6 @@ var GoogleGenerativeAILanguageModel = class {
+     } = prepareTools({
+       tools,
+       toolChoice,
+-      modelId: this.modelId
++      modelId: this.modelId,
++      isVertexProvider
+     });
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -656,4 +656,5 @@ function prepareTools({
+   tools,
+   toolChoice,
+-  modelId
++  modelId,
++  isVertexProvider
+ }) {
+@@ -792,5 +793,7 @@ function prepareTools({
+       }
+       const combinedToolConfig = {
+-        functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
++        functionCallingConfig: { mode: "VALIDATED" },
++        ...!isVertexProvider && {
++          includeServerSideToolInvocations: true
++        }
+       };
+@@ -1232,5 +1235,6 @@ var GoogleGenerativeAILanguageModel = class {
+     } = prepareTools({
+       tools,
+       toolChoice,
+-      modelId: this.modelId
++      modelId: this.modelId,
++      isVertexProvider
+     });
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -645,4 +645,5 @@ function prepareTools({
+   tools,
+   toolChoice,
+-  modelId
++  modelId,
++  isVertexProvider
+ }) {
+@@ -781,5 +782,7 @@ function prepareTools({
+       }
+       const combinedToolConfig = {
+-        functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
++        functionCallingConfig: { mode: "VALIDATED" },
++        ...!isVertexProvider && {
++          includeServerSideToolInvocations: true
++        }
+       };
+@@ -1218,5 +1221,6 @@ var GoogleGenerativeAILanguageModel = class {
+     } = prepareTools({
+       tools,
+       toolChoice,
+-      modelId: this.modelId
++      modelId: this.modelId,
++      isVertexProvider
+     });
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
 index ba71d04..8596000 100644
 --- a/dist/internal/index.mjs

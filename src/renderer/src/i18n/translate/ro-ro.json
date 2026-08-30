@@ -937,6 +937,8 @@
         "label": "Efort de raționament",
         "low": "Scăzut",
         "low_description": "Raționament de nivel scăzut",
+        "max": "Max",
+        "max_description": "Efort maxim de raționament",
         "medium": "Mediu",
         "medium_description": "Raționament de nivel mediu",
         "minimal": "Minim",

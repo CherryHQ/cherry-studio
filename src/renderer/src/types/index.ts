@@ -112,14 +112,22 @@ const ThinkModelTypes = [
   'grok',
   'grok4_fast',
   'grok_4_3',
+  'grok_4_6',
   'gemini2_flash',
   'gemini2_pro',
   'gemini3_flash',
   'gemini3_pro',
   'gemini3_1_pro',
+  'gemini3_7_flash',
+  'gemini3_image',
   'gemma4_hosted',
   'qwen',
   'qwen_thinking',
+  'qwen3_8_large',
+  'qwen3_8_hybrid',
+  'qwen3_8_flash',
+  'qwen3_8_max_preview',
+  'qwen3_8_openrouter_max',
   'doubao',
   'doubao_no_auto',
   'doubao_after_251015',
@@ -127,12 +135,27 @@ const ThinkModelTypes = [
   'mimo',
   'hunyuan',
   'zhipu',
+  'zhipu_glm_5_2',
+  'zhipu_glm_5_2_openrouter',
+  'zhipu_glm_5_3',
   'perplexity',
   'deepseek_hybrid',
   'deepseek_v4',
   'kimi_k2_5',
+  'kimi_k3',
+  'kimi_k3_openrouter',
+  'kimi_k3_dashscope',
+  'kimi_k3_fast',
   'kimi_always_think',
   'longcat',
+  'solar_pro2',
+  'solar_pro3',
+  'solar_pro4',
+  'muse_glimmer',
+  'muse_glimmer_openrouter',
+  'muse_spark_openrouter',
+  'namazu_openrouter',
+  'zhipu_glm_latest_openrouter',
   'claude',
   'claude46',
   'mistral'
@@ -154,7 +177,7 @@ const ThinkModelTypes = [
  *            It's also used as "on" when the reasoning behavior of the model only could be set to "on" and "off".
  * - 'default': Depend on default behavior. It means we would not set any reasoning related settings when calling API.
  */
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'max' | 'auto' | 'default'
 export type ThinkingOption = ReasoningEffortOption
 export type ThinkingModelType = (typeof ThinkModelTypes)[number]
 export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
@@ -174,6 +197,7 @@ export const EFFORT_RATIO: EffortRatio = {
   medium: 0.5,
   high: 0.8,
   xhigh: 0.9,
+  max: 1,
   auto: 2
 }
 
@@ -328,6 +352,7 @@ export type Model = {
   owned_by?: string
   description?: string
   capabilities?: ModelCapability[]
+  providerCapabilities?: ModelType[]
   /**
    * @deprecated
    */

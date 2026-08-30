@@ -342,6 +342,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   gemini: [
     {
+      id: 'gemini-3.7-flash',
+      provider: 'gemini',
+      name: 'Gemini 3.7 Flash',
+      group: 'Gemini 3'
+    },
+    {
+      id: 'gemini-3.1-flash-image',
+      provider: 'gemini',
+      name: 'Nano Banana 2',
+      group: 'Gemini 3'
+    },
+    {
       id: 'gemini-2.5-flash',
       provider: 'gemini',
       name: 'Gemini 2.5 Flash',
@@ -417,6 +429,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   deepseek: [
+    {
+      id: 'deepseek-v4-flash-vision-exp',
+      provider: 'deepseek',
+      name: 'deepseek-v4-flash-vision-exp',
+      group: 'DeepSeek',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
     {
       id: 'deepseek-v4-flash',
       provider: 'deepseek',
@@ -630,6 +649,25 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   zhipu: [
     {
+      id: 'glm-5.2',
+      provider: 'zhipu',
+      name: 'GLM-5.2',
+      group: 'GLM-5.2'
+    },
+    {
+      id: 'glm-5.2-fast',
+      provider: 'zhipu',
+      name: 'GLM-5.2-Fast',
+      group: 'GLM-5.2'
+    },
+    {
+      id: 'glm-5.3-flash',
+      provider: 'zhipu',
+      name: 'GLM-5.3-Flash',
+      group: 'GLM-5.3',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
       id: 'glm-5',
       provider: 'zhipu',
       name: 'GLM-5',
@@ -715,6 +753,14 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   moonshot: [
+    {
+      id: 'kimi-k3',
+      provider: 'moonshot',
+      name: 'Kimi K3',
+      group: 'Kimi K3',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
     {
       id: 'kimi-k2.5',
       provider: 'moonshot',
@@ -829,6 +875,10 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   dashscope: [
+    { id: 'qwen-image-3.0', name: 'Qwen Image 3.0', provider: 'dashscope', group: 'Qwen Image' },
+    { id: 'qwen-image-3.0-pro', name: 'Qwen Image 3.0 Pro', provider: 'dashscope', group: 'Qwen Image' },
+    { id: 'qwen3.8-max', name: 'Qwen3.8 Max', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3.8-max-preview', name: 'Qwen3.8 Max Preview', provider: 'dashscope', group: 'Qwen' },
     { id: 'qwen3.5-plus', name: 'Qwen3.5-Plus', provider: 'dashscope', group: 'Qwen' },
     { id: 'qwen3.5-flash', name: 'Qwen3.5-Flash', provider: 'dashscope', group: 'Qwen' },
     { id: 'qwen3-max', name: 'Qwen3-Max', provider: 'dashscope', group: 'Qwen' },
@@ -1094,6 +1144,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   grok: [
+    {
+      id: 'grok-4.6',
+      provider: 'grok',
+      name: 'Grok 4.6',
+      group: 'Grok'
+    },
     {
       id: 'grok-4.3',
       provider: 'grok',
@@ -1977,6 +2033,25 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   zai: [
+    {
+      id: 'glm-5.2',
+      provider: 'zai',
+      name: 'GLM-5.2',
+      group: 'GLM-5.2'
+    },
+    {
+      id: 'glm-5.2-fast',
+      provider: 'zai',
+      name: 'GLM-5.2-Fast',
+      group: 'GLM-5.2'
+    },
+    {
+      id: 'glm-5.3-flash',
+      provider: 'zai',
+      name: 'GLM-5.3-Flash',
+      group: 'GLM-5.3',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
     {
       id: 'glm-5',
       provider: 'zai',

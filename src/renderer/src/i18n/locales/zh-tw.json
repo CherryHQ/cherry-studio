@@ -937,6 +937,8 @@
         "label": "思維鏈長度",
         "low": "稍微思考",
         "low_description": "低階推理",
+        "max": "全力思考",
+        "max_description": "使用最大強度推理",
         "medium": "正常思考",
         "medium_description": "中等程度推理",
         "minimal": "最少思考",

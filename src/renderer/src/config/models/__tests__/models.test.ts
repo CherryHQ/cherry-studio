@@ -4,6 +4,7 @@ import {
   isSupportedThinkingTokenQwenModel,
   isVisionModel
 } from '@renderer/config/models'
+import { SYSTEM_MODELS } from '@renderer/config/models/default'
 import { isQwen35to39Model } from '@renderer/config/models/qwen'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
@@ -47,6 +48,29 @@ beforeEach(() => {
   getProviderByModelMock.mockReturnValue({ type: 'openai-response' } as any)
   isEmbeddingModelMock.mockReturnValue(false)
   isRerankModelMock.mockReturnValue(false)
+})
+
+describe('Built-in model catalog', () => {
+  test('includes the v1-compatible DeepSeek and GLM vision models', () => {
+    expect(SYSTEM_MODELS.deepseek.some((model) => model.id === 'deepseek-v4-flash-vision-exp')).toBe(true)
+    expect(SYSTEM_MODELS.zhipu.some((model) => model.id === 'glm-5.3-flash')).toBe(true)
+    expect(SYSTEM_MODELS.zai.some((model) => model.id === 'glm-5.3-flash')).toBe(true)
+  })
+
+  test('includes the remaining current model contracts from main', () => {
+    expect(SYSTEM_MODELS.moonshot.some((model) => model.id === 'kimi-k3')).toBe(true)
+    expect(SYSTEM_MODELS.zhipu.map((model) => model.id)).toEqual(expect.arrayContaining(['glm-5.2', 'glm-5.2-fast']))
+    expect(SYSTEM_MODELS.zai.map((model) => model.id)).toEqual(expect.arrayContaining(['glm-5.2', 'glm-5.2-fast']))
+    expect(SYSTEM_MODELS.dashscope.map((model) => model.id)).toEqual(
+      expect.arrayContaining(['qwen-image-3.0', 'qwen-image-3.0-pro'])
+    )
+    expect(SYSTEM_MODELS.dashscope.map((model) => model.id)).toEqual(
+      expect.arrayContaining(['qwen3.8-max', 'qwen3.8-max-preview'])
+    )
+    expect(SYSTEM_MODELS.gemini.some((model) => model.id === 'gemini-3.1-flash-image')).toBe(true)
+    expect(SYSTEM_MODELS.gemini.some((model) => model.id === 'gemini-3.7-flash')).toBe(true)
+    expect(SYSTEM_MODELS.grok.some((model) => model.id === 'grok-4.6')).toBe(true)
+  })
 })
 
 // Suggested test cases

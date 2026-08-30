@@ -7,12 +7,13 @@ import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
   getFromApi as aiSdkGetFromApi,
+  postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { COPILOT_DEFAULT_HEADERS } from '@renderer/aiCore/provider/constants'
 import store from '@renderer/store'
-import type { EndpointType, Model, Provider } from '@renderer/types'
+import type { EndpointType, Model, ModelType, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { formatApiHost, getDefaultGroupName, withoutTrailingSlash } from '@renderer/utils'
 import { isGeminiProvider, isOllamaProvider, isVertexProvider } from '@renderer/utils/provider'
@@ -32,6 +33,7 @@ import {
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
+  OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
@@ -162,6 +164,65 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
+type OllamaMetadata = {
+  capabilities: ModelType[]
+}
+
+function readOllamaCapabilities(capabilities: string[] | undefined): ModelType[] {
+  const nativeToModelType: Record<string, ModelType> = {
+    vision: 'vision',
+    tools: 'function_calling',
+    thinking: 'reasoning',
+    embedding: 'embedding'
+  }
+  return (capabilities ?? []).flatMap((capability) => {
+    const modelType = nativeToModelType[capability]
+    return modelType ? [modelType] : []
+  })
+}
+
+async function fetchOllamaMetadata(
+  baseUrl: string,
+  provider: Provider,
+  model: string,
+  signal?: AbortSignal
+): Promise<OllamaMetadata> {
+  try {
+    const { value } = await postJsonToApi({
+      url: `${baseUrl}/api/show`,
+      headers: defaultHeaders(provider),
+      body: { model },
+      successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
+      failedResponseHandler: createJsonErrorResponseHandler({
+        errorSchema: zodSchema(ApiErrorSchema),
+        errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+      }),
+      abortSignal: signal
+    })
+    return { capabilities: readOllamaCapabilities(value.capabilities) }
+  } catch (error) {
+    logger.warn('Failed to inspect Ollama model metadata', { model, error })
+    return { capabilities: [] }
+  }
+}
+
+export async function probeOllamaModel(provider: Provider, model: string, signal?: AbortSignal): Promise<void> {
+  const baseUrl = withoutTrailingSlash(provider.apiHost)
+    .replace(/\/v1$/, '')
+    .replace(/\/api$/, '')
+  await postJsonToApi({
+    url: `${baseUrl}/api/show`,
+    headers: defaultHeaders(provider),
+    body: { model },
+    successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
+    failedResponseHandler: createJsonErrorResponseHandler({
+      errorSchema: zodSchema(ApiErrorSchema),
+      errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+    }),
+    abortSignal: signal
+  })
+}
+
 // === Fetchers ===
 
 const ollamaFetcher: ModelFetcher = {
@@ -176,7 +237,23 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) => toModel(m.name, provider, { owned_by: 'ollama' }))
+    const models = dedup(response.models, (m) => m.name)
+    const metadata = await Promise.all(
+      models.map((model) => fetchOllamaMetadata(baseUrl, provider, model.name, signal))
+    )
+    return models.map((model, index) =>
+      toModel(model.name, provider, {
+        owned_by: 'ollama',
+        ...((metadata[index].capabilities.length > 0 || model.capabilities?.includes('thinking')) && {
+          providerCapabilities: Array.from(
+            new Set([
+              ...metadata[index].capabilities,
+              ...(model.capabilities?.includes('thinking') ? (['reasoning'] as const) : [])
+            ])
+          )
+        })
+      })
+    )
   }
 }
 

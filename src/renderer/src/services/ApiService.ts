@@ -3,6 +3,7 @@
  */
 import { loggerService } from '@logger'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import { probeOllamaModel } from '@renderer/aiCore/services'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
 import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
@@ -24,7 +25,11 @@ import { getErrorMessage, isAbortError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import {
+  isOllamaProvider,
+  NOT_SUPPORT_API_KEY_PROVIDER_TYPES,
+  NOT_SUPPORT_API_KEY_PROVIDERS
+} from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
 import type { AiProviderConfig } from '../aiCore'
@@ -840,13 +845,31 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
+  if (isOllamaProvider(provider)) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeout)
+    try {
+      await probeOllamaModel(provider, model.id, controller.signal)
+    } finally {
+      clearTimeout(timer)
+    }
+    return
+  }
+
   const ai = new AiProvider(model, provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
   assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
 
-  if (isEmbeddingModel(model)) {
+  if (isDedicatedImageGenerationModel(model)) {
+    logger.info('checkApi: image generation model detected, calling generateImage', { modelId: model.id })
+    const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
+    await Promise.race([
+      ai.generateImage({ model: model.id, prompt: 'hi', imageSize: '1024x1024', batchSize: 1 }),
+      timerPromise
+    ])
+  } else if (isEmbeddingModel(model)) {
     logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])

@@ -1,1 +1,1 @@
-export { listModels } from './listModels'
+export { listModels, probeOllamaModel } from './listModels'

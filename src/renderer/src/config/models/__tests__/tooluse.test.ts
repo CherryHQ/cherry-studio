@@ -115,6 +115,24 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'gpt-5' }))).toBe(true)
   })
 
+  it.each([
+    'lfm-2.5-2.6b',
+    'muse-glimmer-30b',
+    'muse-spark-1.2',
+    'namazu',
+    'nemotron-3.5-lightning',
+    'solar-pro4',
+    'voxtral-small-latest'
+  ])('recognizes current main function-calling model %s', (id) => {
+    expect(isFunctionCallingModel(createModel({ id }))).toBe(true)
+  })
+
+  it('honors provider-discovered tool capability', () => {
+    expect(
+      isFunctionCallingModel(createModel({ id: 'local-custom', providerCapabilities: ['function_calling'] }))
+    ).toBe(true)
+  })
+
   it('excludes explicitly blocked ids', () => {
     expect(isFunctionCallingModel(createModel({ id: 'gemini-1.5-flash' }))).toBe(false)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3.2-speciale' }))).toBe(false)
@@ -145,10 +163,16 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'claude-3-opus', provider: 'anthropic' }))).toBe(true)
   })
 
-  it('supports kimi models through kimi-k2 regex match', () => {
+  it('supports current Kimi chat models', () => {
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2-0711-preview', provider: 'moonshot' }))).toBe(true)
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2', provider: 'kimi' }))).toBe(true)
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2.6', provider: 'moonshot' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k3', provider: 'moonshot' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k3-fast', provider: 'gateway' }))).toBe(true)
+  })
+
+  it('does not advertise function calling for Nano Banana 2', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'gemini-3.1-flash-image', provider: 'gemini' }))).toBe(false)
   })
 
   it('supports deepseek models through deepseek regex match', () => {

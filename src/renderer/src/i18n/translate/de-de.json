@@ -937,6 +937,8 @@
         "label": "Gedankenkettenlänge",
         "low": "Spontan",
         "low_description": "Geringfügige Argumentation",
+        "max": "Max",
+        "max_description": "Maximaler Denkaufwand",
         "medium": "Überlegt",
         "medium_description": "Denken auf mittlerem Niveau",
         "minimal": "Minimal",
