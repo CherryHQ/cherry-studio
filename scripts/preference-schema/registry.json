@@ -362,6 +362,18 @@
       "type": "PreferenceTypes.ComposerShortcut | null"
     },
     {
+      "defaultValue": false,
+      "description": "redux/settings/pasteLongTextAsFile",
+      "key": "chat.input.paste_long_text_as_file",
+      "type": "boolean"
+    },
+    {
+      "defaultValue": 1500,
+      "description": "redux/settings/pasteLongTextThreshold",
+      "key": "chat.input.paste_long_text_threshold",
+      "type": "number"
+    },
+    {
       "defaultValue": "VALUE: ['Enter']",
       "description": "redux/settings/sendMessageShortcut",
       "key": "chat.input.send_message_shortcut",

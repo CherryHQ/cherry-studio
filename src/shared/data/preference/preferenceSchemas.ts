@@ -140,6 +140,10 @@ export interface PreferenceSchemas {
     'chat.default_model_id': string | null
     // The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive.
     'chat.input.newline_shortcut': PreferenceTypes.ComposerShortcut | null
+    // redux/settings/pasteLongTextAsFile
+    'chat.input.paste_long_text_as_file': boolean
+    // redux/settings/pasteLongTextThreshold
+    'chat.input.paste_long_text_threshold': number
     // redux/settings/sendMessageShortcut
     'chat.input.send_message_shortcut': PreferenceTypes.ComposerShortcut
     // redux/settings/showInputEstimatedTokens
@@ -602,6 +606,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.context_settings.truncate_threshold': 50000,
     'chat.default_model_id': null,
     'chat.input.newline_shortcut': null,
+    'chat.input.paste_long_text_as_file': false,
+    'chat.input.paste_long_text_threshold': 1500,
     'chat.input.send_message_shortcut': ['Enter'],
     'chat.input.show_estimated_tokens': true,
     'chat.input.steer_shortcut': null,
