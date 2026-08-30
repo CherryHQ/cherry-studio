@@ -96,6 +96,26 @@ describe('session item actions', () => {
     expect(onTogglePin).toHaveBeenCalled()
   })
 
+  it('keeps ordinary pinning separate from sidebar shortcuts', async () => {
+    const onTogglePin = vi.fn()
+    const onToggleSidebar = vi.fn()
+    const context = createSessionActionFixture({
+      onTogglePin,
+      onToggleSidebar,
+      pinned: true,
+      sidebarPinned: false
+    })
+    const actions = resolveSessionMenuActions(context)
+    const sidebarAction = actions.find((action) => action.id === 'session.toggle-sidebar')
+
+    expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')
+    expect(sidebarAction?.label).toBe('launchpad.pin_to_sidebar')
+
+    await executeSessionMenuAction(sidebarAction!, context)
+    expect(onToggleSidebar).toHaveBeenCalledOnce()
+    expect(onTogglePin).not.toHaveBeenCalled()
+  })
+
   it('hides open-in-new-tab when the session is already active in the current tab', () => {
     const actions = resolveSessionMenuActions(
       createSessionActionFixture({

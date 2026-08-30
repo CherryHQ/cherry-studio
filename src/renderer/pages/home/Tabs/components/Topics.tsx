@@ -367,6 +367,17 @@ export function Topics({
       ),
     [sidebarShortcuts]
   )
+  const sidebarTopicFavoriteIdSet = useMemo(
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.TOPIC
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
+  )
   const handleToggleAssistantSidebar = useCallback(
     (assistantId: string) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, assistantId)
@@ -374,6 +385,14 @@ export function Topics({
       else toggleSidebarShortcut(target)
     },
     [removeSidebarShortcut, sidebarAssistantFavoriteIdSet, toggleSidebarShortcut]
+  )
+  const handleToggleTopicSidebar = useCallback(
+    (topic: Topic) => {
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.TOPIC, topic.id)
+      if (sidebarTopicFavoriteIdSet.has(topic.id)) removeSidebarShortcut(target)
+      else toggleSidebarShortcut(target, topic.name.trim() || t('chat.conversation.new'))
+    },
+    [removeSidebarShortcut, sidebarTopicFavoriteIdSet, t, toggleSidebarShortcut]
   )
   const {
     topics: apiTopics,
@@ -1560,10 +1579,12 @@ export function Topics({
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onMoveToAssistant={handleMoveTopicToAssistant}
           onPinTopic={handlePinTopic}
+          onToggleSidebar={handleToggleTopicSidebar}
           onRequestTopicImageAction={handleTopicImageAction}
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
           onSwitchTopic={setActiveTopic}
           panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+          sidebarTopicFavoriteIdSet={sidebarTopicFavoriteIdSet}
           topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
@@ -1657,10 +1678,12 @@ interface TopicListBodyProps {
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
+  onToggleSidebar: (topic: Topic) => void
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onSwitchTopic: (topic: Topic) => void
   panePosition?: TopicTabPosition
+  sidebarTopicFavoriteIdSet: ReadonlySet<string>
   topicsLength: number
   variant: TopicListBodyVariant
 }
@@ -1688,10 +1711,12 @@ function TopicListBody(props: TopicListBodyProps) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onRequestTopicImageAction,
     onSetPanePosition,
     onSwitchTopic,
     panePosition,
+    sidebarTopicFavoriteIdSet,
     topicsLength,
     variant
   } = props
@@ -1714,10 +1739,12 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSidebar,
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
       panePosition,
+      sidebarTopicFavoriteIdSet,
       topicsLength
     }),
     [
@@ -1737,10 +1764,12 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSidebar,
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
       panePosition,
+      sidebarTopicFavoriteIdSet,
       topicsLength
     ]
   )
@@ -1791,10 +1820,12 @@ const TopicRow = memo(function TopicRow({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  onToggleSidebar,
   onRequestTopicImageAction,
   onSetPanePosition,
   onSwitchTopic,
   panePosition,
+  sidebarTopicFavoriteIdSet,
   topic,
   topicsLength
 }: TopicRowProps) {
@@ -1854,9 +1885,11 @@ const TopicRow = memo(function TopicRow({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onSetPanePosition,
     onStartRename: startMenuRename,
     panePosition,
+    sidebarPinned: sidebarTopicFavoriteIdSet.has(topic.id),
     t,
     topic,
     topicsLength

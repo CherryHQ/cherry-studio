@@ -574,6 +574,16 @@ describe('FileEntryService', () => {
       )
     }
 
+    it('filters to exact active entry ids before counting', async () => {
+      await seed5()
+      const ids = ['019606a0-0000-7000-8000-0000000000b1', '019606a0-0000-7000-8000-0000000000b3'] as FileEntryId[]
+
+      const result = fileEntryService.listCursor({ ids, limit: 2 })
+
+      expect(result.items.map((entry) => entry.id)).toEqual(ids)
+      expect(result.total).toBe(2)
+    })
+
     it('returns { items, total, nextCursor } with active-only filtering by default', async () => {
       const now = Date.now()
       await dbh.db.insert(fileEntryTable).values([

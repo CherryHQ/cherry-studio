@@ -1560,6 +1560,7 @@ describe('Topics', () => {
       'Generate conversation name',
       'Edit conversation name',
       'Pin Conversation',
+      'Add to sidebar',
       expect.stringMatching(/^Move to/),
       'Open in New Window',
       'Conversation positionLeftRight',
@@ -1576,6 +1577,24 @@ describe('Topics', () => {
       'variant',
       'destructive'
     )
+  })
+
+  it('adds a topic shortcut without changing its conversation pin', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        sidebarShortcut('core.app', 'assistants'),
+        { ...sidebarShortcut('core.topic', 'topic-a'), fallbackLabel: 'Alpha topic' }
+      ])
+    )
+    expect(pinMutationMocks.createPin).not.toHaveBeenCalled()
   })
 
   it('clears a non-active topic from its context menu without switching the conversation', async () => {

@@ -36,9 +36,14 @@ const KnowledgePageContent = () => {
   )
 }
 
-const KnowledgePage = () => {
+interface KnowledgePageProps {
+  baseId?: string
+  onBaseIdChange?: (baseId?: string) => void
+}
+
+const KnowledgePage = ({ baseId, onBaseIdChange }: KnowledgePageProps) => {
   return (
-    <KnowledgePageProvider>
+    <KnowledgePageProvider baseId={baseId} onBaseIdChange={onBaseIdChange}>
       <KnowledgePageContent />
       <KnowledgePageDialogSection />
     </KnowledgePageProvider>

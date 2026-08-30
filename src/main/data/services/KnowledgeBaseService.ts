@@ -119,7 +119,7 @@ function buildSearchPredicate(search: string | undefined, includeItemSources = f
 }
 
 function buildListFilterConditions(
-  query: Pick<ListKnowledgeBasesQuery, 'search' | 'updatedAtFrom'>,
+  query: Pick<ListKnowledgeBasesQuery, 'ids' | 'search' | 'updatedAtFrom'>,
   filters: KnowledgeBaseListFilters = {}
 ): SQL[] {
   const conditions: SQL[] = []
@@ -127,6 +127,9 @@ function buildListFilterConditions(
   if (search) conditions.push(search)
   if (query.updatedAtFrom !== undefined) {
     conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
+  }
+  if (query.ids !== undefined) {
+    conditions.push(inArray(knowledgeBaseTable.id, query.ids))
   }
   if (filters.groupId !== undefined) {
     conditions.push(eq(knowledgeBaseTable.groupId, filters.groupId))

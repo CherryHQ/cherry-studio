@@ -6,16 +6,19 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@cherrystudio/ui'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { FolderClosed, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { FileItem } from './fileDisplay'
 
 export interface FileContextMenuActions {
+  isSidebarPinned: (id: string) => boolean
   onRename: (id: string) => void
   onDelete: (id: string) => void
   onRestore: (id: string) => void
   onShowInFolder: (id: string) => void
+  onToggleSidebar: (file: FileItem) => void
 }
 
 /**
@@ -63,6 +66,8 @@ function FileContextMenuContent({
   const canRename = canUseFileActions && showRename
   const canShowInFolder = canUseFileActions
   const hasPrimaryAction = canRename || canShowInFolder
+  const sidebarPinned = actions.isSidebarPinned(file.id)
+  const hasSidebarAction = !file.isMissing || sidebarPinned
 
   if (isTrash) {
     return (
@@ -94,7 +99,14 @@ function FileContextMenuContent({
           <ContextMenuItemContent icon={<FolderClosed size={12} />}>{t('files.show_in_folder')}</ContextMenuItemContent>
         </ContextMenuItem>
       )}
-      {hasPrimaryAction && <ContextMenuSeparator />}
+      {hasSidebarAction && (
+        <ContextMenuItem onSelect={() => actions.onToggleSidebar(file)}>
+          <ContextMenuItemContent icon={<SidebarShortcutIcon pinned={sidebarPinned} size={12} />}>
+            {t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+      )}
+      {(hasPrimaryAction || hasSidebarAction) && <ContextMenuSeparator />}
       <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
         <ContextMenuItemContent icon={<Trash2 size={12} />}>
           {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}

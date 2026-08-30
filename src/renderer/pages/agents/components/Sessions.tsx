@@ -560,6 +560,17 @@ const Sessions = ({
       ),
     [sidebarShortcuts]
   )
+  const sidebarSessionFavoriteIdSet = useMemo(
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT_SESSION
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
+  )
   const handleToggleAgentSidebar = useCallback(
     (agentId: string) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, agentId)
@@ -567,6 +578,14 @@ const Sessions = ({
       else toggleSidebarShortcut(target)
     },
     [removeSidebarShortcut, sidebarAgentFavoriteIdSet, toggleSidebarShortcut]
+  )
+  const handleToggleSessionSidebar = useCallback(
+    (session: AgentSessionEntity) => {
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT_SESSION, session.id)
+      if (sidebarSessionFavoriteIdSet.has(session.id)) removeSidebarShortcut(target)
+      else toggleSidebarShortcut(target, session.name.trim() || t('agent.session.new'))
+    },
+    [removeSidebarShortcut, sidebarSessionFavoriteIdSet, t, toggleSidebarShortcut]
   )
   const agentsForDisplay = useMemo(() => {
     if (!optimisticAgentOrderIds) return agents
@@ -2061,7 +2080,9 @@ const Sessions = ({
         onRetry={handleRetry}
         onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
         onTogglePin={handleToggleSessionPin}
+        onToggleSidebar={handleToggleSessionSidebar}
         panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+        sidebarSessionFavoriteIdSet={sidebarSessionFavoriteIdSet}
         sessionMenuActions={sessionMenuActions}
         setActiveSessionId={handleSelectSession}
       />
@@ -2124,7 +2145,9 @@ interface SessionListBodyProps {
   onRetry: () => Promise<unknown>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin: (id: string) => void | Promise<unknown>
+  onToggleSidebar: (session: AgentSessionEntity) => void
   panePosition?: TopicTabPosition
+  sidebarSessionFavoriteIdSet: ReadonlySet<string>
   sessionMenuActions: SessionItemMenuActions
   setActiveSessionId: (id: string | null) => void
 }
@@ -2144,7 +2167,9 @@ function SessionListBody({
   onRetry,
   onSetPanePosition,
   onTogglePin,
+  onToggleSidebar,
   panePosition,
+  sidebarSessionFavoriteIdSet,
   sessionMenuActions,
   setActiveSessionId
 }: SessionListBodyProps) {
@@ -2164,12 +2189,14 @@ function SessionListBody({
           !session.pinned && displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}
+        onToggleSidebar={onToggleSidebar}
         onDelete={onDeleteSession}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
         onOpenRenameDialog={onOpenRenameDialog}
         onSetPanePosition={onSetPanePosition}
         panePosition={panePosition}
+        sidebarPinned={sidebarSessionFavoriteIdSet.has(session.id)}
         onPress={setActiveSessionId}
         sessionMenuActions={sessionMenuActions}
       />
@@ -2184,7 +2211,9 @@ function SessionListBody({
       onOpenRenameDialog,
       onSetPanePosition,
       onTogglePin,
+      onToggleSidebar,
       panePosition,
+      sidebarSessionFavoriteIdSet,
       sessionMenuActions,
       setActiveSessionId
     ]

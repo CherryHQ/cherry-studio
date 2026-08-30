@@ -309,6 +309,17 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('listCursor', () => {
+    it('filters to exact knowledge base ids before counting', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Second' })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other' })
+
+      const result = service.listCursor({ ids: [KNOWLEDGE_BASE_ID, OTHER_KNOWLEDGE_BASE_ID], limit: 2 })
+
+      expect(result.items.map((item) => item.id).sort()).toEqual([KNOWLEDGE_BASE_ID, OTHER_KNOWLEDGE_BASE_ID].sort())
+      expect(result.total).toBe(2)
+    })
+
     it('walks 201 knowledge bases without gaps or duplicates', async () => {
       await seedKnowledgeBases(201)
 

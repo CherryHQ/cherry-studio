@@ -73,6 +73,7 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
 /** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
 export const ListAgentSessionsQuerySchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   agentId: z.string().optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).optional()

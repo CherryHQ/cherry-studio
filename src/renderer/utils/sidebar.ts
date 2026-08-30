@@ -177,6 +177,10 @@ export const SIDEBAR_SHORTCUT_PROVIDER_IDS = {
   MINI_APP: 'core.mini-app',
   AGENT: 'core.agent',
   ASSISTANT: 'core.assistant',
+  KNOWLEDGE_BASE: 'core.knowledge-base',
+  TOPIC: 'core.topic',
+  AGENT_SESSION: 'core.agent-session',
+  FILE_ENTRY: 'core.file-entry',
   SKILL: 'core.skill',
   MCP_SERVER: 'core.mcp-server',
   PROVIDER: 'core.provider'

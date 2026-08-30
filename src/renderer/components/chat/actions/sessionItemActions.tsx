@@ -2,6 +2,7 @@ import { createActionRegistry } from '@renderer/components/chat/actions/actionRe
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
@@ -57,8 +58,10 @@ export interface SessionActionContext {
   onSaveToNotes?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: () => void
+  onToggleSidebar?: () => void
   panePosition?: TopicTabPosition
   pinned?: boolean
+  sidebarPinned?: boolean
   sessionName: string
   startEdit: (value: string) => void
   t: TFunction
@@ -112,6 +115,12 @@ sessionActionRegistry.registerCommand({
   id: 'session.toggle-pin',
   availability: ({ onTogglePin }) => ({ visible: !!onTogglePin, enabled: !!onTogglePin }),
   run: ({ onTogglePin }) => onTogglePin?.()
+})
+
+sessionActionRegistry.registerCommand({
+  id: 'session.toggle-sidebar',
+  availability: ({ onToggleSidebar }) => ({ visible: !!onToggleSidebar, enabled: !!onToggleSidebar }),
+  run: ({ onToggleSidebar }) => onToggleSidebar?.()
 })
 
 sessionActionRegistry.registerCommand({
@@ -299,6 +308,15 @@ sessionActionRegistry.registerAction({
   label: ({ pinned, t }) => (pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')),
   icon: ({ pinned }) => (pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
   order: 30,
+  surface: 'menu'
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.toggle-sidebar',
+  commandId: 'session.toggle-sidebar',
+  label: ({ sidebarPinned, t }) => (sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar')),
+  icon: ({ sidebarPinned }) => <SidebarShortcutIcon pinned={sidebarPinned} size={14} />,
+  order: 32,
   surface: 'menu'
 })
 

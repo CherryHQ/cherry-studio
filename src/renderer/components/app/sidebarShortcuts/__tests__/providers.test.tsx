@@ -6,10 +6,10 @@ import { createSidebarShortcutTarget } from '../../../../utils/sidebar'
 import { CORE_SIDEBAR_SHORTCUT_PROVIDERS } from '../providers'
 import type { SidebarActivationGateway } from '../types'
 
-const mocks = vi.hoisted(() => ({ preferenceGet: vi.fn() }))
+const mocks = vi.hoisted(() => ({ dataGet: vi.fn(), preferenceGet: vi.fn() }))
 
 vi.mock('@renderer/data/DataApiService', () => ({
-  dataApiService: { get: vi.fn(), onDataChanged: vi.fn() }
+  dataApiService: { get: mocks.dataGet, onDataChanged: vi.fn() }
 }))
 vi.mock('@renderer/data/PreferenceService', () => ({
   preferenceService: { get: mocks.preferenceGet }
@@ -39,6 +39,15 @@ describe('core sidebar shortcut providers', () => {
     ['core.mini-app', 'mini app/one', 'workspace', '/app/mini-app/mini%20app%2Fone'],
     ['core.agent', 'agent/one', 'workspace', '/app/agents?agentId=agent%2Fone'],
     ['core.assistant', 'assistant/one', 'workspace', '/app/chat?assistantId=assistant%2Fone'],
+    ['core.knowledge-base', 'base/one', 'workspace', '/app/knowledge?baseId=base%2Fone'],
+    ['core.topic', 'topic/one', 'workspace', '/app/chat?topicId=topic%2Fone'],
+    ['core.agent-session', 'session/one', 'workspace', '/app/agents?sessionId=session%2Fone'],
+    [
+      'core.file-entry',
+      '018f47d2-e657-7b4c-a7c1-8b52cbb9d114',
+      'workspace',
+      '/app/files?entryId=018f47d2-e657-7b4c-a7c1-8b52cbb9d114'
+    ],
     ['core.skill', 'skill/one', 'settings', '/settings/skills?id=skill%2Fone'],
     ['core.mcp-server', 'server/one', 'settings', '/settings/mcp/settings/server%2Fone'],
     ['core.provider', 'provider/one', 'settings', '/settings/provider?id=provider%2Fone']
@@ -55,5 +64,98 @@ describe('core sidebar shortcut providers', () => {
     const target: SidebarShortcutTarget = createSidebarShortcutTarget(shortcutProvider.id, 'resource', 'run')
 
     expect(shortcutProvider.validate(target)).toBe(false)
+  })
+
+  it('batch-resolves only requested topics through one exact-id query', async () => {
+    mocks.dataGet.mockResolvedValue({
+      items: [
+        { id: 'topic-2', name: 'Second' },
+        { id: 'topic-1', name: '' }
+      ]
+    })
+    const targets = [
+      createSidebarShortcutTarget('core.topic', 'topic-1'),
+      createSidebarShortcutTarget('core.topic', 'topic-2')
+    ]
+
+    const result = await provider('core.topic').resolveMany(targets)
+
+    expect(mocks.dataGet).toHaveBeenCalledWith('/topics', {
+      query: { ids: ['topic-1', 'topic-2'], limit: 2 }
+    })
+    expect([...result.values()].map((item) => item.label)).toEqual(['Second', 'chat.conversation.new'])
+  })
+
+  it.each([
+    {
+      providerId: 'core.knowledge-base',
+      endpoint: '/knowledge-bases',
+      resourceIds: ['base-1', 'base-2'],
+      items: [
+        { id: 'base-2', name: 'Second base' },
+        { id: 'base-1', name: 'First base' }
+      ],
+      labels: ['Second base', 'First base']
+    },
+    {
+      providerId: 'core.agent-session',
+      endpoint: '/agent-sessions',
+      resourceIds: ['session-1', 'session-2'],
+      items: [
+        { id: 'session-2', name: 'Second session' },
+        { id: 'session-1', name: 'First session' }
+      ],
+      labels: ['Second session', 'First session']
+    },
+    {
+      providerId: 'core.file-entry',
+      endpoint: '/files/entries',
+      resourceIds: ['018f47d2-e657-7b4c-a7c1-8b52cbb9d114', '018f47d2-e657-7b4c-a7c1-8b52cbb9d115'],
+      items: [
+        { id: '018f47d2-e657-7b4c-a7c1-8b52cbb9d115', name: 'notes', ext: 'md' },
+        { id: '018f47d2-e657-7b4c-a7c1-8b52cbb9d114', name: 'README', ext: null }
+      ],
+      labels: ['notes.md', 'README']
+    }
+  ])('batch-resolves requested $providerId resources by exact ids', async (fixture) => {
+    mocks.dataGet.mockResolvedValue({ items: fixture.items })
+    const targets = fixture.resourceIds.map((id) => createSidebarShortcutTarget(fixture.providerId, id))
+
+    const result = await provider(fixture.providerId).resolveMany(targets)
+
+    expect(mocks.dataGet).toHaveBeenCalledWith(fixture.endpoint, {
+      query: { ids: fixture.resourceIds, limit: fixture.resourceIds.length }
+    })
+    expect([...result.values()].map((item) => item.label)).toEqual(fixture.labels)
+  })
+
+  it('rejects non-UUID file locators', () => {
+    expect(provider('core.file-entry').validate(createSidebarShortcutTarget('core.file-entry', 'not-a-uuid'))).toBe(
+      false
+    )
+  })
+
+  it.each([
+    ['core.knowledge-base', 'base-1', '/app/knowledge?baseId=base-1'],
+    ['core.topic', 'topic-1', '/app/chat?topicId=topic-1'],
+    ['core.agent-session', 'session-1', '/app/agents?sessionId=session-1'],
+    [
+      'core.file-entry',
+      '018f47d2-e657-7b4c-a7c1-8b52cbb9d114',
+      '/app/files?entryId=018f47d2-e657-7b4c-a7c1-8b52cbb9d114'
+    ]
+  ])('matches the active reveal route for %s', (providerId, resourceId, url) => {
+    const shortcutProvider = provider(providerId)
+
+    expect(shortcutProvider.isActive?.(createSidebarShortcutTarget(providerId, resourceId), { url })).toBe(true)
+  })
+
+  it.each([
+    ['core.topic', 'topic-1', '/app/chat?topicId=topic-1&view=message'],
+    ['core.agent-session', 'session-1', '/app/agents?sessionId=session-1&view=message']
+  ])('does not focus %s shortcuts for message-only views', (providerId, resourceId, url) => {
+    const shortcutProvider = provider(providerId)
+
+    expect(shortcutProvider.isActive?.(createSidebarShortcutTarget(providerId, resourceId), { url })).toBe(false)
   })
 })

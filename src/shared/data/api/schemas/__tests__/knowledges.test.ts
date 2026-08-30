@@ -797,6 +797,14 @@ describe('ListKnowledgeBasesQuerySchema', () => {
     expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
   })
 
+  it('accepts exact ids up to the collection limit', () => {
+    const ids = Array.from({ length: KNOWLEDGE_BASES_MAX_LIMIT }, (_, index) => `base-${index}`)
+
+    expect(ListKnowledgeBasesQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
+  })
+
   it('accepts sort and updatedAtFrom query fields', () => {
     expect(
       ListKnowledgeBasesQuerySchema.parse({

@@ -635,6 +635,7 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
+    const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
 
@@ -650,7 +651,7 @@ export class AgentSessionService {
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, pinAfter))
+        .where(and(agentFilter, idFilter, pinAfter))
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
         .all()
@@ -697,7 +698,7 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(and(agentFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
+      .where(and(agentFilter, idFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
       .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
       .limit(remaining + 1)
       .all()
