@@ -112,8 +112,11 @@ export function AssistantSelector(props: AssistantSelectorProps) {
 
   // `limit: 500` matches ListAssistantsQuerySchema's max; realistic libraries sit well under it.
   // If a user ever exceeds this we should move to usePaginatedQuery + scroll-load inside the popover.
-  const { data, isLoading, refetch } = useQuery('/assistants', { query: { limit: 500 } })
-  const { groups, isLoading: isGroupsLoading } = useGroups('assistant')
+  const { data, isLoading, refetch } = useQuery('/assistants', {
+    enabled: selectorOpen,
+    query: { limit: 500 }
+  })
+  const { groups, isLoading: isGroupsLoading } = useGroups('assistant', { enabled: selectorOpen })
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
@@ -124,7 +127,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     pinnedIds,
     refetch: refetchPins,
     togglePin
-  } = usePins('assistant')
+  } = usePins('assistant', { enabled: selectorOpen })
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])

@@ -244,6 +244,7 @@ export function useAgentMessageListProviderValue({
     errorActions,
     exportActions,
     getMessageActivityState,
+    messageActivityStore,
     headerCapabilities,
     leafCapabilities,
     menuConfig,
@@ -369,6 +370,7 @@ export function useAgentMessageListProviderValue({
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
+      messageActivityStore,
       getMessageActivityState,
       ...pickMessageLeafState(leafCapabilities)
     }),
@@ -381,6 +383,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageActivityStore,
       messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,

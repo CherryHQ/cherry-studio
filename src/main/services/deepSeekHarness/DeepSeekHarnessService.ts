@@ -288,7 +288,7 @@ export class DeepSeekHarnessService extends BaseService {
       if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
     }
 
-    const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0'], {
+    const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       cwd: application.getPath('feature.deepseek_harness.workspace'),
       env,
       detached: !isWin,
