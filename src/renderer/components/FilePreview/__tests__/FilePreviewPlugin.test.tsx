@@ -2,12 +2,12 @@ import '@testing-library/jest-dom/vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
+import type { ComponentPropsWithoutRef } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FilePreview, __filePreviewInternal } from '../FilePreview'
 import { FilePreviewLayout } from '../FilePreviewLayout'
 import { FilePreviewToolbar } from '../FilePreviewToolbar'
 import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
-import type { ComponentPropsWithoutRef } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
