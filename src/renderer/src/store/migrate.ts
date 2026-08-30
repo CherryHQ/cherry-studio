@@ -3447,6 +3447,27 @@ const migrateConfig = {
       logger.error('migrate 208 error', error as Error)
       return state
     }
+  },
+  '209': (state: RootState) => {
+    try {
+      // Historical migration: use literals so future changes to builtin definitions
+      // do not affect repair of stale installations.
+      const LEGACY_MCP_AUTO_INSTALL_PACKAGE = '@cherry/mcp-auto-install'
+      const CURRENT_MCP_AUTO_INSTALL_PACKAGE = '@mcpmarket/mcp-auto-install'
+      state.mcp?.servers?.forEach((server) => {
+        if (server.name === LEGACY_MCP_AUTO_INSTALL_PACKAGE && server.args?.includes(LEGACY_MCP_AUTO_INSTALL_PACKAGE)) {
+          server.args = server.args.map((arg) =>
+            arg === LEGACY_MCP_AUTO_INSTALL_PACKAGE ? CURRENT_MCP_AUTO_INSTALL_PACKAGE : arg
+          )
+        }
+      })
+
+      logger.info('migrate 209 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 209 error', error as Error)
+      return state
+    }
   }
 }
 
