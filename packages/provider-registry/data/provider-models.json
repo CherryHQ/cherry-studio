@@ -8416,6 +8416,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -8533,6 +8547,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash-vision-exp",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -8650,6 +8678,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.044
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.96
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -22281,20 +22323,7 @@
     {
       "apiModelId": "~deepseek/deepseek-v4-flash-latest",
       "modelId": "deepseek-v4-flash-latest",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.007
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        }
-      },
+      "name": "DeepSeek V4 Flash Latest",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -37713,5 +37742,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0f6b3a627de2d8e0"
+  "version": "0f2033edf13d74e2"
 }

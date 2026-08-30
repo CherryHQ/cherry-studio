@@ -35,6 +35,7 @@ vi.mock('react-spinners/BeatLoader', () => ({
 
 const customApp: MiniApp = {
   appId: 'custom-chatgpt',
+  kind: 'site',
   presetMiniAppId: null,
   status: 'enabled',
   orderKey: 'a0',

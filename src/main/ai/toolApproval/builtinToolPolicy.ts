@@ -111,6 +111,7 @@ const BUILTIN_TOOL_POLICIES = {
   assistantDiagnose: tool(CHERRY_MCP_SERVER.ASSISTANT, 'diagnose', 'required'),
   assistantApplySetting: tool(CHERRY_MCP_SERVER.ASSISTANT, 'apply_setting', 'required'),
   assistantCreateAgent: tool(CHERRY_MCP_SERVER.ASSISTANT, 'create_agent', 'required'),
+  assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
   assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
   assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required')

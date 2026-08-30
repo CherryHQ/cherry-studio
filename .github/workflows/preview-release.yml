@@ -56,8 +56,7 @@ jobs:
           SOURCE_SHA="${REMOTE_REF%%[[:space:]]*}"
           BRANCH_SLUG="$(printf '%s' "$BRANCH" | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-60)"
           if [ -z "$BRANCH_SLUG" ]; then
-            echo "Branch $BRANCH does not produce a valid artifact name" >&2
-            exit 1
+            BRANCH_SLUG="sha-${SOURCE_SHA:0:12}"
           fi
 
           echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
