@@ -244,13 +244,14 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
               })()
             : loadedModules.get(textFilePreviewPlugin) ?? Promise.resolve(null)
 
-        const candidateLoad = candidatePlugin
-          ? loadedModules.get(candidatePlugin) ?? (() => {
-              const p = candidatePlugin!.load()
-              loadedModules.set(candidatePlugin!, p)
-              return p
-            })()
-          : null
+        const candidateLoad = (() => {
+          if (!candidatePlugin) return null
+          const existing = loadedModules.get(candidatePlugin)
+          if (existing) return existing
+          const promise = candidatePlugin.load()
+          loadedModules.set(candidatePlugin, promise)
+          return promise
+        })()
 
         // Race metadata with the candidate plugin chunk load. Use Promise.allSettled
         // so a plugin chunk failure does not swallow the metadata result; the original
@@ -317,7 +318,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
         // Pre-create a render-bound element factory so we never invoke lazy()
         // again on re-render — the chunk is already in `pluginModule`.
         const pluginComponent: ((props: FilePreviewPluginProps) => ReactNode) | null = plugin && pluginModule
-          ? (props) => createElement(pluginModule!.default, props)
+          ? (props) => createElement(pluginModule.default, props)
           : null
 
         setResolution({ file, metadata, plugin, pluginComponent, requestKey, status: 'ready' })
