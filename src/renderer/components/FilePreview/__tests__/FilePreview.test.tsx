@@ -4,7 +4,6 @@ import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef, ComponentType } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
