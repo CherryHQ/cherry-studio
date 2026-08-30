@@ -80,13 +80,13 @@ describe('PreferenceSeeder', () => {
   it('does not overwrite a persisted sidebar favorites order that differs from the generated default', async () => {
     const sidebarKey = 'ui.sidebar.favorites'
     const persisted = [
-      { id: 'assistants', type: 'app' },
       { id: 'agents', type: 'app' },
+      { id: 'assistants', type: 'app' },
       { id: 'translate', type: 'app' }
     ]
     const generatedDefault = DefaultPreferences.default[sidebarKey]
 
-    expect(generatedDefault[0]).toEqual({ id: 'agents', type: 'app' })
+    expect(generatedDefault[0]).toEqual({ id: 'assistants', type: 'app' })
     expect(persisted).not.toEqual(generatedDefault)
 
     await dbh.db.insert(preferenceTable).values({
