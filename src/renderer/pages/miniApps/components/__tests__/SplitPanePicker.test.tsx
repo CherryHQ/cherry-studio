@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const stubApp = (id: string): MiniAppType => ({
+  kind: 'site',
   appId: id,
   presetMiniAppId: id as MiniAppType['presetMiniAppId'],
   status: 'pinned',

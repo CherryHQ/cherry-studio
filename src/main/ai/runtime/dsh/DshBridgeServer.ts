@@ -291,7 +291,9 @@ export class DshBridgeServer {
           if (decision.approved && decision.updatedInput) {
             logger.warn('editing tool input is not supported by the dsh runtime; rejecting', { toolName })
           }
-          resolve({ outcome: decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected' })
+          const outcome = decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected'
+          const rejectionReason = decision.approved ? undefined : decision.reason?.trim()
+          resolve({ outcome, ...(rejectionReason ? { rejectionReason } : {}) })
         }
       })
       // Only surface the approval card when the request is actually pending; a synchronous

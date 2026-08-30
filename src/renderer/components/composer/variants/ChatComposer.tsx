@@ -189,6 +189,12 @@ type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
 
 const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type === 'text' || part.type === 'file'
 
+// Composer edits as a single text field: the draft joins all text parts (`\n\n`) and
+// rebuilds files from tokens. Saving replaces the first editable part with the rebuilt
+// draft and drops trailing editable parts — non-editable `reasoning`/`dynamic-tool` blocks
+// stay in place and `data-translation` is removed. Interleaved shapes such as
+// [text "before", tool, text "after"] are blocked by `canEditAssistantMessageParts` and
+// never reach this path, so no reordering occurs on save.
 const replaceComposerEditableMessageParts = (
   originalParts: CherryMessagePart[],
   editedParts: CherryMessagePart[]
@@ -717,10 +723,9 @@ const ChatComposerInner = ({
         value: nextReasoningEffort ?? 'default',
         version
       })
-      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel` with
-      // an ungated providers list. This duplicate read the composer's own list, which is deferred
-      // (`shouldLoadProviders`) and therefore empty in single-model chats — it would have cleared the
-      // setting for every model whose search is provider-native.
+      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel`
+      // with the provider data owned by that operation. Repeating it here would duplicate the
+      // state transition against the composer's presentation-oriented provider list.
       const extraSettings: {
         reasoning_effort?: ReasoningEffortOption
       } = {}
@@ -843,7 +848,12 @@ const ChatComposerInner = ({
       : EMPTY_MODELS
   const shouldLoadProviders =
     !externalContextControls &&
-    (mentionedModels.length > 1 || mentionedModelSelectorValue.length > 1 || lockedMentionedModels.length > 1)
+    Boolean(
+      runtimeModel ||
+        mentionedModels.length > 0 ||
+        mentionedModelSelectorValue.length > 0 ||
+        lockedMentionedModels.length > 0
+    )
   const { providers: loadedProviders } = useProviders(undefined, { enabled: shouldLoadProviders })
   const providers = resolvedProviders ?? loadedProviders
   const effectiveSubmittedModels =

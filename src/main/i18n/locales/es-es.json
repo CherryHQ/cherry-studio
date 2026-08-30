@@ -80,6 +80,7 @@
   "dialog.diagnostic_bundle.title": "Guardar paquete de diagnóstico",
   "dialog.diagnostic_bundle.zip_filter": "Archivo ZIP",
   "dialog.html_files": "Archivos HTML",
+  "dialog.mini_app_export": "Exportar desde {{name}}",
   "dialog.open_file": "Abrir archivo",
   "dialog.pdf_files": "Archivos PDF",
   "dialog.png_image": "Imagen PNG",

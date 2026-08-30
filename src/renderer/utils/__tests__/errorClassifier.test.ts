@@ -72,6 +72,11 @@ describe('classifyError', () => {
     expect(result.category).toBe('auth')
   })
 
+  it('classifies a plain invalid API key message as auth', () => {
+    const result = classifyError(makeError({ message: 'Invalid API key' }))
+    expect(result.category).toBe('auth')
+  })
+
   it('classifies forbidden message as permission', () => {
     const result = classifyError(makeError({ message: 'Forbidden: access denied' }))
     expect(result.category).toBe('permission')
@@ -169,6 +174,11 @@ describe('classifyError', () => {
 
   it('classifies timeout as network', () => {
     const result = classifyError(makeError({ message: 'Request timeout after 30000ms' }))
+    expect(result.category).toBe('network')
+  })
+
+  it('classifies a timed-out request as network', () => {
+    const result = classifyError(makeError({ message: 'Request timed out' }))
     expect(result.category).toBe('network')
   })
 

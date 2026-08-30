@@ -10,6 +10,8 @@ export interface UsePasteHandlerOptions {
   supportedExts: string[]
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
   onResize?: () => void
+  pasteLongTextAsFile?: boolean
+  pasteLongTextThreshold?: number
   t: TFunction
 }
 
@@ -44,6 +46,8 @@ export function usePasteHandler(
     async (event: ClipboardEvent, invocationOptions?: PasteHandlerInvocationOptions) => {
       return await pasteHandling.handlePaste(event, options.supportedExts, options.setFiles, {
         setText,
+        pasteLongTextAsFile: options.pasteLongTextAsFile,
+        pasteLongTextThreshold: options.pasteLongTextThreshold,
         text,
         resizeTextArea: options.onResize ?? (() => {}),
         t: options.t,

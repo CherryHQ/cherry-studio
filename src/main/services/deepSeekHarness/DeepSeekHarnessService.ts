@@ -12,7 +12,7 @@ import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@sh
 import type { BinaryAvailability } from '@shared/types/binary'
 import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { isNonChatModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 import { redactLiteral, redactSecretText } from '@shared/utils/redaction'
@@ -245,7 +245,7 @@ export class DeepSeekHarnessService extends BaseService {
         credentialValue,
         displayName: 'Cherry Studio Unified Gateway',
         protocol: 'openai-completions',
-        baseUrl: `${gatewayOrigin(host, port)}/v1`,
+        baseUrl: `${gatewayClientOrigin(host, port)}/v1`,
         model,
         modelId: formatGatewayModelId(providerId, model.apiModelId ?? modelId),
         agentPreset: input.agentPreset
@@ -288,7 +288,7 @@ export class DeepSeekHarnessService extends BaseService {
       if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
     }
 
-    const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0'], {
+    const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       cwd: application.getPath('feature.deepseek_harness.workspace'),
       env,
       detached: !isWin,
@@ -341,12 +341,6 @@ export class DeepSeekHarnessService extends BaseService {
       throw new Error('DeepSeek Harness did not exit after forced termination')
     }
   }
-}
-
-function gatewayOrigin(host: string, port: number): string {
-  const reachableHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host
-  const formattedHost = reachableHost.includes(':') ? `[${reachableHost}]` : reachableHost
-  return `http://${formattedHost}:${port}`
 }
 
 function appendBounded(current: string, chunk: Buffer | string): string {
