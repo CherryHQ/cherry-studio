@@ -4,14 +4,8 @@ import { useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  moveActiveIndex,
-  requestJump,
-  setLiveQuery,
-  SETTINGS_SEARCH_LISTBOX_ID,
-  settingsSearchOptionDomId,
-  useSettingsSearchKeyboard
-} from './store'
+import { useSettingsSearchDomIds } from './SettingsSearchDomIds'
+import { moveActiveIndex, requestJump, setLiveQuery, useSettingsSearchKeyboard } from './store'
 
 const SEARCH_DEBOUNCE_MS = 150
 
@@ -31,6 +25,7 @@ const SettingsSearchBox = () => {
   const isSearchPage = location.pathname === '/settings/search'
   const urlQuery = isSearchPage && typeof search.q === 'string' ? search.q : ''
   const { activeIndex, resultCount } = useSettingsSearchKeyboard()
+  const { listboxId, optionDomId } = useSettingsSearchDomIds()
   const hasResults = isSearchPage && resultCount > 0
   const [value, setValue] = useState(urlQuery)
   // Tracks the previous input value across effect passes — distinguishes a
@@ -39,6 +34,9 @@ const SettingsSearchBox = () => {
   // A deep link lands on the search page with the URL already on the history
   // stack, so the first debounced navigate must replace, not push
   const hasPushedRef = useRef(isSearchPage)
+  // Distinguishes a new external URL value from an <Activity> re-show re-run
+  // (unchanged urlQuery) that must not clobber input typed during the hide
+  const appliedUrlRef = useRef(urlQuery)
 
   // Navigation that does not end on the search page (menu click, result jump)
   // drops pending keystrokes — else the debounce timer hijacks the trip later
@@ -46,29 +44,36 @@ const SettingsSearchBox = () => {
   useEffect(() => {
     const pathnameChanged = prevPathnameRef.current !== location.pathname
     prevPathnameRef.current = location.pathname
-    if (!pathnameChanged) return
-    if (!isSearchPage && value) {
+    if (!pathnameChanged || isSearchPage) return
+    // Reset even on empty-value exits (the back path skips the value check):
+    // a stale true downgrades the next session's first entry to replace
+    hasPushedRef.current = false
+    if (value) {
       setValue('')
       setLiveQuery('')
-      hasPushedRef.current = false
     }
   }, [location.pathname, isSearchPage, value])
 
   // External URL updates (history back/forward, deep links in the same tab)
   // sync back into the box. Our own debounced mirrors land as urlQuery ===
-  // value.trim() and are ignored. Runs only on urlQuery changes, never while
-  // the user is typing ahead of the debounce.
+  // value.trim() and are ignored; an unchanged urlQuery (Activity re-show)
+  // must not clobber input typed during the hide window.
   useEffect(() => {
+    if (urlQuery === appliedUrlRef.current) return
+    appliedUrlRef.current = urlQuery
     if (urlQuery === value.trim()) return
     setValue(urlQuery)
     setLiveQuery(urlQuery)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlQuery])
 
-  // The store is window-global; a hidden/unmounted tab must not leave its
-  // query stuck in it (<Activity> hides unmount effects, running this cleanup).
-  // On reactivation the URL fallback renders correctly until the next keystroke.
-  useEffect(() => () => setLiveQuery(undefined), [])
+  // Window-global store: hide/unmount clears it; Activity show re-runs this
+  // with surviving state, re-publishing the input the hide phase cleared
+  useEffect(() => {
+    setLiveQuery(value || undefined)
+    return () => setLiveQuery(undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const exitSearch = () => {
     // Only leave when the user actually searched: an empty-box Esc or one
@@ -117,8 +122,8 @@ const SettingsSearchBox = () => {
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={hasResults}
-        aria-controls={isSearchPage ? SETTINGS_SEARCH_LISTBOX_ID : undefined}
-        aria-activedescendant={hasResults ? settingsSearchOptionDomId(activeIndex) : undefined}
+        aria-controls={isSearchPage ? listboxId : undefined}
+        aria-activedescendant={hasResults ? optionDomId(activeIndex) : undefined}
         className={cn(isSearchPage && 'border-primary')}
         onChange={(e) => {
           setValue(e.target.value)
