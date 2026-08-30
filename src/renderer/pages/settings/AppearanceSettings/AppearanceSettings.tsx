@@ -476,7 +476,11 @@ const AppearanceSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.display.sidebar.chat.visible')}</SettingRowTitle>
-          <Switch checked={isChatAssistantVisible} onCheckedChange={(checked) => setAppPinned('assistants', checked)} />
+          <Switch
+            checked={isChatAssistantVisible}
+            onCheckedChange={(checked) => setAppPinned('assistants', checked)}
+            aria-label={t('settings.display.sidebar.chat.visible')}
+          />
         </SettingRow>
       </SettingGroup>
 

@@ -217,6 +217,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!app) return
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
+      const title = app.nameKey ? t(app.nameKey) : app.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = app.logoSrc ?? app.logo
+      if (options?.inNewTab) {
+        navigateRouteTab(path, title, { ...options, icon })
+        return
+      }
+
       if (activeTab?.url === path) return
 
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
@@ -225,9 +233,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      const title = app.nameKey ? t(app.nameKey) : app.name
-      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
-      const icon = app.logoSrc ?? app.logo
       navigateRouteTab(path, title, { ...options, icon })
     },
     [activeTab, navigateRouteTab, openableMiniAppById, setActiveTab, t, tabs]
