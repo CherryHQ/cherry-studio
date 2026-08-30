@@ -190,7 +190,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h1 className="truncate font-semibold text-foreground text-lg">{skill.name}</h1>
             {skill.version ? <Badge variant="secondary">{skill.version}</Badge> : null}
-            <SkillSourceBadge source={skill.source} sourceRegistry={skill.sourceRegistry} />
+            <SkillSourceBadge source={skill.source} sourceUrl={skill.sourceUrl} />
             {folder.data?.access === 'read_only' ? (
               <Badge variant="secondary" className="border-0 bg-secondary text-muted-foreground">
                 {t('settings.skills.readOnly')}

@@ -2,7 +2,6 @@
  * Skills API Schema definitions.
  */
 
-import { SkillSearchSourceSchema } from '@shared/types/skill'
 import * as z from 'zod'
 
 export const InstalledSkillSchema = z.strictObject({
@@ -18,8 +17,6 @@ export const InstalledSkillSchema = z.strictObject({
   /** Skill metadata tags from SKILL.md. */
   sourceTags: z.array(z.string()),
   contentHash: z.string(),
-  sourceRegistry: SkillSearchSourceSchema.nullable(),
-  canUpdateFromRemote: z.boolean(),
   /** Whether the installed skill is available to any agent. */
   isGlobalEnabled: z.boolean(),
   /** Effective per-agent state. False when no agentId is requested. */

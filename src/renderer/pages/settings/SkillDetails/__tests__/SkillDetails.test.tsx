@@ -39,8 +39,8 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
 vi.mock('@renderer/hooks/useSkillLauncher', () => ({ useSkillLauncher: () => mocks.launchSkill }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
 vi.mock('@renderer/components/resourceCatalog/catalog/SkillSourceBadge', () => ({
-  SkillSourceBadge: ({ source, sourceRegistry }: { source: string; sourceRegistry?: string | null }) => (
-    <span data-registry={sourceRegistry ?? ''} data-testid="source-badge">
+  SkillSourceBadge: ({ source, sourceUrl }: { source: string; sourceUrl?: string | null }) => (
+    <span data-source-url={sourceUrl ?? ''} data-testid="source-badge">
       {source}
     </span>
   )
@@ -169,8 +169,6 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     version: '1.2.3',
     sourceTags: ['writing'],
     contentHash: 'hash',
-    sourceRegistry: null,
-    canUpdateFromRemote: false,
     isGlobalEnabled: true,
     isEnabled: false,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -257,8 +255,8 @@ describe('SkillDetails', () => {
     mocks.query = {
       data: createSkill({
         source: 'marketplace',
-        sourceRegistry: 'skills.sh',
-        canUpdateFromRemote: true
+        sourceUrl: 'https://skills.sh/owner/repo/writer',
+        contentHash: `directory-sha256:${'a'.repeat(64)}`
       }),
       error: undefined,
       isLoading: false
@@ -272,7 +270,7 @@ describe('SkillDetails', () => {
     })
     render(<SkillDetails skillId="skill-1" />)
 
-    expect(screen.getByTestId('source-badge')).toHaveAttribute('data-registry', 'skills.sh')
+    expect(screen.getByTestId('source-badge')).toHaveAttribute('data-source-url', 'https://skills.sh/owner/repo/writer')
     fireEvent.click(screen.getByRole('button', { name: 'settings.skills.remote.check' }))
     await waitFor(() => expect(screen.getByText('settings.skills.remote.updateAvailableTitle')).toBeInTheDocument())
     expect(mocks.flushBrowser).toHaveBeenCalledOnce()

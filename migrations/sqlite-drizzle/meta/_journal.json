@@ -140,13 +140,6 @@
       "when": 1788241355850,
       "tag": "0019_colorful_gladiator",
       "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "6",
-      "when": 1788249242010,
-      "tag": "0020_lyrical_bromley",
-      "breakpoints": true
     }
   ],
   "version": "7"

@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { pathExists } from '@main/utils/legacyFile'
 import { findSkillMdPath } from '@main/utils/markdownParser'
+import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
 import * as fs from 'fs'
 
 const logger = loggerService.withContext('SkillInstaller')
@@ -143,16 +144,12 @@ export class SkillInstaller {
     }
   }
 
-  /**
-   * Compute SHA-256 hash of the SKILL.md content for change detection.
-   */
-  async computeContentHash(skillDir: string): Promise<string> {
-    const skillMdPath = await findSkillMdPath(skillDir)
-    if (!skillMdPath) {
-      throw new Error(`SKILL.md not found in ${skillDir}`)
-    }
-    const content = await fs.promises.readFile(skillMdPath, 'utf-8')
-    return createHash('sha256').update(content).digest('hex')
+  /** Compute the versioned full-directory hash persisted as the install baseline. */
+  async computeContentHash(
+    skillDir: string,
+    options: { ignoredRelativePaths?: readonly string[] } = {}
+  ): Promise<string> {
+    return `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}${await this.computeDirectoryHash(skillDir, options)}`
   }
 
   /**

@@ -22,6 +22,11 @@ import type {
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
+import {
+  hasSkillRemoteUpdateProvenance,
+  isSkillDirectoryContentHash,
+  parseSkillSourceUrl
+} from '@shared/utils/skillMarketplace'
 import { Mutex } from 'async-mutex'
 
 import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
@@ -180,9 +185,7 @@ export class SkillService {
     const fetched = await fetchRemoteSkill(source, rest.join(':'))
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
-        installSource: options.installSource
-      })
+      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -446,7 +449,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null; installSource?: string | null } = {}
+    provenance: { namespace?: string | null } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -457,7 +460,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null; installSource?: string | null } = {}
+    provenance: { namespace?: string | null } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -467,13 +470,12 @@ export class SkillService {
 
     const existing = this.findCatalogSkillCaseInsensitive(folderName)
     if (existing) {
-      // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
-      // existing folder in place. Anything else — a marketplace install colliding with a builtin,
-      // system, local, or different-origin skill of the same folder name — is a conflict, not a
-      // silent replace: overwriting would clobber the files while the DB row keeps the old source
-      // (e.g. a third-party `skill-creator` replacing the builtin, which then stays
-      // enabled-for-all-agents), or irrecoverably destroy the user's own local skill.
-      const sameOrigin = existing.source === source && (existing.sourceUrl ?? null) === (sourceUrl ?? null)
+      // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
+      // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
+      const sameOrigin =
+        existing.source === source &&
+        ((existing.sourceUrl ?? null) === (sourceUrl ?? null) ||
+          this.isLegacySkillsShReinstall(existing, sourceUrl, folderName))
       if (!sameOrigin) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
@@ -497,7 +499,6 @@ export class SkillService {
     }
 
     const contentHash = await this.installer.computeContentHash(skillDir)
-    const upstreamHash = provenance.installSource ? await this.installer.computeDirectoryHash(skillDir) : null
     const destFolderName = existing?.folderName ?? folderName
     const destPath = this.getSkillStoragePath(destFolderName)
 
@@ -517,9 +518,7 @@ export class SkillService {
           version: metadata.version ?? null,
           tags,
           contentHash,
-          ...(source === 'marketplace'
-            ? { sourceUrl, installSource: provenance.installSource ?? null, upstreamHash }
-            : {}),
+          ...(source === 'marketplace' ? { sourceUrl } : {}),
           ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
         })
       })
@@ -543,9 +542,7 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash,
-          installSource: provenance.installSource ?? null,
-          upstreamHash
+          contentHash
         })
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
@@ -784,36 +781,37 @@ export class SkillService {
       throw error
     }
 
-    agentGlobalSkillService.update(skillId, {
-      name: metadata.name,
-      description: metadata.description ?? null,
-      author: metadata.author ?? null,
-      version: metadata.version ?? null,
-      tags: metadata.tags ?? [],
-      contentHash: createHash('sha256').update(descriptor.content).digest('hex')
-    })
     await this.linkMirror(skill.folderName, { throwOnError: true })
-    agentGlobalSkillService.notifySkillProjectionChange(skillId)
+    if (this.hasMetadataChanges(skill, metadata)) {
+      agentGlobalSkillService.update(skillId, {
+        name: metadata.name,
+        description: metadata.description ?? null,
+        author: metadata.author ?? null,
+        version: metadata.version ?? null,
+        tags: metadata.tags ?? []
+      })
+      agentGlobalSkillService.notifySkillProjectionChange(skillId)
+    }
     logger.info('Scoped Skill reconcile completed', { skillId, folderName: skill.folderName })
   }
 
   async checkRemoteUpdate(skillId: string): Promise<SkillRemoteUpdateCheck> {
-    const record = agentGlobalSkillService.getByIdWithProvenance(skillId)
-    if (!record) throw new Error(`Skill not found: ${skillId}`)
-    if (record.skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
-    if (!record.installSource || !record.upstreamHash) {
+    const skill = agentGlobalSkillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+    if (skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
+    if (!hasSkillRemoteUpdateProvenance(skill)) {
       return { state: 'unsupported', reason: 'missing_provenance' }
     }
 
-    const fetched = await this.fetchRemote(record.installSource)
+    const fetched = await this.fetchRemote(skill.sourceUrl!)
     try {
       const [currentHash, remoteHash, metadata] = await Promise.all([
-        this.installer.computeDirectoryHash(this.getSkillStoragePath(record.skill.folderName)),
-        this.installer.computeDirectoryHash(fetched.skillDir),
-        parseSkillMetadata(fetched.skillDir, record.skill.folderName, 'skills')
+        this.installer.computeContentHash(this.getSkillStoragePath(skill.folderName)),
+        this.installer.computeContentHash(fetched.skillDir),
+        parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
-      const localChanges = currentHash !== record.upstreamHash
-      if (remoteHash === record.upstreamHash) {
+      const localChanges = currentHash !== skill.contentHash
+      if (remoteHash === skill.contentHash) {
         return { state: 'up_to_date', localChanges, remoteVersion: metadata.version ?? null }
       }
       return {
@@ -822,8 +820,8 @@ export class SkillService {
         remoteVersion: metadata.version ?? null,
         revision: this.createRemoteRevision({
           skillId,
-          installSource: record.installSource,
-          upstreamHash: record.upstreamHash,
+          sourceUrl: skill.sourceUrl!,
+          baselineHash: skill.contentHash,
           currentHash,
           remoteHash
         })
@@ -838,46 +836,44 @@ export class SkillService {
     revision: string
     overwriteLocalChanges: boolean
   }): Promise<InstalledSkill> {
-    const record = agentGlobalSkillService.getByIdWithProvenance(options.skillId)
-    if (!record) throw new Error(`Skill not found: ${options.skillId}`)
-    if (record.skill.source !== 'marketplace' || !record.installSource || !record.upstreamHash) {
+    const skill = agentGlobalSkillService.getById(options.skillId)
+    if (!skill) throw new Error(`Skill not found: ${options.skillId}`)
+    if (!hasSkillRemoteUpdateProvenance(skill)) {
       throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill has no supported remote source')
     }
 
-    const fetched = await this.fetchRemote(record.installSource)
+    const fetched = await this.fetchRemote(skill.sourceUrl!)
     try {
-      const [remoteHash, metadata, contentHash] = await Promise.all([
-        this.installer.computeDirectoryHash(fetched.skillDir),
-        parseSkillMetadata(fetched.skillDir, record.skill.folderName, 'skills'),
-        this.installer.computeContentHash(fetched.skillDir)
+      const [remoteHash, metadata] = await Promise.all([
+        this.installer.computeContentHash(fetched.skillDir),
+        parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
 
       return await this.mutationLock.runExclusive(async () => {
-        const currentRecord = agentGlobalSkillService.getByIdWithProvenance(options.skillId)
+        const currentSkill = agentGlobalSkillService.getById(options.skillId)
         if (
-          !currentRecord ||
-          currentRecord.skill.source !== 'marketplace' ||
-          !currentRecord.installSource ||
-          currentRecord.installSource !== record.installSource ||
-          !currentRecord.upstreamHash
+          !currentSkill ||
+          !hasSkillRemoteUpdateProvenance(currentSkill) ||
+          currentSkill.sourceUrl !== skill.sourceUrl ||
+          currentSkill.contentHash !== skill.contentHash
         ) {
           throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update provenance changed')
         }
 
-        const destination = this.getSkillStoragePath(currentRecord.skill.folderName)
-        const currentHash = await this.installer.computeDirectoryHash(destination)
+        const destination = this.getSkillStoragePath(currentSkill.folderName)
+        const currentHash = await this.installer.computeContentHash(destination)
         const revision = this.createRemoteRevision({
           skillId: options.skillId,
-          installSource: currentRecord.installSource,
-          upstreamHash: currentRecord.upstreamHash,
+          sourceUrl: currentSkill.sourceUrl!,
+          baselineHash: currentSkill.contentHash,
           currentHash,
           remoteHash
         })
-        if (revision !== options.revision || remoteHash === currentRecord.upstreamHash) {
+        if (revision !== options.revision || remoteHash === currentSkill.contentHash) {
           throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
         }
 
-        const hasLocalChanges = currentHash !== currentRecord.upstreamHash
+        const hasLocalChanges = currentHash !== currentSkill.contentHash
         if (hasLocalChanges && !options.overwriteLocalChanges) {
           throw new SkillRemoteUpdateError(
             skillErrorCodes.REMOTE_LOCAL_CHANGES,
@@ -893,18 +889,16 @@ export class SkillService {
           version: metadata.version ?? null,
           tags: metadata.tags ?? [],
           sourceUrl: fetched.sourceUrl,
-          contentHash,
-          installSource: currentRecord.installSource,
-          upstreamHash: remoteHash
+          contentHash: remoteHash
         })
-        await this.linkMirror(currentRecord.skill.folderName, { throwOnError: true })
+        await this.linkMirror(currentSkill.folderName, { throwOnError: true })
 
         const updated = agentGlobalSkillService.getById(options.skillId)
         if (!updated) throw new Error(`Skill disappeared after remote update: ${options.skillId}`)
         agentGlobalSkillService.notifySkillProjectionChange(options.skillId)
         logger.info('Remote Skill update applied', {
           skillId: options.skillId,
-          folderName: currentRecord.skill.folderName,
+          folderName: currentSkill.folderName,
           overwriteLocalChanges: options.overwriteLocalChanges
         })
         return updated
@@ -914,15 +908,20 @@ export class SkillService {
     }
   }
 
-  private fetchRemote(installSource: string) {
+  private fetchRemote(sourceUrl: string) {
+    const parsed = parseSkillSourceUrl(sourceUrl)
+    if (!parsed) {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill source URL is not installable')
+    }
+    const installSource = parsed.installSource
     const [source, ...identifier] = installSource.split(':')
     return fetchRemoteSkill(source, identifier.join(':'))
   }
 
   private createRemoteRevision(input: {
     skillId: string
-    installSource: string
-    upstreamHash: string
+    sourceUrl: string
+    baselineHash: string
     currentHash: string
     remoteHash: string
   }): string {
@@ -931,10 +930,10 @@ export class SkillService {
 
   /**
    * Reconcile the managed library (Data/Skills) with the `agent_global_skill`
-   * catalog: adopt skills present on disk but missing a row, refresh non-builtin rows
-   * whose SKILL.md changed, and prune non-builtin rows whose files are gone. Builtins
+   * catalog: adopt skills present on disk but missing a row, refresh projected metadata,
+   * and prune non-builtin rows whose files are gone. Builtins
    * are owned by `installBuiltinSkills`; direct changes are not adopted and fail mirror
-   * integrity checks. Presence and authored-skill change detection read SKILL.md directly.
+   * integrity checks. Reconcile never replaces the persisted installation baseline.
    */
   private async reconcileLibraryToDb(): Promise<void> {
     const storageRoot = application.getPath('feature.agents.skills')
@@ -973,7 +972,7 @@ export class SkillService {
         })
       }
     }
-    const onDisk = new Map<string, string>()
+    const onDisk = new Set<string>()
     // Every skill folder physically enumerated on disk, regardless of whether its descriptor is
     // currently readable. Pruning keys off THIS set, not off a successful descriptor read: an editor
     // saving a SKILL.md atomically briefly removes it (both casings ENOENT), and that transient
@@ -1019,7 +1018,7 @@ export class SkillService {
       await this.normalizeSkillMdCasing(dir)
       const read = await this.readSkillMdState(dir)
       if (read.status === 'found') {
-        onDisk.set(entry.name, createHash('sha256').update(read.content).digest('hex'))
+        onDisk.add(entry.name)
       } else if (read.status === 'error') {
         logger.warn('Skill descriptor unreadable during reconcile; keeping any catalog row', {
           folderName: entry.name
@@ -1029,7 +1028,7 @@ export class SkillService {
       // not adopted, and the presentFolders guard below keeps any existing row + enablement intact.
     }
 
-    for (const [folderName, contentHash] of onDisk) {
+    for (const folderName of onDisk) {
       const folderKey = normalizeFolderKey(folderName)
       if (conflictingDbKeys.has(folderKey)) continue
 
@@ -1040,8 +1039,6 @@ export class SkillService {
         // hash and removes the mirror when canonical content no longer matches the trusted DB hash.
         continue
       }
-      if (existing && existing.contentHash === contentHash) continue
-
       let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
       try {
         metadata = await parseSkillMetadata(path.join(storageRoot, folderName), folderName, 'skills')
@@ -1056,15 +1053,17 @@ export class SkillService {
       const tags = metadata.tags ?? []
 
       if (existing) {
-        agentGlobalSkillService.update(existing.id, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash
-        })
+        if (this.hasMetadataChanges(existing, metadata)) {
+          agentGlobalSkillService.update(existing.id, {
+            name: metadata.name,
+            description: metadata.description ?? null,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags
+          })
+        }
       } else {
+        const contentHash = await this.installer.computeContentHash(path.join(storageRoot, folderName))
         agentGlobalSkillService.insert({
           name: metadata.name,
           description: metadata.description ?? null,
@@ -1204,9 +1203,61 @@ export class SkillService {
   }
 
   private computeBuiltinDirectoryHash(skillDir: string): Promise<string> {
-    return this.installer.computeDirectoryHash(skillDir, {
+    return this.installer.computeContentHash(skillDir, {
       ignoredRelativePaths: [BUILTIN_VERSION_FILE]
     })
+  }
+
+  private hasMetadataChanges(skill: InstalledSkill, metadata: Awaited<ReturnType<typeof parseSkillMetadata>>): boolean {
+    const tags = metadata.tags ?? []
+    return (
+      skill.name !== metadata.name ||
+      skill.description !== (metadata.description ?? null) ||
+      skill.author !== (metadata.author ?? null) ||
+      skill.version !== (metadata.version ?? null) ||
+      skill.sourceTags.length !== tags.length ||
+      skill.sourceTags.some((tag, index) => tag !== tags[index])
+    )
+  }
+
+  private isLegacySkillsShReinstall(existing: InstalledSkill, sourceUrl: string | null, folderName: string): boolean {
+    if (
+      existing.source !== 'marketplace' ||
+      !existing.sourceUrl ||
+      !sourceUrl ||
+      isSkillDirectoryContentHash(existing.contentHash)
+    ) {
+      return false
+    }
+
+    const parsed = parseSkillSourceUrl(sourceUrl)
+    if (parsed?.sourceRegistry !== 'skills.sh') return false
+    const [owner, repo, skillName, ...extraParts] = parsed.installSource.slice('skills.sh:'.length).split('/')
+    if (
+      !owner ||
+      !repo ||
+      !skillName ||
+      extraParts.length > 0 ||
+      normalizeFolderKey(sanitizeFolderName(skillName)) !== normalizeFolderKey(folderName)
+    ) {
+      return false
+    }
+
+    try {
+      const legacyUrl = new URL(existing.sourceUrl)
+      const [legacyOwner, legacyRepo, ...legacyPath] = legacyUrl.pathname.split('/').filter(Boolean)
+      return (
+        legacyUrl.protocol === 'https:' &&
+        legacyUrl.hostname.toLowerCase() === 'github.com' &&
+        !legacyUrl.search &&
+        !legacyUrl.hash &&
+        legacyPath.length === 0 &&
+        legacyOwner?.toLowerCase() === owner.toLowerCase() &&
+        legacyRepo?.replace(/\.git$/i, '').toLowerCase() === repo.toLowerCase()
+      )
+    } catch {
+      return false
+    }
   }
 
   private findCatalogSkillCaseInsensitive(folderName: string): InstalledSkill | null {
@@ -1304,8 +1355,7 @@ export class SkillService {
         await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
       }
 
-      // Builtin contentHash is the trusted full-directory hash (excluding Cherry's version marker),
-      // unlike authored skills whose hash tracks SKILL.md metadata changes.
+      // Builtin contentHash is the trusted install baseline excluding Cherry's version marker.
       if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
 
       const metadata = await parseSkillMetadata(destPath, folderName, 'skills')

@@ -17,8 +17,6 @@ export const agentGlobalSkillTable = sqliteTable(
     version: text(),
     tags: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     contentHash: text().notNull(),
-    installSource: text(),
-    upstreamHash: text(),
     isEnabled: integer({ mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },
