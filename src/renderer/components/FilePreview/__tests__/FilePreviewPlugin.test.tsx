@@ -45,7 +45,7 @@ vi.mock('../filePreviewRegistry', async (importOriginal) => {
     ...actual,
     filePreviewRegistry: actual.createFilePreviewRegistry({ extensionPlugins: [plugin] })
   }
-}))
+})
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
