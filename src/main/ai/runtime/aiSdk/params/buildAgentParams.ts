@@ -677,10 +677,7 @@ function buildAgentOptions(
   if (Object.keys(callOverridesBodyParams).length > 0) rawBodyLayers.push(callOverridesBodyParams)
 
   if (rawBodyLayers.length > 0) {
-    const mergedRawBody = rawBodyLayers.reduce<Record<string, unknown>>(
-      (acc, layer) => merge({}, acc, layer),
-      {}
-    )
+    const mergedRawBody = rawBodyLayers.reduce<Record<string, unknown>>((acc, layer) => merge({}, acc, layer), {})
     if (Object.keys(mergedRawBody).length > 0) {
       sdkConfig.providerSettings.fetch = createCustomParamsFetch(
         sdkConfig.providerSettings.fetch ?? globalThis.fetch,
@@ -692,10 +689,7 @@ function buildAgentOptions(
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   // Body-routed keys already injected via the unified fetch wrapper, so strip them from
   // the providerOptions path to avoid double-send on Chat and silent drop on Responses.
-  const callOverrides = stripRequestBodyFromCallOverrides(
-    request.callOverrides,
-    callOverridesBodyParams
-  )
+  const callOverrides = stripRequestBodyFromCallOverrides(request.callOverrides, callOverridesBodyParams)
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
   const effectiveProviderOptions = applyFastModeToProviderOptions(
@@ -771,7 +765,11 @@ function extractCallOverridesBodyParams(callOverrides: CallOverrides | undefined
       // Currently only `chat_template_kwargs.*` is body-routed.
       if (isRequestBodyTarget(key as any) || key === 'chat_template_kwargs') {
         if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          body[key] = merge({}, (body[key] as Record<string, unknown> | undefined) ?? {}, value as Record<string, unknown>)
+          body[key] = merge(
+            {},
+            (body[key] as Record<string, unknown> | undefined) ?? {},
+            value as Record<string, unknown>
+          )
         } else if (value !== undefined) {
           body[key] = value
         }
@@ -779,7 +777,7 @@ function extractCallOverridesBodyParams(callOverrides: CallOverrides | undefined
         const dot = key.indexOf('.')
         const top = key.slice(0, dot)
         const rest = key.slice(dot + 1)
-        const bag = ((body[top] ??= {}) as Record<string, unknown>)
+        const bag = (body[top] ??= {}) as Record<string, unknown>
         bag[rest] = value
       }
     }
@@ -794,10 +792,10 @@ function stripRequestBodyFromCallOverrides(
   if (!callOverrides?.providerOptions || Object.keys(bodyParams).length === 0) return callOverrides
   const bodyKeys = new Set(Object.keys(bodyParams))
   let mutated = false
-  const nextProviderOptions: Record<string, Record<string, unknown>> = {}
+  const nextProviderOptions: ProviderOptions = {}
   for (const [pid, opts] of Object.entries(callOverrides.providerOptions)) {
     if (!opts || typeof opts !== 'object') {
-      nextProviderOptions[pid] = opts as Record<string, unknown>
+      nextProviderOptions[pid] = opts as unknown as NonNullable<ProviderOptions[string]>
       continue
     }
     const filtered = Object.fromEntries(
@@ -809,7 +807,7 @@ function stripRequestBodyFromCallOverrides(
       })
     )
     if (Object.keys(filtered).length !== Object.keys(opts as Record<string, unknown>).length) mutated = true
-    if (Object.keys(filtered).length > 0) nextProviderOptions[pid] = filtered
+    if (Object.keys(filtered).length > 0) nextProviderOptions[pid] = filtered as NonNullable<ProviderOptions[string]>
     else mutated = true
   }
   if (!mutated) return callOverrides
