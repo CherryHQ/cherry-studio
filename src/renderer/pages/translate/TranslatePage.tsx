@@ -10,7 +10,6 @@ import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
@@ -212,7 +211,6 @@ const TranslatePage: FC = () => {
   const detectLanguage = useDetectLang()
   const { add: addHistory } = useTranslateHistory()
   const { notesPath } = useNotesSettings()
-  const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
@@ -228,48 +226,23 @@ const TranslatePage: FC = () => {
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
   const smoothUpdateRef = useRef<(text: string, isComplete: boolean) => void>(() => {})
-  const streamActiveRef = useRef(false)
   const {
     translate: runTranslate,
     isTranslating,
     cancel
   } = useTranslate({
     loggerContext: 'TranslatePage',
-    onResponse: (text, isComplete) => {
-      streamActiveRef.current = true
-      smoothUpdateRef.current(text, isComplete)
-    }
+    onResponse: (text, isComplete) => smoothUpdateRef.current(text, isComplete)
   })
 
-  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
-  const [renderedFor, setRenderedFor] = useState<string>('')
-  const markdownRenderSeq = useRef(0)
-  const settledTextRef = useRef('')
-  const [settledTick, setSettledTick] = useState(0)
   const { reset: smoothResetBase, update: smoothUpdate } = useSmoothStream({
     onUpdate: setTranslateOutput,
     streamDone: !isTranslating,
-    initialText: translateOutput,
-    onSettled: (text) => {
-      streamActiveRef.current = false
-      settledTextRef.current = text
-      setSettledTick((tick) => tick + 1)
-    }
+    initialText: translateOutput
   })
   smoothUpdateRef.current = smoothUpdate
 
-  // A new stream discards whatever Markdown the previous output settled into:
-  // drop it up front and invalidate any in-flight parse.
-  const smoothReset = useCallback(
-    (text = '') => {
-      markdownRenderSeq.current += 1
-      settledTextRef.current = ''
-      setRenderedMarkdown('')
-      setRenderedFor('')
-      smoothResetBase(text)
-    },
-    [smoothResetBase]
-  )
+  const smoothReset = smoothResetBase
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -647,51 +620,6 @@ const TranslatePage: FC = () => {
     () => createOutputScrollHandler(outputTextRef, inputScrollRef, isProgrammaticScroll, isScrollSyncEnabled),
     [isScrollSyncEnabled]
   )
-
-  // Markdown/Shiki parses the whole document, so running it per streamed
-  // frame grows quadratically. Streamed output stays plain text; the single
-  // parse happens when useSmoothStream reports the queue drained, and the
-  // sequence guard keeps a slow parse from overwriting newer output.
-  useEffect(() => {
-    if (!enableMarkdown) {
-      markdownRenderSeq.current += 1
-      setRenderedMarkdown('')
-      setRenderedFor('')
-      return
-    }
-    const text = settledTextRef.current
-    // Only the settle may start a parse. Toggling Markdown or the Shiki
-    // theme mid-stream would otherwise freeze a partial snapshot into HTML
-    // while the stream is still playing out.
-    if (!text) {
-      setRenderedMarkdown('')
-      setRenderedFor('')
-      return
-    }
-    const seq = ++markdownRenderSeq.current
-    let cancelled = false
-    void shikiMarkdownIt(text).then((markdown) => {
-      if (!cancelled && seq === markdownRenderSeq.current) {
-        setRenderedMarkdown(markdown)
-        setRenderedFor(text)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [enableMarkdown, settledTick, shikiMarkdownIt])
-
-  // Output restored from history or an input/output swap never passes through
-  // the stream, so no settle ever fires for it. Once the page is idle, treat
-  // output the renderer has not seen as already settled and parse it once.
-  // The streamActive guard keeps this from racing the playout drain, which is
-  // where the hook's own onSettled takes over.
-  useEffect(() => {
-    if (isTranslating || streamActiveRef.current) return
-    if (!translateOutput || settledTextRef.current === translateOutput) return
-    settledTextRef.current = translateOutput
-    setSettledTick((tick) => tick + 1)
-  }, [isTranslating, translateOutput])
 
   const modelSelectorFilter = useCallback(
     (model: SelectorModel) =>
@@ -1093,7 +1021,6 @@ const TranslatePage: FC = () => {
                         <TranslateOutputPane
                           ref={outputTextRef}
                           translatedContent={translateOutput}
-                          renderedMarkdown={renderedFor === translateOutput ? renderedMarkdown : ''}
                           enableMarkdown={enableMarkdown}
                           translating={isTranslating || isDetecting || isPdfTextExtracting}
                           copied={copied}
@@ -1140,7 +1067,6 @@ const TranslatePage: FC = () => {
               <TranslateOutputPane
                 ref={outputTextRef}
                 translatedContent={translateOutput}
-                renderedMarkdown={renderedFor === translateOutput ? renderedMarkdown : ''}
                 enableMarkdown={enableMarkdown}
                 translating={isTranslating || isDetecting}
                 copied={copied}
