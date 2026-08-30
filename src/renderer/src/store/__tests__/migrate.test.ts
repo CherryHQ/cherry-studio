@@ -1,7 +1,10 @@
-import { BuiltinMCPServerNames, MCP_AUTO_INSTALL_ARGS } from '@renderer/types'
+import { MCP_AUTO_INSTALL_ARGS } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import migrate from '../migrate'
+
+const LEGACY_MCP_AUTO_INSTALL_PACKAGE = '@cherry/mcp-auto-install'
+const CURRENT_MCP_AUTO_INSTALL_PACKAGE = '@mcpmarket/mcp-auto-install'
 
 describe('store migrations', () => {
   describe('migration 207: StepFun Anthropic-compatible host backfill', () => {
@@ -50,9 +53,9 @@ describe('store migrations', () => {
           servers: [
             {
               id: 'mcp-auto-install',
-              name: BuiltinMCPServerNames.mcpAutoInstall,
+              name: LEGACY_MCP_AUTO_INSTALL_PACKAGE,
               command: 'bun',
-              args: ['x', BuiltinMCPServerNames.mcpAutoInstall, 'connect', '--json'],
+              args: ['x', LEGACY_MCP_AUTO_INSTALL_PACKAGE, 'connect', '--json'],
               isActive: false
             }
           ]
@@ -63,7 +66,7 @@ describe('store migrations', () => {
       const migrated: any = await migrate(state as any, 209)
 
       expect(migrated.mcp.servers[0].command).toBe('bun')
-      expect(migrated.mcp.servers[0].args).toEqual(['x', '@mcpmarket/mcp-auto-install', 'connect', '--json'])
+      expect(migrated.mcp.servers[0].args).toEqual(['x', CURRENT_MCP_AUTO_INSTALL_PACKAGE, 'connect', '--json'])
     })
 
     it('preserves custom command and additional user flags', async () => {
@@ -72,12 +75,12 @@ describe('store migrations', () => {
           servers: [
             {
               id: 'mcp-auto-install',
-              name: BuiltinMCPServerNames.mcpAutoInstall,
+              name: LEGACY_MCP_AUTO_INSTALL_PACKAGE,
               command: '/usr/local/bin/npx',
               args: [
                 '--registry',
                 'https://custom.registry.com',
-                BuiltinMCPServerNames.mcpAutoInstall,
+                LEGACY_MCP_AUTO_INSTALL_PACKAGE,
                 'connect',
                 '--json',
                 '--verbose'
@@ -95,7 +98,7 @@ describe('store migrations', () => {
       expect(migrated.mcp.servers[0].args).toEqual([
         '--registry',
         'https://custom.registry.com',
-        '@mcpmarket/mcp-auto-install',
+        CURRENT_MCP_AUTO_INSTALL_PACKAGE,
         'connect',
         '--json',
         '--verbose'
@@ -108,7 +111,7 @@ describe('store migrations', () => {
           servers: [
             {
               id: 'mcp-auto-install',
-              name: BuiltinMCPServerNames.mcpAutoInstall,
+              name: LEGACY_MCP_AUTO_INSTALL_PACKAGE,
               command: 'npx',
               args: [...MCP_AUTO_INSTALL_ARGS],
               isActive: false
