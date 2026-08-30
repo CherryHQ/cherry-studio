@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "Подтверждать перед удалением сообщений",
   "settings.messages.input.enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
   "settings.messages.input.newline_shortcuts": "Горячая клавиша переноса строки",
+  "settings.messages.input.paste_long_text_as_file": "Вставлять длинный текст как файл",
+  "settings.messages.input.paste_long_text_threshold": "Порог длины текста",
   "settings.messages.input.send_shortcuts": "Горячие клавиши для отправки",
   "settings.messages.input.show_estimated_tokens": "Показывать оценочное число токенов",
   "settings.messages.input.steer_shortcuts": "Горячая клавиша управления",

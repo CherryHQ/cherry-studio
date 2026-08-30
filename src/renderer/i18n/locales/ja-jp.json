@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "メッセージ削除前に確認",
   "settings.messages.input.enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
   "settings.messages.input.newline_shortcuts": "改行のショートカット",
+  "settings.messages.input.paste_long_text_as_file": "長いテキストをファイルとして貼り付ける",
+  "settings.messages.input.paste_long_text_threshold": "長いテキストと判定する文字数",
   "settings.messages.input.send_shortcuts": "送信ショートカット",
   "settings.messages.input.show_estimated_tokens": "推定トークン数を表示",
   "settings.messages.input.steer_shortcuts": "誘導のショートカット",

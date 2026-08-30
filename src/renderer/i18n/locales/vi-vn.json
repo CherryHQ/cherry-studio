@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
   "settings.messages.input.enable_quick_triggers": "Kích hoạt các kích hoạt / và @",
   "settings.messages.input.newline_shortcuts": "Phím tắt xuống dòng",
+  "settings.messages.input.paste_long_text_as_file": "Dán văn bản dài dưới dạng tệp",
+  "settings.messages.input.paste_long_text_threshold": "Ngưỡng độ dài văn bản",
   "settings.messages.input.send_shortcuts": "Gửi phím tắt",
   "settings.messages.input.show_estimated_tokens": "Hiển thị số token ước tính",
   "settings.messages.input.steer_shortcuts": "Phím tắt hướng dẫn",

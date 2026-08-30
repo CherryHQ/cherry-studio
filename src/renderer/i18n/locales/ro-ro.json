@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "Confirmă înainte de ștergerea mesajelor",
   "settings.messages.input.enable_quick_triggers": "Activează declanșatoarele / și @",
   "settings.messages.input.newline_shortcuts": "Scurtătură pentru linie nouă",
+  "settings.messages.input.paste_long_text_as_file": "Lipește textul lung ca fișier",
+  "settings.messages.input.paste_long_text_threshold": "Pragul de lungime pentru text",
   "settings.messages.input.send_shortcuts": "Comenzi rapide trimitere",
   "settings.messages.input.show_estimated_tokens": "Afișează numărul estimat de tokeni",
   "settings.messages.input.steer_shortcuts": "Scurtătură pentru ghidare",
