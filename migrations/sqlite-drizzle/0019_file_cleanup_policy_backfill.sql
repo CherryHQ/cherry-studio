@@ -5,7 +5,8 @@
 -- `delete_when_unreferenced` on a fresh migration.
 --
 -- Keep the backfill deliberately narrow:
---   * only rows created before migration 0003 was generated;
+--   * only rows that existed when this database completed its one-shot v2
+--     migration (the per-database provenance boundary);
 --   * only rows still carrying its `manual` default; and
 --   * only rows held by ref types populated by the one-shot v1 migrators.
 -- This avoids demoting files that a user explicitly made manual after the
@@ -13,8 +14,14 @@
 UPDATE `file_entry`
 SET `cleanup_policy` = 'delete_when_unreferenced'
 WHERE `cleanup_policy` = 'manual'
-  AND `created_at` < 1785514531244
+  AND `created_at` <= (
+    SELECT CAST(json_extract(`value`, '$.completedAt') AS INTEGER)
+    FROM `app_state`
+    WHERE `key` = 'migration_v2_status'
+  )
   AND `id` IN (
+    SELECT `file_entry_id` FROM `agent_session_message_file_ref`
+    UNION
     SELECT `file_entry_id` FROM `chat_message_file_ref`
     UNION
     SELECT `file_entry_id` FROM `painting_file_ref`
