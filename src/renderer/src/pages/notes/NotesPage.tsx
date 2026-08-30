@@ -191,6 +191,19 @@ const NotesPage: FC = () => {
 
       try {
         await window.api.file.write(targetPath, content)
+        // 写入完成后再检查一次删除标记：若在此次写入等待期间文件已被删除，写入会“复活”文件，需立即清理
+        const pendingAfter = pendingDeletePathRef.current
+        if (pendingAfter) {
+          const normalizedAfter = normalizePathValue(targetPath)
+          if (normalizedAfter === pendingAfter || normalizedAfter.startsWith(`${pendingAfter}/`)) {
+            try {
+              // 尝试删除刚被复活的文件/目录（忽略错误）
+              await window.api.file.deleteExternalFile(targetPath).catch(() => {})
+              await window.api.file.deleteExternalDir(targetPath).catch(() => {})
+            } catch {}
+            return
+          }
+        }
         // 保存后立即刷新缓存，确保下次读取时获取最新内容
         invalidateFileContent(targetPath)
       } catch (error) {
@@ -517,6 +530,14 @@ const NotesPage: FC = () => {
         const { path: notePath } = await addNote(name, '', targetPath)
         const normalizedParent = normalizePathValue(targetPath)
         updateExpandedPaths((prev) => addUniquePath(prev, normalizedParent))
+        // 若新笔记路径与待删除标记相同（用户删除后立即重建同名笔记），清除标记避免首个 autosave 被误拦截
+        const pendingCreate = pendingDeletePathRef.current
+        if (pendingCreate) {
+          const normalizedNote = normalizePathValue(notePath)
+          if (normalizedNote === pendingCreate || normalizedNote.startsWith(`${pendingCreate}/`)) {
+            pendingDeletePathRef.current = null
+          }
+        }
         dispatch(setActiveFilePath(notePath))
         setSelectedFolderId(null)
 
@@ -616,7 +637,7 @@ const NotesPage: FC = () => {
         } catch (error) {
           if (isActiveRelated) {
             pendingDeletePathRef.current = null
-            if (lastContentRef.current && lastFilePathRef.current) {
+            if (lastFilePathRef.current != null) {
               debouncedSaveRef.current?.(lastContentRef.current, lastFilePathRef.current)
             }
           }
@@ -629,10 +650,21 @@ const NotesPage: FC = () => {
         )
 
         if (isActiveRelated) {
-          lastContentRef.current = ''
-          lastFilePathRef.current = undefined
-          dispatch(setActiveFilePath(undefined))
-          editorRef.current?.clear()
+          // 重新检查 activeFilePath 是否仍关联到被删除路径，避免在删除等待期间用户已切换到其他笔记时误清空
+          const currentActive = activeFilePathRef.current ? normalizePathValue(activeFilePathRef.current) : undefined
+          const stillRelated =
+            currentActive === normalizedDeletePath ||
+            (nodeToDelete.type === 'folder' && currentActive?.startsWith(`${normalizedDeletePath}/`))
+          if (stillRelated) {
+            // 仅当 lastFilePath 指向被删除路径时才丢弃草稿，避免丢弃已切换笔记的未保存内容
+            const lastPath = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
+            if (lastPath === normalizedDeletePath || lastPath?.startsWith(`${normalizedDeletePath}/`)) {
+              lastContentRef.current = ''
+              lastFilePathRef.current = undefined
+            }
+            dispatch(setActiveFilePath(undefined))
+            editorRef.current?.clear()
+          }
           // 保持删除标记一小段时间，拦截删除后紧接着的 emergency save / 尾随写入
           setTimeout(() => {
             if (pendingDeletePathRef.current === normalizedDeletePath) {
