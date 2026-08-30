@@ -20,7 +20,7 @@ import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isExternalCliProvider } from '@shared/utils/provider'
+import { isAnthropicProvider, isExternalCliProvider } from '@shared/utils/provider'
 
 import {
   type Environment,
@@ -65,12 +65,14 @@ const require_ = createRequire(import.meta.url)
 
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
-// Third-party models and channels may report a contextWindow larger than the provider's actual
-// limit, causing auto-compaction to trigger too late. Apply a conservative safety margin so
-// compaction fires earlier, leaving headroom for the gap between declared and real limits.
+// Third-party channels may report a contextWindow larger than the provider's actual limit
+// (e.g. #18894: 256K declared / 128K real), causing auto-compaction to trigger too late.
+// Apply the conservative safety margin only to untrusted providers; Anthropic-official
+// channels report accurate windows and must not lose half their context to a blanket 0.6.
 export function resolveAutoCompactWindow(
   contextWindow: number | undefined,
-  requestedOutput: number
+  requestedOutput: number,
+  provider?: Provider | null
 ): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
@@ -79,7 +81,10 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const effectiveContextWindow = Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
+  const isTrustedAnthropic = provider != null && isAnthropicProvider(provider)
+  const effectiveContextWindow = isTrustedAnthropic
+    ? contextWindow
+    : Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
   const budget = Math.floor((effectiveContextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
   return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
 }
