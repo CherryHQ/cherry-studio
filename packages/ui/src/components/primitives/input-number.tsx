@@ -11,6 +11,9 @@ import { Input } from './input'
  * blur/Enter the field normalizes what was typed — clamped into `[min, max]`,
  * truncated when `step` is an integer — and hands the result to `onBlur`.
  * **Settling is not configurable**; a field cannot be left showing `"1."`.
+ * An incomplete numeric prefix that is still not a number on commit restores
+ * the value from the start of the edit; only an actually empty field settles
+ * to `null`.
  *
  * What `onBlur` hands over is a fact — "this is the value the field settled
  * on" — and the meaning is the caller's: persist it, ignore it, diff it against
@@ -244,7 +247,8 @@ function InputNumber({
   }
 
   const handleBlur = () => {
-    const settled = discarding.current ? preEdit.current : parse(text, min, max, step)
+    const isIncomplete = text !== '' && !Number.isFinite(Number(text))
+    const settled = discarding.current || isIncomplete ? preEdit.current : parse(text, min, max, step)
     discarding.current = false
     const commit = onBlur?.(settled)
     if (!isPromise(commit)) {

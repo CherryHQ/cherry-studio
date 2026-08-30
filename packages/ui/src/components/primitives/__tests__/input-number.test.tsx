@@ -149,6 +149,35 @@ describe('InputNumber', () => {
     expect(onBlur).toHaveBeenCalledExactlyOnceWith(10)
   })
 
+  it('restores the pre-edit value instead of turning an incomplete number into null', async () => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn()
+
+    function Controlled() {
+      const [value, setValue] = useState<number | null>(42)
+      return (
+        <InputNumber
+          aria-label="amount"
+          value={value}
+          onValueChange={setValue}
+          onBlur={(settled) => {
+            onBlur(settled)
+            setValue(settled)
+          }}
+        />
+      )
+    }
+
+    render(<Controlled />)
+    const input = screen.getByLabelText('amount')
+    await user.clear(input)
+    await user.type(input, '1e')
+    await user.tab()
+
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(42)
+    expect(input).toHaveValue('42')
+  })
+
   it('follows an external value change while unfocused', () => {
     const { rerender } = render(<InputNumber aria-label="amount" value={1} onValueChange={vi.fn()} />)
     expect(screen.getByLabelText('amount')).toHaveValue('1')
