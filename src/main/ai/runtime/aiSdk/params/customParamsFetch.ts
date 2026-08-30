@@ -1,3 +1,5 @@
+import { merge } from 'es-toolkit/compat'
+
 import { isCustomProviderNamespace } from '../../../utils/options'
 
 const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
@@ -58,7 +60,7 @@ export function createCustomParamsFetch(
       if (isRecord(body)) {
         return innerFetch(input, {
           ...init,
-          body: JSON.stringify({ ...customParamsSnapshot, ...body })
+          body: JSON.stringify(merge({}, customParamsSnapshot, body))
         })
       }
     }

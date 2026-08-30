@@ -196,10 +196,32 @@ export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocatio
   return encodeEmissions(invocation)
 }
 
+/** Whether a wire target is delivered via raw request body rather than providerOptions. */
+export function isRequestBodyTarget(target: ReasoningWireTarget): boolean {
+  return target.startsWith('chat_template_kwargs.')
+}
+
 /** Return a reasoning invocation with body-routed emissions removed (for providerOptions-only paths). */
 export function filterReasoningForProviderOptions(
   invocation: ResolvedReasoningInvocation
 ): ResolvedReasoningInvocation {
-  const kept = invocation.emissions.filter((emission) => emission.target.split('.')[0] !== 'chat_template_kwargs')
+  const kept = invocation.emissions.filter((emission) => !isRequestBodyTarget(emission.target))
   return { ...invocation, emissions: kept }
+}
+
+/** Extract body-routed reasoning params as a nested object for fetch injection. */
+export function extractReasoningBodyParams(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  for (const emission of invocation.emissions) {
+    if (!isRequestBodyTarget(emission.target)) continue
+    const path = emission.target.split('.')
+    let cursor = body
+    for (let index = 0; index < path.length - 1; index += 1) {
+      const key = path[index]
+      cursor[key] ??= {}
+      cursor = cursor[key] as Record<string, unknown>
+    }
+    cursor[path[path.length - 1]] = emission.value
+  }
+  return body
 }
