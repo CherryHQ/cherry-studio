@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
+import { describe, expect, it, vi } from 'vitest'
 
 function shouldBlockAutosave(targetPath: string, pendingDelete: string | null): boolean {
   if (!pendingDelete) return false
