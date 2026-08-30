@@ -7,7 +7,7 @@ import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/util
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, type ComponentType, type LazyExoticComponent, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +15,7 @@ import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewType } from './types'
+import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
@@ -110,7 +110,7 @@ interface FilePreviewPluginRendererProps {
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   plugin: FilePreviewPlugin
-  pluginComponent: ReturnType<typeof lazy<React.ComponentType<object>>>
+  pluginComponent: LazyExoticComponent<ComponentType<FilePreviewPluginProps>>
   refreshKey: number
   type: FilePreviewType
 }
@@ -185,7 +185,7 @@ type FilePreviewResolution =
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
       plugin: FilePreviewPlugin | null
-      pluginComponent: ReturnType<typeof lazy<React.ComponentType<object>>> | null
+      pluginComponent: LazyExoticComponent<ComponentType<FilePreviewPluginProps>> | null
       requestKey: string
       status: 'ready'
     }
