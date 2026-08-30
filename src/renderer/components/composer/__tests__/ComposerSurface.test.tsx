@@ -4262,7 +4262,10 @@ describe('ComposerSurface', () => {
     }
 
     expect(mocks.editorOptions.handlePaste(mocks.currentView, aboveThresholdEvent)).toBe(true)
-    expect(mocks.pasteHandler).toHaveBeenCalledWith(aboveThresholdEvent)
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(
+      aboveThresholdEvent,
+      expect.objectContaining({ beforeAddFiles: expect.any(Function) })
+    )
   })
 
   it('inlines long pasted text when the paste-as-file feature is disabled', async () => {
