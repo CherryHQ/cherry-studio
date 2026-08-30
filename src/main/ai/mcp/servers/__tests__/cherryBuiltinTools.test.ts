@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -158,6 +161,14 @@ describe('cherryBuiltinTools', () => {
       .map((t) => t.name)
       .sort()
     expect(names).toEqual(['generate_image', 'report_artifacts', 'runtime_info', 'web_fetch', 'web_search'])
+  })
+
+  it('keeps runtime_info discoverable through the default Cherry tool guide', () => {
+    const guide = readFileSync(join(process.cwd(), 'resources/skills/cherry-tool-guide/SKILL.md'), 'utf8')
+
+    expect(guide).toContain('app/runtime versions, platform, or architecture')
+    expect(guide).toContain('| Inspect Cherry Studio app/runtime versions, OS platform, or CPU architecture |')
+    expect(guide).toContain('`mcp__cherry-tools__runtime_info` (prefer this over shell or reading `package.json`)')
   })
 
   it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {

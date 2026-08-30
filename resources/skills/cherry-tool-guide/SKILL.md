@@ -1,6 +1,6 @@
 ---
 name: cherry-tool-guide
-description: Cherry Studio first-party tool and bundled-shell routing for general agents. For straightforward local work in shell-capable sessions, run JS/TS with `bun <file>` and one-off JS tools with `bun x`; run Python with `uv run [--with <pkg>] python` and one-off Python CLIs with `uvx`; search with `rg`. Load this guide before changing project dependencies, deciding whether a tool should be ephemeral or reusable, reading or converting local Office/PDF files, coordinating or delegating across Agent Sessions, or using Cherry-owned web/browser, knowledge, persistent memory, schedules/notifications, IM channels, image generation, artifact reporting, managed CLI, skill, or MCP-server-registration capabilities—even if the user names no tool. Consult it before shell/file workarounds; live tool schemas are authoritative.
+description: Cherry Studio first-party tool and bundled-shell routing for general agents. For straightforward local work in shell-capable sessions, run JS/TS with `bun <file>` and one-off JS tools with `bun x`; run Python with `uv run [--with <pkg>] python` and one-off Python CLIs with `uvx`; search with `rg`. Load this guide before inspecting Cherry Studio app/runtime versions, platform, or architecture; changing project dependencies; deciding whether a tool should be ephemeral or reusable; reading or converting local Office/PDF files; coordinating or delegating across Agent Sessions; or using Cherry-owned web/browser, knowledge, persistent memory, schedules/notifications, IM channels, image generation, artifact reporting, managed CLI, skill, or MCP-server-registration capabilities—even if the user names no tool. Consult it before shell/file workarounds; live tool schemas are authoritative.
 version: 1.4.0
 ---
 
@@ -51,6 +51,7 @@ parameter names, enums, and required fields. Read it before every call.
 
 | User intent | Route to | Reference |
 | --- | --- | --- |
+| Inspect Cherry Studio app/runtime versions, OS platform, or CPU architecture | `mcp__cherry-tools__runtime_info` (prefer this over shell or reading `package.json`) | Direct lookup; no extra reference required |
 | Look up current/online facts, news, docs | `mcp__cherry-tools__web_search` → `mcp__cherry-tools__web_fetch` | [web.md](references/web.md) |
 | Browser interaction (click, forms, screenshots) | *(unavailable via web built-ins)* | [web.md](references/web.md) |
 | Answer from the user's own documents | `mcp__cherry-tools__kb_list` → `mcp__cherry-tools__kb_search` → `mcp__cherry-tools__kb_read` | [knowledge.md](references/knowledge.md) |
