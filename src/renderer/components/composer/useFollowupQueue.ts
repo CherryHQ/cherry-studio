@@ -25,14 +25,29 @@ interface FollowupQueueState {
   paused: boolean
 }
 
-/** Load + validate a persisted queue (persist cache holds arbitrary JSON; guard non-array entries). */
+/** Load + validate a persisted queue (persist cache holds arbitrary JSON; discard malformed entries). */
 function loadState(scopeKey: string): FollowupQueueState {
-  const queues = cacheService.getPersist(QUEUE_STORAGE_KEY)
-  const entry = queues[scopeKey]
-  if (!entry) return { items: [], paused: false }
-  return {
-    items: Array.isArray(entry.items) ? (entry.items as unknown as FollowupQueueItem[]) : [],
-    paused: entry.paused === true
+  try {
+    const queues = cacheService.getPersist(QUEUE_STORAGE_KEY) as unknown
+    if (!queues || typeof queues !== 'object' || Array.isArray(queues)) return { items: [], paused: false }
+    const entry = (queues as Record<string, unknown>)[scopeKey]
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return { items: [], paused: false }
+    const raw = entry as { items?: unknown; paused?: unknown }
+    const items = Array.isArray(raw.items)
+      ? (raw.items as unknown[]).filter(
+          (item) =>
+            item != null &&
+            typeof item === 'object' &&
+            typeof (item as { id?: unknown }).id === 'string' &&
+            (item as { payload?: unknown }).payload != null
+        )
+      : []
+    return {
+      items: items as unknown as FollowupQueueItem[],
+      paused: raw.paused === true
+    }
+  } catch {
+    return { items: [], paused: false }
   }
 }
 
@@ -112,6 +127,10 @@ export function useFollowupQueue({
   failedItemIdRef.current = failedItemId
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
+  const isFulfilledRef = useRef(isFulfilled)
+  isFulfilledRef.current = isFulfilled
+  const markSeenRef = useRef(markSeen)
+  markSeenRef.current = markSeen
 
   const persist = useCallback((next: FollowupQueueState) => {
     persistState(scopeKeyRef.current, next.items, next.paused)
@@ -123,44 +142,27 @@ export function useFollowupQueue({
     scopeKeyRef.current = scopeKey
     // A drain in flight for the previous scope must not settle into the new scope's queue.
     drainEpochRef.current += 1
-    setState(loadState(scopeKey))
+    drainingIdRef.current = null
+    const next = loadState(scopeKey)
+    // Sync the ref before React commits the new state — otherwise the drain effect
+    // running in the same commit would still see the previous conversation's items
+    // and could drain the old head through the new conversation's completion edge.
+    stateRef.current = next
+    setState(next)
     setFailedItemId(null)
   }, [scopeKey])
-
-  const setPaused = useCallback(
-    (nextPaused: boolean) => {
-      const next = { ...stateRef.current, paused: nextPaused }
-      persist(next)
-      setState(next)
-    },
-    [persist]
-  )
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
       if (stateRef.current.items.length >= QUEUE_LIMIT) return false
+      const newItem: FollowupQueueItem = { id: crypto.randomUUID(), draft, payload }
       setState((prev) => {
-        const next = { ...prev, items: [...prev.items, { id: crypto.randomUUID(), draft, payload }] }
+        if (prev.items.length >= QUEUE_LIMIT) return prev
+        const next = { ...prev, items: [...prev.items, newItem] }
         persist(next)
         return next
       })
       return true
-    },
-    [persist]
-  )
-
-  const removeId = useCallback(
-    (id: string) => {
-      // Removing the item an in-flight drain is sending invalidates its resolution.
-      if (drainingIdRef.current === id) drainEpochRef.current += 1
-      setState((prev) => {
-        const next = { ...prev, items: prev.items.filter((item) => item.id !== id) }
-        // Removing the failed head resolves the failure; the queue resumes like a skip.
-        if (failedItemIdRef.current === id) next.paused = false
-        persist(next)
-        return next
-      })
-      if (failedItemIdRef.current === id) setFailedItemId(null)
     },
     [persist]
   )
@@ -170,6 +172,7 @@ export function useFollowupQueue({
       setState((prev) => {
         const next = { ...prev, items: nextItems }
         persist(next)
+        stateRef.current = next
         return next
       })
     },
@@ -177,11 +180,12 @@ export function useFollowupQueue({
   )
 
   const clear = useCallback(() => {
-    // An in-flight drain's resolution targets an item we just dropped — invalidate it.
     drainEpochRef.current += 1
+    drainingIdRef.current = null
     const next = { items: [], paused: false }
     persist(next)
     setState(next)
+    stateRef.current = next
     setFailedItemId(null)
   }, [persist])
 
@@ -197,29 +201,67 @@ export function useFollowupQueue({
     },
     [persist]
   )
+  const failHeadRef = useRef(failHead)
+  failHeadRef.current = failHead
 
-  const drainHead = useCallback(
-    (head: FollowupQueueItem | undefined) => {
-      if (!head || drainingIdRef.current !== null) return
-      drainingIdRef.current = head.id
-      const epoch = drainEpochRef.current
-      void onDrainRef.current(head.payload).then(
-        (sent) => {
-          drainingIdRef.current = null
-          // The queue moved on while the send was in flight (cleared/removed/scope switch) —
-          // drop the resolution instead of resurrecting failure state for a gone item.
-          if (drainEpochRef.current !== epoch) return
-          if (sent) removeId(head.id)
-          else failHead(head.id)
-        },
-        () => {
-          drainingIdRef.current = null
-          if (drainEpochRef.current !== epoch) return
-          failHead(head.id)
+  const removeIdRef = useRef<(id: string) => void>(() => {})
+  const drainHead = useCallback((head: FollowupQueueItem | undefined) => {
+    if (!head || drainingIdRef.current !== null) return
+    drainingIdRef.current = head.id
+    const epoch = drainEpochRef.current
+    void onDrainRef.current(head.payload).then(
+      (sent) => {
+        drainingIdRef.current = null
+        if (drainEpochRef.current !== epoch) return
+        if (sent) removeIdRef.current(head.id)
+        else failHeadRef.current(head.id)
+      },
+      () => {
+        drainingIdRef.current = null
+        if (drainEpochRef.current !== epoch) return
+        failHeadRef.current(head.id)
+      }
+    )
+  }, [])
+
+  const removeId = useCallback(
+    (id: string) => {
+      const wasFailed = failedItemIdRef.current === id
+      if (drainingIdRef.current === id) {
+        drainEpochRef.current += 1
+        drainingIdRef.current = null
+      }
+      setState((prev) => {
+        const filtered = prev.items.filter((item) => item.id !== id)
+        const next: FollowupQueueState = {
+          items: filtered,
+          paused: wasFailed ? false : prev.paused
         }
-      )
+        persist(next)
+        stateRef.current = next
+        return next
+      })
+      if (wasFailed) setFailedItemId(null)
     },
-    [failHead, removeId]
+    [persist]
+  )
+  removeIdRef.current = removeId
+
+  const setPaused = useCallback(
+    (nextPaused: boolean) => {
+      const next = { ...stateRef.current, paused: nextPaused }
+      persist(next)
+      setState(next)
+      stateRef.current = next
+      if (!nextPaused && isFulfilledRef.current && !failedItemIdRef.current && drainingIdRef.current === null) {
+        const head = next.items[0]
+        if (head) {
+          markSeenRef.current()
+          drainHead(head)
+        }
+      }
+    },
+    [persist, drainHead]
   )
 
   // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
@@ -244,14 +286,13 @@ export function useFollowupQueue({
 
   const skipFailed = useCallback(() => {
     const failed = failedItemIdRef.current
-    // A retry is already re-sending the failed head; let it settle instead of racing it.
     if (!failed || drainingIdRef.current !== null) return
     const remaining = stateRef.current.items.filter((item) => item.id !== failed)
     setFailedItemId(null)
     const next = { items: remaining, paused: false }
     persist(next)
     setState(next)
-    // Idle now (the failed turn already completed) — keep the queue moving by sending the next head.
+    stateRef.current = next
     drainHead(remaining[0])
   }, [drainHead, persist])
 
