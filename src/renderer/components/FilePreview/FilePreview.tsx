@@ -7,7 +7,8 @@ import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/util
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ComponentType, type LazyExoticComponent, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import type { ComponentType } from 'react'
+import { createElement, lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
@@ -19,6 +20,13 @@ import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
+
+// Cache for pre-loaded plugin modules. Each plugin's load() is called at most once.
+// The WeakMap key is the plugin object (stable identity from the registry).
+const loadedModules = new WeakMap<
+  FilePreviewPlugin,
+  Promise<{ default: ComponentType<FilePreviewPluginProps> }>
+>()
 
 type FilePreviewStateKind = 'directory' | 'invalid_path' | 'load_error' | 'unavailable' | 'unsupported'
 
@@ -110,7 +118,7 @@ interface FilePreviewPluginRendererProps {
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   plugin: FilePreviewPlugin
-  pluginComponent: LazyExoticComponent<ComponentType<FilePreviewPluginProps>>
+  pluginComponent: (props: FilePreviewPluginProps) => ReactNode
   refreshKey: number
   type: FilePreviewType
 }
@@ -187,7 +195,7 @@ type FilePreviewResolution =
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
       plugin: FilePreviewPlugin | null
-      pluginComponent: LazyExoticComponent<ComponentType<FilePreviewPluginProps>> | null
+      pluginComponent: ((props: FilePreviewPluginProps) => ReactNode) | null
       requestKey: string
       status: 'ready'
     }
@@ -216,11 +224,37 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     void (async () => {
       try {
         // Run metadata IPC and plugin chunk loading in parallel.
-        const [metadata] = await Promise.all([
+        // Use WeakMap cache so load() is called at most once per plugin instance.
+        // For unknown extensions we may need textFilePreviewPlugin as a fallback,
+        // so load it too alongside the candidate plugin.
+        const needsTextFallback =
+          !candidatePlugin || TEXT_CONTENT_PLUGIN_IDS.has(candidatePlugin.id)
+        const textPluginLoad =
+          needsTextFallback && !loadedModules.has(textFilePreviewPlugin)
+            ? (() => {
+                const p = textFilePreviewPlugin.load()
+                loadedModules.set(textFilePreviewPlugin, p)
+                return p
+              })()
+            : loadedModules.get(textFilePreviewPlugin) ?? Promise.resolve(null)
+
+        const candidateLoad = candidatePlugin
+          ? loadedModules.get(candidatePlugin) ?? (() => {
+              const p = candidatePlugin!.load()
+              loadedModules.set(candidatePlugin!, p)
+              return p
+            })()
+          : null
+
+        const [metadata, candidateModule] = await Promise.all([
           ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath)),
-          // Kick off plugin module loading eagerly so React.lazy does not re-fetch.
-          candidatePlugin ? Promise.resolve(candidatePlugin.load()) : Promise.resolve(null)
+          candidateLoad
         ])
+
+        // Load text plugin in parallel if needed (runs independently).
+        if (needsTextFallback) {
+          void textPluginLoad // fire and forget — we await it only when we need the result
+        }
         if (cancelled) return
 
         if (!metadata) {
@@ -234,19 +268,25 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
         }
 
         // Accept/reject the candidate plugin based on metadata exactly as before.
-        let plugin = candidatePlugin
+        let plugin: FilePreviewPlugin | null = candidatePlugin
+        let pluginModule = candidateModule
         if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
           const isText = metadata.type === 'text'
 
           if (!plugin && isText) {
             plugin = textFilePreviewPlugin
+            pluginModule = await textPluginLoad
           } else if (plugin && !isText) {
             plugin = null
+            pluginModule = null
           }
         }
 
-        // Pre-create the lazy component so React.lazy does not issue a second request.
-        const pluginComponent = plugin ? lazy(plugin.load) : null
+        // Pre-create a render-bound element factory so we never invoke lazy()
+        // again on re-render — the chunk is already in `pluginModule`.
+        const pluginComponent: ((props: FilePreviewPluginProps) => ReactNode) | null = plugin && pluginModule
+          ? (props) => createElement(pluginModule!.default, props)
+          : null
 
         setResolution({ file, metadata, plugin, pluginComponent, requestKey, status: 'ready' })
       } catch {
