@@ -1,8 +1,11 @@
-import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useDefaultModel } from '@renderer/hooks/useModel'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { Check } from 'lucide-react'
+import { useProviderById } from '@renderer/hooks/useProvider'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import {
   resourceDialogCloseButtonClassName,
   resourceDialogHeaderClassName,
+  resourceDialogRailItemClassName,
   resourceDialogTitleClassName
 } from '../components/EditDialogShared'
 import { BasicInfoStep } from './steps/BasicInfoStep'
@@ -25,7 +29,7 @@ type ResourceCreateWizardProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (values: ResourceCreateWizardValues) => Promise<void> | void
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
   isSubmitting?: boolean
   /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
   initialName?: string
@@ -43,6 +47,8 @@ function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): Res
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
     description: '',
+    agentType: 'claude-code',
+    permissionMode: AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode,
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
@@ -108,7 +114,7 @@ function WizardFooter({
  * Stepped create flow shared by assistant + agent. Steps 1–2 (basic info,
  * System Prompt) are identical across kinds; agents then configure skills before
  * both kinds configure knowledge bases. A left rail tracks step progress
- * (done = check, current = filled number); the right pane swaps the active
+ * (completed and current steps keep their numbers); the right pane swaps the active
  * step's form as the footer drives navigation. One form collects every field
  * and hands the validated payload to `onSubmit`. Replaces the former
  * single-page ResourceCreateDialog.
@@ -128,9 +134,18 @@ export function ResourceCreateWizard({
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
+  const agentType = form.watch('agentType')
+  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
+  const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
   const { defaultModel } = useDefaultModel({ enabled: open })
+  const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
   const selectableDefaultModelId =
-    open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
+    open &&
+    defaultModel?.isEnabled &&
+    defaultModelProvider?.isEnabled &&
+    (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider))
+      ? defaultModel.id
+      : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -152,8 +167,13 @@ export function ResourceCreateWizard({
     if (kind === 'assistant') return [basic, systemPrompt, knowledge]
 
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
-    return [basic, systemPrompt, capability, knowledge]
-  }, [kind, t])
+    const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
+    return [basic, systemPrompt, ...(caps.skills ? [capability] : []), ...(caps.knowledgeBases ? [knowledge] : [])]
+  }, [agentType, kind, t])
+
+  useEffect(() => {
+    setStepIndex((index) => Math.min(index, steps.length - 1))
+  }, [steps.length])
 
   // `initialName` seeds the form on open only. Reading it through an effect event keeps it out of the
   // deps, so a caller that passes a still-live value (a search box's query, say) cannot reset a form the
@@ -171,7 +191,7 @@ export function ResourceCreateWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
   }, [kind, open])
 
-  // Preference/model hydration may finish after the dialog opens. Seed only an
+  // Preference/model/provider hydration may finish after the dialog opens. Seed only an
   // empty field, and retract only a value that this effect auto-selected if it
   // later falls outside the active model filter.
   useEffect(() => {
@@ -201,7 +221,7 @@ export function ResourceCreateWizard({
 
     autoSelectedDefaultModelIdRef.current = selectableDefaultModelId
     form.setValue('modelId', selectableDefaultModelId, { shouldDirty: false, shouldTouch: false })
-  }, [form, kind, open, selectableDefaultModelId])
+  }, [agentType, form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
 
@@ -251,6 +271,8 @@ export function ResourceCreateWizard({
     try {
       await onSubmit({
         avatar: values.avatar,
+        agentType: values.agentType,
+        permissionMode: values.permissionMode,
         name: values.name.trim(),
         modelId: values.modelId,
         description: values.description.trim(),
@@ -289,41 +311,33 @@ export function ResourceCreateWizard({
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1">
               {/* Step rail */}
-              <ol className="w-44 shrink-0 space-y-1 border-border-subtle border-r p-3">
+              <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
                 {steps.map((step, index) => {
-                  const done = index < stepIndex
                   const active = index === stepIndex
-                  const clickable = index < stepIndex
+                  const done = index < stepIndex
                   return (
                     <li key={step.id}>
-                      <button
-                        type="button"
-                        disabled={!clickable}
-                        onClick={() => clickable && setStepIndex(index)}
-                        className={cn(
-                          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                          active && 'bg-accent/60',
-                          clickable ? 'cursor-pointer hover:bg-accent/40' : 'cursor-default'
-                        )}>
-                        <span
-                          className={cn(
-                            'flex size-6 shrink-0 items-center justify-center rounded-full font-medium text-xs',
-                            active
-                              ? 'bg-foreground text-background'
-                              : done
-                                ? 'bg-foreground/10 text-foreground'
-                                : 'border border-border text-muted-foreground'
-                          )}>
-                          {done ? <Check size={13} strokeWidth={2.5} /> : index + 1}
-                        </span>
-                        <span
-                          className={cn(
-                            'min-w-0 flex-1 truncate text-sm',
-                            active ? 'font-medium text-foreground' : 'text-muted-foreground'
-                          )}>
-                          {step.label}
-                        </span>
-                      </button>
+                      <MenuItem
+                        icon={
+                          <span
+                            className={cn(
+                              'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
+                              active
+                                ? 'bg-foreground text-background'
+                                : done
+                                  ? 'bg-foreground/10 text-foreground'
+                                  : 'border border-border text-muted-foreground'
+                            )}>
+                            {index + 1}
+                          </span>
+                        }
+                        label={step.label}
+                        active={active}
+                        disabled={!done}
+                        onClick={() => done && setStepIndex(index)}
+                        aria-current={active ? 'step' : undefined}
+                        className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
+                      />
                     </li>
                   )
                 })}
@@ -336,7 +350,8 @@ export function ResourceCreateWizard({
                     form={form}
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
-                    modelFilter={modelFilter}
+                    modelFilter={activeModelFilter}
+                    runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}

@@ -9,8 +9,5 @@ export default openaiCompatible({
     docs: 'https://www.ctyun.cn/products/ctxirang',
     models: 'https://huiju.ctyun.cn/modelSquare/',
     official: 'https://www.ctyun.cn'
-  },
-  apiFeatures: {
-    arrayContent: false
   }
 })

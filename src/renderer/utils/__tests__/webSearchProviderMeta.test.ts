@@ -7,7 +7,7 @@ import {
   getWebSearchFeatureSections,
   getWebSearchProviderApiKeyWebsite,
   getWebSearchProviderDescriptionKey,
-  getWebSearchProviderLogo,
+  getWebSearchProviderIconRef,
   getWebSearchProviderOfficialWebsite
 } from '../webSearchProviderMeta'
 
@@ -50,9 +50,12 @@ const providers: WebSearchProvider[] = [
 describe('webSearchProviderMeta', () => {
   it('returns provider display metadata', () => {
     expect(getWebSearchProviderDescriptionKey('exa-mcp')).toBe('settings.tool.websearch.provider_description.exa_mcp')
-    expect(getWebSearchProviderLogo('fetch')).toBeTruthy()
+    expect(getWebSearchProviderIconRef('fetch')).toMatchObject({ kind: 'provider', key: 'cherryin' })
     expect(getWebSearchProviderOfficialWebsite('jina')).toBe('https://jina.ai/reader')
     expect(getWebSearchProviderApiKeyWebsite('jina')).toBe('https://jina.ai')
+    expect(getWebSearchProviderIconRef('parallel')).toMatchObject({ kind: 'provider', key: 'parallel' })
+    expect(getWebSearchProviderOfficialWebsite('parallel')).toBe('https://parallel.ai')
+    expect(getWebSearchProviderApiKeyWebsite('parallel')).toBe('https://platform.parallel.ai')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 

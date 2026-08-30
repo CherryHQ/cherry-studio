@@ -1,3 +1,12 @@
+---
+description: Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection
+sources:
+  - src/main/data/db/schemas/aiUsageRecord.ts
+  - src/main/data/services/AiUsageRecordService.ts
+  - src/main/ai/utils/usageCapture.ts
+  - src/main/ai/hooks/billingHook.ts
+---
+
 # AI Usage Records
 
 `ai_usage_record` is the immutable, best-effort fact source for observable AI
@@ -350,6 +359,10 @@ serial.
 ### Direct and external CLI
 
 The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
+Every emitted invocation id is globally namespaced by its driver (`claude-agent:`
+`pi-agent:`, or `dsh-agent:`) before it crosses the runtime contract; the host persists that id
+verbatim for cross-runtime idempotency.
+
 Each Claude SDK assistant message supplies provider request id, actual nested
 model, and usage:
 
@@ -370,6 +383,19 @@ model, and usage:
 The driver commits pending usage before emitting a steer boundary, so the old
 provider call attaches to the pre-steer message and the next call attaches to
 the continuation.
+
+Pi records one invocation when each provider stream completes, including the
+streams used by compaction. Provider `responseId` is preferred; session id plus
+message timestamp/model is the stable fallback. Error/aborted responses do not
+create records, duplicate completed ids are ignored, and Pi's
+input/cache/reasoning buckets are preserved rather than re-derived from the
+message-level running total.
+
+DSH records each completed harness provider invocation by
+`sessionId + turn + sequence`, including child-session calls under the child
+session id. It preserves no-cache, cache-read, cache-write, reasoning, and
+output buckets from the harness event and carries DSH timing metrics when
+available. Duplicate completed invocation ids are ignored.
 
 ### Gateway-backed Agent
 
@@ -469,5 +495,7 @@ global SWR focus/reconnect revalidation is disabled.
 | `src/main/ai/hooks/billingHook.ts` | Language middleware and operation coverage |
 | `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
 | `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
+| `src/main/ai/runtime/pi/PiRuntimeConnection.ts` | Pi provider-stream capture |
+| `src/main/ai/runtime/dsh/DshRuntimeConnection.ts` | DSH main/child invocation capture |
 | `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
 | `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

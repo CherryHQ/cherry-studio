@@ -4,67 +4,95 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Hoisted state lets individual tests mutate platform flags / preferences without
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
-const { platformState, prefValues, applicationMock, windowManagerMock, loggerMock, previewSessionMock } = vi.hoisted(
-  () => {
-    const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
-    const prefValues: Record<string, unknown> = {
-      'app.tray.enabled': false,
-      'app.tray.on_close': false,
-      'app.tray.on_launch': false,
-      'app.zoom_factor': 1,
-      'app.spell_check.enabled': false,
-      'app.spell_check.languages': [],
-      'app.use_system_title_bar': false
-    }
-    const windowManagerMock = {
-      getWindow: vi.fn(),
-      // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
-      // (see BehaviorController in src/main/core/window/behavior.ts).
-      behavior: {
-        setMacShowInDockByType: vi.fn()
-      },
-      onWindowCreatedByType: vi.fn(() => vi.fn()),
-      onWindowDestroyedByType: vi.fn(() => vi.fn()),
-      open: vi.fn(() => 'mock-window-id'),
-      pushInitDataToType: vi.fn(),
-      // Bounds are restored declaratively by WindowManager; setupMainWindow reads
-      // the saved maximized flag back through this to re-apply maximize itself.
-      peekWindowBounds: vi.fn()
-    }
-    const loggerMock = {
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn()
-    }
-    const previewSessionMock = {
-      getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-      setPermissionCheckHandler: vi.fn(),
-      setPermissionRequestHandler: vi.fn(),
-      setUserAgent: vi.fn(),
-      webRequest: {
-        onBeforeRequest: vi.fn()
-      }
-    }
-    const applicationMock = {
-      isQuitting: false,
-      quit: vi.fn(),
-      forceExit: vi.fn(),
-      get: vi.fn((name: string) => {
-        if (name === 'PreferenceService') {
-          return { get: (key: string) => prefValues[key] }
-        }
-        if (name === 'WindowManager') {
-          return windowManagerMock
-        }
-        throw new Error(`unexpected service: ${name}`)
-      }),
-      getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
-    }
-    return { platformState, prefValues, applicationMock, windowManagerMock, loggerMock, previewSessionMock }
+const {
+  platformState,
+  prefValues,
+  prefChangeListeners,
+  applicationMock,
+  windowManagerMock,
+  loggerMock,
+  previewSessionMock,
+  defaultSessionMock
+} = vi.hoisted(() => {
+  const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
+  const prefValues: Record<string, unknown> = {
+    'app.tray.enabled': false,
+    'app.tray.on_close': false,
+    'app.tray.on_launch': false,
+    'app.zoom_factor': 1,
+    'app.spell_check.enabled': false,
+    'app.spell_check.languages': [],
+    'app.use_system_title_bar': false
   }
-)
+  const windowManagerMock = {
+    getWindow: vi.fn(),
+    getWindowId: vi.fn(),
+    // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
+    // (see BehaviorController in src/main/core/window/behavior.ts).
+    behavior: {
+      setMacShowInDockByType: vi.fn()
+    },
+    onWindowCreatedByType: vi.fn(() => vi.fn()),
+    onWindowDestroyedByType: vi.fn(() => vi.fn()),
+    open: vi.fn(() => 'mock-window-id'),
+    pushInitDataToType: vi.fn(),
+    // Bounds are restored declaratively by WindowManager; setupMainWindow reads
+    // the saved maximized flag back through this to re-apply maximize itself.
+    peekWindowBounds: vi.fn()
+  }
+  const loggerMock = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn()
+  }
+  const previewSessionMock = {
+    getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    setPermissionCheckHandler: vi.fn(),
+    setPermissionRequestHandler: vi.fn(),
+    setUserAgent: vi.fn(),
+    webRequest: {
+      onBeforeRequest: vi.fn()
+    }
+  }
+  const defaultSessionMock = {
+    setSpellCheckerEnabled: vi.fn(),
+    setSpellCheckerLanguages: vi.fn()
+  }
+  const prefChangeListeners: Array<() => void> = []
+  const applicationMock = {
+    isQuitting: false,
+    quit: vi.fn(),
+    forceExit: vi.fn(),
+    get: vi.fn((name: string) => {
+      if (name === 'PreferenceService') {
+        return {
+          get: (key: string) => prefValues[key],
+          subscribeMultipleChanges: (_keys: string[], listener: () => void) => {
+            prefChangeListeners.push(listener)
+            return () => {}
+          }
+        }
+      }
+      if (name === 'WindowManager') {
+        return windowManagerMock
+      }
+      throw new Error(`unexpected service: ${name}`)
+    }),
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
+  }
+  return {
+    platformState,
+    prefValues,
+    prefChangeListeners,
+    applicationMock,
+    windowManagerMock,
+    loggerMock,
+    previewSessionMock,
+    defaultSessionMock
+  }
+})
 
 vi.mock('@main/core/platform', () => ({
   get isMac() {
@@ -96,7 +124,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
   nativeImage: { createFromPath: vi.fn(() => ({})) },
   nativeTheme: { shouldUseDarkColors: false },
-  session: { fromPartition: vi.fn(() => previewSessionMock) },
+  session: { fromPartition: vi.fn(() => previewSessionMock), defaultSession: defaultSessionMock },
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
 }))
 
@@ -137,6 +165,7 @@ interface MockBrowserWindow extends EventEmitter {
   isMinimized: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
   isFocused: ReturnType<typeof vi.fn>
+  close: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
   show: ReturnType<typeof vi.fn>
   focus: ReturnType<typeof vi.fn>
@@ -145,8 +174,11 @@ interface MockBrowserWindow extends EventEmitter {
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
+    id: number
     reload: ReturnType<typeof vi.fn>
+    setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
+    once: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
   }
 }
@@ -158,6 +190,7 @@ function createMockWindow(): MockBrowserWindow {
   win.isMinimized = vi.fn(() => false)
   win.isVisible = vi.fn(() => true)
   win.isFocused = vi.fn(() => true)
+  win.close = vi.fn()
   win.hide = vi.fn()
   win.show = vi.fn()
   win.focus = vi.fn()
@@ -166,9 +199,12 @@ function createMockWindow(): MockBrowserWindow {
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
+    id: 1,
     reload: vi.fn(),
+    setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
+    once: vi.fn(),
     setWindowOpenHandler: vi.fn()
   }
   return win
@@ -206,10 +242,16 @@ describe('MainWindowService', () => {
     platformState.isDev = false
     prefValues['app.tray.enabled'] = false
     prefValues['app.tray.on_close'] = false
+    prefValues['app.spell_check.enabled'] = false
+    prefValues['app.spell_check.languages'] = []
+    prefChangeListeners.length = 0
+    defaultSessionMock.setSpellCheckerEnabled.mockReset()
+    defaultSessionMock.setSpellCheckerLanguages.mockReset()
     applicationMock.isQuitting = false
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    windowManagerMock.getWindowId.mockReset()
     windowManagerMock.open.mockClear()
     windowManagerMock.pushInitDataToType.mockClear()
     loggerMock.error.mockReset()
@@ -228,6 +270,48 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  describe('spell check', () => {
+    it('carries a disabled preference across restarts, against Electron’s enabled-by-default session', () => {
+      ;(svc as any).setupSpellCheck()
+
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
+      expect(defaultSessionMock.setSpellCheckerLanguages).not.toHaveBeenCalled()
+    })
+
+    it('restores the saved languages when spell check is enabled', () => {
+      prefValues['app.spell_check.enabled'] = true
+      prefValues['app.spell_check.languages'] = ['en-US', 'de']
+
+      ;(svc as any).setupSpellCheck()
+
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(true)
+      expect(defaultSessionMock.setSpellCheckerLanguages).toHaveBeenCalledWith(['en-US', 'de'])
+    })
+
+    it('applies later preference edits without a restart', () => {
+      ;(svc as any).setupSpellCheck()
+      defaultSessionMock.setSpellCheckerEnabled.mockClear()
+
+      prefValues['app.spell_check.enabled'] = true
+      prefValues['app.spell_check.languages'] = ['fr']
+      prefChangeListeners.forEach((listener) => listener())
+
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(true)
+      expect(defaultSessionMock.setSpellCheckerLanguages).toHaveBeenCalledWith(['fr'])
+    })
+
+    it('keeps spell check enabled when Electron rejects a saved language code', () => {
+      prefValues['app.spell_check.enabled'] = true
+      prefValues['app.spell_check.languages'] = ['not-a-language']
+      defaultSessionMock.setSpellCheckerLanguages.mockImplementation(() => {
+        throw new Error('Invalid language code')
+      })
+
+      expect(() => (svc as any).setupSpellCheck()).not.toThrow()
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(true)
+    })
   })
 
   describe('HTML artifact webviews', () => {
@@ -464,6 +548,24 @@ describe('MainWindowService', () => {
     })
   })
 
+  describe('requestClose', () => {
+    it('starts the native close flow only for the current main window', () => {
+      ;(svc as any).mainWindow = win
+      windowManagerMock.getWindowId.mockReturnValue('main-window')
+
+      expect(svc.requestClose('main-window')).toBe(true)
+      expect(win.close).toHaveBeenCalledOnce()
+    })
+
+    it('leaves non-main close requests to their lifecycle owner', () => {
+      ;(svc as any).mainWindow = win
+      windowManagerMock.getWindowId.mockReturnValue('main-window')
+
+      expect(svc.requestClose('sub-window')).toBe(false)
+      expect(win.close).not.toHaveBeenCalled()
+    })
+  })
+
   describe('toggleMainWindow', () => {
     it('hides a focused visible main window even when tray-close is disabled', () => {
       ;(svc as any).mainWindow = win
@@ -520,6 +622,82 @@ describe('MainWindowService', () => {
         })
       )
       expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('launch-to-tray initial show suppression', () => {
+    const dockShowMock = (app.dock as NonNullable<typeof app.dock>).show
+    const tabAttachInitData = {
+      kind: 'tab-attach' as const,
+      tab: { id: 'tab-1', type: 'route' as const, url: '/app/chat', title: 'Chat' },
+      requestId: 1
+    }
+
+    // Boot the service the way the lifecycle container does: onInit registers
+    // the window callbacks, onReady arms the launch-to-tray flag and creates
+    // the initial window. The mocked WindowManager does not replay created
+    // events, so tests drive the captured callbacks manually.
+    async function bootWith(onLaunch: boolean) {
+      prefValues['app.tray.on_launch'] = onLaunch
+      await (svc as any).onInit()
+      await (svc as any).onReady()
+      const created = (windowManagerMock.onWindowCreatedByType.mock.calls as any[])[0]?.[1]
+      const destroyed = (windowManagerMock.onWindowDestroyedByType.mock.calls as any[])[0]?.[1]
+      if (!created || !destroyed) throw new Error('window lifecycle callbacks not registered')
+      return { created, destroyed }
+    }
+
+    // Rebuild the main window the way showMainWindow does on cold start and
+    // replay the created callback so setupWindowEvents attaches `ready-to-show`.
+    function rebuildAndShow(svc: MainWindowService, created: (event: { window: MockBrowserWindow }) => void) {
+      ;(svc as any).mainWindow = null
+      svc.showMainWindow(tabAttachInitData)
+      const rebuilt = createMockWindow()
+      created({ window: rebuilt })
+      return rebuilt
+    }
+
+    it('hides the initial launch window ONCE when tray-on-launch is armed, then shows rebuilds', async () => {
+      platformState.isMac = true
+      const { created } = await bootWith(true)
+
+      // First window: created by onReady with launch-to-tray — stays hidden.
+      const initial = createMockWindow()
+      created({ window: initial })
+      initial.emit('ready-to-show')
+      expect(initial.show).not.toHaveBeenCalled()
+      expect(dockShowMock).not.toHaveBeenCalled()
+
+      // Runtime rebuild (tab attach cold path): must become visible even
+      // though app.tray.on_launch is still enabled.
+      const rebuilt = rebuildAndShow(svc, created)
+      rebuilt.emit('ready-to-show')
+      expect(rebuilt.show).toHaveBeenCalledTimes(1)
+      expect(dockShowMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows the initial window when tray-on-launch is disabled', async () => {
+      platformState.isMac = true
+      const { created } = await bootWith(false)
+
+      const initial = createMockWindow()
+      created({ window: initial })
+      initial.emit('ready-to-show')
+      expect(initial.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the flag when the initial window is destroyed before ready-to-show', async () => {
+      platformState.isMac = true
+      const { created, destroyed } = await bootWith(true)
+
+      // Initial window destroyed before it ever became ready — the armed flag
+      // must not survive into the next window's ready-to-show.
+      created({ window: createMockWindow() })
+      destroyed()
+
+      const rebuilt = rebuildAndShow(svc, created)
+      rebuilt.emit('ready-to-show')
+      expect(rebuilt.show).toHaveBeenCalledTimes(1)
     })
   })
 

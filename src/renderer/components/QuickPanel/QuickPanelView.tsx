@@ -306,27 +306,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     consumeInputQuery()
   }, [consumeInputQuery])
 
-  const consumeInputTriggerSymbol = useCallback(() => {
-    if (!inputAdapter) return
-
-    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
-    if (queryAnchor === undefined) return
-
-    const text = inputAdapter.getText()
-    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    if (cursorOffset <= queryAnchor) return
-
-    if (!inputTriggerSymbol) return
-
-    const triggerSymbol = text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length)
-    if (triggerSymbol !== inputTriggerSymbol) return
-
-    inputTriggerConsumedRef.current = true
-    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryAnchor + inputTriggerSymbol.length })
-    queryAnchorRef.current = queryAnchor
-    setInputSearchText(text.slice(queryAnchor + inputTriggerSymbol.length, cursorOffset))
-  }, [ctx.queryAnchor, inputAdapter, inputTriggerSymbol])
-
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
       // Read-only panels (e.g. MCP status) stay non-interactive, except for pinned footer actions
@@ -378,7 +357,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         if (ctx.triggerInfo?.type === 'button' && ctx.trackInputQuery) {
           consumeInputQueryOnce()
         } else {
-          consumeInputTriggerSymbol()
+          // Drop the whole trigger query so the submenu starts with an empty search.
+          inputTriggerConsumedRef.current = true
+          consumeInputQuery()
         }
       } else {
         consumeInputQuery()
@@ -405,7 +386,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       activeSearchQuery,
       getCurrentPanelOptions,
       activeIndex,
-      consumeInputTriggerSymbol,
       consumeInputQuery,
       consumeInputQueryOnce,
       inputAdapter,
@@ -927,7 +907,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             disabled: item.disabled
           })}
           active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
-          contentClassName="max-w-[60%]"
           dataId={item.id}
           hoverEnabled={isMouseOver}
           item={item}
@@ -954,6 +933,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         ctx.isVisible && 'visible',
         ctx.isVisible ? 'pointer-events-auto' : 'pointer-events-none'
       )}
+      inert={!ctx.isVisible}
       data-testid="quick-panel">
       <div
         ref={bodyRef}
@@ -989,7 +969,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
                 estimateSize={estimateSize}
                 overscan={5}
                 scrollerStyle={{
-                  pointerEvents: isMouseOver ? 'auto' : 'none'
+                  pointerEvents: ctx.isVisible && isMouseOver ? 'auto' : 'none'
                 }}>
                 {rowRenderer}
               </DynamicVirtualList>

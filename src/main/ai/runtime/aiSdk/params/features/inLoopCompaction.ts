@@ -29,6 +29,8 @@ import {
   CONTEXT_COMPACT_TRIGGER_RATIO
 } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
@@ -160,8 +162,20 @@ export const inLoopCompactionFeature: RequestFeature = {
       })
       return {}
     }
-    const trigger = Math.floor(contextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)
-    const keepBudget = Math.floor(contextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
+    // Against the room the PROMPT actually has, not the whole window: whatever
+    // this request declares as max_tokens is billed alongside the input.
+    const inputRoom = resolveInputRoom(
+      contextWindow,
+      resolveRequestedMaxOutputTokens(
+        scope.request.callOverrides?.maxOutputTokens,
+        undefined,
+        scope.assistant,
+        scope.model,
+        scope.endpointType
+      )
+    )
+    const trigger = Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)
+    const keepBudget = Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
     // the chat history it must fit), but the summarize call is issued against
     // the compressor, so its own budget must come from the compressor's window.

@@ -18,7 +18,7 @@ import { PreferencesMigrator } from '../PreferencesMigrator'
 
 /** A valid 1×1 PNG so `sharp` can transcode the avatar to WebP during migration. */
 const PNG_1X1 =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
 
 interface SeedSources {
   redux?: Record<string, unknown>
@@ -96,6 +96,27 @@ describe('PreferencesMigrator', () => {
       const rows = await selectByKey(dbh.db, 'app.language')
       expect(rows).toHaveLength(1)
       expect(rows[0].value).toBe('zh-CN')
+    })
+
+    it('preserves v1 long-text paste preferences', async () => {
+      const ctx = createTestContext(
+        {
+          redux: {
+            settings: {
+              pasteLongTextAsFile: false,
+              pasteLongTextThreshold: 3200
+            }
+          }
+        },
+        dbh.db
+      )
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const pasteAsFile = await selectByKey(dbh.db, 'chat.input.paste_long_text_as_file')
+      const threshold = await selectByKey(dbh.db, 'chat.input.paste_long_text_threshold')
+      expect(pasteAsFile[0]?.value).toBe(false)
+      expect(threshold[0]?.value).toBe(3200)
     })
 
     it('migrates v1 custom CSS to the current preference behind the v1 marker', async () => {

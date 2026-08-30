@@ -1,6 +1,10 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isGatewayRoutableModel } from '@shared/utils/model'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ListModelsModule from '../provider/listModels'
+import { makeProvider } from './fixtures/provider'
 
 const mockGenerateImage = vi.fn()
 const mockAgentGenerate = vi.fn()
@@ -15,6 +19,7 @@ const mockMessageUpdate = vi.fn()
 const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
+const mockProviderResolveApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
 const mockCreateRetryableWrap = vi.fn((options?: unknown): ((model: unknown) => unknown) | undefined => {
   void options
@@ -80,7 +85,8 @@ vi.mock('../utils/customFetch', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: (...args: unknown[]) => mockProviderGetByProviderId(...args),
-    getRotatedApiKey: (...args: unknown[]) => mockProviderGetRotatedApiKey(...args)
+    getRotatedApiKey: (...args: unknown[]) => mockProviderGetRotatedApiKey(...args),
+    resolveApiKey: (...args: unknown[]) => mockProviderResolveApiKey(...args)
   }
 }))
 
@@ -97,9 +103,13 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   }
 }))
 
-vi.mock('../provider/listModels', () => ({
-  listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
-}))
+vi.mock('../provider/listModels', async (importOriginal) => {
+  const actual = await importOriginal<typeof ListModelsModule>()
+  return {
+    ...actual,
+    listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
+  }
+})
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
@@ -180,6 +190,8 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
   readRetryPolicy: () => mockReadRetryPolicy()
 }))
 
+const { listModels: listModelsFromProviderActual } =
+  await vi.importActual<typeof ListModelsModule>('../provider/listModels')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -210,18 +222,16 @@ describe('AiService', () => {
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
+    mockProviderResolveApiKey.mockImplementation((_id: string, override?: string) => ({
+      value: override ?? 'test-key',
+      apiKeySelection: { attribution: override ? ('matched' as const) : ('unknown' as const) }
+    }))
     mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
       name: 'Test Provider',
       apiKeys: [],
       authType: 'api-key',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      },
+      reportsActualCost: false,
       settings: {},
       isEnabled: true
     })
@@ -329,7 +339,8 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
     })
   })
 
@@ -361,7 +372,41 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
+    })
+  })
+
+  it('reports explicitly classified token analytics as agent usage', async () => {
+    const service = createService()
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart(
+      {
+        id: 'test-model',
+        providerId: 'test-provider',
+        apiModelId: 'test-api-model'
+      },
+      'agent'
+    )
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onFinish()
+
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5,
+      source: 'agent'
     })
   })
 
@@ -645,7 +690,7 @@ describe('AiService', () => {
         provider: {
           id: 'test-provider',
           name: 'Test Provider',
-          apiFeatures: { reportsActualCost: false }
+          reportsActualCost: false
         },
         model: {
           id: 'test-provider::test-embedding-model',
@@ -1087,7 +1132,7 @@ describe('AiService tool approval', () => {
       provider: {
         id: 'test-provider',
         name: 'Test Provider',
-        apiFeatures: { reportsActualCost: false }
+        reportsActualCost: false
       },
       model: {
         id: 'test-provider::test-reranker',
@@ -1150,7 +1195,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-embed', name: 'Test Embed' }
     } as never)
     mockReadRetryPolicy.mockReturnValue({
@@ -1185,7 +1230,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-embed', name: 'Test Embed' }
     } as never)
     mockReadRetryPolicy.mockReturnValue({
@@ -1207,7 +1252,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-reranker', name: 'Test Reranker' },
       options: {}
     } as never)
@@ -1230,7 +1275,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-reranker', name: 'Test Reranker' },
       options: {}
     } as never)
@@ -1252,7 +1297,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: undefined,
       plugins: [],
@@ -1287,7 +1332,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: undefined,
       plugins: [],
@@ -1329,7 +1374,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: undefined,
       plugins: [],
@@ -1362,7 +1407,7 @@ describe('AiService tool approval', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
       tools: { search: {} },
       plugins: [],
@@ -1427,6 +1472,55 @@ describe('AiService tool approval', () => {
     expect(generateSpy).not.toHaveBeenCalled()
   })
 
+  it('checks NewAPI chat models advertised with embeddings through text generation', async () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/v1' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com/v1' }
+      }
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 'deepseek-v4-flash',
+              supported_endpoint_types: ['embeddings', 'openai']
+            }
+          ]
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+
+    try {
+      const [listedModel] = await listModelsFromProviderActual(provider)
+      expect(listedModel).toMatchObject({
+        apiModelId: 'deepseek-v4-flash',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+        capabilities: []
+      })
+      expect(isGatewayRoutableModel(listedModel as Model)).toBe(true)
+
+      const service = createService()
+      const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+      mockModelGetByKey.mockReturnValue({
+        ...listedModel,
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+
+      await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
+
+      expect(embedSpy).not.toHaveBeenCalled()
+      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it('passes the selected API key override into text health checks', async () => {
     const service = createService()
     const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
@@ -1455,6 +1549,31 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('disables reasoning on the text-generation probe', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-model' })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'test',
+        prompt: 'hi',
+        reasoningEffort: 'none'
+      })
+    )
+  })
+
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
@@ -1474,6 +1593,50 @@ describe('AiService tool approval', () => {
     })
 
     expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
+  })
+
+  it('checks image-only models through the image endpoint, not chat', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-image',
+      providerId: 'test-provider',
+      apiModelId: 'test-image',
+      name: 'Test Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
+
+    expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.any(String) }))
+    expect(generateSpy).not.toHaveBeenCalled()
+  })
+
+  it('checks chat models that can also generate images through text generation', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-multimodal',
+      providerId: 'test-provider',
+      apiModelId: 'test-multimodal',
+      name: 'Test Multimodal',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-multimodal' })
+
+    expect(generateSpy).toHaveBeenCalled()
+    expect(imageSpy).not.toHaveBeenCalled()
   })
 
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
@@ -1496,6 +1659,124 @@ describe('AiService tool approval', () => {
         uniqueModelId: 'test-provider::test-reranker'
       })
     ).rejects.toThrow('Rerank health check returned empty ranking')
+  })
+
+  it('uses lightweight /api/show probe for Ollama providers', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      name: 'Ollama',
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: {},
+      isEnabled: true,
+      endpointConfigs: {
+        'ollama-chat': { baseUrl: 'http://localhost:11434' }
+      },
+      defaultChatEndpoint: 'ollama-chat'
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ollama::llama3',
+      providerId: 'ollama',
+      apiModelId: 'llama3',
+      name: 'Llama 3',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    const result = await service.checkModel({ uniqueModelId: 'ollama::llama3' })
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://localhost:11434/api/show',
+      expect.objectContaining({
+        method: 'POST',
+        signal: expect.any(AbortSignal),
+        body: JSON.stringify({ model: 'llama3' })
+      })
+    )
+    expect(generateSpy).not.toHaveBeenCalled()
+    expect(result.latency).toBeGreaterThanOrEqual(0)
+  })
+
+  it('passes apiKeyOverride into the Ollama probe', async () => {
+    const service = createService()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      name: 'Ollama',
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: {},
+      isEnabled: true,
+      endpointConfigs: {
+        'ollama-chat': { baseUrl: 'http://localhost:11434' }
+      },
+      defaultChatEndpoint: 'ollama-chat'
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ollama::llama3',
+      providerId: 'ollama',
+      apiModelId: 'llama3',
+      name: 'Llama 3',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'ollama::llama3',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
+    const [url, init] = fetchSpy.mock.calls.at(-1) as [string, RequestInit]
+    expect(url).toContain('/api/show')
+    expect(new Headers(init.headers).get('x-api-key')).toBe('sk-selected')
+  })
+
+  it('surfaces Ollama string error from /api/show', async () => {
+    const service = createService()
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'model "nope" not found' }), { status: 404 })
+    )
+
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      name: 'Ollama',
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: {},
+      isEnabled: true,
+      endpointConfigs: {
+        'ollama-chat': { baseUrl: 'http://localhost:11434' }
+      },
+      defaultChatEndpoint: 'ollama-chat'
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ollama::nope',
+      providerId: 'ollama',
+      apiModelId: 'nope',
+      name: 'Nope',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await expect(service.checkModel({ uniqueModelId: 'ollama::nope' })).rejects.toThrow('model "nope" not found')
   })
 })
 
@@ -1887,6 +2168,10 @@ describe('AiService.listModels', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('returns the shipped registry catalog for a registry-sourced provider without calling the API', async () => {
     const service = createService()
     const registryModels = [{ id: 'claude-code::haiku' }, { id: 'claude-code::sonnet' }]
@@ -1914,11 +2199,32 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'openai' })
 
     expect(result).toBe(apiModels)
-    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, {
+      throwOnError: undefined
+    })
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'openai',
       presetProviderId: null
     })
+  })
+
+  it('does not impose a service-level timeout on model listing', async () => {
+    vi.useFakeTimers()
+    const service = createService()
+    const provider = { id: 'openai', modelListSource: 'api' }
+    const apiModels = [{ id: 'openai::slow-model', apiModelId: 'slow-model' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(apiModels), 31_000))
+    )
+    mockListProviderRegistryModels.mockReturnValue([])
+
+    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(apiModels)
+
+    await vi.advanceTimersByTimeAsync(31_000)
+    await result
+
+    expect(mockListProviderRegistryModels).toHaveBeenCalledTimes(1)
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {

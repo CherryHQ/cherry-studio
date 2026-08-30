@@ -6,6 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -37,6 +38,12 @@ export class MainWindowService extends BaseService {
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
   private lastRendererProcessCrashTime: number = 0
+  /**
+   * Armed only between onReady and the initial window's ready-to-show:
+   * launch-to-tray suppresses exactly one show — the process's first Main
+   * window. Runtime rebuilds (showMainWindow with init data) always show.
+   */
+  private suppressInitialLaunchShow = false
 
   constructor() {
     super()
@@ -58,6 +65,7 @@ export class MainWindowService extends BaseService {
   protected async onInit() {
     const windowManager = application.get('WindowManager')
     this.setupHtmlArtifactPreviewSession()
+    this.setupSpellCheck()
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -66,11 +74,21 @@ export class MainWindowService extends BaseService {
         this.mainWindow = window
         this.setupMainWindow(window)
         this._onMainWindowCreated.fire(window)
+        // Tab attach delivery is only valid while the renderer's listener is
+        // mounted; a reload or crash tears it down. Mirrors ProtocolService's
+        // readiness reset wiring.
+        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
+        window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.Main, () => {
         this.mainWindow = null
+        // Destroyed-before-ready leaves the launch flag armed; clear it so the
+        // next rebuild is not suppressed. Also drops tab delivery readiness
+        // (queue is kept — it flushes into the next ready renderer).
+        this.suppressInitialLaunchShow = false
+        resetMainRendererTabAttachDelivery()
       })
     )
 
@@ -111,6 +129,8 @@ export class MainWindowService extends BaseService {
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
+      // Suppress only the process-launch window; runtime rebuilds must show.
+      this.suppressInitialLaunchShow = true
     }
 
     // Dev-only: load DevTools extensions before the main window's page loads so
@@ -170,6 +190,16 @@ export class MainWindowService extends BaseService {
     this.mainWindow?.reload()
   }
 
+  /** Start the native close flow when `windowId` identifies the current main window. */
+  public requestClose(windowId: string): boolean {
+    const mainWindow = this.mainWindow
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (application.get('WindowManager').getWindowId(mainWindow) !== windowId) return false
+
+    mainWindow.close()
+    return true
+  }
+
   /**
    * Open the main window via WindowManager.
    * Singleton lifecycle: reuses an existing main window if present (show + focus),
@@ -216,7 +246,6 @@ export class MainWindowService extends BaseService {
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
     this.setupHtmlArtifactWebviews(mainWindow)
-    this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
@@ -225,17 +254,29 @@ export class MainWindowService extends BaseService {
     // Content loading is handled by WindowManager via the registry's htmlPath.
   }
 
-  private setupSpellCheck(mainWindow: BrowserWindow) {
+  /**
+   * Spell check is preference-driven and not window-scoped: `defaultSession` is shared by
+   * every app window, so it converges once here and on every subsequent preference change.
+   * Miniapp webviews live in their own partition and reconcile themselves.
+   */
+  private setupSpellCheck() {
     const preferenceService = application.get('PreferenceService')
-    const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
-    if (enableSpellCheck) {
+    const apply = () => {
       try {
-        const spellCheckLanguages = preferenceService.get('app.spell_check.languages')
-        spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
+        const enabled = preferenceService.get('app.spell_check.enabled')
+        const languages = preferenceService.get('app.spell_check.languages')
+        session.defaultSession.setSpellCheckerEnabled(enabled)
+        if (enabled && languages.length > 0) {
+          session.defaultSession.setSpellCheckerLanguages(languages)
+        }
       } catch (error) {
-        logger.error('Failed to set spell check languages:', error as Error)
+        logger.error('Failed to apply spell check settings:', error as Error)
       }
     }
+    apply()
+    this.registerDisposable(
+      preferenceService.subscribeMultipleChanges(['app.spell_check.enabled', 'app.spell_check.languages'], apply)
+    )
   }
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
@@ -328,9 +369,11 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // showMode is 'manual' for the main window — first show is owned here.
-      // tray-on-launch suppresses the initial show; otherwise restore Dock and show.
-      const isLaunchToTray = preferenceService.get('app.tray.on_launch')
-      if (!isLaunchToTray) {
+      // Launch-to-tray suppresses only the process's initial window (armed in
+      // onReady, consumed once); runtime rebuilds must always become visible.
+      const suppressShow = this.suppressInitialLaunchShow
+      this.suppressInitialLaunchShow = false
+      if (!suppressShow) {
         //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
         void app.dock?.show()
         mainWindow.show()

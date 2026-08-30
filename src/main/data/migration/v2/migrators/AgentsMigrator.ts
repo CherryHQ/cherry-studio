@@ -129,8 +129,24 @@ export class AgentsMigrator extends BaseMigrator {
       }
     }
 
-    this.sourceSchemaInfo = reader.inspectSchema()
-    this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    try {
+      this.sourceSchemaInfo = reader.inspectSchema()
+      this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+      if (code !== 'SQLITE_NOTADB') throw error
+
+      logger.warn('Legacy agents database is not a valid SQLite database; skipping database import', {
+        dbPath,
+        code
+      })
+      this.sourceDbPath = null
+      return {
+        success: true,
+        itemCount: 0,
+        warningMessages: [{ key: 'migration.completed.agent_database_unreadable' }]
+      }
+    }
 
     // Debug: Log schema detection results
     logger.info('AgentsMigrator prepare:', {
@@ -236,6 +252,7 @@ export class AgentsMigrator extends BaseMigrator {
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
+    let skippedFilesystemTargetCount = 0
 
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
@@ -338,7 +355,7 @@ export class AgentsMigrator extends BaseMigrator {
       dropLegacySessionMessageStaging(ctx.db)
       const workspaceCopyStartedAt = performance.now()
       let reportedFileProgress = 65
-      await stageLegacyAgentFiles({
+      const filesystemResult = await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
@@ -357,6 +374,7 @@ export class AgentsMigrator extends BaseMigrator {
           })
         }
       })
+      skippedFilesystemTargetCount = filesystemResult.skippedTargetCount
       logger.info('Agent migration phase completed', {
         phase: 'workspace-copy',
         agents: legacyAgentIds.length,
@@ -438,7 +456,17 @@ export class AgentsMigrator extends BaseMigrator {
     })
     return {
       success: true,
-      processedCount: getTotalAgentsRowCount(this.sourceCounts)
+      processedCount: getTotalAgentsRowCount(this.sourceCounts),
+      ...(skippedFilesystemTargetCount > 0
+        ? {
+            warningMessages: [
+              {
+                key: 'migration.completed.agent_files_skipped',
+                params: { count: skippedFilesystemTargetCount }
+              }
+            ]
+          }
+        : {})
     }
   }
 

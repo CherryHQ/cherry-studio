@@ -10,6 +10,7 @@ import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/p
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
+import { readConfigFiles } from './file'
 import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
@@ -109,9 +110,9 @@ export async function readCliConfigFiles(
   cliTool: string,
   options: { includeEmpty?: boolean } = {}
 ): Promise<CliConfigFileDraft[]> {
-  const files = await Promise.all(
-    getCliConfigTargets(cliTool).map(async (target) => makeDraftFile(target, await readDraftFileText(target)))
-  )
+  const targets = getCliConfigTargets(cliTool)
+  const read = await readConfigFiles(targets)
+  const files = targets.map((target) => makeDraftFile(target, readDraftFileText(target, undefined, read), read))
   return options.includeEmpty || files.some((file) => file.content.trim()) ? files : []
 }
 

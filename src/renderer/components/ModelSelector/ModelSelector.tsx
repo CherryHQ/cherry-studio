@@ -178,6 +178,13 @@ function ModelRow({
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
+  const disambiguationLabel = item.showIdentifier
+    ? item.groupKind === 'pinned'
+      ? `${providerName} · ${item.modelIdentifier}`
+      : item.modelIdentifier
+    : item.groupKind === 'pinned'
+      ? providerName
+      : undefined
 
   const leading = icon ? (
     <icon.Avatar size={24} className="border border-border" />
@@ -242,9 +249,9 @@ function ModelRow({
         <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
           {item.model.name}
         </span>
-        {item.isPinned && (
-          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
-            | {providerName}
+        {disambiguationLabel && (
+          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={disambiguationLabel}>
+            | {disambiguationLabel}
           </span>
         )}
       </ModelSelectorRow>

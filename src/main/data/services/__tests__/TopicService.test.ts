@@ -14,7 +14,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { describe, expect, it, type Mock, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -506,12 +506,14 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
         { endpoint: '/topics/:id', entityIds: ['topic-1'] },
         { endpoint: '/topics/latest' }
       ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {
@@ -790,6 +792,97 @@ describe('TopicService', () => {
       await seedThree()
       topicService.reorder('t1', { after: 't2' })
       expect(await getOrderedIds()).toEqual(['t2', 't1', 't3'])
+    })
+
+    async function seedMoveTopics() {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-a',
+          name: 'A',
+          emoji: 'A',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'asst-b',
+          name: 'B',
+          emoji: 'B',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0' },
+        { id: 'move-b', name: 'B', assistantId: 'asst-b', orderKey: 'a1' }
+      ])
+    }
+
+    it('moves a topic owner and order together', async () => {
+      await seedMoveTopics()
+
+      const movedTopic = topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })
+
+      expect(movedTopic).toMatchObject({ id: 'move-a', assistantId: 'asst-b' })
+      expect(topicService.getById('move-a').assistantId).toBe('asst-b')
+      expect(await getOrderedIds()).toEqual(['move-b', 'move-a'])
+    })
+
+    it('rolls back the owner and order when applying the order fails', async () => {
+      await seedMoveTopics()
+      notifyDataApiDataChangeMock.mockClear()
+      dbh.db.run(
+        sql.raw(`
+        CREATE TRIGGER fail_topic_order_update
+        BEFORE UPDATE OF order_key ON topic
+        WHEN NEW.id = 'move-a'
+        BEGIN
+          SELECT RAISE(ABORT, 'forced topic order update failure');
+        END;
+      `)
+      )
+
+      try {
+        expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })).toThrow(
+          'forced topic order update failure'
+        )
+      } finally {
+        dbh.db.run(sql.raw('DROP TRIGGER IF EXISTS fail_topic_order_update'))
+      }
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a move to a missing assistant without changing the topic', async () => {
+      await seedMoveTopics()
+
+      expect(() =>
+        topicService.move('move-a', { assistantId: 'missing-assistant', order: { after: 'move-b' } })
+      ).toThrow()
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+    })
+
+    it('rejects an anchor owned by another assistant without changing the topic', async () => {
+      await seedMoveTopics()
+      await dbh.db.insert(topicTable).values({
+        id: 'move-c',
+        name: 'C',
+        assistantId: 'asst-a',
+        orderKey: 'a2'
+      })
+
+      expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-c' } })).toThrow()
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+    })
+
+    it('rejects a self-referencing anchor without changing the topic', async () => {
+      await seedMoveTopics()
+
+      expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-a' } })).toThrow()
+
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
     })
 
     it("moves a topic to the head with position: 'first'", async () => {
@@ -1700,8 +1793,142 @@ describe('TopicService', () => {
       expect(service.getLatestActive()?.id).toBe('latest')
     })
 
+    it('returns latest activity within a live or unlinked assistant scope', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'assistant-scoped',
+          name: 'Scoped',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'assistant-other',
+          name: 'Other',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        },
+        {
+          id: 'assistant-deleted-scope',
+          name: 'Deleted',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a2',
+          deletedAt: 100
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'topic-scoped',
+          name: 'Scoped',
+          assistantId: 'assistant-scoped',
+          orderKey: 'a0',
+          lastActivityAt: 100
+        },
+        {
+          id: 'topic-other',
+          name: 'Other',
+          assistantId: 'assistant-other',
+          orderKey: 'a1',
+          lastActivityAt: 500
+        },
+        {
+          id: 'topic-unassigned',
+          name: 'Unassigned',
+          orderKey: 'a2',
+          lastActivityAt: 200
+        },
+        {
+          id: 'topic-deleted-owner',
+          name: 'Deleted owner',
+          assistantId: 'assistant-deleted-scope',
+          orderKey: 'a3',
+          lastActivityAt: 300
+        }
+      ])
+
+      expect(service.getLatestActive({ assistantId: 'assistant-scoped' })?.id).toBe('topic-scoped')
+      expect(service.getLatestActive({ assistantId: 'unlinked' })?.id).toBe('topic-deleted-owner')
+    })
+
     it('returns null when there are no topics', () => {
       expect(new TopicService().getLatestActive()).toBeNull()
+    })
+  })
+
+  describe('reuseOrCreatePlaceholder', () => {
+    it('reuses the latest-updated structurally empty topic for the exact owner', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-reusable',
+        name: 'Reusable',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'created-later',
+          name: '',
+          assistantId: 'assistant-reusable',
+          orderKey: 'a0',
+          createdAt: 300,
+          updatedAt: 200
+        },
+        {
+          id: 'updated-later',
+          name: '  ',
+          assistantId: 'assistant-reusable',
+          orderKey: 'a1',
+          createdAt: 100,
+          updatedAt: 400
+        },
+        {
+          id: 'started',
+          name: '',
+          assistantId: 'assistant-reusable',
+          activeNodeId: 'message-id',
+          orderKey: 'a2',
+          updatedAt: 900
+        },
+        {
+          id: 'manually-named',
+          name: '',
+          assistantId: 'assistant-reusable',
+          isNameManuallyEdited: true,
+          orderKey: 'a3',
+          updatedAt: 800
+        },
+        { id: 'unassigned', name: '', orderKey: 'a4', updatedAt: 700 }
+      ])
+
+      expect(service.reuseOrCreatePlaceholder({ assistantId: 'assistant-reusable' })).toMatchObject({
+        topic: { id: 'updated-later' },
+        created: false
+      })
+      expect(service.reuseOrCreatePlaceholder({ assistantId: null })).toMatchObject({
+        topic: { id: 'unassigned' },
+        created: false
+      })
+    })
+
+    it('creates at most one reusable placeholder for repeated requests', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-create-placeholder',
+        name: 'Create placeholder',
+        emoji: '✨',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+
+      const first = service.reuseOrCreatePlaceholder({ assistantId: 'assistant-create-placeholder' })
+      const second = service.reuseOrCreatePlaceholder({ assistantId: 'assistant-create-placeholder' })
+
+      expect(first.created).toBe(true)
+      expect(second).toMatchObject({ topic: { id: first.topic.id }, created: false })
     })
   })
 })

@@ -1,5 +1,7 @@
+import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
+import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -138,6 +140,10 @@ export type UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
   'mini_app.current_id': string
+  /** Whether the mini app view is split into two panes. */
+  'mini_app.split_open': boolean
+  /** Mini app shown in the split pane. Empty while the pane awaits a pick. */
+  'mini_app.split_id': string
   'mini_app.show': boolean
   'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
@@ -224,6 +230,8 @@ export const DefaultUseCache: UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': [],
   'mini_app.current_id': '',
+  'mini_app.split_open': false,
+  'mini_app.split_id': '',
   'mini_app.show': false,
   'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
@@ -316,6 +324,9 @@ export type SharedCacheSchema = {
   // Nothing evicts an entry — that is the point, and it costs a handful of rows per
   // session. Null is the cache miss (see the `jobs.state` precedent above).
   'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Apps that want the user's attention, and why (a host-added permission, or an update).
+  // Written by `useWindowRuntime` only; identical in every window, hence shared.
+  'mini_app.attention': CacheValueTypes.CacheMiniAppAttention[]
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
@@ -346,6 +357,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'jobs.progress.${jobId}': { progress: 0 },
   'knowledge.item.embedding_progress.${itemId}': null,
   'mini_app.transient_descriptor.${appId}': null,
+  'mini_app.attention': [],
   'knowledge.item.directory_copy_progress.${itemId}': null
 }
 
@@ -389,11 +401,32 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  // Usage statistics view selections, persisted so leaving and re-entering the page restores
+  // them. The heatmap drill-down date stays component-local: a stored past date would reopen
+  // the page on an empty range.
+  'settings.usage.window': '30d' | '90d' | '365d'
+  'settings.usage.group_by': 'provider' | 'model' | 'apiKey' | 'source'
+  'settings.usage.chart_metric': 'tokens' | 'requests' | 'cost'
+  'settings.usage.chart_type': 'stack' | 'pie' | 'bar' | 'line'
+  'settings.usage.rollup': 'total' | 'daily' | 'weekly' | 'monthly'
+  'settings.usage.top_count': 5 | 10 | 20
+  'settings.usage.heatmap_metric': 'tokens' | 'cost'
+  'settings.usage.entry_sort_by': AiUsageRecordListSortBy
+  'settings.usage.entry_sort_order': AiUsageRecordSortOrder
+  // Null defers to the cost-total fallback (USD, else the first currency with usage).
+  'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
-  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
+  // Last successful external-open target per directory or file-extension scope.
+  'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
+  // Screenshot overlay tool preferences — persisted because muscle memory should survive restarts,
+  // and main's relay of renderer persist writes also keeps a session's per-display overlays in step.
+  'ui.screenshot.color_mode': 'hex' | 'rgb'
+  'ui.screenshot.annotation_color': string
+  'ui.screenshot.annotation_stroke_width': number
+  'ui.screenshot.annotation_font_size': number
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -421,9 +454,25 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.usage.window': '30d',
+  'settings.usage.group_by': 'provider',
+  'settings.usage.chart_metric': 'tokens',
+  'settings.usage.chart_type': 'bar',
+  'settings.usage.rollup': 'daily',
+  'settings.usage.top_count': 10,
+  'settings.usage.heatmap_metric': 'tokens',
+  'settings.usage.entry_sort_by': 'createdAt',
+  'settings.usage.entry_sort_order': 'desc',
+  'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
-  'agent.open_external_app.last_used_target': null,
-  'ui.emoji.recently_used': []
+  'external_app.target.preferences': {},
+  'ui.emoji.recently_used': [],
+  'ui.screenshot.color_mode': 'hex',
+  // Each must be a member of the matching preset list in renderer/windows/screenshot/constants.ts,
+  // or the overlay opens with no swatch, width or size marked as current.
+  'ui.screenshot.annotation_color': '#F54A45',
+  'ui.screenshot.annotation_stroke_width': 4,
+  'ui.screenshot.annotation_font_size': 20
 }
 
 /**

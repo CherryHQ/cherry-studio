@@ -1,14 +1,33 @@
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { InstalledSkill } from '@shared/types/skill'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SkillDetailDialog from '../SkillDetailDialog'
 
-const { listFilesMock, readSkillFileMock } = vi.hoisted(() => ({
-  listFilesMock: vi.fn(),
-  readSkillFileMock: vi.fn()
+const { ipcRequestMock, loggerErrorMock, toastErrorMock, uiLanguage } = vi.hoisted(() => ({
+  ipcRequestMock: vi.fn(),
+  loggerErrorMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  uiLanguage: { current: 'en-US', resolved: undefined as string | undefined }
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock }
+}))
+
+vi.mock('@renderer/services/LoggerService', () => ({
+  loggerService: { withContext: () => ({ error: loggerErrorMock }) }
+}))
+
+vi.mock('../SkillFileBrowser', () => ({
+  SkillFileBrowser: ({ skillId }: { skillId: string }) => <section>skill browser: {skillId}</section>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -17,7 +36,8 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) => key,
+    i18n: { language: uiLanguage.current, resolvedLanguage: uiLanguage.resolved }
   })
 }))
 
@@ -74,6 +94,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     version: null,
     sourceTags: ['review'],
     contentHash: 'hash',
+    isGlobalEnabled: true,
     isEnabled: true,
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-07T00:00:00.000Z',
@@ -83,25 +104,40 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
 
 describe('SkillDetailDialog', () => {
   beforeEach(() => {
-    listFilesMock.mockReset()
-    readSkillFileMock.mockReset()
-
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        skill: {
-          listFiles: listFilesMock,
-          readSkillFile: readSkillFileMock
-        }
-      }
-    })
+    ipcRequestMock.mockReset()
+    loggerErrorMock.mockReset()
+    toastErrorMock.mockReset()
+    uiLanguage.current = 'en-US'
+    uiLanguage.resolved = undefined
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  it('shows skill metadata in a dialog without file preview or delete entry points', () => {
+  // The system locale and the app language differ often enough that one machine's default hides the
+  // bug; asserting both orders means whichever locale the runner has, one case still catches it.
+  it.each([
+    ['zh-CN', /^2026\/\d{2}\/\d{2}$/],
+    ['en-US', /^\d{2}\/\d{2}\/2026$/]
+  ])('formats dates for the selected app language (%s), not the system locale', (language, expected) => {
+    uiLanguage.current = language
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText(expected)).toBeInTheDocument()
+  })
+
+  it('follows the locale that supplied the copy when the requested one has no bundle', () => {
+    // `en-GB` has no locale pack, so i18next renders `en-US` strings; formatting the date as `en-GB`
+    // would put UK-ordered dates next to US English text.
+    uiLanguage.current = 'en-GB'
+    uiLanguage.resolved = 'en-US'
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText(/^\d{2}\/\d{2}\/2026$/)).toBeInTheDocument()
+  })
+
+  it('shows skill metadata and the restored file browser without delete entry points', () => {
     render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -109,13 +145,28 @@ describe('SkillDetailDialog', () => {
     expect(screen.getByText('Review pull requests')).toBeInTheDocument()
     expect(screen.getByText('library.skill_detail.created_at')).toBeInTheDocument()
     expect(screen.getByText('library.skill_detail.updated_at')).toBeInTheDocument()
-    expect(screen.queryByText('library.skill_detail.file_preview')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'SKILL.md' })).not.toBeInTheDocument()
-    expect(screen.queryByText('rich editor: # Review Helper')).not.toBeInTheDocument()
-    expect(screen.queryByText('code viewer: # Review Helper')).not.toBeInTheDocument()
+    expect(screen.getByText('skill browser: skill-1')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'library.action.uninstall' })).not.toBeInTheDocument()
-    expect(listFilesMock).not.toHaveBeenCalled()
-    expect(readSkillFileMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the selected installed skill folder through the skill-scoped IPC route', async () => {
+    const user = userEvent.setup()
+    ipcRequestMock.mockResolvedValue(undefined)
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'library.skill_detail.open_folder' }))
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('skill.folder.open', { skillId: 'skill-1' })
+  })
+
+  it('reports an OS failure to open the skill folder', async () => {
+    const user = userEvent.setup()
+    ipcRequestMock.mockRejectedValue(new Error('open failed'))
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'library.skill_detail.open_folder' }))
+
+    expect(toastErrorMock).toHaveBeenCalledWith('library.skill_detail.open_folder_failed')
   })
 
   it('keeps the selected skill mounted until the close animation finishes', async () => {

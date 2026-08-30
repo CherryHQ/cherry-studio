@@ -14,7 +14,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import type { DbOrTx, DbType } from '@data/db/types'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
@@ -26,6 +26,7 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { chatMessageRoles } from '@shared/data/types/file'
 import {
   type BranchMessage,
@@ -45,12 +46,13 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -92,6 +94,13 @@ export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
   /** In the same order as `input.placeholders`. */
   placeholders: Message[]
+}
+
+export interface LiveMessageRangeMetadata {
+  readonly createdAt: string
+  readonly entityJsonBytes: number
+  readonly id: string
+  readonly topicId: string
 }
 
 /**
@@ -145,6 +154,25 @@ function rowToMessage(row: MessageRow): Message {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function messageEntityJsonBytes(): SQL<number> {
+  return sql<number>`length(cast(json_object(
+    'id', ${messageTable.id},
+    'topicId', ${messageTable.topicId},
+    'parentId', ${messageTable.parentId},
+    'role', ${messageTable.role},
+    'data', json(${messageTable.data}),
+    'searchableText', ${messageTable.searchableText},
+    'status', ${messageTable.status},
+    'siblingsGroupId', ${messageTable.siblingsGroupId},
+    'modelId', ${messageTable.modelId},
+    'messageSnapshot', json(${messageTable.messageSnapshot}),
+    'stats', json(${messageTable.stats}),
+    'compactionSummary', ${messageTable.compactionSummary},
+    'createdAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${messageTable.createdAt} / 1000.0, 'unixepoch'),
+    'updatedAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${messageTable.updatedAt} / 1000.0, 'unixepoch')
+  ) as blob))`
 }
 
 function completeApprovalWait(
@@ -333,11 +361,32 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
-  purgeByTopicIdsTx(tx: Pick<DbType, 'delete'>, topicIds: string[]): void {
+  purgeByTopicIdsTx(tx: DbOrTx, topicIds: string[]): void {
     const uniqueTopicIds = Array.from(new Set(topicIds))
     if (uniqueTopicIds.length === 0) return
 
+    const roots = tx
+      .select({ id: messageTable.id, topicId: messageTable.topicId })
+      .from(messageTable)
+      .where(and(inArray(messageTable.topicId, uniqueTopicIds), isNull(messageTable.parentId)))
+      .all()
+    for (const root of roots) {
+      this.flattenUnderTx(tx, root.id, eq(messageTable.topicId, root.topicId))
+    }
+
     tx.delete(messageTable).where(inArray(messageTable.topicId, uniqueTopicIds)).run()
+  }
+
+  /**
+   * Re-hang rows the caller is about to delete directly under `parentId`, so the self-FK
+   * cascade recurses one level instead of one per message — past SQLITE_MAX_TRIGGER_DEPTH
+   * (1000) SQLite aborts the delete with "too many levels of trigger recursion".
+   */
+  private flattenUnderTx(tx: DbOrTx, parentId: string, scope: SQL): void {
+    tx.update(messageTable)
+      .set({ parentId })
+      .where(and(scope, isNotNull(messageTable.parentId)))
+      .run()
   }
 
   /**
@@ -806,6 +855,52 @@ export class MessageService {
     return rows.map((row) => row.id)
   }
 
+  listLiveCreatedInRangeMetadataPage({
+    fromMs,
+    toMs,
+    cursor: rawCursor,
+    limit
+  }: {
+    fromMs: number
+    toMs: number
+    cursor?: string
+    limit: number
+  }): CursorPaginationResponse<LiveMessageRangeMetadata> {
+    const db = application.get('DbService').getDb()
+    const ordering = keysetOrdering(messageTable.createdAt, messageTable.id, { major: 'desc', tie: 'asc' })
+    const cursor = decodeListCursor(rawCursor, asNumericKey, 'message-range-metadata')
+    const rows = db
+      .select({
+        createdAt: messageTable.createdAt,
+        entityJsonBytes: messageEntityJsonBytes(),
+        id: messageTable.id,
+        topicId: messageTable.topicId
+      })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+      .where(
+        and(
+          gte(messageTable.createdAt, fromMs),
+          lte(messageTable.createdAt, toMs),
+          isNull(messageTable.deletedAt),
+          isNull(topicTable.deletedAt),
+          ne(messageTable.role, 'root'),
+          cursor ? ordering.where(cursor) : undefined
+        )
+      )
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasNext = rows.length > limit
+    const pageRows = hasNext ? rows.slice(0, limit) : rows
+    const tail = pageRows[pageRows.length - 1]
+    return {
+      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
+      nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+    }
+  }
+
   /**
    * Flip the given rows to `error` in a single write. Paired with
    * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
@@ -1115,11 +1210,10 @@ export class MessageService {
   }
 
   /**
-   * Persist a distinct empty branch below an assistant message.
+   * Persist empty branch nodes below an assistant message.
    *
-   * Reserved branches are intentional user-created tree nodes: repeated calls below
-   * the same anchor always create another row. `activate=false` lets the branch manager
-   * place a reservation without moving the topic away from a currently streaming path.
+   * A leaf gets two children so the first reservation forms a real branch; an anchor
+   * with children gets one. `activate=false` keeps the current streaming path active.
    */
   reserveBranch(anchorId: string, activate: boolean = true): Message {
     const message = application.get('DbService').withWriteTx((tx) => {
@@ -1136,21 +1230,31 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation('reserve branch', 'the branch anchor must be an assistant message')
       }
 
+      const hasChild =
+        tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(and(eq(messageTable.parentId, anchor.id), isNull(messageTable.deletedAt)))
+          .limit(1)
+          .get() !== undefined
       const createdAt = Date.now()
-      const [row] = tx
-        .insert(messageTable)
-        .values({
-          topicId: anchor.topicId,
-          parentId: anchor.id,
-          role: 'user',
-          data: { parts: [] },
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt,
-          updatedAt: createdAt
-        })
-        .returning()
-        .all()
+      const reservation: typeof messageTable.$inferInsert = {
+        topicId: anchor.topicId,
+        parentId: anchor.id,
+        role: 'user',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt,
+        updatedAt: createdAt
+      }
+
+      // A leaf needs two children for the new reservation to form a real branch.
+      if (!hasChild) {
+        tx.insert(messageTable).values(reservation).run()
+      }
+
+      const [row] = tx.insert(messageTable).values(reservation).returning().all()
 
       const topicService = getDataService('TopicService')
 
@@ -1452,7 +1556,9 @@ export class MessageService {
       // Build update object
       const updates: Partial<typeof messageTable.$inferInsert> = {}
 
-      if (dto.data !== undefined) updates.data = dto.data
+      // PATCH callers send partial data (usually just parts); shallow-merge so
+      // omitted keys like main-authoritative turnOptions survive the update.
+      if (dto.data !== undefined) updates.data = { ...existing.data, ...dto.data }
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       let activityTransitionAt: number | null = null
@@ -1470,8 +1576,8 @@ export class MessageService {
       }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
-      if (dto.data !== undefined) {
-        replaceChatMessageFileRefsTx(tx, id, dto.data)
+      if (updates.data !== undefined) {
+        replaceChatMessageFileRefsTx(tx, id, updates.data)
       }
       if (activityTransitionAt !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)
@@ -1899,6 +2005,10 @@ export class MessageService {
         // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
         // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
         // from getDescendantIds for the response and the activeNodeId check.)
+        for (let i = 0; i < descendantIds.length; i += SQLITE_INARRAY_CHUNK) {
+          const chunk = descendantIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+          this.flattenUnderTx(tx, id, inArray(messageTable.id, chunk))
+        }
         tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
@@ -2037,7 +2147,7 @@ export class MessageService {
    * so the single-root invariant holds — and clears `activeNodeId`.
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
-    return application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       const rootId = this.getRootMessageIdTx(tx, topicId)
 
       const rows = tx
@@ -2049,6 +2159,7 @@ export class MessageService {
 
       if (deletedIds.length === 0) return { deletedIds }
 
+      this.flattenUnderTx(tx, rootId, eq(messageTable.topicId, topicId))
       tx.delete(messageTable)
         .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
         .run()
@@ -2057,6 +2168,24 @@ export class MessageService {
       logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
       return { deletedIds }
     })
+
+    if (result.deletedIds.length > 0) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'membership',
+          routeParams: { topicId },
+          entityIds: result.deletedIds
+        },
+        { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: result.deletedIds },
+        { endpoint: '/messages/:id', entityIds: result.deletedIds },
+        { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+        { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] },
+        { endpoint: '/topics/latest' }
+      ])
+    }
+
+    return result
   }
 
   /**
