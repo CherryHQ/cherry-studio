@@ -1,188 +1,124 @@
 {
-  "generated_at": "2026-08-29T18:00:00Z",
-  "open_issues_total": 1014,
-  "open_issues_delta_24h": 10,
+  "generated_at": "2026-08-30T18:00:00Z",
+  "open_issues_total": 1008,
+  "open_issues_delta_24h": -6,
   "open_prs_total": 100,
-  "open_prs_base_main": 97,
-  "open_prs_base_v1": 2,
-  "open_prs_base_other": 1,
+  "open_prs_base_main": 98,
+  "open_prs_base_v1": 0,
+  "open_prs_base_other": 2,
   "v2_open_prs": 0,
-  "p1_issues_total": 31,
+  "p1_issues_total": 33,
   "p1_issues": [
     {
+      "number": 19753,
+      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": ["bug","p1","windows","needs-triage","agent"],
+      "created_at": "2026-08-30",
+      "age_days": 0,
+      "status": "NEW TODAY — no assignee, crash regression"
+    },
+    {
+      "number": 19706,
+      "title": "[Bug]: App crash (V8 OOM/SIGTRAP) when sending ~238MB PDF to gemini-3.7-flash",
+      "labels": ["bug","p1","models","performance"],
+      "created_at": "2026-08-29",
+      "age_days": 1,
+      "status": "Active — assigned DeJeune, 2 comments"
+    },
+    {
       "number": 19659,
-      "title": "Cannot switch to another model conversation while a response is streaming",
+      "title": "[Bug]: Cannot switch to another model conversation while a response is streaming",
       "labels": ["bug","p1","ui-ux","models"],
       "created_at": "2026-08-28",
-      "age_days": 1,
-      "status": "Active — filed yesterday, no assignee"
-    },
-    {
-      "number": 19383,
-      "title": "Built-in agent shows delete entry but errors: Handler DELETE /agents/cherry-support not found",
-      "labels": ["bug","p1","ui-ux","agent"],
-      "created_at": "2026-08-25",
-      "age_days": 4,
-      "status": "Active — 4 comments, no assignee"
-    },
-    {
-      "number": 19597,
-      "title": "Invalid JSON in model preferences can abort startup after upgrade",
-      "labels": ["bug","p1","linux","data","models"],
-      "created_at": "2026-08-27",
       "age_days": 2,
-      "status": "Active — assigned SiinXu, regression risk"
-    },
-    {
-      "number": 19321,
-      "title": "Local API drops DeepSeek reasoning_text on tool continuations",
-      "labels": ["bug","p1","models","agent"],
-      "created_at": "2026-08-24",
-      "age_days": 5,
-      "status": "Active — assigned userInner"
-    },
-    {
-      "number": 19452,
-      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
-      "labels": ["bug","p1","windows","rag","connectivity","models"],
-      "created_at": "2026-08-26",
-      "age_days": 3,
-      "status": "Active — assigned userInner, 2 comments"
-    },
-    {
-      "number": 17949,
-      "title": "V2 regression: cannot check and manage topic prompt",
-      "labels": ["bug","p1","assistant","ui-ux","v2"],
-      "created_at": "2026-08-05",
-      "age_days": 24,
-      "status": "Aging — no assignee, v2 regression"
-    },
-    {
-      "number": 19379,
-      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks inner tool name)",
-      "labels": ["bug","p1","ui-ux","v2","agent"],
-      "created_at": "2026-08-25",
-      "age_days": 4,
-      "status": "Active — assigned vaayne"
-    },
-    {
-      "number": 19376,
-      "title": "Pi runtime: auto permission mode still prompts for every tool call",
-      "labels": ["bug","p1","assistant","v2","agent"],
-      "created_at": "2026-08-25",
-      "age_days": 4,
-      "status": "Active — assigned vaayne"
+      "status": "Active — no assignee"
     },
     {
       "number": 19625,
-      "title": "Windows in-app update exits but leaves the old 1.9.x version installed",
+      "title": "[Bug]: Windows in-app update exits but leaves old 1.9.x version installed",
       "labels": ["bug","p1","windows","needs-repro","needs-triage","v2"],
       "created_at": "2026-08-28",
-      "age_days": 1,
-      "status": "Active — needs repro"
-    },
-    {
-      "number": 18741,
-      "title": "DeepSeek V4 shows 'No tool output found for tool call' after a long agent session",
-      "labels": ["bug","p1","agent","chat"],
-      "created_at": "2026-08-13",
-      "age_days": 16,
-      "status": "Aging — no assignee"
-    },
-    {
-      "number": 18382,
-      "title": "Sending files over 8000 characters causes truncation",
-      "labels": ["bug","p1"],
-      "created_at": "2026-08-11",
-      "age_days": 18,
-      "status": "Aging — no assignee, no detail labels"
-    },
-    {
-      "number": 19583,
-      "title": "Deleting a topic fails to refresh and redirects to another assistant",
-      "labels": ["bug","p1","windows","assistant","ui-ux"],
-      "created_at": "2026-08-27",
       "age_days": 2,
-      "status": "Active — no assignee"
+      "status": "Active — assigned kangfenmao, needs repro"
     },
     {
-      "number": 10512,
-      "title": "Cloud Backup Complete Failure BUG",
-      "labels": ["bug","p1","windows","data"],
-      "created_at": "2025-11-08",
-      "age_days": 294,
-      "status": "Zombie — long-standing data issue"
-    },
-    {
-      "number": 19314,
-      "title": "DeepSeek V4 Pro reasoning can finish without a final answer",
-      "labels": ["bug","p1","models"],
-      "created_at": "2026-08-24",
-      "age_days": 5,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 19582,
-      "title": "Assistant Management hides tags and assistants after upgrading to 2.0.9",
-      "labels": ["bug","p1","windows","assistant","ui-ux"],
+      "number": 19597,
+      "title": "[Bug]: Invalid JSON in model preferences can abort startup after upgrade",
+      "labels": ["bug","p1","linux","data","models"],
       "created_at": "2026-08-27",
-      "age_days": 2,
-      "status": "Active — no assignee, upgrade regression"
-    },
-    {
-      "number": 19572,
-      "title": "Continuous conversation causes crash and exit",
-      "labels": ["bug","p1","windows","needs-repro"],
-      "created_at": "2026-08-27",
-      "age_days": 2,
-      "status": "Active — needs repro"
+      "age_days": 3,
+      "status": "Active — assigned SiinXu, regression risk"
     },
     {
       "number": 19584,
       "title": "Agent replies are generated but not delivered to WeChat after upgrading to 2.0.9",
       "labels": ["bug","p1","windows","connectivity","agent"],
       "created_at": "2026-08-27",
-      "age_days": 2,
-      "status": "Active — connectivity regression"
+      "age_days": 3,
+      "status": "Active — no assignee, connectivity regression"
+    },
+    {
+      "number": 19583,
+      "title": "Deleting a topic fails to refresh and redirects to another assistant",
+      "labels": ["bug","p1","windows","assistant","ui-ux"],
+      "created_at": "2026-08-27",
+      "age_days": 3,
+      "status": "Active — assigned GeorgeDong32"
+    },
+    {
+      "number": 19582,
+      "title": "Assistant Management hides tags and assistants after upgrading to 2.0.9",
+      "labels": ["bug","p1","windows","assistant","ui-ux"],
+      "created_at": "2026-08-27",
+      "age_days": 3,
+      "status": "Active — assigned zhangjiadi225"
     },
     {
       "number": 19579,
-      "title": "Migration database disk I/O failure exits the app on startup",
+      "title": "[Bug]: Migration database disk I/O failure exits the app on startup",
       "labels": ["bug","p1","windows","data"],
       "created_at": "2026-08-27",
-      "age_days": 2,
-      "status": "Active — startup blocker"
+      "age_days": 3,
+      "status": "Active — startup blocker, no assignee"
     },
     {
       "number": 19578,
-      "title": "Linux arm64 main window continuously flickers",
+      "title": "[Bug]: Linux arm64 main window continuously flickers",
       "labels": ["bug","p1","linux","ui-ux"],
       "created_at": "2026-08-27",
-      "age_days": 2,
+      "age_days": 3,
       "status": "Active — no assignee"
     },
     {
       "number": 19577,
-      "title": "Agent requests fail without actionable handling for client SSL certificate errors",
+      "title": "[Bug]: Agent requests fail without actionable handling for client SSL certificates",
       "labels": ["bug","p1","windows","connectivity","agent"],
       "created_at": "2026-08-27",
-      "age_days": 2,
+      "age_days": 3,
       "status": "Active — no assignee"
     },
     {
-      "number": 16863,
-      "title": "(ARM version) Cannot upload documents and switch input methods",
-      "labels": ["bug","p1","linux","ui-ux"],
-      "created_at": "2026-06-27",
-      "age_days": 63,
-      "status": "Stale — ARM regression, no movement"
+      "number": 19572,
+      "title": "[Bug]: Continuous conversation causes crash and exit",
+      "labels": ["bug","p1","windows","needs-repro"],
+      "created_at": "2026-08-27",
+      "age_days": 3,
+      "status": "Active — needs repro"
+    },
+    {
+      "number": 19383,
+      "title": "Built-in agent shows delete entry but errors: Handler DELETE /agents/cherry-support not found",
+      "labels": ["bug","p1","ui-ux","agent"],
+      "created_at": "2026-08-25",
+      "age_days": 5,
+      "status": "Active — no assignee, 4 comments"
     },
     {
       "number": 19455,
       "title": "Message action labels are included in selected and copied reply text",
       "labels": ["bug","p1","windows","ui-ux","chat"],
       "created_at": "2026-08-26",
-      "age_days": 3,
+      "age_days": 4,
       "status": "Active — no assignee"
     },
     {
@@ -190,15 +126,63 @@
       "title": "Streaming output flickers and shifts layout during generation",
       "labels": ["bug","p1","ui-ux","performance","chat"],
       "created_at": "2026-08-26",
-      "age_days": 3,
+      "age_days": 4,
       "status": "Active — no assignee"
+    },
+    {
+      "number": 19452,
+      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
+      "labels": ["bug","p1","windows","rag","connectivity","models"],
+      "created_at": "2026-08-26",
+      "age_days": 4,
+      "status": "Active — assigned userInner, 2 comments"
+    },
+    {
+      "number": 19379,
+      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks inner tool name)",
+      "labels": ["bug","p1","ui-ux","v2","agent"],
+      "created_at": "2026-08-25",
+      "age_days": 5,
+      "status": "Active — assigned vaayne"
+    },
+    {
+      "number": 19376,
+      "title": "Pi runtime: auto permission mode still prompts for every tool call",
+      "labels": ["bug","p1","assistant","v2","agent"],
+      "created_at": "2026-08-25",
+      "age_days": 5,
+      "status": "Active — assigned vaayne"
     },
     {
       "number": 19322,
       "title": "Newly created DSH Zstandard session logs fail the first-frame contract",
       "labels": ["bug","p1","windows","agent"],
       "created_at": "2026-08-24",
-      "age_days": 5,
+      "age_days": 6,
+      "status": "Active — no assignee"
+    },
+    {
+      "number": 19326,
+      "title": "Retry state can persist after success and poison later conversation turns",
+      "labels": ["bug","p1","needs-more-info","chat"],
+      "created_at": "2026-08-24",
+      "age_days": 6,
+      "status": "Active — needs more info"
+    },
+    {
+      "number": 19321,
+      "title": "Local API drops DeepSeek reasoning_text on tool continuations",
+      "labels": ["bug","p1","models","agent"],
+      "created_at": "2026-08-24",
+      "age_days": 6,
+      "status": "Active — assigned userInner"
+    },
+    {
+      "number": 19314,
+      "title": "DeepSeek V4 Pro reasoning can finish without a final answer",
+      "labels": ["bug","p1","models"],
+      "created_at": "2026-08-24",
+      "age_days": 6,
       "status": "Active — no assignee"
     },
     {
@@ -206,91 +190,134 @@
       "title": "Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
       "labels": ["bug","p1","agent"],
       "created_at": "2026-08-24",
-      "age_days": 5,
-      "status": "Active — no assignee, dependency issue"
-    },
-    {
-      "number": 19326,
-      "title": "Retry state can persist after success and poison later conversation turns",
-      "labels": ["bug","p1","needs-more-info","chat"],
-      "created_at": "2026-08-24",
-      "age_days": 5,
-      "status": "Active — needs more info"
-    },
-    {
-      "number": 19272,
-      "title": "Bug with augment claude type agent (needs clarification)",
-      "labels": ["bug","p1","needs-more-info","agent"],
-      "created_at": "2026-08-23",
       "age_days": 6,
-      "status": "Active — needs more info"
-    },
-    {
-      "number": 19254,
-      "title": "Multimodal content block built incorrectly in single-model chat — images not passed",
-      "labels": ["bug","p1","models","chat"],
-      "created_at": "2026-08-22",
-      "age_days": 7,
-      "status": "Aging threshold — no assignee"
-    },
-    {
-      "number": 8730,
-      "title": "Cannot connect SenseTime model",
-      "labels": ["bug","p1","models"],
-      "created_at": "2025-07-23",
-      "age_days": 402,
-      "status": "Zombie — very old, no movement"
-    },
-    {
-      "number": 15431,
-      "title": "Quick Assist feature not working",
-      "labels": ["bug","p1","ui-ux"],
-      "created_at": "2026-03-27",
-      "age_days": 155,
-      "status": "Stale — 5+ months, no movement"
+      "status": "Active — no assignee, dependency issue"
     },
     {
       "number": 19290,
       "title": "Claude Agent SDK session injects the full Claude Code developer prompt twice",
       "labels": ["bug","p1","agent"],
       "created_at": "2026-08-23",
-      "age_days": 6,
-      "status": "Active — no assignee"
+      "age_days": 7,
+      "status": "Aging threshold — no assignee"
+    },
+    {
+      "number": 19272,
+      "title": "Bug with augment claude type agent (needs clarification)",
+      "labels": ["bug","p1","needs-more-info","agent"],
+      "created_at": "2026-08-23",
+      "age_days": 7,
+      "status": "Aging — needs more info"
+    },
+    {
+      "number": 19254,
+      "title": "Multimodal content block built incorrectly — images not passed",
+      "labels": ["bug","p1","models","chat"],
+      "created_at": "2026-08-22",
+      "age_days": 8,
+      "status": "Aging — no assignee"
+    },
+    {
+      "number": 18741,
+      "title": "DeepSeek V4 shows 'No tool output found' after a long agent session",
+      "labels": ["bug","p1","agent","chat"],
+      "created_at": "2026-08-13",
+      "age_days": 17,
+      "status": "Aging — no assignee"
+    },
+    {
+      "number": 18382,
+      "title": "Sending files over 8000 characters causes truncation",
+      "labels": ["bug","p1"],
+      "created_at": "2026-08-11",
+      "age_days": 19,
+      "status": "Aging — no assignee, no detail labels"
+    },
+    {
+      "number": 17949,
+      "title": "V2 regression: cannot check and manage topic prompt",
+      "labels": ["bug","p1","assistant","ui-ux","v2"],
+      "created_at": "2026-08-05",
+      "age_days": 25,
+      "status": "Aging — no assignee, v2 regression"
+    },
+    {
+      "number": 16863,
+      "title": "(ARM version) Cannot upload documents and switch input methods",
+      "labels": ["bug","p1","linux","ui-ux"],
+      "created_at": "2026-06-27",
+      "age_days": 64,
+      "status": "Stale — ARM regression, no movement"
+    },
+    {
+      "number": 15431,
+      "title": "Quick Assist feature not working",
+      "labels": ["bug","p1","ui-ux"],
+      "created_at": "2026-03-27",
+      "age_days": 156,
+      "status": "Stale — 5+ months, no movement"
+    },
+    {
+      "number": 10512,
+      "title": "Cloud Backup Complete Failure BUG",
+      "labels": ["bug","p1","windows","data"],
+      "created_at": "2025-11-08",
+      "age_days": 295,
+      "status": "Zombie — long-standing data issue"
+    },
+    {
+      "number": 8730,
+      "title": "Cannot connect SenseTime model",
+      "labels": ["bug","p1","models"],
+      "created_at": "2025-07-23",
+      "age_days": 403,
+      "status": "Zombie — very old, no movement"
     }
   ],
   "label_distribution_sample": {
-    "ui-ux": 26,
-    "models": 24,
-    "internal-team": 19,
+    "ui-ux": 27,
+    "models": 25,
+    "internal-team": 18,
     "Dev Team": 17,
-    "bug": 16,
-    "feature": 15,
+    "bug": 40,
+    "feature": 16,
     "performance": 14,
-    "p2": 13,
-    "needs-triage": 8,
-    "p3": 8,
-    "p1": 8,
+    "p2": 33,
+    "p1": 12,
+    "p3": 13,
+    "needs-triage": 15,
     "assistant": 7,
-    "agent": 7,
-    "inactive": 6,
-    "data": 6
+    "agent": 9,
+    "data": 5,
+    "mcp": 4
   },
-  "unlabeled_issues_estimate": "~130 (13% of total, from 100-issue sample)",
-  "needs_triage_estimate": "~80 (8% of total, from 100-issue sample)",
+  "unlabeled_issues_estimate": "~110 (11% of 1008, from 100-issue page-1 sample)",
+  "needs_triage_estimate": "~150 (15% of 1008, from 100-issue page-1 sample)",
+  "no_priority_label_estimate": "~42% of open issues lack p1/p2/p3 classification",
   "issue_health_sample_100": {
-    "Active_le7days": 64,
-    "Aging_7to30days": 32,
-    "Stale_30to90days": 3,
-    "Zombie_gt90days": 1,
-    "note": "Biased toward recent; full dataset will have more Stale/Zombie"
+    "Active_le7days": 100,
+    "Aging_7to30days": 0,
+    "Stale_30to90days": 0,
+    "Zombie_gt90days": 0,
+    "note": "Page-1 sample is recency-biased (sorted by updated_at DESC); full dataset contains significant Stale/Zombie tail"
   },
   "pr_breakdown": {
     "total_open": 100,
-    "base_main": 97,
-    "base_v1": 2,
-    "base_other": 1,
+    "base_main": 98,
+    "base_feat_settings_search_sections": 1,
+    "base_skill_management_redesign": 1,
     "drafts": 0,
-    "v2_open": 0
+    "v2_open": 0,
+    "merged_last_30d_sample": 78
   },
-  "notes": "gh CLI unavailable in remote environment; data fetched via GitHub MCP API. No discussions API available. Analysis scripts absent — data built directly from MCP tool results."
+  "top_contributors_merged_30d": [
+    {"login": "userInner", "merges": 16},
+    {"login": "404-Page-Found", "merges": 10},
+    {"login": "DeJeune", "merges": 9},
+    {"login": "SiinXu", "merges": 8},
+    {"login": "kovsu", "merges": 4},
+    {"login": "eeee0717", "merges": 4},
+    {"login": "ousugo", "merges": 4}
+  ],
+  "notes": "gh CLI unavailable in remote environment; data fetched via GitHub MCP API. Discussions API not available via MCP. Analysis scripts absent — data built directly from MCP tool results. Issue total dropped from 1014 (Aug-29) to 1008 (Aug-30), net -6."
 }

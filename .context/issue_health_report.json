@@ -1,66 +1,74 @@
 {
-  "generated_at": "2026-08-29T18:00:00Z",
-  "total_open_issues": 1014,
-  "p1_critical_count": 31,
+  "generated_at": "2026-08-30T18:00:00Z",
+  "total_open_issues": 1008,
+  "p1_critical_count": 33,
   "p1_breakdown": {
     "active_assigned": 8,
     "active_unassigned": 17,
-    "aging_7_30d": 4,
+    "aging_7_30d": 5,
     "stale_30_90d": 2,
     "zombie_gt90d": 2,
-    "needs_repro_or_more_info": 6
+    "needs_repro_or_more_info": 5,
+    "new_today": 1
   },
   "p1_platform_breakdown": {
-    "windows_specific": 9,
+    "windows_specific": 10,
     "linux_specific": 3,
-    "cross_platform": 19
+    "cross_platform": 20
   },
   "p1_category_breakdown": {
-    "agent_pi_runtime": 7,
+    "agent_pi_runtime": 9,
     "ui_ux": 8,
-    "models_inference": 6,
+    "models_inference": 7,
     "data_startup": 4,
     "connectivity": 3,
-    "other": 3
+    "performance": 2,
+    "other": 0
   },
   "high_urgency_unassigned_p1": [
-    {"number": 19659, "title": "Cannot switch model while streaming", "age_days": 1},
-    {"number": 19383, "title": "Built-in agent DELETE handler missing", "age_days": 4},
-    {"number": 19582, "title": "Assistant Management hides tags after 2.0.9 upgrade", "age_days": 2},
-    {"number": 19583, "title": "Deleting topic fails to refresh", "age_days": 2},
-    {"number": 19578, "title": "Linux arm64 window continuous flicker", "age_days": 2},
-    {"number": 19579, "title": "DB disk I/O failure exits on startup", "age_days": 2},
-    {"number": 19454, "title": "Streaming output flickers during generation", "age_days": 3}
+    {"number": 19753, "title": "DeepSeek Harness crashes during Agent sessions", "age_days": 0, "note": "NEW TODAY"},
+    {"number": 19659, "title": "Cannot switch model while streaming", "age_days": 2},
+    {"number": 19584, "title": "Agent WeChat replies not delivered after 2.0.9 upgrade", "age_days": 3},
+    {"number": 19583, "title": "Deleting topic fails to refresh", "age_days": 3},
+    {"number": 19579, "title": "Migration DB disk I/O failure on startup", "age_days": 3},
+    {"number": 19578, "title": "Linux arm64 main window flickers continuously", "age_days": 3},
+    {"number": 19577, "title": "Agent requests fail on SSL cert errors", "age_days": 3},
+    {"number": 19383, "title": "Built-in agent DELETE handler missing", "age_days": 5},
+    {"number": 19322, "title": "DSH Zstandard session first-frame contract broken", "age_days": 6},
+    {"number": 19314, "title": "DeepSeek V4 Pro reasoning finishes without final answer", "age_days": 6},
+    {"number": 19313, "title": "Managed DSH missing @deepseek-ai/dsh-scope", "age_days": 6}
   ],
-  "sample_health_100_recent": {
-    "Active": 64,
-    "Aging": 32,
-    "Stale": 3,
-    "Zombie": 1
-  },
-  "triage_backlog": {
-    "needs_triage_estimate": 80,
-    "no_label_estimate": 130,
-    "needs_repro_estimate": 40
-  },
-  "top_label_clusters": {
-    "ui_ux": {"count_sample": 26, "pct_sample": "26%"},
-    "models": {"count_sample": 24, "pct_sample": "24%"},
-    "internal_team": {"count_sample": 19, "pct_sample": "19%"},
-    "performance": {"count_sample": 14, "pct_sample": "14%"},
-    "bug": {"count_sample": 16, "pct_sample": "16%"},
-    "feature": {"count_sample": 15, "pct_sample": "15%"}
-  },
-  "zombie_p1_issues": [
-    {"number": 8730, "title": "Cannot connect SenseTime model", "age_days": 402},
-    {"number": 10512, "title": "Cloud Backup Complete Failure", "age_days": 294},
-    {"number": 15431, "title": "Quick Assist feature not working", "age_days": 155}
+  "aging_p1_risk": [
+    {"number": 17949, "title": "V2 regression: topic prompt management broken", "age_days": 25},
+    {"number": 18741, "title": "DeepSeek V4 no tool output after long session", "age_days": 17},
+    {"number": 18382, "title": "File >8000 chars truncated", "age_days": 19},
+    {"number": 19254, "title": "Multimodal images not passed to model", "age_days": 8},
+    {"number": 19290, "title": "Claude SDK dev prompt injected twice", "age_days": 7}
   ],
-  "recommendations": [
-    "Assign or triage the 17 unassigned P1 bugs — several are 2.0.9 regressions filed in last 48h",
-    "Consider closing #8730 (402d) and #10512 (294d) as stale or converting to roadmap items",
-    "The 'needs-repro' subset of P1 (#19572, #19625) needs a repro attempt before assignment",
-    "~130 unlabeled issues represent ~13% of the backlog — a triage sprint would help",
-    "Pi runtime P1 cluster (#19376, #19379) should be bundled for vaayne"
-  ]
+  "stale_zombie_p1": [
+    {"number": 16863, "title": "ARM: cannot upload docs / switch input methods", "age_days": 64},
+    {"number": 15431, "title": "Quick Assist not working", "age_days": 156},
+    {"number": 10512, "title": "Cloud Backup Complete Failure", "age_days": 295},
+    {"number": 8730, "title": "Cannot connect SenseTime model", "age_days": 403}
+  ],
+  "health_summary": {
+    "Active_le7d": "~64% (biased: page-1 sample is recency-sorted)",
+    "Aging_7_30d": "~25% estimate",
+    "Stale_30_90d": "~8% estimate",
+    "Zombie_gt90d": "~3% estimate",
+    "methodology": "Page-1 (100 most-recently-updated issues) all Active; health distribution extrapolated from historical drift and prior runs"
+  },
+  "unclassified_issues": {
+    "no_labels": "~110 issues (11%)",
+    "needs_triage": "~150 issues (15%)",
+    "no_priority": "~420 issues (42%)",
+    "recommendation": "Triage sprint needed; focus on no-label issues first as they cannot be routed"
+  },
+  "volume_trend": {
+    "2026-08-28": "~1020 (estimated)",
+    "2026-08-29": 1014,
+    "2026-08-30": 1008,
+    "delta_24h": -6,
+    "note": "Net decrease of 6 — closure pace exceeding open rate slightly"
+  }
 }

@@ -1,38 +1,61 @@
 {
-  "generated_at": "2026-08-29T18:00:00Z",
+  "generated_at": "2026-08-30T18:00:00Z",
   "v2_branch_status": {
     "open_prs_base_v2": 0,
-    "note": "No open PRs targeting the v2 branch found. All active development is on main. V2 may have been fully merged to main."
+    "note": "No open PRs targeting the v2 branch. All active development merged into main. V2 feature work tracked via labels and internal-team issues."
   },
   "active_v2_label_issues": [
-    {"number": 17949, "title": "V2 regression: cannot check/manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 24},
-    {"number": 19379, "title": "Pi runtime: report_artifacts never render", "labels": ["bug","p1","ui-ux","v2","agent"], "age_days": 4},
-    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 4},
-    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "labels": ["bug","p1","windows","v2"], "age_days": 1}
+    {"number": 17949, "title": "V2 regression: cannot check/manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 25},
+    {"number": 19379, "title": "Pi runtime: report_artifacts never render", "labels": ["bug","p1","ui-ux","v2","agent"], "age_days": 5},
+    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 5},
+    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "labels": ["bug","p1","windows","v2"], "age_days": 2}
   ],
-  "internal_team_tasks_sample": [
-    {"number": 19671, "title": "Lazy-load optional Knowledge management UI", "assignee": "GeorgeDong32"},
-    {"number": 19715, "title": "Defer CodeMirror theme resolution until editor is active", "assignee": "GeorgeDong32"},
-    {"number": 19719, "title": "Keep AppShell out of onboarding bundle", "assignee": null},
-    {"number": 19718, "title": "Lazy-load low-frequency Provider Settings editors", "assignee": null},
-    {"number": 19717, "title": "Suspend Translate sidebar while closed", "assignee": null},
-    {"number": 19716, "title": "Remove duplicate per-message topic stream subscriptions", "assignee": null},
-    {"number": 19675, "title": "Isolate model health-check updates to affected rows", "assignee": null},
-    {"number": 19693, "title": "Decouple AI request pipeline from Assistant", "assignee": null}
+  "internal_team_tasks_open": [
+    {"number": 19721, "title": "Track system timezone changes across runtime consumers", "assignee": "DeJeune", "created": "2026-08-29"},
+    {"number": 19718, "title": "Lazy-load low-frequency Provider Settings editors", "assignee": null, "created": "2026-08-29"},
+    {"number": 19717, "title": "Suspend Translate sidebar modules while closed", "assignee": null, "created": "2026-08-29"},
+    {"number": 19716, "title": "Remove duplicate per-message topic stream subscriptions", "assignee": null, "created": "2026-08-29"},
+    {"number": 19715, "title": "Defer CodeMirror theme resolution until editor active", "assignee": "GeorgeDong32", "created": "2026-08-29"},
+    {"number": 19675, "title": "Isolate model health-check updates to affected rows", "assignee": null, "created": "2026-08-28"},
+    {"number": 19674, "title": "Lazy-load inactive ModelSettings side panels", "assignee": null, "created": "2026-08-28"},
+    {"number": 19672, "title": "Load citations panel on first open", "assignee": null, "created": "2026-08-28"},
+    {"number": 19671, "title": "Lazy-load optional Knowledge management UI", "assignee": "GeorgeDong32", "created": "2026-08-28"},
+    {"number": 19661, "title": "Move Kimi sampling constraints into layered presets", "assignee": null, "created": "2026-08-28"},
+    {"number": 19656, "title": "Consolidate Gemini connection-policy ownership", "assignee": null, "created": "2026-08-28"},
+    {"number": 19655, "title": "Type API gateway model address (not infer from string)", "assignee": null, "created": "2026-08-28"},
+    {"number": 19621, "title": "Design core/utilityProcess subsystem for local inference", "assignee": "DeJeune", "created": "2026-08-28"},
+    {"number": 19693, "title": "Decouple AI request pipeline from Assistant", "assignee": null, "created": "2026-08-29"},
+    {"number": 19689, "title": "Reasoning selection fallbacks leave no trace", "assignee": null, "created": "2026-08-29"}
   ],
   "performance_cluster": {
-    "total_performance_label_issues": "14 in top-100 sample",
-    "focus_areas": ["lazy loading", "bundle splitting", "stream subscription optimization", "model health-check efficiency"]
+    "total_performance_label_issues_sample": 14,
+    "focus_areas": [
+      "lazy loading (Knowledge, Provider Settings, CodeMirror, citations panel)",
+      "bundle splitting (AppShell out of onboarding)",
+      "stream subscription dedup (per-message topics)",
+      "model health-check row isolation",
+      "Vite 8 upgrade (issue 19548)"
+    ]
   },
-  "pr_activity_today": {
-    "top_open_prs": [
+  "pr_velocity_last_30d": {
+    "merged_to_main": "78+ (from 100-PR closed sample)",
+    "top_contributors": ["userInner (16)", "404-Page-Found (10)", "DeJeune (9)", "SiinXu (8)", "kovsu (4)", "eeee0717 (4)", "ousugo (4)"],
+    "active_open_prs": 100,
+    "notable_open_prs": [
       {"number": 18693, "title": "fix(composer): restore configurable long-text paste"},
       {"number": 19723, "title": "fix(window-manager): block content-initiated subframe navigation"},
-      {"number": 18786, "title": "fix(model-pricing): record what providers actually charge"},
-      {"number": 19720, "title": "fix(provider): normalize reasoning_effort for GitHub Copilot"},
-      {"number": 19448, "title": "fix(scheduled-tasks): stop stale running status after startup"},
-      {"number": 19713, "title": "fix(translate-history): revalidate in place when membership changes"},
-      {"number": 19712, "title": "fix(translate): restore translation_options for Qwen-MT models"}
+      {"number": 19547, "title": "Feature: Trustworthy V1-to-V2 data migration and backup restore"},
+      {"number": 19548, "title": "Task: Upgrade to Vite 8"}
     ]
+  },
+  "release_readiness": {
+    "blockers": [
+      "19753 — DeepSeek Harness crash (NEW, needs assessment)",
+      "19706 — V8 OOM on large PDF (assigned DeJeune)",
+      "19625 — Windows update leaves v1.9.x installed",
+      "19584 — Agent WeChat delivery broken after 2.0.9",
+      "19583/19582 — Topic/Assistant Management regressions after 2.0.9"
+    ],
+    "note": "Multiple Windows-specific regressions from 2.0.9 indicate a stabilization pass is needed before next release"
   }
 }

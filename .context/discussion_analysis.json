@@ -1,13 +1,44 @@
 {
-  "generated_at": "2026-08-29T18:00:00Z",
-  "note": "Discussions GraphQL API unavailable via GitHub MCP in this environment. Data reflects last known state from 2026-08-28.",
-  "last_known": {
-    "total_discussions_visible": "~50 (estimated from issue tracker cross-refs)",
-    "unanswered_count": "unknown — API not accessible",
-    "hot_topics": [
-      "MAX_REQUESTED_OUTPUT_TOKENS hardcoded limit (#19630)",
-      "MCP OAuth flow blocking startup (#19048)",
-      "Anthropic/OpenRouter cache TTL configurable (#19696)"
-    ]
-  }
+  "generated_at": "2026-08-30T18:00:00Z",
+  "note": "Discussions GraphQL API unavailable via GitHub MCP in this environment. Hot topics inferred from high-comment/high-engagement open issues.",
+  "hot_topics_from_issues": [
+    {
+      "number": 19630,
+      "title": "MAX_REQUESTED_OUTPUT_TOKENS hardcoded to 128_000",
+      "labels": ["help wanted","discussion","models"],
+      "engagement": "discussion label, no assignee"
+    },
+    {
+      "number": 19707,
+      "title": "Add session metrics bar — turns / tool-call steps / token usage / cache hit rate",
+      "labels": ["p2","feature"],
+      "engagement": "community feature request, no assignee"
+    },
+    {
+      "number": 19696,
+      "title": "Support configuring Anthropic/OpenRouter cache TTL (1 hour)",
+      "labels": ["p3","feature","models"],
+      "engagement": "cache TTL hardcoded to 5min, developer pain point"
+    },
+    {
+      "number": 19465,
+      "title": "[Bug]: 公共 Environment 块 (3 posts sharing env block)",
+      "labels": [],
+      "comments": 4,
+      "engagement": "Chinese-language UX issue, 4 comments"
+    },
+    {
+      "number": 19492,
+      "title": "Knowledge Base refresh for Note-type items never updates snapshot",
+      "labels": ["rag"],
+      "comments": 2,
+      "engagement": "RAG data staleness, 2 comments"
+    }
+  ],
+  "unanswered_themes": [
+    "Cache TTL configurability (Anthropic/OpenRouter)",
+    "Output token limit policy",
+    "Agent tool pre-authorization to avoid repeated prompts",
+    "Skill marketplace install failures (Windows long paths)"
+  ]
 }
