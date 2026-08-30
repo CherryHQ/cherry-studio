@@ -27,6 +27,13 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
  */
 export type DshApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-completions' | 'openai-responses'
 
+const DSH_ENDPOINT_TYPES = [
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+] as const
+
 /**
  * Map a Cherry endpoint (`endpointType` + resolved `adapterFamily`) to the dsh
  * `api` protocol, or `undefined` when dsh cannot speak that provider's protocol.
@@ -64,11 +71,12 @@ export function mapEndpointToDshApi(
   }
 }
 
-/** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
+/** The effective chat endpoint the dsh runtime uses within the protocols it can drive. */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  // DSH's declared provider route is a runtime requirement, so preserve the
-  // model's protocol order before applying the normal provider-default policy.
-  return resolveCanonicalEndpoint(provider, model, model.endpointTypes?.[0]).endpointType
+  // DSH supports several protocol families, so none of them is a hard runtime
+  // preference. Let the shared selector preserve its canonical priority:
+  // provider default first, then the model's declared fallback order.
+  return resolveCanonicalEndpoint(provider, model, undefined, DSH_ENDPOINT_TYPES).endpointType
 }
 
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */

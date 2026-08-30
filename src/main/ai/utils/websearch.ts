@@ -196,7 +196,8 @@ export function buildProviderBuiltinWebSearchConfig(
       }
       return { openrouter: openrouterWebConfig }
     }
-    case 'cherryin': {
+    case 'cherryin':
+    case 'cherryin-chat': {
       // CherryIN proxies to the same effective endpoint selected for the request.
       // Keep this projection in lockstep with `resolveEffectiveEndpoint`: a
       // supported provider default wins over the model registry's ordering.

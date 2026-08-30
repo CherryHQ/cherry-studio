@@ -41,6 +41,19 @@ describe('resolveCanonicalEndpoint', () => {
     expect(resolveCanonicalEndpoint(stale, model()).endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
   })
 
+  it('selects within a runtime allowlist without turning its first item into a preference', () => {
+    expect(
+      resolveCanonicalEndpoint(provider(), model(), undefined, [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ]).endpointType
+    ).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+
+    expect(
+      resolveCanonicalEndpoint(provider(), model(), undefined, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).endpointType
+    ).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+  })
+
   it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])(
     'does not assign a chat route to a capability-only %s model without endpointTypes',
     (capability) => {

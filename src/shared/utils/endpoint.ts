@@ -23,17 +23,20 @@ export type EndpointSelectionProvider = Pick<
 export function resolveCanonicalEndpoint(
   provider: EndpointSelectionProvider,
   model: Model,
-  preferredEndpointType?: EndpointType
+  preferredEndpointType?: EndpointType,
+  allowedEndpointTypes?: readonly EndpointType[]
 ): CanonicalEndpointSelection {
   // Persisted/custom rows created before capabilities became required can still omit the array.
   // Classify them as ordinary chat models unless another explicit non-chat signal is present.
   const nonChat = isNonChatModel({ ...model, capabilities: model.capabilities ?? [] })
+  const isAllowed = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
+    Boolean(endpointType && (!allowedEndpointTypes || allowedEndpointTypes.includes(endpointType)))
   const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
-    Boolean(endpointType && provider.endpointConfigs?.[endpointType])
+    isAllowed(endpointType) && Boolean(provider.endpointConfigs?.[endpointType])
   const defaultEndpoint = provider.defaultChatEndpoint
   const preferred =
     !nonChat &&
-    preferredEndpointType &&
+    isAllowed(preferredEndpointType) &&
     model.endpointTypes?.includes(preferredEndpointType) &&
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
@@ -46,7 +49,8 @@ export function resolveCanonicalEndpoint(
   const gatewayRoute = nonChat ? undefined : resolveGatewayChatRoute(provider, model)
   const fallback =
     !nonChat && !model.endpointTypes?.length && hasEndpointConfig(defaultEndpoint) ? defaultEndpoint : undefined
-  const endpointType = preferred ?? supportedProviderDefault ?? modelEndpoint ?? gatewayRoute?.endpointType ?? fallback
+  const gatewayEndpoint = isAllowed(gatewayRoute?.endpointType) ? gatewayRoute?.endpointType : undefined
+  const endpointType = preferred ?? supportedProviderDefault ?? modelEndpoint ?? gatewayEndpoint ?? fallback
 
   return {
     endpointType,
