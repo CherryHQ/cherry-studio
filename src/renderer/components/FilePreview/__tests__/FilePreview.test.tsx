@@ -70,9 +70,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { FilePreview } from '../FilePreview'
+import { FilePreview, __filePreviewInternal } from '../FilePreview'
 
 afterEach(() => {
+  __filePreviewInternal.resetLoadedModules()
   cleanup()
   vi.clearAllMocks()
 })

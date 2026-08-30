@@ -46,7 +46,7 @@ vi.mock('../filePreviewRegistry', async (importOriginal) => {
   }
 })
 
-import { FilePreview } from '../FilePreview'
+import { FilePreview, __filePreviewInternal } from '../FilePreview'
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -93,6 +93,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  __filePreviewInternal.resetLoadedModules()
   cleanup()
   vi.clearAllMocks()
   vi.restoreAllMocks()

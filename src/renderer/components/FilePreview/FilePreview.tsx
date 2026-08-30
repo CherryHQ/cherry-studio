@@ -7,8 +7,7 @@ import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/util
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import type { ComponentType } from 'react'
-import { createElement, lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { createElement, type ComponentType, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
@@ -23,10 +22,16 @@ const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
 
 // Cache for pre-loaded plugin modules. Each plugin's load() is called at most once.
 // The WeakMap key is the plugin object (stable identity from the registry).
-const loadedModules = new WeakMap<
-  FilePreviewPlugin,
-  Promise<{ default: ComponentType<FilePreviewPluginProps> }>
->()
+// The cache lives behind a mutable binding so test code can clear it between cases
+// via `__filePreviewInternal.resetLoadedModules()`. Production code never calls reset.
+let loadedModules: WeakMap<FilePreviewPlugin, Promise<{ default: ComponentType<FilePreviewPluginProps> }>> =
+  new WeakMap()
+
+export const __filePreviewInternal = {
+  resetLoadedModules(): void {
+    loadedModules = new WeakMap()
+  }
+}
 
 type FilePreviewStateKind = 'directory' | 'invalid_path' | 'load_error' | 'unavailable' | 'unsupported'
 
