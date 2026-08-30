@@ -119,14 +119,26 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
         if (!raw.modelId) continue
         // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
         const ov = splitOverrideWireId(raw)
-        if (p.modelsDevProvider && !ov.apiModelId && (ov.reasoningContracts || ov.requestControls)) {
+        if (
+          p.modelsDevProvider &&
+          !ov.apiModelId &&
+          (ov.endpointTypes ||
+            ov.reasoningContracts ||
+            ov.requestControls ||
+            ov.parameterSupport ||
+            Object.hasOwn(ov, 'pricing'))
+        ) {
           const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
           if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/model-template`)
           else if (
             rows.some(
               (row) =>
-                stable(row.reasoningContracts) !== stable(ov.reasoningContracts) ||
-                stable(row.requestControls) !== stable(ov.requestControls)
+                (Object.hasOwn(ov, 'endpointTypes') && stable(row.endpointTypes) !== stable(ov.endpointTypes)) ||
+                (Object.hasOwn(ov, 'pricing') && stable(row.pricing) !== stable(ov.pricing)) ||
+                (Object.hasOwn(ov, 'reasoningContracts') &&
+                  stable(row.reasoningContracts) !== stable(ov.reasoningContracts)) ||
+                (Object.hasOwn(ov, 'requestControls') && stable(row.requestControls) !== stable(ov.requestControls)) ||
+                (Object.hasOwn(ov, 'parameterSupport') && stable(row.parameterSupport) !== stable(ov.parameterSupport))
             )
           ) {
             problems.push(`stale ${p.id}/${ov.modelId}/model-template`)

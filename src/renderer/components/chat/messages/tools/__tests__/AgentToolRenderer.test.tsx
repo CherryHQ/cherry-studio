@@ -167,8 +167,12 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'agent.toolPermission.decisionDenied': 'Denied',
+    'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
+    'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
+    'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report',
     'agent.sidebar_title': 'Agents',
     'common.create_success': 'Created successfully',
     'library.assistant_catalog.go_to_chat': 'Go to chat',
@@ -776,6 +780,32 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('Choose logger')).toBeInTheDocument()
     })
 
+    it('shows the denied outcome instead of an unanswered AskUserQuestion card', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'cancelled',
+        toolCallId: 'call-ask-denied',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        },
+        approval: { approved: false, reason: 'Need more context first' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Denied')).toBeInTheDocument()
+      expect(screen.getByText('Need more context first')).toBeInTheDocument()
+      expect(screen.queryByText('Questions from Agent')).not.toBeInTheDocument()
+      expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
+    })
+
     it('shows AskUserQuestion answers from tool output when input only has questions', () => {
       const questions = [
         {
@@ -880,6 +910,19 @@ describe('AgentToolRenderer', () => {
     })
   })
 
+  it('keeps a denied tool decision and its reason visible in history', () => {
+    const toolResponse = createToolResponse({
+      status: 'cancelled',
+      arguments: { command: 'rm -rf build' },
+      approval: { approved: false, reason: 'use a copy instead' }
+    })
+
+    render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+    expect(screen.getByText('Denied')).toBeInTheDocument()
+    expect(screen.getByText('use a copy instead')).toBeInTheDocument()
+  })
+
   describe('assistant create_agent tool rendering', () => {
     it('opens the newly created Agent conversation from the success action', async () => {
       const user = userEvent.setup()
@@ -918,6 +961,50 @@ describe('AgentToolRenderer', () => {
         path: '/app/agents',
         query: { agentId: 'agent-created' }
       })
+    })
+  })
+
+  describe('assistant prepare_diagnostic_report tool rendering', () => {
+    const preparedResponse: McpToolResponse = {
+      id: 'call-prepare-report',
+      tool: {
+        id: 'assistant__mcp__assistant__prepare_diagnostic_report',
+        name: 'prepare_diagnostic_report',
+        description: 'Prepare diagnostic report',
+        type: 'mcp',
+        serverId: 'assistant',
+        serverName: 'assistant',
+        inputSchema: { type: 'object', properties: {}, required: [] }
+      },
+      arguments: undefined,
+      status: 'done',
+      response: {
+        content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+        structuredContent: { ok: true, description: 'Draft from this tool call' }
+      },
+      toolCallId: 'call-prepare-report'
+    }
+
+    it('opens the report launcher with this tool call draft', async () => {
+      const user = userEvent.setup()
+      const openReport = vi.fn()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute, openDiagnosticReport: openReport })
+
+      render(<MessageTools toolResponse={preparedResponse} />)
+
+      expect(screen.getByText('Cherry Support prepared an editable description.')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Review diagnostic report' }))
+      expect(openReport).toHaveBeenCalledWith('Draft from this tool call')
+      expect(navigateToRoute).not.toHaveBeenCalled()
+      expect(mockGetToolResult).not.toHaveBeenCalled()
+    })
+
+    it('shows the prepared state without a dead action when no launcher is available', () => {
+      render(<MessageTools toolResponse={preparedResponse} />)
+
+      expect(screen.getByText('Cherry Support prepared an editable description.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
     })
   })
 

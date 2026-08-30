@@ -395,7 +395,7 @@ export function apply(ctx: Context): void {
     if (req.signal?.aborted) return 'cancelled'
     if (!link.connected) return 'rejected'
     try {
-      const { outcome } = await link.request(
+      const { outcome, rejectionReason } = await link.request(
         'approval/ask',
         {
           sessionId: req.agent.id,
@@ -406,6 +406,20 @@ export function apply(ctx: Context): void {
         },
         req.signal
       )
+      if (outcome === 'rejected' && rejectionReason) {
+        setImmediate(() => {
+          try {
+            req.agent.followup(
+              createUserMessage({
+                content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
+                source: { kind: 'user' }
+              })
+            )
+          } catch (error) {
+            console.error('[cherry-bridge] failed to deliver tool rejection feedback:', error)
+          }
+        })
+      }
       return outcome
     } catch {
       // Fail closed: a host disconnect (or error response) denies the call.

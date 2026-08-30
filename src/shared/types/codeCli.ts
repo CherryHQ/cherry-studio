@@ -5,11 +5,13 @@ export enum CodeCli {
   OPENCLAW = 'openclaw',
   DEEPSEEK_HARNESS = 'deepseek-harness',
   GEMINI_CLI = 'gemini-cli',
+  ANTIGRAVITY_CLI = 'antigravity-cli',
   QWEN_CODE = 'qwen-code',
   KIMI_CODE = 'kimi-code',
   QODER_CLI = 'qoder-cli',
   GITHUB_COPILOT_CLI = 'github-copilot-cli',
-  PI = 'pi'
+  PI = 'pi',
+  HERMES = 'hermes'
 }
 
 export const DEEPSEEK_HARNESS_AGENT_PRESETS = ['inherit', 'standard', 'code', 'minimal'] as const
@@ -70,6 +72,7 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.CLAUDE_CODE,
   CodeCli.OPENAI_CODEX,
   CodeCli.GEMINI_CLI,
+  CodeCli.ANTIGRAVITY_CLI,
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
   CodeCli.PI
@@ -100,17 +103,19 @@ export function isApiGatewayProviderId(id: string): boolean {
 /**
  * CLI tools that can be backed by the Cherry API gateway. The gateway exposes
  * Anthropic (`/v1/messages`), OpenAI (`/v1/chat/completions`, `/v1/responses`),
- * and Gemini (`/v1beta/models/*`) dialects, so Gemini CLI routes through the
- * gateway too. OpenClaw is excluded because it has its own gateway sync path.
+ * and Gemini (`/v1beta/models/*`) dialects, so Gemini CLI and Antigravity route
+ * through the gateway too. OpenClaw is excluded because it has its own gateway sync path.
  */
 export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.CLAUDE_CODE,
   CodeCli.OPENAI_CODEX,
   CodeCli.GEMINI_CLI,
+  CodeCli.ANTIGRAVITY_CLI,
   CodeCli.OPEN_CODE,
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
   CodeCli.PI,
+  CodeCli.HERMES,
   CodeCli.DEEPSEEK_HARNESS
 ])
 
