@@ -137,6 +137,50 @@ const assertPrebuiltPackages = (platform, arch) => {
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 exports.keepPackages = keepPackages
 
+// Main's external predicate leaves root dependencies as runtime imports, so keep those DSH packages available.
+const getMainProcessDshPackages = (projectRoot) => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
+  return new Set(
+    [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.optionalDependencies ?? {})].filter((name) =>
+      name.startsWith('@deepseek-ai/dsh-')
+    )
+  )
+}
+
+const getDshPackageExclusions = (runtime, mainProcessDshPackages) => {
+  const externalPackageNames = new Set(runtime.externalPackageNames)
+  const dshPackageNames = new Set(runtime.dshPackageNames)
+  const recordsByName = new Map()
+  for (const record of runtime.packageRecords ?? []) {
+    if (!record.name || !dshPackageNames.has(record.name)) continue
+    const records = recordsByName.get(record.name) ?? []
+    records.push(record)
+    recordsByName.set(record.name, records)
+  }
+  const protectedPackages = new Set(mainProcessDshPackages)
+  const pending = [...protectedPackages]
+  while (pending.length > 0) {
+    const packageName = pending.pop()
+    for (const record of recordsByName.get(packageName) ?? []) {
+      for (const dependencyName of [
+        ...Object.keys(record.manifest.dependencies ?? {}),
+        ...Object.keys(record.manifest.optionalDependencies ?? {})
+      ]) {
+        if (dshPackageNames.has(dependencyName) && !protectedPackages.has(dependencyName)) {
+          protectedPackages.add(dependencyName)
+          pending.push(dependencyName)
+        }
+      }
+    }
+  }
+  return runtime.dshPackageNames
+    .filter((packageName) => !externalPackageNames.has(packageName))
+    .filter((packageName) => !protectedPackages.has(packageName))
+    .flatMap((packageName) => [`!node_modules/${packageName}/**`, `!node_modules/**/node_modules/${packageName}/**`])
+}
+exports.getDshPackageExclusions = getDshPackageExclusions
+exports.getMainProcessDshPackages = getMainProcessDshPackages
+
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
@@ -221,9 +265,7 @@ exports.default = async function (context) {
     }
   }
 
-  const dshPackageExclusions = dshRuntime.dshPackageNames
-    .filter((packageName) => !dshRuntime.externalPackageNames.includes(packageName))
-    .flatMap((packageName) => [`!node_modules/${packageName}/**`, `!node_modules/**/node_modules/${packageName}/**`])
+  const dshPackageExclusions = getDshPackageExclusions(dshRuntime, getMainProcessDshPackages(projectRoot))
   const foreignNativeExclusions = dshRuntime.foreignNativePaths.flatMap(({ packageName, relative }) => [
     `!node_modules/${packageName}/${relative}`,
     `!node_modules/**/node_modules/${packageName}/${relative}`

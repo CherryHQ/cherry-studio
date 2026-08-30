@@ -8,6 +8,8 @@ import { parse } from 'yaml'
 const { DEFAULT_RUNTIME_ENTRY_SPECIFIERS, discoverDshRuntimePackaging, isForeignNativePath, isNativeFilePath } =
   await import('../../packages/dsh-bridge/scripts/runtimeEntries.cjs')
 
+const { getDshPackageExclusions, getMainProcessDshPackages } = await import('../before-pack')
+
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 
 describe('DSH runtime packaging', () => {
@@ -68,6 +70,49 @@ describe('DSH runtime packaging', () => {
     expect(config.asarUnpack.filter((pattern) => pattern.includes('node_modules/@deepseek-ai/dsh-'))).toEqual([
       'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**'
     ])
+  })
+
+  it('keeps DSH packages externalized by the main-process bundle', () => {
+    const mainProcessPackages = getMainProcessDshPackages(projectRoot)
+    expect(mainProcessPackages.has('@deepseek-ai/dsh-sdk-client')).toBe(true)
+    expect(mainProcessPackages.has('@deepseek-ai/dsh-sdk-protocol')).toBe(true)
+
+    const exclusions = getDshPackageExclusions(
+      {
+        dshPackageNames: [
+          '@deepseek-ai/dsh-sdk-client',
+          '@deepseek-ai/dsh-sdk-protocol',
+          '@deepseek-ai/dsh-session',
+          '@deepseek-ai/dsh-tool-fs'
+        ],
+        externalPackageNames: [],
+        packageRecords: [
+          {
+            name: '@deepseek-ai/dsh-sdk-client',
+            manifest: { dependencies: { '@deepseek-ai/dsh-session': '0.1.0-rc.7' } }
+          }
+        ]
+      },
+      mainProcessPackages
+    )
+    expect(exclusions).not.toContain('!node_modules/@deepseek-ai/dsh-sdk-client/**')
+    expect(exclusions).not.toContain('!node_modules/@deepseek-ai/dsh-sdk-protocol/**')
+    expect(exclusions).not.toContain('!node_modules/@deepseek-ai/dsh-session/**')
+    expect(exclusions).toContain('!node_modules/@deepseek-ai/dsh-tool-fs/**')
+  })
+
+  it('copies the runtime bundle into the unpacked resources directory', () => {
+    const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
+      extraResources: Array<{ from?: string; to?: string }>
+    }
+    expect(config.extraResources).toEqual(
+      expect.arrayContaining([
+        {
+          from: 'packages/dsh-bridge/dist/runtime',
+          to: 'app.asar.unpacked/node_modules/@cherrystudio/dsh-bridge/dist/runtime'
+        }
+      ])
+    )
   })
 
   it('keeps filesystem-backed sandbox packages external', () => {
