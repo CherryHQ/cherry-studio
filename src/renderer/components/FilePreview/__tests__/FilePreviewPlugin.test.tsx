@@ -5,10 +5,10 @@ import { cleanup, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FilePreviewLayout } from '../FilePreviewLayout'
-import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
-import { FilePreviewToolbar } from '../FilePreviewToolbar'
 import { FilePreview, __filePreviewInternal } from '../FilePreview'
+import { FilePreviewLayout } from '../FilePreviewLayout'
+import { FilePreviewToolbar } from '../FilePreviewToolbar'
+import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),

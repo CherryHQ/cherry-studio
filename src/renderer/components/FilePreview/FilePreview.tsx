@@ -12,8 +12,8 @@ import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
-import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
+import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
 import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
 
