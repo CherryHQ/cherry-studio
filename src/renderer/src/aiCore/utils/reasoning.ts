@@ -17,6 +17,7 @@ import {
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
+  isGLM53Model,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
   isKimiK27CodeModel,
@@ -133,6 +134,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // Generally, for every model which supports reasoning control, the reasoning effort won't be undefined.
   // It's for some reasoning models that don't support reasoning control, such as deepseek reasoner.
   if (!reasoningEffort || reasoningEffort === 'default') {
+    return {}
+  }
+
+  // GLM-5.3 always reasons and rejects the legacy none/auto selections.
+  if (isGLM53Model(model) && (reasoningEffort === 'none' || reasoningEffort === 'auto')) {
     return {}
   }
 
@@ -328,6 +334,19 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // OpenRouter models
   if (model.provider === SystemProviderIds.openrouter) {
+    if (isDeepSeekV4PlusModel(model) || isGLM53Model(model)) {
+      const effortMap = {
+        minimal: 'low',
+        low: 'low',
+        medium: 'high',
+        high: 'high',
+        xhigh: 'max',
+        max: 'max'
+      } as const
+      const effort = effortMap[reasoningEffort as keyof typeof effortMap]
+      return effort ? { reasoning: { effort } } : {}
+    }
+
     // Grok 4 Fast doesn't support effort levels, always use enabled: true
     if (isGrok4FastReasoningModel(model)) {
       return {
@@ -395,10 +414,28 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // Both DeepSeek and OpenAI-compatible SDKs accept camelCase provider options
   // and serialize this field as `reasoning_effort` on the wire.
   if (isDeepSeekV4PlusModel(model)) {
-    const effort = (reasoningEffort === 'xhigh' ? 'max' : 'high') as OpenAIReasoningEffort
+    const effortMap = {
+      minimal: 'low',
+      low: 'low',
+      medium: 'high',
+      high: 'high',
+      xhigh: 'max',
+      max: 'max'
+    } as const
+    const effort = effortMap[reasoningEffort as keyof typeof effortMap]
+    if (!effort) return {}
     return {
       thinking: { type: 'enabled' as const },
-      reasoningEffort: effort
+      reasoningEffort: effort as OpenAIReasoningEffort
+    }
+  }
+
+  if (isGLM53Model(model)) {
+    const effort = reasoningEffort === 'xhigh' ? 'max' : reasoningEffort
+    if (!['low', 'high', 'max'].includes(effort)) return {}
+    return {
+      thinking: { type: 'enabled' as const },
+      reasoningEffort: effort as OpenAIReasoningEffort
     }
   }
 
@@ -497,6 +534,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         adjustedReasoningEffort = 'low'
         break
       case 'xhigh':
+      case 'max':
         adjustedReasoningEffort = 'high'
         break
       case 'auto':
@@ -740,7 +778,7 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
  * - **Non-Anthropic models served via the Claude-compatible endpoint** (Kimi, MiniMax,
  *   DeepSeek V4+, etc.): `{ thinking: { type: 'enabled', budgetTokens: number }, sendReasoning: true, effort? }`
  *   `sendReasoning: true` ensures reasoning output is streamed back to the UI.
- *   `effort` is only added for DeepSeek V4+ (`high` | `xhigh` → `high` | `max`).
+ *   `effort` is only added for DeepSeek V4+ (`low` | `high` | `max`).
  */
 export function getAnthropicReasoningParams(
   assistant: Assistant,
@@ -784,7 +822,8 @@ export function getAnthropicReasoningParams(
         low: 'low',
         medium: 'medium',
         high: 'high',
-        xhigh: 'xhigh'
+        xhigh: 'xhigh',
+        max: 'xhigh'
       } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
       const effort = effort47Map[reasoningEffort]
       const thinking = { type: 'adaptive', display: 'summarized' } as const
@@ -807,7 +846,8 @@ export function getAnthropicReasoningParams(
         low: 'low',
         medium: 'medium',
         high: 'high',
-        xhigh: 'max'
+        xhigh: 'max',
+        max: 'max'
       } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
       const effort = effortMap[reasoningEffort]
       return effort ? { thinking: { type: 'adaptive' }, effort } : { thinking: { type: 'adaptive' } }
@@ -849,15 +889,13 @@ export function getAnthropicReasoningParams(
       sendReasoning: true
     }
     // https://api-docs.deepseek.com/guides/thinking_mode
-    // DeepSeek V4+ exposes only 'high' and 'xhigh' as user-facing effort levels
-    // (see MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4); default/none are already
-    // short-circuited earlier in this function. The explicit map avoids silently
-    // downgrading future levels (low/medium/auto) to 'high' — unmapped values are
-    // simply omitted so callers fall back to API defaults instead.
+    // Keep the Claude-compatible endpoint aligned with DeepSeek's native effort values.
     if (isDeepSeekV4PlusModel(model)) {
       const deepSeekV4EffortMap = {
+        low: 'low',
         high: 'high',
-        xhigh: 'max'
+        xhigh: 'max',
+        max: 'max'
       } as const
       const effort = deepSeekV4EffortMap[reasoningEffort as keyof typeof deepSeekV4EffortMap]
       if (effort) {
@@ -888,6 +926,7 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
       return 'medium'
     case 'high':
     case 'xhigh':
+    case 'max':
       return 'high'
     default:
       // Enforce all possible values are handled
@@ -1027,6 +1066,7 @@ export function getXAIReasoningParams(
     case 'high':
       return { reasoningEffort }
     case 'xhigh':
+    case 'max':
       return { reasoningEffort: 'high' }
     default:
       return {}
@@ -1073,7 +1113,8 @@ export function getBedrockReasoningParams(
       low: 'low',
       medium: 'medium',
       high: 'high',
-      xhigh: 'max'
+      xhigh: 'max',
+      max: 'max'
     } as const satisfies Record<
       Exclude<ReasoningEffortOption, 'none' | 'default'>,
       NonNullable<BedrockProviderOptions['reasoningConfig']>['maxReasoningEffort']

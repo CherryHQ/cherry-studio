@@ -127,6 +127,7 @@ const ThinkModelTypes = [
   'mimo',
   'hunyuan',
   'zhipu',
+  'zhipu_glm_5_3',
   'perplexity',
   'deepseek_hybrid',
   'deepseek_v4',
@@ -154,7 +155,7 @@ const ThinkModelTypes = [
  *            It's also used as "on" when the reasoning behavior of the model only could be set to "on" and "off".
  * - 'default': Depend on default behavior. It means we would not set any reasoning related settings when calling API.
  */
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'max' | 'auto' | 'default'
 export type ThinkingOption = ReasoningEffortOption
 export type ThinkingModelType = (typeof ThinkModelTypes)[number]
 export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
@@ -174,6 +175,7 @@ export const EFFORT_RATIO: EffortRatio = {
   medium: 0.5,
   high: 0.8,
   xhigh: 0.9,
+  max: 1,
   auto: 2
 }
 

@@ -108,6 +108,7 @@ const ThinkingButton: FC<Props> = ({
     none: t('assistants.settings.reasoning_effort.off'),
     minimal: t('assistants.settings.reasoning_effort.minimal'),
     high: t('assistants.settings.reasoning_effort.high'),
+    max: t('assistants.settings.reasoning_effort.max'),
     low: t('assistants.settings.reasoning_effort.low'),
     medium: t('assistants.settings.reasoning_effort.medium'),
     auto: t('assistants.settings.reasoning_effort.auto'),
@@ -121,6 +122,7 @@ const ThinkingButton: FC<Props> = ({
     low: t('assistants.settings.reasoning_effort.low_description'),
     medium: t('assistants.settings.reasoning_effort.medium_description'),
     high: t('assistants.settings.reasoning_effort.high_description'),
+    max: t('assistants.settings.reasoning_effort.max_description'),
     xhigh: t('assistants.settings.reasoning_effort.xhigh_description'),
     auto: t('assistants.settings.reasoning_effort.auto_description')
   } as const satisfies Record<ThinkingOption, string>
@@ -251,6 +253,7 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
         IconComponent = MdiLightbulbOn90
         break
       case 'xhigh':
+      case 'max':
         IconComponent = MdiLightbulbOn
         break
       case 'auto':

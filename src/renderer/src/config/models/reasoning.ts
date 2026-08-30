@@ -84,9 +84,10 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   hunyuan: ['auto'] as const,
   mimo: ['auto'] as const,
   zhipu: ['auto'] as const,
+  zhipu_glm_5_3: ['low', 'high', 'max'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
-  deepseek_v4: ['high', 'xhigh'] as const,
+  deepseek_v4: ['low', 'high', 'max'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
   kimi_always_think: ['auto'] as const,
   longcat: ['auto'] as const,
@@ -130,6 +131,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   mimo: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mimo] as const,
   hunyuan: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
+  zhipu_glm_5_3: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu_glm_5_3] as const,
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   deepseek_v4: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4] as const,
@@ -227,7 +229,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedReasoningEffortPerplexityModel(model)) {
     thinkingModelType = 'perplexity'
   } else if (isSupportedThinkingTokenZhipuModel(model)) {
-    thinkingModelType = 'zhipu'
+    thinkingModelType = isGLM53Model(model) ? 'zhipu_glm_5_3' : 'zhipu'
   } else if (isDeepSeekV4PlusModel(model)) {
     thinkingModelType = 'deepseek_v4'
   } else if (isDeepSeekHybridInferenceModel(model)) {
@@ -687,6 +689,14 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   return /glm-?5|glm-4\.[567]/.test(modelId)
 }
 
+export const isGLM53Model = (model: Model): boolean => {
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, (candidate) => {
+    const modelId = getLowerBaseModelName(candidate.id, '/')
+    return /^glm-5[.-]3(?:-|$)/i.test(modelId)
+  })
+  return idResult || nameResult
+}
+
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni', 'mimo-v2.5', 'mimo-v2.5-pro'].includes(modelId)
@@ -745,7 +755,7 @@ export const isSupportedThinkingTokenLongCatModel = (model?: Model): boolean => 
 
 /**
  * Matches DeepSeek V4+ models (e.g., deepseek-v4-flash, deepseek-v4-pro, deepseek-v5-xxx).
- * V4+ models default to thinking enabled and support reasoning_effort: "high" | "max".
+ * V4+ models default to thinking enabled and support reasoning_effort: "low" | "high" | "max".
  */
 export const isDeepSeekV4PlusModel = (model: Model) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {

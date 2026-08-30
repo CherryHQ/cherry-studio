@@ -16,6 +16,7 @@ import {
   isDoubaoThinkingAutoModel,
   isFixedReasoningModel,
   isGeminiReasoningModel,
+  isGLM53Model,
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
   isInterleavedThinkingModel,
@@ -538,43 +539,59 @@ describe('DeepSeek V4+ Models', () => {
   })
 
   describe('reasoning effort configuration', () => {
-    it('exposes high and xhigh as the only effort levels', () => {
-      expect(MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4).toEqual(['high', 'xhigh'])
+    it('exposes the documented DeepSeek V4 effort levels', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4).toEqual(['low', 'high', 'max'])
     })
 
-    it('exposes default, none, high, xhigh as user-facing options', () => {
-      expect(MODEL_SUPPORTED_OPTIONS.deepseek_v4).toEqual(['default', 'none', 'high', 'xhigh'])
+    it('exposes the documented DeepSeek V4 user-facing options', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.deepseek_v4).toEqual(['default', 'none', 'low', 'high', 'max'])
     })
 
     it('returns correct options from getModelSupportedReasoningEffortOptions for V4+ models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v4', provider: 'deepseek' }))).toEqual(
-        ['default', 'none', 'high', 'xhigh']
+        ['default', 'none', 'low', 'high', 'max']
       )
       expect(
         getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v4-flash', provider: 'deepseek' }))
-      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      ).toEqual(['default', 'none', 'low', 'high', 'max'])
       expect(
         getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v4-pro', provider: 'openrouter' }))
-      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      ).toEqual(['default', 'none', 'low', 'high', 'max'])
       expect(
         getModelSupportedReasoningEffortOptions(
           createModel({ id: 'deepseek/deepseek-v4-flash:deepseek', provider: 'deepseek' })
         )
-      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      ).toEqual(['default', 'none', 'low', 'high', 'max'])
       expect(
         getModelSupportedReasoningEffortOptions(
           createModel({ id: 'deepseek/deepseek-v4-pro:fireworks', provider: 'deepseek' })
         )
-      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      ).toEqual(['default', 'none', 'low', 'high', 'max'])
       expect(
         getModelSupportedReasoningEffortOptions(
           createModel({ id: 'deepseek/deepseek-v4-pro:deepseek:together', provider: 'deepseek' })
         )
-      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      ).toEqual(['default', 'none', 'low', 'high', 'max'])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v5', provider: 'deepseek' }))).toEqual(
-        ['default', 'none', 'high', 'xhigh']
+        ['default', 'none', 'low', 'high', 'max']
       )
     })
+  })
+})
+
+describe('GLM-5.3 Models', () => {
+  it('recognizes dotted, hyphenated, and provider-prefixed IDs', () => {
+    expect(isGLM53Model(createModel({ id: 'glm-5.3-flash' }))).toBe(true)
+    expect(isGLM53Model(createModel({ id: 'glm-5-3-flash' }))).toBe(true)
+    expect(isGLM53Model(createModel({ id: 'z-ai/glm-5.3-flash' }))).toBe(true)
+    expect(isGLM53Model(createModel({ id: 'glm-5.2-flash' }))).toBe(false)
+  })
+
+  it('exposes only the supported reasoning efforts', () => {
+    const model = createModel({ id: 'glm-5.3-flash', provider: 'zhipu' })
+
+    expect(getThinkModelType(model)).toBe('zhipu_glm_5_3')
+    expect(getModelSupportedReasoningEffortOptions(model)).toEqual(['default', 'low', 'high', 'max'])
   })
 })
 

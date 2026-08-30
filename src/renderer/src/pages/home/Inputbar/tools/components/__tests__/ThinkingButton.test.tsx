@@ -201,6 +201,7 @@ const createUseTranslationReturn = (overrides: any = {}) => ({
       'assistants.settings.reasoning_effort.low': 'Low',
       'assistants.settings.reasoning_effort.medium': 'Medium',
       'assistants.settings.reasoning_effort.high': 'High',
+      'assistants.settings.reasoning_effort.max': 'Max',
       'assistants.settings.reasoning_effort.xhigh': 'Extra High',
       'assistants.settings.reasoning_effort.auto': 'Auto',
       'assistants.settings.reasoning_effort.default': 'Default',
@@ -210,6 +211,7 @@ const createUseTranslationReturn = (overrides: any = {}) => ({
       'assistants.settings.reasoning_effort.low_description': 'Low reasoning',
       'assistants.settings.reasoning_effort.medium_description': 'Medium reasoning',
       'assistants.settings.reasoning_effort.high_description': 'High reasoning',
+      'assistants.settings.reasoning_effort.max_description': 'Maximum reasoning',
       'assistants.settings.reasoning_effort.xhigh_description': 'Extra high reasoning',
       'assistants.settings.reasoning_effort.auto_description': 'Auto select reasoning level',
       'chat.input.thinking.label': 'Thinking',
@@ -349,6 +351,7 @@ describe('ThinkingButton', () => {
         { option: 'medium', expectedTestId: 'mdi-lightbulb-on80' },
         { option: 'high', expectedTestId: 'mdi-lightbulb-on90' },
         { option: 'xhigh', expectedTestId: 'mdi-lightbulb-on' },
+        { option: 'max', expectedTestId: 'mdi-lightbulb-on' },
         { option: 'auto', expectedTestId: 'mdi-lightbulb-auto-outline' },
         { option: 'none', expectedTestId: 'mdi-lightbulb-off-outline' },
         { option: 'default', expectedTestId: 'mdi-lightbulb-question' }
@@ -617,6 +620,7 @@ describe('ThinkingButton', () => {
         { option: 'medium', expectedTestId: 'mdi-lightbulb-on80' },
         { option: 'high', expectedTestId: 'mdi-lightbulb-on90' },
         { option: 'xhigh', expectedTestId: 'mdi-lightbulb-on' },
+        { option: 'max', expectedTestId: 'mdi-lightbulb-on' },
         { option: 'auto', expectedTestId: 'mdi-lightbulb-auto-outline' },
         { option: 'none', expectedTestId: 'mdi-lightbulb-off-outline' },
         { option: 'default', expectedTestId: 'mdi-lightbulb-question' }

@@ -418,6 +418,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   deepseek: [
     {
+      id: 'deepseek-v4-flash-vision-exp',
+      provider: 'deepseek',
+      name: 'deepseek-v4-flash-vision-exp',
+      group: 'DeepSeek',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
       id: 'deepseek-v4-flash',
       provider: 'deepseek',
       name: 'deepseek-v4-flash',
@@ -629,6 +636,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [
+    {
+      id: 'glm-5.3-flash',
+      provider: 'zhipu',
+      name: 'GLM-5.3-Flash',
+      group: 'GLM-5.3',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
     {
       id: 'glm-5',
       provider: 'zhipu',
@@ -1977,6 +1991,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   zai: [
+    {
+      id: 'glm-5.3-flash',
+      provider: 'zai',
+      name: 'GLM-5.3-Flash',
+      group: 'GLM-5.3',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
     {
       id: 'glm-5',
       provider: 'zai',

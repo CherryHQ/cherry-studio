@@ -4,6 +4,7 @@ import {
   isSupportedThinkingTokenQwenModel,
   isVisionModel
 } from '@renderer/config/models'
+import { SYSTEM_MODELS } from '@renderer/config/models/default'
 import { isQwen35to39Model } from '@renderer/config/models/qwen'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
@@ -47,6 +48,14 @@ beforeEach(() => {
   getProviderByModelMock.mockReturnValue({ type: 'openai-response' } as any)
   isEmbeddingModelMock.mockReturnValue(false)
   isRerankModelMock.mockReturnValue(false)
+})
+
+describe('Built-in model catalog', () => {
+  test('includes the v1-compatible DeepSeek and GLM vision models', () => {
+    expect(SYSTEM_MODELS.deepseek.some((model) => model.id === 'deepseek-v4-flash-vision-exp')).toBe(true)
+    expect(SYSTEM_MODELS.zhipu.some((model) => model.id === 'glm-5.3-flash')).toBe(true)
+    expect(SYSTEM_MODELS.zai.some((model) => model.id === 'glm-5.3-flash')).toBe(true)
+  })
 })
 
 // Suggested test cases

@@ -937,6 +937,8 @@
         "label": "Comprimento da Cadeia de Raciocínio",
         "low": "Curto",
         "low_description": "Raciocínio de baixo nível",
+        "max": "Máximo",
+        "max_description": "Esforço máximo de raciocínio",
         "medium": "Médio",
         "medium_description": "Raciocínio de nível médio",
         "minimal": "mínimo",

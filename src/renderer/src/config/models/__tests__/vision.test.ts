@@ -358,6 +358,20 @@ describe('isVisionModel', () => {
     })
   })
 
+  describe('DeepSeek and GLM vision models', () => {
+    it('recognizes only the multimodal DeepSeek V4 variant', () => {
+      expect(isVisionModel(createModel({ id: 'deepseek-v4-flash-vision-exp' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'deepseek-v4-flash' }))).toBe(false)
+      expect(isVisionModel(createModel({ id: 'deepseek-v4-pro' }))).toBe(false)
+    })
+
+    it('recognizes GLM-5.3-Flash aliases as multimodal', () => {
+      expect(isVisionModel(createModel({ id: 'glm-5.3-flash' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'glm-5-3-flash' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'z-ai/glm-5.3-flash' }))).toBe(true)
+    })
+  })
+
   describe('MiMo Models', () => {
     it('should identify only the full-modal V2.5 chat model as vision-capable', () => {
       expect(isVisionModel(createModel({ id: 'mimo-v2.5' }))).toBe(true)

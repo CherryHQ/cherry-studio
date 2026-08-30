@@ -937,6 +937,8 @@
         "label": "Reasoning effort",
         "low": "Low",
         "low_description": "Low level reasoning",
+        "max": "Max",
+        "max_description": "Maximum reasoning effort",
         "medium": "Medium",
         "medium_description": "Medium level reasoning",
         "minimal": "Minimal",

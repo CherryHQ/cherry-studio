@@ -98,6 +98,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenModel: vi.fn(() => false),
     isGPT51SeriesModel: vi.fn(() => false),
     isGemini3ThinkingTokenModel: vi.fn(() => false),
+    isGLM53Model: vi.fn(() => false),
     findTokenLimit: vi.fn(actual.findTokenLimit)
   }
 })
@@ -606,6 +607,70 @@ describe('reasoning utils', () => {
         thinking: { type: 'enabled' },
         reasoningEffort: 'high'
       })
+    })
+
+    it('should preserve low reasoning effort for DeepSeek V4+', async () => {
+      const { isReasoningModel, isDeepSeekV4PlusModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+
+      const result = getReasoningEffort(
+        {
+          id: 'test',
+          name: 'Test',
+          settings: { reasoning_effort: 'low' }
+        } as Assistant,
+        {
+          id: 'deepseek-v4-flash',
+          name: 'DeepSeek V4 Flash',
+          provider: SystemProviderIds.deepseek
+        } as Model
+      )
+
+      expect(result).toEqual({
+        thinking: { type: 'enabled' },
+        reasoningEffort: 'low'
+      })
+    })
+
+    it('should serialize GLM-5.3 effort for the official provider', async () => {
+      const { isReasoningModel, isGLM53Model } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isGLM53Model).mockReturnValue(true)
+
+      const result = getReasoningEffort(
+        {
+          id: 'test',
+          name: 'Test',
+          settings: { reasoning_effort: 'max' }
+        } as Assistant,
+        { id: 'glm-5.3-flash', name: 'GLM-5.3-Flash', provider: SystemProviderIds.zhipu } as Model
+      )
+
+      expect(result).toEqual({
+        thinking: { type: 'enabled' },
+        reasoningEffort: 'max'
+      })
+    })
+
+    it('should omit a stale Auto effort for GLM-5.3 on OpenRouter', async () => {
+      const { isReasoningModel, isGLM53Model } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isGLM53Model).mockReturnValue(true)
+
+      const result = getReasoningEffort(
+        {
+          id: 'test',
+          name: 'Test',
+          settings: { reasoning_effort: 'auto' }
+        } as Assistant,
+        { id: 'z-ai/glm-5.3-flash', name: 'GLM-5.3-Flash', provider: SystemProviderIds.openrouter } as Model
+      )
+
+      expect(result).toEqual({})
     })
 
     it('should map xhigh to max for DeepSeek V4+', async () => {
@@ -1425,9 +1490,6 @@ describe('reasoning utils', () => {
     })
 
     it('should not add effort for DeepSeek V4+ when effort is outside the documented set', async () => {
-      // Guard against silent downgrade: if MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4 ever gains
-      // new levels (low/medium/auto), the explicit effortMap must be extended — otherwise effort
-      // is omitted here rather than being silently mapped to 'high'.
       const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
         await import('@renderer/config/models')
 

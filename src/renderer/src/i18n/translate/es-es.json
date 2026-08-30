@@ -937,6 +937,8 @@
         "label": "Longitud de Cadena de Razonamiento",
         "low": "Corto",
         "low_description": "Razonamiento de bajo nivel",
+        "max": "Máximo",
+        "max_description": "Esfuerzo máximo de razonamiento",
         "medium": "Medio",
         "medium_description": "Razonamiento de nivel medio",
         "minimal": "minimal",
