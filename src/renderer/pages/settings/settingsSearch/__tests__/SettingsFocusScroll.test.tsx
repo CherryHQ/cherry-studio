@@ -11,12 +11,17 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 describe('SettingsFocusScroll', () => {
+  let scope: HTMLDivElement
+
   beforeEach(() => {
     vi.useFakeTimers()
     locationMock.pathname = '/settings/general'
     // jsdom has no layout (scrollIntoView is not even defined); the call is the contract
     Element.prototype.scrollIntoView = vi.fn()
     setPendingFocus(undefined)
+    // The settings content column of THIS tab; the lookup must stay inside it
+    scope = document.createElement('div')
+    document.body.appendChild(scope)
   })
 
   afterEach(() => {
@@ -27,15 +32,17 @@ describe('SettingsFocusScroll', () => {
 
   const pendingFocusOf = () => renderHook(() => useSettingsSearchKeyboard()).result.current.pendingFocusId
 
+  const renderInScope = () => render(<SettingsFocusScroll scopeRef={{ current: scope }} />)
+
   it('scrolls to and flashes an immediately present target', () => {
     const target = document.createElement('div')
     target.id = 'setting-general-proxy'
-    document.body.appendChild(target)
+    scope.appendChild(target)
 
     act(() => {
       setPendingFocus('setting-general-proxy')
     })
-    render(<SettingsFocusScroll />)
+    renderInScope()
 
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
     expect(target.classList.contains('search-hit-highlight')).toBe(true)
@@ -52,7 +59,7 @@ describe('SettingsFocusScroll', () => {
     act(() => {
       setPendingFocus('setting-general-theme')
     })
-    render(<SettingsFocusScroll />)
+    renderInScope()
 
     // First attempt missed; the 80ms retry is pending
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
@@ -61,7 +68,7 @@ describe('SettingsFocusScroll', () => {
     const target = document.createElement('div')
     target.id = 'setting-general-theme'
     act(() => {
-      document.body.appendChild(target)
+      scope.appendChild(target)
       vi.advanceTimersByTime(80)
     })
 
@@ -73,7 +80,7 @@ describe('SettingsFocusScroll', () => {
     act(() => {
       setPendingFocus('setting-general-never-rendered')
     })
-    render(<SettingsFocusScroll />)
+    renderInScope()
 
     act(() => {
       vi.advanceTimersByTime(2000)
@@ -82,5 +89,27 @@ describe('SettingsFocusScroll', () => {
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
     // Pending id cleared: no timer keeps running against a dead target
     expect(pendingFocusOf()).toBeUndefined()
+  })
+
+  it('ignores a duplicate-id row outside the tab scope (hidden tab)', () => {
+    // Another settings tab's DOM survives under <Activity> with the same row
+    // id, earlier in document order — a document-level lookup would hit it
+    const hiddenTabRow = document.createElement('div')
+    hiddenTabRow.id = 'setting-general-proxy'
+    document.body.insertBefore(hiddenTabRow, scope)
+
+    const target = document.createElement('div')
+    target.id = 'setting-general-proxy'
+    scope.appendChild(target)
+
+    act(() => {
+      setPendingFocus('setting-general-proxy')
+    })
+    renderInScope()
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
+    // The in-scope row got the flash; the hidden tab's copy stays untouched
+    expect(target.classList.contains('search-hit-highlight')).toBe(true)
+    expect(hiddenTabRow.classList.contains('search-hit-highlight')).toBe(false)
   })
 })

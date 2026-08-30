@@ -1,5 +1,5 @@
 import { useLocation } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { type RefObject, useEffect } from 'react'
 
 import { setPendingFocus, useSettingsSearchKeyboard } from './store'
 
@@ -10,11 +10,20 @@ const RETRY_DELAYS = [80, 80, 200, 200, 200, 200, 200, 200, 200, 200]
 const HIGHLIGHT_MS = 1600
 const HIGHLIGHT_CLASS = 'search-hit-highlight'
 
+interface SettingsFocusScrollProps {
+  /**
+   * Query scope: the settings content column of the active tab. <Activity>
+   * keeps hidden tabs' DOM alive, so a document-level lookup could hit a
+   * hidden tab's row first and steal the scroll/highlight.
+   */
+  scopeRef: RefObject<HTMLDivElement | null>
+}
+
 /**
  * Mounted next to the settings Outlet: consumes the store's pendingFocusId
  * after a search-result jump, scrolls the target row into view and flashes it.
  */
-const SettingsFocusScroll = () => {
+const SettingsFocusScroll = ({ scopeRef }: SettingsFocusScrollProps) => {
   const { pendingFocusId } = useSettingsSearchKeyboard()
   const location = useLocation()
 
@@ -24,7 +33,7 @@ const SettingsFocusScroll = () => {
     let retryTimer: ReturnType<typeof setTimeout> | undefined
 
     const attempt = (retryIndex: number) => {
-      const el = document.getElementById(pendingFocusId)
+      const el = scopeRef.current?.querySelector<HTMLElement>(`#${CSS.escape(pendingFocusId)}`)
       if (el) {
         el.scrollIntoView({ block: 'center' })
         el.classList.add(HIGHLIGHT_CLASS)
@@ -44,7 +53,7 @@ const SettingsFocusScroll = () => {
     attempt(0)
 
     return () => clearTimeout(retryTimer)
-  }, [pendingFocusId, location.pathname])
+  }, [pendingFocusId, location.pathname, scopeRef])
 
   return null
 }
