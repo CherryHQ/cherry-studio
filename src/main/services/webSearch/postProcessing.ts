@@ -16,6 +16,7 @@ const ABSOLUTE_UTF8_BYTE_LIMIT = 400_000
 
 type BudgetTokenizer = {
   count: (content: string) => number
+  truncate: (content: string, tokenLimit: number) => string
 }
 
 let budgetTokenizerPromise: Promise<BudgetTokenizer> | undefined
@@ -43,12 +44,27 @@ function loadBudgetTokenizer(): Promise<BudgetTokenizer> {
             estimateTokenCount(content),
             countEncoding(o200k.encodeGenerator, content),
             countEncoding(cl100k.encodeGenerator, content)
+          ),
+        truncate: (content: string, tokenLimit: number) => {
+          const heuristicCandidate = trimTrailingUnpairedSurrogate(sliceByTokens(content, 0, tokenLimit))
+          const o200kCandidate = o200k.decode(o200k.encode(content, options).slice(0, tokenLimit))
+          const cl100kCandidate = cl100k.decode(cl100k.encode(content, options).slice(0, tokenLimit))
+          const candidates = [heuristicCandidate, o200kCandidate, cl100kCandidate].filter((candidate) =>
+            content.startsWith(candidate)
           )
+          return candidates.reduce((shortest, candidate) => (candidate.length < shortest.length ? candidate : shortest))
+        }
       }
     })
     .catch(() => {
       budgetTokenizerPromise = undefined
-      return { count: estimateTokenCount }
+      // Every token in the supported BPE families represents at least one source byte. Counting
+      // UTF-8 bytes is deliberately conservative, but remains a hard upper bound when the reference
+      // tokenizers are unavailable; the heuristic alone can undercount adversarial low-delimiter text.
+      return {
+        count: utf8ByteLength,
+        truncate: (content, tokenLimit) => sliceByUtf8Bytes(content, tokenLimit)
+      }
     })
 
   return budgetTokenizerPromise
@@ -161,34 +177,14 @@ function distributeSharedLimit(limit: number, resultCount: number): number[] {
 
 function sliceToBudget(content: string, tokenLimit: number, byteLimit: number, tokenizer: BudgetTokenizer): string {
   const byteBounded = sliceByUtf8Bytes(content, byteLimit)
-  const heuristicBounded = trimTrailingUnpairedSurrogate(sliceByTokens(byteBounded, 0, tokenLimit))
-  if (tokenizer.count(heuristicBounded) <= tokenLimit) {
-    return heuristicBounded
+  const tokenBounded = trimTrailingUnpairedSurrogate(tokenizer.truncate(byteBounded, tokenLimit))
+  if (tokenizer.count(tokenBounded) <= tokenLimit) {
+    return tokenBounded
   }
 
-  const prefixEnds = [0]
-  for (let index = 0; index < heuristicBounded.length; ) {
-    const codePoint = heuristicBounded.codePointAt(index)
-    index += codePoint !== undefined && codePoint > 0xffff ? 2 : 1
-    prefixEnds.push(index)
-  }
-
-  let low = 0
-  let high = prefixEnds.length - 1
-  let retainedEnd = 0
-
-  while (low <= high) {
-    const midpoint = Math.floor((low + high) / 2)
-    const end = prefixEnds[midpoint]
-    if (tokenizer.count(heuristicBounded.slice(0, end)) <= tokenLimit) {
-      retainedEnd = end
-      low = midpoint + 1
-    } else {
-      high = midpoint - 1
-    }
-  }
-
-  return heuristicBounded.slice(0, retainedEnd)
+  // Re-encoding a decoded token prefix can occasionally merge differently. A byte-length fallback
+  // is monotonic and fail-closed, unlike binary-searching a non-monotonic BPE prefix count.
+  return sliceByUtf8Bytes(tokenBounded, tokenLimit)
 }
 
 function applyContentBudget(
