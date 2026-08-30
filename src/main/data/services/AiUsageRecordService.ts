@@ -41,7 +41,7 @@ import type {
   MessageRuntimeTiming,
   MessageStats
 } from '@shared/data/types/message'
-import type { Currency } from '@shared/data/types/model'
+import type { Currency, RuntimeModelPricing } from '@shared/data/types/model'
 import {
   and,
   asc,
@@ -97,6 +97,8 @@ export interface AiUsageCaptureContext {
   modelId: string
   modelName: string | null
   pricingSnapshot: AiUsagePricingSnapshot | null
+  /** Frozen at model selection; converted to a snapshot at the provider-call boundary. */
+  frozenPricing?: RuntimeModelPricing | null
   trustProviderReportedCost: boolean
   reportedCostCurrency: Currency | null
   credentialReceipt: AiUsageCredentialReceipt

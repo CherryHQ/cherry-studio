@@ -8,7 +8,6 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { resolveModelPricing } from '@main/ai/utils/modelPricing'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
@@ -30,6 +29,7 @@ import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
+import { compileModelPricingPolicy, resolveModelPricing } from '@shared/utils/modelPricing'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import { vertexAiService } from './VertexAiService'
@@ -1229,7 +1229,10 @@ export class OpenClawService extends BaseService {
 
   private toOpenClawCost(model: DataModel): OpenClawModelConfig['cost'] | undefined {
     if (!model.pricing) return undefined
-    const pricing = resolveModelPricing(model.pricing, new Date())
+    const pricing = resolveModelPricing(compileModelPricingPolicy(model.pricing), {
+      at: new Date(),
+      inputTokens: 0
+    }).rates
     const isUsd = (currency?: string) => currency === undefined || currency === CURRENCY.USD
     if (!isUsd(pricing.input.currency) || !isUsd(pricing.output.currency)) return undefined
     if (pricing.input.perMillionTokens === null || pricing.output.perMillionTokens === null) return undefined

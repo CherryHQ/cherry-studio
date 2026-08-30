@@ -73,7 +73,7 @@ import type {
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
-import { createAiUsageCaptureContext } from './utils/usageCapture'
+import { captureAiUsagePricingAt, createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
 
@@ -164,7 +164,7 @@ function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProvi
   return (event: RuntimeProviderCallEvent) => {
     aiUsageRecordService.recordInvocation({
       requestId: event.requestId,
-      context,
+      context: captureAiUsagePricingAt(context, event.startedAt),
       modality: event.modality,
       ...(event.modality === 'embedding' && event.usage
         ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }

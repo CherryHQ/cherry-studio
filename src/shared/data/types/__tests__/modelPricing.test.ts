@@ -71,31 +71,61 @@ describe('RuntimeModelPricingSchema input-token tiers', () => {
   })
 })
 
-describe('scheduled model pricing', () => {
-  it('rejects incomplete weekly windows, invalid timezones, and inverted fixed windows', () => {
-    const parseRule = (schedule: object) =>
+describe('conditional model pricing', () => {
+  it('accepts absolute boundaries with an explicit UTC offset', () => {
+    expect(
       RuntimeModelPricingSchema.safeParse({
         ...basePricing,
-        scheduled: { rules: [{ schedule, pricing: { input: basePricing.input } }] }
+        rules: [
+          {
+            when: {
+              time: {
+                timezone: 'Asia/Shanghai',
+                startsAt: '2026-08-30T09:00:00+08:00',
+                endsAt: '2026-08-30T18:00:00+08:00'
+              }
+            },
+            pricing: { input: basePricing.input }
+          }
+        ]
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects invalid cron, timezones, boundaries, empty conditions, and empty overrides', () => {
+    const parseRule = (rule: object) =>
+      RuntimeModelPricingSchema.safeParse({
+        ...basePricing,
+        rules: [rule]
       }).success
 
-    expect(parseRule({ kind: 'weekly', timezone: 'UTC', daysOfWeek: ['monday'], startTime: '01:00' })).toBe(false)
+    expect(parseRule({ when: {}, pricing: { input: basePricing.input } })).toBe(false)
+    expect(parseRule({ when: { minInputTokens: 1 }, pricing: {} })).toBe(false)
+    expect(parseRule({ when: { time: { timezone: 'UTC', cron: ['not cron'] } }, pricing: basePricing })).toBe(false)
+    expect(
+      parseRule({ when: { time: { timezone: 'Not/A_Timezone', cron: ['* * * * *'] } }, pricing: basePricing })
+    ).toBe(false)
     expect(
       parseRule({
-        kind: 'weekly',
-        timezone: 'UTC',
-        daysOfWeek: ['monday'],
-        startTime: '01:00',
-        endTime: '01:00'
+        when: {
+          time: {
+            timezone: 'UTC',
+            startsAt: '2026-09-01T00:00:00.000Z',
+            endsAt: '2026-08-31T00:00:00.000Z'
+          }
+        },
+        pricing: basePricing
       })
     ).toBe(false)
-    expect(parseRule({ kind: 'weekly', timezone: 'Not/A_Timezone', daysOfWeek: ['monday'] })).toBe(false)
+  })
+
+  it('rejects legacy tiers and unified rules stored together', () => {
     expect(
-      parseRule({
-        kind: 'fixed',
-        startsAt: '2026-09-01T00:00:00.000Z',
-        endsAt: '2026-08-31T00:00:00.000Z'
-      })
+      RuntimeModelPricingSchema.safeParse({
+        ...basePricing,
+        inputTokenTiers: [inputTokenTier(1_000)],
+        rules: [{ when: { minInputTokens: 2_000 }, pricing: { input: basePricing.input } }]
+      }).success
     ).toBe(false)
   })
 })

@@ -71,6 +71,7 @@
   "peerDependencies": {},
   "dependencies": {
     "class-variance-authority": "^0.7.1",
+    "croner": "^10.0.1",
     "json-schema": "^0.4.0",
     "lucide-react": "^0.563.0",
     "semver": "^7.7.1"

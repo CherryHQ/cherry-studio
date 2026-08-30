@@ -3,6 +3,7 @@
  * Defines the structure for model metadata, capabilities, and configurations
  */
 
+import { Cron } from 'croner'
 import * as z from 'zod'
 
 import {
@@ -390,7 +391,7 @@ export const ParameterSupportSchema = z.object({
   systemMessage: z.boolean().default(true)
 })
 
-export const ScheduledPricingOverrideSchema = z
+export const ModelPricingOverrideSchema = z
   .object({
     input: PricePerTokenSchema.optional(),
     output: PricePerTokenSchema.optional(),
@@ -398,62 +399,71 @@ export const ScheduledPricingOverrideSchema = z
     cacheWrite: PricePerTokenSchema.optional()
   })
   .refine((pricing) => Object.values(pricing).some((rate) => rate !== undefined), {
-    message: 'scheduled pricing override must contain at least one rate'
+    message: 'pricing rule must override at least one rate'
   })
 
-export const WeeklyPricingScheduleSchema = z
+const IanaTimezoneSchema = z.stringFormat(
+  'iana-timezone',
+  (timezone) => {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format()
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'invalid IANA timezone' }
+)
+
+const FivePartCronSchema = z.stringFormat(
+  'cron-5-part',
+  (expression) => {
+    try {
+      new Cron(expression, { mode: '5-part', paused: true, timezone: 'UTC' })
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'invalid five-part cron expression' }
+)
+
+const ModelPricingTimeConditionSchema = z
   .object({
-    kind: z.literal('weekly'),
-    timezone: z.string().min(1),
-    daysOfWeek: z.array(z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])).min(1),
-    startTime: z
-      .string()
-      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-      .optional(),
-    endTime: z
-      .string()
-      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-      .optional()
+    timezone: IanaTimezoneSchema,
+    cron: z.array(FivePartCronSchema).min(1).optional(),
+    startsAt: z.iso.datetime({ offset: true }).optional(),
+    endsAt: z.iso.datetime({ offset: true }).optional()
   })
-  .superRefine((schedule, ctx) => {
-    if ((schedule.startTime === undefined) !== (schedule.endTime === undefined)) {
+  .superRefine((time, ctx) => {
+    if (!time.cron && !time.startsAt && !time.endsAt) {
       ctx.addIssue({
         code: 'custom',
-        path: [schedule.startTime === undefined ? 'startTime' : 'endTime'],
-        message: 'startTime and endTime must be provided together'
+        message: 'time condition must contain cron or an absolute boundary'
       })
     }
-    if (schedule.startTime !== undefined && schedule.startTime === schedule.endTime) {
-      ctx.addIssue({ code: 'custom', path: ['endTime'], message: 'endTime must differ from startTime' })
+    if (time.startsAt && time.endsAt && Date.parse(time.startsAt) >= Date.parse(time.endsAt)) {
+      ctx.addIssue({ code: 'custom', path: ['endsAt'], message: 'endsAt must be after startsAt' })
     }
-    try {
-      new Intl.DateTimeFormat('en-US', { timeZone: schedule.timezone }).format()
-    } catch {
-      ctx.addIssue({ code: 'custom', path: ['timezone'], message: 'invalid IANA timezone' })
+    for (const [index, expression] of (time.cron ?? []).entries()) {
+      try {
+        new Cron(expression, { mode: '5-part', paused: true, timezone: time.timezone })
+      } catch {
+        ctx.addIssue({ code: 'custom', path: ['cron', index], message: 'invalid five-part cron expression' })
+      }
     }
   })
 
-export const FixedPricingScheduleSchema = z
-  .object({
-    kind: z.literal('fixed'),
-    startsAt: z.iso.datetime(),
-    endsAt: z.iso.datetime()
-  })
-  .refine((schedule) => Date.parse(schedule.startsAt) < Date.parse(schedule.endsAt), {
-    path: ['endsAt'],
-    message: 'endsAt must be after startsAt'
-  })
-
-export const ScheduledModelPricingSchema = z.object({
-  default: ScheduledPricingOverrideSchema.optional(),
-  rules: z
-    .array(
-      z.object({
-        schedule: z.union([WeeklyPricingScheduleSchema, FixedPricingScheduleSchema]),
-        pricing: ScheduledPricingOverrideSchema
-      })
-    )
-    .min(1)
+export const ModelPricingRuleSchema = z.object({
+  when: z
+    .object({
+      minInputTokens: z.number().int().positive().refine(Number.isSafeInteger).optional(),
+      time: ModelPricingTimeConditionSchema.optional()
+    })
+    .refine((when) => when.minInputTokens !== undefined || when.time !== undefined, {
+      message: 'pricing rule must contain at least one condition'
+    }),
+  pricing: ModelPricingOverrideSchema
 })
 
 /**
@@ -486,7 +496,7 @@ export const ModelPricingSchema = z.object({
     })
     .optional(),
 
-  scheduled: ScheduledModelPricingSchema.optional()
+  rules: z.array(ModelPricingRuleSchema).optional()
 })
 
 // Model configuration schema
@@ -564,7 +574,7 @@ export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
 export type SupportSpec = z.infer<typeof SupportSpecSchema>
 export type ImageModeDef = z.infer<typeof ImageModeDefSchema>
 export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
-export type ScheduledModelPricing = z.infer<typeof ScheduledModelPricingSchema>
+export type ModelPricingRule = z.infer<typeof ModelPricingRuleSchema>
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
 export type ModelConfig = z.infer<typeof ModelConfigSchema>
 export type ModelList = z.infer<typeof ModelListSchema>

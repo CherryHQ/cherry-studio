@@ -32,10 +32,10 @@ import {
   ImageGenerationSupportSchema,
   MODALITY,
   MODEL_CAPABILITY,
+  ModelPricingRuleSchema,
   objectValues,
   REASONING_EFFORT,
   ReasoningControlSchema,
-  ScheduledModelPricingSchema,
   SERVER_TOOL
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
@@ -307,7 +307,7 @@ export const RuntimeModelPricingSchema = z
     cacheRead: PricePerTokenSchema.optional(),
     cacheWrite: PricePerTokenSchema.optional(),
     inputTokenTiers: z.array(InputTokenPricingTierSchema).optional(),
-    scheduled: ScheduledModelPricingSchema.optional(),
+    rules: z.array(ModelPricingRuleSchema).optional(),
     perImage: z
       .object({
         price: z.number(),
@@ -333,7 +333,15 @@ export const RuntimeModelPricingSchema = z
       }
     }
 
-    if (!pricing.inputTokenTiers?.length && !pricing.scheduled) return
+    if (pricing.inputTokenTiers?.length && pricing.rules?.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rules'],
+        message: 'inputTokenTiers and rules cannot be stored together'
+      })
+    }
+
+    if (!pricing.inputTokenTiers?.length && !pricing.rules?.length) return
 
     const rates = [
       { rate: pricing.input, path: ['input'] },
@@ -346,14 +354,10 @@ export const RuntimeModelPricingSchema = z
         ...(tier.cacheRead ? [{ rate: tier.cacheRead, path: ['inputTokenTiers', index, 'cacheRead'] }] : []),
         ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
       ]),
-      ...Object.entries(pricing.scheduled?.default ?? {}).map(([field, rate]) => ({
-        rate,
-        path: ['scheduled', 'default', field]
-      })),
-      ...(pricing.scheduled?.rules ?? []).flatMap((rule, index) =>
+      ...(pricing.rules ?? []).flatMap((rule, index) =>
         Object.entries(rule.pricing).map(([field, rate]) => ({
           rate,
-          path: ['scheduled', 'rules', index, 'pricing', field]
+          path: ['rules', index, 'pricing', field]
         }))
       )
     ]

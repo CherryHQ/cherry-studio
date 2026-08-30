@@ -436,14 +436,12 @@ describe('ModelService.update', () => {
     const providerPricing = {
       input: { perMillionTokens: 1, currency: 'USD' as const },
       output: { perMillionTokens: 2, currency: 'USD' as const },
-      scheduled: {
-        rules: [
-          {
-            schedule: { kind: 'weekly' as const, timezone: 'UTC', daysOfWeek: ['monday' as const] },
-            pricing: { input: { perMillionTokens: 0.5, currency: 'USD' as const } }
-          }
-        ]
-      }
+      rules: [
+        {
+          when: { time: { timezone: 'UTC', cron: ['* * * * 1'] } },
+          pricing: { input: { perMillionTokens: 0.5, currency: 'USD' as const } }
+        }
+      ]
     }
     lookupModelMock.mockReturnValue({
       presetModel: { id: 'gpt-4o', name: 'GPT-4o', pricing: providerPricing },

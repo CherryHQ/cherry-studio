@@ -135,6 +135,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
       modelId: 'test-embedding-model',
       usage: result.usage,
       metrics: { timeCompletionMs: 10 },
+      startedAt: 90,
       completedAt: 100
     })
     return result
@@ -149,6 +150,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
       modelId: 'test-model',
       imageCount: result.images?.length ?? 0,
       metrics: { timeCompletionMs: 10 },
+      startedAt: 90,
       completedAt: 100
     })
     return result
@@ -162,6 +164,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
       providerId: args[0],
       modelId: 'test-reranker',
       metrics: { timeCompletionMs: 10 },
+      startedAt: 90,
       completedAt: 100
     })
     return result

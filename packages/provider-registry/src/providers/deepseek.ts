@@ -22,46 +22,30 @@ const v4ProPeakPricing = {
   output: { currency: 'USD' as const, perMillionTokens: 3.96 }
 }
 
-const deepseekPeakDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
-
-function withDeepSeekSchedule<T extends typeof v4FlashPeakPricing>(peak: T, offPeak: T) {
+function withDeepSeekPricingRules<T extends typeof v4FlashPeakPricing>(peak: T, offPeak: T) {
   return {
-    ...peak,
-    scheduled: {
-      default: offPeak,
-      rules: [
-        {
-          schedule: {
-            kind: 'weekly' as const,
+    ...offPeak,
+    rules: [
+      {
+        when: {
+          time: {
             timezone: 'UTC',
-            daysOfWeek: [...deepseekPeakDays],
-            startTime: '01:00',
-            endTime: '04:00'
-          },
-          pricing: peak
+            cron: ['* 1-3 * * 1-5', '* 6-9 * * 1-5']
+          }
         },
-        {
-          schedule: {
-            kind: 'weekly' as const,
-            timezone: 'UTC',
-            daysOfWeek: [...deepseekPeakDays],
-            startTime: '06:00',
-            endTime: '10:00'
-          },
-          pricing: peak
-        }
-      ]
-    }
+        pricing: peak
+      }
+    ]
   }
 }
 
-const v4FlashPricing = withDeepSeekSchedule(v4FlashPeakPricing, {
+const v4FlashPricing = withDeepSeekPricingRules(v4FlashPeakPricing, {
   cacheRead: { currency: 'USD' as const, perMillionTokens: 0.007 },
   input: { currency: 'USD' as const, perMillionTokens: 0.22 },
   output: { currency: 'USD' as const, perMillionTokens: 0.66 }
 })
 
-const v4ProPricing = withDeepSeekSchedule(v4ProPeakPricing, {
+const v4ProPricing = withDeepSeekPricingRules(v4ProPeakPricing, {
   cacheRead: { currency: 'USD' as const, perMillionTokens: 0.022 },
   input: { currency: 'USD' as const, perMillionTokens: 0.66 },
   output: { currency: 'USD' as const, perMillionTokens: 1.98 }

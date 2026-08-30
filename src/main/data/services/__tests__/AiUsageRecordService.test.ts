@@ -591,26 +591,22 @@ describe('AiUsageRecordService', () => {
     })
   })
 
-  it('freezes the rate active when a scheduled invocation starts', () => {
+  it('freezes the ordered conditional rate active when an invocation starts', () => {
     const pricing = {
-      input: { perMillionTokens: 2, currency: 'USD' as const },
-      output: { perMillionTokens: 4, currency: 'USD' as const },
-      scheduled: {
-        default: {
-          input: { perMillionTokens: 1, currency: 'USD' as const },
-          output: { perMillionTokens: 2, currency: 'USD' as const }
-        },
-        rules: [
-          {
-            schedule: {
-              kind: 'fixed' as const,
+      input: { perMillionTokens: 1, currency: 'USD' as const },
+      output: { perMillionTokens: 2, currency: 'USD' as const },
+      rules: [
+        {
+          when: {
+            time: {
+              timezone: 'UTC',
               startsAt: '2026-07-28T01:00:00.000Z',
               endsAt: '2026-07-28T02:00:00.000Z'
-            },
-            pricing: { input: { perMillionTokens: 0.25, currency: 'USD' as const } }
-          }
-        ]
-      }
+            }
+          },
+          pricing: { input: { perMillionTokens: 0.25, currency: 'USD' as const } }
+        }
+      ]
     }
 
     expect(createAiUsagePricingSnapshot(pricing, '2026-07-28T01:30:00.000Z')).toEqual({
@@ -622,6 +618,38 @@ describe('AiUsageRecordService', () => {
     expect(createAiUsagePricingSnapshot(pricing, '2026-07-28T02:00:00.000Z')).toMatchObject({
       inputPerMillionTokens: 1,
       outputPerMillionTokens: 2
+    })
+  })
+
+  it('projects time and token conditions into one immutable tier snapshot', () => {
+    const snapshot = createAiUsagePricingSnapshot(
+      {
+        input: { perMillionTokens: 1, currency: 'USD' },
+        output: { perMillionTokens: 2, currency: 'USD' },
+        rules: [
+          {
+            when: { time: { timezone: 'UTC', cron: ['* 1 * * *'] } },
+            pricing: { input: { perMillionTokens: 0.5, currency: 'USD' } }
+          },
+          {
+            when: { minInputTokens: 1000 },
+            pricing: { output: { perMillionTokens: 5, currency: 'USD' } }
+          }
+        ]
+      },
+      '2026-08-31T01:30:00.000Z'
+    )
+
+    expect(snapshot).toMatchObject({
+      inputPerMillionTokens: 0.5,
+      outputPerMillionTokens: 2,
+      inputTokenTiers: [
+        {
+          minInputTokens: 1000,
+          inputPerMillionTokens: 0.5,
+          outputPerMillionTokens: 5
+        }
+      ]
     })
   })
 

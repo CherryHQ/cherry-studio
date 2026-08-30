@@ -1827,6 +1827,9 @@ importers:
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
+      croner:
+        specifier: ^10.0.1
+        version: 10.0.1
       json-schema:
         specifier: ^0.4.0
         version: 0.4.0

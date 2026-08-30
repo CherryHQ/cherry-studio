@@ -95,6 +95,46 @@ describe('createLanguageUsageMiddleware', () => {
     now.mockRestore()
   })
 
+  it('freezes conditional pricing at provider-call start instead of completion', async () => {
+    const start = Date.parse('2026-08-31T01:59:59.900Z')
+    const completion = Date.parse('2026-08-31T02:00:00.100Z')
+    const clock = vi.spyOn(Date, 'now').mockReturnValueOnce(start).mockReturnValueOnce(completion)
+    const middleware = createLanguageUsageMiddleware({
+      ...context,
+      frozenPricing: {
+        input: { perMillionTokens: 1, currency: 'USD' },
+        output: { perMillionTokens: 2, currency: 'USD' },
+        rules: [
+          {
+            when: {
+              time: {
+                timezone: 'UTC',
+                startsAt: '2026-08-31T01:00:00.000Z',
+                endsAt: '2026-08-31T02:00:00.000Z'
+              }
+            },
+            pricing: { input: { perMillionTokens: 0.5, currency: 'USD' } }
+          }
+        ]
+      }
+    })
+
+    await middleware.wrapGenerate!({
+      doGenerate: async () => ({
+        usage,
+        content: [],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        warnings: []
+      })
+    } as never)
+
+    expect(recordInvocation.mock.calls[0][0].context.pricingSnapshot).toMatchObject({
+      inputPerMillionTokens: 0.5,
+      capturedAt: '2026-08-31T01:59:59.900Z'
+    })
+    clock.mockRestore()
+  })
+
   it('attaches amount-only provider cost with the frozen registry currency', async () => {
     const middleware = createLanguageUsageMiddleware({
       ...context,

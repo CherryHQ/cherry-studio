@@ -16,6 +16,7 @@ export type RuntimeProviderCallEvent =
       modelId: string
       usage?: { tokens: number }
       metrics: { timeCompletionMs: number }
+      startedAt: number
       completedAt: number
     }
   | {
@@ -26,6 +27,7 @@ export type RuntimeProviderCallEvent =
       imageCount: number
       usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
       metrics: { timeCompletionMs: number }
+      startedAt: number
       completedAt: number
     }
   | {
@@ -34,6 +36,7 @@ export type RuntimeProviderCallEvent =
       providerId: string
       modelId: string
       metrics: { timeCompletionMs: number }
+      startedAt: number
       completedAt: number
     }
 

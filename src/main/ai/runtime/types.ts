@@ -110,7 +110,7 @@ export type AgentRuntimeEvent =
         model: string
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
-        /** Epoch milliseconds when this provider invocation began, used for scheduled pricing. */
+        /** Epoch milliseconds when this provider invocation began, used to resolve conditional pricing. */
         startedAt: number
         usage?: {
           inputTokens: number
