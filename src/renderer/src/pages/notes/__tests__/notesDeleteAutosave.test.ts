@@ -56,8 +56,7 @@ describe('notes delete / autosave guards', () => {
 
       // simulate saveCurrentNote post-write check
       const normalizedAfter = normalizePathValue(target)
-      const shouldCleanup =
-        normalizedAfter === pendingDelete || normalizedAfter.startsWith(`${pendingDelete}/`)
+      const shouldCleanup = normalizedAfter === pendingDelete || normalizedAfter.startsWith(`${pendingDelete}/`)
       expect(shouldCleanup).toBe(true)
 
       if (shouldCleanup) {
