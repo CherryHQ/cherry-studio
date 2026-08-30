@@ -222,7 +222,7 @@ describe('SettingsSearchBox', () => {
       </Activity>
     )
 
-    expect((screen.getByTestId('search-input') as HTMLInputElement).value).toBe('theme')
+    expect(screen.getByTestId<HTMLInputElement>('search-input').value).toBe('theme')
   })
 
   it('wires aria-controls to the shared per-instance listbox id', () => {
