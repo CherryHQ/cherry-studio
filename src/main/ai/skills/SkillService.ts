@@ -7,14 +7,11 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { decodeTextBufferIfText, isOutsidePath, openReadableFileSnapshot } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type {
-  SkillFileNode,
   SkillImportSystemOptions,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
@@ -27,13 +24,12 @@ import { Mutex } from 'async-mutex'
 
 import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
-import { buildFileTree, createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
+import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
 import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
-const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
@@ -97,49 +93,6 @@ export class SkillService {
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
   }
 
-  async readFile(skillId: string, filename: string): Promise<string | null> {
-    const skill = agentGlobalSkillService.getById(skillId)
-    if (!skill) return null
-
-    const skillRoot = this.getMirrorPath(skill.folderName)
-    const filePath = path.resolve(skillRoot, filename)
-
-    // Prevent path traversal
-    if (!filePath.startsWith(skillRoot + path.sep) && filePath !== skillRoot) return null
-
-    try {
-      const [realRoot, realFile] = await Promise.all([fs.promises.realpath(skillRoot), fs.promises.realpath(filePath)])
-      if (isOutsidePath(path.relative(realRoot, realFile))) return null
-
-      const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(realFile))
-      try {
-        if (snapshot.size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return null
-
-        const chunks: Buffer[] = []
-        for await (const chunk of snapshot.createReadStream()) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-        }
-        return decodeTextBufferIfText(Buffer.concat(chunks, snapshot.size))
-      } finally {
-        await snapshot.close()
-      }
-    } catch {
-      return null
-    }
-  }
-
-  async listFiles(skillId: string): Promise<SkillFileNode[]> {
-    const skill = agentGlobalSkillService.getById(skillId)
-    if (!skill) return []
-
-    const skillRoot = this.getMirrorPath(skill.folderName)
-    try {
-      return await buildFileTree(skillRoot, skillRoot)
-    } catch {
-      return []
-    }
-  }
-
   async uninstallByFolderName(folderName: string): Promise<void> {
     const skill = agentGlobalSkillService.getByFolderName(folderName)
     if (!skill) {
@@ -163,7 +116,13 @@ export class SkillService {
 
   /** Resolve the app-owned directory for an installed skill. */
   getInstalledSkillDirectory(skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>): string {
-    return this.getSkillStoragePath(skill.folderName)
+    const rootPath = path.resolve(application.getPath('feature.agents.skills'))
+    const skillPath = path.resolve(rootPath, skill.folderName)
+    const relativePath = path.relative(rootPath, skillPath)
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      throw new Error(`Invalid managed Skill folder: ${skill.folderName}`)
+    }
+    return skillPath
   }
 
   /** Local plugin bridge used when the SDK user setting source must remain isolated. */

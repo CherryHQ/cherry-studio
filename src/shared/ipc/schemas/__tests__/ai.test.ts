@@ -171,3 +171,19 @@ describe('ai.agent.support_session.create IPC schema', () => {
     ).toBe(false)
   })
 })
+
+describe('ai.agent.skill_session.create IPC schema', () => {
+  const createSkillSession = aiRequestSchemas['ai.agent.skill_session.create'].input
+  const createSkillSessionResult = aiRequestSchemas['ai.agent.skill_session.create'].output
+
+  it('requires one non-empty Skill id and rejects unrelated fields', () => {
+    expect(createSkillSession.parse({ skillId: 'skill-1' })).toEqual({ skillId: 'skill-1' })
+    expect(createSkillSession.safeParse({ skillId: '' }).success).toBe(false)
+    expect(createSkillSession.safeParse({ skillId: 'skill-1', agentId: 'agent-1' }).success).toBe(false)
+  })
+
+  it('returns only the prepared Session id', () => {
+    expect(createSkillSessionResult.parse({ sessionId: 'session-1' })).toEqual({ sessionId: 'session-1' })
+    expect(createSkillSessionResult.safeParse({ sessionId: 'session-1', skillId: 'skill-1' }).success).toBe(false)
+  })
+})

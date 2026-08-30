@@ -41,6 +41,7 @@ vi.mock('react-i18next', () => ({
           'library.assistant_catalog.go_to_chat': '去对话',
           'library.create_menu.create': '新建助手',
           'library.skill_add.add': '添加技能',
+          'library.skill_add.create_with_agent': '通过 Agent 创建',
           'library.skill_add.local_import': '本地导入',
           'library.skill_add.online_search': '在线搜索',
           'library.skill_add.system_search': '系统搜索',
@@ -49,6 +50,8 @@ vi.mock('react-i18next', () => ({
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
           'settings.skills.globalToggle': '全局启用技能',
+          'settings.skills.source.local': '本地',
+          'settings.skills.tryNow': '立即试用',
           'settings.skills.toggleFailed': '更新技能全局状态失败'
         }) satisfies Record<string, string>
       )[key] ?? key
@@ -431,7 +434,7 @@ function createSkillResource(version: string | null = null, isGlobalEnabled = tr
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version, isGlobalEnabled } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled, source: 'local' } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -616,6 +619,17 @@ describe('ResourceGrid skill add actions', () => {
     await user.click(screen.getByRole('menuitem', { name: '系统搜索' }))
 
     expect(onOpenSystemSkills).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers Agent creation when the builtin creator is available', async () => {
+    const user = userEvent.setup()
+    const onCreateSkillWithAgent = vi.fn()
+
+    renderResourceGrid({ activeResourceType: 'skill', onCreateSkillWithAgent })
+    await user.click(screen.getByRole('button', { name: '添加技能' }))
+    await user.click(screen.getByRole('menuitem', { name: '通过 Agent 创建' }))
+
+    expect(onCreateSkillWithAgent).toHaveBeenCalledOnce()
   })
 
   it('hides system search when no current agent is available', () => {
@@ -821,7 +835,23 @@ describe('ResourceGrid card actions', () => {
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
   })
 
-  it('shows the overflow menu only for assistant cards', () => {
+  it('keeps Try Now and More visible on every settings Skill card', async () => {
+    const user = userEvent.setup()
+    const skill = createSkillResource()
+    const onLaunchSkill = vi.fn()
+    const onDelete = vi.fn()
+
+    render(<ResourceCard resource={skill} variant="settings" {...getResourceCardProps({ onDelete, onLaunchSkill })} />)
+
+    expect(screen.getByText('本地')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '立即试用' }))
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(skill)
+
+    expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+  })
+
+  it('shows the overflow menu for cards with secondary actions', () => {
     render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
 
     expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()

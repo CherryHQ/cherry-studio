@@ -5,11 +5,12 @@ import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
-import { Trash2 } from 'lucide-react'
+import { Play, Trash2 } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceCardMenu } from './ResourceCardMenu'
+import { SkillSourceBadge } from './SkillSourceBadge'
 
 // Cards expose their primary action on the outer element, so keyboard users need
 // Enter/Space to mirror the pointer click. Guard on the event target: a key press on
@@ -31,10 +32,11 @@ interface ResourceCardProps {
   onDuplicate: (resource: ResourceItem) => void
   onEdit: (resource: ResourceItem) => void
   onExport: (resource: ResourceItem) => void
+  onLaunchSkill?: (resource: ResourceItem) => void
 }
 
 function hasOverflowActions(resource: ResourceItem) {
-  return resource.type === 'assistant'
+  return resource.type === 'assistant' || resource.type === 'skill'
 }
 
 function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
@@ -67,7 +69,8 @@ export function ResourceCard({
   onDelete,
   onDuplicate,
   onEdit,
-  onExport
+  onExport,
+  onLaunchSkill
 }: ResourceCardProps) {
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
@@ -111,6 +114,7 @@ export function ResourceCard({
                   {skillVersion}
                 </Badge>
               )}
+              {r.type === 'skill' ? <SkillSourceBadge source={r.raw.source} /> : null}
             </div>
             <p
               className={cn(
@@ -132,15 +136,21 @@ export function ResourceCard({
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
             {r.type === 'skill' && isSettings ? (
               <div className="flex items-center gap-1">
+                {onLaunchSkill ? (
+                  <Button variant="ghost" size="sm" onClick={() => onLaunchSkill(r)} className="gap-1.5">
+                    <Play size={12} aria-hidden />
+                    {t('settings.skills.tryNow')}
+                  </Button>
+                ) : null}
                 <SkillGlobalToggle resource={r} />
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('library.action.uninstall')}
-                  onClick={() => onDelete(r)}
-                  className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
-                  <Trash2 size={12} className="lucide-custom" />
-                </Button>
+                <ResourceCardMenu
+                  resource={r}
+                  onDuplicate={onDuplicate}
+                  onDelete={onDelete}
+                  onExport={onExport}
+                  allGroups={allGroups}
+                  triggerClassName="text-muted-foreground hover:text-foreground"
+                />
               </div>
             ) : showOverflowMenu ? (
               <ResourceCardMenu
@@ -155,7 +165,7 @@ export function ResourceCard({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label={r.type === 'skill' ? t('library.action.uninstall') : t('common.delete')}
+                aria-label={t('common.delete')}
                 onClick={() => onDelete(r)}
                 className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
                 <Trash2 size={12} className="lucide-custom" />

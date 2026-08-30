@@ -3,6 +3,7 @@ import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalo
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import type { InstalledSkill } from '@shared/data/types/agent'
 import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,6 +18,8 @@ type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'sk
 export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
+  onOpenSkill?: (skill: InstalledSkill) => void
+  onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
   resourceType: ResourceCatalogViewType
   toolbarLeading?: ReactNode
   /** `settings` swaps the full-bleed toolbar for a settings page header (title + add button + search row). */
@@ -28,6 +31,8 @@ export type ResourceCatalogViewProps = {
 export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
+  onOpenSkill,
+  onLaunchSkill,
   resourceType,
   toolbarLeading,
   variant = 'library',
@@ -35,10 +40,12 @@ export function ResourceCatalogView({
   description
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
+  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType, {
+    onOpenSkill,
+    onLaunchSkill
+  })
   const hasActiveDialog = Boolean(
-    dialogs.selectedSkill ||
-      dialogs.assistantImportOpen ||
+    dialogs.assistantImportOpen ||
       (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
       dialogs.skillImportOpen ||
       dialogs.skillMarketplaceOpen ||

@@ -96,6 +96,35 @@ const assistantResource = {
   raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', groupId: null }
 } as unknown as ResourceItem
 
+function createSkillResource(id: string, folderName: string, source: string): Extract<ResourceItem, { type: 'skill' }> {
+  return {
+    id,
+    type: 'skill',
+    name: folderName,
+    description: '',
+    avatar: 'S',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    raw: {
+      id,
+      name: folderName,
+      description: null,
+      folderName,
+      source,
+      sourceUrl: null,
+      namespace: null,
+      author: null,
+      version: null,
+      sourceTags: [],
+      contentHash: 'hash',
+      isGlobalEnabled: true,
+      isEnabled: false,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z'
+    }
+  }
+}
+
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -198,6 +227,43 @@ describe('useResourceCatalogController', () => {
       kind: 'assistant',
       id: 'assistant-to-duplicate'
     })
+  })
+
+  it('opens and launches a Skill through the shared callbacks', async () => {
+    const skill = createSkillResource('skill-1', 'writer', 'local')
+    const onOpenSkill = vi.fn()
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onOpenSkill, onLaunchSkill }))
+
+    act(() => result.current.gridProps.onEdit(skill))
+    act(() => result.current.gridProps.onLaunchSkill?.(skill))
+
+    expect(onOpenSkill).toHaveBeenCalledExactlyOnceWith(skill.raw)
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(skill.raw)
+  })
+
+  it('launches only the exact builtin skill-creator from the unfiltered catalog', () => {
+    const localImpostor = createSkillResource('local-creator', 'skill-creator', 'local')
+    const builtinCreator = createSkillResource('builtin-creator', 'skill-creator', 'builtin')
+    controllerMocks.resourceLibraryState.allResources = [localImpostor, builtinCreator]
+    controllerMocks.resourceLibraryState.resources = []
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onLaunchSkill }))
+
+    act(() => result.current.gridProps.onCreateSkillWithAgent?.())
+
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(builtinCreator.raw)
+  })
+
+  it('does not create a session when the builtin skill-creator is unavailable', () => {
+    controllerMocks.resourceLibraryState.allResources = [createSkillResource('local-creator', 'skill-creator', 'local')]
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onLaunchSkill }))
+
+    act(() => result.current.gridProps.onCreateSkillWithAgent?.())
+
+    expect(onLaunchSkill).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('settings.skills.creatorUnavailable')
   })
 
   it('reports assistant export failures without throwing', async () => {

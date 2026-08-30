@@ -1,6 +1,14 @@
-import { SkillsSettings } from '@renderer/pages/settings/SkillsSettings'
-import { createFileRoute } from '@tanstack/react-router'
+import { SkillLauncherProvider } from '@renderer/hooks/useSkillLauncher'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
+
+function SkillsLayout() {
+  return (
+    <SkillLauncherProvider>
+      <Outlet />
+    </SkillLauncherProvider>
+  )
+}
 
 export const Route = createFileRoute('/settings/skills')({
-  component: SkillsSettings
+  component: SkillsLayout
 })

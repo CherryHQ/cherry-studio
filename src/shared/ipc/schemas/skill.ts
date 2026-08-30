@@ -1,3 +1,4 @@
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { InstalledSkill, LocalSkill, SkillResult, SystemSkillCandidate } from '@shared/types/skill'
 import * as z from 'zod'
 
@@ -11,7 +12,7 @@ import { defineRoute } from '../define'
  * `{ success, data } | { success, error }` (and logs on failure), and the renderer keeps
  * unwrapping it. New routes use IpcApi's native result/error contract and
  * therefore declare their data directly. Outputs are `z.custom` (IpcApi validates inputs,
- * not outputs). Skill_ReadFile / Skill_ListFiles stay on legacy IPC.
+ * not outputs).
  */
 export const skillRequestSchemas = {
   'skill.install': defineRoute({
@@ -49,5 +50,16 @@ export const skillRequestSchemas = {
   'skill.folder.open': defineRoute({
     input: z.object({ skillId: z.string().min(1) }),
     output: z.void()
+  }),
+  'skill.folder.resolve': defineRoute({
+    input: z.strictObject({ skillId: z.string().min(1) }),
+    output: z.discriminatedUnion('access', [
+      z.strictObject({ rootPath: AbsoluteFilePathSchema, access: z.literal('read_write') }),
+      z.strictObject({
+        rootPath: AbsoluteFilePathSchema,
+        access: z.literal('read_only'),
+        readOnlyReason: z.literal('builtin')
+      })
+    ])
   })
 }

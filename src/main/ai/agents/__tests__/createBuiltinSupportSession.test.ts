@@ -50,7 +50,10 @@ describe('createBuiltinSupportSession', () => {
     expect(dbh.db.select().from(agentTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
-    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledExactlyOnceWith([
+    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledWith([
+      { endpoint: '/agents', kind: 'membership', entityIds: [CHERRY_SUPPORT_AGENT_ID] }
+    ])
+    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledWith([
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
