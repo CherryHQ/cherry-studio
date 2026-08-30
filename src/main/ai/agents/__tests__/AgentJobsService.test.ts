@@ -269,6 +269,30 @@ describe('AgentJobsService', () => {
       expect(getIntervalEntry(task.id)).toBe(originalEntry)
     })
 
+    it('refreshes session source projections after a task rename commits', () => {
+      const task = service.createTask(AGENT_ID, form)
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled session',
+          workspace: { type: 'system' }
+        },
+        { taskId: task.id }
+      )
+      notifyDataApiDataChangeMock.mockClear()
+
+      service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
+
+      expect(agentSessionService.getById(session.id).source).toMatchObject({
+        kind: 'scheduled-task',
+        taskName: 'renamed'
+      })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' }
+      ])
+    })
+
     it('re-arms the timer after commit when the trigger actually changed', () => {
       const task = service.createTask(AGENT_ID, form)
       const originalEntry = getIntervalEntry(task.id)
@@ -588,12 +612,26 @@ describe('AgentJobsService', () => {
     it('delete removes the row, cascades the subscriptions, and disposes the timer', async () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
       const task = service.createTask(AGENT_ID, { ...form, channelIds: [CHANNEL_ID] })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled session',
+          workspace: { type: 'system' }
+        },
+        { taskId: task.id }
+      )
+      notifyDataApiDataChangeMock.mockClear()
 
       expect(await service.deleteTask(AGENT_ID, task.id)).toBe(true)
 
       expect(jobScheduleService.getById(task.id)).toBeNull()
       expect(subscriptionRows(task.id)).toHaveLength(0)
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+      expect(agentSessionService.getById(session.id).source).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' }
+      ])
     })
 
     it('deleting an agent removes its schedules and disposes their timers (orphan cleanup)', async () => {

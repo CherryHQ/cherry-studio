@@ -8,6 +8,7 @@ import {
 } from '@shared/data/api/schemas/agentChannels'
 
 import { agentChannelService } from './AgentChannelService'
+import { agentSessionService } from './AgentSessionService'
 
 const logger = loggerService.withContext('AgentChannelWorkflowService')
 
@@ -43,6 +44,7 @@ export class AgentChannelWorkflowService {
   async updateChannel(channelId: string, updates: UpdateAgentChannelDto) {
     const existing = agentChannelService.getChannel(channelId)
     if (!existing) return null
+    const sourceProjectionChanged = updates.name !== undefined && updates.name !== existing.name
 
     const validatedConfig =
       updates.config !== undefined
@@ -78,6 +80,7 @@ export class AgentChannelWorkflowService {
 
     try {
       await application.get('ChannelManager').syncChannel(channelId, { awaitConnect: true, strictDisconnect: true })
+      if (sourceProjectionChanged) agentSessionService.notifySourceProjectionChange()
       return channel
     } catch (error) {
       // `existing` came from rowToEntity which runs nullsToUndefined; without
@@ -93,8 +96,9 @@ export class AgentChannelWorkflowService {
         permissionMode: existing.permissionMode ?? null
       }
 
+      let restored = false
       try {
-        agentChannelService.updateChannel(channelId, restoreUpdates)
+        restored = agentChannelService.updateChannel(channelId, restoreUpdates) !== null
         if (agentIdChanged) {
           // Re-clear subscriptions created during the transient rebind window, then restore the old-agent snapshot.
           agentChannelService.clearTaskSubscriptionsForChannel(channelId)
@@ -117,6 +121,7 @@ export class AgentChannelWorkflowService {
             resyncError: resyncError instanceof Error ? resyncError.message : String(resyncError)
           })
         })
+      if (sourceProjectionChanged && !restored) agentSessionService.notifySourceProjectionChange()
       throw error
     }
   }
@@ -127,7 +132,9 @@ export class AgentChannelWorkflowService {
 
     await application.get('ChannelManager').disconnectChannel(channelId, { suppressErrors: false })
     try {
-      return agentChannelService.deleteChannel(channelId)
+      const deleted = agentChannelService.deleteChannel(channelId)
+      if (deleted) agentSessionService.notifySourceProjectionChange()
+      return deleted
     } catch (error) {
       await application
         .get('ChannelManager')

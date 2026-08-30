@@ -127,6 +127,7 @@ export class AgentJobsService extends BaseService {
   updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
     const existing = agentTaskService.getTask(agentId, taskId)
     if (!existing) return null
+    const nameChanged = patch.name !== undefined && patch.name !== existing.name
     if (patch.channelIds !== undefined) {
       this.assertChannelsBelongToAgent(agentId, patch.channelIds)
     }
@@ -185,6 +186,7 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
+    if (nameChanged) agentSessionService.notifySourceProjectionChange()
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
@@ -224,7 +226,10 @@ export class AgentJobsService extends BaseService {
     // Channel subscriptions cascade via the agentChannelTaskTable FK; historical
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
     const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
-    if (deleted) logger.info('Task deleted', { taskId, agentId })
+    if (deleted) {
+      agentSessionService.notifySourceProjectionChange()
+      logger.info('Task deleted', { taskId, agentId })
+    }
     return deleted
   }
 
@@ -242,10 +247,14 @@ export class AgentJobsService extends BaseService {
     })
 
     let deleted = 0
-    for (const schedule of schedules) {
-      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-        deleted += 1
+    try {
+      for (const schedule of schedules) {
+        if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+          deleted += 1
+        }
       }
+    } finally {
+      if (deleted > 0) agentSessionService.notifySourceProjectionChange()
     }
     if (deleted > 0) {
       logger.info('Deleted task schedules for removed agent', { agentId, deleted })

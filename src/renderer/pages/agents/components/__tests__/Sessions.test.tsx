@@ -995,13 +995,78 @@ describe('Sessions', () => {
     expect(expandedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
   })
 
-  it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
+  it('keeps agent-pin reads inactive and does not fetch channels for session decoration', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
 
     render(<SessionsForTest dataEnabled={false} />)
 
-    expect(dataApiMocks.useQuery).toHaveBeenCalledWith('/agent-channels', { enabled: false })
+    expect(dataApiMocks.useQuery).not.toHaveBeenCalledWith('/agent-channels', expect.anything())
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
+  })
+
+  it('aggregates scheduled-task and channel sessions into collapsible source groups', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'task-run-1',
+          name: 'Daily summary run 1',
+          source: { kind: 'scheduled-task', taskId: 'task-daily', taskName: 'Daily summary' }
+        }),
+        createSession({
+          id: 'task-run-2',
+          name: 'Daily summary run 2',
+          source: { kind: 'scheduled-task', taskId: 'task-daily', taskName: 'Daily summary' }
+        }),
+        createSession({
+          id: 'channel-chat-42-a',
+          name: 'Ops message A',
+          source: {
+            kind: 'channel',
+            channelId: 'channel-ops',
+            channelName: 'Ops bot',
+            channelType: 'telegram',
+            conversationId: 'chat-42'
+          }
+        }),
+        createSession({
+          id: 'channel-chat-42-b',
+          name: 'Ops message B',
+          source: {
+            kind: 'channel',
+            channelId: 'channel-ops',
+            channelName: 'Ops bot',
+            channelType: 'telegram',
+            conversationId: 'chat-42'
+          }
+        }),
+        createSession({
+          id: 'channel-chat-84',
+          name: 'Other chat message',
+          source: {
+            kind: 'channel',
+            channelId: 'channel-ops',
+            channelName: 'Ops bot',
+            channelType: 'telegram',
+            conversationId: 'chat-84'
+          }
+        })
+      ]
+    })
+
+    const view = render(<SessionsForTest />)
+
+    const taskGroup = screen.getByRole('button', { name: 'Daily summary' })
+    expect(taskGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByRole('button', { name: 'Ops bot · chat-42' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Ops bot · chat-84' })).toBeInTheDocument()
+
+    fireEvent.click(taskGroup)
+    view.rerender(<SessionsForTest key="collapsed-source-group" />)
+
+    expect(screen.queryByText('Daily summary run 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Daily summary run 2')).not.toBeInTheDocument()
+    expect(screen.getByText('Ops message A')).toBeInTheDocument()
   })
 
   it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {

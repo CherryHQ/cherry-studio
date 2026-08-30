@@ -80,6 +80,7 @@ const SESSION_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 
 export const SESSION_PINNED_GROUP_ID = 'session:pinned'
 export const SESSION_PINNED_SECTION_ID = 'session:section:pinned'
+export const SESSION_SOURCE_SECTION_ID = 'session:section:source'
 export const SESSION_AGENT_SECTION_ID = 'session:section:agent'
 export const SESSION_WORKDIR_SECTION_ID = 'session:section:workdir'
 export const SESSION_NO_PROJECT_GROUP_ID = 'session:no-project'
@@ -88,6 +89,7 @@ export const SESSION_UNKNOWN_AGENT_GROUP_ID = 'session:agent:unknown'
 export const SESSION_NO_WORKDIR_GROUP_ID = 'session:workdir:none'
 
 const SESSION_AGENT_GROUP_ID_PREFIX = 'session:agent:'
+const SESSION_SOURCE_GROUP_ID_PREFIX = 'session:source:'
 const SESSION_WORKSPACE_GROUP_ID_PREFIX = 'session:workspace:'
 const SESSION_WORKDIR_GROUP_ID_PREFIX = 'session:workdir:'
 const NO_PROJECT_GROUP_RANK = Number.MAX_SAFE_INTEGER
@@ -99,6 +101,41 @@ function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Re
 
 export function getSessionAgentGroupId(agentId: string) {
   return `${SESSION_AGENT_GROUP_ID_PREFIX}${agentId}`
+}
+
+export function getSessionSourceGroupId(session: Pick<SessionListItem, 'pinned' | 'source'>): string | undefined {
+  if (session.pinned || !session.source) return undefined
+
+  if (session.source.kind === 'scheduled-task') {
+    return `${SESSION_SOURCE_GROUP_ID_PREFIX}task:${encodeURIComponent(session.source.taskId)}`
+  }
+
+  return `${SESSION_SOURCE_GROUP_ID_PREFIX}channel:${encodeURIComponent(session.source.channelId)}:${encodeURIComponent(
+    session.source.conversationId ?? ''
+  )}`
+}
+
+export function isSessionSourceGroupId(groupId: string): boolean {
+  return groupId.startsWith(SESSION_SOURCE_GROUP_ID_PREFIX)
+}
+
+export function withSessionSourceGroups<T extends SessionListItem>(
+  fallback: ResourceListGroupResolver<T>
+): ResourceListGroupResolver<T> {
+  return (session) => {
+    const groupId = getSessionSourceGroupId(session)
+    if (!groupId || !session.source) return fallback(session)
+
+    if (session.source.kind === 'scheduled-task') {
+      return { id: groupId, label: session.source.taskName }
+    }
+
+    const channelName = session.source.channelName.trim() || session.source.channelType
+    return {
+      id: groupId,
+      label: session.source.conversationId ? `${channelName} · ${session.source.conversationId}` : channelName
+    }
+  }
 }
 
 export function getAgentIdFromSessionGroupId(groupId: string): string | undefined {
@@ -420,7 +457,12 @@ export function canDropSessionItemInDisplayGroup({
   sourceGroupId: string
   targetGroupId: string
 }) {
-  return mode !== 'time' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
+  return (
+    mode !== 'time' &&
+    sourceGroupId === targetGroupId &&
+    targetGroupId !== SESSION_PINNED_GROUP_ID &&
+    !isSessionSourceGroupId(targetGroupId)
+  )
 }
 
 export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(
