@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FilePreviewLayout } from '../FilePreviewLayout'
 import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 import { FilePreviewToolbar } from '../FilePreviewToolbar'
+import { FilePreview, __filePreviewInternal } from '../FilePreview'
 
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
@@ -44,9 +45,7 @@ vi.mock('../filePreviewRegistry', async (importOriginal) => {
     ...actual,
     filePreviewRegistry: actual.createFilePreviewRegistry({ extensionPlugins: [plugin] })
   }
-})
-
-import { FilePreview, __filePreviewInternal } from '../FilePreview'
+}))
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})

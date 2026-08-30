@@ -8,6 +8,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef, ComponentType } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FilePreview, __filePreviewInternal } from '../FilePreview'
+
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
   textPreview: vi.fn()
@@ -69,8 +71,6 @@ vi.mock('../plugins/text/textFilePreviewPlugin', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
-
-import { FilePreview, __filePreviewInternal } from '../FilePreview'
 
 afterEach(() => {
   __filePreviewInternal.resetLoadedModules()
