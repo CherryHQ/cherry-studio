@@ -17,9 +17,13 @@ import {
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
+  isGLM52Model,
   isGLM53Model,
   isGrok4FastReasoningModel,
+  isGrok46Model,
   isHostedGemma4ThinkingModel,
+  isKimiK3FastModel,
+  isKimiK3Model,
   isKimiK27CodeModel,
   isMiniMaxM3Model,
   isMiniMaxReasoningModel,
@@ -28,6 +32,7 @@ import {
   isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isQwen35to39Model,
+  isQwen38EffortModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -138,7 +143,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   // GLM-5.3 always reasons and rejects the legacy none/auto selections.
-  if (isGLM53Model(model) && (reasoningEffort === 'none' || reasoningEffort === 'auto')) {
+  if ((isGLM52Model(model) || isGLM53Model(model)) && reasoningEffort === 'auto') {
+    return {}
+  }
+  if (isGLM53Model(model) && reasoningEffort === 'none') {
     return {}
   }
 
@@ -149,9 +157,29 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // Handle 'none' reasoningEffort. It's explicitly off.
   if (reasoningEffort === 'none') {
+    if (isKimiK3FastModel(model)) {
+      return {}
+    }
+    if (isKimiK3Model(model)) {
+      if (provider.id === SystemProviderIds.openrouter) return {}
+      if (provider.id !== SystemProviderIds.dashscope) return { reasoningEffort: 'none' }
+    }
+    if (isGLM52Model(model) && provider.id === SystemProviderIds.openrouter) {
+      return {}
+    }
+    if (isQwen38EffortModel(model)) {
+      if (getLowerBaseModelName(model.id).includes('max-preview')) return {}
+      if (provider.id === SystemProviderIds.openrouter) return {}
+      return { reasoningEffort: 'none' }
+    }
+
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
-      if (isSupportNoneReasoningEffortModel(model) && reasoningEffort === 'none') {
+      const supportsNoneEffort =
+        isSupportNoneReasoningEffortModel(model) ||
+        (isSupportedReasoningEffortModel(model) &&
+          getModelSupportedReasoningEffortOptions(model)?.includes('none') === true)
+      if (supportsNoneEffort) {
         return { reasoning: { effort: 'none' } }
       }
       return { reasoning: { enabled: false, exclude: true } }
@@ -334,6 +362,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // OpenRouter models
   if (model.provider === SystemProviderIds.openrouter) {
+    if (isKimiK3Model(model)) {
+      return ['low', 'high', 'max'].includes(reasoningEffort) ? { reasoning: { effort: reasoningEffort } } : {}
+    }
+    if (isGLM52Model(model)) {
+      return ['high', 'xhigh'].includes(reasoningEffort) ? { reasoning: { effort: reasoningEffort } } : {}
+    }
     if (isDeepSeekV4PlusModel(model) || isGLM53Model(model)) {
       const effortMap = {
         minimal: 'low',
@@ -409,6 +443,34 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     }
     return {}
+  }
+
+  if (isKimiK3Model(model)) {
+    const effort = reasoningEffort === 'auto' ? 'medium' : reasoningEffort
+    if (provider.id === SystemProviderIds.dashscope) {
+      return effort === 'max' ? { reasoningEffort: 'max' } : {}
+    }
+    return ['low', 'medium', 'high', 'max'].includes(effort) ? { reasoningEffort: effort as OpenAIReasoningEffort } : {}
+  }
+
+  if (isQwen38EffortModel(model)) {
+    const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+    if (!supportedOptions?.includes(reasoningEffort)) return {}
+    if (provider.id === SystemProviderIds.openrouter) {
+      return { reasoning: { effort: reasoningEffort } }
+    }
+    return { reasoningEffort }
+  }
+
+  if (isGLM52Model(model)) {
+    if (!['high', 'max'].includes(reasoningEffort)) return {}
+    if (provider.id === SystemProviderIds.dashscope) {
+      return { reasoningEffort }
+    }
+    return {
+      thinking: { type: 'enabled' as const },
+      reasoningEffort
+    }
   }
 
   // Both DeepSeek and OpenAI-compatible SDKs accept camelCase provider options
@@ -1036,8 +1098,9 @@ export function getXAIReasoningParams(
 ): Pick<XaiResponsesProviderOptions, 'reasoningEffort'> {
   const isGrok43 =
     getLowerBaseModelName(model.id).includes('grok-4.3') && !getLowerBaseModelName(model.id).includes('non-reasoning')
+  const isGrok46 = isGrok46Model(model)
 
-  if (!isSupportedReasoningEffortGrokModel(model) && !isGrok43) {
+  if (!isSupportedReasoningEffortGrokModel(model) && !isGrok43 && !isGrok46) {
     return {}
   }
 
@@ -1050,6 +1113,18 @@ export function getXAIReasoningParams(
       case 'low':
       case 'medium':
       case 'high':
+        return { reasoningEffort }
+      default:
+        return {}
+    }
+  }
+
+  if (isGrok46) {
+    switch (reasoningEffort) {
+      case 'low':
+      case 'medium':
+      case 'high':
+      case 'xhigh':
         return { reasoningEffort }
       default:
         return {}

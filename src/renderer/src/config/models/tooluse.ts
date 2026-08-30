@@ -35,7 +35,7 @@ export const FUNCTION_CALLING_MODELS = [
   'doubao-seed-2[.-]1(?:-[\\w-]+)?',
   'doubao-seed-evolving(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
-  'kimi-k2(?:-[\\w-]+)?',
+  'kimi-k(?:2|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
   'minimax-m[23](?:\\.\\d+)?(?:-[\\w-]+)?',
@@ -44,7 +44,13 @@ export const FUNCTION_CALLING_MODELS = [
   'mimo-v2-pro',
   'mimo-v2-omni',
   'longcat-2\\.0(?:-[\\w-]+)?',
-  'glm-5v-turbo'
+  'glm-5v-turbo',
+  'lfm-2[.-]5-2[.-]6b(?:-[\\w-]+)?',
+  'muse-(?:glimmer|spark)(?:-[\\w-]+)?',
+  '(?:sakana-)?namazu(?:-[\\w-]+)?',
+  '(?:llama-3-1-)?nemotron-(?:\\d+(?:[.-]\\d+)*-)?(?:nano|super|ultra|lightning)(?:-[\\w-]+)?',
+  'solar-pro-?[2-9](?:-[\\w-]+)?',
+  'voxtral-small(?:-[\\w-]+)?'
 ] as const
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -59,7 +65,7 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'glm-4\\.5v',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?',
   'deepseek-v3.2-speciale',
   'deepseek-r1(?:[-:][\\w.-]+)?'
 ]
@@ -80,6 +86,10 @@ export function isFunctionCallingModel(model?: Model): boolean {
 
   if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
     return isUserSelectedModelType(model, 'function_calling')!
+  }
+
+  if (model.providerCapabilities?.includes('function_calling')) {
+    return true
   }
 
   if (model.provider === 'stepfun' && STEPFUN_FUNCTION_CALLING_MODELS.has(modelId)) {

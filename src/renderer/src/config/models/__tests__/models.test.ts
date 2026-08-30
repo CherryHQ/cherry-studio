@@ -56,6 +56,21 @@ describe('Built-in model catalog', () => {
     expect(SYSTEM_MODELS.zhipu.some((model) => model.id === 'glm-5.3-flash')).toBe(true)
     expect(SYSTEM_MODELS.zai.some((model) => model.id === 'glm-5.3-flash')).toBe(true)
   })
+
+  test('includes the remaining current model contracts from main', () => {
+    expect(SYSTEM_MODELS.moonshot.some((model) => model.id === 'kimi-k3')).toBe(true)
+    expect(SYSTEM_MODELS.zhipu.map((model) => model.id)).toEqual(expect.arrayContaining(['glm-5.2', 'glm-5.2-fast']))
+    expect(SYSTEM_MODELS.zai.map((model) => model.id)).toEqual(expect.arrayContaining(['glm-5.2', 'glm-5.2-fast']))
+    expect(SYSTEM_MODELS.dashscope.map((model) => model.id)).toEqual(
+      expect.arrayContaining(['qwen-image-3.0', 'qwen-image-3.0-pro'])
+    )
+    expect(SYSTEM_MODELS.dashscope.map((model) => model.id)).toEqual(
+      expect.arrayContaining(['qwen3.8-max', 'qwen3.8-max-preview'])
+    )
+    expect(SYSTEM_MODELS.gemini.some((model) => model.id === 'gemini-3.1-flash-image')).toBe(true)
+    expect(SYSTEM_MODELS.gemini.some((model) => model.id === 'gemini-3.7-flash')).toBe(true)
+    expect(SYSTEM_MODELS.grok.some((model) => model.id === 'grok-4.6')).toBe(true)
+  })
 })
 
 // Suggested test cases

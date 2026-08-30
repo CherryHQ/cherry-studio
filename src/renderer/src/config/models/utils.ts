@@ -21,6 +21,11 @@ import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './visio
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
 
+export function isGemini31FlashImageModel(model?: Model): boolean {
+  if (!model) return false
+  return getLowerBaseModelName(model.id, '/') === 'gemini-3.1-flash-image'
+}
+
 export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
   const modelWithNameAsId = { ...model, id: model.name }
   return {
@@ -335,7 +340,7 @@ export const isGemini3Model = (model: Model) => {
 // major version, including 3.x aliases
 export const isGemini3ThinkingTokenModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return isGemini3Model(model) && !modelId.includes('image')
+  return isGemini3Model(model) && (!modelId.includes('image') || isGemini31FlashImageModel(model))
 }
 
 /**

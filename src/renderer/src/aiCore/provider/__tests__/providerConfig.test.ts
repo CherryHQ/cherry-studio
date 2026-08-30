@@ -672,6 +672,24 @@ describe('providerToAiSdkConfig', () => {
     })
   })
 
+  describe('DashScope builder', () => {
+    it('routes the system provider through the native extension', async () => {
+      const provider = makeProvider({
+        id: 'dashscope',
+        type: 'openai',
+        apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+      })
+
+      const config = (await providerToAiSdkConfig(
+        provider,
+        makeModel('qwen-image-3.0', 'dashscope')
+      )) as ProviderConfig<'dashscope'>
+
+      expect(config.providerId).toBe('dashscope')
+      expect(config.providerSettings.baseURL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
+    })
+  })
+
   describe('Azure builder', () => {
     it('uses deployment-based URLs for date-format apiVersion', async () => {
       const provider = makeProvider({

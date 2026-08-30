@@ -6,6 +6,7 @@ import type { Provider } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetFromApi = vi.fn()
+const mockPostJsonToApi = vi.fn()
 const mockCopilotGetToken = vi.fn()
 const mockVertexGetAuthHeaders = vi.fn()
 const mockToastError = vi.fn()
@@ -31,6 +32,7 @@ vi.mock('@ai-sdk/provider-utils', () => ({
   createJsonResponseHandler: vi.fn(() => 'json-handler'),
   createJsonErrorResponseHandler: vi.fn(() => 'error-handler'),
   getFromApi: (...args: unknown[]) => mockGetFromApi(...args),
+  postJsonToApi: (...args: unknown[]) => mockPostJsonToApi(...args),
   zodSchema: vi.fn((s: unknown) => s)
 }))
 
@@ -66,8 +68,8 @@ vi.mock('@renderer/store', () => ({
   }
 }))
 
-const { listModels } = await import('../listModels')
-const { OllamaTagsResponseSchema } = await import('../schemas')
+const { listModels, probeOllamaModel } = await import('../listModels')
+const { OllamaShowResponseSchema, OllamaTagsResponseSchema } = await import('../schemas')
 
 // === Real API response fixtures (captured 2026-03-19) ===
 
@@ -397,12 +399,14 @@ const COPILOT_MODELS_RESPONSE = {
 
 beforeEach(() => {
   mockGetFromApi.mockReset()
+  mockPostJsonToApi.mockReset()
   mockCopilotGetToken.mockReset()
   mockVertexGetAuthHeaders.mockReset()
   mockToastError.mockReset()
   mockStoreState = createMockStoreState()
   mockCopilotGetToken.mockResolvedValue({ token: 'copilot-dynamic-token' })
   mockVertexGetAuthHeaders.mockResolvedValue({ Authorization: 'Bearer vertex-token' })
+  mockPostJsonToApi.mockResolvedValue({ value: {} })
   vi.stubGlobal('window', {
     ...globalThis.window,
     keyv: { get: vi.fn(), set: vi.fn() },
@@ -851,6 +855,28 @@ describe('listModels', () => {
   })
 
   describe('Ollama', () => {
+    it('probes model availability through /api/show', async () => {
+      mockPostJsonToApi.mockResolvedValue({ value: { model_info: {} } })
+      const provider = makeProvider({
+        id: 'ollama',
+        type: 'ollama',
+        apiHost: 'http://localhost:11434/v1',
+        apiKey: 'ollama-key'
+      })
+      const controller = new AbortController()
+
+      await probeOllamaModel(provider, 'qwen3:8b', controller.signal)
+
+      expect(mockPostJsonToApi).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: 'http://localhost:11434/api/show',
+          body: { model: 'qwen3:8b' },
+          abortSignal: controller.signal,
+          headers: expect.objectContaining({ Authorization: 'Bearer ollama-key' })
+        })
+      )
+    })
+
     it('should accept null families in Ollama tags schema', () => {
       const parsed = OllamaTagsResponseSchema.parse({
         models: [
@@ -870,6 +896,20 @@ describe('listModels', () => {
       })
 
       expect(parsed.models[0].details?.families).toBeUndefined()
+    })
+
+    it('accepts native capabilities', () => {
+      expect(
+        OllamaTagsResponseSchema.parse({ models: [{ name: 'acme-thinker:latest', capabilities: ['thinking'] }] })
+          .models[0].capabilities
+      ).toEqual(['thinking'])
+      expect(
+        OllamaShowResponseSchema.parse({
+          capabilities: ['completion', 'vision', 'tools', 'thinking', 'embedding']
+        })
+      ).toMatchObject({
+        capabilities: ['completion', 'vision', 'tools', 'thinking', 'embedding']
+      })
     })
 
     it('should accept null families in real Ollama tag responses', async () => {
@@ -903,6 +943,39 @@ describe('listModels', () => {
       const models = await listModels(makeProvider({ id: 'ollama', type: 'ollama', apiHost: 'http://localhost:11434' }))
       assertValidModels(models)
       expect(models.map((m) => m.id)).toEqual(['glm-5:cloud', 'qwen3.5:9b'])
+    })
+
+    it('materializes native capabilities', async () => {
+      mockGetFromApi.mockResolvedValue({
+        value: { models: [{ name: 'acme-thinker:latest', capabilities: ['completion', 'thinking'] }] }
+      })
+      mockPostJsonToApi.mockResolvedValue({
+        value: {
+          capabilities: ['completion', 'vision', 'tools', 'thinking', 'embedding']
+        }
+      })
+
+      const [model] = await listModels(
+        makeProvider({ id: 'ollama', type: 'ollama', apiHost: 'http://localhost:11434' })
+      )
+
+      expect(model).toMatchObject({
+        id: 'acme-thinker:latest',
+        providerCapabilities: ['vision', 'function_calling', 'reasoning', 'embedding']
+      })
+      expect(mockPostJsonToApi.mock.calls[0][0]).toMatchObject({
+        url: 'http://localhost:11434/api/show',
+        body: { model: 'acme-thinker:latest' }
+      })
+    })
+
+    it('keeps listing a model when Ollama cannot inspect its capabilities', async () => {
+      mockGetFromApi.mockResolvedValue({ value: { models: [{ name: 'acme:latest' }] } })
+      mockPostJsonToApi.mockRejectedValue(new Error('connection refused'))
+
+      const models = await listModels(makeProvider({ id: 'ollama', type: 'ollama', apiHost: 'http://localhost:11434' }))
+
+      expect(models).toHaveLength(1)
     })
   })
 

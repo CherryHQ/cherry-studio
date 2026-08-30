@@ -4,13 +4,19 @@ import { loggerService } from '@logger'
 import {
   isDeepSeekModel,
   isGemini3Model,
+  isGeminiModel,
   isQwen35to39Model,
   isSupportedThinkingTokenQwenModel
 } from '@renderer/config/models'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
-import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
+import {
+  isGeminiProvider,
+  isOllamaProvider,
+  isSupportEnableThinkingProvider,
+  isVertexProvider
+} from '@renderer/utils/provider'
 
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
 import { getReasoningTagName } from '../utils/reasoning'
@@ -25,6 +31,7 @@ import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createSimulateStreamingPlugin } from './simulateStreamingPlugin'
 import { createSkipGeminiThoughtSignaturePlugin } from './skipGeminiThoughtSignaturePlugin'
 import { createTelemetryPlugin } from './telemetryPlugin'
+import { createToolSchemaCompatibilityPlugin } from './toolSchemaCompatibilityPlugin'
 
 const logger = loggerService.withContext('PluginBuilder')
 
@@ -57,6 +64,14 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     )
   }
 
+  plugins.push(
+    createToolSchemaCompatibilityPlugin({
+      dropUntypedArrays:
+        isGeminiModel(model) &&
+        (model.endpoint_type === 'gemini' || isGeminiProvider(provider) || isVertexProvider(provider))
+    })
+  )
+
   // === PDF Compatibility ===
   // Must run before other plugins (e.g., Anthropic cache token estimation)
   // so that PDF FileParts are converted to TextParts for unsupported providers.
@@ -71,7 +86,12 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
 
   // 0.1 Reasoning extraction for OpenAI/Azure providers
   const providerType = provider.type
-  if (providerType === 'openai' || providerType === 'azure-openai' || model.endpoint_type === 'openai') {
+  if (
+    providerType === 'openai' ||
+    providerType === 'azure-openai' ||
+    model.endpoint_type === 'openai' ||
+    isOllamaProvider(provider)
+  ) {
     const tagName = getReasoningTagName(model.id.toLowerCase())
     plugins.push(createReasoningExtractionPlugin({ tagName }))
   }

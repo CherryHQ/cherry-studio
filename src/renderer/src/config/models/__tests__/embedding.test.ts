@@ -68,6 +68,10 @@ describe('isEmbeddingModel', () => {
     expect(isEmbeddingModel(model)).toBe(false)
   })
 
+  it('honors provider-discovered embedding capability', () => {
+    expect(isEmbeddingModel(createModel({ id: 'local-custom', providerCapabilities: ['embedding'] }))).toBe(true)
+  })
+
   it('uses the model name when provider is doubao', () => {
     const model = createModel({
       id: 'custom-id',

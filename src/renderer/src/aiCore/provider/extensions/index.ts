@@ -26,6 +26,7 @@ import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
+import { createDashScope, type DashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscope-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
 
 /**
@@ -174,6 +175,12 @@ export const OllamaExtension = ProviderExtension.create({
   create: (options?: OllamaProviderSettings) => createOllama(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
+export const DashScopeExtension = ProviderExtension.create({
+  name: 'dashscope',
+  supportsImageGeneration: true,
+  create: createDashScope
+} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, DashScopeProvider, 'dashscope'>)
+
 /**
  * AiHubMix Extension - multi-backend gateway (claude->anthropic, gemini->google, gpt->openai-responses)
  */
@@ -227,6 +234,7 @@ export const extensions = [
   GatewayExtension,
   CerebrasExtension,
   OllamaExtension,
+  DashScopeExtension,
   AiHubMixExtension,
   NewApiExtension,
   VoyageExtension,

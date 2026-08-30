@@ -103,7 +103,8 @@ const AzureExtension = ProviderExtension.create({
         createAnthropic({
           baseURL: (settings?.baseURL ?? '') + '/anthropic/v1',
           apiKey: settings?.apiKey ?? '',
-          headers: settings?.headers
+          headers: settings?.headers,
+          fetch: settings?.fetch
         }),
       toolFactories: {
         webSearch:

@@ -1,4 +1,4 @@
-import type { Model } from '@renderer/types'
+import { type Model, SystemProviderIds } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isEmbeddingModel, isRerankModel } from '../embedding'
@@ -16,10 +16,13 @@ import {
   isDoubaoThinkingAutoModel,
   isFixedReasoningModel,
   isGeminiReasoningModel,
+  isGLM52Model,
   isGLM53Model,
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
   isInterleavedThinkingModel,
+  isKimiK3FastModel,
+  isKimiK3Model,
   isKimiK27CodeModel,
   isKimiReasoningModel,
   isLingReasoningModel,
@@ -44,7 +47,7 @@ import {
   MODEL_SUPPORTED_OPTIONS,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '../reasoning'
-import { isGemini3ThinkingTokenModel } from '../utils'
+import { isGemini3ThinkingTokenModel, isGemini31FlashImageModel } from '../utils'
 import { isTextToImageModel } from '../vision'
 
 vi.mock('@renderer/store', () => ({
@@ -595,7 +598,39 @@ describe('GLM-5.3 Models', () => {
   })
 })
 
+describe('GLM-5.2 Models', () => {
+  it('recognizes official and provider-prefixed IDs without matching adjacent releases', () => {
+    expect(isGLM52Model(createModel({ id: 'glm-5.2' }))).toBe(true)
+    expect(isGLM52Model(createModel({ id: 'glm-5-2-fast' }))).toBe(true)
+    expect(isGLM52Model(createModel({ id: 'z-ai/glm-5.2:free' }))).toBe(true)
+    expect(isGLM52Model(createModel({ id: 'glm-5.3-flash' }))).toBe(false)
+  })
+
+  it('exposes provider-specific reasoning vocabularies', () => {
+    expect(
+      getModelSupportedReasoningEffortOptions(createModel({ id: 'glm-5.2', provider: SystemProviderIds.zhipu }))
+    ).toEqual(['default', 'none', 'high', 'max'])
+    expect(
+      getModelSupportedReasoningEffortOptions(
+        createModel({ id: 'z-ai/glm-5.2:free', provider: SystemProviderIds.openrouter })
+      )
+    ).toEqual(['default', 'high', 'xhigh'])
+    expect(
+      getModelSupportedReasoningEffortOptions(createModel({ id: 'glm-5.2', provider: SystemProviderIds.dashscope }))
+    ).toEqual(['default', 'none', 'high', 'max'])
+  })
+})
+
 describe('Qwen & Gemini thinking coverage', () => {
+  it('uses Nano Banana 2 reasoning levels from the current Gemini contract', () => {
+    const model = createModel({ id: 'gemini-3.1-flash-image', provider: 'gemini' })
+
+    expect(isGemini31FlashImageModel(model)).toBe(true)
+    expect(isSupportedThinkingTokenGeminiModel(model)).toBe(true)
+    expect(isGemini3ThinkingTokenModel(model)).toBe(true)
+    expect(getModelSupportedReasoningEffortOptions(model)).toEqual(['default', 'minimal', 'high'])
+  })
+
   it.each([
     'qwen-plus',
     'qwen-plus-2025-07-14',
@@ -776,6 +811,17 @@ describe('isReasoningModel', () => {
     expect(isReasoningModel(disabled)).toBe(false)
   })
 
+  it('uses provider-declared reasoning unless the user disables it', () => {
+    const discovered = createModel({ providerCapabilities: ['reasoning'] })
+    expect(isReasoningModel(discovered)).toBe(true)
+
+    const disabled = createModel({
+      providerCapabilities: ['reasoning'],
+      capabilities: [{ type: 'reasoning', isUserSelected: false }]
+    })
+    expect(isReasoningModel(disabled)).toBe(false)
+  })
+
   it('handles doubao-specific and generic matches', () => {
     const doubao = createModel({
       id: 'doubao-seed-1-6-thinking',
@@ -814,6 +860,68 @@ describe('isReasoningModel', () => {
 
   it('should return true for grok-build-0.1', () => {
     expect(isReasoningModel(createModel({ id: 'grok-build-0.1' }))).toBe(true)
+  })
+
+  it.each([
+    'llama-3-1-nemotron-nano-8b-v1',
+    'nemotron-3-5-lightning',
+    'nemotron-3-super-120b-a12b',
+    'nemotron-3-ultra-550b-a55b',
+    'muse-glimmer-30b',
+    'solar-pro2',
+    'solar-pro-3',
+    'solar-pro4'
+  ])('recognizes provider-registry reasoning family %s', (id) => {
+    expect(isReasoningModel(createModel({ id }))).toBe(true)
+  })
+
+  it.each(['nemotron-3-5-content-safety', 'muse-embed-30b', 'solar-mini'])(
+    'does not widen reasoning detection to %s',
+    (id) => {
+      expect(isReasoningModel(createModel({ id }))).toBe(false)
+    }
+  )
+
+  it.each([
+    ['solar-pro2', ['default', 'minimal', 'high']],
+    ['solar-pro3', ['default', 'low', 'medium', 'high']],
+    ['solar-pro4', ['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']]
+  ])('uses the curated reasoning vocabulary for %s', (id, expected) => {
+    expect(getModelSupportedReasoningEffortOptions(createModel({ id }))).toEqual(expected)
+    expect(isSupportedReasoningEffortOpenAIModel(createModel({ id }))).toBe(false)
+  })
+
+  it.each([
+    ['gemini-3.7-flash', undefined, ['default', 'low', 'medium', 'high']],
+    ['grok-4.6', undefined, ['default', 'low', 'medium', 'high', 'xhigh']],
+    ['qwen3.8-2.4t-a95b', undefined, ['default', 'low', 'medium', 'xhigh']],
+    ['qwen3.8-27b', undefined, ['default', 'none', 'low', 'medium', 'xhigh']],
+    ['qwen/qwen3.8-27b', 'openrouter', ['default', 'low', 'medium', 'xhigh']],
+    ['qwen3.8-flash', undefined, ['default', 'none', 'auto']],
+    ['qwen3.8-max', 'dashscope', ['default', 'none', 'low', 'medium', 'xhigh']],
+    ['qwen3.8-max-preview', 'dashscope', ['default', 'low', 'medium', 'xhigh']],
+    ['qwen/qwen3.8-max', 'openrouter', ['default', 'minimal', 'low', 'medium', 'high', 'xhigh']],
+    ['meta/muse-glimmer-30b', 'openrouter', ['default', 'low', 'medium', 'high', 'xhigh']],
+    ['meta/muse-spark-1.2', 'openrouter', ['default', 'minimal', 'low', 'medium', 'high', 'xhigh']],
+    ['sakana/sakana-namazu', 'openrouter', ['default', 'none', 'high']],
+    ['~z-ai/glm-latest', 'openrouter', ['default', 'low', 'high', 'max']]
+  ])('uses the current provider contract for %s on %s', (id, provider, expected) => {
+    expect(getModelSupportedReasoningEffortOptions(createModel({ id, provider }))).toEqual(expected)
+  })
+
+  it.each([
+    ['qwen/qwen3.8-flash', 'openrouter'],
+    ['qwen3.8-max-preview', 'gateway'],
+    ['liquid/lfm-2.5-2.6b:free', 'openrouter'],
+    ['meta/muse-spark-1.2', 'gateway'],
+    ['sakana/namazu', 'gateway'],
+    ['glm-latest', 'zhipu'],
+    ['meta/muse-glimmer-30b', 'nvidia']
+  ])('keeps fixed-reasoning contract for %s on %s', (id, provider) => {
+    const model = createModel({ id, provider })
+    expect(isReasoningModel(model)).toBe(true)
+    expect(getModelSupportedReasoningEffortOptions(model)).toBeUndefined()
+    expect(isFixedReasoningModel(model)).toBe(true)
   })
 
   it('excludes non-fixed reasoning models from isFixedReasoningModel', () => {
@@ -3090,6 +3198,37 @@ describe('Kimi Models', () => {
       expect(options).toEqual(['default', 'auto'])
       expect(options).not.toContain('none')
     })
+  })
+})
+
+describe('Kimi K3 reasoning controls', () => {
+  it('distinguishes the standard and always-thinking fast variants', () => {
+    expect(isKimiK3Model(createModel({ id: 'kimi-k3' }))).toBe(true)
+    expect(isKimiK3Model(createModel({ id: 'moonshotai/kimi-k3-fast' }))).toBe(true)
+    expect(isKimiK3FastModel(createModel({ id: 'kimi-k3-fast' }))).toBe(true)
+    expect(isKimiK3FastModel(createModel({ id: 'kimi-k3' }))).toBe(false)
+  })
+
+  it('exposes the contract for each served provider', () => {
+    expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'kimi-k3', provider: 'moonshot' }))).toEqual([
+      'default',
+      'none',
+      'low',
+      'high',
+      'max'
+    ])
+    expect(
+      getModelSupportedReasoningEffortOptions(createModel({ id: 'moonshotai/kimi-k3', provider: 'openrouter' }))
+    ).toEqual(['default', 'low', 'high', 'max'])
+    expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'kimi/kimi-k3', provider: 'dashscope' }))).toEqual(
+      ['default', 'none', 'max']
+    )
+    expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'kimi-k3-fast', provider: 'gateway' }))).toEqual([
+      'default',
+      'low',
+      'high',
+      'max'
+    ])
   })
 })
 

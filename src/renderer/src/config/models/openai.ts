@@ -133,15 +133,16 @@ export function isOpenAIChatCompletionOnlyModel(model?: Model): boolean {
 
 export function isOpenAIReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
+  return isSupportedReasoningEffortOpenAIModel(model) || /(?:^|[-_.])o1(?:$|[-_.])/.test(modelId)
 }
 
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
+  const isO1 = /(?:^|[-_.])o1(?:$|[-_.])/.test(modelId)
+  const isO3OrO4 = /(?:^|[-_.])o[34](?:$|[-_.])/.test(modelId)
   return (
-    (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
-    modelId.includes('o3') ||
-    modelId.includes('o4') ||
+    (isO1 && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
+    isO3OrO4 ||
     modelId.includes('gpt-oss') ||
     (isGPT5FamilyModel(model) && !modelId.includes('chat'))
   )

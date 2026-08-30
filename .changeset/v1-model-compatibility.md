@@ -2,4 +2,4 @@
 '@cherrystudio/ai-core': patch
 ---
 
-Align DeepSeek V4 and GLM-5.3-Flash vision and reasoning requests with their model contracts.
+Backport current model compatibility to v1: align provider-specific reasoning and multimodal contracts, add current image-model routing, preserve tools across compatible schemas, and discover native Ollama capabilities.
