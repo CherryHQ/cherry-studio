@@ -501,7 +501,6 @@
       "@ai-sdk/xai@3.0.83": "patches/@ai-sdk__xai@3.0.83.patch",
       "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch",
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
-      "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch",
       "@cherrystudio/embedjs-loader-web@0.1.31": "patches/@cherrystudio__embedjs-loader-web@0.1.31.patch"
     },
     "onlyBuiltDependencies": [
