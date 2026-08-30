@@ -195,6 +195,7 @@ interface NormalizedFilePreviewTarget {
 type FilePreviewResolution =
   | { requestKey: string; status: 'directory' }
   | { requestKey: string; status: 'loading' }
+  | { requestKey: string; status: 'load_error' }
   | { requestKey: string; status: 'unavailable' }
   | {
       file: NormalizedFilePreviewTarget
@@ -251,10 +252,19 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
             })()
           : null
 
-        const [metadata, candidateModule] = await Promise.all([
+        // Race metadata with the candidate plugin chunk load. Use Promise.allSettled
+        // so a plugin chunk failure does not swallow the metadata result; the original
+        // behavior surfaced plugin load failures through the ErrorBoundary (load_error),
+        // not as an unavailable preview.
+        const [metadataResult, candidateResult] = await Promise.allSettled([
           ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath)),
           candidateLoad
         ])
+        const metadata = metadataResult.status === 'fulfilled' ? metadataResult.value : null
+        const candidateModule =
+          candidateResult && candidateResult.status === 'fulfilled' ? candidateResult.value : null
+        const candidateLoadError =
+          candidateResult && candidateResult.status === 'rejected' ? candidateResult.reason : null
 
         // Load text plugin in parallel if needed (runs independently).
         if (needsTextFallback) {
@@ -262,7 +272,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
         }
         if (cancelled) return
 
-        if (!metadata) {
+        if (metadataResult.status === 'rejected' || !metadata) {
           setResolution({ requestKey, status: 'unavailable' })
           return
         }
@@ -275,16 +285,33 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
         // Accept/reject the candidate plugin based on metadata exactly as before.
         let plugin: FilePreviewPlugin | null = candidatePlugin
         let pluginModule = candidateModule
+        let pluginLoadError: unknown = candidateLoadError
         if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
           const isText = metadata.type === 'text'
 
           if (!plugin && isText) {
             plugin = textFilePreviewPlugin
-            pluginModule = await textPluginLoad
+            const textResult = await Promise.allSettled([textPluginLoad])
+            if (textResult[0].status === 'fulfilled') {
+              pluginModule = textResult[0].value
+              pluginLoadError = null
+            } else {
+              pluginModule = null
+              pluginLoadError = textResult[0].reason
+            }
           } else if (plugin && !isText) {
             plugin = null
             pluginModule = null
+            pluginLoadError = null
           }
+        }
+
+        // A plugin load failure produces a load_error state, mirroring the previous
+        // ErrorBoundary fallback so existing tests still observe load_error.title.
+        if (plugin && pluginLoadError) {
+          logger.error(`Failed to load file preview plugin: ${plugin.id}`, pluginLoadError)
+          setResolution({ requestKey, status: 'load_error' })
+          return
         }
 
         // Pre-create a render-bound element factory so we never invoke lazy()
@@ -312,6 +339,8 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     preview = <FilePreviewLoading />
   } else if (resolution.status === 'directory') {
     preview = <FilePreviewState kind="directory" />
+  } else if (resolution.status === 'load_error') {
+    preview = <FilePreviewState kind="load_error" />
   } else if (resolution.status === 'unavailable') {
     preview = <FilePreviewState kind="unavailable" />
   } else if (resolution.plugin && resolution.pluginComponent) {
